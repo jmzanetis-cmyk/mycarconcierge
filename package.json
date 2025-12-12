@@ -1,0 +1,82 @@
+{
+  "name": "my-car-concierge",
+  "version": "1.0.0",
+  "description": "My Car Concierge - Automotive Service Marketplace",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "electron": "electron .",
+    "electron:dev": "electron .",
+    "build:www": "mkdir -p www && cp -r *.html *.png manifest.json pwa-init.js sw.js supabaseclient.js icons www/",
+    "cap:sync": "npx cap sync",
+    "cap:android": "npx cap open android",
+    "cap:ios": "npx cap open ios",
+    "build:mac": "npm run build:www && electron-builder --mac",
+    "build:win": "npm run build:www && electron-builder --win",
+    "build:linux": "npm run build:www && electron-builder --linux",
+    "build:all": "npm run build:www && electron-builder --mac --win --linux"
+  },
+  "keywords": [
+    "automotive",
+    "service",
+    "marketplace",
+    "pwa",
+    "electron",
+    "capacitor"
+  ],
+  "author": "My Car Concierge",
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/ios": "^7.4.4",
+    "netlify-cli": "^23.12.3"
+  },
+  "devDependencies": {
+    "electron": "^39.2.6",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "co.mycarconcierge.app",
+    "productName": "My Car Concierge",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "www/**/*",
+      "electron/**/*",
+      "icons/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.lifestyle",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "icons/icon-512.png"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "icons/icon-512.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "icon": "icons"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

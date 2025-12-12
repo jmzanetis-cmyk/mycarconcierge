@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Create Account – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.9);
+      --bg-input: rgba(22, 22, 34, 0.9);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-blue: #4a7cff;
+      --accent-green: #4ac88c;
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-medium: rgba(148, 148, 168, 0.2);
+      --border-focus: rgba(74, 124, 255, 0.5);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(74, 124, 255, 0.05), transparent 50%);
+    }
+
+    .signup-container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .signup-brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 40px;
+      text-decoration: none;
+    }
+
+    .brand-icon {
+      height: 120px;
+      width: auto;
+      border-radius: var(--radius-md);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-name {
+      font-family: 'Playfair Display', serif;
+      font-weight: 600;
+      font-size: 1.3rem;
+      color: var(--text-primary);
+    }
+
+    .brand-tagline {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .signup-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 40px 36px;
+      backdrop-filter: blur(10px);
+    }
+
+    .signup-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .signup-header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .signup-header p {
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--text-secondary);
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: all 0.15s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(74, 124, 255, 0.1);
+    }
+
+    .form-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .form-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px 24px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-gold), #c49a45);
+      color: #0a0a0f;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .signup-message {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 0.88rem;
+      text-align: center;
+      display: none;
+    }
+
+    .signup-message.show {
+      display: block;
+    }
+
+    .signup-message.error {
+      background: rgba(239, 95, 95, 0.1);
+      border: 1px solid rgba(239, 95, 95, 0.3);
+      color: #ef5f5f;
+    }
+
+    .signup-message.success {
+      background: rgba(74, 200, 140, 0.1);
+      border: 1px solid rgba(74, 200, 140, 0.3);
+      color: #4ac88c;
+    }
+
+    .signup-message.info {
+      background: rgba(74, 124, 255, 0.1);
+      border: 1px solid rgba(74, 124, 255, 0.3);
+      color: var(--accent-blue);
+    }
+
+    .signup-footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    .signup-footer a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .signup-footer a:hover {
+      color: var(--text-primary);
+    }
+
+    .benefits {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 28px;
+      padding: 20px;
+      background: var(--bg-input);
+      border-radius: var(--radius-md);
+    }
+
+    .benefit {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+    }
+
+    .benefit-icon {
+      width: 24px;
+      height: 24px;
+      background: rgba(74, 200, 140, 0.15);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-green);
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(10, 10, 15, 0.3);
+      border-top-color: #0a0a0f;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 520px) {
+      .signup-card {
+        padding: 32px 24px;
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+  <script src="/i18n.js"></script>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+
+  <div class="signup-container">
+    <a href="index.html" class="signup-brand">
+      <img src="logo.png" alt="My Car Concierge" class="brand-icon">
+    </a>
+    <div id="language-switcher" style="display:flex;justify-content:center;margin-bottom:16px;"></div>
+
+    <div class="signup-card">
+      <div class="signup-header">
+        <h1 data-i18n="auth.createAccount">Create your account</h1>
+        <p>Join thousands of drivers enjoying concierge car care</p>
+      </div>
+
+      <div class="benefits">
+        <div class="benefit">
+          <span class="benefit-icon">✓</span>
+          <span>Manage all your vehicles in one place</span>
+        </div>
+        <div class="benefit">
+          <span class="benefit-icon">✓</span>
+          <span>Get bids from vetted service providers</span>
+        </div>
+        <div class="benefit">
+          <span class="benefit-icon">✓</span>
+          <span>Track service history & maintenance</span>
+        </div>
+      </div>
+
+      <form id="signup-form">
+        <div class="form-group">
+          <label class="form-label" for="name" data-i18n="auth.fullName">Full name</label>
+          <input 
+            type="text" 
+            id="name" 
+            class="form-input" 
+            placeholder="John Doe"
+            data-i18n="auth.fullNamePlaceholder"
+            data-i18n-attr="placeholder"
+            required
+            autocomplete="name"
+          >
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="email" data-i18n="auth.email">Email address</label>
+            <input 
+              type="email" 
+              id="email" 
+              class="form-input" 
+              placeholder="you@example.com"
+              data-i18n="auth.emailPlaceholder"
+              data-i18n-attr="placeholder"
+              required
+              autocomplete="email"
+            >
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="phone" data-i18n="auth.phone">Phone (optional)</label>
+            <input 
+              type="tel" 
+              id="phone" 
+              class="form-input" 
+              placeholder="(555) 123-4567"
+              data-i18n="auth.phonePlaceholder"
+              data-i18n-attr="placeholder"
+              autocomplete="tel"
+            >
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="password" data-i18n="auth.password">Password</label>
+            <input 
+              type="password" 
+              id="password" 
+              class="form-input" 
+              placeholder="••••••••"
+              data-i18n="auth.passwordPlaceholder"
+              data-i18n-attr="placeholder"
+              required
+              minlength="6"
+              autocomplete="new-password"
+            >
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="password-confirm" data-i18n="auth.confirmPassword">Confirm password</label>
+            <input 
+              type="password" 
+              id="password-confirm" 
+              class="form-input" 
+              placeholder="••••••••"
+              data-i18n="auth.confirmPasswordPlaceholder"
+              data-i18n-attr="placeholder"
+              required
+              minlength="6"
+              autocomplete="new-password"
+            >
+          </div>
+        </div>
+        <p class="form-hint">Password must be at least 6 characters.</p>
+
+        <button type="submit" class="btn btn-primary" id="submit-btn" data-i18n="auth.createAccount">
+          Create Account
+        </button>
+      </form>
+
+      <div class="signup-message" id="message"></div>
+
+      <div class="signup-footer">
+        <span data-i18n="auth.hasAccount">Already have an account?</span> <a href="login.html" data-i18n="common.signIn">Sign in</a>
+      </div>
+
+      <div style="margin-top:20px;text-align:center;font-size:0.75rem;color:var(--text-muted);">
+        © 2025 My Car Concierge. All rights reserved. - IMOR
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js"></script>
+  <script>
+    const form = document.getElementById('signup-form');
+    const messageEl = document.getElementById('message');
+    const submitBtn = document.getElementById('submit-btn');
+
+    // DEBUG: Show Supabase URL on page load
+    window.addEventListener('load', () => {
+      const debugDiv = document.createElement('div');
+      debugDiv.id = 'debug-panel';
+      debugDiv.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1a1a2e;border-top:2px solid #4a7cff;padding:16px;font-family:monospace;font-size:12px;color:#fff;max-height:200px;overflow-y:auto;z-index:9999;';
+      debugDiv.innerHTML = '<strong>DEBUG PANEL</strong><br>Supabase URL: ' + (typeof supabaseClient !== 'undefined' ? supabaseClient.supabaseUrl : 'NOT LOADED');
+      document.body.appendChild(debugDiv);
+    });
+
+    function debugLog(msg) {
+      const panel = document.getElementById('debug-panel');
+      if (panel) {
+        panel.innerHTML += '<br>' + new Date().toLocaleTimeString() + ': ' + msg;
+        panel.scrollTop = panel.scrollHeight;
+      }
+    }
+
+    function showMessage(text, type = 'info') {
+      messageEl.textContent = text;
+      messageEl.className = `signup-message show ${type}`;
+      debugLog('MESSAGE: ' + text + ' (' + type + ')');
+    }
+
+    function setLoading(loading) {
+      if (loading) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span>Creating account...';
+      } else {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'Create Account';
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+      const password = document.getElementById('password').value;
+      const passwordConfirm = document.getElementById('password-confirm').value;
+
+      debugLog('Form submitted - Email: ' + email);
+
+      if (!name || !email || !password) {
+        showMessage('Please fill in all required fields', 'error');
+        return;
+      }
+
+      if (password !== passwordConfirm) {
+        showMessage('Passwords do not match', 'error');
+        return;
+      }
+
+      if (password.length < 6) {
+        showMessage('Password must be at least 6 characters', 'error');
+        return;
+      }
+
+      setLoading(true);
+      showMessage('Creating your account...', 'info');
+
+      try {
+        debugLog('Calling supabaseClient.auth.signUp...');
+        const { data, error } = await supabaseClient.auth.signUp({ 
+          email, 
+          password 
+        });
+
+        debugLog('SignUp response - Error: ' + (error ? error.message : 'none') + ', User: ' + (data?.user?.id || 'none'));
+
+        if (error) {
+          showMessage(error.message, 'error');
+          setLoading(false);
+          return;
+        }
+
+        // Create profile
+        if (data.user) {
+          debugLog('Creating profile for user: ' + data.user.id);
+          const { error: profileError } = await supabaseClient.from('profiles').insert({
+            id: data.user.id,
+            email: email,
+            role: 'member',
+            full_name: name,
+            phone: phone || null
+          });
+          
+          if (profileError) {
+            debugLog('Profile error: ' + profileError.message);
+          } else {
+            debugLog('Profile created successfully');
+          }
+        }
+
+        showMessage('Account created! Check your email to confirm, then log in.', 'success');
+        
+        setTimeout(() => {
+          window.location.href = 'login.html';
+        }, 2500);
+
+      } catch (err) {
+        debugLog('CATCH ERROR: ' + err.message);
+        showMessage('An unexpected error occurred: ' + err.message, 'error');
+        setLoading(false);
+      }
+    });
+  </script>
+  <script src="/pwa-init.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      await I18n.init();
+      I18n.createLanguageSwitcher('language-switcher');
+    });
+  </script>
+</body>
+</html>

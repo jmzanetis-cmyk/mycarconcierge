@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Privacy Policy – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Privacy Policy for My Car Concierge marketplace platform." />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.85);
+      --bg-elevated: rgba(28, 28, 42, 0.9);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-gold-soft: rgba(212, 168, 85, 0.15);
+      --accent-blue: #4a7cff;
+      --accent-blue-soft: rgba(74, 124, 255, 0.12);
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-medium: rgba(148, 148, 168, 0.2);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-xl: 32px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(74, 124, 255, 0.05), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(74, 124, 255, 0.03), transparent 60%);
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    .container {
+      position: relative;
+      z-index: 2;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    header {
+      padding: 24px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    header .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      text-decoration: none;
+    }
+
+    .brand-icon {
+      height: 120px;
+      width: auto;
+      border-radius: var(--radius-md);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    nav a {
+      padding: 10px 18px;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s ease;
+    }
+
+    nav a:hover {
+      color: var(--text-primary);
+      background: var(--bg-elevated);
+    }
+
+    nav .btn-login {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .privacy-content {
+      padding: 60px 0 100px;
+    }
+
+    .privacy-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .privacy-header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .privacy-header h1 .highlight {
+      background: linear-gradient(135deg, var(--accent-gold) 0%, #f0c76d 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .last-updated {
+      display: inline-block;
+      padding: 8px 16px;
+      background: var(--accent-blue-soft);
+      border: 1px solid rgba(74, 124, 255, 0.2);
+      border-radius: 100px;
+      font-size: 0.85rem;
+      color: var(--accent-blue);
+    }
+
+    .privacy-body {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 48px;
+    }
+
+    .intro-box {
+      background: var(--accent-gold-soft);
+      border: 1px solid rgba(212, 168, 85, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 40px;
+    }
+
+    .intro-box p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.7;
+      margin: 0;
+    }
+
+    .privacy-section {
+      margin-bottom: 40px;
+    }
+
+    .privacy-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .privacy-section h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .privacy-section h2 .section-number {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      background: var(--accent-blue-soft);
+      border-radius: 50%;
+      text-align: center;
+      line-height: 32px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--accent-blue);
+      margin-right: 12px;
+    }
+
+    .privacy-section h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 20px 0 12px 0;
+    }
+
+    .privacy-section p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.75;
+      margin-bottom: 16px;
+    }
+
+    .privacy-section p:last-child {
+      margin-bottom: 0;
+    }
+
+    .privacy-section ul {
+      list-style: none;
+      padding: 0;
+      margin: 16px 0;
+    }
+
+    .privacy-section li {
+      padding: 10px 0;
+      padding-left: 28px;
+      position: relative;
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .privacy-section li:last-child {
+      border-bottom: none;
+    }
+
+    .privacy-section li::before {
+      content: '•';
+      position: absolute;
+      left: 8px;
+      color: var(--accent-gold);
+      font-weight: bold;
+    }
+
+    .privacy-section strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .rights-box {
+      background: var(--accent-blue-soft);
+      border: 1px solid rgba(74, 124, 255, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin: 20px 0;
+    }
+
+    .rights-box h4 {
+      color: var(--accent-blue);
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .rights-box ul {
+      margin: 0;
+    }
+
+    .rights-box li {
+      border-color: rgba(74, 124, 255, 0.2);
+    }
+
+    .rights-box li::before {
+      content: '✓';
+      color: var(--accent-blue);
+    }
+
+    .highlight-box {
+      background: rgba(74, 200, 140, 0.08);
+      border: 1px solid rgba(74, 200, 140, 0.2);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    .highlight-box p {
+      color: #4ac88c;
+      font-weight: 500;
+      margin: 0;
+    }
+
+    .warning-box {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    .warning-box p {
+      color: #f59e0b;
+      font-weight: 500;
+      margin: 0;
+    }
+
+    .contact-info {
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-top: 16px;
+    }
+
+    .contact-info p {
+      margin-bottom: 8px;
+    }
+
+    .contact-info a {
+      color: var(--accent-blue);
+      text-decoration: none;
+    }
+
+    .contact-info a:hover {
+      text-decoration: underline;
+    }
+
+    footer {
+      border-top: 1px solid var(--border-subtle);
+      padding: 48px 0;
+    }
+
+    footer .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 24px;
+      max-width: 1200px;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .footer-brand .brand-icon {
+      width: 60px;
+      height: 60px;
+      font-size: 16px;
+    }
+
+    .footer-brand span {
+      font-family: 'Playfair Display', serif;
+      font-weight: 500;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 32px;
+    }
+
+    .footer-links a {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--text-primary);
+    }
+
+    .footer-copy {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 768px) {
+      header .container {
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      nav {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .privacy-body {
+        padding: 32px 24px;
+      }
+
+      .privacy-section h2 {
+        font-size: 1.2rem;
+      }
+
+      footer .container {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .footer-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+  <div class="noise"></div>
+
+  <header>
+    <div class="container">
+      <a href="index.html" class="brand">
+        <img src="logo.png" alt="My Car Concierge" class="brand-icon">
+      </a>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="login.html" class="btn-login">Log In</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="privacy-content">
+    <div class="container">
+      <div class="privacy-header">
+        <h1>Privacy <span class="highlight">Policy</span></h1>
+        <div class="last-updated">Last Updated: December 7, 2025</div>
+      </div>
+
+      <div class="privacy-body">
+        <div class="intro-box">
+          <p>My Car Concierge ("MCC", "we", "us", or "our") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform, website, and mobile applications (collectively, the "Service"). Please read this policy carefully. By using our Service, you consent to the practices described in this Privacy Policy.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">1</span>Introduction</h2>
+          <p>My Car Concierge operates as a marketplace platform connecting vehicle owners ("Members") with independent automotive service providers ("Providers"). We understand the importance of your personal information and are dedicated to protecting your privacy while providing you with an exceptional service experience.</p>
+          <p>This Privacy Policy applies to all users of our Service, including Members, Providers, and visitors to our website. We encourage you to read this policy in full to understand how we handle your data.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">2</span>Information We Collect</h2>
+          <p>We collect various types of information to provide and improve our Service:</p>
+          
+          <h3>Personal Information</h3>
+          <ul>
+            <li><strong>Account Information:</strong> Name, email address, phone number, and password when you create an account</li>
+            <li><strong>Profile Information:</strong> Profile photo, address, and preferences you choose to provide</li>
+            <li><strong>Identity Verification:</strong> Government-issued ID, business licenses, and certifications (for Providers)</li>
+            <li><strong>Communication Data:</strong> Messages exchanged between Members and Providers through our platform</li>
+          </ul>
+
+          <h3>Vehicle Information</h3>
+          <ul>
+            <li><strong>Vehicle Details:</strong> Make, model, year, VIN, license plate number, and mileage</li>
+            <li><strong>Service History:</strong> Records of services requested and completed through our platform</li>
+            <li><strong>Vehicle Photos:</strong> Images uploaded to document vehicle condition or service needs</li>
+            <li><strong>Maintenance Records:</strong> Documentation and notes related to vehicle care</li>
+          </ul>
+
+          <h3>Payment Information</h3>
+          <ul>
+            <li><strong>Billing Details:</strong> Credit/debit card information, billing address, and payment history</li>
+            <li><strong>Transaction Records:</strong> Details of payments made and received through the platform</li>
+            <li><strong>Financial Account Info:</strong> Bank account details for Provider payouts (processed securely via Stripe)</li>
+          </ul>
+          <p><strong>Note:</strong> Payment information is processed and stored by our third-party payment processor, Stripe. We do not store complete credit card numbers on our servers.</p>
+
+          <h3>Usage Data</h3>
+          <ul>
+            <li><strong>Device Information:</strong> Device type, operating system, browser type, and unique device identifiers</li>
+            <li><strong>Log Data:</strong> IP address, access times, pages viewed, and actions taken on our platform</li>
+            <li><strong>Location Data:</strong> General location based on IP address; precise location if you enable location services</li>
+            <li><strong>Cookies and Tracking:</strong> Information collected through cookies, pixels, and similar technologies</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">3</span>How We Use Your Information</h2>
+          <p>We use the information we collect for the following purposes:</p>
+          <ul>
+            <li><strong>Provide Services:</strong> To facilitate connections between Members and Providers, process transactions, and deliver our core platform functionality</li>
+            <li><strong>Account Management:</strong> To create and maintain your account, verify your identity, and authenticate your access</li>
+            <li><strong>Communication:</strong> To send service updates, respond to inquiries, and facilitate communication between users</li>
+            <li><strong>Payment Processing:</strong> To process payments, manage billing, and handle refunds or disputes</li>
+            <li><strong>Platform Improvement:</strong> To analyze usage patterns, troubleshoot issues, and enhance our Service</li>
+            <li><strong>Safety and Security:</strong> To detect and prevent fraud, abuse, and unauthorized access</li>
+            <li><strong>Legal Compliance:</strong> To comply with applicable laws, regulations, and legal processes</li>
+            <li><strong>Marketing:</strong> To send promotional communications (with your consent where required)</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">4</span>Information Sharing</h2>
+          <p>We share your information in the following circumstances:</p>
+
+          <h3>With Service Providers</h3>
+          <ul>
+            <li><strong>Member-Provider Sharing:</strong> When you create a service request, relevant information is shared with Providers who may bid on your request</li>
+            <li><strong>Provider-Member Sharing:</strong> Provider business information, ratings, and reviews are visible to Members</li>
+            <li><strong>Contact Information:</strong> Once a bid is accepted, contact details are shared to facilitate service completion</li>
+          </ul>
+
+          <h3>With Payment Processors</h3>
+          <ul>
+            <li><strong>Stripe:</strong> Payment information is shared with Stripe to process transactions securely</li>
+            <li><strong>Financial Institutions:</strong> Information necessary to complete transfers to Provider bank accounts</li>
+          </ul>
+
+          <h3>With Third-Party Service Providers</h3>
+          <ul>
+            <li><strong>Cloud Hosting:</strong> Data storage and processing services</li>
+            <li><strong>Analytics:</strong> Services that help us understand platform usage</li>
+            <li><strong>Customer Support:</strong> Tools that help us respond to user inquiries</li>
+            <li><strong>Email Services:</strong> Platforms used to send transactional and promotional emails</li>
+          </ul>
+
+          <h3>Legal and Safety</h3>
+          <ul>
+            <li>When required by law, regulation, or legal process</li>
+            <li>To protect the rights, safety, or property of MCC, our users, or others</li>
+            <li>In connection with a merger, acquisition, or sale of assets</li>
+          </ul>
+
+          <div class="highlight-box">
+            <p>We do NOT sell your personal information to third parties for their marketing purposes.</p>
+          </div>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">5</span>Data Security</h2>
+          <p>We implement robust security measures to protect your information:</p>
+          <ul>
+            <li><strong>Encryption:</strong> Data is encrypted in transit using TLS/SSL and at rest using industry-standard encryption</li>
+            <li><strong>Access Controls:</strong> Strict access controls limit who can access your personal information</li>
+            <li><strong>Secure Infrastructure:</strong> Our platform is hosted on secure, enterprise-grade cloud infrastructure</li>
+            <li><strong>Regular Audits:</strong> We conduct regular security assessments and vulnerability testing</li>
+            <li><strong>Employee Training:</strong> Our team receives training on data protection best practices</li>
+          </ul>
+          <p>While we strive to protect your information, no method of transmission over the internet or electronic storage is 100% secure. We cannot guarantee absolute security, but we continuously work to improve our security measures.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">6</span>Cookies and Tracking</h2>
+          <p>We use cookies and similar tracking technologies to enhance your experience:</p>
+          
+          <h3>Types of Cookies We Use</h3>
+          <ul>
+            <li><strong>Essential Cookies:</strong> Required for the platform to function properly (authentication, security)</li>
+            <li><strong>Performance Cookies:</strong> Help us understand how users interact with our platform</li>
+            <li><strong>Functional Cookies:</strong> Remember your preferences and settings</li>
+            <li><strong>Marketing Cookies:</strong> Used to deliver relevant advertisements (with your consent)</li>
+          </ul>
+
+          <h3>Managing Cookies</h3>
+          <p>You can control cookies through your browser settings. However, disabling certain cookies may limit your ability to use some features of our Service. Most browsers allow you to:</p>
+          <ul>
+            <li>View and delete cookies</li>
+            <li>Block third-party cookies</li>
+            <li>Block all cookies</li>
+            <li>Clear all cookies when you close your browser</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">7</span>Your Rights</h2>
+          <p>We respect your rights regarding your personal data. Depending on your location, you may have the following rights:</p>
+
+          <div class="rights-box">
+            <h4>Your Privacy Rights (GDPR & CCPA)</h4>
+            <ul>
+              <li><strong>Right to Access:</strong> Request a copy of the personal information we hold about you</li>
+              <li><strong>Right to Rectification:</strong> Request correction of inaccurate or incomplete information</li>
+              <li><strong>Right to Deletion:</strong> Request deletion of your personal information (subject to legal obligations)</li>
+              <li><strong>Right to Data Portability:</strong> Receive your data in a structured, commonly used format</li>
+              <li><strong>Right to Opt Out:</strong> Opt out of marketing communications and certain data processing</li>
+              <li><strong>Right to Restrict Processing:</strong> Limit how we use your information in certain circumstances</li>
+              <li><strong>Right to Object:</strong> Object to processing based on legitimate interests</li>
+            </ul>
+          </div>
+
+          <h3>For California Residents (CCPA/CPRA)</h3>
+          <p>If you are a California resident, you have additional rights under the California Consumer Privacy Act (CCPA) and California Privacy Rights Act (CPRA):</p>
+          <ul>
+            <li><strong>Right to Know:</strong> Request disclosure of categories and specific pieces of personal information collected</li>
+            <li><strong>Right to Delete:</strong> Request deletion of personal information collected from you</li>
+            <li><strong>Right to Opt-Out of Sale:</strong> We do not sell personal information, but you can request confirmation</li>
+            <li><strong>Right to Non-Discrimination:</strong> We will not discriminate against you for exercising your privacy rights</li>
+            <li><strong>Right to Correct:</strong> Request correction of inaccurate personal information</li>
+            <li><strong>Right to Limit Use of Sensitive Information:</strong> Limit the use of sensitive personal information</li>
+          </ul>
+
+          <h3>For European Residents (GDPR)</h3>
+          <p>If you are located in the European Economic Area (EEA), United Kingdom, or Switzerland, you have rights under the General Data Protection Regulation (GDPR):</p>
+          <ul>
+            <li>All rights listed above apply to you</li>
+            <li>You may lodge a complaint with your local data protection authority</li>
+            <li>We process your data based on consent, contract performance, legal obligations, or legitimate interests</li>
+          </ul>
+
+          <h3>Exercising Your Rights</h3>
+          <p>To exercise any of these rights, please contact us at <a href="mailto:privacy@mycarconcierge.co" style="color:var(--accent-blue);">privacy@mycarconcierge.co</a>. We will respond to your request within 30 days (or as required by applicable law). We may need to verify your identity before processing your request.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">8</span>Data Retention</h2>
+          <p>We retain your information for as long as necessary to fulfill the purposes outlined in this Privacy Policy:</p>
+          <ul>
+            <li><strong>Active Accounts:</strong> Data is retained while your account remains active</li>
+            <li><strong>Closed Accounts:</strong> We retain certain information for up to 7 years after account closure for legal, tax, and audit purposes</li>
+            <li><strong>Transaction Records:</strong> Payment and transaction records are retained as required by financial regulations</li>
+            <li><strong>Communication Logs:</strong> Retained for dispute resolution and safety purposes</li>
+            <li><strong>Anonymized Data:</strong> Aggregated, anonymized data may be retained indefinitely for analytics</li>
+          </ul>
+          <p>Upon request for deletion, we will remove or anonymize your personal information, unless retention is required by law or for legitimate business purposes.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">9</span>Children's Privacy</h2>
+          <div class="warning-box">
+            <p>Our Service is intended for users who are 18 years of age or older. We do not knowingly collect personal information from children under 18.</p>
+          </div>
+          <p>By using our Service, you represent that you are at least 18 years old. If we learn that we have collected personal information from a child under 18 without parental consent, we will take steps to delete that information promptly.</p>
+          <p>If you believe a child under 18 has provided us with personal information, please contact us immediately at <a href="mailto:privacy@mycarconcierge.co" style="color:var(--accent-blue);">privacy@mycarconcierge.co</a>.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">10</span>Changes to This Policy</h2>
+          <p>We may update this Privacy Policy from time to time to reflect changes in our practices, technology, legal requirements, or other factors. When we make changes:</p>
+          <ul>
+            <li>We will update the "Last Updated" date at the top of this policy</li>
+            <li>For significant changes, we will provide notice through email or a prominent notice on our platform</li>
+            <li>Your continued use of the Service after changes indicates your acceptance of the updated policy</li>
+          </ul>
+          <p>We encourage you to review this Privacy Policy periodically to stay informed about how we protect your information.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">11</span>Contact Information</h2>
+          <p>If you have questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:</p>
+          <div class="contact-info">
+            <p><strong>My Car Concierge - Privacy Team</strong></p>
+            <p>Email: <a href="mailto:privacy@mycarconcierge.co">privacy@mycarconcierge.co</a></p>
+            <p>General Inquiries: <a href="mailto:support@mycarconcierge.co">support@mycarconcierge.co</a></p>
+            <p>Website: <a href="https://mycarconcierge.co">mycarconcierge.co</a></p>
+          </div>
+          <p style="margin-top: 20px;">For data protection inquiries in the European Union, you may also contact your local data protection authority.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <div class="footer-brand">
+        <img src="logo.png" alt="My Car Concierge" class="brand-icon">
+        <span>My Car Concierge</span>
+      </div>
+      <div class="footer-links">
+        <a href="terms.html">Terms of Service</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="index.html">Home</a>
+      </div>
+      <div class="footer-copy">
+        © 2025 My Car Concierge. All rights reserved. - IMOR
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

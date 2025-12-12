@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Provider Agreement – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Provider Agreement for My Car Concierge marketplace platform." />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.85);
+      --bg-elevated: rgba(28, 28, 42, 0.9);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-gold-soft: rgba(212, 168, 85, 0.15);
+      --accent-blue: #4a7cff;
+      --accent-blue-soft: rgba(74, 124, 255, 0.12);
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-medium: rgba(148, 148, 168, 0.2);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-xl: 32px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(74, 124, 255, 0.05), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(74, 124, 255, 0.03), transparent 60%);
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    .container {
+      position: relative;
+      z-index: 2;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    header {
+      padding: 24px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    header .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      text-decoration: none;
+    }
+
+    .brand-icon {
+      height: 120px;
+      width: auto;
+      border-radius: var(--radius-md);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    nav a {
+      padding: 10px 18px;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s ease;
+    }
+
+    nav a:hover {
+      color: var(--text-primary);
+      background: var(--bg-elevated);
+    }
+
+    nav .btn-login {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .agreement-content {
+      padding: 60px 0 100px;
+    }
+
+    .agreement-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .agreement-header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .agreement-header h1 .highlight {
+      background: linear-gradient(135deg, var(--accent-gold) 0%, #f0c76d 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .last-updated {
+      display: inline-block;
+      padding: 8px 16px;
+      background: var(--accent-blue-soft);
+      border: 1px solid rgba(74, 124, 255, 0.2);
+      border-radius: 100px;
+      font-size: 0.85rem;
+      color: var(--accent-blue);
+    }
+
+    .agreement-body {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 48px;
+    }
+
+    .disclaimer-box {
+      background: var(--accent-gold-soft);
+      border: 1px solid rgba(212, 168, 85, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 40px;
+    }
+
+    .disclaimer-box h3 {
+      color: var(--accent-gold);
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .disclaimer-box ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .disclaimer-box li {
+      padding: 8px 0;
+      padding-left: 24px;
+      position: relative;
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+    }
+
+    .disclaimer-box li::before {
+      content: '⚠';
+      position: absolute;
+      left: 0;
+      color: var(--accent-gold);
+    }
+
+    .agreement-section {
+      margin-bottom: 40px;
+    }
+
+    .agreement-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .agreement-section h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .agreement-section h2 .section-number {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      background: var(--accent-blue-soft);
+      border-radius: 50%;
+      text-align: center;
+      line-height: 32px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--accent-blue);
+      margin-right: 12px;
+    }
+
+    .agreement-section p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.75;
+      margin-bottom: 16px;
+    }
+
+    .agreement-section p:last-child {
+      margin-bottom: 0;
+    }
+
+    .agreement-section ul {
+      list-style: none;
+      padding: 0;
+      margin: 16px 0;
+    }
+
+    .agreement-section li {
+      padding: 10px 0;
+      padding-left: 28px;
+      position: relative;
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .agreement-section li:last-child {
+      border-bottom: none;
+    }
+
+    .agreement-section li::before {
+      content: '•';
+      position: absolute;
+      left: 8px;
+      color: var(--accent-gold);
+      font-weight: bold;
+    }
+
+    .agreement-section strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .highlight-box {
+      background: rgba(239, 95, 95, 0.08);
+      border: 1px solid rgba(239, 95, 95, 0.2);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    .highlight-box p {
+      color: #ef5f5f;
+      font-weight: 500;
+      margin: 0;
+    }
+
+    .info-box {
+      background: var(--accent-blue-soft);
+      border: 1px solid rgba(74, 124, 255, 0.3);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    .info-box p {
+      color: var(--accent-blue);
+      font-weight: 500;
+      margin: 0;
+    }
+
+    .warning-box {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    .warning-box p {
+      color: #f59e0b;
+      font-weight: 500;
+      margin: 0;
+    }
+
+    .contact-info {
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-top: 16px;
+    }
+
+    .contact-info p {
+      margin-bottom: 8px;
+    }
+
+    .contact-info a {
+      color: var(--accent-blue);
+      text-decoration: none;
+    }
+
+    .contact-info a:hover {
+      text-decoration: underline;
+    }
+
+    footer {
+      border-top: 1px solid var(--border-subtle);
+      padding: 48px 0;
+    }
+
+    footer .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 24px;
+      max-width: 1200px;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .footer-brand .brand-icon {
+      width: 60px;
+      height: 60px;
+      font-size: 16px;
+    }
+
+    .footer-brand span {
+      font-family: 'Playfair Display', serif;
+      font-weight: 500;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 32px;
+    }
+
+    .footer-links a {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--text-primary);
+    }
+
+    .footer-copy {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 768px) {
+      header .container {
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      nav {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .agreement-body {
+        padding: 32px 24px;
+      }
+
+      .agreement-section h2 {
+        font-size: 1.2rem;
+      }
+
+      footer .container {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .footer-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+  <div class="noise"></div>
+
+  <header>
+    <div class="container">
+      <a href="index.html" class="brand">
+        <img src="logo.png" alt="My Car Concierge" class="brand-icon">
+      </a>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="login.html" class="btn-login">Log In</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="agreement-content">
+    <div class="container">
+      <div class="agreement-header">
+        <h1>Provider <span class="highlight">Agreement</span></h1>
+        <div class="last-updated">Last Updated: December 7, 2025</div>
+      </div>
+
+      <div class="agreement-body">
+        <div class="disclaimer-box">
+          <h3>⚠️ Key Points for Providers</h3>
+          <ul>
+            <li>You are an INDEPENDENT CONTRACTOR, not an employee of My Car Concierge</li>
+            <li>You are solely responsible for the quality of your work and services</li>
+            <li>MCC does NOT guarantee work outcomes or mediate service disputes</li>
+            <li>Bid credits are NON-REFUNDABLE once purchased</li>
+            <li>You must maintain proper licensing and insurance at all times</li>
+            <li>Low ratings (below 4 stars with 3+ reviews) may result in account suspension</li>
+          </ul>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">1</span>Introduction</h2>
+          <p>This Provider Agreement ("Agreement") is a legally binding contract between you ("Provider", "you", or "your") and My Car Concierge, LLC ("MCC", "we", "us", or "our"). By registering as a Provider on the MCC platform, you acknowledge that you have read, understood, and agree to be bound by this Agreement.</p>
+          <p>MCC operates a marketplace platform that connects vehicle owners ("Members") with independent automotive service providers. As a Provider, you will have the opportunity to bid on service requests posted by Members and, if selected, perform automotive services directly for those Members.</p>
+          <p><strong>This Agreement governs your relationship with MCC as an independent contractor using our platform.</strong> Your relationship with Members is separate and governed by the terms you agree upon with each Member for specific services.</p>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">2</span>Provider Eligibility</h2>
+          <p>To register and maintain a Provider account on MCC, you must meet and continuously maintain the following requirements:</p>
+          <ul>
+            <li><strong>Age Requirement:</strong> You must be at least 18 years of age</li>
+            <li><strong>Business Authorization:</strong> You must be legally authorized to operate a business in your jurisdiction</li>
+            <li><strong>Professional Licensing:</strong> You must hold all licenses, certifications, and permits required by applicable federal, state, and local laws for the services you offer (e.g., automotive repair license, emissions testing certification, etc.)</li>
+            <li><strong>Insurance Coverage:</strong> You must maintain general liability insurance with minimum coverage of $1,000,000 per occurrence and provide proof of coverage upon request</li>
+            <li><strong>Vehicle Insurance:</strong> If providing mobile services, you must maintain commercial auto insurance</li>
+            <li><strong>Background Check:</strong> You may be required to pass a background check at MCC's discretion</li>
+            <li><strong>Accurate Information:</strong> All information provided in your application must be accurate, current, and complete</li>
+          </ul>
+          <div class="highlight-box">
+            <p>Failure to maintain these eligibility requirements at any time may result in immediate suspension or termination of your Provider account.</p>
+          </div>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">3</span>Independent Contractor Status</h2>
+          <div class="highlight-box">
+            <p><strong>YOU ARE AN INDEPENDENT CONTRACTOR, NOT AN EMPLOYEE.</strong> Nothing in this Agreement creates an employment, agency, partnership, or joint venture relationship between you and MCC.</p>
+          </div>
+          <p>As an independent contractor:</p>
+          <ul>
+            <li>You have complete control over when, where, and how you perform services</li>
+            <li>You are free to accept or reject any bid opportunity on the platform</li>
+            <li>You may work for competing platforms and maintain other business relationships</li>
+            <li>You are solely responsible for paying all applicable taxes, including self-employment tax, income tax, and any other taxes required by law</li>
+            <li>You are responsible for providing your own tools, equipment, and supplies</li>
+            <li>You are not entitled to any employee benefits from MCC, including health insurance, retirement plans, workers' compensation, or paid time off</li>
+            <li>You must comply with all applicable laws regarding independent contractor status</li>
+          </ul>
+          <p>MCC does not control the manner or method by which you perform your services. MCC's role is limited to providing the technology platform that connects you with Members.</p>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">4</span>Services and Standards</h2>
+          <p><strong>You are solely responsible for the quality, safety, and legality of all services you provide through the MCC platform.</strong> You agree to:</p>
+          <ul>
+            <li>Perform all services in a professional, workmanlike manner consistent with industry standards</li>
+            <li>Complete all accepted jobs as described in your bid and agreed upon with the Member</li>
+            <li>Use only quality parts and materials appropriate for the service being performed</li>
+            <li>Accurately represent your qualifications, experience, and capabilities in your profile</li>
+            <li>Only bid on services you are qualified and legally permitted to perform</li>
+            <li>Communicate promptly and professionally with Members regarding scheduling, progress, and any issues</li>
+            <li>Arrive on time for scheduled appointments or provide advance notice if delays occur</li>
+            <li>Leave the work area clean and dispose of all waste materials properly</li>
+            <li>Provide warranties on your work as required by law or as agreed with the Member</li>
+          </ul>
+          <div class="info-box">
+            <p>MCC does NOT inspect, verify, or guarantee the quality of your work. Members rely on your professional reputation and the ratings/reviews system.</p>
+          </div>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">5</span>Bid Credits and Bidding</h2>
+          <p>The MCC platform uses a Bid Credit system for Providers to submit bids on Member service requests.</p>
+          <ul>
+            <li><strong>Purchasing Bid Credits:</strong> Bid Credits are purchased in packages through the platform. Pricing is displayed at the time of purchase.</li>
+            <li><strong>Using Bid Credits:</strong> Each bid you submit on a service request consumes one or more Bid Credits, depending on the service category.</li>
+            <li><strong>Bid Submission:</strong> When you submit a bid, you are making a binding offer to perform the described services at the quoted price.</li>
+            <li><strong>Member Selection:</strong> Members review bids and select a Provider at their discretion. MCC does not influence or guarantee Member selection.</li>
+          </ul>
+          <div class="highlight-box">
+            <p><strong>BID CREDITS ARE NON-REFUNDABLE.</strong> Once purchased, Bid Credits cannot be refunded, exchanged for cash, or transferred to another account, regardless of whether your bids are accepted by Members.</p>
+          </div>
+          <ul>
+            <li>Bid Credits do not expire as long as your account remains active and in good standing</li>
+            <li>If your account is terminated for any reason, all unused Bid Credits are forfeited</li>
+            <li>MCC reserves the right to modify Bid Credit pricing with 30 days notice to existing Providers</li>
+          </ul>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">6</span>Payment Terms</h2>
+          <p>All payments on the MCC platform are processed through Stripe, our third-party payment processor. By using the platform, you agree to Stripe's terms of service.</p>
+          <ul>
+            <li><strong>Job Pricing:</strong> You set your own prices when submitting bids. MCC does not set or control your pricing.</li>
+            <li><strong>Platform Fee:</strong> MCC charges a platform fee on completed jobs, which is deducted from your payment. The current platform fee is disclosed in your Provider dashboard and during the bidding process.</li>
+            <li><strong>Payment Hold:</strong> When a Member accepts your bid, the payment is held in escrow until the job is completed.</li>
+            <li><strong>Payment Release:</strong> Funds are released to your connected Stripe account after the Member confirms job completion or after the applicable review period (typically 48 hours after marking the job complete).</li>
+            <li><strong>Payout Timing:</strong> Once released, funds are transferred to your bank account according to Stripe's standard payout schedule (typically 2-3 business days).</li>
+            <li><strong>Stripe Account:</strong> You must connect a valid Stripe account to receive payments. You are responsible for keeping your Stripe account in good standing.</li>
+          </ul>
+          <div class="warning-box">
+            <p>You are solely responsible for all taxes on income earned through the platform. MCC will provide applicable tax forms (e.g., 1099) as required by law.</p>
+          </div>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">7</span>Ratings and Reviews</h2>
+          <p>The MCC platform includes a ratings and reviews system that allows Members to rate Providers after completed services. This system is essential to maintaining platform quality and Member trust.</p>
+          <ul>
+            <li><strong>Rating Scale:</strong> Members rate Providers on a 1-5 star scale after each completed job</li>
+            <li><strong>Public Display:</strong> Your average rating and reviews are displayed publicly on your Provider profile</li>
+            <li><strong>Response Option:</strong> You may respond professionally to reviews through the platform</li>
+          </ul>
+          <div class="highlight-box">
+            <p><strong>SUSPENSION POLICY:</strong> Providers who maintain an average rating below 4.0 stars after receiving 3 or more reviews may have their account suspended. Repeated low ratings may result in permanent termination.</p>
+          </div>
+          <p>Suspension due to low ratings may be appealed by contacting MCC support. Reinstatement is at MCC's sole discretion and may require completion of additional training or verification.</p>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">8</span>Provider Conduct</h2>
+          <p>As a Provider on the MCC platform, you agree to conduct yourself professionally at all times. You must:</p>
+          <ul>
+            <li>Treat all Members, MCC staff, and other Providers with respect and courtesy</li>
+            <li>Communicate professionally through the platform and in person</li>
+            <li>Never use threatening, harassing, discriminatory, or abusive language or behavior</li>
+            <li>Not solicit Members to conduct transactions outside of the MCC platform</li>
+            <li>Not offer or accept cash payments or other off-platform payments for jobs initiated on MCC</li>
+            <li>Maintain appropriate professional appearance when meeting with Members</li>
+            <li>Never misrepresent your identity, qualifications, or the nature of services provided</li>
+            <li>Protect Member privacy and not share their personal information with third parties</li>
+            <li>Report any safety concerns or suspicious activity to MCC immediately</li>
+          </ul>
+          <p>Violations of this conduct policy may result in warnings, suspension, or permanent termination of your account at MCC's sole discretion.</p>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">9</span>Insurance and Liability</h2>
+          <p><strong>You are solely responsible for maintaining adequate insurance coverage for your business operations.</strong></p>
+          <ul>
+            <li>You must maintain general liability insurance with minimum coverage of $1,000,000 per occurrence</li>
+            <li>You must maintain professional liability/errors & omissions insurance if applicable to your services</li>
+            <li>You must maintain workers' compensation insurance if you have employees</li>
+            <li>You must provide proof of insurance upon request by MCC</li>
+            <li>Your insurance must name MCC as an additional insured upon request</li>
+          </ul>
+          <div class="highlight-box">
+            <p><strong>MCC IS NOT LIABLE</strong> for any damages, injuries, claims, or losses arising from services you provide. You are solely responsible for any and all claims related to your work, including property damage, personal injury, and defective workmanship.</p>
+          </div>
+          <p>You understand and agree that MCC does not provide any insurance coverage for your services. Any claims arising from your services are your sole responsibility.</p>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">10</span>Indemnification</h2>
+          <p><strong>You agree to indemnify, defend, and hold harmless MCC</strong>, its officers, directors, employees, agents, affiliates, and successors from and against any and all claims, damages, losses, liabilities, costs, and expenses (including reasonable attorneys' fees) arising from or related to:</p>
+          <ul>
+            <li>Your provision of services to Members</li>
+            <li>Any breach of this Agreement by you</li>
+            <li>Your violation of any law, regulation, or third-party right</li>
+            <li>Any claim that you are an employee of MCC rather than an independent contractor</li>
+            <li>Any tax liability, penalty, or interest resulting from your failure to pay required taxes</li>
+            <li>Any claims by your employees or subcontractors</li>
+            <li>Any property damage or personal injury caused by your services</li>
+            <li>Any warranty claims or claims of defective workmanship</li>
+          </ul>
+          <p>This indemnification obligation survives the termination of this Agreement.</p>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">11</span>Termination</h2>
+          <p>This Agreement may be terminated as follows:</p>
+          <ul>
+            <li><strong>By You:</strong> You may terminate this Agreement at any time by deactivating your Provider account through the platform</li>
+            <li><strong>By MCC Without Cause:</strong> MCC may terminate this Agreement at any time, with or without cause, with or without notice</li>
+            <li><strong>By MCC For Cause:</strong> MCC may immediately terminate this Agreement for cause, including but not limited to: violation of this Agreement, fraudulent activity, illegal conduct, low ratings, failure to maintain eligibility requirements, or any conduct that damages MCC's reputation or platform</li>
+          </ul>
+          <p>Upon termination:</p>
+          <ul>
+            <li>Your access to the Provider platform will be immediately revoked</li>
+            <li>All unused Bid Credits will be forfeited</li>
+            <li>Pending payments for completed jobs will be processed according to standard timelines</li>
+            <li>You must complete any in-progress jobs or make arrangements acceptable to the affected Members</li>
+            <li>Your obligations under the indemnification and confidentiality sections survive termination</li>
+          </ul>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">12</span>Dispute Resolution</h2>
+          <p><strong>Disputes regarding services are between you and the Member.</strong> MCC is not a party to any service agreement between Providers and Members.</p>
+          <ul>
+            <li>You and the Member should first attempt to resolve any disputes directly</li>
+            <li>MCC may provide mediation assistance at its discretion but is not obligated to do so</li>
+            <li>MCC is not liable for any disputes, claims, damages, or losses arising from services you provide</li>
+            <li>MCC may withhold payment pending resolution of disputes at its sole discretion</li>
+          </ul>
+          <div class="info-box">
+            <p>MCC encourages professional resolution of disputes. Providers who frequently have unresolved disputes may be subject to account review and potential suspension.</p>
+          </div>
+          <p>For disputes between you and MCC regarding this Agreement or the platform, you agree to first attempt resolution through MCC's support channels. If unresolved, disputes will be settled by binding arbitration in accordance with the American Arbitration Association rules.</p>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">13</span>Modifications to Agreement</h2>
+          <p>MCC reserves the right to modify this Agreement at any time. Changes will be communicated to you via:</p>
+          <ul>
+            <li>Email notification to your registered email address</li>
+            <li>In-app notification through the Provider dashboard</li>
+            <li>Posting the updated Agreement on the platform</li>
+          </ul>
+          <p>Material changes will be provided with at least 30 days notice before taking effect. Your continued use of the platform after the effective date of any changes constitutes your acceptance of the modified Agreement.</p>
+          <p>If you do not agree to any modifications, you must discontinue use of the platform and deactivate your account before the changes take effect.</p>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">14</span>Governing Law</h2>
+          <p>This Agreement shall be governed by and construed in accordance with the laws of the State of Florida, United States, without regard to its conflict of law provisions.</p>
+          <p>Any disputes arising from this Agreement or your use of the platform shall be resolved through binding arbitration administered by the American Arbitration Association in accordance with its Commercial Arbitration Rules. The arbitration shall take place in Miami, Florida, unless otherwise agreed by the parties.</p>
+          <p>You waive any right to participate in class action lawsuits or class-wide arbitration against MCC. If any provision of this Agreement is found to be unenforceable, the remaining provisions will continue in full force and effect.</p>
+        </div>
+
+        <div class="agreement-section">
+          <h2><span class="section-number">15</span>Contact Information</h2>
+          <p>If you have any questions about this Provider Agreement, please contact us:</p>
+          <div class="contact-info">
+            <p><strong>My Car Concierge, LLC</strong></p>
+            <p>Email: <a href="mailto:providers@mycarconcierge.co">providers@mycarconcierge.co</a></p>
+            <p>Legal: <a href="mailto:legal@mycarconcierge.co">legal@mycarconcierge.co</a></p>
+            <p>Website: <a href="https://mycarconcierge.co">mycarconcierge.co</a></p>
+          </div>
+          <p style="margin-top: 20px;">By registering as a Provider on the MCC platform, you acknowledge that you have read this Agreement in its entirety, understand its terms, and agree to be bound by it.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <div class="footer-brand">
+        <img src="logo.png" alt="My Car Concierge" class="brand-icon">
+        <span>My Car Concierge</span>
+      </div>
+      <div class="footer-links">
+        <a href="terms.html">Terms of Service</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="provider-agreement.html">Provider Agreement</a>
+      </div>
+      <div class="footer-copy">
+        © 2025 My Car Concierge. All rights reserved.
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

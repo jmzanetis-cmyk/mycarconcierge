@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Provider Application – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.9);
+      --bg-elevated: rgba(28, 28, 42, 0.95);
+      --bg-input: rgba(22, 22, 34, 0.9);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-gold-soft: rgba(212, 168, 85, 0.15);
+      --accent-blue: #4a7cff;
+      --accent-green: #4ac88c;
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-focus: rgba(212, 168, 85, 0.5);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      padding: 40px 24px;
+    }
+
+    .container { max-width: 800px; margin: 0 auto; }
+
+    .header { text-align: center; margin-bottom: 40px; }
+    .header-brand { display: inline-flex; align-items: center; gap: 14px; text-decoration: none; margin-bottom: 24px; }
+    .header-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+    .header h1 { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 12px; }
+    .header p { color: var(--text-secondary); font-size: 1rem; max-width: 500px; margin: 0 auto; }
+
+    .benefits { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .benefit { background: linear-gradient(135deg, var(--bg-card) 0%, rgba(212, 168, 85, 0.05) 100%); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; text-align: center; transition: all 0.3s ease; }
+    .benefit:hover { border-color: var(--accent-gold); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+    .benefit-icon { font-size: 32px; margin-bottom: 14px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
+    .benefit-title { font-family: 'Playfair Display', serif; font-weight: 600; margin-bottom: 6px; font-size: 1.1rem; color: var(--text-primary); }
+    .benefit-desc { font-size: 0.85rem; color: var(--text-muted); letter-spacing: 0.3px; }
+    .benefit-link:hover .benefit { border-color: var(--accent-gold); }
+
+    .form-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); padding: 40px; }
+
+    .step { display: none; }
+    .step.active { display: block; }
+
+    .step-indicator { display: flex; justify-content: center; gap: 8px; margin-bottom: 32px; }
+    .step-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--bg-input); border: 2px solid var(--border-subtle); transition: all 0.2s; }
+    .step-dot.active { background: var(--accent-gold); border-color: var(--accent-gold); }
+    .step-dot.completed { background: var(--accent-green); border-color: var(--accent-green); }
+
+    .step-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 8px; }
+    .step-subtitle { color: var(--text-secondary); margin-bottom: 28px; }
+
+    .form-section { margin-bottom: 28px; }
+    .form-section-title { font-weight: 600; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle); }
+
+    .form-group { margin-bottom: 20px; }
+    .form-label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
+    .form-label .required { color: var(--accent-gold); }
+    .form-input, .form-select, .form-textarea { width: 100%; padding: 14px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-family: inherit; font-size: 0.95rem; transition: all 0.15s; }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(212, 168, 85, 0.1); }
+    .form-input::placeholder, .form-textarea::placeholder { color: var(--text-muted); }
+    .form-textarea { min-height: 100px; resize: vertical; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+    .form-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 6px; }
+
+    .checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; }
+    .checkbox-item { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); cursor: pointer; transition: all 0.15s; }
+    .checkbox-item:hover { border-color: var(--accent-gold); }
+    .checkbox-item.selected { background: var(--accent-gold-soft); border-color: var(--accent-gold); }
+    .checkbox-item input { display: none; }
+
+    .file-upload { border: 2px dashed var(--border-subtle); border-radius: var(--radius-md); padding: 24px; text-align: center; cursor: pointer; transition: all 0.15s; }
+    .file-upload:hover { border-color: var(--accent-gold); background: var(--accent-gold-soft); }
+    .file-upload-icon { font-size: 32px; margin-bottom: 8px; }
+    .file-upload-text { color: var(--text-secondary); font-size: 0.9rem; }
+    .file-upload input { display: none; }
+
+    .uploaded-files { margin-top: 12px; }
+    .uploaded-file { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-elevated); border-radius: var(--radius-md); margin-bottom: 8px; font-size: 0.88rem; }
+    .uploaded-file button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; }
+
+    .reference-card { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px; margin-bottom: 16px; }
+    .reference-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .reference-title { font-weight: 600; }
+    .reference-remove { background: none; border: none; color: var(--text-muted); cursor: pointer; }
+
+    .review-link { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; margin-bottom: 12px; }
+    .review-link .form-row { margin-bottom: 0; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 28px; font-family: inherit; font-size: 0.95rem; font-weight: 600; border: none; border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35); }
+    .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn-ghost { background: transparent; color: var(--text-secondary); }
+
+    .form-nav { display: flex; justify-content: space-between; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border-subtle); }
+
+    .message { padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 0.9rem; display: none; }
+    .message.show { display: block; }
+    .message.error { background: rgba(239, 95, 95, 0.1); border: 1px solid rgba(239, 95, 95, 0.3); color: #ef5f5f; }
+    .message.success { background: rgba(74, 200, 140, 0.1); border: 1px solid rgba(74, 200, 140, 0.3); color: var(--accent-green); }
+    .message.info { background: rgba(74, 124, 255, 0.1); border: 1px solid rgba(74, 124, 255, 0.3); color: var(--accent-blue); }
+
+    .success-screen { text-align: center; padding: 40px 20px; }
+    .success-icon { font-size: 64px; margin-bottom: 24px; }
+    .success-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; margin-bottom: 16px; }
+    .success-text { color: var(--text-secondary); margin-bottom: 32px; max-width: 400px; margin-left: auto; margin-right: auto; }
+
+    .footer { text-align: center; margin-top: 32px; font-size: 0.88rem; color: var(--text-muted); }
+    .footer a { color: var(--text-secondary); }
+
+    @media (max-width: 600px) {
+      .form-row, .form-row.three { grid-template-columns: 1fr; }
+      .form-card { padding: 28px 20px; }
+      .benefits { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script src="/i18n.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <a href="index.html" class="header-brand">
+        <img src="logo.png" alt="My Car Concierge">
+      </a>
+      <div id="language-switcher" style="display:flex;justify-content:center;margin:16px 0;"></div>
+      <h1>Become a Provider</h1>
+      <p>Join our network of vetted automotive professionals and grow your business with quality customers.</p>
+    </div>
+
+    <div class="benefits" id="benefits-section">
+      <a href="provider-info.html" class="benefit-link" style="text-decoration:none;color:inherit;">
+        <div class="benefit">
+          <div class="benefit-icon">💰</div>
+          <div class="benefit-title">Keep 92.5%</div>
+          <div class="benefit-desc">Industry-low 7.5% fee</div>
+        </div>
+      </a>
+      <a href="provider-info.html" class="benefit-link" style="text-decoration:none;color:inherit;">
+        <div class="benefit">
+          <div class="benefit-icon">🛡️</div>
+          <div class="benefit-title">Guaranteed Payment</div>
+          <div class="benefit-desc">Escrow protection</div>
+        </div>
+      </a>
+      <a href="provider-info.html" class="benefit-link" style="text-decoration:none;color:inherit;">
+        <div class="benefit">
+          <div class="benefit-icon">⭐</div>
+          <div class="benefit-title">Quality Customers</div>
+          <div class="benefit-desc">Vetted members</div>
+        </div>
+      </a>
+      <a href="provider-info.html" class="benefit-link" style="text-decoration:none;color:inherit;">
+        <div class="benefit">
+          <div class="benefit-icon">📈</div>
+          <div class="benefit-title">Grow Your Business</div>
+          <div class="benefit-desc">Fleet & recurring work</div>
+        </div>
+      </a>
+    </div>
+    <p id="learn-more-link" style="text-align:center;margin-bottom:24px;"><a href="provider-info.html" style="color:var(--accent-gold);">Learn more about becoming a provider →</a></p>
+
+    <div class="form-card">
+      <div class="step-indicator">
+        <div class="step-dot active" data-step="1"></div>
+        <div class="step-dot" data-step="2"></div>
+        <div class="step-dot" data-step="3"></div>
+        <div class="step-dot" data-step="4"></div>
+        <div class="step-dot" data-step="5"></div>
+        <div class="step-dot" data-step="6"></div>
+      </div>
+
+      <div class="message" id="message"></div>
+
+      <!-- Step 1: Account -->
+      <div class="step active" id="step-1">
+        <h2 class="step-title" data-i18n="auth.createAccount">Create Your Account</h2>
+        <p class="step-subtitle">Let's start with your login credentials.</p>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label"><span data-i18n="auth.email">Email</span> <span class="required">*</span></label>
+            <input type="email" class="form-input" id="email" placeholder="you@business.com" data-i18n="auth.emailPlaceholder" data-i18n-attr="placeholder" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label"><span data-i18n="auth.phone">Phone</span> <span class="required">*</span></label>
+            <input type="tel" class="form-input" id="phone" placeholder="(555) 123-4567" data-i18n="auth.phonePlaceholder" data-i18n-attr="placeholder" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label"><span data-i18n="auth.password">Password</span> <span class="required">*</span></label>
+            <input type="password" class="form-input" id="password" placeholder="••••••••" data-i18n="auth.passwordPlaceholder" data-i18n-attr="placeholder" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label class="form-label"><span data-i18n="auth.confirmPassword">Confirm Password</span> <span class="required">*</span></label>
+            <input type="password" class="form-input" id="password-confirm" placeholder="••••••••" data-i18n="auth.confirmPasswordPlaceholder" data-i18n-attr="placeholder" required>
+          </div>
+        </div>
+
+        <div class="form-nav">
+          <div></div>
+          <button class="btn btn-primary" onclick="nextStep(1)">Continue →</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Business Info -->
+      <div class="step" id="step-2">
+        <h2 class="step-title">Business Information</h2>
+        <p class="step-subtitle">Tell us about your business.</p>
+
+        <div class="form-group">
+          <label class="form-label"><span data-i18n="auth.businessName">Business Name</span> <span class="required">*</span></label>
+          <input type="text" class="form-input" id="business-name" placeholder="Your Shop Name" data-i18n="auth.businessNamePlaceholder" data-i18n-attr="placeholder" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label"><span data-i18n="auth.fullName">Your Name</span> <span class="required">*</span></label>
+            <input type="text" class="form-input" id="contact-name" placeholder="Full name" data-i18n="auth.fullNamePlaceholder" data-i18n-attr="placeholder" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Business Type <span class="required">*</span></label>
+            <select class="form-select" id="business-type" required>
+              <option value="">Select type...</option>
+              <option value="auto_shop">Auto Repair Shop</option>
+              <option value="body_shop">Body Shop / Collision</option>
+              <option value="detailing">Detailing / Car Wash</option>
+              <option value="mobile_service">Mobile Service</option>
+              <option value="dealership">Dealership Service</option>
+              <option value="specialty">Specialty / Performance</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Street Address</label>
+          <input type="text" class="form-input" id="street-address" placeholder="123 Main St">
+        </div>
+
+        <div class="form-row.three">
+          <div class="form-group">
+            <label class="form-label">City <span class="required">*</span></label>
+            <input type="text" class="form-input" id="city" placeholder="City" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">State <span class="required">*</span></label>
+            <input type="text" class="form-input" id="state" placeholder="State" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">ZIP Code</label>
+            <input type="text" class="form-input" id="zip" placeholder="12345">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Service Area <span class="required">*</span></label>
+            <input type="text" class="form-input" id="service-area" placeholder="e.g., Northern NJ, NYC metro" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Service Radius (miles)</label>
+            <input type="number" class="form-input" id="service-radius" placeholder="25">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Website</label>
+          <input type="url" class="form-input" id="website" placeholder="https://yourshop.com">
+        </div>
+
+        <div class="form-nav">
+          <button class="btn btn-ghost" onclick="prevStep(2)">← Back</button>
+          <button class="btn btn-primary" onclick="nextStep(2)">Continue →</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Services & Experience -->
+      <div class="step" id="step-3">
+        <h2 class="step-title">Services & Experience</h2>
+        <p class="step-subtitle">What services do you offer?</p>
+
+        <div class="form-section">
+          <div class="form-section-title">Services Offered</div>
+          <div class="checkbox-group" id="services-checkboxes">
+            <label class="checkbox-item"><input type="checkbox" value="oil_change"> Oil Change / Fluids</label>
+            <label class="checkbox-item"><input type="checkbox" value="brakes"> Brakes</label>
+            <label class="checkbox-item"><input type="checkbox" value="tires"> Tires / Alignment</label>
+            <label class="checkbox-item"><input type="checkbox" value="engine"> Engine Repair</label>
+            <label class="checkbox-item"><input type="checkbox" value="transmission"> Transmission</label>
+            <label class="checkbox-item"><input type="checkbox" value="electrical"> Electrical</label>
+            <label class="checkbox-item"><input type="checkbox" value="ac_heating"> AC / Heating</label>
+            <label class="checkbox-item"><input type="checkbox" value="diagnostics"> Diagnostics</label>
+            <label class="checkbox-item"><input type="checkbox" value="body_work"> Body Work</label>
+            <label class="checkbox-item"><input type="checkbox" value="paint"> Paint / Refinish</label>
+            <label class="checkbox-item"><input type="checkbox" value="detailing"> Detailing</label>
+            <label class="checkbox-item"><input type="checkbox" value="car_wash"> Car Wash</label>
+            <label class="checkbox-item"><input type="checkbox" value="glass"> Glass Repair</label>
+            <label class="checkbox-item"><input type="checkbox" value="exhaust"> Exhaust</label>
+            <label class="checkbox-item"><input type="checkbox" value="suspension"> Suspension</label>
+            <label class="checkbox-item"><input type="checkbox" value="inspection"> State Inspection</label>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">Brand Specializations (optional)</div>
+          <div class="checkbox-group" id="brands-checkboxes">
+            <label class="checkbox-item"><input type="checkbox" value="toyota"> Toyota / Lexus</label>
+            <label class="checkbox-item"><input type="checkbox" value="honda"> Honda / Acura</label>
+            <label class="checkbox-item"><input type="checkbox" value="ford"> Ford / Lincoln</label>
+            <label class="checkbox-item"><input type="checkbox" value="gm"> GM / Chevy / Cadillac</label>
+            <label class="checkbox-item"><input type="checkbox" value="bmw"> BMW</label>
+            <label class="checkbox-item"><input type="checkbox" value="mercedes"> Mercedes-Benz</label>
+            <label class="checkbox-item"><input type="checkbox" value="audi"> Audi / VW</label>
+            <label class="checkbox-item"><input type="checkbox" value="hyundai"> Hyundai / Kia</label>
+            <label class="checkbox-item"><input type="checkbox" value="nissan"> Nissan / Infiniti</label>
+            <label class="checkbox-item"><input type="checkbox" value="ev"> Electric Vehicles</label>
+            <label class="checkbox-item"><input type="checkbox" value="classic"> Classic / Vintage</label>
+            <label class="checkbox-item"><input type="checkbox" value="exotic"> Exotic / Luxury</label>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Years in Business <span class="required">*</span></label>
+            <input type="number" class="form-input" id="years-business" placeholder="5" required min="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Number of Employees</label>
+            <input type="number" class="form-input" id="employees" placeholder="3">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Service Bays</label>
+            <input type="number" class="form-input" id="bays" placeholder="4">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Vehicles per Week (capacity)</label>
+            <input type="number" class="form-input" id="capacity" placeholder="20">
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">🚗 Loaner Vehicle Program</div>
+          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Do you offer loaner vehicles to customers while their car is being serviced? This is a big differentiator for members!</p>
+          
+          <div class="form-group">
+            <label class="form-label">Do you offer loaner vehicles?</label>
+            <div class="checkbox-group" id="loaner-available">
+              <label class="checkbox-item" onclick="toggleLoaner(true)"><input type="radio" name="loaner" value="yes"> Yes, we have loaner vehicles</label>
+              <label class="checkbox-item" onclick="toggleLoaner(false)"><input type="radio" name="loaner" value="no" checked> No loaner vehicles available</label>
+            </div>
+          </div>
+
+          <div id="loaner-details" style="display:none;">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">How many loaner vehicles?</label>
+                <input type="number" class="form-input" id="loaner-count" placeholder="3" min="1">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Loaner vehicle types</label>
+                <input type="text" class="form-input" id="loaner-types" placeholder="e.g., Sedan, SUV, Compact">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Loaner delivery options</label>
+              <div class="checkbox-group" id="loaner-delivery-options">
+                <label class="checkbox-item"><input type="checkbox" value="deliver_loaner"> We can deliver loaner to member's location</label>
+                <label class="checkbox-item"><input type="checkbox" value="pickup_at_shop"> Member picks up loaner at our shop</label>
+                <label class="checkbox-item"><input type="checkbox" value="swap_at_member"> We swap vehicles at member's location</label>
+              </div>
+              <div class="form-hint">Select all that apply. "Swap at member's location" means you pick up their car and leave a loaner in one trip.</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Loaner requirements/restrictions</label>
+              <textarea class="form-textarea" id="loaner-requirements" placeholder="e.g., Valid driver's license, 21+ years old, insurance verification, deposit required, etc." style="min-height:80px;"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Loaner fee (if any)</label>
+              <div class="form-row">
+                <select class="form-select" id="loaner-fee-type">
+                  <option value="free">Free with service</option>
+                  <option value="daily">Daily fee</option>
+                  <option value="deposit">Refundable deposit only</option>
+                </select>
+                <input type="number" class="form-input" id="loaner-fee-amount" placeholder="Amount ($)" min="0">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">🚚 Pickup & Delivery Services</div>
+          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Can you pick up and/or deliver vehicles? This is essential for the MCC concierge experience.</p>
+          
+          <div class="form-group">
+            <label class="form-label">Pickup & Delivery Capabilities</label>
+            <div class="checkbox-group" id="pickup-delivery-options">
+              <label class="checkbox-item"><input type="checkbox" value="pickup_vehicle"> We can pick up member's vehicle</label>
+              <label class="checkbox-item"><input type="checkbox" value="deliver_vehicle"> We can deliver vehicle after service</label>
+              <label class="checkbox-item"><input type="checkbox" value="flatbed"> We have flatbed/tow capability</label>
+              <label class="checkbox-item"><input type="checkbox" value="rideshare_coord"> We can coordinate rideshare for member</label>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Pickup/delivery radius (miles)</label>
+              <input type="number" class="form-input" id="pickup-radius" placeholder="15" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Pickup/delivery fee</label>
+              <select class="form-select" id="pickup-fee">
+                <option value="free">Free</option>
+                <option value="included">Included in service</option>
+                <option value="flat">Flat fee</option>
+                <option value="per_mile">Per mile</option>
+                <option value="varies">Varies by distance</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" id="pickup-fee-amount-group" style="display:none;">
+            <label class="form-label">Fee amount ($)</label>
+            <input type="number" class="form-input" id="pickup-fee-amount" placeholder="25" min="0">
+          </div>
+        </div>
+
+        <div class="form-nav">
+          <button class="btn btn-ghost" onclick="prevStep(3)">← Back</button>
+          <button class="btn btn-primary" onclick="nextStep(3)">Continue →</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Credentials & Documents -->
+      <div class="step" id="step-4">
+        <h2 class="step-title">Credentials & Documents</h2>
+        <p class="step-subtitle">Upload your credentials for verification.</p>
+
+        <div class="form-section">
+          <div class="form-section-title">Business License <span class="required">*</span></div>
+          <label class="file-upload" id="upload-license">
+            <div class="file-upload-icon">📄</div>
+            <div class="file-upload-text">Click to upload business license</div>
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleFileUpload(this, 'license')">
+          </label>
+          <div class="uploaded-files" id="files-license"></div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">Insurance Certificate <span class="required">*</span></div>
+          <label class="file-upload" id="upload-insurance">
+            <div class="file-upload-icon">🛡️</div>
+            <div class="file-upload-text">Click to upload liability insurance certificate</div>
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleFileUpload(this, 'insurance')">
+          </label>
+          <div class="uploaded-files" id="files-insurance"></div>
+          <div class="form-hint">We require a minimum of $1,000,000 liability coverage.</div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">Certifications (optional but recommended)</div>
+          <label class="file-upload" id="upload-certs">
+            <div class="file-upload-icon">🏆</div>
+            <div class="file-upload-text">Upload ASE, I-CAR, or other certifications</div>
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onchange="handleFileUpload(this, 'certs')">
+          </label>
+          <div class="uploaded-files" id="files-certs"></div>
+          <div class="form-hint">ASE, I-CAR, manufacturer certifications, detailing certifications, etc.</div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">Portfolio / Work Samples (optional)</div>
+          <label class="file-upload" id="upload-portfolio">
+            <div class="file-upload-icon">📸</div>
+            <div class="file-upload-text">Upload photos of your work (before/after)</div>
+            <input type="file" accept=".jpg,.jpeg,.png" multiple onchange="handleFileUpload(this, 'portfolio')">
+          </label>
+          <div class="uploaded-files" id="files-portfolio"></div>
+        </div>
+
+        <div class="form-nav">
+          <button class="btn btn-ghost" onclick="prevStep(4)">← Back</button>
+          <button class="btn btn-primary" onclick="nextStep(4)">Continue →</button>
+        </div>
+      </div>
+
+      <!-- Step 5: Reviews & References -->
+      <div class="step" id="step-5">
+        <h2 class="step-title">Reviews & References</h2>
+        <p class="step-subtitle">Help us verify your reputation.</p>
+
+        <div class="form-section">
+          <div class="form-section-title">External Reviews</div>
+          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Link to your business profiles so we can verify your ratings.</p>
+          
+          <div class="review-link">
+            <div class="form-row">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Google Business</label>
+                <input type="url" class="form-input" id="review-google" placeholder="https://google.com/maps/...">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Yelp</label>
+                <input type="url" class="form-input" id="review-yelp" placeholder="https://yelp.com/biz/...">
+              </div>
+            </div>
+          </div>
+          <div class="review-link">
+            <div class="form-row">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Facebook</label>
+                <input type="url" class="form-input" id="review-facebook" placeholder="https://facebook.com/...">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">BBB</label>
+                <input type="url" class="form-input" id="review-bbb" placeholder="https://bbb.org/...">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">References</div>
+          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Provide 2-3 references we can contact (customers, suppliers, partners).</p>
+          
+          <div id="references-container">
+            <div class="reference-card">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Name</label>
+                  <input type="text" class="form-input ref-name" placeholder="Reference name">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Company (if applicable)</label>
+                  <input type="text" class="form-input ref-company" placeholder="Company">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Phone</label>
+                  <input type="tel" class="form-input ref-phone" placeholder="(555) 123-4567">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Relationship</label>
+                  <select class="form-select ref-relationship">
+                    <option value="customer">Customer</option>
+                    <option value="supplier">Supplier</option>
+                    <option value="partner">Business Partner</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <button class="btn btn-secondary" onclick="addReference()" style="margin-top:8px;">+ Add Another Reference</button>
+        </div>
+
+        <div class="form-nav">
+          <button class="btn btn-ghost" onclick="prevStep(5)">← Back</button>
+          <button class="btn btn-primary" onclick="nextStep(5)">Continue to Agreement →</button>
+        </div>
+      </div>
+
+      <!-- Step 6: Legal Agreement -->
+      <div class="step" id="step-6">
+        <h2 class="step-title">Provider Service Agreement</h2>
+        <p class="step-subtitle">Please review and accept our terms to complete your application.</p>
+
+        <div class="agreement-container" style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:24px;max-height:400px;overflow-y:auto;margin-bottom:24px;font-size:0.9rem;line-height:1.7;">
+          <h3 style="margin-bottom:16px;color:var(--accent-gold);">MY CAR CONCIERGE PROVIDER SERVICE AGREEMENT</h3>
+          
+          <p style="margin-bottom:16px;"><strong>Effective Date:</strong> Upon acceptance of this agreement</p>
+          
+          <p style="margin-bottom:16px;">This Provider Service Agreement ("Agreement") is entered into between My Car Concierge, LLC ("MCC," "Company," "we," or "us") and the undersigned service provider ("Provider," "you," or "your").</p>
+
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">1. PLATFORM EXCLUSIVITY & NON-CIRCUMVENTION</h4>
+          <p style="margin-bottom:12px;">1.1. <strong>Exclusive Engagement:</strong> You agree that all customer relationships initiated through the MCC platform shall be conducted exclusively through MCC for a period of twenty-four (24) months from the date of first contact.</p>
+          <p style="margin-bottom:12px;">1.2. <strong>Non-Circumvention:</strong> You explicitly agree NOT to:</p>
+          <ul style="margin-left:24px;margin-bottom:12px;color:var(--text-secondary);">
+            <li>Solicit, contact, or conduct business with any MCC customer outside of the MCC platform</li>
+            <li>Provide your personal contact information, business address, phone number, email, or social media to MCC customers for the purpose of conducting business outside MCC</li>
+            <li>Accept payment from MCC customers outside of the MCC payment system</li>
+            <li>Encourage, suggest, or facilitate any transaction that bypasses MCC</li>
+            <li>Offer discounts or incentives for customers to contact you directly</li>
+          </ul>
+          <p style="margin-bottom:12px;">1.3. <strong>Anonymous Operation:</strong> You understand and agree that your identity will be anonymized on the platform. Members will see only your MCC-assigned provider alias (e.g., "AutoPro #XXXX") and aggregated ratings. Your actual business name and contact information will not be disclosed to members.</p>
+
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">2. PENALTIES FOR VIOLATION</h4>
+          <p style="margin-bottom:12px;">2.1. <strong>Monetary Damages:</strong> Any violation of Section 1 shall result in liquidated damages of:</p>
+          <ul style="margin-left:24px;margin-bottom:12px;color:var(--text-secondary);">
+            <li>The greater of $500 or three times (3x) the MCC platform fee that would have been earned on the circumvented transaction</li>
+            <li>Plus 200% of any revenue generated from circumvented transactions</li>
+            <li>Plus all legal fees and costs incurred by MCC in enforcement</li>
+          </ul>
+          <p style="margin-bottom:12px;">2.2. <strong>Immediate Termination:</strong> Any violation shall result in immediate and permanent termination of your provider account with forfeiture of any pending payments.</p>
+          <p style="margin-bottom:12px;">2.3. <strong>Legal Action:</strong> MCC reserves the right to pursue all available legal remedies, including but not limited to injunctive relief, actual damages, and statutory damages under applicable unfair business practices laws.</p>
+          <p style="margin-bottom:12px;">2.4. <strong>Industry Reporting:</strong> Violations may be reported to relevant industry associations, licensing boards, and business rating services.</p>
+          <p style="margin-bottom:12px;">2.5. <strong>Member Reporting Incentive:</strong> You acknowledge that MCC offers financial incentives to members who report circumvention attempts. Members who provide evidence of a provider attempting to conduct business outside the MCC platform may receive a reward of up to 25% of any damages recovered from the violating provider. This incentive program is designed to protect the integrity of the platform and you agree not to contest any such rewards paid to reporting members.</p>
+
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">3. MONITORING & ENFORCEMENT</h4>
+          <p style="margin-bottom:12px;">3.1. You acknowledge that MCC monitors platform communications and may investigate suspected violations.</p>
+          <p style="margin-bottom:12px;">3.2. You agree to cooperate fully with any investigation into potential circumvention.</p>
+          <p style="margin-bottom:12px;">3.3. MCC may use technology, customer feedback, and other methods to detect circumvention attempts.</p>
+
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">4. COMMISSION & PAYMENT TERMS</h4>
+          <p style="margin-bottom:12px;">4.1. MCC charges a platform fee of 7.5% on all completed transactions.</p>
+          <p style="margin-bottom:12px;">4.2. Payments are held in escrow until job completion is confirmed by the customer.</p>
+          <p style="margin-bottom:12px;">4.3. Provider payments are processed within 3-5 business days of release from escrow.</p>
+
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">5. SERVICE STANDARDS</h4>
+          <p style="margin-bottom:12px;">5.1. You agree to maintain all required licenses, insurance, and certifications.</p>
+          <p style="margin-bottom:12px;">5.2. You agree to provide services in a professional, timely, and workmanlike manner.</p>
+          <p style="margin-bottom:12px;">5.3. You agree to communicate promptly and professionally with customers through the MCC platform.</p>
+
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">6. TERM & TERMINATION</h4>
+          <p style="margin-bottom:12px;">6.1. This Agreement remains in effect for as long as you maintain an active provider account.</p>
+          <p style="margin-bottom:12px;">6.2. The non-circumvention obligations in Section 1 survive termination for twenty-four (24) months.</p>
+
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">7. GOVERNING LAW & DISPUTE RESOLUTION</h4>
+          <p style="margin-bottom:12px;">7.1. This Agreement shall be governed by the laws of the State of New Jersey.</p>
+          <p style="margin-bottom:12px;">7.2. Any disputes shall be resolved through binding arbitration in Essex County, New Jersey.</p>
+          <p style="margin-bottom:12px;">7.3. The prevailing party in any dispute shall be entitled to recover reasonable attorney's fees.</p>
+
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">8. ACKNOWLEDGMENT</h4>
+          <p style="margin-bottom:12px;">By signing below, you acknowledge that:</p>
+          <ul style="margin-left:24px;margin-bottom:12px;color:var(--text-secondary);">
+            <li>You have read and understand this entire Agreement</li>
+            <li>You have had the opportunity to consult with legal counsel</li>
+            <li>You are entering into this Agreement voluntarily</li>
+            <li>You understand the serious consequences of violating this Agreement</li>
+          </ul>
+        </div>
+
+        <!-- Scroll indicator -->
+        <div style="text-align:center;padding:16px;background:var(--accent-gold-soft);border:1px solid var(--accent-gold);border-radius:var(--radius-md);margin-bottom:20px;">
+          <span style="font-size:24px;">👇</span>
+          <p style="color:var(--accent-gold);font-weight:600;margin:8px 0 0 0;">Scroll down to sign the agreement</p>
+        </div>
+
+        <div class="form-section" style="background:var(--bg-elevated);padding:20px;border-radius:var(--radius-md);border:2px solid var(--accent-gold);">
+          <div class="form-section-title" style="color:var(--accent-gold);border-bottom-color:var(--accent-gold);">Electronic Signature Required</div>
+          
+          <div class="form-group">
+            <label class="form-label">Full Legal Name <span class="required">*</span></label>
+            <input type="text" class="form-input" id="legal-name" placeholder="Enter your full legal name as it appears on your ID">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input type="text" class="form-input" id="signature-date" readonly>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Sign Below <span class="required">*</span></label>
+            <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;">Use your mouse or finger to sign in the box below</p>
+            <div style="position:relative;border:2px solid var(--border-subtle);border-radius:var(--radius-md);background:#fff;">
+              <canvas id="signature-pad" width="500" height="150" style="width:100%;height:150px;cursor:crosshair;touch-action:none;"></canvas>
+              <button type="button" onclick="clearSignature()" style="position:absolute;top:8px;right:8px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:4px;padding:4px 12px;font-size:0.8rem;cursor:pointer;color:var(--text-secondary);">Clear</button>
+            </div>
+            <p id="signature-error" style="display:none;color:var(--accent-red);font-size:0.85rem;margin-top:8px;">Please sign above to continue</p>
+          </div>
+
+          <div class="agreement-checkboxes" style="margin-top:20px;">
+            <label style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;cursor:pointer;">
+              <input type="checkbox" id="agree-read" style="width:20px;height:20px;min-width:20px;cursor:pointer;accent-color:var(--accent-gold);margin-top:2px;">
+              <span>I have read and understand the entire Provider Service Agreement above</span>
+            </label>
+
+            <label style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;cursor:pointer;">
+              <input type="checkbox" id="agree-circumvention" style="width:20px;height:20px;min-width:20px;cursor:pointer;accent-color:var(--accent-gold);margin-top:2px;">
+              <span>I understand that circumventing the MCC platform is strictly prohibited and will result in legal action and monetary penalties</span>
+            </label>
+
+            <label style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;cursor:pointer;">
+              <input type="checkbox" id="agree-anonymous" style="width:20px;height:20px;min-width:20px;cursor:pointer;accent-color:var(--accent-gold);margin-top:2px;">
+              <span>I understand my identity will be anonymized and I will not attempt to reveal my identity to MCC customers</span>
+            </label>
+
+            <label style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;cursor:pointer;">
+              <input type="checkbox" id="agree-binding" style="width:20px;height:20px;min-width:20px;cursor:pointer;accent-color:var(--accent-gold);margin-top:2px;">
+              <span>I understand this is a legally binding agreement and my electronic signature has the same legal effect as a handwritten signature</span>
+            </label>
+
+            <label style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);cursor:pointer;">
+              <input type="checkbox" id="agree-terms" style="width:20px;height:20px;min-width:20px;cursor:pointer;accent-color:var(--accent-gold);margin-top:2px;">
+              <span>I agree to the <a href="#" style="color:var(--accent-gold)">Terms of Service</a>, <a href="#" style="color:var(--accent-gold)">Privacy Policy</a>, and this Provider Service Agreement</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-nav">
+          <button class="btn btn-ghost" onclick="prevStep(6)">← Back</button>
+          <button class="btn btn-primary" onclick="submitApplication()">Sign & Submit Application</button>
+        </div>
+      </div>
+
+      <!-- Success Screen -->
+      <div class="step" id="step-success">
+        <div class="success-screen">
+          <div class="success-icon">🎉</div>
+          <h2 class="success-title">Welcome to My Car Concierge!</h2>
+          <h3 style="color:var(--accent-gold);margin-bottom:16px;">You're Approved!</h3>
+          <p class="success-text">Congratulations! Your provider account is now active.</p>
+          <div style="background:var(--accent-gold-soft);border:1px solid var(--accent-gold);border-radius:var(--radius-md);padding:20px;margin:24px 0;text-align:center;">
+            <p style="font-size:1.1rem;margin-bottom:8px;"><strong>🎟️ You have 3 FREE bids to get started!</strong></p>
+            <p style="color:var(--text-secondary);font-size:0.9rem;">Use them to bid on service requests and win your first jobs.</p>
+          </div>
+          <div style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;margin:24px 0;text-align:left;">
+            <p style="margin-bottom:12px;"><strong>What's next?</strong></p>
+            <ul style="color:var(--text-secondary);margin-left:20px;">
+              <li style="margin-bottom:8px;">Log in to your provider dashboard</li>
+              <li style="margin-bottom:8px;">Browse available service requests in your area</li>
+              <li style="margin-bottom:8px;">Submit competitive bids to win jobs</li>
+              <li style="margin-bottom:8px;">Complete quality work and build your reputation</li>
+              <li><strong style="color:var(--accent-gold);">Maintain a 4+ star rating to stay active on the platform</strong></li>
+            </ul>
+          </div>
+          <a href="login.html" class="btn btn-primary" style="margin-right:12px;">Log In Now</a>
+          <a href="index.html" class="btn btn-ghost">Return Home</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span data-i18n="auth.hasAccount">Already have an account?</span> <a href="login.html" data-i18n="auth.signIn">Sign in</a>
+    </div>
+
+    <div style="margin-top:20px;text-align:center;font-size:0.75rem;color:var(--text-muted);">
+      © 2025 My Car Concierge. All rights reserved. - IMOR
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js"></script>
+  <script>
+    let currentStep = 1;
+    let uploadedFiles = { license: [], insurance: [], certs: [], portfolio: [] };
+    let userId = null;
+
+    // ========== SIGNATURE PAD ==========
+    let signaturePad = null;
+    let isDrawing = false;
+    let signatureData = null;
+
+    function initSignaturePad() {
+      const canvas = document.getElementById('signature-pad');
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      
+      // Set canvas size for high DPI displays
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * 2;
+      canvas.height = rect.height * 2;
+      ctx.scale(2, 2);
+      
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      let lastX = 0;
+      let lastY = 0;
+
+      function getPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        if (e.touches) {
+          return {
+            x: e.touches[0].clientX - rect.left,
+            y: e.touches[0].clientY - rect.top
+          };
+        }
+        return {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        };
+      }
+
+      function startDrawing(e) {
+        isDrawing = true;
+        const pos = getPos(e);
+        lastX = pos.x;
+        lastY = pos.y;
+        document.getElementById('signature-error').style.display = 'none';
+      }
+
+      function draw(e) {
+        if (!isDrawing) return;
+        e.preventDefault();
+        
+        const pos = getPos(e);
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+        
+        lastX = pos.x;
+        lastY = pos.y;
+      }
+
+      function stopDrawing() {
+        if (isDrawing) {
+          isDrawing = false;
+          signatureData = canvas.toDataURL('image/png');
+        }
+      }
+
+      // Mouse events
+      canvas.addEventListener('mousedown', startDrawing);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', stopDrawing);
+      canvas.addEventListener('mouseout', stopDrawing);
+
+      // Touch events
+      canvas.addEventListener('touchstart', startDrawing);
+      canvas.addEventListener('touchmove', draw);
+      canvas.addEventListener('touchend', stopDrawing);
+    }
+
+    function clearSignature() {
+      const canvas = document.getElementById('signature-pad');
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      signatureData = null;
+    }
+
+    function isSignatureEmpty() {
+      const canvas = document.getElementById('signature-pad');
+      if (!canvas) return true;
+      
+      const ctx = canvas.getContext('2d');
+      const pixelData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      
+      // Check if any pixel has been drawn
+      for (let i = 3; i < pixelData.length; i += 4) {
+        if (pixelData[i] > 0) return false;
+      }
+      return true;
+    }
+
+    // ========== END SIGNATURE PAD ==========
+
+    // Checkbox toggle for service/brand selection checkboxes
+    document.querySelectorAll('.checkbox-group .checkbox-item').forEach(item => {
+      const checkbox = item.querySelector('input[type="checkbox"]');
+      
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (checkbox) {
+          checkbox.checked = !checkbox.checked;
+          item.classList.toggle('selected', checkbox.checked);
+        }
+      });
+    });
+
+    function showMessage(text, type = 'error') {
+      const msg = document.getElementById('message');
+      msg.textContent = text;
+      msg.className = `message show ${type}`;
+      msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function hideMessage() {
+      document.getElementById('message').className = 'message';
+    }
+
+    function updateStepIndicator() {
+      document.querySelectorAll('.step-dot').forEach((dot, i) => {
+        const stepNum = i + 1;
+        dot.classList.remove('active', 'completed');
+        if (stepNum === currentStep) dot.classList.add('active');
+        else if (stepNum < currentStep) dot.classList.add('completed');
+      });
+    }
+
+    function showStep(step) {
+      document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+      document.getElementById(`step-${step}`).classList.add('active');
+      currentStep = step;
+      updateStepIndicator();
+      hideMessage();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      // Hide benefits section after step 1
+      const benefitsSection = document.getElementById('benefits-section');
+      const learnMoreLink = document.getElementById('learn-more-link');
+      if (benefitsSection) {
+        benefitsSection.style.display = step === 1 ? 'grid' : 'none';
+      }
+      if (learnMoreLink) {
+        learnMoreLink.style.display = step === 1 ? 'block' : 'none';
+      }
+      
+      // Initialize signature pad when reaching step 6
+      if (step === 6) {
+        setTimeout(() => initSignaturePad(), 100);
+      }
+    }
+
+    async function nextStep(current) {
+      // Validation
+      if (current === 1) {
+        const email = document.getElementById('email').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+        const password = document.getElementById('password').value;
+        const confirm = document.getElementById('password-confirm').value;
+
+        if (!email || !phone || !password) return showMessage('Please fill in all required fields.');
+        if (password !== confirm) return showMessage('Passwords do not match.');
+        if (password.length < 6) return showMessage('Password must be at least 6 characters.');
+
+        // Try to create account first
+        showMessage('Setting up your account...', 'info');
+        const { data, error } = await supabaseClient.auth.signUp({ email, password });
+        
+        // If user already exists, try to sign them in instead
+        if (error && error.message.toLowerCase().includes('already registered')) {
+          showMessage('Account exists. Signing you in...', 'info');
+          const { data: signInData, error: signInErr } = await supabaseClient.auth.signInWithPassword({ email, password });
+          if (signInErr) {
+            return showMessage('This email is already registered. Please use the correct password or log in first.');
+          }
+          userId = signInData.user?.id;
+        } else if (error) {
+          return showMessage(error.message);
+        } else {
+          userId = data.user?.id;
+          
+          // Sign in immediately to ensure we have a session for profile creation
+          const { error: signInError } = await supabaseClient.auth.signInWithPassword({ email, password });
+          if (signInError) {
+            console.log('Auto sign-in note:', signInError.message);
+            // Continue anyway - profile creation might still work
+          }
+        }
+
+        if (!userId) {
+          return showMessage('Error: Could not create or access user account.');
+        }
+
+        // Check if profile already exists (e.g., user is already a member)
+        const { data: existingProfile } = await supabaseClient
+          .from('profiles')
+          .select('id, role, is_also_member')
+          .eq('id', userId)
+          .single();
+
+        if (existingProfile) {
+          // User already has a profile - update it to pending_provider and preserve/set is_also_member
+          const { error: updateError } = await supabaseClient.from('profiles').update({
+            role: 'pending_provider',
+            is_also_member: existingProfile.is_also_member || existingProfile.role === 'member',
+            phone: phone,
+            free_trial_bids: 3
+          }).eq('id', userId);
+
+          if (updateError) {
+            console.error('Profile update error:', updateError);
+            return showMessage('Profile error: ' + updateError.message);
+          }
+          showMessage('Account updated! You can now apply as a provider.', 'success');
+        } else {
+          // Create new profile
+          const { error: profileError } = await supabaseClient.from('profiles').insert({
+            id: userId,
+            role: 'pending_provider',
+            phone: phone,
+            free_trial_bids: 3
+          });
+
+          if (profileError) {
+            console.error('Profile creation error:', profileError);
+            return showMessage('Profile error: ' + profileError.message);
+          }
+          showMessage('Account created!', 'success');
+        }
+      }
+
+      if (current === 2) {
+        const businessName = document.getElementById('business-name').value.trim();
+        const contactName = document.getElementById('contact-name').value.trim();
+        const businessType = document.getElementById('business-type').value;
+        const city = document.getElementById('city').value.trim();
+        const state = document.getElementById('state').value.trim();
+        const serviceArea = document.getElementById('service-area').value.trim();
+
+        if (!businessName || !contactName || !businessType || !city || !state || !serviceArea) {
+          return showMessage('Please fill in all required fields.');
+        }
+      }
+
+      if (current === 3) {
+        const years = document.getElementById('years-business').value;
+        if (!years) return showMessage('Please enter years in business.');
+        
+        const services = Array.from(document.querySelectorAll('#services-checkboxes input:checked')).map(c => c.value);
+        if (services.length === 0) return showMessage('Please select at least one service you offer.');
+      }
+
+      if (current === 4) {
+        if (uploadedFiles.license.length === 0) return showMessage('Please upload your business license.');
+        if (uploadedFiles.insurance.length === 0) return showMessage('Please upload your insurance certificate.');
+      }
+
+      // Step 5 doesn't require validation - references are optional
+      
+      // When moving to step 6 (legal agreement), populate the date
+      if (current === 5) {
+        const today = new Date().toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+        document.getElementById('signature-date').value = today;
+      }
+
+      showStep(current + 1);
+    }
+
+    function prevStep(current) {
+      showStep(current - 1);
+    }
+
+    function handleFileUpload(input, type) {
+      const files = Array.from(input.files);
+      files.forEach(file => {
+        uploadedFiles[type].push(file);
+      });
+      renderUploadedFiles(type);
+      input.value = '';
+    }
+
+    function renderUploadedFiles(type) {
+      const container = document.getElementById(`files-${type}`);
+      container.innerHTML = uploadedFiles[type].map((file, i) => `
+        <div class="uploaded-file">
+          <span>📄 ${file.name}</span>
+          <button onclick="removeFile('${type}', ${i})">×</button>
+        </div>
+      `).join('');
+    }
+
+    function removeFile(type, index) {
+      uploadedFiles[type].splice(index, 1);
+      renderUploadedFiles(type);
+    }
+
+    function addReference() {
+      const container = document.getElementById('references-container');
+      const refHtml = `
+        <div class="reference-card">
+          <div class="reference-header">
+            <span class="reference-title">Reference</span>
+            <button class="reference-remove" onclick="this.closest('.reference-card').remove()">×</button>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Name</label>
+              <input type="text" class="form-input ref-name" placeholder="Reference name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Company</label>
+              <input type="text" class="form-input ref-company" placeholder="Company">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Phone</label>
+              <input type="tel" class="form-input ref-phone" placeholder="(555) 123-4567">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Relationship</label>
+              <select class="form-select ref-relationship">
+                <option value="customer">Customer</option>
+                <option value="supplier">Supplier</option>
+                <option value="partner">Business Partner</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      `;
+      container.insertAdjacentHTML('beforeend', refHtml);
+    }
+
+    // Loaner vehicle toggle
+    function toggleLoaner(show) {
+      document.getElementById('loaner-details').style.display = show ? 'block' : 'none';
+      document.querySelectorAll('#loaner-available .checkbox-item').forEach(item => {
+        const radio = item.querySelector('input[type="radio"]');
+        item.classList.toggle('selected', radio.value === (show ? 'yes' : 'no'));
+      });
+    }
+
+    // Pickup fee toggle
+    document.getElementById('pickup-fee')?.addEventListener('change', function() {
+      const showAmount = ['flat', 'per_mile'].includes(this.value);
+      document.getElementById('pickup-fee-amount-group').style.display = showAmount ? 'block' : 'none';
+    });
+
+    async function submitApplication() {
+      // Validate all legal agreement checkboxes
+      const legalName = document.getElementById('legal-name').value.trim();
+      const agreeRead = document.getElementById('agree-read').checked;
+      const agreeCircumvention = document.getElementById('agree-circumvention').checked;
+      const agreeAnonymous = document.getElementById('agree-anonymous').checked;
+      const agreeBinding = document.getElementById('agree-binding').checked;
+      const agreeTerms = document.getElementById('agree-terms').checked;
+
+      if (!legalName) {
+        return showMessage('Please enter your full legal name to sign the agreement.');
+      }
+      
+      // Validate signature
+      if (isSignatureEmpty()) {
+        document.getElementById('signature-error').style.display = 'block';
+        return showMessage('Please sign in the signature box above.');
+      }
+
+      if (!agreeRead) {
+        return showMessage('Please confirm you have read the Provider Service Agreement.');
+      }
+      if (!agreeCircumvention) {
+        return showMessage('Please acknowledge the non-circumvention clause.');
+      }
+      if (!agreeAnonymous) {
+        return showMessage('Please acknowledge the anonymous operation requirement.');
+      }
+      if (!agreeBinding) {
+        return showMessage('Please acknowledge this is a legally binding agreement.');
+      }
+      if (!agreeTerms) {
+        return showMessage('Please agree to the Terms of Service and Provider Agreement.');
+      }
+
+      showMessage('Submitting your application...', 'info');
+
+      try {
+        // Generate provider alias
+        const aliasNumber = Math.floor(1000 + Math.random() * 9000);
+        const providerAlias = `AutoPro #${aliasNumber}`;
+
+        // Gather form data
+        const services = Array.from(document.querySelectorAll('#services-checkboxes input:checked')).map(c => c.value);
+        const brands = Array.from(document.querySelectorAll('#brands-checkboxes input:checked')).map(c => c.value);
+        
+        // Loaner vehicle data
+        const hasLoaner = document.querySelector('input[name="loaner"]:checked')?.value === 'yes';
+        const loanerDeliveryOptions = Array.from(document.querySelectorAll('#loaner-delivery-options input:checked')).map(c => c.value);
+        
+        // Pickup/delivery data
+        const pickupDeliveryOptions = Array.from(document.querySelectorAll('#pickup-delivery-options input:checked')).map(c => c.value);
+
+        // Create application record
+        const { data: app, error: appError } = await supabaseClient.from('provider_applications').insert({
+          user_id: userId,
+          provider_alias: providerAlias,
+          business_name: document.getElementById('business-name').value.trim(),
+          business_type: document.getElementById('business-type').value,
+          contact_name: document.getElementById('contact-name').value.trim(),
+          phone: document.getElementById('phone').value.trim(),
+          email: document.getElementById('email').value.trim(),
+          legal_signatory_name: legalName,
+          agreement_signed_at: new Date().toISOString(),
+          agreement_signature: signatureData, // Store the signature image
+          agreement_ip_address: null, // Would be captured server-side in production
+          website: document.getElementById('website').value.trim() || null,
+          street_address: document.getElementById('street-address').value.trim() || null,
+          city: document.getElementById('city').value.trim(),
+          state: document.getElementById('state').value.trim(),
+          zip_code: document.getElementById('zip').value.trim() || null,
+          service_area: document.getElementById('service-area').value.trim(),
+          service_radius_miles: document.getElementById('service-radius').value ? parseInt(document.getElementById('service-radius').value) : null,
+          services_offered: services,
+          brand_specializations: brands.length ? brands : null,
+          years_in_business: parseInt(document.getElementById('years-business').value) || 0,
+          employees_count: document.getElementById('employees').value ? parseInt(document.getElementById('employees').value) : null,
+          bays_count: document.getElementById('bays').value ? parseInt(document.getElementById('bays').value) : null,
+          vehicles_per_week: document.getElementById('capacity').value ? parseInt(document.getElementById('capacity').value) : null,
+          // Loaner vehicle info
+          has_loaner_vehicles: hasLoaner,
+          loaner_vehicle_count: hasLoaner && document.getElementById('loaner-count').value ? parseInt(document.getElementById('loaner-count').value) : null,
+          loaner_vehicle_types: hasLoaner ? document.getElementById('loaner-types').value.trim() || null : null,
+          loaner_delivery_options: hasLoaner && loanerDeliveryOptions.length ? loanerDeliveryOptions : null,
+          loaner_requirements: hasLoaner ? document.getElementById('loaner-requirements').value.trim() || null : null,
+          loaner_fee_type: hasLoaner ? document.getElementById('loaner-fee-type').value : null,
+          loaner_fee_amount: hasLoaner && document.getElementById('loaner-fee-amount').value ? parseFloat(document.getElementById('loaner-fee-amount').value) : null,
+          // Pickup/delivery info
+          pickup_delivery_options: pickupDeliveryOptions.length ? pickupDeliveryOptions : null,
+          pickup_radius_miles: document.getElementById('pickup-radius').value ? parseInt(document.getElementById('pickup-radius').value) : null,
+          pickup_fee_type: document.getElementById('pickup-fee').value,
+          pickup_fee_amount: document.getElementById('pickup-fee-amount').value ? parseFloat(document.getElementById('pickup-fee-amount').value) : null,
+          status: 'approved' // Auto-approve providers who complete all requirements
+        }).select().single();
+
+        if (appError) throw appError;
+
+        const appId = app.id;
+
+        // Upload documents
+        for (const type of ['license', 'insurance', 'certs', 'portfolio']) {
+          for (const file of uploadedFiles[type]) {
+            const ext = file.name.split('.').pop();
+            const filename = `${userId}/${type}_${Date.now()}.${ext}`;
+            
+            const { error: uploadError } = await supabaseClient.storage
+              .from('provider-documents')
+              .upload(filename, file);
+            
+            if (!uploadError) {
+              const { data: urlData } = supabaseClient.storage.from('provider-documents').getPublicUrl(filename);
+              
+              await supabaseClient.from('provider_documents').insert({
+                application_id: appId,
+                provider_id: userId,
+                document_type: type === 'license' ? 'business_license' : type === 'insurance' ? 'insurance_certificate' : type === 'certs' ? 'certification' : 'portfolio',
+                document_name: file.name,
+                file_url: urlData.publicUrl
+              });
+            }
+          }
+        }
+
+        // Save external reviews
+        const reviewPlatforms = ['google', 'yelp', 'facebook', 'bbb'];
+        for (const platform of reviewPlatforms) {
+          const url = document.getElementById(`review-${platform}`).value.trim();
+          if (url) {
+            await supabaseClient.from('provider_external_reviews').insert({
+              application_id: appId,
+              provider_id: userId,
+              platform: platform,
+              profile_url: url
+            });
+          }
+        }
+
+        // Save references
+        const refCards = document.querySelectorAll('.reference-card');
+        for (const card of refCards) {
+          const name = card.querySelector('.ref-name').value.trim();
+          if (name) {
+            await supabaseClient.from('provider_references').insert({
+              application_id: appId,
+              reference_name: name,
+              reference_company: card.querySelector('.ref-company').value.trim() || null,
+              reference_phone: card.querySelector('.ref-phone').value.trim() || null,
+              relationship: card.querySelector('.ref-relationship').value
+            });
+          }
+        }
+
+        // Update profile - approve as provider with free trial bids
+        await supabaseClient.from('profiles').update({
+          full_name: document.getElementById('contact-name').value.trim(),
+          role: 'provider', // Auto-approve
+          business_name: document.getElementById('business-name').value.trim(),
+          city: document.getElementById('city').value.trim(),
+          state: document.getElementById('state').value.trim(),
+          service_area: document.getElementById('service-area').value.trim(),
+          services_offered: services,
+          free_trial_bids: 3, // Give 3 free bids to start
+          bid_credits: 0,
+          total_bids_purchased: 0,
+          total_bids_used: 0
+        }).eq('id', userId);
+
+        showStep('success');
+
+      } catch (err) {
+        console.error('Signup error:', err);
+        // Show detailed error message for debugging
+        const errorMsg = err?.message || err?.error_description || JSON.stringify(err) || 'Unknown error';
+        showMessage('Error: ' + errorMsg);
+      }
+    }
+  </script>
+  <script src="/pwa-init.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      await I18n.init();
+      I18n.createLanguageSwitcher('language-switcher');
+    });
+  </script>
+</body>
+</html>

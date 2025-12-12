@@ -1,0 +1,3219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Portal – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.85);
+      --bg-elevated: rgba(28, 28, 42, 0.95);
+      --bg-input: rgba(22, 22, 34, 0.9);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-gold-soft: rgba(212, 168, 85, 0.15);
+      --accent-blue: #4a7cff;
+      --accent-blue-soft: rgba(74, 124, 255, 0.12);
+      --accent-green: #4ac88c;
+      --accent-green-soft: rgba(74, 200, 140, 0.12);
+      --accent-red: #ef5f5f;
+      --accent-red-soft: rgba(239, 95, 95, 0.15);
+      --accent-orange: #f59e0b;
+      --accent-orange-soft: rgba(245, 158, 11, 0.15);
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-medium: rgba(148, 148, 168, 0.2);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { height: 100vh; font-family: 'Outfit', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); display: flex; overflow: hidden; }
+
+    .sidebar { width: 260px; background: var(--bg-card); border-right: 1px solid var(--border-subtle); padding: 24px 16px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; }
+    .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 24px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 24px; text-decoration: none; }
+    .sidebar-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+    .sidebar-brand span { font-family: 'Playfair Display', serif; font-weight: 500; color: var(--text-primary); }
+    .nav-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); padding: 0 12px; margin: 20px 0 8px; }
+    .nav-label:first-of-type { margin-top: 0; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--radius-md); cursor: pointer; font-size: 0.92rem; color: var(--text-secondary); transition: all 0.15s; margin-bottom: 4px; }
+    .nav-item:hover { background: var(--accent-blue-soft); color: var(--text-primary); }
+    .nav-item.active { background: var(--accent-blue-soft); color: var(--accent-blue); }
+    .nav-badge { margin-left: auto; font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 100px; }
+    .nav-badge.red { background: var(--accent-red); color: white; }
+    .nav-badge.orange { background: var(--accent-orange); color: #0a0a0f; }
+    .nav-badge.green { background: var(--accent-green); color: #022c22; }
+    .sidebar-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+
+    .main { flex: 1; margin-left: 260px; padding: 32px 40px; height: 100%; overflow-y: auto; }
+    .page-header { margin-bottom: 32px; }
+    .page-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 500; margin-bottom: 8px; }
+    .page-subtitle { color: var(--text-secondary); font-size: 0.95rem; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .stat-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 20px; }
+    .stat-icon { width: 44px; height: 44px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 12px; }
+    .stat-value { font-size: 1.8rem; font-weight: 600; margin-bottom: 2px; }
+    .stat-label { font-size: 0.82rem; color: var(--text-muted); }
+
+    .card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 20px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .card-title { font-size: 1.1rem; font-weight: 600; }
+
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-family: inherit; font-size: 0.88rem; font-weight: 500; border: none; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: linear-gradient(135deg, var(--accent-blue), #6b9fff); color: white; }
+    .btn-success { background: var(--accent-green); color: #022c22; }
+    .btn-danger { background: var(--accent-red-soft); color: var(--accent-red); border: 1px solid rgba(239,95,95,0.3); }
+    .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn-ghost { background: transparent; color: var(--text-secondary); padding: 8px 12px; }
+    .btn-sm { padding: 6px 12px; font-size: 0.82rem; }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border-subtle); }
+    .tab { padding: 12px 20px; font-size: 0.9rem; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab:hover { color: var(--text-primary); }
+    .tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border-subtle); }
+    th { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    td { font-size: 0.9rem; }
+    tr:hover { background: var(--bg-elevated); }
+
+    .status-badge { padding: 4px 12px; border-radius: 100px; font-size: 0.75rem; font-weight: 500; }
+    .status-badge.pending, .status-badge.orange { background: var(--accent-orange-soft); color: var(--accent-orange); }
+    .status-badge.approved, .status-badge.resolved, .status-badge.released { background: var(--accent-green-soft); color: var(--accent-green); }
+    .status-badge.rejected, .status-badge.disputed, .status-badge.red { background: var(--accent-red-soft); color: var(--accent-red); }
+    .status-badge.held, .status-badge.investigating, .status-badge.blue { background: var(--accent-blue-soft); color: var(--accent-blue); }
+    .status-badge.open { background: var(--accent-gold-soft); color: var(--accent-gold); }
+    .status-badge.muted, .status-badge.dismissed { background: var(--bg-elevated); color: var(--text-muted); }
+
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: none; align-items: flex-start; justify-content: center; z-index: 100; padding: 48px 24px; overflow-y: auto; }
+    .modal-backdrop.active { display: flex; }
+    .modal { background: var(--bg-elevated); border: 1px solid var(--border-medium); border-radius: var(--radius-xl); width: 100%; max-width: 700px; animation: modalIn 0.2s ease; }
+    @keyframes modalIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 24px 28px; border-bottom: 1px solid var(--border-subtle); }
+    .modal-title { font-size: 1.15rem; font-weight: 600; }
+    .modal-close { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: var(--text-muted); cursor: pointer; border-radius: var(--radius-sm); font-size: 20px; }
+    .modal-body { padding: 24px 28px; max-height: 60vh; overflow-y: auto; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 20px 28px; border-top: 1px solid var(--border-subtle); }
+
+    .form-group { margin-bottom: 20px; }
+    .form-label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
+    .form-input, .form-select, .form-textarea { width: 100%; padding: 12px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-family: inherit; font-size: 0.92rem; }
+    .form-textarea { min-height: 100px; resize: vertical; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-section { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border-subtle); }
+    .form-section:last-child { border-bottom: none; }
+    .form-section-title { font-weight: 600; margin-bottom: 16px; }
+
+    .detail-grid { display: grid; grid-template-columns: 140px 1fr; gap: 8px 16px; font-size: 0.9rem; }
+    .detail-label { color: var(--text-muted); }
+    .detail-value { color: var(--text-primary); }
+
+    .checklist { display: flex; flex-direction: column; gap: 12px; }
+    .checklist-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--bg-input); border-radius: var(--radius-md); }
+    .checklist-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent-green); }
+    .checklist-item label { flex: 1; font-size: 0.9rem; }
+    .checklist-item.checked { background: var(--accent-green-soft); }
+
+    .doc-list { display: flex; flex-direction: column; gap: 8px; }
+    .doc-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--bg-input); border-radius: var(--radius-md); }
+    .doc-item-info { display: flex; align-items: center; gap: 12px; }
+    .doc-icon { font-size: 20px; }
+
+    .evidence-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+    .evidence-item { aspect-ratio: 4/3; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-subtle); cursor: pointer; }
+    .evidence-item img { width: 100%; height: 100%; object-fit: cover; }
+
+    .empty-state { text-align: center; padding: 48px 24px; color: var(--text-muted); }
+    .empty-state-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+
+    .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 200; }
+    .toast { background: var(--bg-elevated); border: 1px solid var(--accent-green); border-radius: var(--radius-md); padding: 16px 20px; display: flex; align-items: center; gap: 12px; animation: toastIn 0.3s ease; margin-top: 12px; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    .alert { padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 0.9rem; }
+    .alert.warning { background: var(--accent-orange-soft); border: 1px solid rgba(245,158,11,0.3); color: var(--accent-orange); }
+    .alert.info { background: var(--accent-blue-soft); border: 1px solid rgba(74,124,255,0.3); color: var(--accent-blue); }
+
+    @media (max-width: 900px) {
+      .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+      .sidebar.open { transform: translateX(0); }
+      .main { margin-left: 0; padding: 24px 20px; }
+      .form-row { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+  <script src="/i18n.js"></script>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <a href="index.html" class="sidebar-brand">
+      <img src="logo.png" alt="My Car Concierge">
+    </a>
+    <div id="language-switcher" style="padding:0 12px 16px;"></div>
+
+    <div class="nav-label">Overview</div>
+    <div class="nav-item active" data-section="dashboard">📊 Dashboard</div>
+    <div class="nav-item" data-section="analytics">📈 Analytics</div>
+
+    <div class="nav-label">Provider Management</div>
+    <div class="nav-item" data-section="applications">📋 Applications <span class="nav-badge orange" id="app-count">0</span></div>
+    <div class="nav-item" data-section="pilot-applications">🌟 Pilot Applications <span class="nav-badge orange" id="pilot-count">0</span></div>
+    <div class="nav-item" data-section="providers">✓ Active Providers</div>
+    <div class="nav-item" data-section="violations">🚩 Violation Reports <span class="nav-badge red" id="violation-count">0</span></div>
+
+    <div class="nav-label">Operations</div>
+    <div class="nav-item" data-section="packages">📦 All Packages</div>
+    <div class="nav-item" data-section="payments">💳 Payments</div>
+    <div class="nav-item" data-section="disputes">⚠️ Disputes <span class="nav-badge red" id="dispute-count">0</span></div>
+
+    <div class="nav-label">Support</div>
+    <div class="nav-item" data-section="tickets">🎫 Help Desk <span class="nav-badge green" id="ticket-count">0</span></div>
+    <div class="nav-item" data-section="members">👥 Members</div>
+    <div class="nav-item" data-section="user-roles">🔄 User Roles</div>
+
+    <div class="sidebar-footer">
+      <button class="btn btn-secondary" onclick="window.location.href='members.html'" style="width:100%;margin-bottom:8px;padding:12px 16px;">🏠 Member Portal</button>
+      <button class="btn btn-secondary" onclick="logout()" style="width:100%;padding:14px 20px;font-size:0.95rem;">🚪 Log Out</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- Dashboard Section -->
+    <section id="dashboard" class="section active">
+      <div class="page-header">
+        <h1 class="page-title">Admin Dashboard</h1>
+        <p class="page-subtitle">My Car Concierge Management Portal</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-orange-soft);">📋</div>
+          <div class="stat-value" id="stat-pending-apps">0</div>
+          <div class="stat-label">Pending Applications</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-green-soft);">✓</div>
+          <div class="stat-value" id="stat-active-providers">0</div>
+          <div class="stat-label">Active Providers</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-blue-soft);">💳</div>
+          <div class="stat-value" id="stat-escrow">$0</div>
+          <div class="stat-label">In Escrow</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-red-soft);">⚠️</div>
+          <div class="stat-value" id="stat-open-disputes">0</div>
+          <div class="stat-label">Open Disputes</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-gold-soft);">💰</div>
+          <div class="stat-value" id="stat-revenue">$0</div>
+          <div class="stat-label">Revenue (7.5%)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-blue-soft);">📦</div>
+          <div class="stat-value" id="stat-packages">0</div>
+          <div class="stat-label">Active Packages</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Requires Attention</h2>
+        </div>
+        <div id="attention-items">
+          <div class="empty-state">
+            <div class="empty-state-icon">✅</div>
+            <p>All caught up!</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Recent Activity</h2>
+          </div>
+          <div id="recent-activity-feed">
+            <div class="empty-state">
+              <div class="empty-state-icon">📊</div>
+              <p>Loading activity...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Quick Stats (Last 7 Days)</h2>
+          </div>
+          <div id="quick-stats">
+            <div style="display:grid;gap:12px;">
+              <div style="display:flex;justify-content:space-between;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);">
+                <span>New Members</span>
+                <strong id="stat-new-members">0</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);">
+                <span>Packages Created</span>
+                <strong id="stat-new-packages">0</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);">
+                <span>Bids Submitted</span>
+                <strong id="stat-new-bids">0</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);">
+                <span>Jobs Completed</span>
+                <strong id="stat-completed-jobs">0</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);">
+                <span>Total Processed</span>
+                <strong id="stat-total-processed">$0</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Analytics Section -->
+    <section id="analytics" class="section">
+      <div class="page-header">
+        <h1 class="page-title">📈 Analytics</h1>
+        <p class="page-subtitle">Platform performance and growth metrics</p>
+      </div>
+
+      <!-- Date Range Filter -->
+      <div class="card" style="margin-bottom:24px;">
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+          <span style="font-weight:500;">Date Range:</span>
+          <button class="btn btn-sm analytics-range active" data-days="7">Last 7 days</button>
+          <button class="btn btn-sm analytics-range" data-days="30">Last 30 days</button>
+          <button class="btn btn-sm analytics-range" data-days="90">Last 90 days</button>
+          <button class="btn btn-sm analytics-range" data-days="365">Last year</button>
+          <button class="btn btn-sm analytics-range" data-days="0">All time</button>
+        </div>
+      </div>
+
+      <!-- Key Metrics -->
+      <div class="stats-grid" style="grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);">💰</div>
+          <div class="stat-value" id="analytics-revenue">$0</div>
+          <div class="stat-label">Total Revenue (MCC Fees)</div>
+          <div id="analytics-revenue-change" style="font-size:0.8rem;margin-top:4px;"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-blue-soft);color:var(--accent-blue);">📦</div>
+          <div class="stat-value" id="analytics-packages">0</div>
+          <div class="stat-label">Packages Created</div>
+          <div id="analytics-packages-change" style="font-size:0.8rem;margin-top:4px;"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-gold-soft);color:var(--accent-gold);">💬</div>
+          <div class="stat-value" id="analytics-bids">0</div>
+          <div class="stat-label">Bids Submitted</div>
+          <div id="analytics-bids-change" style="font-size:0.8rem;margin-top:4px;"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);">✓</div>
+          <div class="stat-value" id="analytics-completed">0</div>
+          <div class="stat-label">Jobs Completed</div>
+          <div id="analytics-completed-change" style="font-size:0.8rem;margin-top:4px;"></div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(400px, 1fr));gap:20px;margin-bottom:20px;">
+        <!-- Revenue Chart -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">💰 Revenue Over Time</h2>
+          </div>
+          <div id="revenue-chart" style="height:250px;display:flex;align-items:flex-end;gap:4px;padding:20px 0;"></div>
+        </div>
+
+        <!-- Signups Chart -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">👥 New Signups</h2>
+          </div>
+          <div id="signups-chart" style="height:250px;display:flex;align-items:flex-end;gap:4px;padding:20px 0;"></div>
+        </div>
+      </div>
+
+      <!-- More Stats Row -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:20px;">
+        <!-- Top Providers -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">⭐ Top Providers</h2>
+          </div>
+          <div id="top-providers-list">
+            <p style="color:var(--text-muted);">Loading...</p>
+          </div>
+        </div>
+
+        <!-- Category Breakdown -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">📊 Service Categories</h2>
+          </div>
+          <div id="category-breakdown">
+            <p style="color:var(--text-muted);">Loading...</p>
+          </div>
+        </div>
+
+        <!-- Platform Health -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">🏥 Platform Health</h2>
+          </div>
+          <div id="platform-health">
+            <div style="display:grid;gap:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Bid-to-Accept Rate</span>
+                <span id="health-bid-rate" style="font-weight:600;">--%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Avg Bids per Package</span>
+                <span id="health-avg-bids" style="font-weight:600;">--</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Avg Provider Rating</span>
+                <span id="health-avg-rating" style="font-weight:600;">-- ⭐</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Dispute Rate</span>
+                <span id="health-dispute-rate" style="font-weight:600;">--%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Avg Time to Accept Bid</span>
+                <span id="health-time-to-accept" style="font-weight:600;">-- hrs</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Applications Section -->
+    <section id="applications" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Provider Applications</h1>
+        <p class="page-subtitle">Review and vet provider applications</p>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-filter="pending">Pending</div>
+        <div class="tab" data-filter="under_review">Under Review</div>
+        <div class="tab" data-filter="approved">Approved</div>
+        <div class="tab" data-filter="rejected">Rejected</div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Business</th>
+              <th>Type</th>
+              <th>Location</th>
+              <th>Submitted</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="applications-table">
+            <tr><td colspan="6" class="empty-state">No applications</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Pilot Applications Section -->
+    <section id="pilot-applications" class="section">
+      <div class="page-header">
+        <h1 class="page-title">🌟 Founding Provider Applications</h1>
+        <p class="page-subtitle">Review and approve founding provider pilot program applications</p>
+      </div>
+
+      <div class="stats-grid" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-orange-soft);color:var(--accent-orange);">⏳</div>
+          <div class="stat-value" id="pilot-pending">0</div>
+          <div class="stat-label">Pending Review</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);">✓</div>
+          <div class="stat-value" id="pilot-approved">0</div>
+          <div class="stat-label">Approved</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-red-soft);color:var(--accent-red);">✗</div>
+          <div class="stat-value" id="pilot-rejected">0</div>
+          <div class="stat-label">Rejected</div>
+        </div>
+      </div>
+
+      <div class="tabs" id="pilot-tabs">
+        <div class="tab active" data-filter="pending">Pending</div>
+        <div class="tab" data-filter="approved">Approved</div>
+        <div class="tab" data-filter="rejected">Rejected</div>
+        <div class="tab" data-filter="all">All</div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Business Name</th>
+              <th>Services</th>
+              <th>Location</th>
+              <th>Phone</th>
+              <th>Submitted</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="pilot-applications-table">
+            <tr><td colspan="7" class="empty-state">No pilot applications</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Active Providers Section -->
+    <section id="providers" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Active Providers</h1>
+        <p class="page-subtitle">Manage approved service providers</p>
+      </div>
+
+      <!-- Bulk Actions Bar -->
+      <div id="bulk-actions-bar" class="card" style="display:none;margin-bottom:16px;padding:16px 20px;background:var(--accent-blue-soft);border:1px solid rgba(74,124,255,0.3);">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-weight:500;"><span id="selected-count">0</span> providers selected</span>
+            <button class="btn btn-sm btn-secondary" onclick="clearSelection()">Clear</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-sm btn-secondary" onclick="bulkAddCredits()">🎟️ Add Credits</button>
+            <button class="btn btn-sm btn-secondary" onclick="bulkSendMessage()">💬 Send Message</button>
+            <button class="btn btn-sm btn-secondary" onclick="bulkExport()">📥 Export</button>
+            <button class="btn btn-sm" style="background:var(--accent-orange-soft);color:var(--accent-orange);border:1px solid rgba(245,158,11,0.3);" onclick="bulkSuspend()">⏸️ Suspend</button>
+            <button class="btn btn-sm" style="background:var(--accent-green-soft);color:var(--accent-green);border:1px solid rgba(74,200,140,0.3);" onclick="bulkActivate()">✓ Activate</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+          <div class="form-group" style="margin:0;min-width:150px;">
+            <select class="form-input" id="provider-status-filter" onchange="filterProviders()" style="padding:8px 12px;">
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;min-width:150px;">
+            <select class="form-input" id="provider-credits-filter" onchange="filterProviders()" style="padding:8px 12px;">
+              <option value="all">All Credits</option>
+              <option value="zero">No Credits</option>
+              <option value="low">Low (1-10)</option>
+              <option value="has">Has Credits (10+)</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;min-width:150px;">
+            <select class="form-input" id="provider-rating-filter" onchange="filterProviders()" style="padding:8px 12px;">
+              <option value="all">All Ratings</option>
+              <option value="low">⚠️ Below 4 Stars</option>
+              <option value="good">4+ Stars</option>
+              <option value="new">New (No Rating)</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;min-width:150px;">
+            <select class="form-input" id="provider-type-filter" onchange="filterProviders()" style="padding:8px 12px;">
+              <option value="all">All Types</option>
+              <option value="founding">🌟 Founding Only</option>
+              <option value="standard">Standard Only</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;flex:1;min-width:200px;">
+            <input type="text" class="form-input" id="provider-search" placeholder="Search by name or email..." oninput="filterProviders()" style="padding:8px 12px;">
+          </div>
+          <button class="btn btn-sm" style="background:var(--accent-red-soft);color:var(--accent-red);border:1px solid rgba(220,53,69,0.3);" onclick="checkLowRatedProviders()">⚠️ Check Low Ratings</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:40px;"><input type="checkbox" id="select-all-providers" onchange="toggleSelectAll(this)"></th>
+              <th>Business</th>
+              <th>Credits</th>
+              <th>Rating</th>
+              <th>Jobs</th>
+              <th>Earnings</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="providers-table">
+            <tr><td colspan="7" class="empty-state">No active providers</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Violation Reports Section -->
+    <section id="violations" class="section">
+      <div class="page-header">
+        <h1 class="page-title">🚩 Circumvention Reports</h1>
+        <p class="page-subtitle">Investigate policy violations reported by members</p>
+      </div>
+
+      <div class="stats-grid" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-red-soft);color:var(--accent-red);">🚩</div>
+          <div class="stat-value" id="violations-pending">0</div>
+          <div class="stat-label">Pending Review</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-orange-soft);color:var(--accent-orange);">🔍</div>
+          <div class="stat-value" id="violations-investigating">0</div>
+          <div class="stat-label">Under Investigation</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);">✓</div>
+          <div class="stat-value" id="violations-confirmed">0</div>
+          <div class="stat-label">Confirmed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--bg-elevated);color:var(--text-muted);">✗</div>
+          <div class="stat-value" id="violations-dismissed">0</div>
+          <div class="stat-label">Dismissed</div>
+        </div>
+      </div>
+
+      <div class="tabs" id="violations-tabs">
+        <div class="tab active" data-filter="pending">Pending</div>
+        <div class="tab" data-filter="investigating">Investigating</div>
+        <div class="tab" data-filter="confirmed">Confirmed</div>
+        <div class="tab" data-filter="dismissed">Dismissed</div>
+        <div class="tab" data-filter="all">All</div>
+      </div>
+
+      <div id="violations-list">
+        <div class="empty-state" style="padding:40px;">
+          <div class="empty-state-icon">🚩</div>
+          <p>No violation reports to review</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- All Packages Section -->
+    <section id="packages" class="section">
+      <div class="page-header">
+        <h1 class="page-title">All Packages</h1>
+        <p class="page-subtitle">View all maintenance packages across the platform</p>
+      </div>
+
+      <div class="stats-grid" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-value" id="packages-open">0</div>
+          <div class="stat-label">Open (Bidding)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="packages-accepted">0</div>
+          <div class="stat-label">Accepted</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="packages-in-progress">0</div>
+          <div class="stat-label">In Progress</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="packages-completed">0</div>
+          <div class="stat-label">Completed</div>
+        </div>
+      </div>
+
+      <div class="tabs" id="packages-tabs">
+        <div class="tab active" data-filter="all">All</div>
+        <div class="tab" data-filter="open">Open</div>
+        <div class="tab" data-filter="accepted">Accepted</div>
+        <div class="tab" data-filter="in_progress">In Progress</div>
+        <div class="tab" data-filter="completed">Completed</div>
+        <div class="tab" data-filter="expired">Expired</div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Package</th>
+              <th>Member</th>
+              <th>Vehicle</th>
+              <th>Category</th>
+              <th>Bids</th>
+              <th>Status</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody id="packages-table">
+            <tr><td colspan="7" class="empty-state">Loading packages...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Payments Section -->
+    <section id="payments" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Payments & Escrow</h1>
+        <p class="page-subtitle">Track all platform transactions</p>
+      </div>
+
+      <div class="stats-grid" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-value" id="payments-held">$0</div>
+          <div class="stat-label">Currently Held</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="payments-released">$0</div>
+          <div class="stat-label">Released (30 days)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="payments-refunded">$0</div>
+          <div class="stat-label">Refunded (30 days)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="payments-fees">$0</div>
+          <div class="stat-label">MCC Fees (30 days)</div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-filter="held">In Escrow</div>
+        <div class="tab" data-filter="released">Released</div>
+        <div class="tab" data-filter="refunded">Refunded</div>
+        <div class="tab" data-filter="all">All</div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Package</th>
+              <th>Member</th>
+              <th>Provider</th>
+              <th>Amount</th>
+              <th>MCC Fee</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="payments-table">
+            <tr><td colspan="7" class="empty-state">No payments</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Disputes Section -->
+    <section id="disputes" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Disputes</h1>
+        <p class="page-subtitle">Review and resolve member/provider disputes</p>
+      </div>
+
+      <div class="alert warning" id="high-value-alert" style="display:none;">
+        ⚠️ There are disputes over $1,000 that may require third-party inspection.
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-filter="open">Open</div>
+        <div class="tab" data-filter="under_review">Under Review</div>
+        <div class="tab" data-filter="inspection">Needs Inspection</div>
+        <div class="tab" data-filter="resolved">Resolved</div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Package</th>
+              <th>Filed By</th>
+              <th>Reason</th>
+              <th>Amount</th>
+              <th>Filed</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="disputes-table">
+            <tr><td colspan="7" class="empty-state">No disputes</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Help Desk Section -->
+    <section id="tickets" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Help Desk</h1>
+        <p class="page-subtitle">Support tickets from members and providers</p>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-filter="open">Open</div>
+        <div class="tab" data-filter="in_progress">In Progress</div>
+        <div class="tab" data-filter="resolved">Resolved</div>
+        <div class="tab" data-filter="all">All</div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Subject</th>
+              <th>From</th>
+              <th>Category</th>
+              <th>Priority</th>
+              <th>Submitted</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="tickets-table">
+            <tr><td colspan="7" class="empty-state">No tickets</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Members Section -->
+    <section id="members" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Members</h1>
+        <p class="page-subtitle">View all registered members</p>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Account Type</th>
+              <th>Vehicles</th>
+              <th>Packages</th>
+              <th>Joined</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="members-table">
+            <tr><td colspan="7" class="empty-state">No members</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="user-roles" class="section">
+      <div class="page-header">
+        <h1 class="page-title">User Roles Management</h1>
+        <p class="page-subtitle">Enable dual-role access for users (member + provider)</p>
+      </div>
+
+      <div class="alert info" style="margin-bottom:24px;">
+        <strong>Dual-Role Access:</strong> Users can have access to both Member and Provider portals. Enable "Also Provider" for members who need provider access, or "Also Member" for providers who need member access. They'll see a "Switch Portal" button in their sidebar.
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="user-roles-search" class="form-input" placeholder="Search by name or email..." style="max-width:300px;" oninput="filterUserRoles()">
+          <select id="user-roles-filter" class="form-select" style="max-width:200px;" onchange="filterUserRoles()">
+            <option value="all">All Users</option>
+            <option value="member">Members Only</option>
+            <option value="provider">Providers Only</option>
+            <option value="dual">Dual-Role Users</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Email</th>
+              <th>Primary Role</th>
+              <th>Also Member</th>
+              <th>Also Provider</th>
+              <th>Joined</th>
+            </tr>
+          </thead>
+          <tbody id="user-roles-table">
+            <tr><td colspan="6" class="empty-state">Loading users...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    
+    <div style="text-align:center;padding:40px 20px 20px;font-size:0.8rem;color:var(--text-muted);">
+      © 2025 My Car Concierge. All rights reserved. - IMOR
+    </div>
+  </main>
+
+  <!-- Application Review Modal -->
+  <div class="modal-backdrop" id="application-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Review Application</h3>
+        <button class="modal-close" onclick="closeModal('application-modal')">×</button>
+      </div>
+      <div class="modal-body" id="application-modal-body">
+        <!-- Populated by JS -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="requestMoreInfo()">Request More Info</button>
+        <button class="btn btn-danger" onclick="rejectApplication()">Reject</button>
+        <button class="btn btn-success" onclick="approveApplication()">Approve</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dispute Review Modal -->
+  <div class="modal-backdrop" id="dispute-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Review Dispute</h3>
+        <button class="modal-close" onclick="closeModal('dispute-modal')">×</button>
+      </div>
+      <div class="modal-body" id="dispute-modal-body">
+        <!-- Populated by JS -->
+      </div>
+      <div class="modal-footer" id="dispute-modal-footer">
+        <!-- Dynamic buttons based on dispute state -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Ticket Modal -->
+  <div class="modal-backdrop" id="ticket-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Support Ticket</h3>
+        <button class="modal-close" onclick="closeModal('ticket-modal')">×</button>
+      </div>
+      <div class="modal-body" id="ticket-modal-body">
+        <!-- Populated by JS -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('ticket-modal')">Close</button>
+        <button class="btn btn-primary" onclick="sendTicketReply()">Send Reply</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Admin Password Modal -->
+  <div class="modal-backdrop" id="admin-password-modal" style="display:flex;background:rgba(0,0,0,0.95);">
+    <div class="modal" style="max-width:400px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔐 Admin Access</h3>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-secondary);margin-bottom:20px;">Enter the admin password to continue.</p>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" class="form-input" id="admin-password-input" placeholder="Enter admin password" autofocus>
+        </div>
+        <div id="admin-password-error" style="display:none;color:var(--accent-red);font-size:0.85rem;margin-top:8px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="window.location.href='index.html'">Cancel</button>
+        <button class="btn btn-primary" onclick="verifyAdminPassword()" id="verify-password-btn">Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js"></script>
+  <script>
+    // ========== STATE ==========
+    let currentUser = null;
+    let applications = [];
+    let providers = [];
+    let payments = [];
+    let disputes = [];
+    let tickets = [];
+    let members = [];
+    let currentApplication = null;
+    let currentDispute = null;
+    let currentTicket = null;
+    let currentFilters = {
+      applications: 'pending',
+      payments: 'held',
+      disputes: 'open',
+      tickets: 'open'
+    };
+
+    // ========== INIT ==========
+    let adminPasswordVerified = false;
+    
+    window.addEventListener('load', async () => {
+      const user = await getCurrentUser();
+      if (!user) return window.location.href = 'login.html';
+      currentUser = user;
+
+      const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
+      if (!profile || profile.role !== 'admin') {
+        alert('Admin access required.');
+        return window.location.href = 'login.html';
+      }
+
+      // Check if password is required
+      document.getElementById('admin-password-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') verifyAdminPassword();
+      });
+    });
+    
+    async function verifyAdminPassword() {
+      const password = document.getElementById('admin-password-input').value;
+      const errorEl = document.getElementById('admin-password-error');
+      const btn = document.getElementById('verify-password-btn');
+      
+      if (!password) {
+        errorEl.textContent = 'Please enter a password.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      
+      btn.textContent = 'Verifying...';
+      btn.disabled = true;
+      errorEl.style.display = 'none';
+      
+      try {
+        // Call Supabase RPC function for secure server-side password verification
+        const { data, error } = await supabaseClient.rpc('verify_admin_password', {
+          input_password: password
+        });
+        
+        if (error) {
+          console.error('Password verification error:', error);
+          errorEl.textContent = 'Error verifying password. Please try again.';
+          errorEl.style.display = 'block';
+          btn.textContent = 'Verify';
+          btn.disabled = false;
+          return;
+        }
+        
+        if (data === true) {
+          adminPasswordVerified = true;
+          document.getElementById('admin-password-modal').style.display = 'none';
+          await loadAllData();
+          setupEventListeners();
+        } else {
+          errorEl.textContent = 'Invalid password. Please try again.';
+          errorEl.style.display = 'block';
+          btn.textContent = 'Verify';
+          btn.disabled = false;
+        }
+      } catch (error) {
+        console.error('Password verification error:', error);
+        errorEl.textContent = 'Error verifying password. Please try again.';
+        errorEl.style.display = 'block';
+        btn.textContent = 'Verify';
+        btn.disabled = false;
+      }
+    }
+
+    async function loadAllData() {
+      await Promise.all([
+        loadApplications(),
+        loadProviders(),
+        loadPayments(),
+        loadDisputes(),
+        loadTickets(),
+        loadMembers(),
+        loadUserRoles(),
+        loadAllPackages(),
+        loadViolationReports(),
+        loadAnalytics(),
+        loadPilotApplications()
+      ]);
+      updateDashboard();
+    }
+
+    // ========== ANALYTICS ==========
+    let analyticsDateRange = 7; // days
+
+    async function loadAnalytics() {
+      const startDate = analyticsDateRange > 0 
+        ? new Date(Date.now() - analyticsDateRange * 24 * 60 * 60 * 1000).toISOString()
+        : null;
+
+      try {
+        // Fetch all data for analytics
+        let paymentsQuery = supabaseClient.from('payments').select('*');
+        let packagesQuery = supabaseClient.from('maintenance_packages').select('*');
+        let bidsQuery = supabaseClient.from('bids').select('*');
+        let membersQuery = supabaseClient.from('profiles').select('*').eq('role', 'member');
+        let providersQuery = supabaseClient.from('profiles').select('*').eq('role', 'provider');
+        let reviewsQuery = supabaseClient.from('provider_reviews').select('*');
+        let disputesQuery = supabaseClient.from('disputes').select('*');
+
+        if (startDate) {
+          paymentsQuery = paymentsQuery.gte('created_at', startDate);
+          packagesQuery = packagesQuery.gte('created_at', startDate);
+          bidsQuery = bidsQuery.gte('created_at', startDate);
+          membersQuery = membersQuery.gte('created_at', startDate);
+          providersQuery = providersQuery.gte('created_at', startDate);
+        }
+
+        const [
+          { data: paymentsData },
+          { data: packagesData },
+          { data: bidsData },
+          { data: membersData },
+          { data: providersData },
+          { data: reviewsData },
+          { data: disputesData }
+        ] = await Promise.all([
+          paymentsQuery,
+          packagesQuery,
+          bidsQuery,
+          membersQuery,
+          providersQuery,
+          reviewsQuery,
+          disputesQuery
+        ]);
+
+        const payments = paymentsData || [];
+        const packages = packagesData || [];
+        const bids = bidsData || [];
+        const newMembers = membersData || [];
+        const newProviders = providersData || [];
+        const reviews = reviewsData || [];
+        const disputes = disputesData || [];
+
+        // Calculate metrics
+        const totalRevenue = payments.filter(p => p.status === 'released').reduce((sum, p) => sum + (p.mcc_fee || 0), 0);
+        const totalPackages = packages.length;
+        const totalBids = bids.length;
+        const completedJobs = packages.filter(p => p.status === 'completed').length;
+
+        // Update key metrics
+        document.getElementById('analytics-revenue').textContent = '$' + totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('analytics-packages').textContent = totalPackages.toLocaleString();
+        document.getElementById('analytics-bids').textContent = totalBids.toLocaleString();
+        document.getElementById('analytics-completed').textContent = completedJobs.toLocaleString();
+
+        // Revenue chart
+        renderRevenueChart(payments);
+
+        // Signups chart
+        renderSignupsChart(newMembers, newProviders);
+
+        // Top providers
+        renderTopProviders();
+
+        // Category breakdown
+        renderCategoryBreakdown(packages);
+
+        // Platform health
+        const acceptedBids = bids.filter(b => b.status === 'accepted').length;
+        const bidRate = totalBids > 0 ? ((acceptedBids / totalBids) * 100).toFixed(1) : 0;
+        const avgBidsPerPackage = totalPackages > 0 ? (totalBids / totalPackages).toFixed(1) : 0;
+        const avgRating = reviews.length > 0 ? (reviews.reduce((sum, r) => sum + r.overall_rating, 0) / reviews.length).toFixed(1) : '--';
+        const disputeRate = completedJobs > 0 ? ((disputes.length / completedJobs) * 100).toFixed(1) : 0;
+
+        document.getElementById('health-bid-rate').textContent = bidRate + '%';
+        document.getElementById('health-avg-bids').textContent = avgBidsPerPackage;
+        document.getElementById('health-avg-rating').textContent = avgRating + ' ⭐';
+        document.getElementById('health-dispute-rate').textContent = disputeRate + '%';
+        document.getElementById('health-time-to-accept').textContent = '~24 hrs'; // Placeholder
+
+      } catch (err) {
+        console.error('Analytics error:', err);
+      }
+    }
+
+    function renderRevenueChart(payments) {
+      const container = document.getElementById('revenue-chart');
+      const releasedPayments = payments.filter(p => p.status === 'released' && p.released_at);
+      
+      if (!releasedPayments.length) {
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;width:100%;">No revenue data for this period</p>';
+        return;
+      }
+
+      // Group by day
+      const dailyRevenue = {};
+      releasedPayments.forEach(p => {
+        const day = new Date(p.released_at).toLocaleDateString();
+        dailyRevenue[day] = (dailyRevenue[day] || 0) + (p.mcc_fee || 0);
+      });
+
+      const days = Object.keys(dailyRevenue).sort((a, b) => new Date(a) - new Date(b)).slice(-14);
+      const maxRevenue = Math.max(...days.map(d => dailyRevenue[d]));
+
+      container.innerHTML = days.map(day => {
+        const value = dailyRevenue[day];
+        const height = maxRevenue > 0 ? (value / maxRevenue) * 180 : 0;
+        const shortDay = new Date(day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        return `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <div style="font-size:0.7rem;color:var(--text-muted);">$${value.toFixed(0)}</div>
+            <div style="width:100%;max-width:40px;height:${Math.max(height, 4)}px;background:linear-gradient(180deg, var(--accent-green), rgba(74,200,140,0.5));border-radius:4px 4px 0 0;"></div>
+            <div style="font-size:0.65rem;color:var(--text-muted);white-space:nowrap;">${shortDay}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderSignupsChart(members, providers) {
+      const container = document.getElementById('signups-chart');
+      
+      // Combine and group by day
+      const dailySignups = {};
+      [...members, ...providers].forEach(p => {
+        const day = new Date(p.created_at).toLocaleDateString();
+        if (!dailySignups[day]) dailySignups[day] = { members: 0, providers: 0 };
+        if (p.role === 'provider') {
+          dailySignups[day].providers++;
+        } else {
+          dailySignups[day].members++;
+        }
+      });
+
+      const days = Object.keys(dailySignups).sort((a, b) => new Date(a) - new Date(b)).slice(-14);
+      
+      if (!days.length) {
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;width:100%;">No signup data for this period</p>';
+        return;
+      }
+
+      const maxSignups = Math.max(...days.map(d => dailySignups[d].members + dailySignups[d].providers));
+
+      container.innerHTML = days.map(day => {
+        const data = dailySignups[day];
+        const total = data.members + data.providers;
+        const height = maxSignups > 0 ? (total / maxSignups) * 180 : 0;
+        const memberHeight = maxSignups > 0 ? (data.members / maxSignups) * 180 : 0;
+        const providerHeight = maxSignups > 0 ? (data.providers / maxSignups) * 180 : 0;
+        const shortDay = new Date(day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        return `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <div style="font-size:0.7rem;color:var(--text-muted);">${total}</div>
+            <div style="width:100%;max-width:40px;display:flex;flex-direction:column;">
+              <div style="height:${Math.max(providerHeight, total > 0 ? 2 : 0)}px;background:var(--accent-gold);border-radius:4px 4px 0 0;"></div>
+              <div style="height:${Math.max(memberHeight, total > 0 ? 2 : 0)}px;background:var(--accent-blue);border-radius:0 0 0 0;"></div>
+            </div>
+            <div style="font-size:0.65rem;color:var(--text-muted);white-space:nowrap;">${shortDay}</div>
+          </div>
+        `;
+      }).join('') + `
+        <div style="position:absolute;top:0;right:0;font-size:0.75rem;">
+          <span style="color:var(--accent-blue);">● Members</span>
+          <span style="color:var(--accent-gold);margin-left:8px;">● Providers</span>
+        </div>
+      `;
+      container.style.position = 'relative';
+    }
+
+    async function renderTopProviders() {
+      const container = document.getElementById('top-providers-list');
+      
+      const { data: reviews } = await supabaseClient
+        .from('provider_reviews')
+        .select('provider_id, overall_rating');
+
+      if (!reviews?.length) {
+        container.innerHTML = '<p style="color:var(--text-muted);">No provider data yet</p>';
+        return;
+      }
+
+      // Calculate avg rating per provider
+      const providerRatings = {};
+      reviews.forEach(r => {
+        if (!providerRatings[r.provider_id]) {
+          providerRatings[r.provider_id] = { sum: 0, count: 0 };
+        }
+        providerRatings[r.provider_id].sum += r.overall_rating;
+        providerRatings[r.provider_id].count++;
+      });
+
+      const ranked = Object.entries(providerRatings)
+        .map(([id, data]) => ({ id, avg: data.sum / data.count, count: data.count }))
+        .filter(p => p.count >= 2)
+        .sort((a, b) => b.avg - a.avg)
+        .slice(0, 5);
+
+      if (!ranked.length) {
+        container.innerHTML = '<p style="color:var(--text-muted);">Not enough data yet</p>';
+        return;
+      }
+
+      // Get provider names
+      const { data: profiles } = await supabaseClient
+        .from('profiles')
+        .select('id, business_name, full_name')
+        .in('id', ranked.map(r => r.id));
+
+      const profileMap = {};
+      profiles?.forEach(p => profileMap[p.id] = p);
+
+      container.innerHTML = ranked.map((p, i) => {
+        const profile = profileMap[p.id] || {};
+        const name = profile.business_name || profile.full_name || 'Provider';
+        return `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;${i < ranked.length - 1 ? 'border-bottom:1px solid var(--border-subtle);' : ''}">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:1.2rem;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '⭐'}</span>
+              <span>${name}</span>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-weight:600;">${p.avg.toFixed(1)} ⭐</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">${p.count} reviews</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderCategoryBreakdown(packages) {
+      const container = document.getElementById('category-breakdown');
+      
+      if (!packages.length) {
+        container.innerHTML = '<p style="color:var(--text-muted);">No package data for this period</p>';
+        return;
+      }
+
+      const categories = {};
+      packages.forEach(p => {
+        const cat = p.category || 'other';
+        categories[cat] = (categories[cat] || 0) + 1;
+      });
+
+      const total = packages.length;
+      const sorted = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+      const colors = {
+        maintenance: 'var(--accent-blue)',
+        detailing: 'var(--accent-gold)',
+        cosmetic: 'var(--accent-green)',
+        accident_repair: 'var(--accent-red)',
+        other: 'var(--text-muted)'
+      };
+      const labels = {
+        maintenance: '🔧 Maintenance',
+        detailing: '✨ Detailing',
+        cosmetic: '🎨 Cosmetic',
+        accident_repair: '🚗 Accident Repair',
+        other: '📦 Other'
+      };
+
+      container.innerHTML = sorted.map(([cat, count]) => {
+        const pct = ((count / total) * 100).toFixed(0);
+        return `
+          <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span>${labels[cat] || cat}</span>
+              <span style="font-weight:500;">${count} (${pct}%)</span>
+            </div>
+            <div style="height:8px;background:var(--bg-input);border-radius:4px;overflow:hidden;">
+              <div style="width:${pct}%;height:100%;background:${colors[cat] || 'var(--accent-blue)'};"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Analytics date range handler
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('analytics-range')) {
+        document.querySelectorAll('.analytics-range').forEach(btn => btn.classList.remove('active'));
+        e.target.classList.add('active');
+        analyticsDateRange = parseInt(e.target.dataset.days);
+        loadAnalytics();
+      }
+    });
+
+    async function loadApplications() {
+      const { data } = await supabaseClient.from('provider_applications').select('*').order('created_at', { ascending: false });
+      applications = data || [];
+      renderApplications();
+      document.getElementById('app-count').textContent = applications.filter(a => a.status === 'pending').length;
+    }
+
+    async function loadProviders() {
+      const { data } = await supabaseClient.from('profiles').select('*, provider_stats(*)').eq('role', 'provider');
+      providers = data || [];
+      renderProviders();
+    }
+
+    // Add suspended_at column if not exists
+    // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ;
+
+    async function loadPayments() {
+      const { data } = await supabaseClient.from('payments').select('*, maintenance_packages(title), member:member_id(full_name), provider:provider_id(full_name)').order('created_at', { ascending: false });
+      payments = data || [];
+      renderPayments();
+    }
+
+    async function loadDisputes() {
+      const { data } = await supabaseClient.from('disputes').select('*, maintenance_packages(title), payments(amount_total), filed_by_profile:filed_by(full_name)').order('created_at', { ascending: false });
+      disputes = data || [];
+      renderDisputes();
+      document.getElementById('dispute-count').textContent = disputes.filter(d => d.status === 'open').length;
+    }
+
+    async function loadTickets() {
+      const { data } = await supabaseClient.from('support_tickets').select('*, user:user_id(full_name, email)').order('created_at', { ascending: false });
+      tickets = data || [];
+      renderTickets();
+      document.getElementById('ticket-count').textContent = tickets.filter(t => t.status === 'open').length;
+    }
+
+    async function loadMembers() {
+      const { data } = await supabaseClient.from('profiles').select('*').eq('role', 'member').order('created_at', { ascending: false });
+      members = data || [];
+      renderMembers();
+    }
+
+    // ========== USER ROLES MANAGEMENT ==========
+    let allUsersForRoles = [];
+
+    async function loadUserRoles() {
+      const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('id, full_name, business_name, email, role, is_also_member, is_also_provider, created_at')
+        .in('role', ['member', 'provider', 'admin'])
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error loading user roles:', error);
+        allUsersForRoles = [];
+      } else {
+        allUsersForRoles = data || [];
+      }
+      
+      renderUserRoles();
+    }
+
+    function filterUserRoles() {
+      renderUserRoles();
+    }
+
+    function renderUserRoles() {
+      const tbody = document.getElementById('user-roles-table');
+      const searchTerm = document.getElementById('user-roles-search')?.value?.toLowerCase() || '';
+      const roleFilter = document.getElementById('user-roles-filter')?.value || 'all';
+      
+      let filtered = allUsersForRoles;
+      
+      // Apply search filter
+      if (searchTerm) {
+        filtered = filtered.filter(u => 
+          (u.full_name || '').toLowerCase().includes(searchTerm) ||
+          (u.business_name || '').toLowerCase().includes(searchTerm) ||
+          (u.email || '').toLowerCase().includes(searchTerm)
+        );
+      }
+      
+      // Apply role filter
+      if (roleFilter === 'member') {
+        filtered = filtered.filter(u => u.role === 'member');
+      } else if (roleFilter === 'provider') {
+        filtered = filtered.filter(u => u.role === 'provider');
+      } else if (roleFilter === 'dual') {
+        filtered = filtered.filter(u => u.is_also_member || u.is_also_provider);
+      }
+      
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No users found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(u => {
+        const displayName = u.business_name || u.full_name || 'Unnamed';
+        const roleLabel = u.role === 'member' ? 'Member' : u.role === 'provider' ? 'Provider' : 'Admin';
+        const roleColor = u.role === 'member' ? 'var(--accent-blue)' : u.role === 'provider' ? 'var(--accent-gold)' : 'var(--accent-green)';
+        
+        // For members, show "Also Provider" toggle
+        // For providers, show "Also Member" toggle
+        const showAlsoMember = u.role === 'provider';
+        const showAlsoProvider = u.role === 'member';
+        
+        return `
+          <tr>
+            <td>
+              <div><strong>${displayName}</strong></div>
+              ${u.business_name && u.full_name ? `<div style="font-size:0.8rem;color:var(--text-muted);">${u.full_name}</div>` : ''}
+            </td>
+            <td style="font-size:0.9rem;">${u.email || 'N/A'}</td>
+            <td>
+              <span style="padding:4px 10px;border-radius:100px;font-size:0.8rem;background:${roleColor}22;color:${roleColor};">${roleLabel}</span>
+            </td>
+            <td>
+              ${showAlsoMember ? `
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                  <input type="checkbox" ${u.is_also_member ? 'checked' : ''} onchange="toggleDualRole('${u.id}', 'is_also_member', this.checked)" style="width:18px;height:18px;accent-color:var(--accent-blue);">
+                  <span style="font-size:0.85rem;color:${u.is_also_member ? 'var(--accent-blue)' : 'var(--text-muted)'};">${u.is_also_member ? 'Yes' : 'No'}</span>
+                </label>
+              ` : '<span style="color:var(--text-muted);font-size:0.85rem;">N/A</span>'}
+            </td>
+            <td>
+              ${showAlsoProvider ? `
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                  <input type="checkbox" ${u.is_also_provider ? 'checked' : ''} onchange="toggleDualRole('${u.id}', 'is_also_provider', this.checked)" style="width:18px;height:18px;accent-color:var(--accent-gold);">
+                  <span style="font-size:0.85rem;color:${u.is_also_provider ? 'var(--accent-gold)' : 'var(--text-muted)'};">${u.is_also_provider ? 'Yes' : 'No'}</span>
+                </label>
+              ` : '<span style="color:var(--text-muted);font-size:0.85rem;">N/A</span>'}
+            </td>
+            <td style="font-size:0.85rem;color:var(--text-muted);">${new Date(u.created_at).toLocaleDateString()}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function toggleDualRole(userId, field, value) {
+      try {
+        const updateData = {};
+        updateData[field] = value;
+        
+        const { error } = await supabaseClient
+          .from('profiles')
+          .update(updateData)
+          .eq('id', userId);
+        
+        if (error) {
+          console.error('Error updating dual role:', error);
+          showToast('Failed to update user role', 'error');
+          await loadUserRoles(); // Reload to reset checkbox
+          return;
+        }
+        
+        // Update local data
+        const user = allUsersForRoles.find(u => u.id === userId);
+        if (user) {
+          user[field] = value;
+        }
+        
+        const action = value ? 'enabled' : 'disabled';
+        const roleType = field === 'is_also_member' ? 'member portal access' : 'provider portal access';
+        showToast(`${action.charAt(0).toUpperCase() + action.slice(1)} ${roleType}`);
+        
+        renderUserRoles();
+      } catch (err) {
+        console.error('toggleDualRole error:', err);
+        showToast('Error updating user role', 'error');
+      }
+    }
+
+    let allPackages = [];
+    let currentPackageFilter = 'all';
+
+    async function loadAllPackages() {
+      const { data, error } = await supabaseClient
+        .from('maintenance_packages')
+        .select('*, member:member_id(full_name, email), vehicles(year, make, model)')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error loading packages:', error);
+        allPackages = [];
+      } else {
+        allPackages = data || [];
+      }
+
+      // Load bid counts
+      if (allPackages.length > 0) {
+        const { data: bids } = await supabaseClient
+          .from('bids')
+          .select('package_id');
+        
+        const bidCounts = {};
+        bids?.forEach(b => {
+          bidCounts[b.package_id] = (bidCounts[b.package_id] || 0) + 1;
+        });
+        
+        allPackages.forEach(p => {
+          p.bid_count = bidCounts[p.id] || 0;
+        });
+      }
+
+      renderAllPackages();
+      updatePackageStats();
+    }
+
+    function updatePackageStats() {
+      const now = new Date();
+      document.getElementById('packages-open').textContent = allPackages.filter(p => p.status === 'open' && (!p.bidding_deadline || new Date(p.bidding_deadline) > now)).length;
+      document.getElementById('packages-accepted').textContent = allPackages.filter(p => p.status === 'accepted').length;
+      document.getElementById('packages-in-progress').textContent = allPackages.filter(p => p.status === 'in_progress').length;
+      document.getElementById('packages-completed').textContent = allPackages.filter(p => p.status === 'completed').length;
+    }
+
+    function renderAllPackages() {
+      const now = new Date();
+      let filtered = allPackages;
+
+      if (currentPackageFilter !== 'all') {
+        if (currentPackageFilter === 'expired') {
+          filtered = allPackages.filter(p => p.status === 'open' && p.bidding_deadline && new Date(p.bidding_deadline) < now);
+        } else {
+          filtered = allPackages.filter(p => p.status === currentPackageFilter);
+        }
+      }
+
+      const tbody = document.getElementById('packages-table');
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No packages found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(p => {
+        const isExpired = p.status === 'open' && p.bidding_deadline && new Date(p.bidding_deadline) < now;
+        const displayStatus = isExpired ? 'expired' : p.status;
+        const vehicle = p.vehicles;
+        const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim() : 'N/A';
+        
+        return `
+          <tr>
+            <td><strong>${p.title}</strong></td>
+            <td>${p.member?.full_name || p.member?.email || 'Unknown'}</td>
+            <td>${vehicleName}</td>
+            <td>${p.category || 'N/A'}</td>
+            <td>${p.bid_count || 0}</td>
+            <td><span class="status-badge ${displayStatus}">${displayStatus}</span></td>
+            <td>${new Date(p.created_at).toLocaleDateString()}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // ========== DASHBOARD ==========
+    function updateDashboard() {
+      document.getElementById('stat-pending-apps').textContent = applications.filter(a => a.status === 'pending').length;
+      document.getElementById('stat-active-providers').textContent = providers.length;
+      
+      const heldPayments = payments.filter(p => p.status === 'held');
+      const heldAmount = heldPayments.reduce((sum, p) => sum + (p.amount_total || 0), 0);
+      document.getElementById('stat-escrow').textContent = '$' + heldAmount.toLocaleString();
+      
+      document.getElementById('stat-open-disputes').textContent = disputes.filter(d => d.status === 'open').length;
+      
+      const releasedPayments = payments.filter(p => p.status === 'released');
+      const revenue = releasedPayments.reduce((sum, p) => sum + (p.amount_mcc_fee || 0), 0);
+      document.getElementById('stat-revenue').textContent = '$' + revenue.toLocaleString();
+      
+      document.getElementById('stat-packages').textContent = payments.filter(p => p.status === 'held').length;
+
+      // Attention items
+      const attentionItems = [];
+      const pendingApps = applications.filter(a => a.status === 'pending').length;
+      const openDisputes = disputes.filter(d => d.status === 'open').length;
+      const openTickets = tickets.filter(t => t.status === 'open').length;
+      
+      if (pendingApps > 0) attentionItems.push({ icon: '📋', text: `${pendingApps} provider application(s) awaiting review`, section: 'applications' });
+      if (openDisputes > 0) attentionItems.push({ icon: '⚠️', text: `${openDisputes} dispute(s) need resolution`, section: 'disputes' });
+      if (openTickets > 0) attentionItems.push({ icon: '🎫', text: `${openTickets} support ticket(s) awaiting response`, section: 'tickets' });
+
+      const container = document.getElementById('attention-items');
+      if (attentionItems.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><p>All caught up!</p></div>';
+      } else {
+        container.innerHTML = attentionItems.map(item => `
+          <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--bg-elevated);border-radius:var(--radius-md);margin-bottom:8px;cursor:pointer;" onclick="showSection('${item.section}')">
+            <span style="font-size:24px;">${item.icon}</span>
+            <span>${item.text}</span>
+            <span style="margin-left:auto;color:var(--accent-blue);">View →</span>
+          </div>
+        `).join('');
+      }
+
+      // Load recent activity and quick stats
+      await loadRecentActivity();
+      await loadQuickStats();
+    }
+
+    async function loadRecentActivity() {
+      const activities = [];
+      
+      // Get recent payments
+      const recentPayments = payments.slice(0, 5);
+      recentPayments.forEach(p => {
+        activities.push({
+          icon: p.status === 'released' ? '💰' : p.status === 'held' ? '🔒' : '💳',
+          text: `${p.status === 'released' ? 'Payment released' : p.status === 'held' ? 'Payment held in escrow' : 'Payment'} - $${p.amount_total?.toFixed(2) || 0}`,
+          time: p.created_at,
+          type: 'payment'
+        });
+      });
+
+      // Get recent applications
+      const recentApps = applications.slice(0, 3);
+      recentApps.forEach(a => {
+        activities.push({
+          icon: '📋',
+          text: `New provider application: ${a.business_name}`,
+          time: a.created_at,
+          type: 'application'
+        });
+      });
+
+      // Get recent disputes
+      const recentDisputes = disputes.slice(0, 3);
+      recentDisputes.forEach(d => {
+        activities.push({
+          icon: '⚠️',
+          text: `Dispute ${d.status}: ${d.maintenance_packages?.title || 'Package'}`,
+          time: d.created_at,
+          type: 'dispute'
+        });
+      });
+
+      // Sort by time
+      activities.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+      const container = document.getElementById('recent-activity-feed');
+      if (activities.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><p>No recent activity</p></div>';
+        return;
+      }
+
+      container.innerHTML = activities.slice(0, 8).map(a => `
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
+          <span style="font-size:18px;">${a.icon}</span>
+          <div style="flex:1;">
+            <div style="font-size:0.9rem;">${a.text}</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);">${formatTimeAgo(a.time)}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function loadQuickStats() {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      
+      try {
+        // New members
+        const { count: newMembers } = await supabaseClient
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'member')
+          .gte('created_at', sevenDaysAgo);
+        document.getElementById('stat-new-members').textContent = newMembers || 0;
+
+        // New packages
+        const { count: newPackages } = await supabaseClient
+          .from('maintenance_packages')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', sevenDaysAgo);
+        document.getElementById('stat-new-packages').textContent = newPackages || 0;
+
+        // New bids
+        const { count: newBids } = await supabaseClient
+          .from('bids')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', sevenDaysAgo);
+        document.getElementById('stat-new-bids').textContent = newBids || 0;
+
+        // Completed jobs
+        const { count: completedJobs } = await supabaseClient
+          .from('maintenance_packages')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'completed')
+          .gte('member_confirmed_at', sevenDaysAgo);
+        document.getElementById('stat-completed-jobs').textContent = completedJobs || 0;
+
+        // Total processed
+        const { data: processedPayments } = await supabaseClient
+          .from('payments')
+          .select('amount_total')
+          .eq('status', 'released')
+          .gte('released_at', sevenDaysAgo);
+        const totalProcessed = processedPayments?.reduce((sum, p) => sum + (p.amount_total || 0), 0) || 0;
+        document.getElementById('stat-total-processed').textContent = '$' + totalProcessed.toLocaleString();
+      } catch (err) {
+        console.error('Error loading quick stats:', err);
+      }
+    }
+
+    function formatTimeAgo(timestamp) {
+      const now = new Date();
+      const date = new Date(timestamp);
+      const diff = now - date;
+      
+      if (diff < 60000) return 'Just now';
+      if (diff < 3600000) return Math.floor(diff / 60000) + ' minutes ago';
+      if (diff < 86400000) return Math.floor(diff / 3600000) + ' hours ago';
+      if (diff < 604800000) return Math.floor(diff / 86400000) + ' days ago';
+      return date.toLocaleDateString();
+    }
+
+    // ========== RENDER TABLES ==========
+    function renderApplications() {
+      const filtered = applications.filter(a => a.status === currentFilters.applications || currentFilters.applications === 'all');
+      const tbody = document.getElementById('applications-table');
+      
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No applications</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(app => `
+        <tr>
+          <td><strong>${app.business_name}</strong><br><span style="color:var(--text-muted);font-size:0.82rem;">${app.contact_name}</span></td>
+          <td>${app.business_type || 'N/A'}</td>
+          <td>${app.city || ''}, ${app.state || ''}</td>
+          <td>${new Date(app.created_at).toLocaleDateString()}</td>
+          <td><span class="status-badge ${app.status}">${app.status}</span></td>
+          <td><button class="btn btn-secondary btn-sm" onclick="viewApplication('${app.id}')">Review</button></td>
+        </tr>
+      `).join('');
+    }
+
+    let selectedProviders = new Set();
+    let filteredProviders = [];
+
+    function renderProviders() {
+      const tbody = document.getElementById('providers-table');
+      filteredProviders = filterProvidersData();
+      
+      if (!filteredProviders.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No providers match filters</td></tr>';
+        updateBulkBar();
+        return;
+      }
+
+      tbody.innerHTML = filteredProviders.map(p => {
+        const stats = p.provider_stats?.[0] || {};
+        const totalCredits = (p.bid_credits || 0) + (p.free_trial_bids || 0);
+        const isSuspended = p.suspension_reason || stats.suspended;
+        const isSelected = selectedProviders.has(p.id);
+        
+        return `
+          <tr style="${isSelected ? 'background:var(--accent-blue-soft);' : ''}">
+            <td><input type="checkbox" class="provider-checkbox" data-id="${p.id}" ${isSelected ? 'checked' : ''} onchange="toggleProviderSelection('${p.id}')"></td>
+            <td>
+              <div><strong>${p.business_name || p.full_name || 'Unnamed'}</strong>${p.is_founding_provider ? ' <span style="background:linear-gradient(135deg,#d4a855,#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;margin-left:8px;">🌟 FOUNDING</span>' : ''}</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">${p.email || ''}</div>
+            </td>
+            <td>
+              <span style="padding:4px 8px;border-radius:4px;font-size:0.85rem;background:${totalCredits === 0 ? 'var(--accent-red-soft)' : totalCredits < 10 ? 'var(--accent-orange-soft)' : 'var(--accent-green-soft)'};color:${totalCredits === 0 ? 'var(--accent-red)' : totalCredits < 10 ? 'var(--accent-orange)' : 'var(--accent-green)'};">
+                🎟️ ${totalCredits}
+              </span>
+            </td>
+            <td>⭐ ${stats.average_rating?.toFixed(1) || 'New'}${stats.average_rating && stats.average_rating < 4 ? ' <span style="color:var(--accent-red);">⚠️</span>' : ''}</td>
+            <td>${stats.jobs_completed || 0}</td>
+            <td>$${(stats.total_earnings || 0).toLocaleString()}</td>
+            <td><span class="status-badge ${isSuspended ? 'rejected' : 'approved'}">${isSuspended ? 'Suspended' : 'Active'}</span></td>
+            <td>
+              <div style="display:flex;gap:4px;">
+                <button class="btn btn-secondary btn-sm" onclick="viewProvider('${p.id}')">View</button>
+                <button class="btn btn-ghost btn-sm" onclick="quickAddCredits('${p.id}')" title="Add Credits">🎟️</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      
+      updateBulkBar();
+    }
+
+    function filterProvidersData() {
+      const statusFilter = document.getElementById('provider-status-filter')?.value || 'all';
+      const creditsFilter = document.getElementById('provider-credits-filter')?.value || 'all';
+      const ratingFilter = document.getElementById('provider-rating-filter')?.value || 'all';
+      const typeFilter = document.getElementById('provider-type-filter')?.value || 'all';
+      const searchTerm = document.getElementById('provider-search')?.value?.toLowerCase() || '';
+
+      return providers.filter(p => {
+        const stats = p.provider_stats?.[0] || {};
+        const isSuspended = p.suspension_reason || stats.suspended;
+        const totalCredits = (p.bid_credits || 0) + (p.free_trial_bids || 0);
+        const avgRating = stats.average_rating;
+        const searchStr = `${p.business_name || ''} ${p.full_name || ''} ${p.email || ''}`.toLowerCase();
+
+        // Status filter
+        if (statusFilter === 'active' && isSuspended) return false;
+        if (statusFilter === 'suspended' && !isSuspended) return false;
+
+        // Credits filter
+        if (creditsFilter === 'zero' && totalCredits > 0) return false;
+        if (creditsFilter === 'low' && (totalCredits === 0 || totalCredits > 10)) return false;
+        if (creditsFilter === 'has' && totalCredits < 10) return false;
+
+        // Rating filter
+        if (ratingFilter === 'low' && (avgRating === null || avgRating === undefined || avgRating >= 4)) return false;
+        if (ratingFilter === 'good' && (avgRating === null || avgRating === undefined || avgRating < 4)) return false;
+        if (ratingFilter === 'new' && avgRating !== null && avgRating !== undefined) return false;
+
+        // Type filter (founding/standard)
+        if (typeFilter === 'founding' && !p.is_founding_provider) return false;
+        if (typeFilter === 'standard' && p.is_founding_provider) return false;
+
+        // Search filter
+        if (searchTerm && !searchStr.includes(searchTerm)) return false;
+
+        return true;
+      });
+    }
+
+    function filterProviders() {
+      renderProviders();
+    }
+
+    function toggleProviderSelection(id) {
+      if (selectedProviders.has(id)) {
+        selectedProviders.delete(id);
+      } else {
+        selectedProviders.add(id);
+      }
+      renderProviders();
+    }
+
+    function toggleSelectAll(checkbox) {
+      if (checkbox.checked) {
+        filteredProviders.forEach(p => selectedProviders.add(p.id));
+      } else {
+        selectedProviders.clear();
+      }
+      renderProviders();
+    }
+
+    function clearSelection() {
+      selectedProviders.clear();
+      document.getElementById('select-all-providers').checked = false;
+      renderProviders();
+    }
+
+    function updateBulkBar() {
+      const bar = document.getElementById('bulk-actions-bar');
+      const count = selectedProviders.size;
+      document.getElementById('selected-count').textContent = count;
+      bar.style.display = count > 0 ? 'block' : 'none';
+    }
+
+    async function bulkAddCredits() {
+      const count = selectedProviders.size;
+      const credits = prompt(`Add bid credits to ${count} provider(s):\n\nEnter number of credits to add:`);
+      if (!credits || isNaN(credits) || parseInt(credits) <= 0) return;
+
+      const creditsToAdd = parseInt(credits);
+      let success = 0;
+
+      for (const providerId of selectedProviders) {
+        const provider = providers.find(p => p.id === providerId);
+        const newCredits = (provider?.bid_credits || 0) + creditsToAdd;
+        
+        const { error } = await supabaseClient.from('profiles').update({
+          bid_credits: newCredits
+        }).eq('id', providerId);
+
+        if (!error) success++;
+      }
+
+      showToast(`Added ${creditsToAdd} credits to ${success} provider(s)`, 'success');
+      clearSelection();
+      await loadProviders();
+    }
+
+    async function bulkSuspend() {
+      const count = selectedProviders.size;
+      const reason = prompt(`Suspend ${count} provider(s):\n\nEnter suspension reason:`);
+      if (!reason) return;
+
+      let success = 0;
+
+      for (const providerId of selectedProviders) {
+        const { error } = await supabaseClient.from('profiles').update({
+          suspension_reason: reason,
+          suspended_at: new Date().toISOString()
+        }).eq('id', providerId);
+
+        if (!error) success++;
+      }
+
+      showToast(`Suspended ${success} provider(s)`, 'success');
+      clearSelection();
+      await loadProviders();
+    }
+
+    async function bulkActivate() {
+      const count = selectedProviders.size;
+      if (!confirm(`Activate ${count} suspended provider(s)?`)) return;
+
+      let success = 0;
+
+      for (const providerId of selectedProviders) {
+        const { error } = await supabaseClient.from('profiles').update({
+          suspension_reason: null,
+          suspended_at: null
+        }).eq('id', providerId);
+
+        if (!error) success++;
+      }
+
+      showToast(`Activated ${success} provider(s)`, 'success');
+      clearSelection();
+      await loadProviders();
+    }
+
+    async function bulkSendMessage() {
+      const count = selectedProviders.size;
+      const message = prompt(`Send message to ${count} provider(s):\n\nEnter your message:`);
+      if (!message) return;
+
+      // Queue notification for each provider
+      let success = 0;
+      for (const providerId of selectedProviders) {
+        const { error } = await supabaseClient.from('notifications').insert({
+          user_id: providerId,
+          type: 'admin_message',
+          title: '📢 Message from MCC Admin',
+          message: message
+        });
+        if (!error) success++;
+      }
+
+      showToast(`Message sent to ${success} provider(s)`, 'success');
+      clearSelection();
+    }
+
+    async function checkLowRatedProviders() {
+      // Find providers with ratings below 4 stars who are not already suspended
+      const lowRated = providers.filter(p => {
+        const stats = p.provider_stats?.[0] || {};
+        const avgRating = stats.average_rating;
+        const isSuspended = p.suspension_reason || stats.suspended;
+        return avgRating !== null && avgRating !== undefined && avgRating < 4 && !isSuspended;
+      });
+
+      if (lowRated.length === 0) {
+        showToast('No providers with ratings below 4 stars found!', 'success');
+        return;
+      }
+
+      const names = lowRated.map(p => `• ${p.business_name || p.full_name} (${p.provider_stats?.[0]?.average_rating?.toFixed(1)} ⭐)`).join('\n');
+      
+      const action = confirm(`⚠️ Found ${lowRated.length} provider(s) with ratings below 4 stars:\n\n${names}\n\nDo you want to suspend these providers?`);
+      
+      if (!action) {
+        // Just filter to show them
+        document.getElementById('provider-rating-filter').value = 'low';
+        filterProviders();
+        showToast(`Showing ${lowRated.length} low-rated provider(s)`, 'info');
+        return;
+      }
+
+      // Suspend low-rated providers
+      let suspended = 0;
+      for (const provider of lowRated) {
+        const { error } = await supabaseClient
+          .from('profiles')
+          .update({ 
+            suspension_reason: 'Rating below 4 stars - automatic suspension',
+            suspended_at: new Date().toISOString()
+          })
+          .eq('id', provider.id);
+        
+        if (!error) {
+          suspended++;
+          
+          // Send notification
+          await supabaseClient.from('notifications').insert({
+            user_id: provider.id,
+            type: 'account_suspended',
+            title: '⚠️ Account Suspended',
+            message: 'Your provider account has been suspended due to ratings falling below 4 stars. Please contact support to discuss reinstatement.'
+          });
+        }
+      }
+
+      showToast(`Suspended ${suspended} provider(s) with low ratings`, 'success');
+      await loadData();
+      renderProviders();
+    }
+
+    function bulkExport() {
+      const data = [];
+      for (const providerId of selectedProviders) {
+        const p = providers.find(pr => pr.id === providerId);
+        if (p) {
+          const stats = p.provider_stats?.[0] || {};
+          data.push({
+            business_name: p.business_name || '',
+            full_name: p.full_name || '',
+            email: p.email || '',
+            phone: p.business_phone || '',
+            bid_credits: (p.bid_credits || 0) + (p.free_trial_bids || 0),
+            rating: stats.average_rating || 'N/A',
+            jobs_completed: stats.jobs_completed || 0,
+            total_earnings: stats.total_earnings || 0,
+            status: p.suspension_reason ? 'Suspended' : 'Active'
+          });
+        }
+      }
+
+      // Create CSV
+      const headers = Object.keys(data[0] || {}).join(',');
+      const rows = data.map(row => Object.values(row).join(','));
+      const csv = [headers, ...rows].join('\n');
+
+      // Download
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `providers-export-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showToast(`Exported ${data.length} provider(s)`, 'success');
+    }
+
+    async function quickAddCredits(providerId) {
+      const provider = providers.find(p => p.id === providerId);
+      const name = provider?.business_name || provider?.full_name || 'Provider';
+      const currentCredits = (provider?.bid_credits || 0) + (provider?.free_trial_bids || 0);
+      
+      const credits = prompt(`Add credits to ${name}\nCurrent balance: ${currentCredits}\n\nEnter credits to add:`);
+      if (!credits || isNaN(credits) || parseInt(credits) <= 0) return;
+
+      const creditsToAdd = parseInt(credits);
+      const newCredits = (provider?.bid_credits || 0) + creditsToAdd;
+
+      const { error } = await supabaseClient.from('profiles').update({
+        bid_credits: newCredits
+      }).eq('id', providerId);
+
+      if (error) {
+        showToast('Failed to add credits', 'error');
+      } else {
+        showToast(`Added ${creditsToAdd} credits to ${name}`, 'success');
+        await loadProviders();
+      }
+    }
+
+    function renderPayments() {
+      const filtered = payments.filter(p => p.status === currentFilters.payments || currentFilters.payments === 'all');
+      const tbody = document.getElementById('payments-table');
+
+      // Update stats
+      document.getElementById('payments-held').textContent = '$' + payments.filter(p => p.status === 'held').reduce((s, p) => s + (p.amount_total || 0), 0).toLocaleString();
+      document.getElementById('payments-released').textContent = '$' + payments.filter(p => p.status === 'released').reduce((s, p) => s + (p.amount_total || 0), 0).toLocaleString();
+      document.getElementById('payments-refunded').textContent = '$' + payments.filter(p => p.status === 'refunded').reduce((s, p) => s + (p.refund_amount || 0), 0).toLocaleString();
+      document.getElementById('payments-fees').textContent = '$' + payments.filter(p => p.status === 'released').reduce((s, p) => s + (p.amount_mcc_fee || 0), 0).toLocaleString();
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No payments</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(p => `
+        <tr>
+          <td>${p.maintenance_packages?.title || 'Package'}</td>
+          <td>${p.member?.full_name || 'Member'}</td>
+          <td>${p.provider?.full_name || 'Provider'}</td>
+          <td>$${(p.amount_total || 0).toFixed(2)}</td>
+          <td>$${(p.amount_mcc_fee || 0).toFixed(2)}</td>
+          <td><span class="status-badge ${p.status}">${p.status}</span></td>
+          <td>
+            ${p.status === 'held' ? `<button class="btn btn-sm btn-success" onclick="releasePayment('${p.id}')">Release</button>` : '-'}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderDisputes() {
+      const filtered = disputes.filter(d => {
+        if (currentFilters.disputes === 'inspection') return d.requires_inspection && d.status !== 'resolved';
+        return d.status === currentFilters.disputes || currentFilters.disputes === 'all';
+      });
+      const tbody = document.getElementById('disputes-table');
+
+      const highValue = disputes.filter(d => d.payments?.amount_total > 1000 && d.status === 'open');
+      document.getElementById('high-value-alert').style.display = highValue.length ? 'block' : 'none';
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No disputes</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(d => `
+        <tr>
+          <td>${d.maintenance_packages?.title || 'Package'}</td>
+          <td>${d.filed_by_profile?.full_name || 'User'} (${d.filed_by_role})</td>
+          <td>${d.reason}</td>
+          <td>$${(d.payments?.amount_total || 0).toFixed(2)}</td>
+          <td>${new Date(d.created_at).toLocaleDateString()}</td>
+          <td><span class="status-badge ${d.status === 'open' ? 'open' : d.status.includes('resolved') ? 'resolved' : 'pending'}">${d.status}</span></td>
+          <td><button class="btn btn-secondary btn-sm" onclick="viewDispute('${d.id}')">Review</button></td>
+        </tr>
+      `).join('');
+    }
+
+    function renderTickets() {
+      const filtered = tickets.filter(t => t.status === currentFilters.tickets || currentFilters.tickets === 'all');
+      const tbody = document.getElementById('tickets-table');
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No tickets</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(t => `
+        <tr>
+          <td>${t.subject}</td>
+          <td>${t.user?.full_name || t.user?.email || 'User'}</td>
+          <td>${t.category || 'General'}</td>
+          <td><span class="status-badge ${t.priority === 'urgent' ? 'rejected' : t.priority === 'high' ? 'pending' : 'approved'}">${t.priority || 'normal'}</span></td>
+          <td>${new Date(t.created_at).toLocaleDateString()}</td>
+          <td><span class="status-badge ${t.status === 'open' ? 'open' : t.status === 'resolved' ? 'resolved' : 'pending'}">${t.status}</span></td>
+          <td><button class="btn btn-secondary btn-sm" onclick="viewTicket('${t.id}')">View</button></td>
+        </tr>
+      `).join('');
+    }
+
+    function renderMembers() {
+      const tbody = document.getElementById('members-table');
+      if (!members.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No members</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = members.map(m => `
+        <tr>
+          <td>${m.full_name || 'N/A'}</td>
+          <td>${m.email || 'N/A'}</td>
+          <td>${m.account_type || 'individual'}</td>
+          <td>-</td>
+          <td>-</td>
+          <td>${new Date(m.created_at).toLocaleDateString()}</td>
+          <td><button class="btn btn-secondary btn-sm" onclick="viewMember('${m.id}')">View</button></td>
+        </tr>
+      `).join('');
+    }
+
+    // ========== APPLICATION REVIEW ==========
+    async function viewApplication(appId) {
+      currentApplication = applications.find(a => a.id === appId);
+      if (!currentApplication) return;
+
+      // Load documents
+      const { data: docs } = await supabaseClient.from('provider_documents').select('*').eq('application_id', appId);
+      const { data: refs } = await supabaseClient.from('provider_references').select('*').eq('application_id', appId);
+      const { data: reviews } = await supabaseClient.from('provider_external_reviews').select('*').eq('application_id', appId);
+
+      const app = currentApplication;
+      
+      // Format loaner delivery options
+      const loanerDeliveryLabels = {
+        'deliver_loaner': 'Delivers loaner to member',
+        'pickup_at_shop': 'Member picks up at shop',
+        'swap_at_member': 'Swaps vehicles at member location'
+      };
+      const loanerOptions = app.loaner_delivery_options?.map(o => loanerDeliveryLabels[o] || o).join(', ') || 'N/A';
+      
+      // Format pickup/delivery options
+      const pickupLabels = {
+        'pickup_vehicle': 'Picks up member vehicle',
+        'deliver_vehicle': 'Delivers after service',
+        'flatbed': 'Flatbed/tow capability',
+        'rideshare_coord': 'Coordinates rideshare'
+      };
+      const pickupOptions = app.pickup_delivery_options?.map(o => pickupLabels[o] || o).join(', ') || 'N/A';
+
+      document.getElementById('application-modal-body').innerHTML = `
+        <div class="form-section">
+          <div class="form-section-title">Business Information</div>
+          <div class="detail-grid">
+            <span class="detail-label">Business Name:</span><span class="detail-value">${app.business_name}</span>
+            <span class="detail-label">Business Type:</span><span class="detail-value">${app.business_type || 'N/A'}</span>
+            <span class="detail-label">Contact:</span><span class="detail-value">${app.contact_name}</span>
+            <span class="detail-label">Phone:</span><span class="detail-value">${app.phone || 'N/A'}</span>
+            <span class="detail-label">Email:</span><span class="detail-value">${app.email || 'N/A'}</span>
+            <span class="detail-label">Website:</span><span class="detail-value">${app.website ? `<a href="${app.website}" target="_blank" style="color:var(--accent-blue)">${app.website}</a>` : 'N/A'}</span>
+            <span class="detail-label">Address:</span><span class="detail-value">${app.street_address || ''}, ${app.city || ''}, ${app.state || ''} ${app.zip_code || ''}</span>
+            <span class="detail-label">Service Area:</span><span class="detail-value">${app.service_area || 'N/A'}</span>
+            <span class="detail-label">Years in Business:</span><span class="detail-value">${app.years_in_business || 'N/A'}</span>
+            <span class="detail-label">Services:</span><span class="detail-value">${app.services_offered?.join(', ') || 'N/A'}</span>
+            <span class="detail-label">Specializations:</span><span class="detail-value">${app.brand_specializations?.join(', ') || 'None'}</span>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">🚗 Loaner Vehicle Program</div>
+          ${app.has_loaner_vehicles ? `
+            <div class="detail-grid">
+              <span class="detail-label">Loaner Vehicles:</span><span class="detail-value" style="color:var(--accent-green);">✓ Yes (${app.loaner_vehicle_count || '?'} vehicles)</span>
+              <span class="detail-label">Vehicle Types:</span><span class="detail-value">${app.loaner_vehicle_types || 'N/A'}</span>
+              <span class="detail-label">Delivery Options:</span><span class="detail-value">${loanerOptions}</span>
+              <span class="detail-label">Requirements:</span><span class="detail-value">${app.loaner_requirements || 'N/A'}</span>
+              <span class="detail-label">Fee:</span><span class="detail-value">${app.loaner_fee_type === 'free' ? 'Free with service' : app.loaner_fee_type === 'deposit' ? 'Deposit only' : app.loaner_fee_amount ? '$' + app.loaner_fee_amount + '/day' : 'N/A'}</span>
+            </div>
+          ` : `
+            <p style="color:var(--text-muted);">❌ No loaner vehicles available</p>
+          `}
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">🚚 Pickup & Delivery</div>
+          <div class="detail-grid">
+            <span class="detail-label">Capabilities:</span><span class="detail-value">${pickupOptions}</span>
+            <span class="detail-label">Radius:</span><span class="detail-value">${app.pickup_radius_miles ? app.pickup_radius_miles + ' miles' : 'N/A'}</span>
+            <span class="detail-label">Fee:</span><span class="detail-value">${app.pickup_fee_type === 'free' ? 'Free' : app.pickup_fee_type === 'included' ? 'Included in service' : app.pickup_fee_type === 'flat' ? '$' + (app.pickup_fee_amount || 0) + ' flat' : app.pickup_fee_type === 'per_mile' ? '$' + (app.pickup_fee_amount || 0) + '/mile' : app.pickup_fee_type || 'N/A'}</span>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">Uploaded Documents</div>
+          <div class="doc-list">
+            ${docs?.length ? docs.map(d => `
+              <div class="doc-item">
+                <div class="doc-item-info">
+                  <span class="doc-icon">📄</span>
+                  <span>${d.document_type}: ${d.document_name || 'Document'}</span>
+                </div>
+                <a href="${d.file_url}" target="_blank" class="btn btn-sm btn-secondary">View</a>
+              </div>
+            `).join('') : '<p style="color:var(--text-muted)">No documents uploaded</p>'}
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">External Reviews</div>
+          ${reviews?.length ? reviews.map(r => `
+            <div class="doc-item">
+              <div class="doc-item-info">
+                <span class="doc-icon">⭐</span>
+                <span>${r.platform}: ${r.rating || '?'}/5 (${r.review_count || '?'} reviews)</span>
+              </div>
+              <a href="${r.profile_url}" target="_blank" class="btn btn-sm btn-secondary">View</a>
+            </div>
+          `).join('') : '<p style="color:var(--text-muted)">No external reviews provided</p>'}
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">References</div>
+          ${refs?.length ? refs.map(r => `
+            <div class="doc-item">
+              <div class="doc-item-info">
+                <span class="doc-icon">👤</span>
+                <div>
+                  <strong>${r.reference_name}</strong> - ${r.relationship}<br>
+                  <span style="font-size:0.82rem;color:var(--text-muted)">${r.reference_phone || ''} ${r.reference_email || ''}</span>
+                </div>
+              </div>
+            </div>
+          `).join('') : '<p style="color:var(--text-muted)">No references provided</p>'}
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">Vetting Checklist</div>
+          <div class="checklist">
+            <div class="checklist-item ${app.license_verified ? 'checked' : ''}">
+              <input type="checkbox" id="chk-license" ${app.license_verified ? 'checked' : ''}>
+              <label for="chk-license">Business license verified</label>
+            </div>
+            <div class="checklist-item ${app.insurance_verified ? 'checked' : ''}">
+              <input type="checkbox" id="chk-insurance" ${app.insurance_verified ? 'checked' : ''}>
+              <label for="chk-insurance">Insurance certificate verified (adequate coverage)</label>
+            </div>
+            <div class="checklist-item ${app.certifications_verified ? 'checked' : ''}">
+              <input type="checkbox" id="chk-certs" ${app.certifications_verified ? 'checked' : ''}>
+              <label for="chk-certs">Certifications verified</label>
+            </div>
+            <div class="checklist-item ${app.reviews_checked ? 'checked' : ''}">
+              <input type="checkbox" id="chk-reviews" ${app.reviews_checked ? 'checked' : ''}>
+              <label for="chk-reviews">External reviews checked</label>
+            </div>
+            <div class="checklist-item ${app.references_contacted ? 'checked' : ''}">
+              <input type="checkbox" id="chk-refs" ${app.references_contacted ? 'checked' : ''}>
+              <label for="chk-refs">References contacted</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Admin Notes</label>
+          <textarea class="form-textarea" id="admin-notes" placeholder="Internal notes about this application...">${app.admin_notes || ''}</textarea>
+        </div>
+      `;
+
+      document.getElementById('application-modal').classList.add('active');
+    }
+
+    async function approveApplication() {
+      if (!currentApplication) return;
+      if (!confirm('Approve this provider? They will gain access to the provider portal.')) return;
+
+      const adminNotes = document.getElementById('admin-notes').value;
+
+      await supabaseClient.from('provider_applications').update({
+        status: 'approved',
+        admin_notes: adminNotes,
+        reviewed_by: currentUser.id,
+        reviewed_at: new Date().toISOString(),
+        license_verified: document.getElementById('chk-license').checked,
+        insurance_verified: document.getElementById('chk-insurance').checked,
+        certifications_verified: document.getElementById('chk-certs').checked,
+        reviews_checked: document.getElementById('chk-reviews').checked,
+        references_contacted: document.getElementById('chk-refs').checked
+      }).eq('id', currentApplication.id);
+
+      await supabaseClient.from('profiles').update({ role: 'provider' }).eq('id', currentApplication.user_id);
+
+      // Create provider_stats record
+      await supabaseClient.from('provider_stats').insert({ provider_id: currentApplication.user_id });
+
+      closeModal('application-modal');
+      showToast('Provider approved!');
+      await loadApplications();
+      await loadProviders();
+      updateDashboard();
+    }
+
+    async function rejectApplication() {
+      if (!currentApplication) return;
+      const reason = prompt('Reason for rejection:');
+      if (!reason) return;
+
+      await supabaseClient.from('provider_applications').update({
+        status: 'rejected',
+        rejection_reason: reason,
+        admin_notes: document.getElementById('admin-notes').value,
+        reviewed_by: currentUser.id,
+        reviewed_at: new Date().toISOString()
+      }).eq('id', currentApplication.id);
+
+      closeModal('application-modal');
+      showToast('Application rejected');
+      await loadApplications();
+      updateDashboard();
+    }
+
+    async function requestMoreInfo() {
+      if (!currentApplication) return;
+      const request = prompt('What additional information is needed?');
+      if (!request) return;
+
+      await supabaseClient.from('provider_applications').update({
+        status: 'more_info_needed',
+        admin_notes: (document.getElementById('admin-notes').value || '') + '\n\nRequested: ' + request
+      }).eq('id', currentApplication.id);
+
+      closeModal('application-modal');
+      showToast('Request sent to applicant');
+      await loadApplications();
+    }
+
+    // ========== DISPUTE HANDLING ==========
+    async function viewDispute(disputeId) {
+      currentDispute = disputes.find(d => d.id === disputeId);
+      if (!currentDispute) return;
+
+      const { data: evidence } = await supabaseClient.from('dispute_evidence').select('*').eq('dispute_id', disputeId);
+      const d = currentDispute;
+      const isHighValue = d.payments?.amount_total > 1000;
+
+      document.getElementById('dispute-modal-body').innerHTML = `
+        <div class="form-section">
+          <div class="form-section-title">Dispute Details</div>
+          <div class="detail-grid">
+            <span class="detail-label">Package:</span><span class="detail-value">${d.maintenance_packages?.title || 'N/A'}</span>
+            <span class="detail-label">Amount:</span><span class="detail-value">$${(d.payments?.amount_total || 0).toFixed(2)}</span>
+            <span class="detail-label">Filed By:</span><span class="detail-value">${d.filed_by_profile?.full_name || 'User'} (${d.filed_by_role})</span>
+            <span class="detail-label">Reason:</span><span class="detail-value">${d.reason}</span>
+            <span class="detail-label">Filed:</span><span class="detail-value">${new Date(d.created_at).toLocaleString()}</span>
+          </div>
+          ${d.description ? `<p style="margin-top:16px;color:var(--text-secondary);">${d.description}</p>` : ''}
+        </div>
+
+        ${isHighValue ? `
+          <div class="alert warning">
+            ⚠️ This dispute is over $1,000. Third-party inspection may be required.
+          </div>
+        ` : ''}
+
+        <div class="form-section">
+          <div class="form-section-title">Evidence Submitted</div>
+          ${evidence?.length ? `
+            <div class="evidence-grid">
+              ${evidence.map(e => `
+                <div class="evidence-item" onclick="window.open('${e.file_url}','_blank')">
+                  <img src="${e.file_url}" onerror="this.parentElement.innerHTML='📄'">
+                </div>
+              `).join('')}
+            </div>
+          ` : '<p style="color:var(--text-muted)">No evidence submitted</p>'}
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Resolution Amount ($)</label>
+          <input type="number" class="form-input" id="resolution-amount" placeholder="Amount to refund to member" value="${d.payments?.amount_total || 0}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Resolution Notes</label>
+          <textarea class="form-textarea" id="resolution-notes" placeholder="Explain the resolution decision...">${d.resolution_notes || ''}</textarea>
+        </div>
+      `;
+
+      document.getElementById('dispute-modal-footer').innerHTML = `
+        ${isHighValue && !d.requires_inspection ? `<button class="btn btn-secondary" onclick="scheduleInspection()">Schedule Inspection</button>` : ''}
+        <button class="btn btn-danger" onclick="resolveDispute('provider')">Resolve for Provider</button>
+        <button class="btn btn-success" onclick="resolveDispute('member')">Resolve for Member</button>
+      `;
+
+      document.getElementById('dispute-modal').classList.add('active');
+    }
+
+    async function resolveDispute(winner) {
+      if (!currentDispute) return;
+      const resolutionAmount = parseFloat(document.getElementById('resolution-amount').value) || 0;
+      const notes = document.getElementById('resolution-notes').value;
+
+      if (!notes) return showToast('Please provide resolution notes', 'error');
+
+      // Update dispute
+      await supabaseClient.from('disputes').update({
+        status: `resolved_${winner}`,
+        resolution_amount: winner === 'member' ? resolutionAmount : 0,
+        resolution_notes: notes,
+        resolved_by: currentUser.id,
+        resolved_at: new Date().toISOString()
+      }).eq('id', currentDispute.id);
+
+      // Process refund if member wins
+      if (winner === 'member' && currentDispute.payment_id) {
+        await supabaseClient.from('payments').update({
+          status: 'refunded',
+          refund_amount: resolutionAmount,
+          refund_reason: notes,
+          refunded_at: new Date().toISOString()
+        }).eq('id', currentDispute.payment_id);
+      }
+
+      // If provider loses, add a strike
+      if (winner === 'member') {
+        // Get provider from payment
+        const payment = payments.find(p => p.id === currentDispute.payment_id);
+        if (payment?.provider_id) {
+          await supabaseClient.rpc('increment_provider_strikes', { provider_id: payment.provider_id });
+        }
+      }
+
+      closeModal('dispute-modal');
+      showToast('Dispute resolved');
+      await loadDisputes();
+      await loadPayments();
+      updateDashboard();
+    }
+
+    async function scheduleInspection() {
+      // For now, just mark that inspection is needed
+      await supabaseClient.from('disputes').update({ requires_inspection: true, status: 'inspection_scheduled' }).eq('id', currentDispute.id);
+      closeModal('dispute-modal');
+      showToast('Inspection scheduled');
+      await loadDisputes();
+    }
+
+    // ========== TICKETS ==========
+    async function viewTicket(ticketId) {
+      currentTicket = tickets.find(t => t.id === ticketId);
+      if (!currentTicket) return;
+
+      const { data: messages } = await supabaseClient.from('ticket_messages').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true });
+      const t = currentTicket;
+
+      document.getElementById('ticket-modal-body').innerHTML = `
+        <div class="form-section">
+          <div class="form-section-title">${t.subject}</div>
+          <div class="detail-grid">
+            <span class="detail-label">From:</span><span class="detail-value">${t.user?.full_name || t.user?.email || 'User'}</span>
+            <span class="detail-label">Category:</span><span class="detail-value">${t.category || 'General'}</span>
+            <span class="detail-label">Priority:</span><span class="detail-value">${t.priority || 'Normal'}</span>
+            <span class="detail-label">Submitted:</span><span class="detail-value">${new Date(t.created_at).toLocaleString()}</span>
+          </div>
+          <p style="margin-top:16px;color:var(--text-secondary);background:var(--bg-input);padding:16px;border-radius:var(--radius-md);">${t.description}</p>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">Conversation</div>
+          <div style="max-height:200px;overflow-y:auto;">
+            ${messages?.length ? messages.map(m => `
+              <div style="margin-bottom:12px;padding:12px;background:${m.sender_role === 'admin' ? 'var(--accent-blue-soft)' : 'var(--bg-input)'};border-radius:var(--radius-md);">
+                <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;">${m.sender_role === 'admin' ? 'Admin' : 'User'} - ${new Date(m.created_at).toLocaleString()}</div>
+                <p>${m.content}</p>
+              </div>
+            `).join('') : ''}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Your Reply</label>
+          <textarea class="form-textarea" id="ticket-reply" placeholder="Type your response..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-select" id="ticket-status">
+            <option value="open" ${t.status === 'open' ? 'selected' : ''}>Open</option>
+            <option value="in_progress" ${t.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+            <option value="resolved" ${t.status === 'resolved' ? 'selected' : ''}>Resolved</option>
+            <option value="closed" ${t.status === 'closed' ? 'selected' : ''}>Closed</option>
+          </select>
+        </div>
+      `;
+
+      document.getElementById('ticket-modal').classList.add('active');
+    }
+
+    async function sendTicketReply() {
+      if (!currentTicket) return;
+      const reply = document.getElementById('ticket-reply').value.trim();
+      const status = document.getElementById('ticket-status').value;
+
+      if (reply) {
+        await supabaseClient.from('ticket_messages').insert({
+          ticket_id: currentTicket.id,
+          sender_id: currentUser.id,
+          sender_role: 'admin',
+          content: reply
+        });
+      }
+
+      await supabaseClient.from('support_tickets').update({
+        status: status,
+        assigned_to: currentUser.id,
+        updated_at: new Date().toISOString()
+      }).eq('id', currentTicket.id);
+
+      closeModal('ticket-modal');
+      showToast('Reply sent');
+      await loadTickets();
+      updateDashboard();
+    }
+
+    // ========== PAYMENTS ==========
+    async function releasePayment(paymentId) {
+      if (!confirm('Release this payment to the provider?')) return;
+
+      await supabaseClient.from('payments').update({
+        status: 'released',
+        released_at: new Date().toISOString()
+      }).eq('id', paymentId);
+
+      showToast('Payment released');
+      await loadPayments();
+      updateDashboard();
+    }
+
+    // ========== NAVIGATION ==========
+    function setupEventListeners() {
+      document.querySelectorAll('.nav-item[data-section]').forEach(item => {
+        item.addEventListener('click', () => showSection(item.dataset.section));
+      });
+
+      document.querySelectorAll('.tabs').forEach(tabContainer => {
+        tabContainer.querySelectorAll('.tab').forEach(tab => {
+          tab.addEventListener('click', () => {
+            tabContainer.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            const section = tabContainer.closest('.section').id;
+            currentFilters[section] = tab.dataset.filter;
+            if (section === 'applications') renderApplications();
+            if (section === 'payments') renderPayments();
+            if (section === 'disputes') renderDisputes();
+            if (section === 'tickets') renderTickets();
+          });
+        });
+      });
+
+      document.querySelectorAll('.modal-backdrop').forEach(b => {
+        b.addEventListener('click', e => { if (e.target === b) b.classList.remove('active'); });
+      });
+    }
+
+    function showSection(id) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.querySelector(`.nav-item[data-section="${id}"]`)?.classList.add('active');
+    }
+
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+    function showToast(msg, type = 'success') {
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.innerHTML = `<span>${type === 'success' ? '✓' : '⚠'}</span><span>${msg}</span>`;
+      document.getElementById('toast-container').appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    // ========== PILOT APPLICATIONS ==========
+    let pilotApplications = [];
+    let currentPilotFilter = 'pending';
+
+    async function loadPilotApplications() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('pilot_applications')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error loading pilot applications:', error);
+          pilotApplications = [];
+        } else {
+          pilotApplications = data || [];
+        }
+
+        updatePilotStats();
+        renderPilotApplications();
+      } catch (err) {
+        console.error('loadPilotApplications error:', err);
+      }
+    }
+
+    function updatePilotStats() {
+      const pending = pilotApplications.filter(a => a.status === 'pending').length;
+      const approved = pilotApplications.filter(a => a.status === 'approved').length;
+      const rejected = pilotApplications.filter(a => a.status === 'rejected').length;
+
+      document.getElementById('pilot-pending').textContent = pending;
+      document.getElementById('pilot-approved').textContent = approved;
+      document.getElementById('pilot-rejected').textContent = rejected;
+      document.getElementById('pilot-count').textContent = pending;
+      document.getElementById('pilot-count').style.display = pending > 0 ? 'inline' : 'none';
+    }
+
+    function renderPilotApplications() {
+      const tbody = document.getElementById('pilot-applications-table');
+      let filtered = pilotApplications;
+
+      if (currentPilotFilter !== 'all') {
+        filtered = pilotApplications.filter(a => a.status === currentPilotFilter);
+      }
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No ${currentPilotFilter} pilot applications</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(app => {
+        const services = Array.isArray(app.services) ? app.services.join(', ') : (app.services || 'N/A');
+        const location = `${app.city || ''}, ${app.state || ''}`.replace(/^, |, $/g, '') || 'N/A';
+        
+        return `
+          <tr>
+            <td>
+              <div><strong>${app.business_name || 'Unnamed'}</strong></div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">${app.contact_name || ''}</div>
+            </td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${services}">${services}</td>
+            <td>${location}</td>
+            <td>${app.phone || 'N/A'}</td>
+            <td>${new Date(app.created_at).toLocaleDateString()}</td>
+            <td><span class="status-badge ${app.status}">${app.status}</span></td>
+            <td>
+              <div style="display:flex;gap:4px;">
+                <button class="btn btn-secondary btn-sm" onclick="viewPilotApplication('${app.id}')">View</button>
+                ${app.status === 'pending' ? `
+                  <button class="btn btn-success btn-sm" onclick="approvePilotApplication('${app.id}')">✓</button>
+                  <button class="btn btn-danger btn-sm" onclick="rejectPilotApplication('${app.id}')">✗</button>
+                ` : ''}
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function viewPilotApplication(id) {
+      const app = pilotApplications.find(a => a.id === id);
+      if (!app) return;
+
+      const services = Array.isArray(app.services) ? app.services.join(', ') : (app.services || 'N/A');
+      
+      const modalContent = `
+        <div class="form-section">
+          <div class="form-section-title">🌟 Founding Provider Application</div>
+          <div class="detail-grid">
+            <span class="detail-label">Business Name:</span><span class="detail-value">${app.business_name || 'N/A'}</span>
+            <span class="detail-label">Contact Name:</span><span class="detail-value">${app.contact_name || 'N/A'}</span>
+            <span class="detail-label">Email:</span><span class="detail-value">${app.email || 'N/A'}</span>
+            <span class="detail-label">Phone:</span><span class="detail-value">${app.phone || 'N/A'}</span>
+            <span class="detail-label">Location:</span><span class="detail-value">${app.city || ''}, ${app.state || ''}</span>
+            <span class="detail-label">Years Experience:</span><span class="detail-value">${app.years_experience || 'N/A'}</span>
+            <span class="detail-label">Services:</span><span class="detail-value">${services}</span>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">About the Business</div>
+          <p style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);line-height:1.6;">${app.about_business || 'No description provided.'}</p>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">Agreements</div>
+          <div style="display:grid;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              ${app.agree_tos ? '✅' : '❌'} Agreed to Terms of Service
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              ${app.agree_contractor ? '✅' : '❌'} Agreed to Independent Contractor Terms
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              ${app.agree_accuracy ? '✅' : '❌'} Confirmed Information Accuracy
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section" style="border-bottom:none;">
+          <div class="detail-grid">
+            <span class="detail-label">Status:</span><span class="detail-value"><span class="status-badge ${app.status}">${app.status}</span></span>
+            <span class="detail-label">Submitted:</span><span class="detail-value">${new Date(app.created_at).toLocaleString()}</span>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('application-modal-body').innerHTML = modalContent;
+      
+      // Update modal footer buttons based on status
+      const modalFooter = document.querySelector('#application-modal .modal-footer');
+      if (app.status === 'pending') {
+        modalFooter.innerHTML = `
+          <button class="btn btn-secondary" onclick="closeModal('application-modal')">Close</button>
+          <button class="btn btn-danger" onclick="rejectPilotApplication('${app.id}'); closeModal('application-modal');">Reject</button>
+          <button class="btn btn-success" onclick="approvePilotApplication('${app.id}'); closeModal('application-modal');">Approve as Founding Provider</button>
+        `;
+      } else {
+        modalFooter.innerHTML = `
+          <button class="btn btn-secondary" onclick="closeModal('application-modal')">Close</button>
+        `;
+      }
+
+      document.getElementById('application-modal').classList.add('active');
+    }
+
+    async function approvePilotApplication(id) {
+      const app = pilotApplications.find(a => a.id === id);
+      if (!app) return;
+
+      if (!confirm(`Approve ${app.business_name} as a Founding Provider?\n\nThis will create their provider profile with Founding Provider status.`)) return;
+
+      try {
+        // Update pilot application status
+        const { error: updateError } = await supabaseClient
+          .from('pilot_applications')
+          .update({ 
+            status: 'approved',
+            approved_at: new Date().toISOString(),
+            approved_by: currentUser.id
+          })
+          .eq('id', id);
+
+        if (updateError) {
+          showToast('Failed to approve application', 'error');
+          console.error('Approval error:', updateError);
+          return;
+        }
+
+        // Check if a profile already exists for this email
+        const { data: existingProfile } = await supabaseClient
+          .from('profiles')
+          .select('id')
+          .eq('email', app.email)
+          .single();
+
+        if (existingProfile) {
+          // Update existing profile to be a founding provider
+          const { error: profileError } = await supabaseClient
+            .from('profiles')
+            .update({
+              role: 'provider',
+              is_founding_provider: true,
+              business_name: app.business_name,
+              business_phone: app.phone,
+              city: app.city,
+              state: app.state
+            })
+            .eq('id', existingProfile.id);
+
+          if (profileError) {
+            console.error('Profile update error:', profileError);
+          }
+
+          // Ensure provider_stats exists
+          await supabaseClient.from('provider_stats').upsert({ 
+            provider_id: existingProfile.id 
+          }, { onConflict: 'provider_id' });
+        }
+
+        showToast(`${app.business_name} approved as Founding Provider!`, 'success');
+        await loadPilotApplications();
+        await loadProviders();
+      } catch (err) {
+        console.error('approvePilotApplication error:', err);
+        showToast('Error approving application', 'error');
+      }
+    }
+
+    async function rejectPilotApplication(id) {
+      const app = pilotApplications.find(a => a.id === id);
+      if (!app) return;
+
+      const reason = prompt('Reason for rejection (optional):');
+      if (reason === null) return; // Cancelled
+
+      try {
+        const { error } = await supabaseClient
+          .from('pilot_applications')
+          .update({ 
+            status: 'rejected',
+            rejection_reason: reason || null,
+            rejected_at: new Date().toISOString(),
+            rejected_by: currentUser.id
+          })
+          .eq('id', id);
+
+        if (error) {
+          showToast('Failed to reject application', 'error');
+          console.error('Rejection error:', error);
+          return;
+        }
+
+        showToast(`Application rejected`, 'success');
+        await loadPilotApplications();
+      } catch (err) {
+        console.error('rejectPilotApplication error:', err);
+        showToast('Error rejecting application', 'error');
+      }
+    }
+
+    // Setup pilot applications tabs
+    document.getElementById('pilot-tabs')?.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tab')) {
+        document.querySelectorAll('#pilot-tabs .tab').forEach(t => t.classList.remove('active'));
+        e.target.classList.add('active');
+        currentPilotFilter = e.target.dataset.filter;
+        renderPilotApplications();
+      }
+    });
+
+    // ========== VIOLATION REPORTS ==========
+    let violationReports = [];
+    let currentViolationFilter = 'pending';
+
+    async function loadViolationReports() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('circumvention_reports')
+          .select(`
+            *,
+            reporter:reporter_id(id, full_name, email),
+            provider:provider_id(id, full_name, business_name, provider_alias, email),
+            package:package_id(id, title)
+          `)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error loading violation reports:', error);
+          return;
+        }
+
+        violationReports = data || [];
+        updateViolationStats();
+        renderViolationReports();
+      } catch (err) {
+        console.error('loadViolationReports error:', err);
+      }
+    }
+
+    function updateViolationStats() {
+      const pending = violationReports.filter(r => r.status === 'pending').length;
+      const investigating = violationReports.filter(r => r.status === 'investigating').length;
+      const confirmed = violationReports.filter(r => r.status === 'confirmed').length;
+      const dismissed = violationReports.filter(r => r.status === 'dismissed').length;
+
+      document.getElementById('violations-pending').textContent = pending;
+      document.getElementById('violations-investigating').textContent = investigating;
+      document.getElementById('violations-confirmed').textContent = confirmed;
+      document.getElementById('violations-dismissed').textContent = dismissed;
+      document.getElementById('violation-count').textContent = pending;
+      document.getElementById('violation-count').style.display = pending > 0 ? 'inline' : 'none';
+    }
+
+    function renderViolationReports() {
+      const container = document.getElementById('violations-list');
+      let filtered = violationReports;
+
+      if (currentViolationFilter !== 'all') {
+        filtered = violationReports.filter(r => r.status === currentViolationFilter);
+      }
+
+      if (!filtered.length) {
+        container.innerHTML = `<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">🚩</div><p>No ${currentViolationFilter} reports</p></div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(report => {
+        const reporterName = report.reporter?.full_name || report.reporter?.email || 'Unknown';
+        const providerAlias = report.provider?.provider_alias || `Provider #${report.provider_id?.slice(0,4).toUpperCase()}`;
+        const providerRealName = report.provider?.business_name || report.provider?.full_name || 'Unknown';
+        const packageTitle = report.package?.title || 'N/A';
+        
+        const reportTypeLabels = {
+          'contact_info': 'Shared Contact Info',
+          'solicitation': 'Direct Solicitation',
+          'payment_outside': 'Outside Payment Request',
+          'discount_offer': 'Discount to Bypass MCC',
+          'business_card': 'Business Card/Flyer',
+          'other': 'Other Violation'
+        };
+
+        const statusColors = {
+          'pending': 'orange',
+          'investigating': 'blue',
+          'confirmed': 'red',
+          'dismissed': 'muted'
+        };
+
+        return `
+          <div class="card" style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+              <div>
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                  <span class="status-badge ${statusColors[report.status]}">${report.status.toUpperCase()}</span>
+                  <span style="font-weight:600;">${reportTypeLabels[report.report_type] || report.report_type}</span>
+                </div>
+                <div style="font-size:0.85rem;color:var(--text-muted);">
+                  Reported ${new Date(report.created_at).toLocaleDateString()} at ${new Date(report.created_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:0.85rem;color:var(--text-muted);">Report #${report.id.slice(0,8).toUpperCase()}</div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px;">
+              <div>
+                <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Reporter (Member)</div>
+                <div style="font-weight:500;">${reporterName}</div>
+                <div style="font-size:0.85rem;color:var(--text-secondary);">${report.reporter?.email || ''}</div>
+              </div>
+              <div>
+                <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Accused Provider</div>
+                <div style="font-weight:500;">${providerAlias}</div>
+                <div style="font-size:0.85rem;color:var(--accent-gold);">Real: ${providerRealName}</div>
+                <div style="font-size:0.85rem;color:var(--text-secondary);">${report.provider?.email || ''}</div>
+              </div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+              <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Related Package</div>
+              <div>${packageTitle}</div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+              <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Description</div>
+              <div style="background:var(--bg-input);padding:12px;border-radius:var(--radius-md);line-height:1.6;">${report.description}</div>
+            </div>
+
+            ${report.evidence_urls?.length ? `
+              <div style="margin-bottom:16px;">
+                <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px;">Evidence (${report.evidence_urls.length} file${report.evidence_urls.length > 1 ? 's' : ''})</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  ${report.evidence_urls.map((url, i) => `<a href="${url}" target="_blank" class="btn btn-secondary btn-sm">📎 Evidence ${i + 1}</a>`).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${report.admin_notes ? `
+              <div style="margin-bottom:16px;">
+                <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Admin Notes</div>
+                <div style="background:var(--accent-blue-soft);padding:12px;border-radius:var(--radius-md);border:1px solid rgba(74,124,255,0.3);">${report.admin_notes}</div>
+              </div>
+            ` : ''}
+
+            ${report.status === 'confirmed' && report.reward_amount ? `
+              <div style="background:var(--accent-gold-soft);padding:12px;border-radius:var(--radius-md);border:1px solid rgba(212,168,85,0.3);margin-bottom:16px;">
+                <strong>💰 Reward:</strong> $${report.reward_amount.toFixed(2)} ${report.reward_paid_at ? '(Paid)' : '(Pending)'}
+              </div>
+            ` : ''}
+
+            <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:16px;border-top:1px solid var(--border-subtle);">
+              ${report.status === 'pending' ? `
+                <button class="btn btn-primary btn-sm" onclick="updateViolationStatus('${report.id}', 'investigating')">🔍 Start Investigation</button>
+                <button class="btn btn-secondary btn-sm" onclick="updateViolationStatus('${report.id}', 'dismissed')">✗ Dismiss</button>
+              ` : ''}
+              ${report.status === 'investigating' ? `
+                <button class="btn btn-primary btn-sm" onclick="confirmViolation('${report.id}')">✓ Confirm Violation</button>
+                <button class="btn btn-secondary btn-sm" onclick="updateViolationStatus('${report.id}', 'dismissed')">✗ Dismiss</button>
+              ` : ''}
+              ${report.status === 'confirmed' && !report.reward_paid_at ? `
+                <button class="btn btn-primary btn-sm" onclick="markRewardPaid('${report.id}')">💰 Mark Reward Paid</button>
+              ` : ''}
+              <button class="btn btn-ghost btn-sm" onclick="addViolationNotes('${report.id}')">📝 Add Notes</button>
+              <button class="btn btn-ghost btn-sm" onclick="viewProviderHistory('${report.provider_id}')">👤 Provider History</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function updateViolationStatus(reportId, status) {
+      const updates = { status, updated_at: new Date().toISOString() };
+      
+      if (status === 'investigating') {
+        updates.investigated_at = new Date().toISOString();
+      }
+      if (status === 'dismissed' || status === 'confirmed') {
+        updates.resolved_at = new Date().toISOString();
+      }
+
+      const { error } = await supabaseClient
+        .from('circumvention_reports')
+        .update(updates)
+        .eq('id', reportId);
+
+      if (error) {
+        showToast('Failed to update status', 'error');
+        return;
+      }
+
+      showToast(`Report marked as ${status}`, 'success');
+      await loadViolationReports();
+    }
+
+    async function confirmViolation(reportId) {
+      const report = violationReports.find(r => r.id === reportId);
+      if (!report) return;
+
+      // Show confirm dialog with reward amount input
+      const rewardAmount = prompt('Enter reward amount for reporter (up to 25% of damages recovered).\nEnter 0 if no reward, or leave blank to skip reward for now:', '50');
+      
+      if (rewardAmount === null) return; // Cancelled
+
+      const updates = {
+        status: 'confirmed',
+        resolved_at: new Date().toISOString(),
+        reward_amount: rewardAmount ? parseFloat(rewardAmount) : null
+      };
+
+      const { error } = await supabaseClient
+        .from('circumvention_reports')
+        .update(updates)
+        .eq('id', reportId);
+
+      if (error) {
+        showToast('Failed to confirm violation', 'error');
+        return;
+      }
+
+      // Suspend the provider
+      const suspendProvider = confirm('Violation confirmed. Suspend this provider account?');
+      if (suspendProvider && report.provider_id) {
+        await supabaseClient
+          .from('profiles')
+          .update({ role: 'suspended', suspended_at: new Date().toISOString(), suspension_reason: 'Policy violation - circumvention attempt' })
+          .eq('id', report.provider_id);
+        
+        showToast('Provider account suspended', 'success');
+      }
+
+      showToast('Violation confirmed', 'success');
+      await loadViolationReports();
+    }
+
+    async function markRewardPaid(reportId) {
+      const { error } = await supabaseClient
+        .from('circumvention_reports')
+        .update({ reward_paid_at: new Date().toISOString() })
+        .eq('id', reportId);
+
+      if (error) {
+        showToast('Failed to update reward status', 'error');
+        return;
+      }
+
+      showToast('Reward marked as paid', 'success');
+      await loadViolationReports();
+    }
+
+    async function addViolationNotes(reportId) {
+      const report = violationReports.find(r => r.id === reportId);
+      const currentNotes = report?.admin_notes || '';
+      const newNotes = prompt('Enter admin notes:', currentNotes);
+      
+      if (newNotes === null) return;
+
+      const { error } = await supabaseClient
+        .from('circumvention_reports')
+        .update({ admin_notes: newNotes })
+        .eq('id', reportId);
+
+      if (error) {
+        showToast('Failed to save notes', 'error');
+        return;
+      }
+
+      showToast('Notes saved', 'success');
+      await loadViolationReports();
+    }
+
+    function viewProviderHistory(providerId) {
+      // Filter violations by this provider
+      const providerViolations = violationReports.filter(r => r.provider_id === providerId);
+      alert(`This provider has ${providerViolations.length} total report(s):\n\n` + 
+        providerViolations.map(r => `• ${r.status.toUpperCase()}: ${r.report_type} (${new Date(r.created_at).toLocaleDateString()})`).join('\n'));
+    }
+
+    // Setup violation tabs
+    document.getElementById('violations-tabs')?.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tab')) {
+        document.querySelectorAll('#violations-tabs .tab').forEach(t => t.classList.remove('active'));
+        e.target.classList.add('active');
+        currentViolationFilter = e.target.dataset.filter;
+        renderViolationReports();
+      }
+    });
+
+    async function logout() { await supabaseClient.auth.signOut(); window.location.href = 'login.html'; }
+  </script>
+  <script src="/pwa-init.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      await I18n.init();
+      I18n.createLanguageSwitcher('language-switcher');
+    });
+  </script>
+</body>
+</html>
