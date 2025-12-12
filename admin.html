@@ -176,7 +176,6 @@
 
     <div class="nav-label">Provider Management</div>
     <div class="nav-item" data-section="applications">📋 Applications <span class="nav-badge orange" id="app-count">0</span></div>
-    <div class="nav-item" data-section="pilot-applications">🌟 Pilot Applications <span class="nav-badge orange" id="pilot-count">0</span></div>
     <div class="nav-item" data-section="providers">✓ Active Providers</div>
     <div class="nav-item" data-section="violations">🚩 Violation Reports <span class="nav-badge red" id="violation-count">0</span></div>
 
@@ -448,58 +447,6 @@
       </div>
     </section>
 
-    <!-- Pilot Applications Section -->
-    <section id="pilot-applications" class="section">
-      <div class="page-header">
-        <h1 class="page-title">🌟 Founding Provider Applications</h1>
-        <p class="page-subtitle">Review and approve founding provider pilot program applications</p>
-      </div>
-
-      <div class="stats-grid" style="margin-bottom:24px;">
-        <div class="stat-card">
-          <div class="stat-icon" style="background:var(--accent-orange-soft);color:var(--accent-orange);">⏳</div>
-          <div class="stat-value" id="pilot-pending">0</div>
-          <div class="stat-label">Pending Review</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);">✓</div>
-          <div class="stat-value" id="pilot-approved">0</div>
-          <div class="stat-label">Approved</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background:var(--accent-red-soft);color:var(--accent-red);">✗</div>
-          <div class="stat-value" id="pilot-rejected">0</div>
-          <div class="stat-label">Rejected</div>
-        </div>
-      </div>
-
-      <div class="tabs" id="pilot-tabs">
-        <div class="tab active" data-filter="pending">Pending</div>
-        <div class="tab" data-filter="approved">Approved</div>
-        <div class="tab" data-filter="rejected">Rejected</div>
-        <div class="tab" data-filter="all">All</div>
-      </div>
-
-      <div class="card" style="padding:0;overflow:hidden;">
-        <table>
-          <thead>
-            <tr>
-              <th>Business Name</th>
-              <th>Services</th>
-              <th>Location</th>
-              <th>Phone</th>
-              <th>Submitted</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="pilot-applications-table">
-            <tr><td colspan="7" class="empty-state">No pilot applications</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
     <!-- Active Providers Section -->
     <section id="providers" class="section">
       <div class="page-header">
@@ -548,13 +495,6 @@
               <option value="low">⚠️ Below 4 Stars</option>
               <option value="good">4+ Stars</option>
               <option value="new">New (No Rating)</option>
-            </select>
-          </div>
-          <div class="form-group" style="margin:0;min-width:150px;">
-            <select class="form-input" id="provider-type-filter" onchange="filterProviders()" style="padding:8px 12px;">
-              <option value="all">All Types</option>
-              <option value="founding">🌟 Founding Only</option>
-              <option value="standard">Standard Only</option>
             </select>
           </div>
           <div class="form-group" style="margin:0;flex:1;min-width:200px;">
@@ -937,27 +877,6 @@
 
   <div class="toast-container" id="toast-container"></div>
 
-  <!-- Admin Password Modal -->
-  <div class="modal-backdrop" id="admin-password-modal" style="display:flex;background:rgba(0,0,0,0.95);">
-    <div class="modal" style="max-width:400px;">
-      <div class="modal-header">
-        <h3 class="modal-title">🔐 Admin Access</h3>
-      </div>
-      <div class="modal-body">
-        <p style="color:var(--text-secondary);margin-bottom:20px;">Enter the admin password to continue.</p>
-        <div class="form-group">
-          <label class="form-label">Password</label>
-          <input type="password" class="form-input" id="admin-password-input" placeholder="Enter admin password" autofocus>
-        </div>
-        <div id="admin-password-error" style="display:none;color:var(--accent-red);font-size:0.85rem;margin-top:8px;"></div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="window.location.href='index.html'">Cancel</button>
-        <button class="btn btn-primary" onclick="verifyAdminPassword()" id="verify-password-btn">Verify</button>
-      </div>
-    </div>
-  </div>
-
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
   <script>
@@ -980,8 +899,6 @@
     };
 
     // ========== INIT ==========
-    let adminPasswordVerified = false;
-    
     window.addEventListener('load', async () => {
       const user = await getCurrentUser();
       if (!user) return window.location.href = 'login.html';
@@ -993,61 +910,9 @@
         return window.location.href = 'login.html';
       }
 
-      // Check if password is required
-      document.getElementById('admin-password-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') verifyAdminPassword();
-      });
+      await loadAllData();
+      setupEventListeners();
     });
-    
-    async function verifyAdminPassword() {
-      const password = document.getElementById('admin-password-input').value;
-      const errorEl = document.getElementById('admin-password-error');
-      const btn = document.getElementById('verify-password-btn');
-      
-      if (!password) {
-        errorEl.textContent = 'Please enter a password.';
-        errorEl.style.display = 'block';
-        return;
-      }
-      
-      btn.textContent = 'Verifying...';
-      btn.disabled = true;
-      errorEl.style.display = 'none';
-      
-      try {
-        // Call Supabase RPC function for secure server-side password verification
-        const { data, error } = await supabaseClient.rpc('verify_admin_password', {
-          input_password: password
-        });
-        
-        if (error) {
-          console.error('Password verification error:', error);
-          errorEl.textContent = 'Error verifying password. Please try again.';
-          errorEl.style.display = 'block';
-          btn.textContent = 'Verify';
-          btn.disabled = false;
-          return;
-        }
-        
-        if (data === true) {
-          adminPasswordVerified = true;
-          document.getElementById('admin-password-modal').style.display = 'none';
-          await loadAllData();
-          setupEventListeners();
-        } else {
-          errorEl.textContent = 'Invalid password. Please try again.';
-          errorEl.style.display = 'block';
-          btn.textContent = 'Verify';
-          btn.disabled = false;
-        }
-      } catch (error) {
-        console.error('Password verification error:', error);
-        errorEl.textContent = 'Error verifying password. Please try again.';
-        errorEl.style.display = 'block';
-        btn.textContent = 'Verify';
-        btn.disabled = false;
-      }
-    }
 
     async function loadAllData() {
       await Promise.all([
@@ -1060,8 +925,7 @@
         loadUserRoles(),
         loadAllPackages(),
         loadViolationReports(),
-        loadAnalytics(),
-        loadPilotApplications()
+        loadAnalytics()
       ]);
       updateDashboard();
     }
@@ -1819,7 +1683,7 @@
           <tr style="${isSelected ? 'background:var(--accent-blue-soft);' : ''}">
             <td><input type="checkbox" class="provider-checkbox" data-id="${p.id}" ${isSelected ? 'checked' : ''} onchange="toggleProviderSelection('${p.id}')"></td>
             <td>
-              <div><strong>${p.business_name || p.full_name || 'Unnamed'}</strong>${p.is_founding_provider ? ' <span style="background:linear-gradient(135deg,#d4a855,#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;margin-left:8px;">🌟 FOUNDING</span>' : ''}</div>
+              <div><strong>${p.business_name || p.full_name || 'Unnamed'}</strong></div>
               <div style="font-size:0.8rem;color:var(--text-muted);">${p.email || ''}</div>
             </td>
             <td>
@@ -1848,7 +1712,6 @@
       const statusFilter = document.getElementById('provider-status-filter')?.value || 'all';
       const creditsFilter = document.getElementById('provider-credits-filter')?.value || 'all';
       const ratingFilter = document.getElementById('provider-rating-filter')?.value || 'all';
-      const typeFilter = document.getElementById('provider-type-filter')?.value || 'all';
       const searchTerm = document.getElementById('provider-search')?.value?.toLowerCase() || '';
 
       return providers.filter(p => {
@@ -1871,10 +1734,6 @@
         if (ratingFilter === 'low' && (avgRating === null || avgRating === undefined || avgRating >= 4)) return false;
         if (ratingFilter === 'good' && (avgRating === null || avgRating === undefined || avgRating < 4)) return false;
         if (ratingFilter === 'new' && avgRating !== null && avgRating !== undefined) return false;
-
-        // Type filter (founding/standard)
-        if (typeFilter === 'founding' && !p.is_founding_provider) return false;
-        if (typeFilter === 'standard' && p.is_founding_provider) return false;
 
         // Search filter
         if (searchTerm && !searchStr.includes(searchTerm)) return false;
@@ -2676,257 +2535,6 @@
       document.getElementById('toast-container').appendChild(toast);
       setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
     }
-
-    // ========== PILOT APPLICATIONS ==========
-    let pilotApplications = [];
-    let currentPilotFilter = 'pending';
-
-    async function loadPilotApplications() {
-      try {
-        const { data, error } = await supabaseClient
-          .from('pilot_applications')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          console.error('Error loading pilot applications:', error);
-          pilotApplications = [];
-        } else {
-          pilotApplications = data || [];
-        }
-
-        updatePilotStats();
-        renderPilotApplications();
-      } catch (err) {
-        console.error('loadPilotApplications error:', err);
-      }
-    }
-
-    function updatePilotStats() {
-      const pending = pilotApplications.filter(a => a.status === 'pending').length;
-      const approved = pilotApplications.filter(a => a.status === 'approved').length;
-      const rejected = pilotApplications.filter(a => a.status === 'rejected').length;
-
-      document.getElementById('pilot-pending').textContent = pending;
-      document.getElementById('pilot-approved').textContent = approved;
-      document.getElementById('pilot-rejected').textContent = rejected;
-      document.getElementById('pilot-count').textContent = pending;
-      document.getElementById('pilot-count').style.display = pending > 0 ? 'inline' : 'none';
-    }
-
-    function renderPilotApplications() {
-      const tbody = document.getElementById('pilot-applications-table');
-      let filtered = pilotApplications;
-
-      if (currentPilotFilter !== 'all') {
-        filtered = pilotApplications.filter(a => a.status === currentPilotFilter);
-      }
-
-      if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No ${currentPilotFilter} pilot applications</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = filtered.map(app => {
-        const services = Array.isArray(app.services) ? app.services.join(', ') : (app.services || 'N/A');
-        const location = `${app.city || ''}, ${app.state || ''}`.replace(/^, |, $/g, '') || 'N/A';
-        
-        return `
-          <tr>
-            <td>
-              <div><strong>${app.business_name || 'Unnamed'}</strong></div>
-              <div style="font-size:0.8rem;color:var(--text-muted);">${app.contact_name || ''}</div>
-            </td>
-            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${services}">${services}</td>
-            <td>${location}</td>
-            <td>${app.phone || 'N/A'}</td>
-            <td>${new Date(app.created_at).toLocaleDateString()}</td>
-            <td><span class="status-badge ${app.status}">${app.status}</span></td>
-            <td>
-              <div style="display:flex;gap:4px;">
-                <button class="btn btn-secondary btn-sm" onclick="viewPilotApplication('${app.id}')">View</button>
-                ${app.status === 'pending' ? `
-                  <button class="btn btn-success btn-sm" onclick="approvePilotApplication('${app.id}')">✓</button>
-                  <button class="btn btn-danger btn-sm" onclick="rejectPilotApplication('${app.id}')">✗</button>
-                ` : ''}
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function viewPilotApplication(id) {
-      const app = pilotApplications.find(a => a.id === id);
-      if (!app) return;
-
-      const services = Array.isArray(app.services) ? app.services.join(', ') : (app.services || 'N/A');
-      
-      const modalContent = `
-        <div class="form-section">
-          <div class="form-section-title">🌟 Founding Provider Application</div>
-          <div class="detail-grid">
-            <span class="detail-label">Business Name:</span><span class="detail-value">${app.business_name || 'N/A'}</span>
-            <span class="detail-label">Contact Name:</span><span class="detail-value">${app.contact_name || 'N/A'}</span>
-            <span class="detail-label">Email:</span><span class="detail-value">${app.email || 'N/A'}</span>
-            <span class="detail-label">Phone:</span><span class="detail-value">${app.phone || 'N/A'}</span>
-            <span class="detail-label">Location:</span><span class="detail-value">${app.city || ''}, ${app.state || ''}</span>
-            <span class="detail-label">Years Experience:</span><span class="detail-value">${app.years_experience || 'N/A'}</span>
-            <span class="detail-label">Services:</span><span class="detail-value">${services}</span>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <div class="form-section-title">About the Business</div>
-          <p style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);line-height:1.6;">${app.about_business || 'No description provided.'}</p>
-        </div>
-
-        <div class="form-section">
-          <div class="form-section-title">Agreements</div>
-          <div style="display:grid;gap:8px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              ${app.agree_tos ? '✅' : '❌'} Agreed to Terms of Service
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              ${app.agree_contractor ? '✅' : '❌'} Agreed to Independent Contractor Terms
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              ${app.agree_accuracy ? '✅' : '❌'} Confirmed Information Accuracy
-            </div>
-          </div>
-        </div>
-
-        <div class="form-section" style="border-bottom:none;">
-          <div class="detail-grid">
-            <span class="detail-label">Status:</span><span class="detail-value"><span class="status-badge ${app.status}">${app.status}</span></span>
-            <span class="detail-label">Submitted:</span><span class="detail-value">${new Date(app.created_at).toLocaleString()}</span>
-          </div>
-        </div>
-      `;
-
-      document.getElementById('application-modal-body').innerHTML = modalContent;
-      
-      // Update modal footer buttons based on status
-      const modalFooter = document.querySelector('#application-modal .modal-footer');
-      if (app.status === 'pending') {
-        modalFooter.innerHTML = `
-          <button class="btn btn-secondary" onclick="closeModal('application-modal')">Close</button>
-          <button class="btn btn-danger" onclick="rejectPilotApplication('${app.id}'); closeModal('application-modal');">Reject</button>
-          <button class="btn btn-success" onclick="approvePilotApplication('${app.id}'); closeModal('application-modal');">Approve as Founding Provider</button>
-        `;
-      } else {
-        modalFooter.innerHTML = `
-          <button class="btn btn-secondary" onclick="closeModal('application-modal')">Close</button>
-        `;
-      }
-
-      document.getElementById('application-modal').classList.add('active');
-    }
-
-    async function approvePilotApplication(id) {
-      const app = pilotApplications.find(a => a.id === id);
-      if (!app) return;
-
-      if (!confirm(`Approve ${app.business_name} as a Founding Provider?\n\nThis will create their provider profile with Founding Provider status.`)) return;
-
-      try {
-        // Update pilot application status
-        const { error: updateError } = await supabaseClient
-          .from('pilot_applications')
-          .update({ 
-            status: 'approved',
-            approved_at: new Date().toISOString(),
-            approved_by: currentUser.id
-          })
-          .eq('id', id);
-
-        if (updateError) {
-          showToast('Failed to approve application', 'error');
-          console.error('Approval error:', updateError);
-          return;
-        }
-
-        // Check if a profile already exists for this email
-        const { data: existingProfile } = await supabaseClient
-          .from('profiles')
-          .select('id')
-          .eq('email', app.email)
-          .single();
-
-        if (existingProfile) {
-          // Update existing profile to be a founding provider
-          const { error: profileError } = await supabaseClient
-            .from('profiles')
-            .update({
-              role: 'provider',
-              is_founding_provider: true,
-              business_name: app.business_name,
-              business_phone: app.phone,
-              city: app.city,
-              state: app.state
-            })
-            .eq('id', existingProfile.id);
-
-          if (profileError) {
-            console.error('Profile update error:', profileError);
-          }
-
-          // Ensure provider_stats exists
-          await supabaseClient.from('provider_stats').upsert({ 
-            provider_id: existingProfile.id 
-          }, { onConflict: 'provider_id' });
-        }
-
-        showToast(`${app.business_name} approved as Founding Provider!`, 'success');
-        await loadPilotApplications();
-        await loadProviders();
-      } catch (err) {
-        console.error('approvePilotApplication error:', err);
-        showToast('Error approving application', 'error');
-      }
-    }
-
-    async function rejectPilotApplication(id) {
-      const app = pilotApplications.find(a => a.id === id);
-      if (!app) return;
-
-      const reason = prompt('Reason for rejection (optional):');
-      if (reason === null) return; // Cancelled
-
-      try {
-        const { error } = await supabaseClient
-          .from('pilot_applications')
-          .update({ 
-            status: 'rejected',
-            rejection_reason: reason || null,
-            rejected_at: new Date().toISOString(),
-            rejected_by: currentUser.id
-          })
-          .eq('id', id);
-
-        if (error) {
-          showToast('Failed to reject application', 'error');
-          console.error('Rejection error:', error);
-          return;
-        }
-
-        showToast(`Application rejected`, 'success');
-        await loadPilotApplications();
-      } catch (err) {
-        console.error('rejectPilotApplication error:', err);
-        showToast('Error rejecting application', 'error');
-      }
-    }
-
-    // Setup pilot applications tabs
-    document.getElementById('pilot-tabs')?.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tab')) {
-        document.querySelectorAll('#pilot-tabs .tab').forEach(t => t.classList.remove('active'));
-        e.target.classList.add('active');
-        currentPilotFilter = e.target.dataset.filter;
-        renderPilotApplications();
-      }
-    });
 
     // ========== VIOLATION REPORTS ==========
     let violationReports = [];
