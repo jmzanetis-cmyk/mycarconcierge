@@ -26,7 +26,7 @@ function initStripe() {
 /**
  * MCC Fee Structure
  */
-const MCC_FEE_PERCENT = 0.075; // 7.5%
+const MCC_FEE_PERCENT = 0.02; // 2%
 
 function calculateFees(totalAmount) {
   const mccFee = totalAmount * MCC_FEE_PERCENT;

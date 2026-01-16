@@ -12,6 +12,7 @@
     "cap:sync": "npx cap sync",
     "cap:android": "npx cap open android",
     "cap:ios": "npx cap open ios",
+    "ios:run": "bash scripts/ios-run.sh",
     "build:mac": "npm run build:www && electron-builder --mac",
     "build:win": "npm run build:www && electron-builder --win",
     "build:linux": "npm run build:www && electron-builder --linux",
