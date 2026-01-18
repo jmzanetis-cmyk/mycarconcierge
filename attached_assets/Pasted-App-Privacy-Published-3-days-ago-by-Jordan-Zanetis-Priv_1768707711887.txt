@@ -1,0 +1,107 @@
+App Privacy
+Published 3 days ago by Jordan Zanetis
+Privacy Policy
+Edit
+English (U.S.)
+?
+Privacy Policy URL
+?
+https://mycarconcierge.co/privacy.html
+User Privacy Choices URL
+(Optional)
+?
+https://mycarconcierge.co/privacy.html
+Product Page Preview
+See Details
+Data Used to Track You
+The following data may be used to track you across apps and websites owned by other companies:
+Location
+Contact Info
+Data Linked to You
+The following data may be collected and linked to your identity:
+Sensitive Info
+Location
+Contact Info
+User Content
+Data Not Linked to You
+The following data may be collected but is not linked to your identity:
+User Content
+Diagnostics
+Contact Info
+Data Types
+Edit
+15 data types collected from this app: Sensitive Info, Photos or Videos, Coarse Location, Performance Data, Precise Location, Phone Number, Physical Address, Email Address, Other User Contact Info, Emails or Text Messages, Other Diagnostic Data, Customer Support, Name, Other User Content, Crash Data
+Contact Info
+Name
+?
+Edit
+Used for App Functionality
+Email Address
+?
+Edit
+Used for App Functionality
+Linked to the user's identity
+Phone Number
+?
+Edit
+Used for App Functionality
+Linked to the user's identity
+Used for tracking purposes
+Physical Address
+?
+Edit
+Used for Product Personalization, and App Functionality
+Linked to the user's identity
+Used for tracking purposes
+Other User Contact Info
+?
+Edit
+Used for Analytics, and Product Personalization
+Location
+Precise Location
+?
+Edit
+Used for Product Personalization, and App Functionality
+Linked to the user's identity
+Used for tracking purposes
+Coarse Location
+?
+Edit
+Used for Product Personalization, and App Functionality
+Linked to the user's identity
+Used for tracking purposes
+Sensitive Info
+Edit
+Used for App Functionality
+Linked to the user's identity
+User Content
+Emails or Text Messages
+?
+Edit
+Used for App Functionality
+Linked to the user's identity
+Photos or Videos
+?
+Edit
+Used for App Functionality
+Customer Support
+?
+Edit
+Used for App Functionality
+Other User Content
+?
+Edit
+Used for App Functionality
+Diagnostics
+Crash Data
+?
+Edit
+Used for App Functionality
+Performance Data
+?
+Edit
+Used for App Functionality
+Other Diagnostic Data
+?
+Edit
+Used for App Functionality
