@@ -1,0 +1,48 @@
+{
+	"appId": "com.zanetisholdings.mycarconcierge",
+	"appName": "My Car Concierge",
+	"version": "1.5.0",
+	"build": "25",
+	"webDir": "www",
+	"server": {
+		"androidScheme": "https",
+		"iosScheme": "https"
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 2000,
+			"launchAutoHide": true,
+			"backgroundColor": "#0a0a0f",
+			"showSpinner": false,
+			"splashFullScreen": true,
+			"splashImmersive": true
+		},
+		"StatusBar": {
+			"style": "Dark",
+			"backgroundColor": "#0a0a0f"
+		},
+		"Keyboard": {
+			"resize": "body",
+			"resizeOnFullScreen": true
+		},
+		"PushNotifications": {
+			"presentationOptions": [
+				"badge",
+				"sound",
+				"alert"
+			]
+		},
+		"Geolocation": {
+			"enableHighAccuracy": true
+		}
+	},
+	"ios": {
+		"contentInset": "automatic",
+		"backgroundColor": "#0a0a0f",
+		"scheme": "MyCarConcierge"
+	},
+	"android": {
+		"allowMixedContent": false,
+		"backgroundColor": "#0a0a0f"
+	}
+}

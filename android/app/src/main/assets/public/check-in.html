@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Check In – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.85);
+      --bg-elevated: rgba(28, 28, 42, 0.95);
+      --bg-input: rgba(22, 22, 34, 0.9);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-gold-soft: rgba(212, 168, 85, 0.15);
+      --accent-blue: #4a7cff;
+      --accent-blue-soft: rgba(74, 124, 255, 0.12);
+      --accent-green: #4ac88c;
+      --accent-green-soft: rgba(74, 200, 140, 0.12);
+      --accent-red: #ef5f5f;
+      --accent-orange: #f59e0b;
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-medium: rgba(148, 148, 168, 0.2);
+      --border-focus: rgba(212, 168, 85, 0.5);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+    
+    body {
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      touch-action: manipulation;
+    }
+
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background: radial-gradient(ellipse 80% 50% at 20% 10%, rgba(74, 124, 255, 0.06), transparent 50%),
+                  radial-gradient(ellipse 60% 60% at 80% 80%, rgba(212, 168, 85, 0.05), transparent 50%);
+    }
+
+    .kiosk-container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 600px;
+      min-height: 80vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .kiosk-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .brand-logo {
+      height: 100px;
+      width: auto;
+      margin-bottom: 16px;
+      border-radius: var(--radius-lg);
+      filter: drop-shadow(0 4px 20px rgba(212, 168, 85, 0.35));
+    }
+
+    .shop-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem;
+      font-weight: 500;
+      color: var(--accent-gold);
+      margin-bottom: 8px;
+    }
+
+    .kiosk-card {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .screen {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .screen-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      font-weight: 500;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .screen-subtitle {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .screen-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .screen-footer {
+      margin-top: auto;
+      padding-top: 32px;
+    }
+
+    .form-group {
+      margin-bottom: 24px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-bottom: 10px;
+      color: var(--text-secondary);
+    }
+
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      padding: 18px 20px;
+      background: var(--bg-input);
+      border: 2px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 1.1rem;
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 4px rgba(212, 168, 85, 0.1);
+    }
+
+    .form-input::placeholder, .form-textarea::placeholder {
+      color: var(--text-muted);
+    }
+
+    .form-input.large {
+      font-size: 1.5rem;
+      padding: 24px;
+      text-align: center;
+      letter-spacing: 0.2em;
+    }
+
+    .form-select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%239898a8' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      background-size: 24px;
+      padding-right: 48px;
+    }
+
+    .form-textarea {
+      min-height: 120px;
+      resize: none;
+    }
+
+    .form-hint {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      min-height: 64px;
+      padding: 18px 32px;
+      font-family: inherit;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      touch-action: manipulation;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-gold), #c49a45);
+      color: #0a0a0f;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 2px solid var(--border-subtle);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--accent-gold);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      min-height: auto;
+      padding: 12px;
+    }
+
+    .btn-ghost:hover {
+      color: var(--text-primary);
+    }
+
+    .otp-display {
+      background: var(--accent-gold-soft);
+      border: 2px dashed var(--accent-gold);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .otp-label {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-bottom: 8px;
+    }
+
+    .otp-code {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: 0.3em;
+      color: var(--accent-gold);
+    }
+
+    .vehicle-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .vehicle-option {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px;
+      background: var(--bg-elevated);
+      border: 2px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .vehicle-option:hover, .vehicle-option.selected {
+      border-color: var(--accent-gold);
+      background: var(--accent-gold-soft);
+    }
+
+    .vehicle-option.selected {
+      box-shadow: 0 0 0 4px rgba(212, 168, 85, 0.15);
+    }
+
+    .vehicle-icon {
+      font-size: 2rem;
+    }
+
+    .vehicle-info {
+      flex: 1;
+    }
+
+    .vehicle-name {
+      font-weight: 600;
+      font-size: 1.1rem;
+      margin-bottom: 4px;
+    }
+
+    .vehicle-details {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .vehicle-check {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: transparent;
+      transition: all 0.2s ease;
+    }
+
+    .vehicle-option.selected .vehicle-check {
+      background: var(--accent-gold);
+      border-color: var(--accent-gold);
+      color: #0a0a0f;
+    }
+
+    .add-vehicle-form {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-top: 16px;
+    }
+
+    .add-vehicle-form .form-group {
+      margin-bottom: 16px;
+    }
+
+    .add-vehicle-form .form-input {
+      padding: 14px 16px;
+      font-size: 1rem;
+    }
+
+    .vehicle-form-row {
+      display: grid;
+      grid-template-columns: 1fr 2fr 2fr;
+      gap: 12px;
+    }
+
+    .success-icon {
+      font-size: 80px;
+      text-align: center;
+      margin-bottom: 24px;
+      animation: bounce 0.6s ease;
+    }
+
+    @keyframes bounce {
+      0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+      40% { transform: translateY(-20px); }
+      60% { transform: translateY(-10px); }
+    }
+
+    .queue-number {
+      font-size: 4rem;
+      font-weight: 700;
+      text-align: center;
+      color: var(--accent-gold);
+      margin: 16px 0;
+    }
+
+    .queue-position {
+      text-align: center;
+      font-size: 1.3rem;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .wait-time {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: var(--accent-blue-soft);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 32px;
+    }
+
+    .wait-time-icon {
+      font-size: 1.5rem;
+    }
+
+    .wait-time-text {
+      font-size: 1.1rem;
+      color: var(--text-primary);
+    }
+
+    .wait-time-value {
+      font-weight: 600;
+      color: var(--accent-blue);
+    }
+
+    .confirmation-details {
+      background: var(--bg-elevated);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .confirmation-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .confirmation-row:last-child {
+      border-bottom: none;
+    }
+
+    .confirmation-label {
+      color: var(--text-secondary);
+    }
+
+    .confirmation-value {
+      font-weight: 500;
+      text-align: right;
+    }
+
+    .loading-spinner {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(0, 0, 0, 0.2);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error-message {
+      background: rgba(239, 95, 95, 0.1);
+      border: 1px solid rgba(239, 95, 95, 0.3);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      color: var(--accent-red);
+      text-align: center;
+      margin-bottom: 24px;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    .restart-link {
+      text-align: center;
+      margin-top: 24px;
+    }
+
+    .restart-link a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+
+    .restart-link a:hover {
+      color: var(--accent-gold);
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 16px;
+      }
+      
+      .kiosk-card {
+        padding: 28px;
+      }
+      
+      .screen-title {
+        font-size: 1.5rem;
+      }
+      
+      .vehicle-form-row {
+        grid-template-columns: 1fr;
+      }
+      
+      .btn {
+        min-height: 56px;
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+
+  <div class="kiosk-container">
+    <div class="kiosk-header">
+      <img src="/logo.png" alt="My Car Concierge" class="brand-logo">
+      <div class="shop-name" id="shop-name">Loading...</div>
+    </div>
+
+    <div class="kiosk-card">
+      <div class="error-message" id="error-message"></div>
+
+      <div class="screen active" id="screen-welcome">
+        <h1 class="screen-title">Check In for Service</h1>
+        <p class="screen-subtitle">Tap below to start your check-in</p>
+        <div class="screen-content"></div>
+        <div class="screen-footer">
+          <button class="btn btn-primary" onclick="startCheckin()">
+            Begin Check-In
+          </button>
+        </div>
+      </div>
+
+      <div class="screen" id="screen-phone">
+        <h1 class="screen-title">Enter Your Phone</h1>
+        <p class="screen-subtitle">We'll use this to find or create your account</p>
+        <div class="screen-content">
+          <div class="form-group">
+            <input type="tel" class="form-input large" id="phone-input" placeholder="(555) 555-5555" maxlength="14" inputmode="numeric">
+            <span class="form-hint">Enter your 10-digit phone number</span>
+          </div>
+        </div>
+        <div class="screen-footer">
+          <button class="btn btn-primary" id="phone-next-btn" onclick="submitPhone()" disabled>
+            Next
+          </button>
+          <div class="restart-link">
+            <a href="#" onclick="goToScreen('welcome'); return false;">Cancel</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen" id="screen-otp">
+        <h1 class="screen-title">Verify Your Phone</h1>
+        <p class="screen-subtitle">Enter the verification code</p>
+        <div class="screen-content">
+          <div class="otp-display" id="otp-display" style="display: none;">
+            <div class="otp-label">Your verification code:</div>
+            <div class="otp-code" id="otp-code-display"></div>
+          </div>
+          <div class="form-group">
+            <input type="text" class="form-input large" id="otp-input" placeholder="000000" maxlength="6" inputmode="numeric">
+            <span class="form-hint">Enter the 6-digit code</span>
+          </div>
+          <div id="member-name-section" style="display: none;">
+            <div class="form-group">
+              <label class="form-label">Your Name</label>
+              <input type="text" class="form-input" id="member-name" placeholder="Enter your full name">
+            </div>
+          </div>
+        </div>
+        <div class="screen-footer">
+          <button class="btn btn-primary" id="otp-verify-btn" onclick="verifyOtp()" disabled>
+            Verify
+          </button>
+          <div class="restart-link">
+            <a href="#" onclick="goToScreen('phone'); return false;">Back</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen" id="screen-vehicle">
+        <h1 class="screen-title">Select Your Vehicle</h1>
+        <p class="screen-subtitle">Choose a vehicle or add a new one</p>
+        <div class="screen-content">
+          <div class="vehicle-list" id="vehicle-list"></div>
+          <button class="btn btn-secondary" id="add-vehicle-btn" onclick="toggleAddVehicle()">
+            + Add New Vehicle
+          </button>
+          <div class="add-vehicle-form" id="add-vehicle-form" style="display: none;">
+            <div class="vehicle-form-row">
+              <div class="form-group">
+                <label class="form-label">Year</label>
+                <input type="text" class="form-input" id="new-vehicle-year" placeholder="2024" maxlength="4" inputmode="numeric">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Make</label>
+                <input type="text" class="form-input" id="new-vehicle-make" placeholder="Toyota">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Model</label>
+                <input type="text" class="form-input" id="new-vehicle-model" placeholder="Camry">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Color (optional)</label>
+              <input type="text" class="form-input" id="new-vehicle-color" placeholder="Silver">
+            </div>
+          </div>
+        </div>
+        <div class="screen-footer">
+          <button class="btn btn-primary" id="vehicle-next-btn" onclick="submitVehicle()" disabled>
+            Next
+          </button>
+          <div class="restart-link">
+            <a href="#" onclick="goToScreen('phone'); return false;">Back</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen" id="screen-service">
+        <h1 class="screen-title">Service Details</h1>
+        <p class="screen-subtitle">Tell us what you need</p>
+        <div class="screen-content">
+          <div class="form-group">
+            <label class="form-label">Service Category</label>
+            <select class="form-select" id="service-category">
+              <option value="">Select a category...</option>
+              <option value="oil_change">Oil Change</option>
+              <option value="tire_service">Tire Service</option>
+              <option value="brake_service">Brake Service</option>
+              <option value="maintenance">General Maintenance</option>
+              <option value="repair">Repair</option>
+              <option value="detailing">Detailing</option>
+              <option value="inspection">Inspection</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description (optional)</label>
+            <textarea class="form-textarea" id="service-description" placeholder="Describe your service needs or any specific concerns..."></textarea>
+          </div>
+        </div>
+        <div class="screen-footer">
+          <button class="btn btn-primary" id="service-next-btn" onclick="submitService()" disabled>
+            Next
+          </button>
+          <div class="restart-link">
+            <a href="#" onclick="goToScreen('vehicle'); return false;">Back</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen" id="screen-confirm">
+        <h1 class="screen-title">Confirm Check-In</h1>
+        <p class="screen-subtitle">Review your details</p>
+        <div class="screen-content">
+          <div class="confirmation-details">
+            <div class="confirmation-row">
+              <span class="confirmation-label">Name</span>
+              <span class="confirmation-value" id="confirm-name">-</span>
+            </div>
+            <div class="confirmation-row">
+              <span class="confirmation-label">Phone</span>
+              <span class="confirmation-value" id="confirm-phone">-</span>
+            </div>
+            <div class="confirmation-row">
+              <span class="confirmation-label">Vehicle</span>
+              <span class="confirmation-value" id="confirm-vehicle">-</span>
+            </div>
+            <div class="confirmation-row">
+              <span class="confirmation-label">Service</span>
+              <span class="confirmation-value" id="confirm-service">-</span>
+            </div>
+          </div>
+          <div class="wait-time" id="estimated-wait">
+            <span class="wait-time-icon">⏱️</span>
+            <span class="wait-time-text">Estimated wait: <span class="wait-time-value" id="estimated-wait-time">--</span></span>
+          </div>
+        </div>
+        <div class="screen-footer">
+          <button class="btn btn-primary" id="complete-btn" onclick="completeCheckin()">
+            Complete Check-In
+          </button>
+          <div class="restart-link">
+            <a href="#" onclick="goToScreen('service'); return false;">Back</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen" id="screen-success">
+        <div class="success-icon">✅</div>
+        <h1 class="screen-title">You're Checked In!</h1>
+        <div class="queue-number" id="queue-number">#1</div>
+        <div class="queue-position" id="queue-position">You're next in line!</div>
+        <div class="wait-time">
+          <span class="wait-time-icon">⏱️</span>
+          <span class="wait-time-text">Estimated wait: <span class="wait-time-value" id="success-wait-time">15 min</span></span>
+        </div>
+        <p class="screen-subtitle">Please have a seat. We'll call you when it's your turn.</p>
+        <div class="screen-footer">
+          <button class="btn btn-secondary" onclick="resetKiosk()">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let sessionId = null;
+    let providerId = null;
+    let providerName = 'My Car Concierge';
+    let memberData = null;
+    let vehiclesData = [];
+    let selectedVehicleId = null;
+    let isNewVehicle = false;
+    let isNewMember = false;
+    let queueId = null;
+    let refreshInterval = null;
+    let serviceCategory = '';
+    let serviceDescription = '';
+
+    const urlParams = new URLSearchParams(window.location.search);
+    providerId = urlParams.get('provider');
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!providerId) {
+        showError('Invalid kiosk configuration. Provider ID is required.');
+        return;
+      }
+      await loadProviderInfo();
+      setupInputListeners();
+    });
+
+    async function loadProviderInfo() {
+      try {
+        document.getElementById('shop-name').textContent = 'Welcome';
+      } catch (error) {
+        console.error('Error loading provider info:', error);
+      }
+    }
+
+    function setupInputListeners() {
+      const phoneInput = document.getElementById('phone-input');
+      phoneInput.addEventListener('input', (e) => {
+        e.target.value = formatPhone(e.target.value);
+        const digits = e.target.value.replace(/\D/g, '');
+        document.getElementById('phone-next-btn').disabled = digits.length !== 10;
+      });
+
+      const otpInput = document.getElementById('otp-input');
+      otpInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+        updateOtpVerifyButton();
+      });
+
+      const memberNameInput = document.getElementById('member-name');
+      memberNameInput.addEventListener('input', updateOtpVerifyButton);
+
+      const serviceCategory = document.getElementById('service-category');
+      serviceCategory.addEventListener('change', (e) => {
+        document.getElementById('service-next-btn').disabled = !e.target.value;
+      });
+    }
+
+    function formatPhone(value) {
+      const digits = value.replace(/\D/g, '').slice(0, 10);
+      if (digits.length === 0) return '';
+      if (digits.length <= 3) return `(${digits}`;
+      if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+
+    function showError(message) {
+      const errorEl = document.getElementById('error-message');
+      errorEl.textContent = message;
+      errorEl.classList.add('show');
+      setTimeout(() => errorEl.classList.remove('show'), 5000);
+    }
+
+    function hideError() {
+      document.getElementById('error-message').classList.remove('show');
+    }
+
+    function goToScreen(screenName) {
+      hideError();
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(`screen-${screenName}`).classList.add('active');
+    }
+
+    function setLoading(buttonId, loading) {
+      const btn = document.getElementById(buttonId);
+      if (loading) {
+        btn.disabled = true;
+        btn.dataset.originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="loading-spinner"></span> Please wait...';
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = btn.dataset.originalText;
+      }
+    }
+
+    function updateOtpVerifyButton() {
+      const otp = document.getElementById('otp-input').value;
+      const memberName = document.getElementById('member-name').value.trim();
+      const hasValidOtp = otp.length === 6;
+      const hasValidName = !isNewMember || memberName.length > 0;
+      document.getElementById('otp-verify-btn').disabled = !hasValidOtp || !hasValidName;
+    }
+
+    async function startCheckin() {
+      try {
+        const response = await fetch('/api/checkin/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ providerId })
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        sessionId = data.session.id;
+        goToScreen('phone');
+        document.getElementById('phone-input').focus();
+      } catch (error) {
+        showError(error.message || 'Failed to start check-in');
+      }
+    }
+
+    async function submitPhone() {
+      const phone = document.getElementById('phone-input').value;
+      setLoading('phone-next-btn', true);
+      
+      try {
+        const response = await fetch(`/api/checkin/${sessionId}/lookup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone })
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        if (data.otpCode) {
+          document.getElementById('otp-display').style.display = 'block';
+          document.getElementById('otp-code-display').textContent = data.otpCode;
+        }
+
+        isNewMember = !data.existingMember;
+        if (isNewMember) {
+          document.getElementById('member-name-section').style.display = 'block';
+        } else {
+          document.getElementById('member-name-section').style.display = 'none';
+        }
+
+        goToScreen('otp');
+        document.getElementById('otp-input').focus();
+        updateOtpVerifyButton();
+      } catch (error) {
+        showError(error.message || 'Failed to lookup phone');
+      } finally {
+        setLoading('phone-next-btn', false);
+      }
+    }
+
+    async function verifyOtp() {
+      const otp = document.getElementById('otp-input').value;
+      const memberName = document.getElementById('member-name').value;
+      setLoading('otp-verify-btn', true);
+
+      try {
+        const response = await fetch(`/api/checkin/${sessionId}/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ otp, memberName })
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        memberData = data.member;
+        vehiclesData = data.vehicles || [];
+        renderVehicleList();
+        goToScreen('vehicle');
+      } catch (error) {
+        showError(error.message || 'Invalid verification code');
+      } finally {
+        setLoading('otp-verify-btn', false);
+      }
+    }
+
+    function renderVehicleList() {
+      const list = document.getElementById('vehicle-list');
+      if (vehiclesData.length === 0) {
+        list.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 20px;">No vehicles found. Add a new vehicle below.</p>';
+        document.getElementById('add-vehicle-form').style.display = 'block';
+        document.getElementById('add-vehicle-btn').style.display = 'none';
+        isNewVehicle = true;
+        updateVehicleButton();
+        return;
+      }
+
+      list.innerHTML = vehiclesData.map(v => `
+        <div class="vehicle-option" data-id="${v.id}" onclick="selectVehicle('${v.id}')">
+          <div class="vehicle-icon">🚗</div>
+          <div class="vehicle-info">
+            <div class="vehicle-name">${v.year} ${v.make} ${v.model}</div>
+            <div class="vehicle-details">${v.color || ''} ${v.license_plate ? '• ' + v.license_plate : ''}</div>
+          </div>
+          <div class="vehicle-check">✓</div>
+        </div>
+      `).join('');
+    }
+
+    function selectVehicle(vehicleId) {
+      selectedVehicleId = vehicleId;
+      isNewVehicle = false;
+      document.querySelectorAll('.vehicle-option').forEach(el => {
+        el.classList.toggle('selected', el.dataset.id === vehicleId);
+      });
+      document.getElementById('add-vehicle-form').style.display = 'none';
+      updateVehicleButton();
+    }
+
+    function toggleAddVehicle() {
+      const form = document.getElementById('add-vehicle-form');
+      const isVisible = form.style.display !== 'none';
+      form.style.display = isVisible ? 'none' : 'block';
+      
+      if (!isVisible) {
+        selectedVehicleId = null;
+        isNewVehicle = true;
+        document.querySelectorAll('.vehicle-option').forEach(el => el.classList.remove('selected'));
+      }
+      updateVehicleButton();
+    }
+
+    function updateVehicleButton() {
+      const year = document.getElementById('new-vehicle-year').value;
+      const make = document.getElementById('new-vehicle-make').value;
+      const model = document.getElementById('new-vehicle-model').value;
+      
+      const hasValidNewVehicle = isNewVehicle && year && make && model;
+      const hasSelectedVehicle = selectedVehicleId !== null;
+      
+      document.getElementById('vehicle-next-btn').disabled = !hasValidNewVehicle && !hasSelectedVehicle;
+    }
+
+    ['new-vehicle-year', 'new-vehicle-make', 'new-vehicle-model'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', updateVehicleButton);
+    });
+
+    async function submitVehicle() {
+      setLoading('vehicle-next-btn', true);
+
+      try {
+        const payload = {};
+        if (isNewVehicle) {
+          payload.newVehicle = {
+            year: document.getElementById('new-vehicle-year').value,
+            make: document.getElementById('new-vehicle-make').value,
+            model: document.getElementById('new-vehicle-model').value,
+            color: document.getElementById('new-vehicle-color').value
+          };
+        } else {
+          payload.vehicleId = selectedVehicleId;
+        }
+
+        const response = await fetch(`/api/checkin/${sessionId}/vehicle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        selectedVehicleId = data.vehicleId;
+        goToScreen('service');
+      } catch (error) {
+        showError(error.message || 'Failed to select vehicle');
+      } finally {
+        setLoading('vehicle-next-btn', false);
+      }
+    }
+
+    async function submitService() {
+      const category = document.getElementById('service-category').value;
+      const description = document.getElementById('service-description').value;
+      setLoading('service-next-btn', true);
+
+      try {
+        const response = await fetch(`/api/checkin/${sessionId}/service`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category, description })
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        serviceCategory = category;
+        serviceDescription = description;
+        updateConfirmation(category, description, data.estimatedWait);
+        goToScreen('confirm');
+      } catch (error) {
+        showError(error.message || 'Failed to save service details');
+      } finally {
+        setLoading('service-next-btn', false);
+      }
+    }
+
+    function updateConfirmation(category, description, estimatedWait) {
+      document.getElementById('confirm-name').textContent = memberData?.full_name || 'Guest';
+      document.getElementById('confirm-phone').textContent = document.getElementById('phone-input').value;
+      
+      const vehicle = vehiclesData.find(v => v.id === selectedVehicleId);
+      const vehicleText = vehicle 
+        ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`
+        : `${document.getElementById('new-vehicle-year').value} ${document.getElementById('new-vehicle-make').value} ${document.getElementById('new-vehicle-model').value}`;
+      document.getElementById('confirm-vehicle').textContent = vehicleText;
+
+      const categoryLabels = {
+        oil_change: 'Oil Change',
+        tire_service: 'Tire Service',
+        brake_service: 'Brake Service',
+        maintenance: 'General Maintenance',
+        repair: 'Repair',
+        detailing: 'Detailing',
+        inspection: 'Inspection',
+        other: 'Other'
+      };
+      document.getElementById('confirm-service').textContent = categoryLabels[category] || category;
+      document.getElementById('estimated-wait-time').textContent = estimatedWait ? `~${estimatedWait} min` : 'TBD';
+    }
+
+    async function completeCheckin() {
+      setLoading('complete-btn', true);
+      
+      try {
+        const phone = document.getElementById('phone-input').value;
+        const payload = {
+          phone: phone.replace(/\D/g, ''),
+          serviceCategory,
+          serviceDescription,
+          vehicleId: selectedVehicleId
+        };
+        
+        const response = await fetch(`/api/checkin/${sessionId}/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        queueId = data.queueId;
+        document.getElementById('queue-number').textContent = `#${data.queuePosition}`;
+        
+        if (data.queuePosition === 1) {
+          document.getElementById('queue-position').textContent = "You're next in line!";
+        } else {
+          document.getElementById('queue-position').textContent = `You're #${data.queuePosition} in line`;
+        }
+        
+        document.getElementById('success-wait-time').textContent = data.estimatedWait ? `~${data.estimatedWait} min` : 'Shortly';
+
+        goToScreen('success');
+        startQueueRefresh();
+      } catch (error) {
+        showError(error.message || 'Failed to complete check-in');
+      } finally {
+        setLoading('complete-btn', false);
+      }
+    }
+
+    function startQueueRefresh() {
+      if (refreshInterval) clearInterval(refreshInterval);
+      refreshInterval = setInterval(async () => {
+        if (!queueId) return;
+        try {
+          const response = await fetch(`/api/checkin/position/${queueId}`);
+          const data = await response.json();
+          if (data.position) {
+            document.getElementById('queue-number').textContent = `#${data.position}`;
+            if (data.position === 1) {
+              document.getElementById('queue-position').textContent = "You're next in line!";
+            } else {
+              document.getElementById('queue-position').textContent = `You're #${data.position} in line`;
+            }
+          }
+          if (data.estimatedWait) {
+            document.getElementById('success-wait-time').textContent = `~${data.estimatedWait} min`;
+          }
+          if (data.status === 'serving') {
+            document.getElementById('queue-position').textContent = "🎉 It's your turn! Please proceed.";
+            clearInterval(refreshInterval);
+          }
+        } catch (error) {
+          console.error('Failed to refresh queue position:', error);
+        }
+      }, 30000);
+    }
+
+    function resetKiosk() {
+      if (refreshInterval) clearInterval(refreshInterval);
+      sessionId = null;
+      memberData = null;
+      vehiclesData = [];
+      selectedVehicleId = null;
+      isNewVehicle = false;
+      isNewMember = false;
+      queueId = null;
+      serviceCategory = '';
+      serviceDescription = '';
+
+      document.getElementById('phone-input').value = '';
+      document.getElementById('otp-input').value = '';
+      document.getElementById('member-name').value = '';
+      document.getElementById('otp-display').style.display = 'none';
+      document.getElementById('member-name-section').style.display = 'none';
+      document.getElementById('new-vehicle-year').value = '';
+      document.getElementById('new-vehicle-make').value = '';
+      document.getElementById('new-vehicle-model').value = '';
+      document.getElementById('new-vehicle-color').value = '';
+      document.getElementById('service-category').value = '';
+      document.getElementById('service-description').value = '';
+      document.getElementById('add-vehicle-form').style.display = 'none';
+      document.getElementById('add-vehicle-btn').style.display = 'block';
+
+      document.getElementById('phone-next-btn').disabled = true;
+      document.getElementById('otp-verify-btn').disabled = true;
+      document.getElementById('vehicle-next-btn').disabled = true;
+      document.getElementById('service-next-btn').disabled = true;
+
+      goToScreen('welcome');
+    }
+  </script>
+</body>
+</html>

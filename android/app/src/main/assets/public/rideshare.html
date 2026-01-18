@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>For Rideshare Drivers – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="My Car Concierge helps Uber, Lyft, and gig economy drivers save money on vehicle maintenance with competitive bidding from vetted providers." />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.85);
+      --bg-elevated: rgba(28, 28, 42, 0.9);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-gold-soft: rgba(212, 168, 85, 0.15);
+      --accent-blue: #4a7cff;
+      --accent-blue-soft: rgba(74, 124, 255, 0.12);
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-medium: rgba(148, 148, 168, 0.2);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-xl: 32px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(74, 124, 255, 0.05), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(74, 124, 255, 0.03), transparent 60%);
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    .container {
+      position: relative;
+      z-index: 2;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    header {
+      padding: 24px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    header .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      text-decoration: none;
+    }
+
+    .brand-icon {
+      height: 120px;
+      width: auto;
+      border-radius: var(--radius-md);
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    nav a {
+      padding: 10px 18px;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s ease;
+    }
+
+    nav a:hover {
+      color: var(--text-primary);
+      background: var(--bg-elevated);
+    }
+
+    nav .btn-login {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    main { padding: 60px 0 100px; }
+
+    .hero-section {
+      text-align: center;
+      margin-bottom: 80px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--accent-blue-soft);
+      border: 1px solid rgba(74, 124, 255, 0.2);
+      border-radius: 100px;
+      font-size: 0.85rem;
+      color: var(--accent-blue);
+      margin-bottom: 24px;
+    }
+
+    .hero-section h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+
+    .hero-section h1 .highlight {
+      background: linear-gradient(135deg, var(--accent-gold) 0%, #f0c76d 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-section p {
+      color: var(--text-secondary);
+      font-size: 1.15rem;
+      max-width: 650px;
+      margin: 0 auto 32px;
+      line-height: 1.7;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 32px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 500;
+      text-decoration: none;
+      border-radius: var(--radius-lg);
+      border: none;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-gold) 0%, #c49a45 100%);
+      color: #0a0a0f;
+      box-shadow: 0 8px 32px rgba(212, 168, 85, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(212, 168, 85, 0.4);
+    }
+
+    .benefits-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-bottom: 80px;
+    }
+
+    .benefit-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 32px;
+      transition: all 0.3s ease;
+    }
+
+    .benefit-card:hover {
+      border-color: var(--accent-gold);
+      transform: translateY(-4px);
+    }
+
+    .benefit-icon {
+      width: 56px;
+      height: 56px;
+      background: var(--accent-gold-soft);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+    }
+
+    .benefit-card h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+    }
+
+    .benefit-card p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.7;
+    }
+
+    .section-title {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .section-title h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      margin-bottom: 12px;
+    }
+
+    .section-title p {
+      color: var(--text-secondary);
+    }
+
+    .services-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 48px;
+      margin-bottom: 80px;
+    }
+
+    .services-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      list-style: none;
+      padding: 0;
+    }
+
+    .services-list li {
+      padding: 16px 20px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .services-list li::before {
+      content: '🚗';
+    }
+
+    #resources {
+      margin-bottom: 80px;
+    }
+
+    .resource-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+    }
+
+    .resource-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+    }
+
+    .resource-card h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem;
+      margin-bottom: 16px;
+      color: var(--accent-blue);
+    }
+
+    .resource-card ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .resource-card li {
+      padding: 8px 0;
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .resource-card li:last-child { border-bottom: none; }
+
+    #maintenance {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 48px;
+    }
+
+    .tip-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .tip-list li {
+      padding: 20px 0;
+      padding-left: 40px;
+      position: relative;
+      color: var(--text-secondary);
+      font-size: 1rem;
+      border-bottom: 1px solid var(--border-subtle);
+      line-height: 1.7;
+    }
+
+    .tip-list li:last-child { border-bottom: none; }
+
+    .tip-list li::before {
+      content: '💡';
+      position: absolute;
+      left: 0;
+      font-size: 1.25rem;
+    }
+
+    .tip-list li strong {
+      color: var(--text-primary);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    @media (max-width: 768px) {
+      header .container { flex-direction: column; gap: 16px; }
+      nav { width: 100%; justify-content: center; }
+      .services-section, #maintenance { padding: 32px 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+  <div class="noise"></div>
+
+  <header>
+    <div class="container">
+      <a href="/" class="brand">
+        <img src="/logo.png" alt="My Car Concierge" class="brand-icon" />
+      </a>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/how-it-works.html">How It Works</a>
+        <a href="/faq.html">FAQ</a>
+        <a href="/login.html" class="btn-login">Sign In</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="hero-section">
+      <span class="hero-badge">🚘 Built for Gig Drivers</span>
+      <h1>Keep Your <span class="highlight">Rideshare Vehicle</span> Running Strong</h1>
+      <p>As a rideshare or delivery driver, your vehicle is your livelihood. My Car Concierge helps you find quality maintenance at competitive prices—so you can maximize your earnings and minimize downtime.</p>
+      <a href="/signup-member.html" class="btn btn-primary">Join Free Today</a>
+    </div>
+
+    <div class="benefits-grid">
+      <div class="benefit-card">
+        <div class="benefit-icon">💰</div>
+        <h3>Save on Every Service</h3>
+        <p>Get multiple bids from verified providers and choose the best price. Most drivers save 20-40% compared to dealership prices.</p>
+      </div>
+      <div class="benefit-card">
+        <div class="benefit-icon">⏰</div>
+        <h3>Minimize Downtime</h3>
+        <p>Find providers who can work around your driving schedule. Many offer evening, weekend, and mobile services.</p>
+      </div>
+      <div class="benefit-card">
+        <div class="benefit-icon">🛡️</div>
+        <h3>Vetted Providers</h3>
+        <p>Every provider is background-checked and verified. Your vehicle is in good hands with our qualified professionals.</p>
+      </div>
+      <div class="benefit-card">
+        <div class="benefit-icon">📱</div>
+        <h3>Easy Mobile Access</h3>
+        <p>Post service requests, review bids, and book appointments right from your phone between rides.</p>
+      </div>
+    </div>
+
+    <div class="services-section">
+      <div class="section-title">
+        <h2>Services Rideshare Drivers Need Most</h2>
+        <p>Get competitive bids for all the services that keep you on the road</p>
+      </div>
+      <ul class="services-list">
+        <li>Oil Changes</li>
+        <li>Tire Rotation & Replacement</li>
+        <li>Brake Service</li>
+        <li>Interior Detailing</li>
+        <li>Exterior Wash & Wax</li>
+        <li>Air Filter Replacement</li>
+        <li>Battery Service</li>
+        <li>Transmission Service</li>
+        <li>A/C Repair</li>
+        <li>Check Engine Diagnostics</li>
+        <li>Headlight Restoration</li>
+        <li>Windshield Repair</li>
+      </ul>
+    </div>
+
+    <section id="resources">
+      <div class="section-title">
+        <h2>Driver Resources</h2>
+        <p>Tips and information to help you succeed</p>
+      </div>
+      <div class="resource-cards">
+        <div class="resource-card">
+          <h3>Platform Requirements</h3>
+          <ul>
+            <li>Vehicle inspection schedules</li>
+            <li>Insurance requirements</li>
+            <li>Cleanliness standards</li>
+            <li>Age and mileage limits</li>
+            <li>Safety equipment checklist</li>
+          </ul>
+        </div>
+        <div class="resource-card">
+          <h3>Cost-Saving Strategies</h3>
+          <ul>
+            <li>Track maintenance expenses</li>
+            <li>Bundle multiple services</li>
+            <li>Compare bids before booking</li>
+            <li>Schedule preventive care</li>
+            <li>Ask about driver discounts</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="maintenance">
+      <div class="section-title">
+        <h2>Maintenance Tips for High-Mileage Drivers</h2>
+      </div>
+      <ul class="tip-list">
+        <li>
+          <strong>Change oil more frequently</strong>
+          High-mileage driving means more engine wear. Consider oil changes every 3,000-5,000 miles instead of the standard 7,500.
+        </li>
+        <li>
+          <strong>Rotate tires regularly</strong>
+          With city driving and frequent stops, your tires wear unevenly. Rotate every 5,000-6,000 miles to extend tire life.
+        </li>
+        <li>
+          <strong>Monitor brake pads closely</strong>
+          Stop-and-go traffic wears brakes faster. Check them every 10,000 miles or sooner if you hear squeaking.
+        </li>
+        <li>
+          <strong>Keep your car clean</strong>
+          Passenger ratings depend on cleanliness. Regular detailing protects your seats and maintains that 5-star rating.
+        </li>
+        <li>
+          <strong>Don't ignore warning lights</strong>
+          A check engine light can mean anything from a loose gas cap to a serious problem. Get it diagnosed quickly.
+        </li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="/footer.js"></script>
+</body>
+</html>

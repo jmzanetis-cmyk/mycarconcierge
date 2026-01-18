@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>My Car Concierge - iOS App Store Submission Guide</title>
+<style>
+body { font-family: Calibri, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+h1 { color: #1a1a1a; border-bottom: 2px solid #007AFF; padding-bottom: 10px; }
+h2 { color: #007AFF; margin-top: 30px; }
+h3 { color: #333; }
+code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: Consolas, monospace; }
+pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+.note { background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 15px 0; }
+.important { background: #f8d7da; border-left: 4px solid #dc3545; padding: 10px 15px; margin: 15px 0; }
+.success { background: #d4edda; border-left: 4px solid #28a745; padding: 10px 15px; margin: 15px 0; }
+ul { margin: 10px 0; }
+li { margin: 5px 0; }
+.step-number { background: #007AFF; color: white; padding: 2px 10px; border-radius: 15px; font-weight: bold; margin-right: 10px; }
+table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+th { background: #007AFF; color: white; }
+</style>
+</head>
+<body>
+
+<h1>My Car Concierge<br>iOS App Store Submission Guide</h1>
+
+<p><strong>App Name:</strong> My Car Concierge<br>
+<strong>Bundle ID:</strong> co.mycarconcierge.app<br>
+<strong>Website:</strong> https://mycarconcierge.com</p>
+
+<div class="note">
+<strong>Requirements:</strong> You need a Mac computer with Xcode installed. Apple does not allow iOS apps to be built on Windows or Linux.
+</div>
+
+<h2><span class="step-number">1</span> Set Up Your Mac</h2>
+
+<p>Download and install the following on your Mac:</p>
+<ul>
+<li><strong>Xcode</strong> - Free from the Mac App Store (search for "Xcode")</li>
+<li><strong>Node.js</strong> - Download from <a href="https://nodejs.org">nodejs.org</a> (LTS version)</li>
+<li><strong>CocoaPods</strong> - Open Terminal and run: <code>sudo gem install cocoapods</code></li>
+</ul>
+
+<h2><span class="step-number">2</span> Download Your Project</h2>
+
+<p>Copy your entire My Car Concierge project folder from Replit to your Mac. You can:</p>
+<ul>
+<li>Use the "Download as ZIP" option in Replit</li>
+<li>Or clone from your Git repository if you have one set up</li>
+</ul>
+
+<p>Extract the files to a folder on your Mac (e.g., <code>~/Projects/mycarconcierge</code>)</p>
+
+<h2><span class="step-number">3</span> Install Dependencies</h2>
+
+<p>Open <strong>Terminal</strong> on your Mac and navigate to your project folder:</p>
+
+<pre>cd ~/Projects/mycarconcierge
+npm install
+cd ios/App
+pod install
+cd ../..</pre>
+
+<div class="note">
+<strong>Note:</strong> If you get permission errors with CocoaPods, try: <code>sudo pod install</code>
+</div>
+
+<h2><span class="step-number">4</span> Open in Xcode</h2>
+
+<p>Run this command to open your project in Xcode:</p>
+
+<pre>npx cap open ios</pre>
+
+<p>This will launch Xcode with your iOS project loaded.</p>
+
+<h2><span class="step-number">5</span> Configure Code Signing</h2>
+
+<p>In Xcode:</p>
+<ol>
+<li>Click on <strong>"App"</strong> in the left sidebar (the project name)</li>
+<li>Select the <strong>"App"</strong> target</li>
+<li>Click the <strong>"Signing & Capabilities"</strong> tab</li>
+<li>Check the box for <strong>"Automatically manage signing"</strong></li>
+<li>In the <strong>"Team"</strong> dropdown, select your Apple Developer account</li>
+<li>Xcode will automatically create the necessary certificates</li>
+</ol>
+
+<div class="success">
+<strong>Success:</strong> If you see a green checkmark next to "Signing Certificate," you're ready to build!
+</div>
+
+<h2><span class="step-number">6</span> Build (Archive) Your App</h2>
+
+<ol>
+<li>At the top of Xcode, click on the device selector (where it might say "iPhone 15 Pro")</li>
+<li>Select <strong>"Any iOS Device (arm64)"</strong> or <strong>"Generic iOS Device"</strong></li>
+<li>From the menu bar, go to <strong>Product → Archive</strong></li>
+<li>Wait for the build to complete (this may take several minutes)</li>
+<li>When done, the <strong>Organizer</strong> window will open automatically</li>
+</ol>
+
+<h2><span class="step-number">7</span> Upload to App Store Connect</h2>
+
+<p>In the Organizer window:</p>
+<ol>
+<li>Select your archive from the list</li>
+<li>Click <strong>"Distribute App"</strong></li>
+<li>Select <strong>"App Store Connect"</strong> and click Next</li>
+<li>Select <strong>"Upload"</strong> and click Next</li>
+<li>Keep the default options checked and click Next</li>
+<li>Review the info and click <strong>"Upload"</strong></li>
+<li>Wait for the upload to complete</li>
+</ol>
+
+<div class="note">
+<strong>Note:</strong> The upload may take 10-30 minutes depending on your internet connection.
+</div>
+
+<h2><span class="step-number">8</span> Create Your App in App Store Connect</h2>
+
+<p>Go to <a href="https://appstoreconnect.apple.com">appstoreconnect.apple.com</a> and sign in with your Apple ID.</p>
+
+<ol>
+<li>Click <strong>"My Apps"</strong></li>
+<li>Click the <strong>"+"</strong> button and select <strong>"New App"</strong></li>
+<li>Fill in the form:</li>
+</ol>
+
+<table>
+<tr><th>Field</th><th>Value</th></tr>
+<tr><td>Platforms</td><td>iOS</td></tr>
+<tr><td>Name</td><td>My Car Concierge</td></tr>
+<tr><td>Primary Language</td><td>English (U.S.)</td></tr>
+<tr><td>Bundle ID</td><td>co.mycarconcierge.app</td></tr>
+<tr><td>SKU</td><td>mycarconcierge</td></tr>
+</table>
+
+<p>Click <strong>"Create"</strong></p>
+
+<h2><span class="step-number">9</span> Complete App Information</h2>
+
+<p>You'll need to provide the following information:</p>
+
+<h3>App Information</h3>
+<ul>
+<li><strong>Category:</strong> Lifestyle (or Automotive if available)</li>
+<li><strong>Privacy Policy URL:</strong> https://mycarconcierge.com/privacy.html</li>
+<li><strong>Age Rating:</strong> Complete the questionnaire (likely 4+ or 12+)</li>
+</ul>
+
+<h3>Pricing and Availability</h3>
+<ul>
+<li><strong>Price:</strong> Free (or select your price tier)</li>
+<li><strong>Availability:</strong> Select countries where you want the app available</li>
+</ul>
+
+<h3>Screenshots Required</h3>
+<table>
+<tr><th>Device Size</th><th>Resolution</th></tr>
+<tr><td>6.7" Display (iPhone 15 Pro Max)</td><td>1290 x 2796 pixels</td></tr>
+<tr><td>6.5" Display (iPhone 14 Plus)</td><td>1284 x 2778 pixels</td></tr>
+<tr><td>5.5" Display (iPhone 8 Plus)</td><td>1242 x 2208 pixels</td></tr>
+</table>
+
+<h3>App Description</h3>
+<p>Write a compelling description of your app (up to 4,000 characters). Include:</p>
+<ul>
+<li>What the app does</li>
+<li>Key features</li>
+<li>Benefits for users</li>
+</ul>
+
+<h3>Keywords</h3>
+<p>Add relevant keywords separated by commas (100 character limit). Examples:</p>
+<p><code>car service, automotive, vehicle maintenance, car concierge, auto repair</code></p>
+
+<h3>Support URL</h3>
+<p>https://mycarconcierge.com</p>
+
+<h2><span class="step-number">10</span> Select Your Build and Submit</h2>
+
+<ol>
+<li>Go to the <strong>"App Store"</strong> tab in App Store Connect</li>
+<li>Scroll down to the <strong>"Build"</strong> section</li>
+<li>Click the <strong>"+"</strong> to select your uploaded build</li>
+<li>Your build should appear after processing (30-60 minutes after upload)</li>
+<li>Select your build</li>
+<li>Complete the <strong>Export Compliance</strong> questions</li>
+<li>Choose your release option:
+    <ul>
+    <li><strong>Automatically release</strong> - App goes live when approved</li>
+    <li><strong>Manually release</strong> - You control when it goes live</li>
+    </ul>
+</li>
+<li>Click <strong>"Add for Review"</strong></li>
+<li>Review the submission checklist</li>
+<li>Click <strong>"Submit for Review"</strong></li>
+</ol>
+
+<h2>What Happens Next?</h2>
+
+<div class="success">
+<strong>Review Time:</strong> Apple typically reviews apps within 24-48 hours, though it can take up to 7 days.
+</div>
+
+<p>You'll receive email notifications about:</p>
+<ul>
+<li>When your app is in review</li>
+<li>When your app is approved (or if changes are needed)</li>
+<li>When your app is live on the App Store</li>
+</ul>
+
+<h2>Common Rejection Reasons to Avoid</h2>
+
+<ul>
+<li><strong>Crashes or bugs</strong> - Test thoroughly before submitting</li>
+<li><strong>Placeholder content</strong> - Remove any "Lorem ipsum" or test data</li>
+<li><strong>Missing privacy policy</strong> - Make sure your privacy policy URL works</li>
+<li><strong>Poor screenshots</strong> - Use high-quality, accurate screenshots</li>
+<li><strong>Incomplete features</strong> - All features should work properly</li>
+</ul>
+
+<h2>Quick Reference</h2>
+
+<table>
+<tr><th>Item</th><th>Value</th></tr>
+<tr><td>App Name</td><td>My Car Concierge</td></tr>
+<tr><td>Bundle ID</td><td>co.mycarconcierge.app</td></tr>
+<tr><td>Privacy Policy</td><td>https://mycarconcierge.com/privacy.html</td></tr>
+<tr><td>Terms of Service</td><td>https://mycarconcierge.com/terms.html</td></tr>
+<tr><td>Website</td><td>https://mycarconcierge.com</td></tr>
+</table>
+
+<hr>
+<p style="text-align: center; color: #666;">
+<em>Document created for My Car Concierge iOS App Store submission</em>
+</p>
+
+</body>
+</html>

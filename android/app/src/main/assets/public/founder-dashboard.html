@@ -1,0 +1,2050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Founder Dashboard – My Car Concierge</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/qr-creator/dist/qr-creator.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.85);
+      --bg-elevated: rgba(28, 28, 42, 0.95);
+      --bg-input: rgba(22, 22, 34, 0.9);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-gold-soft: rgba(212, 168, 85, 0.15);
+      --accent-blue: #4a7cff;
+      --accent-blue-soft: rgba(74, 124, 255, 0.12);
+      --accent-green: #4ac88c;
+      --accent-green-soft: rgba(74, 200, 140, 0.12);
+      --accent-red: #ef5f5f;
+      --accent-red-soft: rgba(239, 95, 95, 0.15);
+      --accent-orange: #f59e0b;
+      --accent-orange-soft: rgba(245, 158, 11, 0.15);
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-medium: rgba(148, 148, 168, 0.2);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; scrollbar-width: thin; scrollbar-color: var(--border-medium) var(--bg-deep); }
+    body { min-height: 100vh; font-family: 'Outfit', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-deep); }
+    ::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 40px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      text-decoration: none;
+    }
+
+    .header-brand img {
+      height: 56px;
+      border-radius: var(--radius-md);
+    }
+
+    .header-brand-text {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      color: var(--text-primary);
+    }
+
+    .header-nav {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 500;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-gold), #c49a45);
+      color: #0a0a0f;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(212, 168, 85, 0.3);
+    }
+
+    .btn-secondary {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--border-medium);
+    }
+
+    .btn-danger {
+      background: var(--accent-red-soft);
+      color: var(--accent-red);
+      border: 1px solid rgba(239, 95, 95, 0.3);
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 0.82rem;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 8px 12px;
+    }
+
+    .main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 40px 100px;
+    }
+
+    .welcome-section {
+      background: linear-gradient(135deg, var(--accent-gold-soft), var(--accent-blue-soft));
+      border: 1px solid var(--accent-gold);
+      border-radius: var(--radius-xl);
+      padding: 40px;
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .welcome-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .welcome-subtitle {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      margin-bottom: 24px;
+    }
+
+    .referral-code-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--bg-deep);
+      border: 2px solid var(--accent-gold);
+      border-radius: var(--radius-lg);
+      padding: 16px 24px;
+      margin-bottom: 16px;
+    }
+
+    .referral-code-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .referral-code-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--accent-gold);
+      letter-spacing: 2px;
+    }
+
+    .referral-code-copy {
+      background: var(--accent-gold);
+      color: #0a0a0f;
+      border: none;
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .referral-code-copy:hover {
+      transform: scale(1.05);
+    }
+
+    .share-section {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .share-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .share-btn:hover {
+      border-color: var(--accent-gold);
+      background: var(--accent-gold-soft);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-gold), var(--accent-blue));
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .stat-card:hover {
+      border-color: var(--accent-gold);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    }
+
+    .stat-card:hover::before {
+      opacity: 1;
+    }
+
+    .stat-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      margin-bottom: 16px;
+    }
+
+    .stat-icon.blue { background: linear-gradient(135deg, rgba(74, 124, 255, 0.2), rgba(74, 124, 255, 0.1)); }
+    .stat-icon.gold { background: linear-gradient(135deg, rgba(212, 168, 85, 0.2), rgba(212, 168, 85, 0.1)); }
+    .stat-icon.green { background: linear-gradient(135deg, rgba(74, 200, 140, 0.2), rgba(74, 200, 140, 0.1)); }
+    .stat-icon.orange { background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.1)); }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      letter-spacing: -0.5px;
+    }
+
+    .stat-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      overflow-x: auto;
+    }
+
+    .tab {
+      padding: 12px 20px;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .tab:hover {
+      color: var(--text-primary);
+    }
+
+    .tab.active {
+      color: var(--accent-gold);
+      border-bottom-color: var(--accent-gold);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    th {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    td {
+      font-size: 0.9rem;
+    }
+
+    tr:hover {
+      background: var(--bg-elevated);
+    }
+
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 100px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .status-badge.pending { background: var(--accent-orange-soft); color: var(--accent-orange); }
+    .status-badge.active { background: var(--accent-green-soft); color: var(--accent-green); }
+    .status-badge.completed { background: var(--accent-blue-soft); color: var(--accent-blue); }
+    .status-badge.paid { background: var(--accent-green-soft); color: var(--accent-green); }
+    .status-badge.approved { background: var(--accent-green-soft); color: var(--accent-green); }
+    .status-badge.cancelled { background: var(--accent-red-soft); color: var(--accent-red); }
+    .status-badge.failed { background: var(--accent-red-soft); color: var(--accent-red); }
+    .status-badge.processing { background: var(--accent-blue-soft); color: var(--accent-blue); }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted);
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--text-secondary);
+    }
+
+    .form-input, .form-select {
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.92rem;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus, .form-select:focus {
+      outline: none;
+      border-color: var(--accent-gold);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .payout-settings {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-top: 24px;
+    }
+
+    .payout-settings-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--accent-green);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      z-index: 200;
+      animation: toastIn 0.3s ease;
+    }
+
+    .toast.show {
+      display: flex;
+    }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-deep);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .loading-spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid var(--border-subtle);
+      border-top-color: var(--accent-gold);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .not-founder-message {
+      text-align: center;
+      padding: 80px 40px;
+    }
+
+    .not-founder-message h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      margin-bottom: 16px;
+    }
+
+    .not-founder-message p {
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .type-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 500;
+    }
+
+    .type-badge.provider {
+      background: var(--accent-blue-soft);
+      color: var(--accent-blue);
+    }
+
+    .type-badge.member {
+      background: var(--accent-gold-soft);
+      color: var(--accent-gold);
+    }
+
+    @media (max-width: 768px) {
+      .header {
+        padding: 16px 20px;
+      }
+
+      .header-brand-text {
+        display: none;
+      }
+
+      .main {
+        padding: 20px;
+      }
+
+      .welcome-section {
+        padding: 24px;
+      }
+
+      .referral-code-box {
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+      }
+
+      .referral-code-value {
+        font-size: 1.4rem;
+      }
+
+      .share-section {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+
+      .analytics-grid {
+        grid-template-columns: 1fr !important;
+      }
+    }
+
+    .activity-feed {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .activity-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      transition: all 0.2s ease;
+      cursor: default;
+    }
+
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+
+    .activity-item:hover {
+      background: var(--bg-elevated);
+      transform: translateX(4px);
+    }
+
+    .activity-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .activity-icon.member {
+      background: var(--accent-gold-soft);
+    }
+
+    .activity-icon.provider {
+      background: var(--accent-blue-soft);
+    }
+
+    .activity-icon.commission {
+      background: var(--accent-green-soft);
+    }
+
+    .activity-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .activity-description {
+      font-size: 0.9rem;
+      color: var(--text-primary);
+      line-height: 1.4;
+    }
+
+    .activity-description .highlight-gold {
+      color: var(--accent-gold);
+      font-weight: 500;
+    }
+
+    .activity-description .highlight-blue {
+      color: var(--accent-blue);
+      font-weight: 500;
+    }
+
+    .activity-description .highlight-green {
+      color: var(--accent-green);
+      font-weight: 500;
+    }
+
+    .activity-timestamp {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .leaderboard {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .leaderboard th {
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .leaderboard-row {
+      transition: all 0.2s ease;
+    }
+
+    .leaderboard-row td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 0.9rem;
+    }
+
+    .leaderboard-row:hover {
+      background: var(--bg-elevated);
+    }
+
+    .leaderboard-row.current-user {
+      background: var(--accent-gold-soft);
+      border-left: 3px solid var(--accent-gold);
+    }
+
+    .leaderboard-row.current-user:hover {
+      background: rgba(212, 168, 85, 0.25);
+    }
+
+    .leaderboard-rank {
+      font-weight: 700;
+      font-size: 1.1rem;
+      width: 50px;
+      text-align: center;
+    }
+
+    .leaderboard-rank.gold {
+      color: #ffd700;
+      text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+    }
+
+    .leaderboard-rank.silver {
+      color: #c0c0c0;
+      text-shadow: 0 0 8px rgba(192, 192, 192, 0.5);
+    }
+
+    .leaderboard-rank.bronze {
+      color: #cd7f32;
+      text-shadow: 0 0 8px rgba(205, 127, 50, 0.5);
+    }
+
+    .leaderboard-name {
+      font-weight: 500;
+    }
+
+    .leaderboard-stats {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    .leaderboard-earnings {
+      color: var(--accent-green);
+      font-weight: 600;
+    }
+
+    .leaderboard-optin {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      margin-bottom: 20px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .leaderboard-optin input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--accent-gold);
+      cursor: pointer;
+    }
+
+    .leaderboard-optin label {
+      font-size: 0.9rem;
+      color: var(--text-primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .leaderboard-optin .optin-description {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    .tier-section {
+      margin-top: 24px;
+      padding: 24px;
+      background: var(--bg-deep);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .tier-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .tier-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 100px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .tier-badge.bronze {
+      background: linear-gradient(135deg, rgba(205, 127, 50, 0.2), rgba(139, 90, 43, 0.15));
+      color: #cd7f32;
+      border: 1px solid rgba(205, 127, 50, 0.4);
+    }
+
+    .tier-badge.silver {
+      background: linear-gradient(135deg, rgba(192, 192, 192, 0.2), rgba(169, 169, 169, 0.15));
+      color: #c0c0c0;
+      border: 1px solid rgba(192, 192, 192, 0.4);
+    }
+
+    .tier-badge.gold {
+      background: linear-gradient(135deg, rgba(212, 168, 85, 0.2), rgba(196, 154, 69, 0.15));
+      color: #d4a855;
+      border: 1px solid rgba(212, 168, 85, 0.4);
+    }
+
+    .tier-badge.platinum {
+      background: linear-gradient(135deg, rgba(200, 220, 255, 0.2), rgba(180, 200, 240, 0.15));
+      color: #c8dcff;
+      border: 1px solid rgba(200, 220, 255, 0.4);
+      text-shadow: 0 0 8px rgba(200, 220, 255, 0.3);
+    }
+
+    .tier-progress-container {
+      margin: 16px 0;
+    }
+
+    .tier-progress-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .tier-progress-bar {
+      width: 100%;
+      height: 10px;
+      background: var(--bg-elevated);
+      border-radius: 100px;
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .tier-progress-fill {
+      height: 100%;
+      border-radius: 100px;
+      transition: width 0.5s ease;
+    }
+
+    .tier-progress-fill.bronze {
+      background: linear-gradient(90deg, #8b5a2b, #cd7f32);
+    }
+
+    .tier-progress-fill.silver {
+      background: linear-gradient(90deg, #a9a9a9, #c0c0c0);
+    }
+
+    .tier-progress-fill.gold {
+      background: linear-gradient(90deg, #c49a45, #d4a855);
+    }
+
+    .tier-progress-fill.platinum {
+      background: linear-gradient(90deg, #b4c8f0, #c8dcff);
+    }
+
+    .tier-rates {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .tier-rate-item {
+      text-align: center;
+    }
+
+    .tier-rate-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--accent-green);
+    }
+
+    .tier-rate-label {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .tier-next-info {
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-top: 12px;
+    }
+
+    .tier-next-info strong {
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+<body>
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="loading-spinner"></div>
+  </div>
+
+  <header class="header">
+    <a href="/" class="header-brand">
+      <img src="logo.png" alt="My Car Concierge">
+      <span class="header-brand-text">Founder Dashboard</span>
+    </a>
+    <nav class="header-nav">
+      <a href="members.html" class="btn btn-secondary">🏠 Member Portal</a>
+      <button class="btn btn-danger" onclick="logout()">🚪 Log Out</button>
+    </nav>
+  </header>
+
+  <main class="main" id="main-content" style="display: none;">
+    <section class="welcome-section">
+      <h1 class="welcome-title">Welcome, <span id="founder-name">Founder</span>!</h1>
+      <p class="welcome-subtitle">Thank you for being a Member Founder. Track your referrals and earnings below.</p>
+      
+      <div class="referral-code-box">
+        <div>
+          <div class="referral-code-label">Your Referral Code</div>
+          <div class="referral-code-value" id="referral-code">----</div>
+        </div>
+        <button class="referral-code-copy" onclick="copyReferralCode()">📋 Copy Code</button>
+      </div>
+
+      <div class="share-section">
+        <button class="share-btn" onclick="copyShareLink('member')" style="border-color:var(--accent-gold);">🔗 Copy Member Link</button>
+        <button class="share-btn" onclick="copyShareLink('provider')" style="border-color:var(--accent-blue);">🔗 Copy Provider Link</button>
+        <button class="share-btn" onclick="shareViaEmail('member')">📧 Email Member Invite</button>
+        <button class="share-btn" onclick="shareViaEmail('provider')">📧 Email Provider Invite</button>
+      </div>
+
+      <div class="tier-section" id="tier-section">
+        <div class="tier-header">
+          <span style="font-size:1rem;color:var(--text-secondary);">Your Commission Tier:</span>
+          <span class="tier-badge bronze" id="tier-badge">🥉 Bronze</span>
+        </div>
+        <div class="tier-progress-container">
+          <div class="tier-progress-labels">
+            <span id="tier-progress-current">0 referrals</span>
+            <span id="tier-progress-next">Next tier: 10 referrals</span>
+          </div>
+          <div class="tier-progress-bar">
+            <div class="tier-progress-fill bronze" id="tier-progress-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+        <div class="tier-rates">
+          <div class="tier-rate-item">
+            <div class="tier-rate-value" id="tier-rate-bidpack">50%</div>
+            <div class="tier-rate-label">Provider Referral Commission</div>
+          </div>
+        </div>
+        <div class="tier-next-info" id="tier-next-info">
+          Get <strong>4 more referrals</strong> to unlock Silver tier with better rates!
+        </div>
+      </div>
+
+      <div class="qr-section" style="margin-top:24px;text-align:center;">
+        <div style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:16px;">Share via QR Code</div>
+        <div style="display:flex;justify-content:center;gap:32px;flex-wrap:wrap;">
+          <div style="text-align:center;">
+            <div style="font-size:0.85rem;color:var(--accent-gold);font-weight:600;margin-bottom:8px;">Member Signup</div>
+            <div style="display:inline-block;background:#fff;padding:16px;border-radius:var(--radius-md);border:2px solid var(--accent-gold);">
+              <canvas id="qr-code-member" style="display:block;"></canvas>
+            </div>
+            <div style="margin-top:12px;">
+              <button class="share-btn" onclick="downloadQRCode('member')">📥 Download Member QR</button>
+            </div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:0.85rem;color:var(--accent-blue);font-weight:600;margin-bottom:8px;">Provider Signup</div>
+            <div style="display:inline-block;background:#fff;padding:16px;border-radius:var(--radius-md);border:2px solid var(--accent-blue);">
+              <canvas id="qr-code-provider" style="display:block;"></canvas>
+            </div>
+            <div style="margin-top:12px;">
+              <button class="share-btn" onclick="downloadQRCode('provider')">📥 Download Provider QR</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon blue">👨‍🔧</div>
+        <div class="stat-value" id="stat-provider-referrals">0</div>
+        <div class="stat-label">Provider Referrals</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon gold">👥</div>
+        <div class="stat-value" id="stat-member-referrals">0</div>
+        <div class="stat-label">Member Referrals</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">💰</div>
+        <div class="stat-value" id="stat-total-earnings">$0.00</div>
+        <div class="stat-label">Total Earnings</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon orange">⏳</div>
+        <div class="stat-value" id="stat-pending-balance">$0.00</div>
+        <div class="stat-label">Pending Balance</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon blue">📅</div>
+        <div class="stat-value" id="stat-next-payout" style="font-size: 1.2rem;">--</div>
+        <div class="stat-label">Next Payout Date</div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom: 20px;">
+      <div class="card-header">
+        <h2 class="card-title">📊 Commission Analytics</h2>
+      </div>
+      <div class="analytics-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px;">
+          <h3 style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 16px; text-align: center;">Earnings Over Time</h3>
+          <div style="position: relative; height: 250px;">
+            <canvas id="earnings-chart"></canvas>
+          </div>
+        </div>
+        <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px;">
+          <h3 style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 16px; text-align: center;">Earnings Breakdown</h3>
+          <div style="position: relative; height: 250px;">
+            <canvas id="breakdown-chart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="empty-state" id="analytics-empty" style="display: none;">
+        <div class="empty-state-icon">📊</div>
+        <p>No commission data available yet.</p>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom: 20px;">
+      <div class="card-header">
+        <h2 class="card-title">🔔 Recent Activity</h2>
+      </div>
+      <div class="activity-feed" id="activity-feed">
+      </div>
+      <div class="empty-state" id="activity-empty" style="display: none;">
+        <div class="empty-state-icon">🔔</div>
+        <p>No activity yet. Your referral activity will appear here.</p>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom: 20px;">
+      <div class="card-header">
+        <h2 class="card-title">🏆 Top Founders Leaderboard</h2>
+      </div>
+      <div class="leaderboard-optin">
+        <input type="checkbox" id="leaderboard-optin-checkbox" onchange="toggleLeaderboardOptIn()">
+        <label for="leaderboard-optin-checkbox">Show me on the leaderboard</label>
+        <span class="optin-description">Your name and stats will be visible to other founders</span>
+      </div>
+      <table class="leaderboard" id="leaderboard-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Founder</th>
+            <th>Total Referrals</th>
+            <th>Earnings</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-tbody">
+        </tbody>
+      </table>
+      <div class="empty-state" id="leaderboard-empty" style="display: none;">
+        <div class="empty-state-icon">🏆</div>
+        <p>No founders on the leaderboard yet. Be the first to opt in!</p>
+      </div>
+    </section>
+
+    <div class="card">
+      <div class="tabs">
+        <div class="tab active" data-tab="referrals">📋 Referrals</div>
+        <div class="tab" data-tab="commissions">💵 Commissions</div>
+        <div class="tab" data-tab="payouts">📤 Payouts</div>
+      </div>
+
+      <div id="referrals-tab" class="tab-content active">
+        <table id="referrals-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Name / Email</th>
+              <th>Date Referred</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="referrals-tbody">
+          </tbody>
+        </table>
+        <div class="empty-state" id="referrals-empty" style="display: none;">
+          <div class="empty-state-icon">📋</div>
+          <p>No referrals yet. Share your code to start earning!</p>
+        </div>
+      </div>
+
+      <div id="commissions-tab" class="tab-content">
+        <table id="commissions-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Amount</th>
+              <th>Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="commissions-tbody">
+          </tbody>
+        </table>
+        <div class="empty-state" id="commissions-empty" style="display: none;">
+          <div class="empty-state-icon">💵</div>
+          <p>No commissions yet. Commissions are earned when your referrals make purchases.</p>
+        </div>
+      </div>
+
+      <div id="payouts-tab" class="tab-content">
+        <table id="payouts-table">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Amount</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="payouts-tbody">
+          </tbody>
+        </table>
+        <div class="empty-state" id="payouts-empty" style="display: none;">
+          <div class="empty-state-icon">📤</div>
+          <p>No payouts yet. Payouts are processed on the 15th of each month for balances ≥ $25.</p>
+        </div>
+      </div>
+    </div>
+
+    <section class="payout-settings">
+      <h2 class="payout-settings-title">💳 Payout Settings</h2>
+      <form id="payout-settings-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Payout Method</label>
+            <select class="form-select" id="payout-method">
+              <option value="stripe_connect">Stripe Connect (Instant)</option>
+              <option value="paypal">PayPal</option>
+              <option value="venmo">Venmo</option>
+              <option value="zelle">Zelle</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="check">Check</option>
+            </select>
+          </div>
+          <div class="form-group" id="payout-email-group">
+            <label class="form-label" id="payout-email-label">PayPal Email</label>
+            <input type="text" class="form-input" id="payout-email" placeholder="your@email.com">
+          </div>
+          <div class="form-group" id="stripe-connect-group" style="display: none;">
+            <label class="form-label">Stripe Account</label>
+            <div id="stripe-connect-status">
+              <button type="button" class="btn btn-primary" id="stripe-connect-btn" onclick="initiateStripeConnect()">
+                <svg style="width:18px;height:18px;margin-right:6px;" viewBox="0 0 24 24" fill="currentColor"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z"/></svg>
+                Connect with Stripe
+              </button>
+            </div>
+            <div id="stripe-connect-connected" style="display: none;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="color: var(--accent-green); font-weight: 600;">✓ Connected</span>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="initiateStripeConnect()">Update Account</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="checkStripeConnectStatus()">Check Status</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary">💾 Save Payout Settings</button>
+      </form>
+    </section>
+  </main>
+
+  <div class="not-founder-message" id="not-founder-message" style="display: none;">
+    <h2>🔒 Founder Access Required</h2>
+    <p>This dashboard is only available to approved Member Founders.</p>
+    <p>If you've applied to become a founder, please wait for approval.</p>
+    <a href="member-founder.html" class="btn btn-primary">Apply to Become a Founder</a>
+    <a href="members.html" class="btn btn-secondary" style="margin-left: 12px;">Go to Member Portal</a>
+  </div>
+
+  <div class="toast" id="toast">
+    <span id="toast-message">Copied!</span>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js"></script>
+  <script>
+    let currentUser = null;
+    let founderProfile = null;
+
+    async function init() {
+      currentUser = await getCurrentUser();
+      
+      if (!currentUser) {
+        window.location.href = 'login.html?redirect=founder-dashboard';
+        return;
+      }
+
+      const { data: profile, error } = await supabaseClient
+        .from('member_founder_profiles')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .eq('status', 'active')
+        .single();
+
+      if (error || !profile) {
+        document.getElementById('loading-overlay').style.display = 'none';
+        document.getElementById('not-founder-message').style.display = 'block';
+        return;
+      }
+
+      founderProfile = profile;
+      
+      document.getElementById('founder-name').textContent = profile.full_name || 'Founder';
+      document.getElementById('referral-code').textContent = profile.referral_code || '----';
+      
+      generateQRCode();
+      
+      document.getElementById('stat-provider-referrals').textContent = profile.total_provider_referrals || 0;
+      document.getElementById('stat-member-referrals').textContent = profile.total_member_referrals || 0;
+      document.getElementById('stat-total-earnings').textContent = formatCurrency(profile.total_commissions_earned || 0);
+      document.getElementById('stat-pending-balance').textContent = formatCurrency(profile.pending_balance || 0);
+      
+      const nextPayout = calculateNextPayoutDate(profile.pending_balance || 0);
+      document.getElementById('stat-next-payout').textContent = nextPayout;
+
+      document.getElementById('payout-method').value = profile.payout_method || 'stripe_connect';
+      document.getElementById('payout-email').value = profile.payout_email || '';
+      updatePayoutLabel();
+      
+      handleStripeCallback();
+
+      document.getElementById('leaderboard-optin-checkbox').checked = profile.show_on_leaderboard || false;
+
+      renderTierProgress();
+
+      await Promise.all([
+        loadReferrals(),
+        loadCommissions(),
+        loadPayouts(),
+        loadActivityFeed(),
+        loadLeaderboard()
+      ]);
+
+      document.getElementById('loading-overlay').style.display = 'none';
+      document.getElementById('main-content').style.display = 'block';
+    }
+
+    function formatCurrency(amount) {
+      return '$' + parseFloat(amount).toFixed(2);
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '--';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatRelativeTime(dateStr) {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffSec = Math.floor(diffMs / 1000);
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHr = Math.floor(diffMin / 60);
+      const diffDay = Math.floor(diffHr / 24);
+      const diffWeek = Math.floor(diffDay / 7);
+      const diffMonth = Math.floor(diffDay / 30);
+
+      if (diffSec < 60) return 'Just now';
+      if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
+      if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
+      if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
+      if (diffWeek < 4) return `${diffWeek} week${diffWeek === 1 ? '' : 's'} ago`;
+      if (diffMonth < 12) return `${diffMonth} month${diffMonth === 1 ? '' : 's'} ago`;
+      return formatDate(dateStr);
+    }
+
+    function calculateTier(totalReferrals) {
+      const tiers = [
+        { name: 'Bronze', icon: '🥉', minReferrals: 0, maxReferrals: 9, bidPack: 50, cssClass: 'bronze' },
+        { name: 'Silver', icon: '🥈', minReferrals: 10, maxReferrals: 24, bidPack: 50, cssClass: 'silver' },
+        { name: 'Gold', icon: '🥇', minReferrals: 25, maxReferrals: 49, bidPack: 50, cssClass: 'gold' },
+        { name: 'Platinum', icon: '💎', minReferrals: 50, maxReferrals: Infinity, bidPack: 50, cssClass: 'platinum' }
+      ];
+
+      let currentTier = tiers[0];
+      let nextTier = tiers[1];
+
+      for (let i = 0; i < tiers.length; i++) {
+        if (totalReferrals >= tiers[i].minReferrals && totalReferrals <= tiers[i].maxReferrals) {
+          currentTier = tiers[i];
+          nextTier = tiers[i + 1] || null;
+          break;
+        }
+      }
+
+      const progressStart = currentTier.minReferrals;
+      const progressEnd = nextTier ? nextTier.minReferrals : currentTier.minReferrals;
+      const progressRange = progressEnd - progressStart;
+      const progressCurrent = totalReferrals - progressStart;
+      const progressPercent = progressRange > 0 ? Math.min((progressCurrent / progressRange) * 100, 100) : 100;
+
+      const referralsToNext = nextTier ? nextTier.minReferrals - totalReferrals : 0;
+
+      return {
+        current: currentTier,
+        next: nextTier,
+        progressPercent,
+        referralsToNext,
+        totalReferrals
+      };
+    }
+
+    function renderTierProgress() {
+      if (!founderProfile) return;
+
+      const totalReferrals = (founderProfile.total_provider_referrals || 0) + (founderProfile.total_member_referrals || 0);
+      const tierInfo = calculateTier(totalReferrals);
+
+      const tierBadge = document.getElementById('tier-badge');
+      tierBadge.className = `tier-badge ${tierInfo.current.cssClass}`;
+      tierBadge.textContent = `${tierInfo.current.icon} ${tierInfo.current.name}`;
+
+      const progressFill = document.getElementById('tier-progress-fill');
+      progressFill.className = `tier-progress-fill ${tierInfo.current.cssClass}`;
+      progressFill.style.width = `${tierInfo.progressPercent}%`;
+
+      document.getElementById('tier-progress-current').textContent = `${totalReferrals} referral${totalReferrals === 1 ? '' : 's'}`;
+
+      if (tierInfo.next) {
+        document.getElementById('tier-progress-next').textContent = `Next tier: ${tierInfo.next.minReferrals} referrals`;
+        document.getElementById('tier-next-info').innerHTML = `Get <strong>${tierInfo.referralsToNext} more referral${tierInfo.referralsToNext === 1 ? '' : 's'}</strong> to unlock ${tierInfo.next.name} tier status!`;
+        document.getElementById('tier-next-info').style.display = 'block';
+      } else {
+        document.getElementById('tier-progress-next').textContent = 'Max tier reached!';
+        document.getElementById('tier-next-info').innerHTML = `🎉 Congratulations! You've reached the highest tier - Platinum Founder status!`;
+      }
+
+      document.getElementById('tier-rate-bidpack').textContent = `${tierInfo.current.bidPack}%`;
+    }
+
+    async function loadActivityFeed() {
+      const [referralsResult, commissionsResult] = await Promise.all([
+        supabaseClient
+          .from('founder_referrals')
+          .select('*')
+          .eq('founder_id', founderProfile.id)
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabaseClient
+          .from('founder_commissions')
+          .select('*')
+          .eq('founder_id', founderProfile.id)
+          .order('created_at', { ascending: false })
+          .limit(10)
+      ]);
+
+      const referrals = referralsResult.data || [];
+      const commissions = commissionsResult.data || [];
+
+      const activities = [];
+
+      referrals.forEach(ref => {
+        const isProvider = ref.referred_type === 'provider';
+        const name = ref.referred_name || ref.referred_email || 'Someone';
+        activities.push({
+          type: isProvider ? 'provider' : 'member',
+          icon: isProvider ? '👨‍🔧' : '👤',
+          description: isProvider 
+            ? `<span class="highlight-blue">${name}</span> signed up as a provider`
+            : `<span class="highlight-gold">${name}</span> signed up as a member`,
+          timestamp: ref.created_at,
+          date: new Date(ref.created_at)
+        });
+      });
+
+      commissions.forEach(comm => {
+        const amount = formatCurrency(comm.commission_amount);
+        const type = comm.commission_type === 'bid_pack' ? 'bid pack purchase' : 'platform fee';
+        activities.push({
+          type: 'commission',
+          icon: '💰',
+          description: `You earned <span class="highlight-green">${amount}</span> from a ${type}`,
+          timestamp: comm.created_at,
+          date: new Date(comm.created_at)
+        });
+      });
+
+      activities.sort((a, b) => b.date - a.date);
+      const limitedActivities = activities.slice(0, 10);
+
+      const feedContainer = document.getElementById('activity-feed');
+      const emptyState = document.getElementById('activity-empty');
+
+      if (limitedActivities.length === 0) {
+        feedContainer.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      emptyState.style.display = 'none';
+      feedContainer.innerHTML = limitedActivities.map(activity => `
+        <div class="activity-item">
+          <div class="activity-icon ${activity.type}">${activity.icon}</div>
+          <div class="activity-content">
+            <div class="activity-description">${activity.description}</div>
+            <div class="activity-timestamp">${formatRelativeTime(activity.timestamp)}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function calculateNextPayoutDate(balance) {
+      if (balance < 25) {
+        return 'Balance < $25';
+      }
+      
+      const now = new Date();
+      let payoutDate;
+      
+      if (now.getDate() >= 15) {
+        payoutDate = new Date(now.getFullYear(), now.getMonth() + 1, 15);
+      } else {
+        payoutDate = new Date(now.getFullYear(), now.getMonth(), 15);
+      }
+      
+      return payoutDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    async function loadReferrals() {
+      const { data, error } = await supabaseClient
+        .from('founder_referrals')
+        .select('*')
+        .eq('founder_id', founderProfile.id)
+        .order('created_at', { ascending: false });
+
+      const tbody = document.getElementById('referrals-tbody');
+      const emptyState = document.getElementById('referrals-empty');
+      
+      if (error || !data || data.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.style.display = 'block';
+        document.getElementById('referrals-table').style.display = 'none';
+        return;
+      }
+
+      emptyState.style.display = 'none';
+      document.getElementById('referrals-table').style.display = '';
+      
+      tbody.innerHTML = data.map(ref => `
+        <tr>
+          <td><span class="type-badge ${ref.referred_type}">${ref.referred_type === 'provider' ? '👨‍🔧 Provider' : '👤 Member'}</span></td>
+          <td>${ref.referred_name || ref.referred_email || '--'}</td>
+          <td>${formatDate(ref.created_at)}</td>
+          <td><span class="status-badge ${ref.status}">${ref.status}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadCommissions() {
+      const { data, error } = await supabaseClient
+        .from('founder_commissions')
+        .select('*')
+        .eq('founder_id', founderProfile.id)
+        .order('created_at', { ascending: false });
+
+      const tbody = document.getElementById('commissions-tbody');
+      const emptyState = document.getElementById('commissions-empty');
+      
+      if (error || !data || data.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.style.display = 'block';
+        document.getElementById('commissions-table').style.display = 'none';
+        renderAnalyticsCharts([]);
+        return;
+      }
+
+      emptyState.style.display = 'none';
+      document.getElementById('commissions-table').style.display = '';
+      
+      tbody.innerHTML = data.map(comm => `
+        <tr>
+          <td>${comm.commission_type === 'bid_pack' ? '📦 Bid Pack' : '💳 Platform Fee'}</td>
+          <td style="color: var(--accent-green); font-weight: 600;">${formatCurrency(comm.commission_amount)}</td>
+          <td>${formatDate(comm.created_at)}</td>
+          <td><span class="status-badge ${comm.status}">${comm.status}</span></td>
+        </tr>
+      `).join('');
+
+      renderAnalyticsCharts(data);
+    }
+
+    let earningsChartInstance = null;
+    let breakdownChartInstance = null;
+
+    function renderAnalyticsCharts(commissions) {
+      const analyticsEmpty = document.getElementById('analytics-empty');
+      const earningsCanvas = document.getElementById('earnings-chart');
+      const breakdownCanvas = document.getElementById('breakdown-chart');
+      
+      if (!commissions || commissions.length === 0) {
+        analyticsEmpty.style.display = 'block';
+        earningsCanvas.parentElement.parentElement.style.display = 'none';
+        breakdownCanvas.parentElement.parentElement.style.display = 'none';
+        return;
+      }
+
+      analyticsEmpty.style.display = 'none';
+      earningsCanvas.parentElement.parentElement.style.display = '';
+      breakdownCanvas.parentElement.parentElement.style.display = '';
+
+      const monthlyEarnings = {};
+      const typeBreakdown = {};
+
+      commissions.forEach(comm => {
+        const date = new Date(comm.created_at);
+        const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        const amount = parseFloat(comm.commission_amount) || 0;
+        
+        monthlyEarnings[monthKey] = (monthlyEarnings[monthKey] || 0) + amount;
+        
+        const type = comm.commission_type || 'other';
+        typeBreakdown[type] = (typeBreakdown[type] || 0) + amount;
+      });
+
+      const sortedMonths = Object.keys(monthlyEarnings).sort((a, b) => {
+        return new Date(a) - new Date(b);
+      });
+
+      if (earningsChartInstance) {
+        earningsChartInstance.destroy();
+      }
+      
+      earningsChartInstance = new Chart(earningsCanvas, {
+        type: 'line',
+        data: {
+          labels: sortedMonths,
+          datasets: [{
+            label: 'Earnings ($)',
+            data: sortedMonths.map(m => monthlyEarnings[m]),
+            borderColor: '#d4a855',
+            backgroundColor: 'rgba(212, 168, 85, 0.1)',
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: '#d4a855',
+            pointBorderColor: '#d4a855',
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                color: 'rgba(148, 148, 168, 0.1)'
+              },
+              ticks: {
+                color: '#9898a8'
+              }
+            },
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(148, 148, 168, 0.1)'
+              },
+              ticks: {
+                color: '#9898a8',
+                callback: function(value) {
+                  return '$' + value.toFixed(0);
+                }
+              }
+            }
+          }
+        }
+      });
+
+      const typeLabels = {
+        'bid_pack': 'Bid Pack',
+        'platform_fee': 'Platform Fee',
+        'subscription': 'Subscription',
+        'other': 'Other'
+      };
+
+      const breakdownLabels = Object.keys(typeBreakdown).map(t => typeLabels[t] || t);
+      const breakdownValues = Object.values(typeBreakdown);
+      const breakdownColors = ['#d4a855', '#4a7cff', '#4ac88c', '#f59e0b', '#ef5f5f'];
+
+      if (breakdownChartInstance) {
+        breakdownChartInstance.destroy();
+      }
+
+      breakdownChartInstance = new Chart(breakdownCanvas, {
+        type: 'doughnut',
+        data: {
+          labels: breakdownLabels,
+          datasets: [{
+            data: breakdownValues,
+            backgroundColor: breakdownColors.slice(0, breakdownValues.length),
+            borderColor: '#0a0a0f',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#f4f4f6',
+                padding: 16,
+                font: {
+                  size: 12
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    async function loadPayouts() {
+      const { data, error } = await supabaseClient
+        .from('founder_payouts')
+        .select('*')
+        .eq('founder_id', founderProfile.id)
+        .order('created_at', { ascending: false });
+
+      const tbody = document.getElementById('payouts-tbody');
+      const emptyState = document.getElementById('payouts-empty');
+      
+      if (error || !data || data.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.style.display = 'block';
+        document.getElementById('payouts-table').style.display = 'none';
+        return;
+      }
+
+      emptyState.style.display = 'none';
+      document.getElementById('payouts-table').style.display = '';
+      
+      const methodLabels = {
+        'stripe_connect': 'Stripe Connect',
+        'paypal': 'PayPal',
+        'venmo': 'Venmo',
+        'zelle': 'Zelle',
+        'bank_transfer': 'Bank Transfer',
+        'check': 'Check'
+      };
+      
+      tbody.innerHTML = data.map(payout => `
+        <tr>
+          <td>${payout.payout_period || '--'}</td>
+          <td style="color: var(--accent-green); font-weight: 600;">${formatCurrency(payout.amount)}</td>
+          <td>${methodLabels[payout.payout_method] || payout.payout_method}</td>
+          <td><span class="status-badge ${payout.status}">${payout.status}</span></td>
+          <td>${formatDate(payout.processed_at || payout.created_at)}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadLeaderboard() {
+      const { data, error } = await supabaseClient
+        .from('member_founder_profiles')
+        .select('id, full_name, total_provider_referrals, total_member_referrals, total_commissions_earned')
+        .eq('show_on_leaderboard', true)
+        .eq('status', 'active')
+        .order('total_commissions_earned', { ascending: false })
+        .limit(10);
+
+      const tbody = document.getElementById('leaderboard-tbody');
+      const table = document.getElementById('leaderboard-table');
+      const emptyState = document.getElementById('leaderboard-empty');
+
+      if (error || !data || data.length === 0) {
+        tbody.innerHTML = '';
+        table.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      emptyState.style.display = 'none';
+      table.style.display = '';
+
+      tbody.innerHTML = data.map((founder, index) => {
+        const rank = index + 1;
+        const isCurrentUser = founder.id === founderProfile.id;
+        const totalReferrals = (founder.total_provider_referrals || 0) + (founder.total_member_referrals || 0);
+        
+        let rankClass = '';
+        let rankDisplay = rank;
+        if (rank === 1) {
+          rankClass = 'gold';
+          rankDisplay = '🥇';
+        } else if (rank === 2) {
+          rankClass = 'silver';
+          rankDisplay = '🥈';
+        } else if (rank === 3) {
+          rankClass = 'bronze';
+          rankDisplay = '🥉';
+        }
+
+        const displayName = isCurrentUser 
+          ? founder.full_name + ' (You)' 
+          : maskName(founder.full_name);
+
+        return `
+          <tr class="leaderboard-row ${isCurrentUser ? 'current-user' : ''}">
+            <td class="leaderboard-rank ${rankClass}">${rankDisplay}</td>
+            <td class="leaderboard-name">${displayName}</td>
+            <td class="leaderboard-stats">${totalReferrals}</td>
+            <td class="leaderboard-earnings">${formatCurrency(founder.total_commissions_earned || 0)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function maskName(fullName) {
+      if (!fullName) return 'Anonymous';
+      const parts = fullName.trim().split(' ');
+      if (parts.length === 0) return 'Anonymous';
+      
+      const firstName = parts[0];
+      const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] + '.' : '';
+      
+      return firstName + (lastInitial ? ' ' + lastInitial : '');
+    }
+
+    async function toggleLeaderboardOptIn() {
+      const checkbox = document.getElementById('leaderboard-optin-checkbox');
+      const isOptedIn = checkbox.checked;
+
+      const { error } = await supabaseClient
+        .from('member_founder_profiles')
+        .update({
+          show_on_leaderboard: isOptedIn,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', founderProfile.id);
+
+      if (error) {
+        console.error('Error updating leaderboard opt-in:', error);
+        checkbox.checked = !isOptedIn;
+        showToast('Error updating preference');
+        return;
+      }
+
+      founderProfile.show_on_leaderboard = isOptedIn;
+      showToast(isOptedIn ? 'You are now on the leaderboard!' : 'You have been removed from the leaderboard');
+      
+      await loadLeaderboard();
+    }
+
+    function copyReferralCode() {
+      const code = document.getElementById('referral-code').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        showToast('Referral code copied!');
+      });
+    }
+
+    function copyShareLink(type) {
+      const code = founderProfile.referral_code;
+      const page = type === 'provider' ? 'signup-provider.html' : 'signup-member.html';
+      const link = `${window.location.origin}/${page}?ref=${code}`;
+      navigator.clipboard.writeText(link).then(() => {
+        showToast(`${type === 'provider' ? 'Provider' : 'Member'} share link copied!`);
+      });
+    }
+
+    function shareViaEmail(type) {
+      const code = founderProfile.referral_code;
+      const page = type === 'provider' ? 'signup-provider.html' : 'signup-member.html';
+      const link = `${window.location.origin}/${page}?ref=${code}`;
+      const typeLabel = type === 'provider' ? 'provider' : 'member';
+      const subject = encodeURIComponent(`Join My Car Concierge as a ${typeLabel}`);
+      const body = encodeURIComponent(`Hey!\n\nI'd like to invite you to join My Car Concierge as a ${typeLabel}. Use my referral code: ${code}\n\nSign up here: ${link}\n\nThanks!`);
+      window.open(`mailto:?subject=${subject}&body=${body}`);
+    }
+
+    function generateQRCode() {
+      if (!founderProfile?.referral_code) return;
+      const code = founderProfile.referral_code;
+      
+      const memberSignupLink = `${window.location.origin}/signup-member.html?ref=${code}`;
+      const memberCanvas = document.getElementById('qr-code-member');
+      if (memberCanvas && typeof QrCreator !== 'undefined') {
+        QrCreator.render({
+          text: memberSignupLink,
+          radius: 0.3,
+          ecLevel: 'H',
+          fill: '#0a0a0f',
+          background: '#ffffff',
+          size: 160
+        }, memberCanvas);
+      }
+      
+      const providerSignupLink = `${window.location.origin}/signup-provider.html?ref=${code}`;
+      const providerCanvas = document.getElementById('qr-code-provider');
+      if (providerCanvas && typeof QrCreator !== 'undefined') {
+        QrCreator.render({
+          text: providerSignupLink,
+          radius: 0.3,
+          ecLevel: 'H',
+          fill: '#0a0a0f',
+          background: '#ffffff',
+          size: 160
+        }, providerCanvas);
+      }
+    }
+
+    function downloadQRCode(type) {
+      const canvasId = type === 'provider' ? 'qr-code-provider' : 'qr-code-member';
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = `mcc-${type}-referral-${founderProfile.referral_code}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast(`${type === 'provider' ? 'Provider' : 'Member'} QR code downloaded!`);
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-message').textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
+    }
+
+    function updatePayoutLabel() {
+      const method = document.getElementById('payout-method').value;
+      const label = document.getElementById('payout-email-label');
+      const input = document.getElementById('payout-email');
+      const emailGroup = document.getElementById('payout-email-group');
+      const stripeGroup = document.getElementById('stripe-connect-group');
+      
+      if (method === 'stripe_connect') {
+        emailGroup.style.display = 'none';
+        stripeGroup.style.display = 'block';
+        updateStripeConnectUI();
+      } else {
+        emailGroup.style.display = 'block';
+        stripeGroup.style.display = 'none';
+        
+        const labels = {
+          'paypal': { label: 'PayPal Email', placeholder: 'your@email.com' },
+          'venmo': { label: 'Venmo Username', placeholder: '@username' },
+          'zelle': { label: 'Zelle Email/Phone', placeholder: 'email or phone' },
+          'bank_transfer': { label: 'Bank Details', placeholder: 'Account details' },
+          'check': { label: 'Mailing Address', placeholder: 'Your address' }
+        };
+        
+        const config = labels[method] || labels.paypal;
+        label.textContent = config.label;
+        input.placeholder = config.placeholder;
+      }
+    }
+
+    function updateStripeConnectUI() {
+      const statusDiv = document.getElementById('stripe-connect-status');
+      const connectedDiv = document.getElementById('stripe-connect-connected');
+      
+      if (founderProfile && founderProfile.stripe_connect_account_id) {
+        statusDiv.style.display = 'none';
+        connectedDiv.style.display = 'block';
+      } else {
+        statusDiv.style.display = 'block';
+        connectedDiv.style.display = 'none';
+      }
+    }
+
+    async function initiateStripeConnect() {
+      if (!founderProfile) return;
+      
+      const btn = document.getElementById('stripe-connect-btn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = 'Connecting...';
+      btn.disabled = true;
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Please log in to connect with Stripe');
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          return;
+        }
+        
+        const response = await fetch(`/api/stripe/connect/onboard/${founderProfile.id}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+        const data = await response.json();
+        
+        if (data.error) {
+          showToast('Error: ' + data.error);
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          return;
+        }
+        
+        if (data.url) {
+          window.location.href = data.url;
+        }
+      } catch (error) {
+        console.error('Stripe Connect error:', error);
+        showToast('Failed to connect with Stripe');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    async function checkStripeConnectStatus() {
+      if (!founderProfile) return;
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Please log in to check status');
+          return;
+        }
+        
+        const response = await fetch(`/api/stripe/connect/status/${founderProfile.id}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+        const data = await response.json();
+        
+        if (data.error) {
+          showToast('Error: ' + data.error);
+          return;
+        }
+        
+        if (data.charges_enabled && data.payouts_enabled) {
+          showToast('Account fully set up and ready for payouts!');
+        } else if (data.details_submitted) {
+          showToast('Account pending verification. Check back soon.');
+        } else {
+          showToast('Account setup incomplete. Click "Update Account" to continue.');
+        }
+      } catch (error) {
+        console.error('Status check error:', error);
+        showToast('Failed to check status');
+      }
+    }
+
+    function handleStripeCallback() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const stripeResult = urlParams.get('stripe');
+      
+      if (stripeResult === 'success') {
+        showToast('Stripe account connected successfully!');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (stripeResult === 'refresh') {
+        showToast('Please complete your Stripe account setup');
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setTimeout(() => initiateStripeConnect(), 1000);
+      }
+    }
+
+    document.getElementById('payout-method').addEventListener('change', updatePayoutLabel);
+
+    document.getElementById('payout-settings-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const method = document.getElementById('payout-method').value;
+      const email = document.getElementById('payout-email').value;
+      
+      const { error } = await supabaseClient
+        .from('member_founder_profiles')
+        .update({
+          payout_method: method,
+          payout_email: email,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', founderProfile.id);
+      
+      if (error) {
+        showToast('Error saving settings');
+        console.error(error);
+      } else {
+        founderProfile.payout_method = method;
+        founderProfile.payout_email = email;
+        showToast('Payout settings saved!');
+      }
+    });
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        tab.classList.add('active');
+        document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+      });
+    });
+
+    function logout() {
+      supabaseClient.auth.signOut().then(() => {
+        window.location.href = 'login.html';
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

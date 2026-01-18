@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Trust & Safety – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Learn how My Car Concierge protects you with provider verification, secure escrow payments, and fair dispute resolution." />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.85);
+      --bg-elevated: rgba(28, 28, 42, 0.9);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-gold-soft: rgba(212, 168, 85, 0.15);
+      --accent-blue: #4a7cff;
+      --accent-blue-soft: rgba(74, 124, 255, 0.12);
+      --accent-green: #4ac88c;
+      --accent-green-soft: rgba(74, 200, 140, 0.12);
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-medium: rgba(148, 148, 168, 0.2);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-xl: 32px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(74, 124, 255, 0.05), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(74, 124, 255, 0.03), transparent 60%);
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    .container {
+      position: relative;
+      z-index: 2;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    header {
+      padding: 24px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    header .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      text-decoration: none;
+    }
+
+    .brand-icon {
+      height: 120px;
+      width: auto;
+      border-radius: var(--radius-md);
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    nav a {
+      padding: 10px 18px;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s ease;
+    }
+
+    nav a:hover {
+      color: var(--text-primary);
+      background: var(--bg-elevated);
+    }
+
+    nav .btn-login {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    main { padding: 60px 0 100px; }
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .page-header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .page-header h1 .highlight {
+      background: linear-gradient(135deg, var(--accent-gold) 0%, #f0c76d 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .page-header p {
+      color: var(--text-secondary);
+      font-size: 1.1rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .trust-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 48px;
+      margin-bottom: 32px;
+    }
+
+    .trust-section h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem;
+      font-weight: 500;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .section-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+    }
+
+    .trust-section.verification .section-icon { background: var(--accent-blue-soft); }
+    .trust-section.escrow .section-icon { background: var(--accent-gold-soft); }
+    .trust-section.dispute .section-icon { background: var(--accent-green-soft); }
+
+    .trust-section p {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      line-height: 1.8;
+      margin-bottom: 20px;
+    }
+
+    .trust-section p:last-child { margin-bottom: 0; }
+
+    .feature-list {
+      list-style: none;
+      padding: 0;
+      margin: 24px 0 0;
+    }
+
+    .feature-list li {
+      padding: 16px 0;
+      padding-left: 32px;
+      position: relative;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .feature-list li:last-child { border-bottom: none; }
+
+    .feature-list li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: var(--accent-gold);
+      font-weight: bold;
+      font-size: 1rem;
+    }
+
+    .feature-list li strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .protection-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-top: 40px;
+    }
+
+    .protection-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      text-align: center;
+    }
+
+    .protection-card h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+      color: var(--text-primary);
+    }
+
+    .protection-card p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.7;
+    }
+
+    .protection-icon {
+      width: 64px;
+      height: 64px;
+      background: var(--accent-blue-soft);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      margin: 0 auto 20px;
+    }
+
+    .cta-section {
+      text-align: center;
+      margin-top: 60px;
+      padding: 48px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+    }
+
+    .cta-section h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem;
+      margin-bottom: 12px;
+    }
+
+    .cta-section p {
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .cta-section a {
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .cta-section a:hover { text-decoration: underline; }
+
+    @media (max-width: 768px) {
+      header .container { flex-direction: column; gap: 16px; }
+      nav { width: 100%; justify-content: center; }
+      .trust-section { padding: 32px 24px; }
+      .trust-section h2 { font-size: 1.3rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+  <div class="noise"></div>
+
+  <header>
+    <div class="container">
+      <a href="/" class="brand">
+        <img src="/logo.png" alt="My Car Concierge" class="brand-icon" />
+      </a>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/how-it-works.html">How It Works</a>
+        <a href="/faq.html">FAQ</a>
+        <a href="/login.html" class="btn-login">Sign In</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-header">
+      <h1>Trust & <span class="highlight">Safety</span></h1>
+      <p>Your security is our priority. Learn how we protect every transaction on our platform.</p>
+    </div>
+
+    <div class="trust-section verification">
+      <h2><span class="section-icon">🛡️</span> Provider Verification</h2>
+      <p>Every service provider on My Car Concierge goes through a comprehensive verification process before they can bid on your service requests. We take provider quality seriously.</p>
+      <ul class="feature-list">
+        <li><strong>Identity Verification:</strong> Government ID verification ensures providers are who they claim to be.</li>
+        <li><strong>Background Checks:</strong> Criminal background screenings help ensure your safety.</li>
+        <li><strong>License Verification:</strong> We verify professional licenses and certifications where applicable.</li>
+        <li><strong>Insurance Confirmation:</strong> Providers must maintain appropriate liability insurance coverage.</li>
+        <li><strong>Business Verification:</strong> For business accounts, we verify legitimate business registration.</li>
+        <li><strong>Ongoing Monitoring:</strong> Provider status is continuously monitored, not just at sign-up.</li>
+      </ul>
+    </div>
+
+    <div class="trust-section escrow">
+      <h2><span class="section-icon">💰</span> Secure Escrow System</h2>
+      <p>Our escrow payment system protects both vehicle owners and service providers by ensuring funds are handled fairly throughout every transaction.</p>
+      <ul class="feature-list">
+        <li><strong>Payment Protection:</strong> Your payment is held securely until you confirm the work is complete.</li>
+        <li><strong>Funds Release:</strong> Money is only released to providers after you verify satisfaction.</li>
+        <li><strong>Secure Processing:</strong> All payments are processed through industry-standard encryption.</li>
+        <li><strong>Clear Timeline:</strong> Both parties know exactly when and how funds will be released.</li>
+        <li><strong>No Advance Payments:</strong> Providers don't receive payment until the job is done right.</li>
+      </ul>
+    </div>
+
+    <div class="trust-section dispute">
+      <h2><span class="section-icon">⚖️</span> Dispute Resolution</h2>
+      <p>In the rare event that something goes wrong, our fair and structured dispute resolution process ensures both parties are heard and treated fairly.</p>
+      <ul class="feature-list">
+        <li><strong>Direct Resolution:</strong> We encourage and facilitate direct communication between parties first.</li>
+        <li><strong>Mediation Support:</strong> Our team can step in to help mediate if direct resolution isn't working.</li>
+        <li><strong>Evidence Review:</strong> We review photos, messages, and documentation from both sides.</li>
+        <li><strong>Fair Decisions:</strong> Impartial decisions based on our terms of service and the facts presented.</li>
+        <li><strong>Refund Protection:</strong> If warranted, we can process refunds from the escrow funds.</li>
+        <li><strong>Provider Accountability:</strong> Providers with unresolved issues face account restrictions.</li>
+      </ul>
+    </div>
+
+    <div class="protection-grid">
+      <div class="protection-card">
+        <div class="protection-icon">🔒</div>
+        <h3>Data Security</h3>
+        <p>Your personal and payment information is encrypted and stored securely using industry-best practices.</p>
+      </div>
+      <div class="protection-card">
+        <div class="protection-icon">⭐</div>
+        <h3>Review System</h3>
+        <p>Authentic reviews from real customers help you make informed decisions about providers.</p>
+      </div>
+      <div class="protection-card">
+        <div class="protection-icon">📞</div>
+        <h3>Support Team</h3>
+        <p>Our dedicated support team is available to help resolve any issues that arise.</p>
+      </div>
+    </div>
+
+    <div class="cta-section">
+      <h2>Questions about our policies?</h2>
+      <p>We're here to help you understand how we keep the platform safe.</p>
+      <a href="/contact.html">Contact Our Trust & Safety Team →</a>
+    </div>
+  </main>
+
+  <script src="/footer.js"></script>
+</body>
+</html>
