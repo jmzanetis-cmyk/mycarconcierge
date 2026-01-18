@@ -29,3 +29,7 @@ externalPort = 80
 
 [agent]
 expertMode = true
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["node", "www/server.js"]
