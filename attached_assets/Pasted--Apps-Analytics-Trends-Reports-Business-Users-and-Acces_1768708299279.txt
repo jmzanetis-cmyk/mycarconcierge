@@ -1,0 +1,137 @@
+
+Apps
+Analytics
+Trends
+Reports
+Business
+Users and Access
+Jordan Zanetis
+Jordan Zanetis
+
+My Car Concierge
+DistributionTestFlightXcode Cloud
+iOS App
+1.0 Rejected
+Add Platform
+General
+App Information
+App Review
+History
+App Store
+TRUST & SAFETY
+App Privacy
+App Accessibility
+Ratings and Reviews
+GROWTH & MARKETING
+In-App Events
+Custom Product Pages
+Product Page Optimization
+Promo Codes
+Game Center
+MONETIZATION
+Pricing and Availability
+In-App Purchases
+Subscriptions
+FEATURING
+Nominations
+App Information
+This information is used for all platforms of this app. Any changes will be released with your next app version.
+Save
+Localizable Information
+English (U.S.)
+?
+Name
+
+14
+Subtitle
+
+5
+General Information
+
+Bundle ID
+co.mycarconcierge.app
+
+SKU
+mycarconcierge001
+
+Apple ID
+6756989757
+
+Content Rights
+Edit
+No, this app does not contain, show, or access third-party content.
+
+License Agreement
+Edit
+Apple’s Standard License Agreement
+
+Primary Language
+English (U.S.)
+
+Category
+
+
+Age Ratings
+
+App Age Ratings
+Edit
+View Details
+Users will only see the age rating that applies to their country or region on the App Store.
+
+15+
+Australia
+16+
+172 countries or regions
+
+Brazil
+15+
+Korea, Republic of
+Age Suitability URL
+?
+–
+Operating Systems Earlier than Version 26
+Global rating of 17+ with regional exceptions
+View Details
+App Encryption Documentation
+
+
+Specify your use of encryption in Xcode by adding the App Uses Non-Exempt Encryption key to your app's Info.plist file with a Boolean value that indicates whether your app uses encryption. Learn More
+
+You're required to provide documentation if your app contains any of the following:
+
+Encryption algorithms that are proprietary or not accepted as standard by international standard bodies (IEEE, IETF, ITU, etc.)
+Standard encryption algorithms instead of, or in addition to, using or accessing the encryption within Apple's operating system
+You can provide your documentation before you submit a build.
+
+Upload
+App Store Regulations & Permits
+
+Digital Services Act
+
+Under the Digital Services Act, you must provide and verify information regarding your account. If you don't, there may be payment delays or your content may be removed from sale in certain countries or regions. Learn More
+
+Set Up
+Vietnam Game License
+If your game is available on the App Store in Vietnam, you can add a game license as required by Vietnamese regulators. Learn More
+Add
+App Store Server Notifications
+
+App Store server notifications provide information about key events related to your in-app purchases. To test notifications before implementing them in production, you can set up a separate sandbox server URL. Learn More
+
+Production Server URL
+Set Up URL
+Sandbox Server URL
+Set Up URL
+App-Specific Shared Secret
+
+The app-specific shared secret is a unique code to receive receipts for only this app’s auto-renewable subscriptions. You may want to use an app-specific shared secret if you’re transferring this app to another developer, or if you want to keep your primary shared secret private.
+
+Manage
+
+Additional Information
+
+View on App Store
+
+Edit User Access
+
+Remove App
