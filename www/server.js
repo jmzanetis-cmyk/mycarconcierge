@@ -10152,6 +10152,21 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  // URL redirects for cleaner URLs
+  const urlRedirects = {
+    '/founder-member': '/member-founder.html',
+    '/founder-provider': '/provider-pilot.html',
+    '/founding-member': '/member-founder.html',
+    '/founding-provider': '/provider-pilot.html'
+  };
+  
+  const urlPath = req.url.split('?')[0];
+  if (urlRedirects[urlPath]) {
+    res.writeHead(301, { 'Location': urlRedirects[urlPath] });
+    res.end();
+    return;
+  }
+  
   let filePath = '.' + req.url;
   
   if (filePath === './') {
