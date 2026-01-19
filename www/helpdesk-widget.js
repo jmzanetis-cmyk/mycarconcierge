@@ -7,8 +7,21 @@ class HelpdeskWidget {
     this.isOpen = false;
     this.isLoading = false;
     this.messages = [];
+    this.apiBaseUrl = this.getApiBaseUrl();
     
     this.init();
+  }
+  
+  getApiBaseUrl() {
+    const isNativeApp = window.Capacitor !== undefined || 
+                        window.location.protocol === 'capacitor:' ||
+                        window.location.protocol === 'ionic:' ||
+                        window.location.protocol === 'file:';
+    
+    if (isNativeApp) {
+      return 'https://www.mycarconcierge.com';
+    }
+    return '';
   }
   
   init() {
@@ -462,7 +475,10 @@ class HelpdeskWidget {
     this.showTyping();
     
     try {
-      const response = await fetch('/api/helpdesk', {
+      const apiUrl = `${this.apiBaseUrl}/api/helpdesk`;
+      console.log('Helpdesk calling:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -483,7 +499,8 @@ class HelpdeskWidget {
     } catch (err) {
       console.error('Helpdesk error:', err);
       this.hideTyping();
-      this.addMessage('Error connecting to My Car Concierge. Please try again.', 'assistant');
+      const isNative = window.Capacitor !== undefined || window.location.protocol !== 'https:';
+      this.addMessage(`Error connecting to My Car Concierge. (${isNative ? 'Native' : 'Web'} mode, ${err.message})`, 'assistant');
     }
     
     this.isLoading = false;
