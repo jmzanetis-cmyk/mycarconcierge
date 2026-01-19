@@ -142,6 +142,9 @@ const MAX_BODY_SIZE = 50000;
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_MESSAGES = 20;
 
+// Global 2FA enforcement toggle - can be disabled by admin for App Store review
+let global2faEnabled = process.env.GLOBAL_2FA_ENABLED !== 'false';
+
 const WWW_DIR = path.resolve(__dirname);
 
 const CLOVER_SANDBOX_URL = 'https://apisandbox.dev.clover.com';
@@ -777,6 +780,33 @@ async function check2faRequired(req) {
 
 // Reusable 2FA enforcement middleware for protected endpoints
 async function enforce2fa(req, res, requestId) {
+  // Skip 2FA enforcement if globally disabled (e.g., for App Store review)
+  if (!global2faEnabled) {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      setCorsHeaders(res);
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized', message: 'Authentication required' }));
+      return false;
+    }
+    const token = authHeader.substring(7);
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setCorsHeaders(res);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Server configuration error' }));
+      return false;
+    }
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      setCorsHeaders(res);
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized', message: 'Invalid token' }));
+      return false;
+    }
+    return user;
+  }
+
   const check = await check2faRequired(req);
   
   if (!check.user) {
@@ -1378,6 +1408,141 @@ async function handle2faStatus(req, res, requestId) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
   }
+}
+
+// Admin endpoint to get global 2FA enforcement status
+async function handleAdminGet2faGlobalStatus(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+      return;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      enabled: global2faEnabled
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Admin 2FA global status error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  }
+}
+
+// Admin endpoint to toggle global 2FA enforcement
+async function handleAdminToggle2faGlobal(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+    if (body.length > MAX_BODY_SIZE) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Request too large' }));
+      return;
+    }
+  });
+  
+  req.on('end', async () => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      if (!profile || profile.role !== 'admin') {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+        return;
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(body);
+      } catch (parseError) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid JSON body' }));
+        return;
+      }
+      
+      if (typeof data.enabled !== 'boolean') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'enabled must be a boolean' }));
+        return;
+      }
+      
+      const enabled = data.enabled;
+      global2faEnabled = enabled;
+      console.log(`[${requestId}] Global 2FA enforcement ${enabled ? 'enabled' : 'disabled'} by admin ${user.id}`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        enabled: global2faEnabled,
+        message: `Two-factor authentication enforcement ${enabled ? 'enabled' : 'disabled'} globally`,
+        note: 'This setting is stored in memory and will reset on server restart. Set GLOBAL_2FA_ENABLED=false in environment variables for persistent disable.'
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Admin 2FA toggle error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    }
+  });
 }
 
 const mimeTypes = {
@@ -9165,6 +9330,17 @@ const server = http.createServer((req, res) => {
   
   if (req.method === 'GET' && req.url.startsWith('/api/2fa/status')) {
     handle2faStatus(req, res, requestId);
+    return;
+  }
+  
+  // Global 2FA toggle endpoints (admin only)
+  if (req.method === 'GET' && req.url === '/api/admin/2fa-global-status') {
+    handleAdminGet2faGlobalStatus(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/admin/2fa-global-toggle') {
+    handleAdminToggle2faGlobal(req, res, requestId);
     return;
   }
   

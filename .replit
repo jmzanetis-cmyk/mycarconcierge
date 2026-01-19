@@ -37,3 +37,8 @@ build = ["npm", "install"]
 
 [objectStorage]
 defaultBucketID = "replit-objstore-970c9ce6-a451-4b77-b216-7f5cdd6ab7c7"
+
+[userenv]
+
+[userenv.shared]
+GLOBAL_2FA_ENABLED = "false"

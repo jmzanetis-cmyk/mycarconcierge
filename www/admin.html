@@ -175,6 +175,11 @@
     .alert.warning { background: var(--accent-orange-soft); border: 1px solid rgba(245,158,11,0.3); color: var(--accent-orange); }
     .alert.info { background: var(--accent-blue-soft); border: 1px solid rgba(74,124,255,0.3); color: var(--accent-blue); }
 
+    /* Toggle Switch Styles */
+    .toggle-switch input:checked + .toggle-slider { background: var(--accent-green-soft); border-color: var(--accent-green); }
+    .toggle-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 2px; bottom: 2px; background: var(--accent-red); border-radius: 50%; transition: 0.3s; }
+    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(24px); background: var(--accent-green); }
+
     @media (max-width: 900px) {
       .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
       .sidebar.open { transform: translateX(0); }
@@ -300,6 +305,9 @@
     <div class="nav-item" data-section="members">👥 Members</div>
     <div class="nav-item" data-section="user-roles">🔄 User Roles</div>
     <div class="nav-item" data-section="user-management">👥 User Management</div>
+
+    <div class="nav-label">System</div>
+    <div class="nav-item" data-section="settings">⚙️ Settings</div>
 
     <div class="sidebar-footer">
       <button class="btn btn-secondary" onclick="window.location.href='members.html'" style="width:100%;margin-bottom:8px;padding:12px 16px;">🏠 Member Portal</button>
@@ -1257,6 +1265,34 @@
         </div>
       </div>
     </section>
+
+    <!-- Settings Section -->
+    <section id="settings" class="section">
+      <div class="page-header">
+        <button class="back-to-dashboard" onclick="navigateToSection('dashboard')">← Dashboard</button>
+        <h1 class="page-title">⚙️ System Settings</h1>
+        <p class="page-subtitle">Configure global platform settings</p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Security Settings</h2>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);">
+            <div>
+              <div style="font-weight:600;margin-bottom:4px;">Two-Factor Authentication Enforcement</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary);">When enabled, users with 2FA configured must verify their identity to access protected features. Disable temporarily for App Store review.</div>
+            </div>
+            <label class="toggle-switch" style="position:relative;display:inline-block;width:52px;height:28px;flex-shrink:0;margin-left:20px;">
+              <input type="checkbox" id="global-2fa-toggle" onchange="toggle2faGlobal(this.checked)" style="opacity:0;width:0;height:0;">
+              <span class="toggle-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:var(--accent-red-soft);border:2px solid var(--accent-red);border-radius:28px;transition:0.3s;"></span>
+            </label>
+          </div>
+          <div id="2fa-status-message" style="display:none;padding:12px 16px;border-radius:var(--radius-md);font-size:0.9rem;"></div>
+        </div>
+      </div>
+    </section>
     
     <div style="text-align:center;padding:40px 20px 20px;font-size:0.8rem;color:var(--text-muted);">
       © 2025 My Car Concierge. All rights reserved. - IMOR
@@ -1684,7 +1720,8 @@
         loadMemberFounderApplications(),
         loadFounderPayouts(),
         loadUserManagement(),
-        loadPendingCARs()
+        loadPendingCARs(),
+        load2faGlobalStatus()
       ]);
       updateDashboard();
     }
@@ -3384,6 +3421,79 @@
       toast.innerHTML = `<span>${type === 'success' ? '✓' : '⚠'}</span><span>${msg}</span>`;
       document.getElementById('toast-container').appendChild(toast);
       setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    // ========== GLOBAL 2FA TOGGLE ==========
+    async function load2faGlobalStatus() {
+      try {
+        const session = await supabaseClient.auth.getSession();
+        if (!session?.data?.session?.access_token) return;
+        
+        const response = await fetch('/api/admin/2fa-global-status', {
+          headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const toggle = document.getElementById('global-2fa-toggle');
+          const statusMsg = document.getElementById('2fa-status-message');
+          if (toggle) {
+            toggle.checked = data.enabled;
+          }
+          if (statusMsg) {
+            statusMsg.style.display = 'block';
+            statusMsg.style.background = data.enabled ? 'var(--accent-green-soft)' : 'var(--accent-orange-soft)';
+            statusMsg.style.color = data.enabled ? 'var(--accent-green)' : 'var(--accent-orange)';
+            statusMsg.textContent = data.enabled 
+              ? '2FA enforcement is ON. Users with 2FA enabled must verify to access protected features.'
+              : '2FA enforcement is OFF. Users can access features without 2FA verification (for App Store review).';
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load 2FA global status:', err);
+      }
+    }
+
+    async function toggle2faGlobal(enabled) {
+      const toggle = document.getElementById('global-2fa-toggle');
+      const statusMsg = document.getElementById('2fa-status-message');
+      
+      try {
+        const session = await supabaseClient.auth.getSession();
+        if (!session?.data?.session?.access_token) {
+          showToast('Authentication required', 'error');
+          toggle.checked = !enabled;
+          return;
+        }
+        
+        const response = await fetch('/api/admin/2fa-global-toggle', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.data.session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ enabled })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          showToast(data.message, 'success');
+          statusMsg.style.display = 'block';
+          statusMsg.style.background = enabled ? 'var(--accent-green-soft)' : 'var(--accent-orange-soft)';
+          statusMsg.style.color = enabled ? 'var(--accent-green)' : 'var(--accent-orange)';
+          statusMsg.textContent = enabled 
+            ? '2FA enforcement is ON. Users with 2FA enabled must verify to access protected features.'
+            : '2FA enforcement is OFF. Users can access features without 2FA verification (for App Store review).';
+        } else {
+          showToast(data.error || 'Failed to update 2FA setting', 'error');
+          toggle.checked = !enabled;
+        }
+      } catch (err) {
+        console.error('Failed to toggle 2FA:', err);
+        showToast('Failed to update 2FA setting', 'error');
+        toggle.checked = !enabled;
+      }
     }
 
     // ========== PILOT APPLICATIONS ==========
