@@ -1,0 +1,26 @@
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/founder-member"
+  to = "/member-founder.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/founding-member"
+  to = "/member-founder.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/founder-provider"
+  to = "/provider-pilot.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/founding-provider"
+  to = "/provider-pilot.html"
+  status = 301
+  force = true
