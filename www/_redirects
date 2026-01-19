@@ -1,5 +1,0 @@
-# Cleaner URL redirects for founder pages
-/founder-member    /member-founder.html    301!
-/founding-member   /member-founder.html    301!
-/founder-provider  /provider-pilot.html    301!
-/founding-provider /provider-pilot.html    301!
