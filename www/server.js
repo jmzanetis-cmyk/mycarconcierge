@@ -701,6 +701,685 @@ async function sendEmailNotification(toEmail, toName, subject, htmlContent) {
   }
 }
 
+function generate2faCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function hash2faCode(code) {
+  return crypto.createHash('sha256').update(code).digest('hex');
+}
+
+function maskPhoneNumber(phone) {
+  if (!phone || phone.length < 4) return '****';
+  return '*'.repeat(phone.length - 4) + phone.slice(-4);
+}
+
+function setCorsHeaders(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
+// 2FA Authentication helper - extracts user from Authorization header
+async function authenticateRequest(req) {
+  const authHeader = req.headers.authorization || req.headers['Authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  const token = authHeader.slice(7);
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) return null;
+    return user;
+  } catch (error) {
+    console.error('Auth verification error:', error);
+    return null;
+  }
+}
+
+// 2FA Enforcement middleware - checks if user has 2FA enabled and recently verified
+async function check2faRequired(req) {
+  const user = await authenticateRequest(req);
+  if (!user) return { required: false, reason: 'not_authenticated' };
+  
+  const supabase = getSupabaseClient();
+  if (!supabase) return { required: false, user, reason: 'db_unavailable' };
+  
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('two_factor_enabled, two_factor_verified_at')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || !profile.two_factor_enabled) {
+      return { required: false, user };
+    }
+    
+    // Check if verified within last hour
+    if (profile.two_factor_verified_at) {
+      const verifiedAt = new Date(profile.two_factor_verified_at);
+      const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      if (verifiedAt > hourAgo) {
+        return { required: false, user, verified: true };
+      }
+    }
+    
+    return { required: true, user, reason: '2fa_required' };
+  } catch (error) {
+    console.error('2FA check error:', error);
+    return { required: false, user, reason: 'check_failed' };
+  }
+}
+
+// Reusable 2FA enforcement middleware for protected endpoints
+async function enforce2fa(req, res, requestId) {
+  const check = await check2faRequired(req);
+  
+  if (!check.user) {
+    setCorsHeaders(res);
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized', message: 'Authentication required' }));
+    return false;
+  }
+  
+  if (check.required) {
+    setCorsHeaders(res);
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      error: '2fa_required', 
+      message: 'Two-factor authentication required',
+      redirectTo: '/login.html?2fa=required'
+    }));
+    return false;
+  }
+  
+  return check.user;
+}
+
+// Handle access authorization check endpoint
+async function handleAuthCheckAccess(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const result = await check2faRequired(req);
+  
+  if (result.reason === 'not_authenticated') {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ authorized: false, reason: 'not_authenticated' }));
+    return;
+  }
+  
+  if (result.required) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      authorized: false, 
+      reason: '2fa_required',
+      redirectTo: '/login.html?2fa=required'
+    }));
+    return;
+  }
+  
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ 
+    authorized: true,
+    userId: result.user?.id
+  }));
+}
+
+// Database-backed rate limiting for 2FA endpoints
+async function checkSendCodeRateLimit(userId) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { allowed: true };
+  
+  const MAX_ATTEMPTS = 3;
+  const WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+  
+  // Get current rate limit record
+  const { data: record } = await supabase
+    .from('two_factor_rate_limits')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('action_type', 'send_code')
+    .single();
+  
+  const now = new Date();
+  
+  if (!record) {
+    // First attempt - create record
+    await supabase.from('two_factor_rate_limits').insert({
+      user_id: userId,
+      action_type: 'send_code',
+      attempt_count: 1,
+      first_attempt_at: now.toISOString()
+    });
+    return { allowed: true };
+  }
+  
+  const windowStart = new Date(now.getTime() - WINDOW_MS);
+  const firstAttempt = new Date(record.first_attempt_at);
+  
+  if (firstAttempt < windowStart) {
+    // Window expired, reset
+    await supabase.from('two_factor_rate_limits')
+      .update({ attempt_count: 1, first_attempt_at: now.toISOString(), updated_at: now.toISOString() })
+      .eq('user_id', userId)
+      .eq('action_type', 'send_code');
+    return { allowed: true };
+  }
+  
+  if (record.attempt_count >= MAX_ATTEMPTS) {
+    const retryAfter = Math.ceil((new Date(record.first_attempt_at).getTime() + WINDOW_MS - now.getTime()) / 1000);
+    return { allowed: false, error: `Too many code requests. Try again in ${retryAfter} seconds.` };
+  }
+  
+  // Increment count
+  await supabase.from('two_factor_rate_limits')
+    .update({ attempt_count: record.attempt_count + 1, updated_at: now.toISOString() })
+    .eq('user_id', userId)
+    .eq('action_type', 'send_code');
+  
+  return { allowed: true };
+}
+
+async function checkVerifyCodeRateLimit(userId) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { allowed: true };
+  
+  const MAX_ATTEMPTS = 5;
+  const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+  
+  const { data: record } = await supabase
+    .from('two_factor_rate_limits')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('action_type', 'verify_code')
+    .single();
+  
+  const now = new Date();
+  
+  if (!record) {
+    await supabase.from('two_factor_rate_limits').insert({
+      user_id: userId,
+      action_type: 'verify_code',
+      attempt_count: 1,
+      first_attempt_at: now.toISOString()
+    });
+    return { allowed: true };
+  }
+  
+  // Check if locked
+  if (record.locked_until && new Date(record.locked_until) > now) {
+    const retryAfter = Math.ceil((new Date(record.locked_until).getTime() - now.getTime()) / 1000);
+    const timeRemaining = Math.ceil(retryAfter / 60);
+    return { allowed: false, error: `Account temporarily locked. Try again in ${timeRemaining} minutes.` };
+  }
+  
+  // If was locked and lockout expired, reset
+  if (record.locked_until) {
+    await supabase.from('two_factor_rate_limits')
+      .update({ attempt_count: 1, locked_until: null, first_attempt_at: now.toISOString(), updated_at: now.toISOString() })
+      .eq('user_id', userId)
+      .eq('action_type', 'verify_code');
+    return { allowed: true };
+  }
+  
+  if (record.attempt_count >= MAX_ATTEMPTS) {
+    // Lock the user
+    const lockUntil = new Date(now.getTime() + LOCKOUT_MS);
+    await supabase.from('two_factor_rate_limits')
+      .update({ locked_until: lockUntil.toISOString(), updated_at: now.toISOString() })
+      .eq('user_id', userId)
+      .eq('action_type', 'verify_code');
+    return { allowed: false, error: 'Too many failed attempts. Account locked for 15 minutes.' };
+  }
+  
+  // Increment count
+  await supabase.from('two_factor_rate_limits')
+    .update({ attempt_count: record.attempt_count + 1, updated_at: now.toISOString() })
+    .eq('user_id', userId)
+    .eq('action_type', 'verify_code');
+  
+  return { allowed: true };
+}
+
+async function clearVerifyCodeRateLimit(userId) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  
+  await supabase.from('two_factor_rate_limits')
+    .delete()
+    .eq('user_id', userId)
+    .eq('action_type', 'verify_code');
+}
+
+async function handle2faSendCode(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  // Authenticate request
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  const userId = user.id;
+  
+  // Check rate limit (async database call)
+  const rateCheck = await checkSendCodeRateLimit(userId);
+  if (!rateCheck.allowed) {
+    res.writeHead(429, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: rateCheck.error }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+    if (body.length > MAX_BODY_SIZE) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Request too large' }));
+    }
+  });
+  
+  req.on('end', async () => {
+    try {
+      const data = JSON.parse(body);
+      const { phone } = data;
+      
+      if (!phone) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'phone is required' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      const code = generate2faCode();
+      const hashedCode = hash2faCode(code);
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          phone: phone,
+          two_factor_secret: hashedCode,
+          two_factor_expires_at: expiresAt
+        })
+        .eq('id', userId);
+      
+      if (updateError) {
+        console.error(`[${requestId}] 2FA code save error:`, updateError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to save verification code' }));
+        return;
+      }
+      
+      const smsResult = await sendSmsNotification(
+        phone,
+        `Your My Car Concierge verification code is: ${code}. It expires in 5 minutes.`
+      );
+      
+      if (!smsResult.sent && smsResult.reason !== 'not_configured') {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to send SMS' }));
+        return;
+      }
+      
+      console.log(`[${requestId}] 2FA code sent to ${maskPhoneNumber(phone)}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: 'Code sent' }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] 2FA send-code error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    }
+  });
+}
+
+async function handle2faVerifyCode(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  // Authenticate request
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  const userId = user.id;
+  
+  // Check rate limit (async database call)
+  const rateCheck = await checkVerifyCodeRateLimit(userId);
+  if (!rateCheck.allowed) {
+    res.writeHead(429, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: rateCheck.error }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+    if (body.length > MAX_BODY_SIZE) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Request too large' }));
+    }
+  });
+  
+  req.on('end', async () => {
+    try {
+      const data = JSON.parse(body);
+      const { code } = data;
+      
+      if (!code) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'code is required' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: profile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('two_factor_secret, two_factor_expires_at')
+        .eq('id', userId)
+        .single();
+      
+      if (fetchError || !profile) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'User not found' }));
+        return;
+      }
+      
+      if (!profile.two_factor_secret || !profile.two_factor_expires_at) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'No verification code pending' }));
+        return;
+      }
+      
+      if (new Date() > new Date(profile.two_factor_expires_at)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Code expired' }));
+        return;
+      }
+      
+      const hashedInputCode = hash2faCode(code);
+      if (hashedInputCode !== profile.two_factor_secret) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid code' }));
+        return;
+      }
+      
+      // Clear the secret and set verification timestamp
+      await supabase
+        .from('profiles')
+        .update({
+          two_factor_secret: null,
+          two_factor_expires_at: null,
+          two_factor_verified_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+      
+      // Clear rate limit on successful verification
+      await clearVerifyCodeRateLimit(userId);
+      
+      console.log(`[${requestId}] 2FA code verified for user ${userId}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, verified: true }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] 2FA verify-code error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    }
+  });
+}
+
+async function handle2faEnable(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  // Authenticate request
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  const userId = user.id;
+  
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+    if (body.length > MAX_BODY_SIZE) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Request too large' }));
+    }
+  });
+  
+  req.on('end', async () => {
+    try {
+      const data = JSON.parse(body);
+      const { phone } = data;
+      
+      if (!phone) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'phone is required' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          phone: phone,
+          two_factor_enabled: true,
+          phone_verified: true,
+          two_factor_secret: null,
+          two_factor_expires_at: null,
+          two_factor_verified_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+      
+      if (updateError) {
+        console.error(`[${requestId}] 2FA enable error:`, updateError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to enable 2FA' }));
+        return;
+      }
+      
+      console.log(`[${requestId}] 2FA enabled for user ${userId}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] 2FA enable error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    }
+  });
+}
+
+async function handle2faDisable(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  // Authenticate request
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  const userId = user.id;
+  
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+    if (body.length > MAX_BODY_SIZE) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Request too large' }));
+    }
+  });
+  
+  req.on('end', async () => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          two_factor_enabled: false,
+          two_factor_secret: null,
+          two_factor_expires_at: null,
+          two_factor_verified_at: null
+        })
+        .eq('id', userId);
+      
+      if (updateError) {
+        console.error(`[${requestId}] 2FA disable error:`, updateError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to disable 2FA' }));
+        return;
+      }
+      
+      console.log(`[${requestId}] 2FA disabled for user ${userId}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] 2FA disable error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    }
+  });
+}
+
+async function handle2faStatus(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  // Authenticate request
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  const userId = user.id;
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: profile, error: fetchError } = await supabase
+      .from('profiles')
+      .select('phone, two_factor_enabled, phone_verified, two_factor_verified_at')
+      .eq('id', userId)
+      .single();
+    
+    if (fetchError || !profile) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'User not found' }));
+      return;
+    }
+    
+    // Check if 2FA was verified within the last hour
+    let recentlyVerified = false;
+    if (profile.two_factor_verified_at) {
+      const verifiedAt = new Date(profile.two_factor_verified_at);
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      recentlyVerified = verifiedAt > oneHourAgo;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      enabled: profile.two_factor_enabled || false,
+      phone: maskPhoneNumber(profile.phone),
+      phone_verified: profile.phone_verified || false,
+      recently_verified: recentlyVerified
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] 2FA status error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  }
+}
+
 const mimeTypes = {
   '.html': 'text/html',
   '.js': 'application/javascript',
@@ -740,6 +1419,11 @@ Guidelines:
 
 async function handleBidCheckout(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for financial operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const contentType = req.headers['content-type'];
   if (!contentType || !contentType.includes('application/json')) {
@@ -1145,6 +1829,11 @@ async function handleAdminPasswordVerify(req, res, requestId) {
 
 async function handleFounderConnectOnboard(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for financial operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const contentType = req.headers['content-type'];
   if (!contentType || !contentType.includes('application/json')) {
@@ -1265,6 +1954,11 @@ async function handleFounderConnectOnboard(req, res, requestId) {
 
 async function handleFounderConnectOnboardComplete(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for financial operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const contentType = req.headers['content-type'];
   if (!contentType || !contentType.includes('application/json')) {
@@ -1378,6 +2072,11 @@ async function handleFounderConnectOnboardComplete(req, res, requestId) {
 
 async function handleFounderConnectStatus(req, res, requestId, founderId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for financial status access
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   if (!isValidUUID(founderId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -1455,6 +2154,11 @@ async function handleFounderConnectStatus(req, res, requestId, founderId) {
 
 async function handleAdminProcessFounderPayout(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for admin financial operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const contentType = req.headers['content-type'];
   if (!contentType || !contentType.includes('application/json')) {
@@ -1627,6 +2331,10 @@ async function handleAdminProcessFounderPayout(req, res, requestId) {
 
 async function handleFounderApprovedEmail(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const contentType = req.headers['content-type'];
   if (!contentType || !contentType.includes('application/json')) {
@@ -1798,6 +2506,10 @@ async function checkrApiRequest(endpoint, method = 'GET', body = null) {
 
 async function handleCheckrInitiate(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   let body = '';
   req.on('data', chunk => { body += chunk.toString(); });
@@ -2125,6 +2837,10 @@ async function handleCheckrWebhook(req, res, requestId) {
 
 async function handleCheckrStatus(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   try {
     const supabase = getSupabaseClient();
@@ -2167,6 +2883,11 @@ async function handleCheckrStatus(req, res, requestId, providerId) {
 
 async function handleCloverConnect(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for POS connection operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   let body = '';
   req.on('data', chunk => { body += chunk.toString(); });
@@ -2248,6 +2969,11 @@ async function handleCloverConnect(req, res, requestId) {
 
 async function handleCloverCallback(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for POS callback operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   let body = '';
   req.on('data', chunk => { body += chunk.toString(); });
@@ -2385,6 +3111,11 @@ async function handleCloverCallback(req, res, requestId) {
 
 async function handleCloverDisconnect(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for POS disconnect operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   let body = '';
   req.on('data', chunk => { body += chunk.toString(); });
@@ -2448,6 +3179,11 @@ async function handleCloverDisconnect(req, res, requestId) {
 
 async function handleCloverStatus(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for provider status operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -2492,6 +3228,11 @@ async function handleCloverStatus(req, res, requestId, providerId) {
 
 async function handleCloverSync(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for sync operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -2587,6 +3328,10 @@ async function handleCloverSync(req, res, requestId, providerId) {
 
 async function handleCloverTransactions(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -2755,6 +3500,11 @@ async function handleCloverWebhook(req, res, requestId) {
 
 async function handleSquareConnect(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for POS connection operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   let body = '';
   req.on('data', chunk => { body += chunk.toString(); });
@@ -2818,6 +3568,11 @@ async function handleSquareConnect(req, res, requestId) {
 
 async function handleSquareCallback(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for POS callback operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   let body = '';
   req.on('data', chunk => { body += chunk.toString(); });
@@ -2985,6 +3740,11 @@ async function handleSquareCallback(req, res, requestId) {
 
 async function handleSquareDisconnect(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for POS disconnect operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   let body = '';
   req.on('data', chunk => { body += chunk.toString(); });
@@ -3049,6 +3809,11 @@ async function handleSquareDisconnect(req, res, requestId) {
 
 async function handleSquareStatus(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for provider status operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -3094,6 +3859,11 @@ async function handleSquareStatus(req, res, requestId, providerId) {
 
 async function handleSquareSync(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for sync operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -3192,6 +3962,10 @@ async function handleSquareSync(req, res, requestId, providerId) {
 
 async function handleSquareTransactions(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -3362,6 +4136,11 @@ async function handleSquareWebhook(req, res, requestId) {
 
 async function handleUnifiedPosConnections(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for POS data access
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -3452,6 +4231,11 @@ async function handleUnifiedPosConnections(req, res, requestId, providerId) {
 
 async function handleUnifiedPosTransactions(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for transaction data access
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
 
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -3570,10 +4354,12 @@ async function handleUnifiedPosTransactions(req, res, requestId, providerId) {
 // ==================== PROVIDER ANALYTICS API ====================
 
 async function handleProviderAnalytics(req, res, requestId, providerId) {
-  // SECURITY NOTE: In production, providerId should be validated against the authenticated
-  // provider's session/token to ensure providers can only access their own analytics.
-  // The current implementation trusts the route parameter which could allow unauthorized access.
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for analytics data access
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -3754,6 +4540,11 @@ async function handleProviderAnalytics(req, res, requestId, providerId) {
 
 async function handleProviderRevenueAnalytics(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for analytics data access
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -3912,6 +4703,10 @@ async function handleProviderRevenueAnalytics(req, res, requestId, providerId) {
 
 async function handleProviderServicesAnalytics(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -4011,6 +4806,10 @@ async function handleProviderServicesAnalytics(req, res, requestId, providerId) 
 
 async function handleProviderBusyHoursAnalytics(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -4098,6 +4897,10 @@ async function handleProviderBusyHoursAnalytics(req, res, requestId, providerId)
 
 async function handleProviderRatingsAnalytics(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   if (!isValidUUID(providerId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -4238,6 +5041,10 @@ async function enforcePosSessionAuthorization(sessionId, session, supabase, requ
 
 async function handlePosStartSession(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -4289,6 +5096,10 @@ async function handlePosStartSession(req, res, requestId) {
 
 async function handlePosLookupMember(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -4391,6 +5202,10 @@ async function handleMemberQrToken(req, res, requestId, memberId) {
   // user's session/token to ensure users can only generate/retrieve their own QR tokens.
   // The current implementation trusts the route parameter which could allow unauthorized token generation.
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   try {
     const supabase = getSupabaseClient();
@@ -4444,6 +5259,10 @@ async function handleMemberQrToken(req, res, requestId, memberId) {
 
 async function handlePosQrLookup(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -4519,6 +5338,10 @@ async function handlePosQrLookup(req, res, requestId, sessionId) {
 
 async function handlePosVerifyOtp(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -4639,6 +5462,10 @@ async function handlePosVerifyOtp(req, res, requestId, sessionId) {
 
 async function handlePosSelectVehicle(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -4706,6 +5533,10 @@ async function handlePosSelectVehicle(req, res, requestId, sessionId) {
 
 async function handlePosAddService(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -4779,6 +5610,10 @@ async function handlePosAddService(req, res, requestId, sessionId) {
 
 async function handlePosCheckout(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -4872,6 +5707,10 @@ async function handlePosCheckout(req, res, requestId, sessionId) {
 
 async function handlePosConfirm(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -4961,6 +5800,10 @@ async function handlePosConfirm(req, res, requestId, sessionId) {
 
 async function handlePosAuthorize(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -5043,6 +5886,10 @@ async function handlePosAuthorize(req, res, requestId, sessionId) {
 
 async function handlePosGetSession(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   try {
     const supabase = getSupabaseClient();
@@ -5102,6 +5949,10 @@ async function handlePosGetSession(req, res, requestId, sessionId) {
 
 async function handlePosProviderSessions(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   try {
     const supabase = getSupabaseClient();
@@ -5130,6 +5981,10 @@ async function handlePosProviderSessions(req, res, requestId, providerId) {
 
 async function handlePosMarketplaceJobs(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   if (!isValidUUID(sessionId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -5224,6 +6079,10 @@ async function handlePosMarketplaceJobs(req, res, requestId, sessionId) {
 
 async function handlePosLinkMarketplaceJob(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   if (!isValidUUID(sessionId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -5390,6 +6249,10 @@ async function handlePosLinkMarketplaceJob(req, res, requestId, sessionId) {
 
 async function handlePosMarketplaceConfirm(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -5459,6 +6322,10 @@ async function handlePosMarketplaceConfirm(req, res, requestId, sessionId) {
 
 async function handlePosReceiptDelivery(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -5637,6 +6504,10 @@ async function handlePosReceiptDelivery(req, res, requestId) {
 
 async function handlePosInspection(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -5787,6 +6658,10 @@ async function schedulePostServiceFollowup(requestId, sessionData) {
 
 async function handleFollowupsProcess(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   try {
     const supabase = getSupabaseClient();
@@ -5926,6 +6801,10 @@ async function handleFollowupsProcess(req, res, requestId) {
 
 async function handleMaintenanceReminderCreate(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -6002,6 +6881,10 @@ async function handleMaintenanceReminderCreate(req, res, requestId) {
 
 async function handleMaintenanceRemindersProcess(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   try {
     const supabase = getSupabaseClient();
@@ -6189,6 +7072,10 @@ async function checkNotificationPreference(supabase, memberId, notificationType,
 
 async function handleGetNotificationPreferences(req, res, requestId, memberId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   if (!isValidUUID(memberId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -6237,6 +7124,10 @@ async function handleGetNotificationPreferences(req, res, requestId, memberId) {
 
 async function handleUpdateNotificationPreferences(req, res, requestId, memberId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   if (!isValidUUID(memberId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -6330,6 +7221,10 @@ async function handleUpdateNotificationPreferences(req, res, requestId, memberId
 
 async function handleCheckinStart(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -6377,6 +7272,10 @@ async function handleCheckinStart(req, res, requestId) {
 
 async function handleCheckinLookup(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -6476,6 +7375,10 @@ async function handleCheckinLookup(req, res, requestId, sessionId) {
 
 async function handleCheckinVerify(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -6596,6 +7499,10 @@ async function handleCheckinVerify(req, res, requestId, sessionId) {
 
 async function handleCheckinVehicle(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -6661,6 +7568,10 @@ async function handleCheckinVehicle(req, res, requestId, sessionId) {
 
 async function handleCheckinService(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -6729,6 +7640,10 @@ async function handleCheckinService(req, res, requestId, sessionId) {
 
 async function handleCheckinComplete(req, res, requestId, sessionId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -6818,6 +7733,11 @@ async function handleCheckinComplete(req, res, requestId, sessionId) {
 
 async function handleCheckinQueueGet(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for queue data access
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   try {
     const supabase = getSupabaseClient();
@@ -6846,6 +7766,11 @@ async function handleCheckinQueueGet(req, res, requestId, providerId) {
 
 async function handleCheckinQueueCall(req, res, requestId, queueId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for queue operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -6885,6 +7810,11 @@ async function handleCheckinQueueCall(req, res, requestId, queueId) {
 
 async function handleCheckinQueueComplete(req, res, requestId, queueId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for queue operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -6943,6 +7873,10 @@ async function handleCheckinQueueComplete(req, res, requestId, queueId) {
 
 async function handleCheckinPosition(req, res, requestId, queueId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   try {
     const supabase = getSupabaseClient();
@@ -6980,6 +7914,11 @@ async function handleCheckinPosition(req, res, requestId, queueId) {
 
 async function handleCheckinQueueCancel(req, res, requestId, queueId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for queue operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   if (!isValidUUID(queueId)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -7040,6 +7979,11 @@ async function handleCheckinQueueCancel(req, res, requestId, queueId) {
 // Stripe Connect Express Handler Functions
 async function handleStripeConnectOnboard(req, res, requestId, founderId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for financial operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   try {
     if (!founderId || !isValidUUID(founderId)) {
@@ -7068,6 +8012,14 @@ async function handleStripeConnectOnboard(req, res, requestId, founderId) {
     if (authError || !user) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+      return;
+    }
+    
+    // Check 2FA requirement for this sensitive operation
+    const twoFaCheck = await check2faRequired(req);
+    if (twoFaCheck.required) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: '2fa_required', message: 'Two-factor authentication verification required' }));
       return;
     }
     
@@ -7161,6 +8113,11 @@ async function handleStripeConnectCallback(req, res, requestId) {
 
 async function handleStripeConnectStatus(req, res, requestId, founderId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Enforce 2FA for financial status operations
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   try {
     if (!founderId || !isValidUUID(founderId)) {
@@ -7272,6 +8229,10 @@ Always respond in valid JSON format with this structure:
 
 async function handleDiagnosticsGenerate(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const contentType = req.headers['content-type'];
   if (!contentType || !contentType.includes('application/json')) {
@@ -7414,6 +8375,10 @@ Remember to emphasize this is an AI estimate and they should consult a professio
 
 async function handleNotifyUrgentUpdate(req, res, requestId) {
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   const chunks = [];
   req.on('data', chunk => { chunks.push(chunk); });
@@ -7536,6 +8501,10 @@ async function handleMemberServiceHistory(req, res, requestId, memberId) {
   // user's session/token to ensure users can only access their own service history.
   // The current implementation trusts the route parameter which could allow unauthorized access.
   setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
   
   try {
     if (!memberId || !isValidUUID(memberId)) {
@@ -8164,6 +9133,38 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url.match(/^\/api\/stripe\/connect\/status\/[^/]+$/)) {
     const founderId = req.url.split('/api/stripe/connect/status/')[1]?.split('?')[0];
     handleStripeConnectStatus(req, res, requestId, founderId);
+    return;
+  }
+  
+  // Access Authorization Check (2FA enforcement for protected pages)
+  if (req.method === 'GET' && req.url.startsWith('/api/auth/check-access')) {
+    handleAuthCheckAccess(req, res, requestId);
+    return;
+  }
+  
+  // Two-Factor Authentication (2FA) API Routes
+  if (req.method === 'POST' && req.url === '/api/2fa/send-code') {
+    handle2faSendCode(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/2fa/verify-code') {
+    handle2faVerifyCode(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/2fa/enable') {
+    handle2faEnable(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/2fa/disable') {
+    handle2faDisable(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/2fa/status')) {
+    handle2faStatus(req, res, requestId);
     return;
   }
   

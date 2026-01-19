@@ -2086,6 +2086,66 @@
         </p>
       </div>
 
+      <!-- 2FA Security Settings -->
+      <div class="card" style="margin-top:24px;">
+        <div class="card-header">
+          <h2 class="card-title">🔐 Two-Factor Authentication (2FA)</h2>
+          <p style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">Add an extra layer of security to your account.</p>
+        </div>
+        
+        <div id="2fa-loading" style="text-align:center;padding:24px;display:none;">
+          <div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-gold);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px;"></div>
+          <p style="color:var(--text-muted);font-size:0.9rem;">Loading 2FA status...</p>
+        </div>
+        
+        <div id="2fa-content">
+          <div id="2fa-status-display" style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+            <span id="2fa-status-icon" style="font-size:1.5rem;">🔓</span>
+            <div style="flex:1;">
+              <div id="2fa-status-text" style="font-weight:600;margin-bottom:2px;">2FA is Disabled</div>
+              <div id="2fa-status-desc" style="font-size:0.85rem;color:var(--text-muted);">Your account is protected by password only.</div>
+            </div>
+            <span id="2fa-status-badge" class="package-badge" style="background:rgba(239,95,95,0.15);color:var(--accent-red);">Disabled</span>
+          </div>
+          
+          <!-- Enable 2FA Section (shown when disabled) -->
+          <div id="2fa-enable-section">
+            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">
+              Enable 2FA to receive a verification code via SMS each time you log in. This helps protect your account even if your password is compromised.
+            </p>
+            
+            <div class="form-group">
+              <label class="form-label">Phone Number for 2FA</label>
+              <div style="display:flex;gap:12px;align-items:flex-start;">
+                <input type="tel" class="form-input" id="2fa-phone-input" placeholder="(555) 555-5555" style="max-width:200px;" oninput="format2FAPhoneInput(this)">
+                <button class="btn btn-primary" id="2fa-enable-btn" onclick="initiate2FAEnable()">
+                  🔒 Enable 2FA
+                </button>
+              </div>
+              <p class="form-hint">We'll send a verification code to this number.</p>
+            </div>
+          </div>
+          
+          <!-- Disable 2FA Section (shown when enabled) -->
+          <div id="2fa-disable-section" style="display:none;">
+            <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);border-radius:var(--radius-md);margin-bottom:20px;">
+              <span style="font-size:1.5rem;">✅</span>
+              <div style="flex:1;">
+                <div style="font-weight:600;color:var(--accent-green);margin-bottom:2px;">2FA is Active</div>
+                <div style="font-size:0.9rem;color:var(--text-secondary);">Verification codes are sent to: <strong id="2fa-masked-phone">***-***-1234</strong></div>
+              </div>
+            </div>
+            
+            <button class="btn btn-danger" style="background:rgba(239,95,95,0.15);color:var(--accent-red);border:1px solid rgba(239,95,95,0.3);" onclick="open2FADisableModal()">
+              🔓 Disable 2FA
+            </button>
+            <p style="font-size:0.82rem;color:var(--text-muted);margin-top:12px;">
+              Disabling 2FA will make your account less secure. You'll only need your password to log in.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
         <button class="btn btn-secondary" onclick="loadProviderProfile()">Cancel Changes</button>
         <button class="btn btn-primary" onclick="saveProviderProfile()">💾 Save Profile</button>
@@ -4927,6 +4987,67 @@
 
   <div class="toast-container" id="toast-container"></div>
 
+  <!-- 2FA Verification Modal -->
+  <div class="modal-backdrop" id="2fa-verify-modal">
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔐 Verify Your Phone</h3>
+        <button class="modal-close" onclick="close2FAVerifyModal()">×</button>
+      </div>
+      <div class="modal-body" style="text-align:center;">
+        <div style="font-size:3rem;margin-bottom:16px;">📱</div>
+        <p style="color:var(--text-secondary);margin-bottom:8px;">We sent a verification code to</p>
+        <p id="2fa-verify-phone-display" style="font-weight:600;font-size:1.1rem;margin-bottom:24px;color:var(--accent-gold);">(555) 555-5555</p>
+        
+        <div class="form-group" style="margin-bottom:20px;">
+          <label class="form-label" style="text-align:center;">Enter 6-digit code</label>
+          <div style="display:flex;justify-content:center;gap:8px;">
+            <input type="text" class="form-input 2fa-digit" id="2fa-digit-1" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 1)" onkeydown="handle2FAKeydown(event, 1)">
+            <input type="text" class="form-input 2fa-digit" id="2fa-digit-2" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 2)" onkeydown="handle2FAKeydown(event, 2)">
+            <input type="text" class="form-input 2fa-digit" id="2fa-digit-3" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 3)" onkeydown="handle2FAKeydown(event, 3)">
+            <input type="text" class="form-input 2fa-digit" id="2fa-digit-4" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 4)" onkeydown="handle2FAKeydown(event, 4)">
+            <input type="text" class="form-input 2fa-digit" id="2fa-digit-5" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 5)" onkeydown="handle2FAKeydown(event, 5)">
+            <input type="text" class="form-input 2fa-digit" id="2fa-digit-6" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 6)" onkeydown="handle2FAKeydown(event, 6)">
+          </div>
+        </div>
+        
+        <div id="2fa-verify-error" style="display:none;color:var(--accent-red);margin-bottom:16px;font-size:0.9rem;"></div>
+        
+        <button class="btn btn-primary" id="2fa-verify-btn" onclick="verify2FACode()" style="width:100%;margin-bottom:16px;" disabled>
+          Verify & Enable 2FA
+        </button>
+        
+        <div style="font-size:0.85rem;color:var(--text-muted);">
+          Didn't receive the code? 
+          <button onclick="resend2FACode()" style="background:none;border:none;color:var(--accent-gold);cursor:pointer;font-size:0.85rem;text-decoration:underline;" id="2fa-resend-btn">Resend Code</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2FA Disable Confirmation Modal -->
+  <div class="modal-backdrop" id="2fa-disable-modal">
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔓 Disable 2FA</h3>
+        <button class="modal-close" onclick="close2FADisableModal()">×</button>
+      </div>
+      <div class="modal-body" style="text-align:center;">
+        <div style="font-size:3rem;margin-bottom:16px;">⚠️</div>
+        <h4 style="margin-bottom:12px;">Are you sure?</h4>
+        <p style="color:var(--text-secondary);margin-bottom:24px;line-height:1.6;">
+          Disabling two-factor authentication will make your account less secure. 
+          Anyone with your password will be able to access your account.
+        </p>
+        
+        <div style="display:flex;gap:12px;justify-content:center;">
+          <button class="btn btn-secondary" onclick="close2FADisableModal()">Cancel</button>
+          <button class="btn" style="background:rgba(239,95,95,0.15);color:var(--accent-red);border:1px solid rgba(239,95,95,0.3);" onclick="confirm2FADisable()">Yes, Disable 2FA</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- QR Code Modal -->
   <div class="modal-backdrop" id="qr-modal">
     <div class="modal" style="max-width:400px;text-align:center;">
@@ -4968,11 +5089,40 @@
     let myActiveEmergency = null;
     let providerLocation = null;
 
+    // ========== 2FA ACCESS CHECK ==========
+    async function checkAccessAuthorization() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        window.location.href = 'login.html';
+        return false;
+      }
+      
+      try {
+        const response = await fetch('/api/auth/check-access', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const result = await response.json();
+        
+        if (!result.authorized && result.reason === '2fa_required') {
+          window.location.href = 'login.html?2fa=required&returnTo=' + encodeURIComponent(window.location.pathname);
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.error('Access check error:', error);
+        return true;
+      }
+    }
+
     window.addEventListener('load', async () => {
       try {
         const user = await getCurrentUser();
         if (!user) return window.location.href = 'login.html';
         currentUser = user;
+
+        // Check 2FA authorization before loading dashboard
+        const authorized = await checkAccessAuthorization();
+        if (!authorized) return;
 
         const { data: profile, error: profileError } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
         
@@ -14992,6 +15142,361 @@
         }
       }, 15000);
     });
+
+    // Load 2FA status when profile section is shown
+    document.querySelector('.nav-item[data-section="profile"]')?.addEventListener('click', () => {
+      load2FAStatus();
+    });
+
+    // ========== 2FA FUNCTIONS ==========
+    let pending2FAPhone = '';
+
+    async function load2FAStatus() {
+      if (!currentUser) return;
+      
+      const loadingEl = document.getElementById('2fa-loading');
+      const contentEl = document.getElementById('2fa-content');
+      
+      if (loadingEl) loadingEl.style.display = 'block';
+      if (contentEl) contentEl.style.display = 'none';
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          update2FADisplay(false, null);
+          return;
+        }
+        
+        const response = await fetch('/api/2fa/status', {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+        const data = await response.json();
+        
+        update2FADisplay(data.enabled, data.phone);
+      } catch (error) {
+        console.error('Error loading 2FA status:', error);
+        update2FADisplay(false, null);
+      } finally {
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (contentEl) contentEl.style.display = 'block';
+      }
+    }
+
+    function update2FADisplay(enabled, maskedPhone) {
+      const statusIcon = document.getElementById('2fa-status-icon');
+      const statusText = document.getElementById('2fa-status-text');
+      const statusDesc = document.getElementById('2fa-status-desc');
+      const statusBadge = document.getElementById('2fa-status-badge');
+      const enableSection = document.getElementById('2fa-enable-section');
+      const disableSection = document.getElementById('2fa-disable-section');
+      const maskedPhoneEl = document.getElementById('2fa-masked-phone');
+      
+      if (enabled) {
+        if (statusIcon) statusIcon.textContent = '🔒';
+        if (statusText) statusText.textContent = '2FA is Enabled';
+        if (statusDesc) statusDesc.textContent = 'Your account is protected with two-factor authentication.';
+        if (statusBadge) {
+          statusBadge.textContent = 'Enabled';
+          statusBadge.style.background = 'var(--accent-green-soft)';
+          statusBadge.style.color = 'var(--accent-green)';
+        }
+        if (enableSection) enableSection.style.display = 'none';
+        if (disableSection) disableSection.style.display = 'block';
+        if (maskedPhoneEl) maskedPhoneEl.textContent = maskedPhone || '***-***-****';
+      } else {
+        if (statusIcon) statusIcon.textContent = '🔓';
+        if (statusText) statusText.textContent = '2FA is Disabled';
+        if (statusDesc) statusDesc.textContent = 'Your account is protected by password only.';
+        if (statusBadge) {
+          statusBadge.textContent = 'Disabled';
+          statusBadge.style.background = 'rgba(239,95,95,0.15)';
+          statusBadge.style.color = 'var(--accent-red)';
+        }
+        if (enableSection) enableSection.style.display = 'block';
+        if (disableSection) disableSection.style.display = 'none';
+      }
+    }
+
+    function format2FAPhoneInput(input) {
+      let value = input.value.replace(/\D/g, '');
+      if (value.length > 10) value = value.slice(0, 10);
+      
+      if (value.length >= 6) {
+        input.value = `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6)}`;
+      } else if (value.length >= 3) {
+        input.value = `(${value.slice(0, 3)}) ${value.slice(3)}`;
+      } else if (value.length > 0) {
+        input.value = `(${value}`;
+      }
+    }
+
+    async function initiate2FAEnable() {
+      const phoneInput = document.getElementById('2fa-phone-input');
+      const phone = phoneInput.value.replace(/\D/g, '');
+      
+      if (phone.length !== 10) {
+        showToast('Please enter a valid 10-digit phone number', 'error');
+        return;
+      }
+      
+      const btn = document.getElementById('2fa-enable-btn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '⏳ Sending...';
+      btn.disabled = true;
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Session expired. Please log in again.', 'error');
+          return;
+        }
+        
+        const response = await fetch('/api/2fa/send-code', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ phone: phone })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          pending2FAPhone = phone;
+          open2FAVerifyModal(phoneInput.value);
+        } else {
+          showToast(data.error || 'Failed to send verification code', 'error');
+        }
+      } catch (error) {
+        console.error('Error sending 2FA code:', error);
+        showToast('Failed to send verification code. Please try again.', 'error');
+      } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    function open2FAVerifyModal(formattedPhone) {
+      const phoneDisplay = document.getElementById('2fa-verify-phone-display');
+      if (phoneDisplay) phoneDisplay.textContent = formattedPhone;
+      
+      // Clear all digit inputs
+      for (let i = 1; i <= 6; i++) {
+        const input = document.getElementById(`2fa-digit-${i}`);
+        if (input) input.value = '';
+      }
+      
+      document.getElementById('2fa-verify-error').style.display = 'none';
+      document.getElementById('2fa-verify-btn').disabled = true;
+      
+      document.getElementById('2fa-verify-modal').classList.add('active');
+      
+      // Focus first input
+      setTimeout(() => {
+        const firstInput = document.getElementById('2fa-digit-1');
+        if (firstInput) firstInput.focus();
+      }, 100);
+    }
+
+    function close2FAVerifyModal() {
+      document.getElementById('2fa-verify-modal').classList.remove('active');
+    }
+
+    function handle2FADigitInput(input, position) {
+      const value = input.value.replace(/\D/g, '');
+      input.value = value.slice(0, 1);
+      
+      if (value && position < 6) {
+        const nextInput = document.getElementById(`2fa-digit-${position + 1}`);
+        if (nextInput) nextInput.focus();
+      }
+      
+      check2FACodeComplete();
+    }
+
+    function handle2FAKeydown(event, position) {
+      if (event.key === 'Backspace' && !event.target.value && position > 1) {
+        const prevInput = document.getElementById(`2fa-digit-${position - 1}`);
+        if (prevInput) {
+          prevInput.focus();
+          prevInput.value = '';
+        }
+      }
+    }
+
+    function check2FACodeComplete() {
+      let code = '';
+      for (let i = 1; i <= 6; i++) {
+        const input = document.getElementById(`2fa-digit-${i}`);
+        code += input ? input.value : '';
+      }
+      
+      const verifyBtn = document.getElementById('2fa-verify-btn');
+      if (verifyBtn) {
+        verifyBtn.disabled = code.length !== 6;
+      }
+    }
+
+    function get2FACode() {
+      let code = '';
+      for (let i = 1; i <= 6; i++) {
+        const input = document.getElementById(`2fa-digit-${i}`);
+        code += input ? input.value : '';
+      }
+      return code;
+    }
+
+    async function verify2FACode() {
+      const code = get2FACode();
+      if (code.length !== 6) return;
+      
+      const btn = document.getElementById('2fa-verify-btn');
+      const errorEl = document.getElementById('2fa-verify-error');
+      
+      btn.innerHTML = '⏳ Verifying...';
+      btn.disabled = true;
+      errorEl.style.display = 'none';
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          errorEl.textContent = 'Session expired. Please log in again.';
+          errorEl.style.display = 'block';
+          return;
+        }
+        
+        // First verify the code
+        const verifyResponse = await fetch('/api/2fa/verify-code', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ code: code })
+        });
+        
+        const verifyData = await verifyResponse.json();
+        
+        if (!verifyData.success) {
+          errorEl.textContent = verifyData.error || 'Invalid verification code';
+          errorEl.style.display = 'block';
+          btn.innerHTML = 'Verify & Enable 2FA';
+          btn.disabled = false;
+          return;
+        }
+        
+        // Then enable 2FA
+        const enableResponse = await fetch('/api/2fa/enable', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ phone: pending2FAPhone })
+        });
+        
+        const enableData = await enableResponse.json();
+        
+        if (enableData.success) {
+          close2FAVerifyModal();
+          showToast('✅ Two-factor authentication enabled successfully!', 'success');
+          load2FAStatus();
+          document.getElementById('2fa-phone-input').value = '';
+        } else {
+          errorEl.textContent = enableData.error || 'Failed to enable 2FA';
+          errorEl.style.display = 'block';
+        }
+      } catch (error) {
+        console.error('Error verifying 2FA code:', error);
+        errorEl.textContent = 'An error occurred. Please try again.';
+        errorEl.style.display = 'block';
+      } finally {
+        btn.innerHTML = 'Verify & Enable 2FA';
+        btn.disabled = false;
+      }
+    }
+
+    async function resend2FACode() {
+      const resendBtn = document.getElementById('2fa-resend-btn');
+      if (!pending2FAPhone || !resendBtn) return;
+      
+      resendBtn.textContent = 'Sending...';
+      resendBtn.disabled = true;
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Session expired. Please log in again.', 'error');
+          return;
+        }
+        
+        const response = await fetch('/api/2fa/send-code', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ phone: pending2FAPhone })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          showToast('Verification code resent!', 'success');
+        } else {
+          showToast(data.error || 'Failed to resend code', 'error');
+        }
+      } catch (error) {
+        console.error('Error resending 2FA code:', error);
+        showToast('Failed to resend code. Please try again.', 'error');
+      } finally {
+        resendBtn.textContent = 'Resend Code';
+        resendBtn.disabled = false;
+      }
+    }
+
+    function open2FADisableModal() {
+      document.getElementById('2fa-disable-modal').classList.add('active');
+    }
+
+    function close2FADisableModal() {
+      document.getElementById('2fa-disable-modal').classList.remove('active');
+    }
+
+    async function confirm2FADisable() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Session expired. Please log in again.', 'error');
+          return;
+        }
+        
+        const response = await fetch('/api/2fa/disable', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          close2FADisableModal();
+          showToast('Two-factor authentication has been disabled.', 'success');
+          load2FAStatus();
+        } else {
+          showToast(data.error || 'Failed to disable 2FA', 'error');
+        }
+      } catch (error) {
+        console.error('Error disabling 2FA:', error);
+        showToast('Failed to disable 2FA. Please try again.', 'error');
+      }
+    }
   </script>
   <script src="/pwa-init.js"></script>
   <script src="/helpdesk-widget.js"></script>

@@ -210,6 +210,80 @@
     .portal-logout a { color: var(--text-muted); font-size: 0.88rem; cursor: pointer; }
     .portal-logout a:hover { color: var(--accent-blue); }
 
+    /* 2FA Verification Screen */
+    .twofa-screen { text-align: center; padding: 20px 0; }
+    .twofa-icon { font-size: 56px; margin-bottom: 20px; }
+    .twofa-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 12px; }
+    .twofa-text { color: var(--text-secondary); font-size: 0.92rem; line-height: 1.6; margin-bottom: 24px; }
+    .twofa-phone { color: var(--accent-gold); font-weight: 500; }
+    
+    .code-inputs {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .code-input {
+      width: 48px;
+      height: 56px;
+      text-align: center;
+      font-size: 1.4rem;
+      font-weight: 600;
+      background: var(--bg-input);
+      border: 2px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: 'Outfit', monospace;
+      transition: all 0.15s ease;
+    }
+    .code-input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(74, 124, 255, 0.2);
+    }
+    .code-input.filled {
+      border-color: var(--accent-green);
+      background: rgba(74, 200, 140, 0.1);
+    }
+    .code-input.error {
+      border-color: #ef5f5f;
+      animation: shake 0.5s ease;
+    }
+    
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+    
+    .twofa-actions { margin-top: 20px; }
+    .twofa-resend {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      margin-top: 16px;
+    }
+    .twofa-resend a {
+      color: var(--accent-blue);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .twofa-resend a:hover { text-decoration: underline; }
+    .twofa-resend a.disabled {
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .twofa-countdown { color: var(--text-muted); font-size: 0.85rem; margin-top: 8px; }
+    .twofa-back {
+      margin-top: 20px;
+    }
+    .twofa-back a {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .twofa-back a:hover { color: var(--accent-blue); }
+
     @media (max-width: 480px) {
       .login-card { padding: 32px 24px; }
       .signup-links { flex-direction: column; }
@@ -309,6 +383,42 @@
           </div>
         </div>
       </div>
+
+      <!-- 2FA Verification Screen -->
+      <div id="twofa-screen" style="display:none;">
+        <div class="twofa-screen">
+          <div class="twofa-icon">🔐</div>
+          <h2 class="twofa-title">Two-Factor Authentication</h2>
+          <p class="twofa-text">
+            Enter the 6-digit code sent to your phone<br>
+            <span class="twofa-phone" id="twofa-phone-display">****1234</span>
+          </p>
+          
+          <div class="code-inputs">
+            <input type="text" class="code-input" id="code-1" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="one-time-code">
+            <input type="text" class="code-input" id="code-2" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="code-input" id="code-3" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="code-input" id="code-4" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="code-input" id="code-5" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="code-input" id="code-6" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          </div>
+          
+          <div class="login-message" id="twofa-message"></div>
+          
+          <div class="twofa-actions">
+            <button class="btn btn-primary" id="verify-btn" onclick="verify2faCode()">Verify Code</button>
+          </div>
+          
+          <div class="twofa-resend">
+            Didn't receive the code? <a id="resend-link" onclick="resend2faCode()">Resend code</a>
+          </div>
+          <div class="twofa-countdown" id="resend-countdown"></div>
+          
+          <div class="twofa-back">
+            <a onclick="back2faToLogin()">← Back to login</a>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="login-footer">
@@ -325,13 +435,97 @@
     const form = document.getElementById('login-form');
     const messageEl = document.getElementById('message');
     const loginBtn = document.getElementById('login-btn');
+    
+    // Check URL parameters for 2FA required redirect
+    function getUrlParams() {
+      const params = new URLSearchParams(window.location.search);
+      return {
+        twoFaRequired: params.get('2fa') === 'required',
+        returnTo: params.get('returnTo') || null
+      };
+    }
 
     window.addEventListener('load', async () => {
       const user = await getCurrentUser();
+      const urlParams = getUrlParams();
+      
       if (user) {
-        await handleUserRedirect(user);
+        // If 2FA is required (redirected from protected page), trigger 2FA flow
+        if (urlParams.twoFaRequired) {
+          await handle2faRequiredRedirect(user);
+        } else {
+          await handleUserRedirect(user);
+        }
       }
     });
+    
+    // Handle redirect from protected pages requiring 2FA verification
+    async function handle2faRequiredRedirect(user) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showScreen('login-form-container');
+          showMessage('Session expired. Please log in again.');
+          return;
+        }
+        
+        // Check 2FA status and get phone
+        const response = await fetch('/api/2fa/status', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const result = await response.json();
+        
+        if (!result.success || !result.enabled) {
+          // 2FA not enabled, redirect back
+          await handleUserRedirect(user);
+          return;
+        }
+        
+        // If recently verified, redirect back
+        if (result.recently_verified) {
+          await handleUserRedirect(user);
+          return;
+        }
+        
+        // Get phone for 2FA
+        const { data: profile } = await supabaseClient
+          .from('profiles')
+          .select('phone')
+          .eq('id', user.id)
+          .single();
+        
+        if (!profile?.phone) {
+          showMessage('2FA is enabled but no phone number is configured.');
+          await handleUserRedirect(user);
+          return;
+        }
+        
+        pending2faUser = user;
+        pending2faPhone = profile.phone;
+        
+        // Send 2FA code
+        const sendResult = await send2faCode(profile.phone);
+        
+        if (sendResult.success) {
+          document.getElementById('twofa-phone-display').textContent = sendResult.phone || maskPhone(profile.phone);
+          showScreen('twofa-screen');
+          setup2faInputs();
+          clear2faInputs();
+          startResendCountdown();
+        } else {
+          showMessage(sendResult.error || 'Failed to send verification code', 'error');
+        }
+      } catch (error) {
+        console.error('2FA required redirect error:', error);
+        showMessage('Error initiating 2FA verification.');
+      }
+    }
+    
+    // Helper to mask phone for display
+    function maskPhone(phone) {
+      if (!phone || phone.length < 4) return '****';
+      return '*'.repeat(phone.length - 4) + phone.slice(-4);
+    }
 
     function showMessage(text, type = 'error') {
       messageEl.textContent = text;
@@ -349,10 +543,21 @@
       document.getElementById('login-form-container').style.display = 'none';
       document.getElementById('pending-screen').style.display = 'none';
       document.getElementById('portal-selection-screen').style.display = 'none';
+      document.getElementById('twofa-screen').style.display = 'none';
       document.getElementById(screenId).style.display = 'block';
     }
 
     async function handleUserRedirect(user) {
+      // Check for returnTo parameter (from 2FA required redirect)
+      const urlParams = getUrlParams();
+      const returnTo = urlParams.returnTo;
+      
+      // If there's a valid returnTo path, redirect there after verification
+      if (returnTo && returnTo.startsWith('/') && !returnTo.includes('login')) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        window.location.href = returnTo;
+        return;
+      }
       
       const { data: profile, error } = await supabaseClient
         .from('profiles')
@@ -437,7 +642,7 @@
       }
 
       if (data.user) {
-        await handleUserRedirect(data.user);
+        await check2faAndProceed(data.user);
       }
 
       setLoading(false);
@@ -447,6 +652,280 @@
       localStorage.removeItem('mcc_portal');
       await supabaseClient.auth.signOut();
       showScreen('login-form-container');
+    }
+
+    // 2FA State
+    let pending2faUser = null;
+    let pending2faPhone = null;
+    let resendCountdown = 0;
+    let resendTimer = null;
+
+    function show2faMessage(text, type = 'error') {
+      const msgEl = document.getElementById('twofa-message');
+      msgEl.textContent = text;
+      msgEl.className = `login-message show ${type}`;
+    }
+
+    function hide2faMessage() {
+      const msgEl = document.getElementById('twofa-message');
+      msgEl.className = 'login-message';
+    }
+
+    function clear2faInputs() {
+      for (let i = 1; i <= 6; i++) {
+        const input = document.getElementById(`code-${i}`);
+        input.value = '';
+        input.classList.remove('filled', 'error');
+      }
+      document.getElementById('code-1').focus();
+    }
+
+    function get2faCode() {
+      let code = '';
+      for (let i = 1; i <= 6; i++) {
+        code += document.getElementById(`code-${i}`).value;
+      }
+      return code;
+    }
+
+    function setup2faInputs() {
+      const inputs = document.querySelectorAll('.code-input');
+      
+      inputs.forEach((input, index) => {
+        input.addEventListener('input', (e) => {
+          const value = e.target.value.replace(/[^0-9]/g, '');
+          e.target.value = value;
+          
+          if (value) {
+            e.target.classList.add('filled');
+            if (index < 5) {
+              inputs[index + 1].focus();
+            }
+          } else {
+            e.target.classList.remove('filled');
+          }
+          
+          const fullCode = get2faCode();
+          if (fullCode.length === 6) {
+            verify2faCode();
+          }
+        });
+        
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Backspace' && !e.target.value && index > 0) {
+            inputs[index - 1].focus();
+          }
+        });
+        
+        input.addEventListener('paste', (e) => {
+          e.preventDefault();
+          const pastedData = (e.clipboardData || window.clipboardData).getData('text');
+          const digits = pastedData.replace(/[^0-9]/g, '').slice(0, 6);
+          
+          digits.split('').forEach((digit, i) => {
+            if (inputs[i]) {
+              inputs[i].value = digit;
+              inputs[i].classList.add('filled');
+            }
+          });
+          
+          if (digits.length > 0) {
+            const focusIndex = Math.min(digits.length, 5);
+            inputs[focusIndex].focus();
+          }
+          
+          if (digits.length === 6) {
+            verify2faCode();
+          }
+        });
+      });
+    }
+
+    function startResendCountdown() {
+      resendCountdown = 60;
+      const resendLink = document.getElementById('resend-link');
+      const countdownEl = document.getElementById('resend-countdown');
+      
+      resendLink.classList.add('disabled');
+      
+      if (resendTimer) clearInterval(resendTimer);
+      
+      resendTimer = setInterval(() => {
+        resendCountdown--;
+        if (resendCountdown > 0) {
+          countdownEl.textContent = `You can resend in ${resendCountdown}s`;
+        } else {
+          countdownEl.textContent = '';
+          resendLink.classList.remove('disabled');
+          clearInterval(resendTimer);
+        }
+      }, 1000);
+    }
+
+    async function send2faCode(phone) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
+        
+        const response = await fetch('/api/2fa/send-code', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ phone })
+        });
+        
+        const result = await response.json();
+        return result;
+      } catch (error) {
+        console.error('Error sending 2FA code:', error);
+        return { success: false, error: 'Failed to send verification code' };
+      }
+    }
+
+    async function verify2faCode() {
+      const code = get2faCode();
+      
+      if (code.length !== 6) {
+        show2faMessage('Please enter all 6 digits');
+        return;
+      }
+      
+      const verifyBtn = document.getElementById('verify-btn');
+      verifyBtn.disabled = true;
+      verifyBtn.innerHTML = '<span class="spinner"></span>Verifying...';
+      hide2faMessage();
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          show2faMessage('Session expired. Please log in again.');
+          return;
+        }
+        
+        const response = await fetch('/api/2fa/verify-code', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ code })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.verified) {
+          show2faMessage('Verification successful!', 'success');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await handleUserRedirect(pending2faUser);
+        } else {
+          document.querySelectorAll('.code-input').forEach(input => {
+            input.classList.add('error');
+          });
+          show2faMessage(result.error || 'Invalid verification code');
+          setTimeout(() => {
+            document.querySelectorAll('.code-input').forEach(input => {
+              input.classList.remove('error');
+            });
+          }, 500);
+        }
+      } catch (error) {
+        console.error('2FA verification error:', error);
+        show2faMessage('Verification failed. Please try again.');
+      } finally {
+        verifyBtn.disabled = false;
+        verifyBtn.innerHTML = 'Verify Code';
+      }
+    }
+
+    async function resend2faCode() {
+      if (resendCountdown > 0) return;
+      
+      if (!pending2faUser || !pending2faPhone) {
+        show2faMessage('Session expired. Please log in again.');
+        return;
+      }
+      
+      show2faMessage('Sending new code...', 'warning');
+      
+      const result = await send2faCode(pending2faPhone);
+      
+      if (result.success) {
+        show2faMessage('New code sent!', 'success');
+        clear2faInputs();
+        startResendCountdown();
+        setTimeout(hide2faMessage, 2000);
+      } else {
+        show2faMessage(result.error || 'Failed to resend code');
+      }
+    }
+
+    function back2faToLogin() {
+      pending2faUser = null;
+      pending2faPhone = null;
+      if (resendTimer) clearInterval(resendTimer);
+      supabaseClient.auth.signOut();
+      showScreen('login-form-container');
+    }
+
+    async function check2faAndProceed(user) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showMessage('Session expired. Please log in again.', 'error');
+          return;
+        }
+        
+        const response = await fetch('/api/2fa/status', {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+        const result = await response.json();
+        
+        if (result.success && result.enabled) {
+          // If recently verified (within 1 hour), skip 2FA
+          if (result.recently_verified) {
+            await handleUserRedirect(user);
+            return;
+          }
+          
+          const { data: profile } = await supabaseClient
+            .from('profiles')
+            .select('phone')
+            .eq('id', user.id)
+            .single();
+          
+          if (!profile?.phone) {
+            await handleUserRedirect(user);
+            return;
+          }
+          
+          pending2faUser = user;
+          pending2faPhone = profile.phone;
+          
+          const sendResult = await send2faCode(profile.phone);
+          
+          if (sendResult.success) {
+            document.getElementById('twofa-phone-display').textContent = result.phone;
+            showScreen('twofa-screen');
+            setup2faInputs();
+            clear2faInputs();
+            startResendCountdown();
+          } else {
+            showMessage(sendResult.error || 'Failed to send verification code', 'error');
+            await supabaseClient.auth.signOut();
+          }
+        } else {
+          await handleUserRedirect(user);
+        }
+      } catch (error) {
+        console.error('2FA check error:', error);
+        await handleUserRedirect(user);
+      }
     }
   </script>
   <script src="/footer.js"></script>

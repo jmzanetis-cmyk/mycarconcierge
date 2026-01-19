@@ -1542,6 +1542,31 @@
       }
     });
     
+    // ========== 2FA ACCESS CHECK ==========
+    async function checkAccessAuthorization() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        window.location.href = 'login.html';
+        return false;
+      }
+      
+      try {
+        const response = await fetch('/api/auth/check-access', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const result = await response.json();
+        
+        if (!result.authorized && result.reason === '2fa_required') {
+          window.location.href = 'login.html?2fa=required&returnTo=' + encodeURIComponent(window.location.pathname);
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.error('Access check error:', error);
+        return true;
+      }
+    }
+
     window.addEventListener('load', async () => {
       console.log('[Admin] Page loaded, checking auth...');
       
@@ -1562,6 +1587,10 @@
       
       if (session?.user) {
         currentUser = session.user;
+        
+        // Check 2FA authorization before checking admin role
+        const authorized = await checkAccessAuthorization();
+        if (!authorized) return;
         
         // Check if admin
         const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
