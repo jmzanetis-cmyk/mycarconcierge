@@ -33,4 +33,4 @@ expertMode = true
 [deployment]
 deploymentTarget = "autoscale"
 run = ["node", "www/server.js"]
-build = ["bash", "-c", "cd www && npm install"]
+build = ["npm", "install"]
