@@ -3,7 +3,20 @@ class AIChatWidget {
     this.isOpen = false;
     this.messages = [];
     this.isLoading = false;
+    this.apiBaseUrl = this.getApiBaseUrl();
     this.init();
+  }
+
+  getApiBaseUrl() {
+    const isNativeApp = window.Capacitor !== undefined || 
+                        window.location.protocol === 'capacitor:' ||
+                        window.location.protocol === 'ionic:' ||
+                        window.location.protocol === 'file:';
+    
+    if (isNativeApp) {
+      return 'https://www.mycarconcierge.com';
+    }
+    return '';
   }
 
   init() {
@@ -399,7 +412,7 @@ class AIChatWidget {
     this.showLoading();
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch(`${this.apiBaseUrl}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

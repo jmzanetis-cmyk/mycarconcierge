@@ -7718,6 +7718,32 @@ const server = http.createServer((req, res) => {
   
   setSecurityHeaders(res, req.url.startsWith('/api/'));
   
+  const allowedOrigins = [
+    'https://www.mycarconcierge.com',
+    'https://mycarconcierge.com',
+    'capacitor://localhost',
+    'ionic://localhost',
+    'http://localhost',
+    'http://localhost:5000',
+    'file://'
+  ];
+  
+  const origin = req.headers.origin;
+  if (origin && (allowedOrigins.includes(origin) || origin.startsWith('file://') || origin.startsWith('capacitor://'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (!origin) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+  
   if (req.method === 'GET' && req.url.startsWith('/api/member/service-history/')) {
     const memberId = req.url.split('/api/member/service-history/')[1]?.split('?')[0];
     handleMemberServiceHistory(req, res, requestId, memberId);
