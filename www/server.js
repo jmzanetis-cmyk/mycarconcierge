@@ -1071,17 +1071,19 @@ async function handleHelpdeskRequest(req, res, requestId) {
         { role: 'user', content: sanitizedMessage }
       ];
 
-      const claudeResponse = await anthropicClient.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 600,
+      const openaiMessages = [
+        { role: 'system', content: systemPrompt },
+        ...messages
+      ];
+      
+      const openaiResponse = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: openaiMessages,
+        max_completion_tokens: 600,
         temperature: 0.4,
-        system: systemPrompt,
-        messages: messages
       });
 
-      const reply = claudeResponse.content
-        .map(block => ('text' in block ? block.text : ''))
-        .join('\n');
+      const reply = openaiResponse.choices[0]?.message?.content || 'I apologize, but I was unable to generate a response.';
 
       history.push({ role: 'user', content: sanitizedMessage });
       history.push({ role: 'assistant', content: reply });
