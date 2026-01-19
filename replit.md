@@ -205,6 +205,13 @@ Run this SQL migration in Supabase SQL Editor to enable the system:
 - **members.html**: Review submission modal with star rating
 
 ## Recent Changes
+- **January 2026**:
+  - Added expanded Turo-style footer with collapsible sections (Founder Programs, For Providers, For Members, Company)
+  - Footer includes accessible button elements with ARIA attributes for screen readers
+  - Footer accordion is responsive (collapsible on mobile, expanded on desktop)
+  - Switched helpdesk widget from Anthropic to OpenAI for production reliability
+  - Fixed iOS native app AI chat connectivity with CORS headers and production URL detection
+
 - **December 2024**: 
   - Converted website to PWA with manifest.json and service worker
   - Created app icons from logo
