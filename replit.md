@@ -204,8 +204,60 @@ Run this SQL migration in Supabase SQL Editor to enable the system:
 - **providers.html**: Suspension alert banner, rating warning banner
 - **members.html**: Review submission modal with star rating
 
+## Two-Factor Authentication (2FA) System
+
+### Overview
+SMS-based two-factor authentication using Twilio. When enabled, users must enter a 6-digit code sent to their phone after password login.
+
+### Database Setup (2FA_MIGRATION.sql)
+Run `www/2FA_MIGRATION.sql` in Supabase SQL Editor to add:
+
+**New Columns in profiles**:
+- `phone` (TEXT) - Phone number for SMS verification
+- `two_factor_enabled` (BOOLEAN) - Whether 2FA is active
+- `two_factor_secret` (TEXT) - SHA-256 hashed verification code
+- `two_factor_expires_at` (TIMESTAMPTZ) - Code expiry (5 minutes)
+- `phone_verified` (BOOLEAN) - Whether phone is verified
+- `two_factor_verified_at` (TIMESTAMPTZ) - Last successful verification (1-hour validity)
+
+**New Table**: `two_factor_rate_limits`
+- Persistent rate limiting (survives server restarts, works across instances)
+- send_code: max 3 requests per 5 minutes
+- verify_code: max 5 attempts, then 15-minute lockout
+
+### API Endpoints (server.js)
+All 2FA endpoints require JWT authentication via Authorization header:
+- `POST /api/2fa/send-code` - Send verification code via Twilio SMS
+- `POST /api/2fa/verify-code` - Verify the 6-digit code
+- `POST /api/2fa/enable` - Enable 2FA for user
+- `POST /api/2fa/disable` - Disable 2FA for user
+- `GET /api/2fa/status` - Check 2FA status
+- `GET /api/auth/check-access` - Server-side 2FA enforcement check
+
+### Server-Side Enforcement
+- `enforce2fa()` middleware applied to 65+ protected API endpoints
+- All financial, POS, analytics, and data-access endpoints require 2FA verification
+- Exceptions: webhooks (Stripe, Clover, Square, Checkr), 2FA flow endpoints, AI chat
+
+### UI Components
+- **login.html**: 2FA verification screen with 6-digit input, resend functionality
+- **members.html**: 2FA settings section to enable/disable
+- **providers.html**: 2FA settings section to enable/disable
+- **admin.html**: 2FA access check before loading dashboard
+
+### Security Features
+- Codes hashed with SHA-256 before storage
+- 5-minute code expiry
+- 1-hour session validity after verification
+- Database-backed rate limiting (not in-memory)
+- Phone number masking in API responses
+
 ## Recent Changes
 - **January 2026**:
+  - Added SMS Two-Factor Authentication (2FA) system with Twilio
+  - Server-side 2FA enforcement on 65+ API endpoints
+  - Database-backed rate limiting for production reliability
+  - 2FA settings UI in member and provider dashboards
   - Added auto-populate feature for maintenance package form from recommended services
   - Uses normalized exact matching and 80+ item mapping table for service type selection
   - MutationObserver watches for async option loading with safety timeout
