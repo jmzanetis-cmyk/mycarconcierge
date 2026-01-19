@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Accept Team Invitation – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.9);
+      --bg-input: rgba(22, 22, 34, 0.9);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-blue: #4a7cff;
+      --accent-green: #4ac88c;
+      --accent-orange: #f59e0b;
+      --accent-red: #ef5f5f;
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-focus: rgba(74, 124, 255, 0.5);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      min-height: 100%;
+      height: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    body {
+      min-height: 100vh;
+      min-height: -webkit-fill-available;
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px;
+      padding-top: max(24px, env(safe-area-inset-top));
+      padding-bottom: max(24px, env(safe-area-inset-bottom));
+    }
+    
+    @media (min-height: 700px) {
+      body {
+        align-items: center;
+      }
+    }
+
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background: radial-gradient(ellipse 80% 50% at 20% 10%, rgba(74, 124, 255, 0.06), transparent 50%),
+                  radial-gradient(ellipse 60% 60% at 80% 80%, rgba(212, 168, 85, 0.05), transparent 50%);
+    }
+
+    .container { position: relative; z-index: 1; width: 100%; max-width: 480px; }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 40px;
+      text-decoration: none;
+    }
+    .brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 40px 36px;
+    }
+
+    .header { text-align: center; margin-bottom: 32px; }
+    .header h1 { font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 500; margin-bottom: 8px; }
+    .header p { color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5; }
+
+    .invite-details {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .invite-detail {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+    }
+    .invite-detail:not(:last-child) {
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .invite-label { color: var(--text-muted); font-size: 0.88rem; }
+    .invite-value { color: var(--text-primary); font-weight: 500; }
+
+    .role-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .role-admin { background: rgba(74, 124, 255, 0.15); color: var(--accent-blue); }
+    .role-staff { background: rgba(148, 148, 168, 0.15); color: var(--text-secondary); }
+
+    .form-group { margin-bottom: 20px; }
+    .form-label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
+    .form-input {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: all 0.15s ease;
+    }
+    .form-input:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(74, 124, 255, 0.1); }
+    .form-input::placeholder { color: var(--text-muted); }
+
+    .btn {
+      width: 100%;
+      padding: 14px 24px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 8px;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--accent-gold), #e6b85a); color: #1a1a2e; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35); }
+    .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+    .btn-secondary { background: var(--bg-input); border: 1px solid var(--border-subtle); color: var(--text-primary); }
+    .btn-secondary:hover { border-color: var(--accent-blue); }
+
+    .message {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      font-size: 0.88rem;
+      text-align: center;
+      display: none;
+    }
+    .message.show { display: block; }
+    .message.error { background: rgba(239, 95, 95, 0.1); border: 1px solid rgba(239, 95, 95, 0.3); color: var(--accent-red); }
+    .message.success { background: rgba(74, 200, 140, 0.1); border: 1px solid rgba(74, 200, 140, 0.3); color: var(--accent-green); }
+
+    .loading-state {
+      text-align: center;
+      padding: 40px;
+    }
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border-subtle);
+      border-top-color: var(--accent-gold);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-state, .expired-state {
+      text-align: center;
+      padding: 40px;
+    }
+    .error-icon, .expired-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    .error-state h2, .expired-state h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem;
+      margin-bottom: 12px;
+    }
+    .error-state p, .expired-state p {
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .success-state {
+      text-align: center;
+      padding: 40px;
+    }
+    .success-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+    .success-state h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem;
+      margin-bottom: 12px;
+      color: var(--accent-green);
+    }
+    .success-state p {
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .footer { margin-top: 28px; text-align: center; font-size: 0.88rem; color: var(--text-muted); }
+    .footer a { color: var(--text-secondary); text-decoration: none; }
+    .footer a:hover { color: var(--accent-blue); }
+
+    .divider { display: flex; align-items: center; gap: 16px; margin: 24px 0; color: var(--text-muted); font-size: 0.82rem; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border-subtle); }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(0, 0, 0, 0.2);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    #invite-content, #login-form, #signup-form { display: none; }
+    #loading-state { display: block; }
+  </style>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+  <div class="container">
+    <a href="index.html" class="brand">
+      <img src="logo.png" alt="My Car Concierge" class="brand-icon" />
+    </a>
+
+    <div class="card">
+      <div id="loading-state" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Validating invitation...</p>
+      </div>
+
+      <div id="error-state" class="error-state" style="display: none;">
+        <div class="error-icon">⚠️</div>
+        <h2>Invalid Invitation</h2>
+        <p id="error-message">This invitation link is invalid or has already been used.</p>
+        <a href="login.html" class="btn btn-secondary">Go to Login</a>
+      </div>
+
+      <div id="expired-state" class="expired-state" style="display: none;">
+        <div class="expired-icon">⏰</div>
+        <h2>Invitation Expired</h2>
+        <p>This invitation has expired. Please contact the team administrator to request a new invitation.</p>
+        <a href="login.html" class="btn btn-secondary">Go to Login</a>
+      </div>
+
+      <div id="invite-content">
+        <div class="header">
+          <h1>Join the Team</h1>
+          <p>You've been invited to join a provider team on My Car Concierge</p>
+        </div>
+
+        <div class="invite-details">
+          <div class="invite-detail">
+            <span class="invite-label">Business</span>
+            <span class="invite-value" id="business-name">-</span>
+          </div>
+          <div class="invite-detail">
+            <span class="invite-label">Your Role</span>
+            <span id="role-badge"></span>
+          </div>
+          <div class="invite-detail">
+            <span class="invite-label">Invited By</span>
+            <span class="invite-value" id="invited-by">-</span>
+          </div>
+        </div>
+
+        <div id="auth-choice">
+          <p style="text-align: center; color: var(--text-secondary); margin-bottom: 20px;">
+            To accept this invitation, please sign in or create an account.
+          </p>
+          <button class="btn btn-primary" onclick="showLoginForm()">Sign In</button>
+          <button class="btn btn-secondary" onclick="showSignupForm()" style="margin-top: 12px;">Create Account</button>
+        </div>
+
+        <div id="login-form">
+          <div class="header" style="margin-bottom: 20px;">
+            <h1 style="font-size: 1.2rem;">Sign In to Accept</h1>
+          </div>
+          <form onsubmit="handleLogin(event)">
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <input type="email" id="login-email" class="form-input" placeholder="your@email.com" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Password</label>
+              <input type="password" id="login-password" class="form-input" placeholder="Your password" required />
+            </div>
+            <button type="submit" id="login-btn" class="btn btn-primary">Sign In & Accept</button>
+            <div id="login-message" class="message"></div>
+          </form>
+          <div class="divider">or</div>
+          <button class="btn btn-secondary" onclick="showSignupForm()">Create New Account</button>
+          <button class="btn btn-secondary" onclick="showAuthChoice()" style="margin-top: 8px;">Back</button>
+        </div>
+
+        <div id="signup-form">
+          <div class="header" style="margin-bottom: 20px;">
+            <h1 style="font-size: 1.2rem;">Create Account to Accept</h1>
+          </div>
+          <form onsubmit="handleSignup(event)">
+            <div class="form-group">
+              <label class="form-label">Full Name</label>
+              <input type="text" id="signup-name" class="form-input" placeholder="Your full name" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <input type="email" id="signup-email" class="form-input" placeholder="your@email.com" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phone Number</label>
+              <input type="tel" id="signup-phone" class="form-input" placeholder="(555) 123-4567" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Password</label>
+              <input type="password" id="signup-password" class="form-input" placeholder="Create a password" required minlength="8" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Confirm Password</label>
+              <input type="password" id="signup-confirm" class="form-input" placeholder="Confirm password" required />
+            </div>
+            <button type="submit" id="signup-btn" class="btn btn-primary">Create Account & Accept</button>
+            <div id="signup-message" class="message"></div>
+          </form>
+          <div class="divider">or</div>
+          <button class="btn btn-secondary" onclick="showLoginForm()">Already Have Account</button>
+          <button class="btn btn-secondary" onclick="showAuthChoice()" style="margin-top: 8px;">Back</button>
+        </div>
+      </div>
+
+      <div id="success-state" class="success-state" style="display: none;">
+        <div class="success-icon">🎉</div>
+        <h2>Welcome to the Team!</h2>
+        <p>You've successfully joined the team. You can now access the provider dashboard.</p>
+        <a href="providers.html" class="btn btn-primary">Go to Dashboard</a>
+      </div>
+    </div>
+
+    <div class="footer">
+      <a href="index.html">Back to Home</a> · <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a>
+    </div>
+  </div>
+
+  <script src="supabaseclient.js"></script>
+  <script>
+    let invitationData = null;
+    let inviteToken = null;
+
+    async function init() {
+      const urlParams = new URLSearchParams(window.location.search);
+      inviteToken = urlParams.get('token');
+
+      if (!inviteToken) {
+        showError('No invitation token provided');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/invitations/${inviteToken}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          if (data.error === 'Invitation has expired') {
+            showExpired();
+          } else {
+            showError(data.error || 'Invalid invitation');
+          }
+          return;
+        }
+
+        invitationData = data;
+        displayInvitation(data);
+
+        const { data: { session } } = await window.supabase.auth.getSession();
+        if (session) {
+          await acceptInvitation(session.access_token);
+        }
+
+      } catch (error) {
+        console.error('Error validating invitation:', error);
+        showError('Failed to validate invitation');
+      }
+    }
+
+    function displayInvitation(data) {
+      document.getElementById('loading-state').style.display = 'none';
+      document.getElementById('invite-content').style.display = 'block';
+
+      document.getElementById('business-name').textContent = data.provider_name || 'Service Provider';
+      document.getElementById('invited-by').textContent = data.invited_by_name || 'Team Admin';
+
+      const roleBadge = document.getElementById('role-badge');
+      roleBadge.textContent = data.role.charAt(0).toUpperCase() + data.role.slice(1);
+      roleBadge.className = `role-badge role-${data.role}`;
+    }
+
+    function showError(message) {
+      document.getElementById('loading-state').style.display = 'none';
+      document.getElementById('error-state').style.display = 'block';
+      document.getElementById('error-message').textContent = message;
+    }
+
+    function showExpired() {
+      document.getElementById('loading-state').style.display = 'none';
+      document.getElementById('expired-state').style.display = 'block';
+    }
+
+    function showSuccess() {
+      document.getElementById('invite-content').style.display = 'none';
+      document.getElementById('success-state').style.display = 'block';
+    }
+
+    function showAuthChoice() {
+      document.getElementById('auth-choice').style.display = 'block';
+      document.getElementById('login-form').style.display = 'none';
+      document.getElementById('signup-form').style.display = 'none';
+    }
+
+    function showLoginForm() {
+      document.getElementById('auth-choice').style.display = 'none';
+      document.getElementById('login-form').style.display = 'block';
+      document.getElementById('signup-form').style.display = 'none';
+      if (invitationData && invitationData.email) {
+        document.getElementById('login-email').value = invitationData.email;
+      }
+    }
+
+    function showSignupForm() {
+      document.getElementById('auth-choice').style.display = 'none';
+      document.getElementById('login-form').style.display = 'none';
+      document.getElementById('signup-form').style.display = 'block';
+      if (invitationData && invitationData.email) {
+        document.getElementById('signup-email').value = invitationData.email;
+      }
+    }
+
+    async function handleLogin(event) {
+      event.preventDefault();
+      const btn = document.getElementById('login-btn');
+      const msgEl = document.getElementById('login-message');
+      
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Signing in...';
+      msgEl.className = 'message';
+      msgEl.style.display = 'none';
+
+      try {
+        const { data, error } = await window.supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (error) throw error;
+
+        await acceptInvitation(data.session.access_token);
+
+      } catch (error) {
+        msgEl.textContent = error.message || 'Login failed';
+        msgEl.className = 'message error show';
+        btn.disabled = false;
+        btn.textContent = 'Sign In & Accept';
+      }
+    }
+
+    async function handleSignup(event) {
+      event.preventDefault();
+      const btn = document.getElementById('signup-btn');
+      const msgEl = document.getElementById('signup-message');
+
+      const name = document.getElementById('signup-name').value;
+      const email = document.getElementById('signup-email').value;
+      const phone = document.getElementById('signup-phone').value;
+      const password = document.getElementById('signup-password').value;
+      const confirm = document.getElementById('signup-confirm').value;
+
+      if (password !== confirm) {
+        msgEl.textContent = 'Passwords do not match';
+        msgEl.className = 'message error show';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Creating account...';
+      msgEl.className = 'message';
+      msgEl.style.display = 'none';
+
+      try {
+        const { data, error } = await window.supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: name,
+              phone: phone,
+              role: 'provider'
+            }
+          }
+        });
+
+        if (error) throw error;
+
+        if (!data.session) {
+          msgEl.textContent = 'Please check your email to verify your account, then sign in.';
+          msgEl.className = 'message success show';
+          btn.disabled = false;
+          btn.textContent = 'Create Account & Accept';
+          setTimeout(() => showLoginForm(), 3000);
+          return;
+        }
+
+        await acceptInvitation(data.session.access_token);
+
+      } catch (error) {
+        msgEl.textContent = error.message || 'Signup failed';
+        msgEl.className = 'message error show';
+        btn.disabled = false;
+        btn.textContent = 'Create Account & Accept';
+      }
+    }
+
+    async function acceptInvitation(accessToken) {
+      try {
+        const response = await fetch(`/api/invitations/${inviteToken}/accept`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to accept invitation');
+        }
+
+        showSuccess();
+
+      } catch (error) {
+        console.error('Error accepting invitation:', error);
+        const loginMsg = document.getElementById('login-message');
+        const signupMsg = document.getElementById('signup-message');
+        const errorMsg = error.message || 'Failed to accept invitation';
+        
+        if (document.getElementById('login-form').style.display !== 'none') {
+          loginMsg.textContent = errorMsg;
+          loginMsg.className = 'message error show';
+          document.getElementById('login-btn').disabled = false;
+          document.getElementById('login-btn').textContent = 'Sign In & Accept';
+        } else if (document.getElementById('signup-form').style.display !== 'none') {
+          signupMsg.textContent = errorMsg;
+          signupMsg.className = 'message error show';
+          document.getElementById('signup-btn').disabled = false;
+          document.getElementById('signup-btn').textContent = 'Create Account & Accept';
+        }
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

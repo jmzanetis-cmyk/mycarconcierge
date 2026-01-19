@@ -705,6 +705,7 @@
     <div class="nav-label">Settings</div>
     <div class="nav-item" data-section="profile">⚙️ Business Profile</div>
     <div class="nav-item" data-section="team">👥 Team Members</div>
+    <div class="nav-item team-management-nav" data-section="team-section" style="display:none;">👤 Team</div>
     <div class="nav-item" data-section="background-checks">🛡️ Background Checks</div>
     <div class="nav-item pos-feature" data-section="pos-integration" style="display:none;">🔗 POS Integration</div>
     
@@ -2168,6 +2169,56 @@
           <div class="empty-state">
             <div class="empty-state-icon">👥</div>
             <p>No team members yet. Add your first team member to showcase your team!</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Team Management Section -->
+    <section id="team-section" class="section">
+      <div class="page-header">
+        <h1 class="page-title">👤 Team Management</h1>
+        <p class="page-subtitle">Manage your team members and their access levels</p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Team Members</h2>
+          <button class="btn btn-primary" onclick="openInviteTeamModal()">+ Invite Team Member</button>
+        </div>
+        <div id="team-management-table">
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border-subtle);">
+                  <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Name</th>
+                  <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Email</th>
+                  <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Role</th>
+                  <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Status</th>
+                  <th style="text-align:right;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="team-members-tbody">
+                <tr>
+                  <td colspan="5" style="padding:48px;text-align:center;color:var(--text-muted);">
+                    <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">👥</div>
+                    <p>Loading team members...</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Pending Invitations</h2>
+        </div>
+        <div id="pending-invitations-container">
+          <div class="empty-state" style="padding:32px;">
+            <div class="empty-state-icon">📧</div>
+            <p>No pending invitations</p>
           </div>
         </div>
       </div>
@@ -5048,6 +5099,37 @@
     </div>
   </div>
 
+  <!-- Team Invite Modal -->
+  <div class="modal-backdrop" id="team-invite-modal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">👤 Invite Team Member</h3>
+        <button class="modal-close" onclick="closeModal('team-invite-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="team-invite-feedback" style="display:none;margin-bottom:16px;padding:12px 16px;border-radius:var(--radius-md);"></div>
+        
+        <div class="form-group">
+          <label class="form-label">Email Address *</label>
+          <input type="email" class="form-input" id="team-invite-email" placeholder="colleague@example.com">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Role *</label>
+          <select class="form-input" id="team-invite-role">
+            <option value="admin">Admin - Full access to manage jobs, bids, and settings</option>
+            <option value="staff" selected>Staff - Can view and update jobs, limited settings access</option>
+          </select>
+          <p class="form-hint">Admins can manage team members. Staff members cannot.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('team-invite-modal')">Cancel</button>
+        <button class="btn btn-primary" id="team-invite-submit-btn" onclick="submitTeamInvitation()">📧 Send Invitation</button>
+      </div>
+    </div>
+  </div>
+
   <!-- QR Code Modal -->
   <div class="modal-backdrop" id="qr-modal">
     <div class="modal" style="max-width:400px;text-align:center;">
@@ -5206,6 +5288,9 @@
       
       // Load POS integration status (Clover and Square)
       await loadPosIntegrationStatus();
+      
+      // Load team management data for nav visibility
+      await loadTeamManagementData();
     }
 
     // ========== POS INTEGRATION (CLOVER + SQUARE) ==========
@@ -6167,6 +6252,10 @@
       if (id === 'team') {
         loadTeamMembers();
         loadBackgroundCheckStatus();
+      }
+      // Load team management data when team-section is shown
+      if (id === 'team-section') {
+        loadTeamManagementData();
       }
       // Load earnings analytics when section is shown
       if (id === 'earnings-analytics') {
@@ -15495,6 +15584,339 @@
       } catch (error) {
         console.error('Error disabling 2FA:', error);
         showToast('Failed to disable 2FA. Please try again.', 'error');
+      }
+    }
+
+    // ========== TEAM MANAGEMENT ==========
+    let teamMembers = [];
+    let teamInvitations = [];
+    let currentUserTeamRole = null;
+
+    async function loadTeamManagementData() {
+      if (!providerProfile?.id) return;
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        // Fetch team members
+        const teamResponse = await fetch(`/api/providers/${providerProfile.id}/team`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        
+        if (teamResponse.ok) {
+          const teamData = await teamResponse.json();
+          teamMembers = teamData.members || [];
+          currentUserTeamRole = teamData.currentUserRole || null;
+          
+          // Show/hide team management nav based on role
+          const navItem = document.querySelector('.team-management-nav');
+          if (navItem) {
+            navItem.style.display = (currentUserTeamRole === 'owner' || currentUserTeamRole === 'admin') ? '' : 'none';
+          }
+        }
+
+        // Fetch pending invitations
+        const inviteResponse = await fetch(`/api/providers/${providerProfile.id}/team/invitations`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        
+        if (inviteResponse.ok) {
+          const inviteData = await inviteResponse.json();
+          teamInvitations = inviteData.invitations || [];
+        }
+
+        renderTeamManagement();
+      } catch (error) {
+        console.error('Error loading team management data:', error);
+      }
+    }
+
+    function renderTeamManagement() {
+      renderTeamMembersTable();
+      renderPendingInvitations();
+    }
+
+    function renderTeamMembersTable() {
+      const tbody = document.getElementById('team-members-tbody');
+      if (!tbody) return;
+
+      if (!teamMembers.length) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" style="padding:48px;text-align:center;color:var(--text-muted);">
+              <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">👥</div>
+              <p>No team members found</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = teamMembers.map(member => {
+        const isCurrentUser = member.user_id === currentUser?.id;
+        const isOwner = member.role === 'owner';
+        const canManage = (currentUserTeamRole === 'owner' || currentUserTeamRole === 'admin') && !isOwner && !isCurrentUser;
+        
+        const roleBadgeStyles = {
+          owner: 'background:linear-gradient(135deg,rgba(212,168,85,0.2),rgba(212,168,85,0.1));color:#d4a855;border:1px solid rgba(212,168,85,0.3);',
+          admin: 'background:var(--accent-blue-soft);color:var(--accent-blue);',
+          staff: 'background:rgba(107,107,122,0.15);color:var(--text-muted);'
+        };
+
+        return `
+          <tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:16px;">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--accent-gold-soft),var(--bg-elevated));display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--accent-gold);">
+                  ${member.full_name ? member.full_name.charAt(0).toUpperCase() : '👤'}
+                </div>
+                <div>
+                  <div style="font-weight:500;">${member.full_name || 'Unknown'}${isCurrentUser ? ' <span style="color:var(--text-muted);font-weight:400;">(You)</span>' : ''}</div>
+                </div>
+              </div>
+            </td>
+            <td style="padding:16px;color:var(--text-secondary);">${member.email || '-'}</td>
+            <td style="padding:16px;">
+              <span style="display:inline-block;padding:4px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;${roleBadgeStyles[member.role] || roleBadgeStyles.staff}">
+                ${member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+              </span>
+            </td>
+            <td style="padding:16px;">
+              <span style="display:inline-flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--accent-green);">
+                <span style="width:8px;height:8px;border-radius:50%;background:var(--accent-green);"></span>
+                Active
+              </span>
+            </td>
+            <td style="padding:16px;text-align:right;">
+              ${canManage ? `
+                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                  <select onchange="updateTeamMemberRole('${member.id}', this.value)" style="padding:6px 12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);color:var(--text-primary);font-size:0.82rem;cursor:pointer;">
+                    <option value="admin" ${member.role === 'admin' ? 'selected' : ''}>Admin</option>
+                    <option value="staff" ${member.role === 'staff' ? 'selected' : ''}>Staff</option>
+                  </select>
+                  <button onclick="confirmRemoveTeamMember('${member.id}', '${member.full_name || member.email}')" class="btn btn-sm" style="background:rgba(239,95,95,0.1);color:var(--accent-red);border:1px solid rgba(239,95,95,0.2);">Remove</button>
+                </div>
+              ` : isOwner ? '<span style="font-size:0.82rem;color:var(--text-muted);">Owner</span>' : ''}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderPendingInvitations() {
+      const container = document.getElementById('pending-invitations-container');
+      if (!container) return;
+
+      if (!teamInvitations.length) {
+        container.innerHTML = `
+          <div class="empty-state" style="padding:32px;">
+            <div class="empty-state-icon">📧</div>
+            <p>No pending invitations</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = teamInvitations.map(invite => {
+        const expiryDate = new Date(invite.expires_at);
+        const isExpired = expiryDate < new Date();
+        const roleBadgeStyle = invite.role === 'admin' 
+          ? 'background:var(--accent-blue-soft);color:var(--accent-blue);' 
+          : 'background:rgba(107,107,122,0.15);color:var(--text-muted);';
+
+        return `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border-subtle);">
+            <div style="display:flex;align-items:center;gap:16px;">
+              <div style="width:40px;height:40px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text-muted);">📧</div>
+              <div>
+                <div style="font-weight:500;">${invite.email}</div>
+                <div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">
+                  <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.72rem;${roleBadgeStyle}">${invite.role.charAt(0).toUpperCase() + invite.role.slice(1)}</span>
+                  <span style="margin-left:8px;">Expires: ${isExpired ? '<span style="color:var(--accent-red);">Expired</span>' : expiryDate.toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+            <button onclick="cancelTeamInvitation('${invite.id}')" class="btn btn-sm btn-ghost" style="color:var(--accent-red);">Cancel</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openInviteTeamModal() {
+      document.getElementById('team-invite-email').value = '';
+      document.getElementById('team-invite-role').value = 'staff';
+      document.getElementById('team-invite-feedback').style.display = 'none';
+      document.getElementById('team-invite-modal').classList.add('active');
+    }
+
+    async function submitTeamInvitation() {
+      const email = document.getElementById('team-invite-email').value.trim();
+      const role = document.getElementById('team-invite-role').value;
+      const feedback = document.getElementById('team-invite-feedback');
+      const submitBtn = document.getElementById('team-invite-submit-btn');
+
+      if (!email) {
+        feedback.textContent = 'Please enter an email address';
+        feedback.style.display = 'block';
+        feedback.style.background = 'rgba(239,95,95,0.15)';
+        feedback.style.color = 'var(--accent-red)';
+        return;
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        feedback.textContent = 'Please enter a valid email address';
+        feedback.style.display = 'block';
+        feedback.style.background = 'rgba(239,95,95,0.15)';
+        feedback.style.color = 'var(--accent-red)';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending...';
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Session expired. Please log in again.', 'error');
+          return;
+        }
+
+        const response = await fetch(`/api/providers/${providerProfile.id}/team/invite`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ email, role })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          feedback.textContent = '✓ Invitation sent successfully!';
+          feedback.style.display = 'block';
+          feedback.style.background = 'var(--accent-green-soft)';
+          feedback.style.color = 'var(--accent-green)';
+          
+          setTimeout(() => {
+            closeModal('team-invite-modal');
+            loadTeamManagementData();
+          }, 1500);
+        } else {
+          feedback.textContent = data.error || 'Failed to send invitation';
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239,95,95,0.15)';
+          feedback.style.color = 'var(--accent-red)';
+        }
+      } catch (error) {
+        console.error('Error sending team invitation:', error);
+        feedback.textContent = 'An error occurred. Please try again.';
+        feedback.style.display = 'block';
+        feedback.style.background = 'rgba(239,95,95,0.15)';
+        feedback.style.color = 'var(--accent-red)';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '📧 Send Invitation';
+      }
+    }
+
+    async function updateTeamMemberRole(memberId, newRole) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Session expired. Please log in again.', 'error');
+          return;
+        }
+
+        const response = await fetch(`/api/providers/${providerProfile.id}/team/${memberId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ role: newRole })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          showToast('Team member role updated', 'success');
+          loadTeamManagementData();
+        } else {
+          showToast(data.error || 'Failed to update role', 'error');
+          loadTeamManagementData();
+        }
+      } catch (error) {
+        console.error('Error updating team member role:', error);
+        showToast('An error occurred. Please try again.', 'error');
+      }
+    }
+
+    function confirmRemoveTeamMember(memberId, memberName) {
+      if (confirm(`Are you sure you want to remove ${memberName} from the team? They will lose access to this provider account.`)) {
+        removeTeamMember(memberId);
+      }
+    }
+
+    async function removeTeamMember(memberId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Session expired. Please log in again.', 'error');
+          return;
+        }
+
+        const response = await fetch(`/api/providers/${providerProfile.id}/team/${memberId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          showToast('Team member removed', 'success');
+          loadTeamManagementData();
+        } else {
+          showToast(data.error || 'Failed to remove team member', 'error');
+        }
+      } catch (error) {
+        console.error('Error removing team member:', error);
+        showToast('An error occurred. Please try again.', 'error');
+      }
+    }
+
+    async function cancelTeamInvitation(invitationId) {
+      if (!confirm('Are you sure you want to cancel this invitation?')) return;
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Session expired. Please log in again.', 'error');
+          return;
+        }
+
+        const response = await fetch(`/api/providers/${providerProfile.id}/team/invitations/${invitationId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          showToast('Invitation cancelled', 'success');
+          loadTeamManagementData();
+        } else {
+          showToast(data.error || 'Failed to cancel invitation', 'error');
+        }
+      } catch (error) {
+        console.error('Error cancelling invitation:', error);
+        showToast('An error occurred. Please try again.', 'error');
       }
     }
   </script>

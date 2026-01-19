@@ -3044,6 +3044,759 @@ async function handleCheckrStatus(req, res, requestId, providerId) {
   }
 }
 
+// ==================== PROVIDER TEAM MANAGEMENT API ====================
+
+// Authorization helper: Check if user is team admin (owner or admin role)
+async function isTeamAdmin(supabaseAdmin, providerId, userId) {
+  // Owner is always admin
+  if (providerId === userId) return true;
+  
+  const { data } = await supabaseAdmin
+    .from('provider_team_members')
+    .select('role')
+    .eq('provider_id', providerId)
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .in('role', ['owner', 'admin'])
+    .single();
+  
+  return !!data;
+}
+
+async function handleGetProviderTeam(req, res, requestId, providerId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  try {
+    if (!isValidUUID(providerId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid provider ID format' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    // Authorization check
+    const authorized = await isTeamAdmin(supabase, providerId, user.id);
+    if (!authorized) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden: You do not have access to this provider team' }));
+      return;
+    }
+
+    // Auto-initialize owner in team_members if they are the provider owner
+    if (user.id === providerId) {
+      await supabase
+        .from('provider_team_members')
+        .upsert({
+          provider_id: providerId,
+          user_id: providerId,
+          role: 'owner',
+          status: 'active'
+        }, { onConflict: 'provider_id,user_id' });
+    }
+
+    const { data: team, error } = await supabase.rpc('get_provider_team', {
+      p_provider_id: providerId
+    });
+
+    if (error) {
+      console.error(`[${requestId}] Get provider team error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch team members' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ team: team || [] }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Get provider team error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to fetch team members' }));
+  }
+}
+
+async function handleSendTeamInvitation(req, res, requestId, providerId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+
+  req.on('end', async () => {
+    try {
+      if (!isValidUUID(providerId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid provider ID format' }));
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        return;
+      }
+
+      const { email, role } = parsed;
+
+      if (!email || !role) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Email and role are required' }));
+        return;
+      }
+
+      if (!['admin', 'staff'].includes(role)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Role must be admin or staff' }));
+        return;
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid email format' }));
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      // Authorization check
+      const authorized = await isTeamAdmin(supabase, providerId, user.id);
+      if (!authorized) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Forbidden: You do not have permission to send invitations for this provider' }));
+        return;
+      }
+
+      const { data: existingMember } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email.toLowerCase())
+        .single();
+
+      if (existingMember) {
+        const { data: alreadyTeamMember } = await supabase
+          .from('provider_team_members')
+          .select('id')
+          .eq('provider_id', providerId)
+          .eq('user_id', existingMember.id)
+          .single();
+
+        if (alreadyTeamMember) {
+          res.writeHead(409, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'This user is already a team member' }));
+          return;
+        }
+      }
+
+      const { data: existingInvite } = await supabase
+        .from('provider_invitations')
+        .select('id')
+        .eq('provider_id', providerId)
+        .eq('email', email.toLowerCase())
+        .is('accepted_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .single();
+
+      if (existingInvite) {
+        res.writeHead(409, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'A pending invitation already exists for this email' }));
+        return;
+      }
+
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data: invitation, error: insertError } = await supabase
+        .from('provider_invitations')
+        .insert({
+          provider_id: providerId,
+          email: email.toLowerCase(),
+          role: role,
+          token: token,
+          invited_by: user.id,
+          expires_at: expiresAt
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error(`[${requestId}] Failed to create invitation:`, insertError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create invitation' }));
+        return;
+      }
+
+      const { data: provider } = await supabase
+        .from('profiles')
+        .select('business_name, full_name')
+        .eq('id', providerId)
+        .single();
+
+      const providerName = provider?.business_name || provider?.full_name || 'A provider';
+      const domain = process.env.REPLIT_DOMAINS?.split(',')[0] || 'mycarconcierge.com';
+      const protocol = domain.includes('localhost') ? 'http' : 'https';
+      const inviteLink = `${protocol}://${domain}/accept-invite.html?token=${token}`;
+
+      const emailHtml = `
+        <h2>You've Been Invited to Join a Team!</h2>
+        <p>${providerName} has invited you to join their team on My Car Concierge as a <strong>${role}</strong>.</p>
+        <p>Click the button below to accept this invitation:</p>
+        <a href="${inviteLink}" class="button">Accept Invitation</a>
+        <p style="margin-top: 20px; color: #6c757d; font-size: 14px;">
+          This invitation will expire in 7 days. If you didn't expect this invitation, you can safely ignore this email.
+        </p>
+      `;
+
+      const emailResult = await sendEmailNotification(
+        email,
+        email,
+        `Team Invitation from ${providerName}`,
+        emailHtml
+      );
+
+      console.log(`[${requestId}] Team invitation created for ${email} to provider ${providerId}, email sent: ${emailResult.sent}`);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        invitation_id: invitation.id,
+        email_sent: emailResult.sent
+      }));
+
+    } catch (error) {
+      console.error(`[${requestId}] Send team invitation error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to send invitation' }));
+    }
+  });
+}
+
+async function handleGetPendingInvitations(req, res, requestId, providerId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  try {
+    if (!isValidUUID(providerId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid provider ID format' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    // Authorization check
+    const authorized = await isTeamAdmin(supabase, providerId, user.id);
+    if (!authorized) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden: You do not have access to view invitations for this provider' }));
+      return;
+    }
+
+    const { data: invitations, error } = await supabase.rpc('get_pending_invitations', {
+      p_provider_id: providerId
+    });
+
+    if (error) {
+      console.error(`[${requestId}] Get pending invitations error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch pending invitations' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ invitations: invitations || [] }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Get pending invitations error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to fetch pending invitations' }));
+  }
+}
+
+async function handleUpdateTeamMemberRole(req, res, requestId, providerId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+
+  req.on('end', async () => {
+    try {
+      if (!isValidUUID(providerId) || !isValidUUID(memberId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid ID format' }));
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        return;
+      }
+
+      const { role } = parsed;
+
+      if (!role || !['admin', 'staff'].includes(role)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Role must be admin or staff' }));
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      // Authorization check
+      const authorized = await isTeamAdmin(supabase, providerId, user.id);
+      if (!authorized) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Forbidden: You do not have permission to update team member roles' }));
+        return;
+      }
+
+      const { data: member, error: fetchError } = await supabase
+        .from('provider_team_members')
+        .select('id, user_id, role')
+        .eq('id', memberId)
+        .eq('provider_id', providerId)
+        .single();
+
+      if (fetchError || !member) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Team member not found' }));
+        return;
+      }
+
+      if (member.role === 'owner') {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Cannot change owner role' }));
+        return;
+      }
+
+      if (member.user_id === user.id) {
+        const { data: currentUserMember } = await supabase
+          .from('provider_team_members')
+          .select('role')
+          .eq('provider_id', providerId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (currentUserMember?.role === 'owner') {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Owner cannot demote themselves' }));
+          return;
+        }
+      }
+
+      const { error: updateError } = await supabase
+        .from('provider_team_members')
+        .update({ role: role, updated_at: new Date().toISOString() })
+        .eq('id', memberId);
+
+      if (updateError) {
+        console.error(`[${requestId}] Update team member role error:`, updateError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to update team member role' }));
+        return;
+      }
+
+      console.log(`[${requestId}] Updated team member ${memberId} role to ${role}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, role: role }));
+
+    } catch (error) {
+      console.error(`[${requestId}] Update team member role error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to update team member role' }));
+    }
+  });
+}
+
+async function handleRemoveTeamMember(req, res, requestId, providerId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  try {
+    if (!isValidUUID(providerId) || !isValidUUID(memberId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid ID format' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    // Authorization check
+    const authorized = await isTeamAdmin(supabase, providerId, user.id);
+    if (!authorized) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden: You do not have permission to remove team members' }));
+      return;
+    }
+
+    const { data: member, error: fetchError } = await supabase
+      .from('provider_team_members')
+      .select('id, user_id, role')
+      .eq('id', memberId)
+      .eq('provider_id', providerId)
+      .single();
+
+    if (fetchError || !member) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Team member not found' }));
+      return;
+    }
+
+    if (member.role === 'owner') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Cannot remove the owner' }));
+      return;
+    }
+
+    await supabase
+      .from('profiles')
+      .update({ team_provider_id: null })
+      .eq('id', member.user_id);
+
+    const { error: deleteError } = await supabase
+      .from('provider_team_members')
+      .delete()
+      .eq('id', memberId);
+
+    if (deleteError) {
+      console.error(`[${requestId}] Remove team member error:`, deleteError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to remove team member' }));
+      return;
+    }
+
+    console.log(`[${requestId}] Removed team member ${memberId} from provider ${providerId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Remove team member error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to remove team member' }));
+  }
+}
+
+async function handleCancelInvitation(req, res, requestId, providerId, invitationId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  try {
+    if (!isValidUUID(providerId) || !isValidUUID(invitationId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid ID format' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    // Authorization check
+    const authorized = await isTeamAdmin(supabase, providerId, user.id);
+    if (!authorized) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden: You do not have permission to cancel invitations for this provider' }));
+      return;
+    }
+
+    const { data: invitation, error: fetchError } = await supabase
+      .from('provider_invitations')
+      .select('id')
+      .eq('id', invitationId)
+      .eq('provider_id', providerId)
+      .is('accepted_at', null)
+      .single();
+
+    if (fetchError || !invitation) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invitation not found or already accepted' }));
+      return;
+    }
+
+    const { error: deleteError } = await supabase
+      .from('provider_invitations')
+      .delete()
+      .eq('id', invitationId);
+
+    if (deleteError) {
+      console.error(`[${requestId}] Cancel invitation error:`, deleteError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to cancel invitation' }));
+      return;
+    }
+
+    console.log(`[${requestId}] Cancelled invitation ${invitationId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Cancel invitation error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to cancel invitation' }));
+  }
+}
+
+async function handleValidateInvitation(req, res, requestId, token) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  try {
+    if (!token || token.length !== 64) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid invitation token' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: invitation, error } = await supabase
+      .from('provider_invitations')
+      .select(`
+        id,
+        email,
+        role,
+        expires_at,
+        provider_id,
+        created_at
+      `)
+      .eq('token', token)
+      .is('accepted_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .single();
+
+    if (error || !invitation) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid or expired invitation' }));
+      return;
+    }
+
+    const { data: provider } = await supabase
+      .from('profiles')
+      .select('business_name, full_name')
+      .eq('id', invitation.provider_id)
+      .single();
+
+    const emailParts = invitation.email.split('@');
+    const maskedEmail = emailParts[0].substring(0, 2) + '***@' + emailParts[1];
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      valid: true,
+      email: maskedEmail,
+      role: invitation.role,
+      provider_name: provider?.business_name || provider?.full_name || 'Unknown Provider',
+      expires_at: invitation.expires_at
+    }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Validate invitation error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to validate invitation' }));
+  }
+}
+
+async function handleAcceptInvitation(req, res, requestId, token) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Authentication required' }));
+    return;
+  }
+
+  const authToken = authHeader.substring(7);
+  const supabase = getSupabaseClient();
+  
+  if (!supabase) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Database not configured' }));
+    return;
+  }
+
+  try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser(authToken);
+    
+    if (authError || !user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+      return;
+    }
+
+    if (!token || token.length !== 64) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid invitation token' }));
+      return;
+    }
+
+    // Verify email matching for invitation acceptance
+    const { data: invitation } = await supabase
+      .from('provider_invitations')
+      .select('email')
+      .eq('token', token)
+      .is('accepted_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .single();
+
+    if (invitation && user.email) {
+      const invitationEmail = invitation.email.toLowerCase().trim();
+      const userEmail = user.email.toLowerCase().trim();
+      
+      if (invitationEmail !== userEmail) {
+        // Log warning but still allow - token is primary security
+        console.warn(`[${requestId}] Email mismatch for invitation acceptance: invitation was for ${invitationEmail}, but accepted by ${userEmail}`);
+      }
+    }
+
+    const { data: result, error: rpcError } = await supabase.rpc('accept_team_invitation', {
+      p_token: token,
+      p_user_id: user.id
+    });
+
+    if (rpcError) {
+      console.error(`[${requestId}] Accept invitation RPC error:`, rpcError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to accept invitation' }));
+      return;
+    }
+
+    if (!result?.success) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: result?.error || 'Failed to accept invitation' }));
+      return;
+    }
+
+    await supabase
+      .from('profiles')
+      .update({ team_provider_id: result.provider_id })
+      .eq('id', user.id);
+
+    console.log(`[${requestId}] User ${user.id} accepted invitation and joined provider ${result.provider_id} as ${result.role}`);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      provider_id: result.provider_id,
+      role: result.role
+    }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Accept invitation error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to accept invitation' }));
+  }
+}
+
 // ==================== CLOVER POS INTEGRATION API ====================
 
 async function handleCloverConnect(req, res, requestId) {
@@ -9084,6 +9837,61 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url.match(/^\/api\/providers\/[^/]+\/analytics\/ratings$/)) {
     const providerId = req.url.split('/api/providers/')[1]?.split('/')[0];
     handleProviderRatingsAnalytics(req, res, requestId, providerId);
+    return;
+  }
+  
+  // Provider Team Management API Routes
+  if (req.method === 'GET' && req.url.match(/^\/api\/providers\/[^/]+\/team$/)) {
+    const providerId = req.url.split('/api/providers/')[1]?.split('/')[0];
+    handleGetProviderTeam(req, res, requestId, providerId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/providers\/[^/]+\/team\/invite$/)) {
+    const providerId = req.url.split('/api/providers/')[1]?.split('/')[0];
+    handleSendTeamInvitation(req, res, requestId, providerId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/providers\/[^/]+\/team\/invitations$/)) {
+    const providerId = req.url.split('/api/providers/')[1]?.split('/')[0];
+    handleGetPendingInvitations(req, res, requestId, providerId);
+    return;
+  }
+  
+  if (req.method === 'PATCH' && req.url.match(/^\/api\/providers\/[^/]+\/team\/[^/]+$/)) {
+    const parts = req.url.split('/api/providers/')[1]?.split('/');
+    const providerId = parts[0];
+    const memberId = parts[2];
+    handleUpdateTeamMemberRole(req, res, requestId, providerId, memberId);
+    return;
+  }
+  
+  if (req.method === 'DELETE' && req.url.match(/^\/api\/providers\/[^/]+\/team\/invitations\/[^/]+$/)) {
+    const parts = req.url.split('/api/providers/')[1]?.split('/');
+    const providerId = parts[0];
+    const invitationId = parts[3];
+    handleCancelInvitation(req, res, requestId, providerId, invitationId);
+    return;
+  }
+  
+  if (req.method === 'DELETE' && req.url.match(/^\/api\/providers\/[^/]+\/team\/[^/]+$/)) {
+    const parts = req.url.split('/api/providers/')[1]?.split('/');
+    const providerId = parts[0];
+    const memberId = parts[2];
+    handleRemoveTeamMember(req, res, requestId, providerId, memberId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/invitations\/[^/]+$/)) {
+    const token = req.url.split('/api/invitations/')[1]?.split('?')[0];
+    handleValidateInvitation(req, res, requestId, token);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/invitations\/[^/]+\/accept$/)) {
+    const token = req.url.split('/api/invitations/')[1]?.split('/')[0];
+    handleAcceptInvitation(req, res, requestId, token);
     return;
   }
   
