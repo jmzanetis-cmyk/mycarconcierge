@@ -2,6 +2,20 @@
 -- Run this in Supabase SQL Editor to enable multi-user provider accounts
 
 -- =====================================================
+-- 0. Create helper function is_admin() if it doesn't exist
+-- =====================================================
+CREATE OR REPLACE FUNCTION is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM profiles
+        WHERE id = auth.uid()
+        AND role = 'admin'
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- =====================================================
 -- 1. Create provider_team_members table
 -- =====================================================
 CREATE TABLE IF NOT EXISTS provider_team_members (
