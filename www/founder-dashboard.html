@@ -2047,6 +2047,11 @@
     }
 
     init();
+    
+    (async function() {
+      await I18n.init();
+      I18n.createLanguageSwitcher('language-switcher');
+    })();
   </script>
 </body>
 </html>
