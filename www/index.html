@@ -678,6 +678,118 @@
       color: var(--text-muted);
     }
 
+    /* Expanded Footer Styles */
+    .footer-expanded {
+      border-top: 1px solid var(--border-subtle);
+      padding: 48px 0 24px;
+    }
+
+    .footer-sections {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 32px;
+      margin-bottom: 40px;
+    }
+
+    .footer-section {
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .footer-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 0;
+      cursor: pointer;
+      user-select: none;
+      width: 100%;
+      background: none;
+      border: none;
+      text-align: left;
+    }
+
+    .footer-section-header:focus {
+      outline: 2px solid var(--accent-gold);
+      outline-offset: 2px;
+    }
+
+    .footer-section-header h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .footer-section-header .toggle-icon {
+      font-size: 1.2rem;
+      color: var(--text-muted);
+      transition: transform 0.3s ease;
+    }
+
+    .footer-section.open .toggle-icon {
+      transform: rotate(180deg);
+    }
+
+    .footer-section-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease, padding 0.3s ease;
+    }
+
+    .footer-section.open .footer-section-content {
+      max-height: 500px;
+      padding-bottom: 16px;
+    }
+
+    .footer-section-content a {
+      display: block;
+      padding: 8px 0;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-section-content a:hover {
+      color: var(--accent-gold);
+    }
+
+    .footer-bottom {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .footer-bottom .footer-copy {
+      text-align: center;
+    }
+
+    @media (min-width: 768px) {
+      .footer-sections {
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .footer-section {
+        border-bottom: none;
+      }
+
+      .footer-section-header {
+        cursor: default;
+      }
+
+      .footer-section-header .toggle-icon {
+        display: none;
+      }
+
+      .footer-section-content {
+        max-height: none;
+        padding-bottom: 0;
+      }
+    }
+
     /* Mobile Menu Button */
     .mobile-menu-btn {
       display: none;
@@ -1021,20 +1133,75 @@
     </section>
   </main>
 
-  <footer>
+  <footer class="footer-expanded">
     <div class="container">
-      <div class="footer-links">
-        <a href="/marketing/services.html">Services</a>
-        <a href="/marketing/providers.html">For Providers</a>
-        <a href="/marketing/about.html">About</a>
-        <a href="privacy.html" data-i18n="nav.privacy">Privacy</a>
-        <a href="terms.html" data-i18n="nav.terms">Terms</a>
+      <div class="footer-sections">
+        <div class="footer-section">
+          <button type="button" class="footer-section-header" onclick="toggleFooterSection(this)" aria-expanded="false" aria-controls="footer-founder">
+            <h4>Founder Programs</h4>
+            <span class="toggle-icon" aria-hidden="true">&#9662;</span>
+          </button>
+          <div class="footer-section-content" id="footer-founder">
+            <a href="member-founder.html">Member Founder Program</a>
+            <a href="provider-pilot.html">Founding Provider Program</a>
+            <a href="member-founder-agreement.html">Member Founder Agreement</a>
+            <a href="founding-partner-agreement.html">Founding Partner Agreement</a>
+          </div>
+        </div>
+
+        <div class="footer-section">
+          <button type="button" class="footer-section-header" onclick="toggleFooterSection(this)" aria-expanded="false" aria-controls="footer-providers">
+            <h4>For Providers</h4>
+            <span class="toggle-icon" aria-hidden="true">&#9662;</span>
+          </button>
+          <div class="footer-section-content" id="footer-providers">
+            <a href="provider-info.html">Provider Information</a>
+            <a href="provider-faq.html">Provider FAQ</a>
+            <a href="provider-tips.html">Provider Tips</a>
+            <a href="provider-agreement.html">Provider Agreement</a>
+            <a href="signup-provider.html">Apply as Provider</a>
+          </div>
+        </div>
+
+        <div class="footer-section">
+          <button type="button" class="footer-section-header" onclick="toggleFooterSection(this)" aria-expanded="false" aria-controls="footer-members">
+            <h4>For Members</h4>
+            <span class="toggle-icon" aria-hidden="true">&#9662;</span>
+          </button>
+          <div class="footer-section-content" id="footer-members">
+            <a href="how-it-works.html">How It Works</a>
+            <a href="/marketing/services.html">Services</a>
+            <a href="rideshare.html">Rideshare Drivers</a>
+            <a href="signup-member.html">Create Account</a>
+            <a href="login.html">Log In</a>
+          </div>
+        </div>
+
+        <div class="footer-section">
+          <button type="button" class="footer-section-header" onclick="toggleFooterSection(this)" aria-expanded="false" aria-controls="footer-company">
+            <h4>Company</h4>
+            <span class="toggle-icon" aria-hidden="true">&#9662;</span>
+          </button>
+          <div class="footer-section-content" id="footer-company">
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="faq.html">FAQ</a>
+            <a href="trust-safety.html">Trust & Safety</a>
+          </div>
+        </div>
       </div>
-      <div style="max-width:600px;margin:16px auto;text-align:center;font-size:0.75rem;color:var(--text-muted);line-height:1.5;" data-i18n="common.disclaimerShort">
-        Marketplace only. We connect you with providers but do not guarantee workmanship.
-      </div>
-      <div class="footer-copy">
-        © <span id="year"></span> My Car Concierge. All rights reserved. - IMOR
+
+      <div class="footer-bottom">
+        <div class="footer-links">
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+        <div style="max-width:600px;text-align:center;font-size:0.75rem;color:var(--text-muted);line-height:1.5;">
+          Marketplace only. We connect you with providers but do not guarantee workmanship.
+        </div>
+        <div class="footer-copy">
+          © <span id="year"></span> My Car Concierge. All rights reserved. - IMOR
+        </div>
       </div>
     </div>
   </footer>
@@ -1111,6 +1278,29 @@
         closeMobileMenu();
       }
     }
+    
+    function toggleFooterSection(header) {
+      if (window.innerWidth >= 768) return;
+      const section = header.parentElement;
+      const isOpen = section.classList.toggle('open');
+      header.setAttribute('aria-expanded', isOpen);
+    }
+    
+    function updateFooterAccessibility() {
+      const headers = document.querySelectorAll('.footer-section-header');
+      const isDesktop = window.innerWidth >= 768;
+      headers.forEach(header => {
+        const section = header.parentElement;
+        if (isDesktop) {
+          header.setAttribute('aria-expanded', 'true');
+        } else {
+          header.setAttribute('aria-expanded', section.classList.contains('open'));
+        }
+      });
+    }
+    
+    window.addEventListener('resize', updateFooterAccessibility);
+    document.addEventListener('DOMContentLoaded', updateFooterAccessibility);
   </script>
   <script src="/footer.js"></script>
   <script src="/pwa-init.js"></script>
