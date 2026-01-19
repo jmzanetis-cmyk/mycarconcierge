@@ -206,6 +206,10 @@ Run this SQL migration in Supabase SQL Editor to enable the system:
 
 ## Recent Changes
 - **January 2026**:
+  - Added auto-populate feature for maintenance package form from recommended services
+  - Uses normalized exact matching and 80+ item mapping table for service type selection
+  - MutationObserver watches for async option loading with safety timeout
+  - Safe data encoding with encodeURIComponent to prevent special character issues
   - Added expanded Turo-style footer with collapsible sections (Founder Programs, For Providers, For Members, Company)
   - Footer includes accessible button elements with ARIA attributes for screen readers
   - Footer accordion is responsive (collapsible on mobile, expanded on desktop)
