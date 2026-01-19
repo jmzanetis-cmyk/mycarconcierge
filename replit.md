@@ -229,8 +229,7 @@ Run this SQL migration in Supabase SQL Editor to enable the system:
 - Premium, luxury aesthetic
 
 ## Next Steps
-1. Run RATING_SUSPENSION_SETUP.sql in Supabase SQL Editor
+1. Run RATING_SUSPENSION_SETUP.sql in Supabase SQL Editor (file created at www/RATING_SUSPENSION_SETUP.sql)
 2. Test provider rating and suspension flow
 3. Create Supabase Edge Functions for Stripe payment processing
 4. Test end-to-end payment flow
-5. Deploy to production
