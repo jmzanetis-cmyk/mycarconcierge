@@ -53,6 +53,8 @@ class AIChatWidget {
             </div>
           </div>
           
+          <div id="ai-debug-banner" class="ai-debug-banner"></div>
+          
           <div id="ai-chat-messages" class="ai-chat-messages">
             <div class="ai-message assistant">
               <div class="message-content">
@@ -153,6 +155,32 @@ class AIChatWidget {
           opacity: 1;
           transform: translateY(0);
         }
+      }
+
+      .ai-debug-banner {
+        padding: 8px 12px;
+        background: rgba(255, 193, 7, 0.15);
+        border-bottom: 1px solid rgba(255, 193, 7, 0.3);
+        font-size: 0.7rem;
+        color: #ffc107;
+        display: none;
+        word-break: break-all;
+      }
+
+      .ai-debug-banner.visible {
+        display: block;
+      }
+
+      .ai-debug-banner.error {
+        background: rgba(220, 53, 69, 0.15);
+        border-color: rgba(220, 53, 69, 0.3);
+        color: #ff6b6b;
+      }
+
+      .ai-debug-banner.success {
+        background: rgba(40, 167, 69, 0.15);
+        border-color: rgba(40, 167, 69, 0.3);
+        color: #4ac88c;
       }
 
       .ai-chat-header {
@@ -396,11 +424,23 @@ class AIChatWidget {
     });
   }
 
+  updateDebugBanner(message, type = 'info') {
+    const banner = document.getElementById('ai-debug-banner');
+    if (banner) {
+      banner.textContent = message;
+      banner.className = 'ai-debug-banner visible ' + type;
+    }
+  }
+
   async sendMessage() {
     const input = document.getElementById('ai-chat-input');
     const message = input.value.trim();
 
     if (!message || this.isLoading) return;
+
+    const apiUrl = `${this.apiBaseUrl}/api/chat`;
+    const isNative = window.Capacitor !== undefined || window.location.protocol === 'capacitor:' || window.location.protocol === 'file:';
+    this.updateDebugBanner(`Mode: ${isNative ? 'Native' : 'Web'} | URL: ${apiUrl}`, 'info');
 
     this.messages.push({ role: 'user', content: message });
     this.addMessageToUI('user', message);
@@ -412,7 +452,9 @@ class AIChatWidget {
     this.showLoading();
 
     try {
-      const response = await fetch(`${this.apiBaseUrl}/api/chat`, {
+      this.updateDebugBanner(`Connecting to: ${apiUrl}...`, 'info');
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -421,20 +463,24 @@ class AIChatWidget {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get response');
+        const errorText = await response.text();
+        this.updateDebugBanner(`HTTP ${response.status}: ${errorText.substring(0, 100)}`, 'error');
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
       const assistantMessage = data.message;
 
+      this.updateDebugBanner(`Connected successfully to ${this.apiBaseUrl || 'local'}`, 'success');
       this.messages.push({ role: 'assistant', content: assistantMessage });
       this.hideLoading();
       this.addMessageToUI('assistant', assistantMessage);
 
     } catch (error) {
       console.error('Chat error:', error);
+      this.updateDebugBanner(`Error: ${error.message}`, 'error');
       this.hideLoading();
-      this.addMessageToUI('assistant', 'I apologize, but I encountered an issue processing your request. Please try again in a moment.');
+      this.addMessageToUI('assistant', `Error connecting to My Car Concierge. Please try again. (${error.message})`);
     } finally {
       this.isLoading = false;
     }
