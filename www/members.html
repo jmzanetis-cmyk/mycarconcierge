@@ -6583,7 +6583,14 @@
                   ${rec.source ? `<span>📊 ${rec.source === 'time' ? 'Time-based' : rec.source === 'mileage' ? 'Mileage-based' : rec.source === 'inspection' ? 'Inspection' : 'Manual'}</span>` : ''}
                 </div>
                 <div class="recommendation-actions">
-                  <button class="btn btn-primary btn-sm" onclick="scheduleFromRecommendation('${rec.vehicle_id}', '${rec.service_type.replace(/'/g, "\\'")}')">📅 Schedule Service</button>
+                  <button class="btn btn-primary btn-sm" data-rec="${encodeURIComponent(JSON.stringify({
+                    vehicleId: rec.vehicle_id,
+                    serviceType: rec.service_type,
+                    reason: rec.reason || 'Regular maintenance recommended',
+                    costLow: rec.estimated_cost_low || null,
+                    costHigh: rec.estimated_cost_high || null,
+                    priority: rec.priority || 'routine'
+                  }))}" onclick="scheduleFromRecommendation(this)">📅 Schedule Service</button>
                   <button class="btn btn-ghost btn-sm" onclick="dismissRecommendation('${rec.id}', ${rec.isLocal || false})">Dismiss</button>
                 </div>
               </div>
@@ -6595,15 +6602,181 @@
       container.innerHTML = html;
     }
 
-    function scheduleFromRecommendation(vehicleId, serviceType) {
+    const recommendationToServiceType = {
+      'oil change': 'Oil change / fluids',
+      'oil service': 'Oil change / fluids',
+      'synthetic oil': 'Oil change / fluids',
+      'conventional oil': 'Oil change / fluids',
+      'transmission service': 'Transmission service',
+      'transmission fluid': 'Transmission service',
+      'transfer case': 'Transmission service',
+      'coolant flush': 'AC / heating service',
+      'coolant service': 'AC / heating service',
+      'radiator': 'AC / heating service',
+      'brake service': 'Brake service',
+      'brake inspection': 'Brake service',
+      'brake pad': 'Brake service',
+      'brake rotor': 'Brake service',
+      'brake fluid': 'Brake service',
+      'tire rotation': 'Tire rotation / alignment',
+      'tire balance': 'Tire rotation / alignment',
+      'wheel alignment': 'Tire rotation / alignment',
+      'alignment': 'Tire rotation / alignment',
+      'tire replacement': 'Tire rotation / alignment',
+      'battery': 'Battery / electrical',
+      'battery replacement': 'Battery / electrical',
+      'alternator': 'Battery / electrical',
+      'starter': 'Battery / electrical',
+      'electrical': 'Battery / electrical',
+      'engine tune-up': 'Engine tune-up',
+      'tune-up': 'Engine tune-up',
+      'engine service': 'Engine tune-up',
+      'spark plugs': 'Spark plugs',
+      'spark plug': 'Spark plugs',
+      'ignition': 'Spark plugs',
+      'belt replacement': 'Belt / hose replacement',
+      'timing belt': 'Belt / hose replacement',
+      'serpentine belt': 'Belt / hose replacement',
+      'drive belt': 'Belt / hose replacement',
+      'hose replacement': 'Belt / hose replacement',
+      'radiator hose': 'Belt / hose replacement',
+      'suspension': 'Suspension / steering',
+      'steering': 'Suspension / steering',
+      'shock': 'Suspension / steering',
+      'strut': 'Suspension / steering',
+      'ball joint': 'Suspension / steering',
+      'tie rod': 'Suspension / steering',
+      'control arm': 'Suspension / steering',
+      'diagnostic': 'Diagnostic / check engine',
+      'check engine': 'Diagnostic / check engine',
+      'engine light': 'Diagnostic / check engine',
+      'obd': 'Diagnostic / check engine',
+      'scan': 'Diagnostic / check engine',
+      'air filter': 'Engine tune-up',
+      'engine air filter': 'Engine tune-up',
+      'cabin filter': 'AC / heating service',
+      'cabin air filter': 'AC / heating service',
+      'fuel system': 'Fuel system cleaning',
+      'fuel filter': 'Fuel system cleaning',
+      'fuel injection': 'Fuel system cleaning',
+      'injector': 'Fuel system cleaning',
+      'ac service': 'AC / heating service',
+      'air conditioning': 'AC / heating service',
+      'heater': 'AC / heating service',
+      'hvac': 'AC / heating service',
+      'climate control': 'AC / heating service',
+      'differential': 'Transmission service',
+      'differential fluid': 'Transmission service',
+      'axle': 'Transmission service',
+      'power steering': 'Suspension / steering',
+      'power steering fluid': 'Suspension / steering',
+      'wheel bearing': 'Suspension / steering',
+      'hub bearing': 'Suspension / steering',
+      'water pump': 'AC / heating service',
+      'thermostat': 'AC / heating service',
+      'exhaust': 'Other service',
+      'muffler': 'Other service',
+      'catalytic': 'Other service',
+      'windshield wiper': 'Other service',
+      'wiper': 'Other service',
+      'headlight': 'Battery / electrical',
+      'light bulb': 'Battery / electrical',
+      'fluid flush': 'Oil change / fluids',
+      'fluid service': 'Oil change / fluids'
+    };
+
+    function normalizeServiceType(str) {
+      return str.toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
+    function scheduleFromRecommendation(buttonEl) {
+      let data;
+      try {
+        data = JSON.parse(decodeURIComponent(buttonEl.dataset.rec));
+      } catch (e) {
+        console.error('Failed to parse recommendation data:', e);
+        openPackageModal();
+        return;
+      }
+      
+      const { vehicleId, serviceType, reason, costLow, costHigh, priority } = data;
+      
       openPackageModal();
+      
       setTimeout(() => {
         const vehicleSelect = document.getElementById('p-vehicle');
         if (vehicleSelect) vehicleSelect.value = vehicleId;
+        
         const titleInput = document.getElementById('p-title');
         if (titleInput) titleInput.value = serviceType;
+        
+        const descInput = document.getElementById('p-description');
+        if (descInput) {
+          let description = reason;
+          if (costLow && costHigh) {
+            description += `\n\nEstimated cost range: $${costLow} - $${costHigh}`;
+          }
+          if (priority && priority !== 'routine') {
+            description += `\nPriority: ${priority.charAt(0).toUpperCase() + priority.slice(1)}`;
+          }
+          descInput.value = description;
+        }
+        
+        const serviceTypeSelect = document.getElementById('p-service-type');
         const categorySelect = document.getElementById('p-category');
-        if (categorySelect) categorySelect.value = 'maintenance';
+        
+        if (serviceTypeSelect && categorySelect) {
+          const trySelectServiceType = () => {
+            if (serviceTypeSelect.options.length <= 1) return false;
+            
+            const normalizedServiceType = normalizeServiceType(serviceType);
+            const options = Array.from(serviceTypeSelect.options);
+            
+            const exactMatch = options.find(opt => 
+              opt.value && normalizeServiceType(opt.value) === normalizedServiceType
+            );
+            if (exactMatch) {
+              serviceTypeSelect.value = exactMatch.value;
+              return true;
+            }
+            
+            const serviceTypeLower = serviceType.toLowerCase();
+            let matchedValue = null;
+            for (const [key, value] of Object.entries(recommendationToServiceType)) {
+              if (serviceTypeLower.includes(key)) {
+                matchedValue = value;
+                break;
+              }
+            }
+            
+            if (matchedValue) {
+              const matchingOption = options.find(opt => opt.value === matchedValue);
+              if (matchingOption) {
+                serviceTypeSelect.value = matchedValue;
+                return true;
+              }
+            }
+            
+            return false;
+          };
+          
+          const observer = new MutationObserver((mutations, obs) => {
+            if (trySelectServiceType()) {
+              obs.disconnect();
+            }
+          });
+          
+          observer.observe(serviceTypeSelect, { childList: true });
+          
+          categorySelect.value = 'maintenance';
+          categorySelect.dispatchEvent(new Event('change'));
+          
+          if (trySelectServiceType()) {
+            observer.disconnect();
+          }
+          
+          setTimeout(() => observer.disconnect(), 2000);
+        }
       }, 100);
     }
 
