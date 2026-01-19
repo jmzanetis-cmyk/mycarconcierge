@@ -254,6 +254,9 @@ All 2FA endpoints require JWT authentication via Authorization header:
 
 ## Recent Changes
 - **January 2026**:
+  - Added global 2FA toggle in admin Settings to disable enforcement for App Store review
+  - API endpoints: GET/POST /api/admin/2fa-global-status and /api/admin/2fa-global-toggle
+  - Environment variable GLOBAL_2FA_ENABLED controls default state (set to 'false' to disable)
   - Added SMS Two-Factor Authentication (2FA) system with Twilio
   - Server-side 2FA enforcement on 65+ API endpoints
   - Database-backed rate limiting for production reliability
