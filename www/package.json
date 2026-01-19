@@ -28,11 +28,15 @@
   "author": "My Car Concierge",
   "license": "ISC",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
     "@capacitor/android": "^7.4.4",
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",
     "@capacitor/ios": "^7.4.4",
-    "netlify-cli": "^23.12.3"
+    "@supabase/supabase-js": "^2.45.0",
+    "netlify-cli": "^23.12.3",
+    "openai": "^4.50.0",
+    "stripe": "^15.0.0"
   },
   "devDependencies": {
     "electron": "^39.2.6",
