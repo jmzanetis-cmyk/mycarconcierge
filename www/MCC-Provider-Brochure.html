@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Car Concierge - Provider Opportunity Brochure</title>
+  <style>
+    @page {
+      size: 11in 8.5in landscape;
+      margin: 0;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      background: #0a0a0f;
+      color: #e8e8e8;
+      line-height: 1.5;
+    }
+    
+    .print-controls {
+      background: #1a1a24;
+      padding: 20px;
+      text-align: center;
+      border-bottom: 2px solid #d4af37;
+    }
+    
+    .print-controls h2 {
+      color: #d4af37;
+      margin-bottom: 10px;
+    }
+    
+    .print-controls p {
+      color: #888;
+      margin-bottom: 15px;
+      font-size: 0.9rem;
+    }
+    
+    .print-btn {
+      background: linear-gradient(135deg, #d4af37, #b8962e);
+      color: #0a0a0f;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      margin: 0 10px;
+    }
+    
+    .print-btn:hover {
+      background: linear-gradient(135deg, #e5c348, #d4af37);
+    }
+    
+    .brochure-container {
+      max-width: 11in;
+      margin: 30px auto;
+      background: #0a0a0f;
+    }
+    
+    /* OUTSIDE OF BROCHURE (what you see when folded) */
+    .brochure-side {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      min-height: 8.5in;
+      page-break-after: always;
+    }
+    
+    .panel {
+      padding: 0.4in;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px dashed #333;
+    }
+    
+    .panel:last-child {
+      border-right: none;
+    }
+    
+    /* PANEL STYLING */
+    .panel-cover {
+      background: linear-gradient(180deg, #0a0a0f 0%, #12121a 100%);
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+    
+    .logo-container {
+      margin-bottom: 30px;
+    }
+    
+    .logo-container img {
+      width: 180px;
+      height: auto;
+    }
+    
+    .logo-text {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    
+    .logo-text span {
+      color: #d4af37;
+    }
+    
+    .cover-headline {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #d4af37;
+      margin-bottom: 15px;
+      line-height: 1.3;
+    }
+    
+    .cover-subhead {
+      font-size: 1rem;
+      color: #aaa;
+      margin-bottom: 30px;
+      line-height: 1.5;
+    }
+    
+    .cover-badge {
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(212, 175, 55, 0.1));
+      border: 1px solid #d4af37;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-size: 0.85rem;
+      color: #d4af37;
+      font-weight: 600;
+    }
+    
+    /* Content panels */
+    .panel-content {
+      background: #0d0d14;
+    }
+    
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #d4af37;
+      margin-bottom: 15px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #d4af37;
+    }
+    
+    .panel-subtitle {
+      font-size: 0.8rem;
+      color: #4a90d9;
+      font-weight: 600;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    h3 {
+      font-size: 0.95rem;
+      color: #fff;
+      margin: 12px 0 6px;
+    }
+    
+    p, li {
+      font-size: 0.8rem;
+      color: #ccc;
+      line-height: 1.5;
+    }
+    
+    ul {
+      list-style: none;
+      margin: 8px 0;
+    }
+    
+    li {
+      padding-left: 18px;
+      position: relative;
+      margin: 6px 0;
+    }
+    
+    li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #d4af37;
+      font-weight: bold;
+    }
+    
+    .highlight-box {
+      background: linear-gradient(135deg, #1a1a2a, #14141f);
+      border-left: 3px solid #d4af37;
+      padding: 12px;
+      margin: 12px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    
+    .highlight-box p {
+      margin: 0;
+      font-size: 0.8rem;
+    }
+    
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 15px 0;
+      gap: 8px;
+    }
+    
+    .stat-item {
+      text-align: center;
+      flex: 1;
+      background: #14141f;
+      padding: 10px 5px;
+      border-radius: 8px;
+    }
+    
+    .stat-value {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #d4af37;
+    }
+    
+    .stat-label {
+      font-size: 0.65rem;
+      color: #888;
+      margin-top: 2px;
+    }
+    
+    /* Pricing table */
+    .pricing-table {
+      width: 100%;
+      margin: 10px 0;
+      border-collapse: collapse;
+    }
+    
+    .pricing-table th,
+    .pricing-table td {
+      padding: 6px 4px;
+      font-size: 0.7rem;
+      text-align: center;
+      border-bottom: 1px solid #2a2a3a;
+    }
+    
+    .pricing-table th {
+      background: #1a1a2a;
+      color: #d4af37;
+      font-weight: 600;
+    }
+    
+    .pricing-table td {
+      color: #ccc;
+    }
+    
+    .pricing-table tr:hover td {
+      background: #16161f;
+    }
+    
+    /* QR Code section */
+    .qr-section {
+      text-align: center;
+      margin: 15px 0;
+    }
+    
+    .qr-code {
+      width: 100px;
+      height: 100px;
+      background: #fff;
+      margin: 8px auto;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+    }
+    
+    .qr-code img {
+      width: 100%;
+      height: 100%;
+    }
+    
+    .qr-label {
+      font-size: 0.75rem;
+      color: #d4af37;
+      font-weight: 600;
+    }
+    
+    .qr-sublabel {
+      font-size: 0.65rem;
+      color: #888;
+    }
+    
+    /* Contact section */
+    .contact-section {
+      margin-top: auto;
+      text-align: center;
+      padding-top: 15px;
+      border-top: 1px solid #2a2a3a;
+    }
+    
+    .contact-item {
+      font-size: 0.8rem;
+      color: #ccc;
+      margin: 4px 0;
+    }
+    
+    .contact-item strong {
+      color: #d4af37;
+    }
+    
+    /* Icon styling */
+    .icon {
+      font-size: 1.5rem;
+      margin-bottom: 8px;
+    }
+    
+    /* Step list */
+    .step-list {
+      counter-reset: step;
+    }
+    
+    .step-list li {
+      padding-left: 28px;
+    }
+    
+    .step-list li::before {
+      content: counter(step);
+      counter-increment: step;
+      background: #d4af37;
+      color: #0a0a0f;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+    
+    /* Partnership callout */
+    .partnership-box {
+      background: linear-gradient(135deg, rgba(74, 144, 217, 0.15), rgba(74, 144, 217, 0.05));
+      border: 1px solid #4a90d9;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 12px 0;
+    }
+    
+    .partnership-box h4 {
+      color: #4a90d9;
+      font-size: 0.85rem;
+      margin-bottom: 6px;
+    }
+    
+    .partnership-box p {
+      font-size: 0.75rem;
+      margin: 0;
+    }
+    
+    /* Founding badge */
+    .founding-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #d4af37, #b8962e);
+      color: #0a0a0f;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    
+    @media print {
+      body {
+        background: #0a0a0f;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      
+      .print-controls {
+        display: none;
+      }
+      
+      .brochure-container {
+        margin: 0;
+      }
+      
+      .panel {
+        border-right: 1px dashed #444;
+      }
+    }
+    
+    @media screen and (max-width: 900px) {
+      .brochure-side {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+      
+      .panel {
+        min-height: 100vh;
+        border-right: none;
+        border-bottom: 1px dashed #333;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-controls">
+    <h2>MCC Provider Opportunity Brochure</h2>
+    <p>Print this as a tri-fold brochure (8.5" x 11" landscape, fold into thirds)</p>
+    <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+
+  <div class="brochure-container">
+    <!-- OUTSIDE OF BROCHURE (Back, Front Cover, Inside Flap when folded) -->
+    <div class="brochure-side">
+      
+      <!-- Panel 1: Back panel (left when unfolded) - Contact & QR codes -->
+      <div class="panel panel-content" style="background: #0a0a0f;">
+        <div class="panel-title">Connect With Us</div>
+        
+        <div class="qr-section">
+          <div class="qr-label">Become a Provider</div>
+          <div class="qr-code">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://www.mycarconcierge.com/signup-provider.html&bgcolor=ffffff&color=0a0a0f" alt="Provider Signup QR">
+          </div>
+          <div class="qr-sublabel">Scan to apply</div>
+        </div>
+        
+        <div class="qr-section">
+          <div class="qr-label">Share With Your Customers</div>
+          <div class="qr-code">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://www.mycarconcierge.com/signup-member.html&bgcolor=ffffff&color=0a0a0f" alt="Member Signup QR">
+          </div>
+          <div class="qr-sublabel">Help grow the member pool</div>
+        </div>
+        
+        <div class="contact-section">
+          <div class="contact-item"><strong>www.mycarconcierge.com</strong></div>
+          <div class="contact-item">(845) 821-0804</div>
+          <div class="contact-item" style="font-size: 0.7rem; color: #666; margin-top: 10px;">Patent Pending</div>
+        </div>
+      </div>
+      
+      <!-- Panel 2: FRONT COVER (center when folded) -->
+      <div class="panel panel-cover">
+        <div class="logo-container">
+          <div class="logo-text">My<span>Car</span></div>
+          <div class="logo-text" style="font-size: 1.8rem;">Concierge</div>
+        </div>
+        
+        <div class="cover-headline">Grow Your Business.<br>Zero Advertising.</div>
+        
+        <div class="cover-subhead">
+          A powerful tool for automotive service providers to expand their reach, fill unused capacity, and build lasting customer relationships.
+        </div>
+        
+        <div class="cover-badge">Provider Opportunity</div>
+      </div>
+      
+      <!-- Panel 3: Inside flap (right when folded) - Founding Provider -->
+      <div class="panel panel-content">
+        <span class="founding-badge">FOUNDING PROVIDER PROGRAM</span>
+        <div class="panel-title" style="margin-top: 0;">Get In Early</div>
+        
+        <p style="margin-bottom: 12px;">We're at the ground floor. This isn't a promise of instant leads - it's an invitation to build something together.</p>
+        
+        <div class="partnership-box">
+          <h4>The Reality</h4>
+          <p>We have 0 members today. We're building this platform alongside providers who want to be part of something new. As you bring your customers onto MCC, they become part of the ecosystem - and other providers' customers can become yours.</p>
+        </div>
+        
+        <h3>Founding Provider Benefits</h3>
+        <ul>
+          <li>No platform fees for first 90 days</li>
+          <li>Unlimited bidding during pilot</li>
+          <li>Priority visibility in your area</li>
+          <li>Permanent "Founding Provider" badge</li>
+          <li>Lifetime referral commission on providers you refer</li>
+          <li>Direct access to give feedback</li>
+        </ul>
+        
+        <div class="highlight-box">
+          <p><strong>First Mover Advantage:</strong> Build your reputation and reviews before the market gets crowded.</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- INSIDE OF BROCHURE (what you see when fully open) -->
+    <div class="brochure-side">
+      
+      <!-- Panel 4: Inside Left - What is MCC -->
+      <div class="panel panel-content">
+        <div class="panel-title">What Is My Car Concierge?</div>
+        
+        <p>MCC is a platform connecting vehicle owners with professional automotive service providers. We're not a replacement for your business - we're a tool to help you grow it.</p>
+        
+        <h3>Your New Business Asset</h3>
+        <ul>
+          <li><strong>New revenue channel</strong> without advertising costs</li>
+          <li><strong>Fill unused capacity</strong> on slow days</li>
+          <li><strong>Pre-qualified customers</strong> ready to book</li>
+          <li><strong>No contracts</strong> or exclusivity required</li>
+          <li><strong>You choose</strong> which jobs to accept</li>
+        </ul>
+        
+        <div class="highlight-box">
+          <p><strong>Think of it this way:</strong> Every customer you bring onto MCC becomes part of a shared pool. When they need a service you don't offer, another provider wins. When other providers' customers need YOUR specialty, you win.</p>
+        </div>
+        
+        <h3>How It Works</h3>
+        <ul class="step-list">
+          <li>Create a provider account</li>
+          <li>Get verified by MCC</li>
+          <li>Receive service requests</li>
+          <li>Bid on jobs that fit your shop</li>
+          <li>Complete work & get paid</li>
+        </ul>
+      </div>
+      
+      <!-- Panel 5: Inside Center - Bid Packs & Payments -->
+      <div class="panel panel-content">
+        <div class="panel-title">How Bidding Works</div>
+        
+        <p>Providers purchase bid credits to compete for jobs. You only spend credits on jobs YOU choose to bid on.</p>
+        
+        <div class="panel-subtitle">Bid Pack Pricing</div>
+        <table class="pricing-table">
+          <tr>
+            <th>Pack</th>
+            <th>Bids</th>
+            <th>Price</th>
+            <th>Per Bid</th>
+          </tr>
+          <tr>
+            <td>Jumper Cables</td>
+            <td>1</td>
+            <td>$10</td>
+            <td>$10.00</td>
+          </tr>
+          <tr>
+            <td>Starter</td>
+            <td>5</td>
+            <td>$25</td>
+            <td>$5.00</td>
+          </tr>
+          <tr>
+            <td>Standard</td>
+            <td>15</td>
+            <td>$60</td>
+            <td>$4.00</td>
+          </tr>
+          <tr>
+            <td>Professional</td>
+            <td>50</td>
+            <td>$150</td>
+            <td>$3.00</td>
+          </tr>
+          <tr>
+            <td>Enterprise</td>
+            <td>100</td>
+            <td>$250</td>
+            <td>$2.50</td>
+          </tr>
+        </table>
+        
+        <div class="panel-subtitle" style="margin-top: 15px;">Escrow Payment Protection</div>
+        <div class="highlight-box">
+          <p><strong>Guaranteed Payment:</strong> When a member accepts your bid, funds are held in escrow. You complete the work, the member confirms, and you get paid. No chasing invoices. No bad checks.</p>
+        </div>
+        
+        <p style="font-size: 0.75rem; color: #888;"><strong>Platform Fee:</strong> 7.5% on completed jobs (waived for Founding Providers during pilot)</p>
+      </div>
+      
+      <!-- Panel 6: Inside Right - Rating System & Trust -->
+      <div class="panel panel-content">
+        <div class="panel-title">Build Your Reputation</div>
+        
+        <div class="panel-subtitle">5-Star Rating System</div>
+        <p>Members rate providers after every completed job. Your rating directly impacts your visibility and success on the platform.</p>
+        
+        <div class="stat-row">
+          <div class="stat-item">
+            <div class="stat-value">4.0+</div>
+            <div class="stat-label">Minimum Rating</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">5</div>
+            <div class="stat-label">Star Scale</div>
+          </div>
+        </div>
+        
+        <h3>Rating Categories</h3>
+        <ul>
+          <li>Overall experience</li>
+          <li>Quality of work</li>
+          <li>Communication</li>
+          <li>Timeliness</li>
+          <li>Value for money</li>
+        </ul>
+        
+        <div class="panel-subtitle" style="margin-top: 15px;">Platform Protections</div>
+        <ul>
+          <li><strong>Anti-bait protection:</strong> No "free diagnostic" upselling</li>
+          <li><strong>Upsell approval:</strong> Members approve any additional work</li>
+          <li><strong>24-hour window:</strong> No pressure decisions</li>
+        </ul>
+        
+        <div class="partnership-box" style="margin-top: 15px;">
+          <h4>Your Customers, Your Growth</h4>
+          <p>Give your existing customers the member signup QR code. As the member pool grows, so does the opportunity for everyone.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Add fold guides for printing
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('MCC Provider Brochure ready for printing');
+      console.log('Tip: Print as landscape, 8.5" x 11", fold into thirds');
+    });
+  </script>
+</body>
+</html>
