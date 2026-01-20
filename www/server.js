@@ -10157,7 +10157,8 @@ const server = http.createServer((req, res) => {
     '/founder-member': '/member-founder.html',
     '/founder-provider': '/provider-pilot.html',
     '/founding-member': '/member-founder.html',
-    '/founding-provider': '/provider-pilot.html'
+    '/founding-provider': '/provider-pilot.html',
+    '/provider-founder.html': '/provider-pilot.html'
   };
   
   const urlPath = req.url.split('?')[0];
