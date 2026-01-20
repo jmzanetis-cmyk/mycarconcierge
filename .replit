@@ -42,3 +42,7 @@ defaultBucketID = "replit-objstore-970c9ce6-a451-4b77-b216-7f5cdd6ab7c7"
 
 [userenv.shared]
 GLOBAL_2FA_ENABLED = "false"
+
+[nix]
+channel = "stable-25_05"
+packages = ["glib", "nss", "nspr", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXrandr", "xorg.libxcb", "cups", "libdrm", "at-spi2-core", "pango", "alsa-lib", "mesa", "chromium"]
