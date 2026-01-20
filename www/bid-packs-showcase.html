@@ -79,16 +79,16 @@
 
     .packs-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
       margin-bottom: 60px;
     }
 
     .pack-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-xl);
-      padding: 32px 28px;
+      background: var(--bg-elevated);
+      border: 2px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px 20px;
       text-align: center;
       position: relative;
       transition: all 0.3s ease;
@@ -102,97 +102,74 @@
 
     .pack-card.featured {
       border-color: var(--accent-gold);
-      background: linear-gradient(180deg, rgba(212, 168, 85, 0.08) 0%, var(--bg-card) 100%);
     }
 
     .pack-badge {
       position: absolute;
-      top: -12px;
+      top: -10px;
       left: 50%;
       transform: translateX(-50%);
-      background: linear-gradient(135deg, var(--accent-gold), #c49a45);
+      background: var(--accent-gold);
       color: #0a0a0f;
-      padding: 6px 16px;
-      border-radius: 20px;
-      font-size: 0.75rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-size: 0.7rem;
+      font-weight: 600;
     }
 
     .pack-icon {
       font-size: 2.5rem;
-      margin-bottom: 16px;
+      margin-bottom: 8px;
     }
 
     .pack-name {
-      font-size: 1.4rem;
+      font-size: 1.2rem;
       font-weight: 600;
-      margin-bottom: 8px;
-    }
-
-    .pack-bids {
-      font-size: 3rem;
-      font-weight: 700;
-      color: var(--accent-gold);
-      line-height: 1;
       margin-bottom: 4px;
     }
 
+    .pack-bids {
+      margin: 16px 0;
+    }
+
+    .pack-bids-count {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+
     .pack-bids-label {
-      font-size: 0.9rem;
       color: var(--text-muted);
-      margin-bottom: 20px;
+    }
+
+    .pack-bonus {
+      color: var(--accent-green);
+      font-size: 0.9rem;
+      font-weight: 500;
     }
 
     .pack-price {
-      font-size: 2rem;
+      font-size: 1.5rem;
       font-weight: 600;
-      margin-bottom: 8px;
+      color: var(--accent-gold);
+      margin-bottom: 4px;
     }
 
     .pack-per-bid {
-      background: var(--accent-gold-soft);
-      color: var(--accent-gold);
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      display: inline-block;
-      margin-bottom: 24px;
-    }
-
-    .pack-features {
-      list-style: none;
-      text-align: left;
-      margin-bottom: 24px;
-    }
-
-    .pack-features li {
-      padding: 8px 0;
-      font-size: 0.9rem;
-      color: var(--text-secondary);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .pack-features li::before {
-      content: "✓";
-      color: var(--accent-green);
-      font-weight: bold;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
     }
 
     .pack-btn {
       display: block;
       width: 100%;
-      padding: 14px 24px;
-      background: linear-gradient(135deg, var(--accent-gold), #c49a45);
-      color: #0a0a0f;
+      padding: 12px 20px;
+      background: var(--bg-card);
+      color: var(--text-primary);
       font-family: inherit;
-      font-size: 1rem;
-      font-weight: 600;
-      border: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+      border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
       cursor: pointer;
       text-decoration: none;
@@ -201,6 +178,17 @@
     }
 
     .pack-btn:hover {
+      background: var(--accent-gold-soft);
+      border-color: var(--accent-gold);
+    }
+
+    .pack-btn.primary {
+      background: linear-gradient(135deg, var(--accent-gold), #c49a45);
+      color: #0a0a0f;
+      border: none;
+    }
+
+    .pack-btn.primary:hover {
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35);
     }
@@ -295,13 +283,15 @@
       color: var(--accent-gold);
     }
 
+    .loading {
+      text-align: center;
+      padding: 60px;
+      color: var(--text-muted);
+    }
+
     @media (max-width: 768px) {
       .header h1 {
         font-size: 2rem;
-      }
-      
-      .pack-card {
-        padding: 28px 24px;
       }
       
       .info-section {
@@ -322,82 +312,8 @@
   <div class="container">
     <a href="/provider-pilot.html" class="back-link">← Back to Provider Program</a>
 
-    <div class="packs-grid">
-      <div class="pack-card">
-        <div class="pack-icon">🔌</div>
-        <div class="pack-name">Jumper Cables</div>
-        <div class="pack-bids">1</div>
-        <div class="pack-bids-label">bid credit</div>
-        <div class="pack-price">$10</div>
-        <div class="pack-per-bid">$10.00 per bid</div>
-        <ul class="pack-features">
-          <li>Try it out risk-free</li>
-          <li>Perfect for testing</li>
-          <li>No commitment</li>
-        </ul>
-        <a href="/signup-provider.html" class="pack-btn">Get Started</a>
-      </div>
-
-      <div class="pack-card">
-        <div class="pack-icon">🔧</div>
-        <div class="pack-name">Starter</div>
-        <div class="pack-bids">5</div>
-        <div class="pack-bids-label">bid credits</div>
-        <div class="pack-price">$25</div>
-        <div class="pack-per-bid">$5.00 per bid</div>
-        <ul class="pack-features">
-          <li>50% savings per bid</li>
-          <li>Great for new providers</li>
-          <li>Build your reputation</li>
-        </ul>
-        <a href="/signup-provider.html" class="pack-btn">Get Started</a>
-      </div>
-
-      <div class="pack-card featured">
-        <div class="pack-badge">Most Popular</div>
-        <div class="pack-icon">⚙️</div>
-        <div class="pack-name">Standard</div>
-        <div class="pack-bids">15</div>
-        <div class="pack-bids-label">bid credits</div>
-        <div class="pack-price">$60</div>
-        <div class="pack-per-bid">$4.00 per bid</div>
-        <ul class="pack-features">
-          <li>60% savings per bid</li>
-          <li>Best value for active shops</li>
-          <li>Consistent bidding power</li>
-        </ul>
-        <a href="/signup-provider.html" class="pack-btn">Get Started</a>
-      </div>
-
-      <div class="pack-card">
-        <div class="pack-icon">🏆</div>
-        <div class="pack-name">Professional</div>
-        <div class="pack-bids">50</div>
-        <div class="pack-bids-label">bid credits</div>
-        <div class="pack-price">$150</div>
-        <div class="pack-per-bid">$3.00 per bid</div>
-        <ul class="pack-features">
-          <li>70% savings per bid</li>
-          <li>For serious providers</li>
-          <li>Maximum flexibility</li>
-        </ul>
-        <a href="/signup-provider.html" class="pack-btn">Get Started</a>
-      </div>
-
-      <div class="pack-card">
-        <div class="pack-icon">🏢</div>
-        <div class="pack-name">Enterprise</div>
-        <div class="pack-bids">100</div>
-        <div class="pack-bids-label">bid credits</div>
-        <div class="pack-price">$250</div>
-        <div class="pack-per-bid">$2.50 per bid</div>
-        <ul class="pack-features">
-          <li>75% savings per bid</li>
-          <li>Best price per bid</li>
-          <li>For high-volume shops</li>
-        </ul>
-        <a href="/signup-provider.html" class="pack-btn">Get Started</a>
-      </div>
+    <div id="packs-grid" class="packs-grid">
+      <div class="loading">Loading bid packs...</div>
     </div>
 
     <div class="info-section">
@@ -428,6 +344,78 @@
       <a href="/signup-provider.html" class="cta-btn">Become a Provider</a>
     </div>
   </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js"></script>
+  <script>
+    async function loadBidPacks() {
+      const container = document.getElementById('packs-grid');
+      
+      try {
+        const { data: bidPacks, error } = await supabaseClient
+          .from('bid_packs')
+          .select('*')
+          .eq('is_active', true)
+          .order('price', { ascending: true });
+
+        if (error) throw error;
+
+        if (!bidPacks || bidPacks.length === 0) {
+          container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No bid packs available at this time.</p>';
+          return;
+        }
+
+        container.innerHTML = bidPacks.map(pack => {
+          const totalBids = pack.bid_count + (pack.bonus_bids || 0);
+          const effectivePrice = (pack.price / totalBids).toFixed(2);
+          
+          return `
+            <div class="pack-card ${pack.is_popular ? 'featured' : ''}">
+              ${pack.is_popular ? '<div class="pack-badge">BEST VALUE</div>' : ''}
+              
+              <div class="pack-icon">🎟️</div>
+              <h3 class="pack-name">${pack.name}</h3>
+              
+              <div class="pack-bids">
+                <span class="pack-bids-count">${pack.bid_count}</span>
+                <span class="pack-bids-label"> bids</span>
+                ${pack.bonus_bids > 0 ? `<div class="pack-bonus">+${pack.bonus_bids} FREE bonus!</div>` : ''}
+              </div>
+
+              <div class="pack-price">$${pack.price.toFixed(2)}</div>
+              <div class="pack-per-bid">$${effectivePrice} per bid</div>
+
+              <a href="/signup-provider.html" class="pack-btn ${pack.is_popular ? 'primary' : ''}">
+                Get Started
+              </a>
+            </div>
+          `;
+        }).join('');
+
+      } catch (err) {
+        console.error('Error loading bid packs:', err);
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">Unable to load bid packs. Please try again later.</p>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      // Wait for supabaseClient to initialize
+      const checkClient = setInterval(() => {
+        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+          clearInterval(checkClient);
+          loadBidPacks();
+        }
+      }, 100);
+      
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        clearInterval(checkClient);
+        if (typeof supabaseClient === 'undefined' || !supabaseClient) {
+          document.getElementById('packs-grid').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">Unable to load bid packs. Please try again later.</p>';
+        }
+      }, 5000);
+    });
+  </script>
 
   <script src="footer.js"></script>
 </body>
