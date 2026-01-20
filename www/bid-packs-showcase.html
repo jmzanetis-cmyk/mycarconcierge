@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bid Packs - My Car Concierge</title>
+  <meta name="description" content="Purchase bid credits to compete for automotive service jobs on My Car Concierge.">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.85);
+      --bg-elevated: rgba(28, 28, 42, 0.95);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-gold-soft: rgba(212, 168, 85, 0.15);
+      --accent-blue: #4a7cff;
+      --accent-green: #4ac88c;
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-medium: rgba(148, 148, 168, 0.2);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    .header {
+      text-align: center;
+      padding: 60px 24px 40px;
+      background: linear-gradient(180deg, rgba(18, 18, 28, 0.9) 0%, transparent 100%);
+    }
+
+    .logo {
+      width: 120px;
+      height: auto;
+      margin-bottom: 24px;
+    }
+
+    .header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.5rem;
+      font-weight: 500;
+      margin-bottom: 12px;
+    }
+
+    .header h1 span {
+      color: var(--accent-gold);
+    }
+
+    .header p {
+      color: var(--text-secondary);
+      font-size: 1.1rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    .packs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-bottom: 60px;
+    }
+
+    .pack-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 32px 28px;
+      text-align: center;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .pack-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(212, 168, 85, 0.3);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .pack-card.featured {
+      border-color: var(--accent-gold);
+      background: linear-gradient(180deg, rgba(212, 168, 85, 0.08) 0%, var(--bg-card) 100%);
+    }
+
+    .pack-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, var(--accent-gold), #c49a45);
+      color: #0a0a0f;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .pack-icon {
+      font-size: 2.5rem;
+      margin-bottom: 16px;
+    }
+
+    .pack-name {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .pack-bids {
+      font-size: 3rem;
+      font-weight: 700;
+      color: var(--accent-gold);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .pack-bids-label {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    .pack-price {
+      font-size: 2rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .pack-per-bid {
+      background: var(--accent-gold-soft);
+      color: var(--accent-gold);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: inline-block;
+      margin-bottom: 24px;
+    }
+
+    .pack-features {
+      list-style: none;
+      text-align: left;
+      margin-bottom: 24px;
+    }
+
+    .pack-features li {
+      padding: 8px 0;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .pack-features li::before {
+      content: "✓";
+      color: var(--accent-green);
+      font-weight: bold;
+    }
+
+    .pack-btn {
+      display: block;
+      width: 100%;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, var(--accent-gold), #c49a45);
+      color: #0a0a0f;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      text-decoration: none;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+
+    .pack-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35);
+    }
+
+    .info-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 40px;
+      margin-bottom: 40px;
+    }
+
+    .info-section h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem;
+      font-weight: 500;
+      margin-bottom: 24px;
+      color: var(--accent-gold);
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 32px;
+    }
+
+    .info-item h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .info-item p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    .cta-section {
+      text-align: center;
+      padding: 40px;
+      background: linear-gradient(135deg, rgba(212, 168, 85, 0.1), rgba(74, 124, 255, 0.05));
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+    }
+
+    .cta-section h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      margin-bottom: 12px;
+    }
+
+    .cta-section p {
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .cta-btn {
+      display: inline-block;
+      padding: 16px 40px;
+      background: linear-gradient(135deg, var(--accent-gold), #c49a45);
+      color: #0a0a0f;
+      font-family: inherit;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35);
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+      transition: color 0.2s;
+    }
+
+    .back-link:hover {
+      color: var(--accent-gold);
+    }
+
+    @media (max-width: 768px) {
+      .header h1 {
+        font-size: 2rem;
+      }
+      
+      .pack-card {
+        padding: 28px 24px;
+      }
+      
+      .info-section {
+        padding: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <a href="/">
+      <img src="logo.png" alt="My Car Concierge" class="logo">
+    </a>
+    <h1>Provider <span>Bid Packs</span></h1>
+    <p>Purchase bid credits to compete for automotive service jobs. The more you buy, the more you save.</p>
+  </div>
+
+  <div class="container">
+    <a href="/provider-pilot.html" class="back-link">← Back to Provider Program</a>
+
+    <div class="packs-grid">
+      <div class="pack-card">
+        <div class="pack-icon">🔌</div>
+        <div class="pack-name">Jumper Cables</div>
+        <div class="pack-bids">1</div>
+        <div class="pack-bids-label">bid credit</div>
+        <div class="pack-price">$10</div>
+        <div class="pack-per-bid">$10.00 per bid</div>
+        <ul class="pack-features">
+          <li>Try it out risk-free</li>
+          <li>Perfect for testing</li>
+          <li>No commitment</li>
+        </ul>
+        <a href="/signup-provider.html" class="pack-btn">Get Started</a>
+      </div>
+
+      <div class="pack-card">
+        <div class="pack-icon">🔧</div>
+        <div class="pack-name">Starter</div>
+        <div class="pack-bids">5</div>
+        <div class="pack-bids-label">bid credits</div>
+        <div class="pack-price">$25</div>
+        <div class="pack-per-bid">$5.00 per bid</div>
+        <ul class="pack-features">
+          <li>50% savings per bid</li>
+          <li>Great for new providers</li>
+          <li>Build your reputation</li>
+        </ul>
+        <a href="/signup-provider.html" class="pack-btn">Get Started</a>
+      </div>
+
+      <div class="pack-card featured">
+        <div class="pack-badge">Most Popular</div>
+        <div class="pack-icon">⚙️</div>
+        <div class="pack-name">Standard</div>
+        <div class="pack-bids">15</div>
+        <div class="pack-bids-label">bid credits</div>
+        <div class="pack-price">$60</div>
+        <div class="pack-per-bid">$4.00 per bid</div>
+        <ul class="pack-features">
+          <li>60% savings per bid</li>
+          <li>Best value for active shops</li>
+          <li>Consistent bidding power</li>
+        </ul>
+        <a href="/signup-provider.html" class="pack-btn">Get Started</a>
+      </div>
+
+      <div class="pack-card">
+        <div class="pack-icon">🏆</div>
+        <div class="pack-name">Professional</div>
+        <div class="pack-bids">50</div>
+        <div class="pack-bids-label">bid credits</div>
+        <div class="pack-price">$150</div>
+        <div class="pack-per-bid">$3.00 per bid</div>
+        <ul class="pack-features">
+          <li>70% savings per bid</li>
+          <li>For serious providers</li>
+          <li>Maximum flexibility</li>
+        </ul>
+        <a href="/signup-provider.html" class="pack-btn">Get Started</a>
+      </div>
+
+      <div class="pack-card">
+        <div class="pack-icon">🏢</div>
+        <div class="pack-name">Enterprise</div>
+        <div class="pack-bids">100</div>
+        <div class="pack-bids-label">bid credits</div>
+        <div class="pack-price">$250</div>
+        <div class="pack-per-bid">$2.50 per bid</div>
+        <ul class="pack-features">
+          <li>75% savings per bid</li>
+          <li>Best price per bid</li>
+          <li>For high-volume shops</li>
+        </ul>
+        <a href="/signup-provider.html" class="pack-btn">Get Started</a>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <h2>How Bidding Works</h2>
+      <div class="info-grid">
+        <div class="info-item">
+          <h3>You Choose Your Jobs</h3>
+          <p>Browse available service requests and only bid on jobs that fit your shop's capabilities and schedule. You're never obligated to bid.</p>
+        </div>
+        <div class="info-item">
+          <h3>One Credit Per Bid</h3>
+          <p>Each bid you submit uses one credit from your pack. If you win the job, you get paid. If not, you've invested in visibility.</p>
+        </div>
+        <div class="info-item">
+          <h3>Escrow Protection</h3>
+          <p>When a member accepts your bid, funds are held in escrow. Complete the work, get confirmation, and receive guaranteed payment.</p>
+        </div>
+        <div class="info-item">
+          <h3>Build Your Reputation</h3>
+          <p>Every completed job earns you a rating. High ratings mean better visibility and more wins on future bids.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="cta-section">
+      <h2>Ready to Grow Your Business?</h2>
+      <p>Join My Car Concierge as a provider and start winning new customers without advertising costs.</p>
+      <a href="/signup-provider.html" class="cta-btn">Become a Provider</a>
+    </div>
+  </div>
+
+  <script src="footer.js"></script>
+</body>
+</html>
