@@ -926,38 +926,38 @@
   <header class="header">
     <a href="/" class="header-brand">
       <img src="logo.png" alt="My Car Concierge">
-      <span class="header-brand-text">Founder Dashboard</span>
+      <span class="header-brand-text" data-i18n="founderDashboard.title">Founder Dashboard</span>
     </a>
     <nav class="header-nav">
       <div id="language-switcher"></div>
-      <a href="members.html" class="btn btn-secondary">🏠 Member Portal</a>
-      <button class="btn btn-danger" onclick="logout()">🚪 Log Out</button>
+      <a href="members.html" class="btn btn-secondary" data-i18n="founderDashboard.memberPortal">🏠 Member Portal</a>
+      <button class="btn btn-danger" onclick="logout()" data-i18n="founderDashboard.logOut">🚪 Log Out</button>
     </nav>
   </header>
 
   <main class="main" id="main-content" style="display: none;">
     <section class="welcome-section">
-      <h1 class="welcome-title">Welcome, <span id="founder-name">Founder</span>!</h1>
-      <p class="welcome-subtitle">Thank you for being a Member Founder. Track your referrals and earnings below.</p>
+      <h1 class="welcome-title"><span data-i18n="founderDashboard.welcomePrefix">Welcome,</span> <span id="founder-name">Founder</span>!</h1>
+      <p class="welcome-subtitle" data-i18n="founderDashboard.welcomeSubtitle">Thank you for being a Member Founder. Track your referrals and earnings below.</p>
       
       <div class="referral-code-box">
         <div>
-          <div class="referral-code-label">Your Referral Code</div>
+          <div class="referral-code-label" data-i18n="founderDashboard.yourReferralCode">Your Referral Code</div>
           <div class="referral-code-value" id="referral-code">----</div>
         </div>
-        <button class="referral-code-copy" onclick="copyReferralCode()">📋 Copy Code</button>
+        <button class="referral-code-copy" onclick="copyReferralCode()" data-i18n="founderDashboard.copyCode">📋 Copy Code</button>
       </div>
 
       <div class="share-section">
-        <button class="share-btn" onclick="copyShareLink('member')" style="border-color:var(--accent-gold);">🔗 Copy Member Link</button>
-        <button class="share-btn" onclick="copyShareLink('provider')" style="border-color:var(--accent-blue);">🔗 Copy Provider Link</button>
-        <button class="share-btn" onclick="shareViaEmail('member')">📧 Email Member Invite</button>
-        <button class="share-btn" onclick="shareViaEmail('provider')">📧 Email Provider Invite</button>
+        <button class="share-btn" onclick="copyShareLink('member')" style="border-color:var(--accent-gold);" data-i18n="founderDashboard.copyMemberLink">🔗 Copy Member Link</button>
+        <button class="share-btn" onclick="copyShareLink('provider')" style="border-color:var(--accent-blue);" data-i18n="founderDashboard.copyProviderLink">🔗 Copy Provider Link</button>
+        <button class="share-btn" onclick="shareViaEmail('member')" data-i18n="founderDashboard.emailMemberInvite">📧 Email Member Invite</button>
+        <button class="share-btn" onclick="shareViaEmail('provider')" data-i18n="founderDashboard.emailProviderInvite">📧 Email Provider Invite</button>
       </div>
 
       <div class="tier-section" id="tier-section">
         <div class="tier-header">
-          <span style="font-size:1rem;color:var(--text-secondary);">Your Commission Tier:</span>
+          <span style="font-size:1rem;color:var(--text-secondary);" data-i18n="founderDashboard.yourCommissionTier">Your Commission Tier:</span>
           <span class="tier-badge bronze" id="tier-badge">🥉 Bronze</span>
         </div>
         <div class="tier-progress-container">
@@ -972,7 +972,7 @@
         <div class="tier-rates">
           <div class="tier-rate-item">
             <div class="tier-rate-value" id="tier-rate-bidpack">50%</div>
-            <div class="tier-rate-label">Provider Referral Commission</div>
+            <div class="tier-rate-label" data-i18n="founderDashboard.providerReferralCommission">Provider Referral Commission</div>
           </div>
         </div>
         <div class="tier-next-info" id="tier-next-info">
@@ -981,24 +981,24 @@
       </div>
 
       <div class="qr-section" style="margin-top:24px;text-align:center;">
-        <div style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:16px;">Share via QR Code</div>
+        <div style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:16px;" data-i18n="founderDashboard.shareViaQRCode">Share via QR Code</div>
         <div style="display:flex;justify-content:center;gap:32px;flex-wrap:wrap;">
           <div style="text-align:center;">
-            <div style="font-size:0.85rem;color:var(--accent-gold);font-weight:600;margin-bottom:8px;">Member Signup</div>
+            <div style="font-size:0.85rem;color:var(--accent-gold);font-weight:600;margin-bottom:8px;" data-i18n="founderDashboard.memberSignup">Member Signup</div>
             <div style="display:inline-block;background:#fff;padding:16px;border-radius:var(--radius-md);border:2px solid var(--accent-gold);">
               <canvas id="qr-code-member" style="display:block;"></canvas>
             </div>
             <div style="margin-top:12px;">
-              <button class="share-btn" onclick="downloadQRCode('member')">📥 Download Member QR</button>
+              <button class="share-btn" onclick="downloadQRCode('member')" data-i18n="founderDashboard.downloadMemberQR">📥 Download Member QR</button>
             </div>
           </div>
           <div style="text-align:center;">
-            <div style="font-size:0.85rem;color:var(--accent-blue);font-weight:600;margin-bottom:8px;">Provider Signup</div>
+            <div style="font-size:0.85rem;color:var(--accent-blue);font-weight:600;margin-bottom:8px;" data-i18n="founderDashboard.providerSignup">Provider Signup</div>
             <div style="display:inline-block;background:#fff;padding:16px;border-radius:var(--radius-md);border:2px solid var(--accent-blue);">
               <canvas id="qr-code-provider" style="display:block;"></canvas>
             </div>
             <div style="margin-top:12px;">
-              <button class="share-btn" onclick="downloadQRCode('provider')">📥 Download Provider QR</button>
+              <button class="share-btn" onclick="downloadQRCode('provider')" data-i18n="founderDashboard.downloadProviderQR">📥 Download Provider QR</button>
             </div>
           </div>
         </div>
@@ -1009,43 +1009,43 @@
       <div class="stat-card">
         <div class="stat-icon blue">👨‍🔧</div>
         <div class="stat-value" id="stat-provider-referrals">0</div>
-        <div class="stat-label">Provider Referrals</div>
+        <div class="stat-label" data-i18n="founderDashboard.providerReferrals">Provider Referrals</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon gold">👥</div>
         <div class="stat-value" id="stat-member-referrals">0</div>
-        <div class="stat-label">Member Referrals</div>
+        <div class="stat-label" data-i18n="founderDashboard.memberReferrals">Member Referrals</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon green">💰</div>
         <div class="stat-value" id="stat-total-earnings">$0.00</div>
-        <div class="stat-label">Total Earnings</div>
+        <div class="stat-label" data-i18n="founderDashboard.totalEarnings">Total Earnings</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon orange">⏳</div>
         <div class="stat-value" id="stat-pending-balance">$0.00</div>
-        <div class="stat-label">Pending Balance</div>
+        <div class="stat-label" data-i18n="founderDashboard.pendingBalance">Pending Balance</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon blue">📅</div>
         <div class="stat-value" id="stat-next-payout" style="font-size: 1.2rem;">--</div>
-        <div class="stat-label">Next Payout Date</div>
+        <div class="stat-label" data-i18n="founderDashboard.nextPayoutDate">Next Payout Date</div>
       </div>
     </section>
 
     <section class="card" style="margin-bottom: 20px;">
       <div class="card-header">
-        <h2 class="card-title">📊 Commission Analytics</h2>
+        <h2 class="card-title" data-i18n="founderDashboard.commissionAnalytics">📊 Commission Analytics</h2>
       </div>
       <div class="analytics-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
         <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px;">
-          <h3 style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 16px; text-align: center;">Earnings Over Time</h3>
+          <h3 style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 16px; text-align: center;" data-i18n="founderDashboard.earningsOverTime">Earnings Over Time</h3>
           <div style="position: relative; height: 250px;">
             <canvas id="earnings-chart"></canvas>
           </div>
         </div>
         <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px;">
-          <h3 style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 16px; text-align: center;">Earnings Breakdown</h3>
+          <h3 style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 16px; text-align: center;" data-i18n="founderDashboard.earningsBreakdown">Earnings Breakdown</h3>
           <div style="position: relative; height: 250px;">
             <canvas id="breakdown-chart"></canvas>
           </div>
@@ -1053,38 +1053,38 @@
       </div>
       <div class="empty-state" id="analytics-empty" style="display: none;">
         <div class="empty-state-icon">📊</div>
-        <p>No commission data available yet.</p>
+        <p data-i18n="founderDashboard.noCommissionData">No commission data available yet.</p>
       </div>
     </section>
 
     <section class="card" style="margin-bottom: 20px;">
       <div class="card-header">
-        <h2 class="card-title">🔔 Recent Activity</h2>
+        <h2 class="card-title" data-i18n="founderDashboard.recentActivity">🔔 Recent Activity</h2>
       </div>
       <div class="activity-feed" id="activity-feed">
       </div>
       <div class="empty-state" id="activity-empty" style="display: none;">
         <div class="empty-state-icon">🔔</div>
-        <p>No activity yet. Your referral activity will appear here.</p>
+        <p data-i18n="founderDashboard.noActivityYet">No activity yet. Your referral activity will appear here.</p>
       </div>
     </section>
 
     <section class="card" style="margin-bottom: 20px;">
       <div class="card-header">
-        <h2 class="card-title">🏆 Top Founders Leaderboard</h2>
+        <h2 class="card-title" data-i18n="founderDashboard.topFoundersLeaderboard">🏆 Top Founders Leaderboard</h2>
       </div>
       <div class="leaderboard-optin">
         <input type="checkbox" id="leaderboard-optin-checkbox" onchange="toggleLeaderboardOptIn()">
-        <label for="leaderboard-optin-checkbox">Show me on the leaderboard</label>
-        <span class="optin-description">Your name and stats will be visible to other founders</span>
+        <label for="leaderboard-optin-checkbox" data-i18n="founderDashboard.showMeOnLeaderboard">Show me on the leaderboard</label>
+        <span class="optin-description" data-i18n="founderDashboard.leaderboardVisibilityNote">Your name and stats will be visible to other founders</span>
       </div>
       <table class="leaderboard" id="leaderboard-table">
         <thead>
           <tr>
-            <th>Rank</th>
-            <th>Founder</th>
-            <th>Total Referrals</th>
-            <th>Earnings</th>
+            <th data-i18n="founderDashboard.rank">Rank</th>
+            <th data-i18n="founderDashboard.founder">Founder</th>
+            <th data-i18n="founderDashboard.totalReferrals">Total Referrals</th>
+            <th data-i18n="founderDashboard.earnings">Earnings</th>
           </tr>
         </thead>
         <tbody id="leaderboard-tbody">
@@ -1092,25 +1092,25 @@
       </table>
       <div class="empty-state" id="leaderboard-empty" style="display: none;">
         <div class="empty-state-icon">🏆</div>
-        <p>No founders on the leaderboard yet. Be the first to opt in!</p>
+        <p data-i18n="founderDashboard.noFoundersOnLeaderboard">No founders on the leaderboard yet. Be the first to opt in!</p>
       </div>
     </section>
 
     <div class="card">
       <div class="tabs">
-        <div class="tab active" data-tab="referrals">📋 Referrals</div>
-        <div class="tab" data-tab="commissions">💵 Commissions</div>
-        <div class="tab" data-tab="payouts">📤 Payouts</div>
+        <div class="tab active" data-tab="referrals" data-i18n="founderDashboard.tabReferrals">📋 Referrals</div>
+        <div class="tab" data-tab="commissions" data-i18n="founderDashboard.tabCommissions">💵 Commissions</div>
+        <div class="tab" data-tab="payouts" data-i18n="founderDashboard.tabPayouts">📤 Payouts</div>
       </div>
 
       <div id="referrals-tab" class="tab-content active">
         <table id="referrals-table">
           <thead>
             <tr>
-              <th>Type</th>
-              <th>Name / Email</th>
-              <th>Date Referred</th>
-              <th>Status</th>
+              <th data-i18n="founderDashboard.type">Type</th>
+              <th data-i18n="founderDashboard.nameEmail">Name / Email</th>
+              <th data-i18n="founderDashboard.dateReferred">Date Referred</th>
+              <th data-i18n="founderDashboard.status">Status</th>
             </tr>
           </thead>
           <tbody id="referrals-tbody">
@@ -1118,7 +1118,7 @@
         </table>
         <div class="empty-state" id="referrals-empty" style="display: none;">
           <div class="empty-state-icon">📋</div>
-          <p>No referrals yet. Share your code to start earning!</p>
+          <p data-i18n="founderDashboard.noReferralsYet">No referrals yet. Share your code to start earning!</p>
         </div>
       </div>
 
@@ -1126,10 +1126,10 @@
         <table id="commissions-table">
           <thead>
             <tr>
-              <th>Type</th>
-              <th>Amount</th>
-              <th>Date</th>
-              <th>Status</th>
+              <th data-i18n="founderDashboard.type">Type</th>
+              <th data-i18n="founderDashboard.amount">Amount</th>
+              <th data-i18n="founderDashboard.date">Date</th>
+              <th data-i18n="founderDashboard.status">Status</th>
             </tr>
           </thead>
           <tbody id="commissions-tbody">
@@ -1137,7 +1137,7 @@
         </table>
         <div class="empty-state" id="commissions-empty" style="display: none;">
           <div class="empty-state-icon">💵</div>
-          <p>No commissions yet. Commissions are earned when your referrals make purchases.</p>
+          <p data-i18n="founderDashboard.noCommissionsYet">No commissions yet. Commissions are earned when your referrals make purchases.</p>
         </div>
       </div>
 
@@ -1145,11 +1145,11 @@
         <table id="payouts-table">
           <thead>
             <tr>
-              <th>Period</th>
-              <th>Amount</th>
-              <th>Method</th>
-              <th>Status</th>
-              <th>Date</th>
+              <th data-i18n="founderDashboard.period">Period</th>
+              <th data-i18n="founderDashboard.amount">Amount</th>
+              <th data-i18n="founderDashboard.method">Method</th>
+              <th data-i18n="founderDashboard.status">Status</th>
+              <th data-i18n="founderDashboard.date">Date</th>
             </tr>
           </thead>
           <tbody id="payouts-tbody">
@@ -1157,62 +1157,62 @@
         </table>
         <div class="empty-state" id="payouts-empty" style="display: none;">
           <div class="empty-state-icon">📤</div>
-          <p>No payouts yet. Payouts are processed on the 15th of each month for balances ≥ $25.</p>
+          <p data-i18n="founderDashboard.noPayoutsYet">No payouts yet. Payouts are processed on the 15th of each month for balances ≥ $25.</p>
         </div>
       </div>
     </div>
 
     <section class="payout-settings">
-      <h2 class="payout-settings-title">💳 Payout Settings</h2>
+      <h2 class="payout-settings-title" data-i18n="founderDashboard.payoutSettings">💳 Payout Settings</h2>
       <form id="payout-settings-form">
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Payout Method</label>
+            <label class="form-label" data-i18n="founderDashboard.payoutMethod">Payout Method</label>
             <select class="form-select" id="payout-method">
-              <option value="stripe_connect">Stripe Connect (Instant)</option>
+              <option value="stripe_connect" data-i18n="founderDashboard.stripeConnect">Stripe Connect (Instant)</option>
               <option value="paypal">PayPal</option>
               <option value="venmo">Venmo</option>
               <option value="zelle">Zelle</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="check">Check</option>
+              <option value="bank_transfer" data-i18n="founderDashboard.bankTransfer">Bank Transfer</option>
+              <option value="check" data-i18n="founderDashboard.check">Check</option>
             </select>
           </div>
           <div class="form-group" id="payout-email-group">
-            <label class="form-label" id="payout-email-label">PayPal Email</label>
+            <label class="form-label" id="payout-email-label" data-i18n="founderDashboard.paypalEmail">PayPal Email</label>
             <input type="text" class="form-input" id="payout-email" placeholder="your@email.com">
           </div>
           <div class="form-group" id="stripe-connect-group" style="display: none;">
-            <label class="form-label">Stripe Account</label>
+            <label class="form-label" data-i18n="founderDashboard.stripeAccount">Stripe Account</label>
             <div id="stripe-connect-status">
               <button type="button" class="btn btn-primary" id="stripe-connect-btn" onclick="initiateStripeConnect()">
                 <svg style="width:18px;height:18px;margin-right:6px;" viewBox="0 0 24 24" fill="currentColor"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z"/></svg>
-                Connect with Stripe
+                <span data-i18n="founderDashboard.connectWithStripe">Connect with Stripe</span>
               </button>
             </div>
             <div id="stripe-connect-connected" style="display: none;">
               <div style="display: flex; align-items: center; gap: 12px;">
-                <span style="color: var(--accent-green); font-weight: 600;">✓ Connected</span>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="initiateStripeConnect()">Update Account</button>
-                <button type="button" class="btn btn-ghost btn-sm" onclick="checkStripeConnectStatus()">Check Status</button>
+                <span style="color: var(--accent-green); font-weight: 600;" data-i18n="founderDashboard.connected">✓ Connected</span>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="initiateStripeConnect()" data-i18n="founderDashboard.updateAccount">Update Account</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="checkStripeConnectStatus()" data-i18n="founderDashboard.checkStatus">Check Status</button>
               </div>
             </div>
           </div>
         </div>
-        <button type="submit" class="btn btn-primary">💾 Save Payout Settings</button>
+        <button type="submit" class="btn btn-primary" data-i18n="founderDashboard.savePayoutSettings">💾 Save Payout Settings</button>
       </form>
     </section>
   </main>
 
   <div class="not-founder-message" id="not-founder-message" style="display: none;">
-    <h2>🔒 Founder Access Required</h2>
-    <p>This dashboard is only available to approved Member Founders.</p>
-    <p>If you've applied to become a founder, please wait for approval.</p>
-    <a href="member-founder.html" class="btn btn-primary">Apply to Become a Founder</a>
-    <a href="members.html" class="btn btn-secondary" style="margin-left: 12px;">Go to Member Portal</a>
+    <h2 data-i18n="founderDashboard.founderAccessRequired">🔒 Founder Access Required</h2>
+    <p data-i18n="founderDashboard.dashboardOnlyForFounders">This dashboard is only available to approved Member Founders.</p>
+    <p data-i18n="founderDashboard.waitForApproval">If you've applied to become a founder, please wait for approval.</p>
+    <a href="member-founder.html" class="btn btn-primary" data-i18n="founderDashboard.applyToBecomeFounder">Apply to Become a Founder</a>
+    <a href="members.html" class="btn btn-secondary" style="margin-left: 12px;" data-i18n="founderDashboard.goToMemberPortal">Go to Member Portal</a>
   </div>
 
   <div class="toast" id="toast">
-    <span id="toast-message">Copied!</span>
+    <span id="toast-message" data-i18n="founderDashboard.copied">Copied!</span>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
