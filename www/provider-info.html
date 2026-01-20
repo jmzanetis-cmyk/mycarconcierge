@@ -34,7 +34,8 @@
     
     .header { text-align: center; padding: 60px 20px 40px; }
     .header-brand { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 24px; text-decoration: none; }
-    .header-brand img { height: 120px; width: auto; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+    .header-brand img { height: 120px; width: auto; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; transition: all 0.3s ease; }
+    .header-brand:hover img { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
     .header h1 { font-family: 'Playfair Display', serif; font-size: 2.5rem; margin-bottom: 16px; }
     .header p { color: var(--text-secondary); font-size: 1.1rem; max-width: 600px; margin: 0 auto; }
     

@@ -48,7 +48,8 @@
 
     .header { text-align: center; margin-bottom: 40px; }
     .header-brand { display: inline-flex; align-items: center; gap: 14px; text-decoration: none; margin-bottom: 24px; }
-    .header-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+    .header-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; transition: all 0.3s ease; }
+    .header-brand:hover img { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
     .header h1 { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 12px; }
     .header p { color: var(--text-secondary); font-size: 1rem; max-width: 500px; margin: 0 auto; }
 

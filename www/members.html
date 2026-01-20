@@ -60,7 +60,8 @@
     .sidebar { width: 260px; background: linear-gradient(180deg, rgba(18, 18, 28, 0.98) 0%, rgba(12, 12, 20, 0.99) 100%); border-right: 1px solid var(--border-subtle); padding: 20px 12px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; backdrop-filter: blur(20px); scrollbar-width: none; -ms-overflow-style: none; }
     .sidebar::-webkit-scrollbar { display: none; }
     .sidebar-brand { display: flex; align-items: center; justify-content: center; padding: 8px 12px 20px; border-bottom: 1px solid rgba(148, 148, 168, 0.08); margin-bottom: 20px; text-decoration: none; }
-    .sidebar-brand-icon { height: 72px; width: auto; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: drop-shadow(0 2px 12px rgba(74, 124, 255, 0.2)); }
+    .sidebar-brand-icon { height: 72px; width: auto; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: drop-shadow(0 2px 12px rgba(74, 124, 255, 0.2)); transition: all 0.3s ease; }
+    .sidebar-brand:hover .sidebar-brand-icon { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
     .sidebar-brand-text { font-family: 'Playfair Display', serif; font-weight: 500; color: var(--text-primary); font-size: 1.05rem; }
     .nav-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); padding: 16px 14px 8px; margin-bottom: 4px; font-weight: 600; opacity: 0.7; }
     .nav-label:first-of-type { margin-top: 0; padding-top: 0; }

@@ -54,7 +54,8 @@
 
     .sidebar { width: 260px; background: var(--bg-card); border-right: 1px solid var(--border-subtle); padding: 24px 16px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; }
     .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 24px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 24px; text-decoration: none; }
-    .sidebar-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+    .sidebar-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; transition: all 0.3s ease; }
+    .sidebar-brand:hover img { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
     .sidebar-brand span { font-family: 'Playfair Display', serif; font-weight: 500; color: var(--text-primary); }
     .nav-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); padding: 0 12px; margin: 20px 0 8px; }
     .nav-label:first-of-type { margin-top: 0; }
