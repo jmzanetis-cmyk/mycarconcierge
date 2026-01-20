@@ -19,6 +19,7 @@ Key features include:
 - **Provider Rating & Suspension System**: Automatically suspends providers whose average rating drops below 4.0 stars (with 3+ reviews), refunds remaining bid credits, and notifies the provider. Admins can lift suspensions.
 - **Two-Factor Authentication (2FA)**: SMS-based 2FA using Twilio, with server-side enforcement on over 65 protected API endpoints. Features include hashed codes, 5-minute expiry, 1-hour session validity, and database-backed rate limiting.
 - **Provider Team Management**: Allows provider accounts to add multiple team members (Owner, Admin, Staff) with role-based access to the provider dashboard via an email invitation system.
+- **My Next Car (Car Shopping Tool)**: Allows members to track and compare prospective vehicle purchases. Features include VIN lookup via free NHTSA API, manual vehicle entry, side-by-side comparison (2-4 vehicles), personal preferences with match scoring, and status tracking (considering, test driven, offer made, purchased, passed). Database tables: `prospect_vehicles`, `member_car_preferences`.
 
 ## External Dependencies
 - **Supabase**: Backend services including PostgreSQL database, authentication, and storage.

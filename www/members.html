@@ -643,6 +643,7 @@
     
     <div class="nav-label" data-i18n="member.navDigitalGarage">Digital Garage</div>
     <div class="nav-item" data-section="vehicles"><span data-i18n="member.myVehicles">🚗 My Vehicles</span></div>
+    <div class="nav-item" data-section="my-next-car" style="background:linear-gradient(135deg, rgba(74,200,140,0.1), rgba(74,124,255,0.05));border:1px solid rgba(74,200,140,0.2);"><span style="color:var(--accent-green);">🚘 My Next Car</span> <span class="nav-badge" id="prospect-count" style="display:none;">0</span></div>
     <div class="nav-item" data-section="maintenance-schedule"><span>🔧 Maintenance Schedule</span> <span class="nav-badge" id="maintenance-due-count" style="display:none;background:var(--accent-orange);">0</span></div>
     <div class="nav-item" data-section="learn"><span>🎓 My Car Concierge Academy</span></div>
     <div class="nav-item" data-section="household"><span>👨‍👩‍👧‍👦 Household</span> <span class="nav-badge" id="household-count" style="display:none;">0</span></div>
@@ -841,6 +842,343 @@
         </div>
       </div>
     </section>
+
+    <!-- My Next Car Section -->
+    <section id="my-next-car" class="section">
+      <div class="page-header" style="margin-bottom: 32px;">
+        <h1 class="page-title" style="font-size: 2rem; font-weight: 700; letter-spacing: -0.5px;">🚘 My Next Car</h1>
+        <p class="page-subtitle" style="font-size: 1rem; margin-top: 8px;">Compare vehicles you're considering and find your perfect match.</p>
+      </div>
+
+      <div class="tabs" style="margin-bottom: 24px;">
+        <div class="tab active" data-prospect-tab="prospects" onclick="showProspectTab('prospects')">🚗 Prospects</div>
+        <div class="tab" data-prospect-tab="compare" onclick="showProspectTab('compare')">⚖️ Compare</div>
+        <div class="tab" data-prospect-tab="preferences" onclick="showProspectTab('preferences')">⚙️ My Preferences</div>
+      </div>
+
+      <!-- Prospects Tab -->
+      <div id="prospects-tab" class="prospect-tab-content">
+        <div style="margin-bottom: 24px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: space-between; align-items: center;">
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button class="btn btn-primary" onclick="openAddProspectModal()" style="padding: 12px 24px; font-weight: 600; border-radius: 100px;">
+              + Add Prospect Vehicle
+            </button>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <select id="prospect-filter" onchange="filterProspects()" style="padding: 8px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 0.88rem;">
+              <option value="all">All Prospects</option>
+              <option value="considering">Considering</option>
+              <option value="test_driven">Test Driven</option>
+              <option value="offer_made">Offer Made</option>
+              <option value="purchased">Purchased</option>
+              <option value="passed">Passed</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="vehicles-grid" id="prospects-grid">
+          <div class="empty-state">
+            <div class="empty-state-icon">🚘</div>
+            <p>No prospect vehicles yet.</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">Add vehicles you're considering to compare them.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Compare Tab -->
+      <div id="compare-tab" class="prospect-tab-content" style="display: none;">
+        <div style="margin-bottom: 24px; padding: 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);">
+          <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px;">Select vehicles to compare (2-4):</h3>
+          <div id="compare-selection" style="display: flex; flex-wrap: wrap; gap: 12px;">
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Add prospect vehicles first to compare them.</p>
+          </div>
+          <button class="btn btn-primary" onclick="generateComparison()" style="margin-top: 16px;" id="compare-btn" disabled>
+            Compare Selected
+          </button>
+        </div>
+
+        <div id="comparison-results" style="display: none;">
+          <div class="card">
+            <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 20px;">📊 Side-by-Side Comparison</h3>
+            <div style="overflow-x: auto;">
+              <table id="comparison-table" style="width: 100%; border-collapse: collapse; min-width: 600px;">
+                <thead id="comparison-thead"></thead>
+                <tbody id="comparison-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preferences Tab -->
+      <div id="preferences-tab" class="prospect-tab-content" style="display: none;">
+        <div class="card">
+          <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 8px;">🎯 My Ideal Car Preferences</h3>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 24px;">Set your preferences and we'll calculate a match score for each prospect vehicle.</p>
+
+          <form id="preferences-form" onsubmit="saveCarPreferences(event)">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;">Budget Range</label>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                  <input type="number" id="pref-min-budget" placeholder="Min $" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <span style="color: var(--text-muted);">to</span>
+                  <input type="number" id="pref-max-budget" placeholder="Max $" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;">Year Range</label>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                  <input type="number" id="pref-min-year" placeholder="Min Year" min="1990" max="2030" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <span style="color: var(--text-muted);">to</span>
+                  <input type="number" id="pref-max-year" placeholder="Max Year" min="1990" max="2030" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;">Maximum Mileage</label>
+                <input type="number" id="pref-max-mileage" placeholder="e.g. 50000" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;">Fuel Preference</label>
+                <select id="pref-fuel" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <option value="">No Preference</option>
+                  <option value="Gasoline">Gasoline</option>
+                  <option value="Diesel">Diesel</option>
+                  <option value="Hybrid">Hybrid</option>
+                  <option value="Electric">Electric</option>
+                  <option value="Plug-in Hybrid">Plug-in Hybrid</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;">Transmission Preference</label>
+                <select id="pref-transmission" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <option value="">No Preference</option>
+                  <option value="Automatic">Automatic</option>
+                  <option value="Manual">Manual</option>
+                  <option value="CVT">CVT</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;">Drivetrain Preference</label>
+                <select id="pref-drivetrain" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <option value="">No Preference</option>
+                  <option value="FWD">Front-Wheel Drive (FWD)</option>
+                  <option value="RWD">Rear-Wheel Drive (RWD)</option>
+                  <option value="AWD">All-Wheel Drive (AWD)</option>
+                  <option value="4WD">Four-Wheel Drive (4WD)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;">Preferred Makes (comma separated)</label>
+              <input type="text" id="pref-makes" placeholder="e.g. Toyota, Honda, BMW" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;">Must-Have Features (comma separated)</label>
+              <input type="text" id="pref-must-have" placeholder="e.g. Leather seats, Sunroof, Navigation" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;">Deal Breakers (comma separated)</label>
+              <input type="text" id="pref-deal-breakers" placeholder="e.g. Salvage title, More than 2 accidents" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;">Notes</label>
+              <textarea id="pref-notes" rows="3" placeholder="Any other preferences or notes..." style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); resize: vertical;"></textarea>
+            </div>
+
+            <div style="margin-top: 24px; display: flex; gap: 12px;">
+              <button type="submit" class="btn btn-primary">Save Preferences</button>
+              <button type="button" class="btn btn-secondary" onclick="clearCarPreferences()">Clear All</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Add Prospect Vehicle Modal -->
+    <div id="add-prospect-modal" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+          <h2>Add Prospect Vehicle</h2>
+          <button class="modal-close" onclick="closeAddProspectModal()">×</button>
+        </div>
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+          <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-input); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+            <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 12px;">Quick VIN Lookup (Optional)</h4>
+            <div style="display: flex; gap: 12px;">
+              <input type="text" id="prospect-vin-lookup" placeholder="Enter VIN to auto-fill specs" maxlength="17" style="flex: 1; padding: 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); text-transform: uppercase;">
+              <button type="button" class="btn btn-secondary" onclick="lookupProspectVIN()" id="vin-lookup-btn">
+                🔍 Lookup
+              </button>
+            </div>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">Uses free NHTSA database - fills year, make, model, and specs.</p>
+          </div>
+
+          <form id="add-prospect-form" onsubmit="saveProspectVehicle(event)">
+            <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 16px; color: var(--accent-gold);">Vehicle Details</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="form-group">
+                <label>Year *</label>
+                <input type="number" id="prospect-year" required min="1900" max="2030" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group">
+                <label>Make *</label>
+                <input type="text" id="prospect-make" required placeholder="e.g. Toyota" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group">
+                <label>Model *</label>
+                <input type="text" id="prospect-model" required placeholder="e.g. Camry" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group">
+                <label>Trim</label>
+                <input type="text" id="prospect-trim" placeholder="e.g. XLE, Sport" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group">
+                <label>Body Style</label>
+                <select id="prospect-body-style" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <option value="">Select...</option>
+                  <option value="Sedan">Sedan</option>
+                  <option value="SUV">SUV</option>
+                  <option value="Truck">Truck</option>
+                  <option value="Coupe">Coupe</option>
+                  <option value="Hatchback">Hatchback</option>
+                  <option value="Wagon">Wagon</option>
+                  <option value="Convertible">Convertible</option>
+                  <option value="Van">Van/Minivan</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Engine</label>
+                <input type="text" id="prospect-engine" placeholder="e.g. 2.5L 4-cyl" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group">
+                <label>Fuel Type</label>
+                <select id="prospect-fuel-type" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <option value="">Select...</option>
+                  <option value="Gasoline">Gasoline</option>
+                  <option value="Diesel">Diesel</option>
+                  <option value="Hybrid">Hybrid</option>
+                  <option value="Electric">Electric</option>
+                  <option value="Plug-in Hybrid">Plug-in Hybrid</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Mileage</label>
+                <input type="number" id="prospect-mileage" placeholder="e.g. 45000" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group">
+                <label>Asking Price ($)</label>
+                <input type="number" id="prospect-price" placeholder="e.g. 25000" step="0.01" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group">
+                <label>Exterior Color</label>
+                <input type="text" id="prospect-ext-color" placeholder="e.g. Silver" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group">
+                <label>Interior Color</label>
+                <input type="text" id="prospect-int-color" placeholder="e.g. Black leather" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group">
+                <label>VIN (if known)</label>
+                <input type="text" id="prospect-vin" placeholder="17-character VIN" maxlength="17" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); text-transform: uppercase;">
+              </div>
+            </div>
+
+            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);">Seller Information</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="form-group">
+                <label>Seller Type</label>
+                <select id="prospect-seller-type" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <option value="">Select...</option>
+                  <option value="dealer">Dealer</option>
+                  <option value="private">Private Seller</option>
+                  <option value="auction">Auction</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Seller Name</label>
+                <input type="text" id="prospect-seller-name" placeholder="Dealer or seller name" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label>Location</label>
+                <input type="text" id="prospect-location" placeholder="City, State or Address" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label>Listing URL</label>
+                <input type="url" id="prospect-listing-url" placeholder="https://..." style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+            </div>
+
+            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);">Carfax / History (Manual Entry)</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+              <div class="form-group">
+                <label>Accidents</label>
+                <input type="number" id="prospect-accidents" placeholder="0" min="0" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group">
+                <label>Previous Owners</label>
+                <input type="number" id="prospect-owners" placeholder="1" min="1" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group" style="display: flex; flex-direction: column; justify-content: center;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <input type="checkbox" id="prospect-service-records" style="width: 18px; height: 18px; accent-color: var(--accent-gold);">
+                  <span>Has Service Records</span>
+                </label>
+              </div>
+            </div>
+            <div class="form-group" style="margin-top: 12px;">
+              <label>Carfax/History Notes</label>
+              <textarea id="prospect-carfax-notes" rows="2" placeholder="Any notes from the Carfax report..." style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); resize: vertical;"></textarea>
+            </div>
+
+            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);">Your Assessment</h4>
+            <div class="form-group">
+              <label>Your Rating</label>
+              <div id="prospect-rating-stars" style="display: flex; gap: 8px; margin-top: 8px;">
+                <span class="rating-star" data-rating="1" onclick="setProspectRating(1)" style="font-size: 28px; cursor: pointer; opacity: 0.3;">⭐</span>
+                <span class="rating-star" data-rating="2" onclick="setProspectRating(2)" style="font-size: 28px; cursor: pointer; opacity: 0.3;">⭐</span>
+                <span class="rating-star" data-rating="3" onclick="setProspectRating(3)" style="font-size: 28px; cursor: pointer; opacity: 0.3;">⭐</span>
+                <span class="rating-star" data-rating="4" onclick="setProspectRating(4)" style="font-size: 28px; cursor: pointer; opacity: 0.3;">⭐</span>
+                <span class="rating-star" data-rating="5" onclick="setProspectRating(5)" style="font-size: 28px; cursor: pointer; opacity: 0.3;">⭐</span>
+              </div>
+              <input type="hidden" id="prospect-rating" value="">
+            </div>
+            <div class="form-group" style="margin-top: 16px;">
+              <label>Personal Notes</label>
+              <textarea id="prospect-notes" rows="3" placeholder="Your thoughts on this vehicle..." style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); resize: vertical;"></textarea>
+            </div>
+
+            <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end;">
+              <button type="button" class="btn btn-secondary" onclick="closeAddProspectModal()">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Prospect</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- View Prospect Modal -->
+    <div id="view-prospect-modal" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+          <h2 id="view-prospect-title">Vehicle Details</h2>
+          <button class="modal-close" onclick="closeViewProspectModal()">×</button>
+        </div>
+        <div class="modal-body" id="view-prospect-body" style="max-height: 70vh; overflow-y: auto;">
+        </div>
+      </div>
+    </div>
 
     <!-- Reminders Section -->
     <section id="reminders" class="section">
@@ -17426,6 +17764,759 @@ Note: This assessment was generated by AI and is for informational purposes only
       await supabaseClient.auth.signOut();
       window.location.href = 'login.html';
     }
+
+    // =============================================
+    // MY NEXT CAR - Prospect Vehicle Functions
+    // =============================================
+    
+    let prospectVehicles = [];
+    let memberCarPreferences = null;
+    let selectedProspectRating = 0;
+    let editingProspectId = null;
+    let selectedForComparison = new Set();
+
+    function showProspectTab(tabName) {
+      document.querySelectorAll('.prospect-tab-content').forEach(t => t.style.display = 'none');
+      document.querySelectorAll('[data-prospect-tab]').forEach(t => t.classList.remove('active'));
+      
+      document.getElementById(tabName + '-tab').style.display = 'block';
+      document.querySelector(`[data-prospect-tab="${tabName}"]`).classList.add('active');
+      
+      if (tabName === 'compare') {
+        updateCompareSelection();
+      } else if (tabName === 'preferences') {
+        loadCarPreferences();
+      }
+    }
+
+    async function loadProspectVehicles() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const { data, error } = await supabaseClient
+          .from('prospect_vehicles')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        
+        prospectVehicles = data || [];
+        renderProspects();
+        updateProspectCount();
+      } catch (error) {
+        console.error('Error loading prospects:', error);
+      }
+    }
+
+    function updateProspectCount() {
+      const countEl = document.getElementById('prospect-count');
+      const activeCount = prospectVehicles.filter(p => p.status === 'considering' || p.status === 'test_driven').length;
+      if (activeCount > 0) {
+        countEl.textContent = activeCount;
+        countEl.style.display = 'inline-block';
+      } else {
+        countEl.style.display = 'none';
+      }
+    }
+
+    function renderProspects() {
+      const grid = document.getElementById('prospects-grid');
+      const filter = document.getElementById('prospect-filter').value;
+      
+      let filtered = prospectVehicles;
+      if (filter !== 'all') {
+        filtered = prospectVehicles.filter(p => p.status === filter);
+      }
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🚘</div>
+            <p>No prospect vehicles ${filter !== 'all' ? 'with this status' : 'yet'}.</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">Add vehicles you're considering to compare them.</p>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(p => {
+        const matchScore = calculateMatchScore(p);
+        const statusColors = {
+          considering: 'var(--accent-blue)',
+          test_driven: 'var(--accent-orange)',
+          offer_made: '#a855f7',
+          purchased: 'var(--accent-green)',
+          passed: 'var(--text-muted)'
+        };
+        const statusLabels = {
+          considering: 'Considering',
+          test_driven: 'Test Driven',
+          offer_made: 'Offer Made',
+          purchased: 'Purchased',
+          passed: 'Passed'
+        };
+        
+        return `
+          <div class="vehicle-card" style="cursor: pointer;" onclick="viewProspect('${p.id}')">
+            <div class="vehicle-card-photo">
+              <div class="vehicle-emoji">🚘</div>
+              ${p.is_favorite ? '<div style="position:absolute;top:12px;left:12px;font-size:24px;">❤️</div>' : ''}
+              <div class="vehicle-card-badge" style="background:${statusColors[p.status] || statusColors.considering};color:${p.status === 'passed' ? 'var(--text-primary)' : '#fff'};">${statusLabels[p.status] || 'Considering'}</div>
+            </div>
+            <div class="vehicle-card-body">
+              <div class="vehicle-card-title">${p.year || ''} ${p.make || ''} ${p.model || ''}</div>
+              <div class="vehicle-card-subtitle">${p.trim || ''} ${p.body_style ? '• ' + p.body_style : ''}</div>
+              <div class="vehicle-card-meta">
+                ${p.mileage ? `<span>🛣️ ${Number(p.mileage).toLocaleString()} mi</span>` : ''}
+                ${p.asking_price ? `<span>💰 $${Number(p.asking_price).toLocaleString()}</span>` : ''}
+                ${p.carfax_accidents !== null ? `<span>⚠️ ${p.carfax_accidents} accidents</span>` : ''}
+              </div>
+              ${matchScore !== null ? `
+                <div style="margin-top:12px;padding:8px 12px;background:${matchScore >= 80 ? 'var(--accent-green-soft)' : matchScore >= 50 ? 'var(--accent-orange-soft)' : 'rgba(239,95,95,0.15)'};border-radius:var(--radius-sm);display:inline-flex;align-items:center;gap:6px;">
+                  <span style="font-weight:600;color:${matchScore >= 80 ? 'var(--accent-green)' : matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)'};">${matchScore}% Match</span>
+                </div>
+              ` : ''}
+              ${p.personal_rating ? `
+                <div style="margin-top:8px;color:var(--accent-gold);">
+                  ${'⭐'.repeat(p.personal_rating)}${'☆'.repeat(5 - p.personal_rating)}
+                </div>
+              ` : ''}
+              <div class="vehicle-card-actions" onclick="event.stopPropagation();">
+                <button class="btn btn-sm btn-secondary" onclick="editProspect('${p.id}')">✏️ Edit</button>
+                <button class="btn btn-sm btn-ghost" onclick="toggleFavorite('${p.id}')" title="${p.is_favorite ? 'Remove from favorites' : 'Add to favorites'}">${p.is_favorite ? '❤️' : '🤍'}</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteProspect('${p.id}')">🗑️</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function filterProspects() {
+      renderProspects();
+    }
+
+    function calculateMatchScore(prospect) {
+      if (!memberCarPreferences) return null;
+      
+      let score = 0;
+      let factors = 0;
+
+      if (memberCarPreferences.min_budget && memberCarPreferences.max_budget && prospect.asking_price) {
+        factors++;
+        if (prospect.asking_price >= memberCarPreferences.min_budget && prospect.asking_price <= memberCarPreferences.max_budget) {
+          score += 100;
+        } else if (prospect.asking_price < memberCarPreferences.min_budget) {
+          score += 80;
+        } else {
+          const overBudget = prospect.asking_price - memberCarPreferences.max_budget;
+          const percentage = (overBudget / memberCarPreferences.max_budget) * 100;
+          score += Math.max(0, 100 - percentage * 2);
+        }
+      }
+
+      if (memberCarPreferences.min_year && prospect.year) {
+        factors++;
+        score += prospect.year >= memberCarPreferences.min_year ? 100 : 50;
+      }
+
+      if (memberCarPreferences.max_mileage && prospect.mileage) {
+        factors++;
+        if (prospect.mileage <= memberCarPreferences.max_mileage) {
+          score += 100;
+        } else {
+          const overMileage = prospect.mileage - memberCarPreferences.max_mileage;
+          const percentage = (overMileage / memberCarPreferences.max_mileage) * 100;
+          score += Math.max(0, 100 - percentage);
+        }
+      }
+
+      if (memberCarPreferences.preferred_makes && memberCarPreferences.preferred_makes.length > 0 && prospect.make) {
+        factors++;
+        if (memberCarPreferences.preferred_makes.some(m => m.toLowerCase() === prospect.make.toLowerCase())) {
+          score += 100;
+        } else {
+          score += 30;
+        }
+      }
+
+      if (memberCarPreferences.fuel_preference && prospect.fuel_type) {
+        factors++;
+        score += memberCarPreferences.fuel_preference === prospect.fuel_type ? 100 : 50;
+      }
+
+      if (factors === 0) return null;
+      return Math.round(score / factors);
+    }
+
+    function openAddProspectModal() {
+      editingProspectId = null;
+      document.getElementById('add-prospect-form').reset();
+      selectedProspectRating = 0;
+      updateRatingStars();
+      document.getElementById('add-prospect-modal').style.display = 'flex';
+    }
+
+    function closeAddProspectModal() {
+      document.getElementById('add-prospect-modal').style.display = 'none';
+      editingProspectId = null;
+    }
+
+    function setProspectRating(rating) {
+      selectedProspectRating = rating;
+      document.getElementById('prospect-rating').value = rating;
+      updateRatingStars();
+    }
+
+    function updateRatingStars() {
+      document.querySelectorAll('#prospect-rating-stars .rating-star').forEach(star => {
+        const r = parseInt(star.dataset.rating);
+        star.style.opacity = r <= selectedProspectRating ? '1' : '0.3';
+      });
+    }
+
+    async function lookupProspectVIN() {
+      const vin = document.getElementById('prospect-vin-lookup').value.trim().toUpperCase();
+      if (!vin || vin.length !== 17) {
+        showToast('Please enter a valid 17-character VIN', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('vin-lookup-btn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Looking up...';
+
+      try {
+        const response = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`);
+        const data = await response.json();
+        
+        if (data.Results) {
+          const getValue = (varName) => {
+            const item = data.Results.find(r => r.Variable === varName);
+            return item && item.Value && item.Value !== 'Not Applicable' ? item.Value : '';
+          };
+
+          document.getElementById('prospect-year').value = getValue('Model Year');
+          document.getElementById('prospect-make').value = getValue('Make');
+          document.getElementById('prospect-model').value = getValue('Model');
+          document.getElementById('prospect-trim').value = getValue('Trim');
+          document.getElementById('prospect-body-style').value = getValue('Body Class') || '';
+          
+          const displacement = getValue('Displacement (L)');
+          const cylinders = getValue('Engine Number of Cylinders');
+          const engineConfig = getValue('Engine Configuration');
+          let engine = '';
+          if (displacement) engine += displacement + 'L ';
+          if (cylinders) engine += cylinders + '-cyl ';
+          if (engineConfig) engine += engineConfig;
+          document.getElementById('prospect-engine').value = engine.trim();
+          
+          const fuelType = getValue('Fuel Type - Primary');
+          if (fuelType) {
+            const fuelSelect = document.getElementById('prospect-fuel-type');
+            for (let opt of fuelSelect.options) {
+              if (fuelType.toLowerCase().includes(opt.value.toLowerCase())) {
+                fuelSelect.value = opt.value;
+                break;
+              }
+            }
+          }
+          
+          document.getElementById('prospect-vin').value = vin;
+          
+          showToast('Vehicle specs loaded from VIN!', 'success');
+        }
+      } catch (error) {
+        console.error('VIN lookup error:', error);
+        showToast('Failed to lookup VIN. Please try again.', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 Lookup';
+      }
+    }
+
+    async function saveProspectVehicle(e) {
+      e.preventDefault();
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Please log in to save vehicles', 'error');
+          return;
+        }
+
+        const prospectData = {
+          user_id: session.user.id,
+          vin: document.getElementById('prospect-vin').value.trim().toUpperCase() || null,
+          year: parseInt(document.getElementById('prospect-year').value) || null,
+          make: document.getElementById('prospect-make').value.trim() || null,
+          model: document.getElementById('prospect-model').value.trim() || null,
+          trim: document.getElementById('prospect-trim').value.trim() || null,
+          body_style: document.getElementById('prospect-body-style').value || null,
+          engine: document.getElementById('prospect-engine').value.trim() || null,
+          fuel_type: document.getElementById('prospect-fuel-type').value || null,
+          mileage: parseInt(document.getElementById('prospect-mileage').value) || null,
+          asking_price: parseFloat(document.getElementById('prospect-price').value) || null,
+          exterior_color: document.getElementById('prospect-ext-color').value.trim() || null,
+          interior_color: document.getElementById('prospect-int-color').value.trim() || null,
+          seller_type: document.getElementById('prospect-seller-type').value || null,
+          seller_name: document.getElementById('prospect-seller-name').value.trim() || null,
+          seller_location: document.getElementById('prospect-location').value.trim() || null,
+          listing_url: document.getElementById('prospect-listing-url').value.trim() || null,
+          carfax_accidents: parseInt(document.getElementById('prospect-accidents').value) || 0,
+          carfax_owners: parseInt(document.getElementById('prospect-owners').value) || null,
+          carfax_service_records: document.getElementById('prospect-service-records').checked,
+          carfax_notes: document.getElementById('prospect-carfax-notes').value.trim() || null,
+          personal_rating: selectedProspectRating || null,
+          personal_notes: document.getElementById('prospect-notes').value.trim() || null
+        };
+
+        // Preserve existing status when editing, or set to 'considering' for new prospects
+        if (editingProspectId) {
+          const existingProspect = prospectVehicles.find(p => p.id === editingProspectId);
+          if (existingProspect) {
+            prospectData.status = existingProspect.status;
+          }
+        } else {
+          prospectData.status = 'considering';
+        }
+
+        let result;
+        if (editingProspectId) {
+          result = await supabaseClient
+            .from('prospect_vehicles')
+            .update(prospectData)
+            .eq('id', editingProspectId)
+            .eq('user_id', session.user.id);
+        } else {
+          result = await supabaseClient
+            .from('prospect_vehicles')
+            .insert(prospectData);
+        }
+
+        if (result.error) throw result.error;
+
+        showToast(editingProspectId ? 'Prospect updated!' : 'Prospect added!', 'success');
+        closeAddProspectModal();
+        await loadProspectVehicles();
+      } catch (error) {
+        console.error('Error saving prospect:', error);
+        showToast('Failed to save prospect: ' + error.message, 'error');
+      }
+    }
+
+    async function editProspect(id) {
+      const prospect = prospectVehicles.find(p => p.id === id);
+      if (!prospect) return;
+
+      editingProspectId = id;
+      
+      document.getElementById('prospect-vin').value = prospect.vin || '';
+      document.getElementById('prospect-year').value = prospect.year || '';
+      document.getElementById('prospect-make').value = prospect.make || '';
+      document.getElementById('prospect-model').value = prospect.model || '';
+      document.getElementById('prospect-trim').value = prospect.trim || '';
+      document.getElementById('prospect-body-style').value = prospect.body_style || '';
+      document.getElementById('prospect-engine').value = prospect.engine || '';
+      document.getElementById('prospect-fuel-type').value = prospect.fuel_type || '';
+      document.getElementById('prospect-mileage').value = prospect.mileage || '';
+      document.getElementById('prospect-price').value = prospect.asking_price || '';
+      document.getElementById('prospect-ext-color').value = prospect.exterior_color || '';
+      document.getElementById('prospect-int-color').value = prospect.interior_color || '';
+      document.getElementById('prospect-seller-type').value = prospect.seller_type || '';
+      document.getElementById('prospect-seller-name').value = prospect.seller_name || '';
+      document.getElementById('prospect-location').value = prospect.seller_location || '';
+      document.getElementById('prospect-listing-url').value = prospect.listing_url || '';
+      document.getElementById('prospect-accidents').value = prospect.carfax_accidents || '';
+      document.getElementById('prospect-owners').value = prospect.carfax_owners || '';
+      document.getElementById('prospect-service-records').checked = prospect.carfax_service_records || false;
+      document.getElementById('prospect-carfax-notes').value = prospect.carfax_notes || '';
+      document.getElementById('prospect-notes').value = prospect.personal_notes || '';
+      
+      selectedProspectRating = prospect.personal_rating || 0;
+      document.getElementById('prospect-rating').value = selectedProspectRating;
+      updateRatingStars();
+
+      document.getElementById('add-prospect-modal').style.display = 'flex';
+    }
+
+    async function deleteProspect(id) {
+      if (!confirm('Are you sure you want to delete this prospect?')) return;
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const { error } = await supabaseClient
+          .from('prospect_vehicles')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', session.user.id);
+
+        if (error) throw error;
+
+        showToast('Prospect deleted', 'success');
+        await loadProspectVehicles();
+      } catch (error) {
+        console.error('Error deleting prospect:', error);
+        showToast('Failed to delete prospect', 'error');
+      }
+    }
+
+    async function toggleFavorite(id) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const prospect = prospectVehicles.find(p => p.id === id);
+        if (!prospect) return;
+
+        const { error } = await supabaseClient
+          .from('prospect_vehicles')
+          .update({ is_favorite: !prospect.is_favorite })
+          .eq('id', id)
+          .eq('user_id', session.user.id);
+
+        if (error) throw error;
+
+        await loadProspectVehicles();
+      } catch (error) {
+        console.error('Error toggling favorite:', error);
+      }
+    }
+
+    function viewProspect(id) {
+      const prospect = prospectVehicles.find(p => p.id === id);
+      if (!prospect) return;
+
+      const matchScore = calculateMatchScore(prospect);
+      const statusLabels = {
+        considering: 'Considering',
+        test_driven: 'Test Driven',
+        offer_made: 'Offer Made',
+        purchased: 'Purchased',
+        passed: 'Passed'
+      };
+
+      document.getElementById('view-prospect-title').textContent = `${prospect.year || ''} ${prospect.make || ''} ${prospect.model || ''}`.trim() || 'Prospect Details';
+      
+      document.getElementById('view-prospect-body').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+          <div>
+            <h4 style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px;">Vehicle Info</h4>
+            <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <p style="margin-bottom:8px;"><strong>Year:</strong> ${prospect.year || 'N/A'}</p>
+              <p style="margin-bottom:8px;"><strong>Make:</strong> ${prospect.make || 'N/A'}</p>
+              <p style="margin-bottom:8px;"><strong>Model:</strong> ${prospect.model || 'N/A'}</p>
+              <p style="margin-bottom:8px;"><strong>Trim:</strong> ${prospect.trim || 'N/A'}</p>
+              <p style="margin-bottom:8px;"><strong>Body Style:</strong> ${prospect.body_style || 'N/A'}</p>
+              <p style="margin-bottom:8px;"><strong>Engine:</strong> ${prospect.engine || 'N/A'}</p>
+              <p style="margin-bottom:8px;"><strong>Fuel Type:</strong> ${prospect.fuel_type || 'N/A'}</p>
+              <p style="margin-bottom:8px;"><strong>Mileage:</strong> ${prospect.mileage ? Number(prospect.mileage).toLocaleString() + ' mi' : 'N/A'}</p>
+              <p style="margin-bottom:8px;"><strong>Colors:</strong> ${prospect.exterior_color || '?'} / ${prospect.interior_color || '?'}</p>
+              ${prospect.vin ? `<p style="margin-bottom:0;"><strong>VIN:</strong> ${prospect.vin}</p>` : ''}
+            </div>
+          </div>
+          <div>
+            <h4 style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px;">Pricing & Seller</h4>
+            <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <p style="font-size:1.5rem;font-weight:700;color:var(--accent-gold);margin-bottom:12px;">${prospect.asking_price ? '$' + Number(prospect.asking_price).toLocaleString() : 'Price TBD'}</p>
+              <p style="margin-bottom:8px;"><strong>Seller:</strong> ${prospect.seller_name || 'Unknown'} (${prospect.seller_type || 'N/A'})</p>
+              <p style="margin-bottom:8px;"><strong>Location:</strong> ${prospect.seller_location || 'N/A'}</p>
+              ${prospect.listing_url ? `<p style="margin-bottom:0;"><a href="${prospect.listing_url}" target="_blank" style="color:var(--accent-blue);">View Listing →</a></p>` : ''}
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:24px;">
+          <h4 style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px;">Vehicle History (Carfax)</h4>
+          <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);border:1px solid var(--border-subtle);display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+            <div style="text-align:center;">
+              <div style="font-size:2rem;margin-bottom:4px;color:${prospect.carfax_accidents === 0 ? 'var(--accent-green)' : prospect.carfax_accidents <= 1 ? 'var(--accent-orange)' : 'var(--accent-red)'};">${prospect.carfax_accidents ?? '?'}</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);">Accidents</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:2rem;margin-bottom:4px;color:var(--text-primary);">${prospect.carfax_owners ?? '?'}</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);">Owners</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:2rem;margin-bottom:4px;">${prospect.carfax_service_records ? '✅' : '❌'}</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);">Service Records</div>
+            </div>
+          </div>
+          ${prospect.carfax_notes ? `<p style="margin-top:12px;font-size:0.9rem;color:var(--text-secondary);">${prospect.carfax_notes}</p>` : ''}
+        </div>
+
+        <div style="margin-top:24px;display:flex;gap:24px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:200px;">
+            <h4 style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px;">Your Rating</h4>
+            <div style="font-size:28px;color:var(--accent-gold);">
+              ${prospect.personal_rating ? '⭐'.repeat(prospect.personal_rating) + '☆'.repeat(5 - prospect.personal_rating) : '☆☆☆☆☆'}
+            </div>
+          </div>
+          ${matchScore !== null ? `
+          <div style="flex:1;min-width:200px;">
+            <h4 style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px;">Match Score</h4>
+            <div style="font-size:2.5rem;font-weight:700;color:${matchScore >= 80 ? 'var(--accent-green)' : matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)'};">${matchScore}%</div>
+          </div>
+          ` : ''}
+          <div style="flex:1;min-width:200px;">
+            <h4 style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px;">Status</h4>
+            <select onchange="updateProspectStatus('${prospect.id}', this.value)" style="padding:10px 16px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
+              <option value="considering" ${prospect.status === 'considering' ? 'selected' : ''}>Considering</option>
+              <option value="test_driven" ${prospect.status === 'test_driven' ? 'selected' : ''}>Test Driven</option>
+              <option value="offer_made" ${prospect.status === 'offer_made' ? 'selected' : ''}>Offer Made</option>
+              <option value="purchased" ${prospect.status === 'purchased' ? 'selected' : ''}>Purchased</option>
+              <option value="passed" ${prospect.status === 'passed' ? 'selected' : ''}>Passed</option>
+            </select>
+          </div>
+        </div>
+
+        ${prospect.personal_notes ? `
+        <div style="margin-top:24px;">
+          <h4 style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px;">Your Notes</h4>
+          <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);border:1px solid var(--border-subtle);color:var(--text-secondary);line-height:1.6;">${prospect.personal_notes}</div>
+        </div>
+        ` : ''}
+
+        <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="editProspect('${prospect.id}');closeViewProspectModal();">✏️ Edit</button>
+          <button class="btn btn-secondary" onclick="toggleFavorite('${prospect.id}');closeViewProspectModal();">${prospect.is_favorite ? '❤️ Unfavorite' : '🤍 Favorite'}</button>
+          <button class="btn btn-danger" onclick="deleteProspect('${prospect.id}');closeViewProspectModal();">🗑️ Delete</button>
+        </div>
+      `;
+
+      document.getElementById('view-prospect-modal').style.display = 'flex';
+    }
+
+    function closeViewProspectModal() {
+      document.getElementById('view-prospect-modal').style.display = 'none';
+    }
+
+    async function updateProspectStatus(id, status) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const { error } = await supabaseClient
+          .from('prospect_vehicles')
+          .update({ status })
+          .eq('id', id)
+          .eq('user_id', session.user.id);
+
+        if (error) throw error;
+        
+        showToast('Status updated', 'success');
+        await loadProspectVehicles();
+      } catch (error) {
+        console.error('Error updating status:', error);
+      }
+    }
+
+    function updateCompareSelection() {
+      const container = document.getElementById('compare-selection');
+      
+      if (prospectVehicles.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem;">Add prospect vehicles first to compare them.</p>';
+        document.getElementById('compare-btn').disabled = true;
+        return;
+      }
+
+      container.innerHTML = prospectVehicles.map(p => `
+        <label style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--bg-input);border:1px solid ${selectedForComparison.has(p.id) ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:var(--radius-md);cursor:pointer;transition:all 0.2s;">
+          <input type="checkbox" ${selectedForComparison.has(p.id) ? 'checked' : ''} onchange="toggleCompareSelection('${p.id}')" style="width:18px;height:18px;accent-color:var(--accent-gold);">
+          <span>${p.year || ''} ${p.make || ''} ${p.model || ''}</span>
+        </label>
+      `).join('');
+
+      document.getElementById('compare-btn').disabled = selectedForComparison.size < 2;
+    }
+
+    function toggleCompareSelection(id) {
+      if (selectedForComparison.has(id)) {
+        selectedForComparison.delete(id);
+      } else {
+        if (selectedForComparison.size >= 4) {
+          showToast('Maximum 4 vehicles for comparison', 'error');
+          return;
+        }
+        selectedForComparison.add(id);
+      }
+      updateCompareSelection();
+    }
+
+    function generateComparison() {
+      if (selectedForComparison.size < 2) {
+        showToast('Select at least 2 vehicles to compare', 'error');
+        return;
+      }
+
+      const selected = prospectVehicles.filter(p => selectedForComparison.has(p.id));
+      
+      const thead = document.getElementById('comparison-thead');
+      const tbody = document.getElementById('comparison-tbody');
+      
+      thead.innerHTML = `
+        <tr>
+          <th style="padding:12px 16px;text-align:left;background:var(--bg-input);border-bottom:1px solid var(--border-subtle);font-weight:600;color:var(--text-muted);font-size:0.85rem;">Attribute</th>
+          ${selected.map(p => `<th style="padding:12px 16px;text-align:center;background:var(--bg-input);border-bottom:1px solid var(--border-subtle);font-weight:600;">${p.year || ''} ${p.make || ''} ${p.model || ''}</th>`).join('')}
+        </tr>
+      `;
+
+      const rows = [
+        { label: 'Asking Price', key: 'asking_price', format: v => v ? '$' + Number(v).toLocaleString() : 'N/A', best: 'low' },
+        { label: 'Mileage', key: 'mileage', format: v => v ? Number(v).toLocaleString() + ' mi' : 'N/A', best: 'low' },
+        { label: 'Year', key: 'year', format: v => v || 'N/A', best: 'high' },
+        { label: 'Trim', key: 'trim', format: v => v || 'N/A' },
+        { label: 'Engine', key: 'engine', format: v => v || 'N/A' },
+        { label: 'Fuel Type', key: 'fuel_type', format: v => v || 'N/A' },
+        { label: 'Body Style', key: 'body_style', format: v => v || 'N/A' },
+        { label: 'Exterior Color', key: 'exterior_color', format: v => v || 'N/A' },
+        { label: 'Accidents', key: 'carfax_accidents', format: v => v !== null ? v : 'N/A', best: 'low' },
+        { label: 'Previous Owners', key: 'carfax_owners', format: v => v || 'N/A', best: 'low' },
+        { label: 'Service Records', key: 'carfax_service_records', format: v => v ? '✅ Yes' : '❌ No' },
+        { label: 'Your Rating', key: 'personal_rating', format: v => v ? '⭐'.repeat(v) : 'N/A', best: 'high' },
+        { label: 'Match Score', key: null, format: (v, p) => { const s = calculateMatchScore(p); return s !== null ? s + '%' : 'N/A'; }, best: 'high', isComputed: true }
+      ];
+
+      tbody.innerHTML = rows.map(row => {
+        const values = selected.map(p => row.isComputed ? row.format(null, p) : row.format(p[row.key]));
+        const numericValues = selected.map(p => {
+          if (row.isComputed) return calculateMatchScore(p);
+          return typeof p[row.key] === 'number' ? p[row.key] : null;
+        });
+        
+        let bestIdx = -1;
+        if (row.best && numericValues.some(v => v !== null)) {
+          const validValues = numericValues.filter(v => v !== null);
+          if (row.best === 'low') {
+            const minVal = Math.min(...validValues);
+            bestIdx = numericValues.indexOf(minVal);
+          } else {
+            const maxVal = Math.max(...validValues);
+            bestIdx = numericValues.indexOf(maxVal);
+          }
+        }
+
+        return `
+          <tr>
+            <td style="padding:12px 16px;border-bottom:1px solid var(--border-subtle);font-weight:500;">${row.label}</td>
+            ${values.map((v, i) => `
+              <td style="padding:12px 16px;text-align:center;border-bottom:1px solid var(--border-subtle);${bestIdx === i ? 'color:var(--accent-green);font-weight:600;' : ''}">${v}</td>
+            `).join('')}
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('comparison-results').style.display = 'block';
+    }
+
+    async function loadCarPreferences() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const { data, error } = await supabaseClient
+          .from('member_car_preferences')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+        
+        memberCarPreferences = data;
+        
+        if (data) {
+          document.getElementById('pref-min-budget').value = data.min_budget || '';
+          document.getElementById('pref-max-budget').value = data.max_budget || '';
+          document.getElementById('pref-min-year').value = data.min_year || '';
+          document.getElementById('pref-max-year').value = data.max_year || '';
+          document.getElementById('pref-max-mileage').value = data.max_mileage || '';
+          document.getElementById('pref-fuel').value = data.fuel_preference || '';
+          document.getElementById('pref-transmission').value = data.transmission_preference || '';
+          document.getElementById('pref-drivetrain').value = data.drivetrain_preference || '';
+          document.getElementById('pref-makes').value = (data.preferred_makes || []).join(', ');
+          document.getElementById('pref-must-have').value = (data.must_have_features || []).join(', ');
+          document.getElementById('pref-deal-breakers').value = (data.deal_breakers || []).join(', ');
+          document.getElementById('pref-notes').value = data.notes || '';
+        }
+      } catch (error) {
+        console.error('Error loading preferences:', error);
+      }
+    }
+
+    async function saveCarPreferences(e) {
+      e.preventDefault();
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Please log in to save preferences', 'error');
+          return;
+        }
+
+        const parseList = (val) => val ? val.split(',').map(s => s.trim()).filter(s => s) : [];
+
+        const prefData = {
+          user_id: session.user.id,
+          min_budget: parseFloat(document.getElementById('pref-min-budget').value) || null,
+          max_budget: parseFloat(document.getElementById('pref-max-budget').value) || null,
+          min_year: parseInt(document.getElementById('pref-min-year').value) || null,
+          max_year: parseInt(document.getElementById('pref-max-year').value) || null,
+          max_mileage: parseInt(document.getElementById('pref-max-mileage').value) || null,
+          fuel_preference: document.getElementById('pref-fuel').value || null,
+          transmission_preference: document.getElementById('pref-transmission').value || null,
+          drivetrain_preference: document.getElementById('pref-drivetrain').value || null,
+          preferred_makes: parseList(document.getElementById('pref-makes').value),
+          must_have_features: parseList(document.getElementById('pref-must-have').value),
+          deal_breakers: parseList(document.getElementById('pref-deal-breakers').value),
+          notes: document.getElementById('pref-notes').value.trim() || null
+        };
+
+        const { data: existing } = await supabaseClient
+          .from('member_car_preferences')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .single();
+
+        let result;
+        if (existing) {
+          result = await supabaseClient
+            .from('member_car_preferences')
+            .update(prefData)
+            .eq('user_id', session.user.id);
+        } else {
+          result = await supabaseClient
+            .from('member_car_preferences')
+            .insert(prefData);
+        }
+
+        if (result.error) throw result.error;
+
+        memberCarPreferences = prefData;
+        showToast('Preferences saved!', 'success');
+        renderProspects();
+      } catch (error) {
+        console.error('Error saving preferences:', error);
+        showToast('Failed to save preferences: ' + error.message, 'error');
+      }
+    }
+
+    function clearCarPreferences() {
+      document.getElementById('preferences-form').reset();
+    }
+
+    // Load prospects when My Next Car section is shown
+    const originalShowSection = showSection;
+    showSection = function(sectionId) {
+      originalShowSection(sectionId);
+      if (sectionId === 'my-next-car') {
+        loadProspectVehicles();
+        loadCarPreferences();
+      }
+    };
   </script>
   <script src="/pwa-init.js"></script>
   <script src="/ai-chat.js"></script>
