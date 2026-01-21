@@ -33,132 +33,154 @@
       padding: 10mm; position: relative; overflow: hidden;
     }
     .slide-header {
-      text-align: center; margin-bottom: 5mm; padding-bottom: 4mm;
+      text-align: center; margin-bottom: 4mm; padding-bottom: 3mm;
       border-bottom: 2px solid #b8962e;
     }
-    .logo { width: 30mm; margin-bottom: 2mm; }
-    .slide-title { font-family: 'Playfair Display', serif; font-size: 22pt; color: #1a1a24; margin-bottom: 1mm; }
-    .slide-subtitle { font-size: 10pt; color: #666; }
-    .slide-number { position: absolute; bottom: 12mm; right: 10mm; font-size: 9pt; color: #999; }
-    .footer-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 6mm; background: linear-gradient(90deg, #b8962e 0%, #9a7d26 100%); }
+    .logo { width: 25mm; margin-bottom: 2mm; }
+    .slide-title { font-family: 'Playfair Display', serif; font-size: 20pt; color: #1a1a24; margin-bottom: 1mm; }
+    .slide-subtitle { font-size: 9pt; color: #666; }
+    .slide-number { position: absolute; bottom: 10mm; right: 10mm; font-size: 8pt; color: #999; }
+    .footer-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 5mm; background: linear-gradient(90deg, #b8962e 0%, #9a7d26 100%); }
     .screenshot {
-      width: 100%; border-radius: 4mm; border: 2px solid #ddd;
+      width: 100%; border-radius: 3mm; border: 2px solid #ddd;
       box-shadow: 0 4px 16px rgba(0,0,0,0.1);
     }
     .screenshot-container {
       background: #f8f8f8;
       border: 1px solid #e0e0e0;
-      border-radius: 5mm; padding: 3mm; margin: 3mm 0;
+      border-radius: 4mm; padding: 2mm; margin: 2mm 0;
     }
     .screenshot-label {
-      font-size: 9pt; color: #b8962e; text-align: center; margin-top: 2mm; font-weight: 600;
+      font-size: 8pt; color: #b8962e; text-align: center; margin-top: 1mm; font-weight: 600;
     }
     .content-box {
       background: #f8f9fa;
-      border: 1px solid #e0e0e0; border-radius: 3mm; padding: 4mm; margin-bottom: 3mm;
+      border: 1px solid #e0e0e0; border-radius: 3mm; padding: 3mm; margin-bottom: 2mm;
     }
     .content-box.highlight {
       background: linear-gradient(135deg, rgba(184, 150, 46, 0.08) 0%, rgba(184, 150, 46, 0.04) 100%);
       border-color: #b8962e;
     }
-    .box-title { font-family: 'Playfair Display', serif; font-size: 12pt; color: #1a1a24; margin-bottom: 2mm; }
-    .box-text { font-size: 9pt; color: #444; line-height: 1.4; }
-    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
+    .content-box.blue {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.04) 100%);
+      border-color: #3b82f6;
+    }
+    .box-title { font-family: 'Playfair Display', serif; font-size: 11pt; color: #1a1a24; margin-bottom: 1mm; }
+    .box-text { font-size: 8pt; color: #444; line-height: 1.35; }
+    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; }
+    .feature-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2mm; }
+    .feature-grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 2mm; }
     .feature-item {
       background: #f8f9fa;
-      border: 1px solid #e0e0e0; border-radius: 2mm; padding: 3mm;
+      border: 1px solid #e0e0e0; border-radius: 2mm; padding: 2mm;
     }
-    .feature-icon { font-size: 16pt; margin-bottom: 1mm; }
-    .feature-title { font-weight: 600; font-size: 9pt; color: #1a1a24; margin-bottom: 1mm; }
-    .feature-desc { font-size: 8pt; color: #666; line-height: 1.3; }
+    .feature-icon { font-size: 14pt; margin-bottom: 1mm; }
+    .feature-title { font-weight: 600; font-size: 8pt; color: #1a1a24; margin-bottom: 0.5mm; }
+    .feature-desc { font-size: 7pt; color: #666; line-height: 1.25; }
     .bullet-list { list-style: none; padding: 0; }
     .bullet-list li {
-      font-size: 9pt; color: #444; margin: 1.5mm 0; padding-left: 4mm;
-      position: relative; line-height: 1.3;
+      font-size: 8pt; color: #444; margin: 1mm 0; padding-left: 3mm;
+      position: relative; line-height: 1.25;
     }
-    .bullet-list li::before { content: "✓"; position: absolute; left: 0; color: #2e8b57; font-weight: bold; }
+    .bullet-list li::before { content: "✓"; position: absolute; left: 0; color: #2e8b57; font-weight: bold; font-size: 7pt; }
     .step-list { counter-reset: step; list-style: none; padding: 0; }
     .step-list li {
-      font-size: 9pt; color: #444; margin: 2mm 0; padding-left: 8mm;
-      position: relative; line-height: 1.3;
+      font-size: 8pt; color: #444; margin: 1.5mm 0; padding-left: 7mm;
+      position: relative; line-height: 1.25;
     }
     .step-list li::before {
       counter-increment: step; content: counter(step);
-      position: absolute; left: 0; width: 5mm; height: 5mm;
+      position: absolute; left: 0; width: 4mm; height: 4mm;
       background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
       color: #fff; border-radius: 50%; display: flex; align-items: center;
-      justify-content: center; font-weight: 700; font-size: 8pt;
+      justify-content: center; font-weight: 700; font-size: 7pt;
     }
-    .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin: 3mm 0; }
+    .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; margin: 2mm 0; }
+    .stat-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm; margin: 2mm 0; }
     .stat-box {
       text-align: center;
       background: #f8f9fa;
-      border: 1px solid #b8962e; border-radius: 2mm; padding: 3mm;
+      border: 1px solid #b8962e; border-radius: 2mm; padding: 2mm;
     }
-    .stat-value { font-family: 'Playfair Display', serif; font-size: 18pt; color: #b8962e; font-weight: 700; }
-    .stat-label { font-size: 7pt; color: #666; margin-top: 1mm; }
-    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
+    .stat-value { font-family: 'Playfair Display', serif; font-size: 14pt; color: #b8962e; font-weight: 700; }
+    .stat-label { font-size: 6pt; color: #666; margin-top: 0.5mm; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; }
     .section-title {
-      font-family: 'Playfair Display', serif; font-size: 13pt; color: #1a1a24;
-      margin: 3mm 0 2mm; padding-bottom: 1mm; border-bottom: 1px solid #b8962e;
+      font-family: 'Playfair Display', serif; font-size: 11pt; color: #1a1a24;
+      margin: 2mm 0 1mm; padding-bottom: 1mm; border-bottom: 1px solid #b8962e;
     }
     .callout {
       background: linear-gradient(135deg, rgba(46, 139, 87, 0.08) 0%, rgba(46, 139, 87, 0.04) 100%);
-      border: 1px solid #2e8b57; border-radius: 2mm; padding: 3mm; margin: 2mm 0;
+      border: 1px solid #2e8b57; border-radius: 2mm; padding: 2mm; margin: 2mm 0;
     }
-    .callout .title { color: #2e8b57; font-weight: 600; font-size: 10pt; margin-bottom: 1mm; }
-    .callout .text { font-size: 8pt; color: #444; }
+    .callout .title { color: #2e8b57; font-weight: 600; font-size: 9pt; margin-bottom: 0.5mm; }
+    .callout .text { font-size: 7pt; color: #444; }
     .hero-text {
-      font-family: 'Playfair Display', serif; font-size: 28pt; color: #1a1a24;
-      text-align: center; margin: 15mm 0 8mm; line-height: 1.2;
+      font-family: 'Playfair Display', serif; font-size: 26pt; color: #1a1a24;
+      text-align: center; margin: 12mm 0 6mm; line-height: 1.2;
     }
-    .hero-sub { font-size: 12pt; color: #666; text-align: center; margin-bottom: 10mm; }
+    .hero-sub { font-size: 11pt; color: #666; text-align: center; margin-bottom: 8mm; }
     .cta-box {
       background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
-      color: #fff; text-align: center; padding: 6mm; border-radius: 3mm; margin-top: 4mm;
+      color: #fff; text-align: center; padding: 5mm; border-radius: 3mm; margin-top: 3mm;
     }
-    .cta-title { font-family: 'Playfair Display', serif; font-size: 16pt; font-weight: 700; margin-bottom: 1mm; }
-    .cta-text { font-size: 10pt; }
-    .platform-badges { display: flex; justify-content: center; gap: 4mm; margin: 4mm 0; }
+    .cta-title { font-family: 'Playfair Display', serif; font-size: 14pt; font-weight: 700; margin-bottom: 1mm; }
+    .cta-text { font-size: 9pt; }
+    .platform-badges { display: flex; justify-content: center; gap: 3mm; margin: 3mm 0; }
     .badge {
       background: #f0f0f0; border: 1px solid #ccc;
-      border-radius: 1.5mm; padding: 1.5mm 3mm; font-size: 8pt; color: #444;
+      border-radius: 1.5mm; padding: 1mm 2mm; font-size: 7pt; color: #444;
     }
     .icon-flow {
       display: flex; justify-content: space-between; align-items: center;
-      margin: 4mm 0; padding: 3mm;
+      margin: 3mm 0; padding: 2mm;
       background: #f8f9fa;
       border: 1px solid #e0e0e0;
-      border-radius: 3mm;
+      border-radius: 2mm;
     }
     .icon-step { text-align: center; flex: 1; }
-    .icon-step .icon { font-size: 20pt; margin-bottom: 1mm; }
-    .icon-step .label { font-size: 7pt; color: #666; }
-    .arrow { color: #b8962e; font-size: 16pt; }
-    .mini-table { width: 100%; border-collapse: collapse; font-size: 8pt; margin: 2mm 0; }
+    .icon-step .icon { font-size: 16pt; margin-bottom: 0.5mm; }
+    .icon-step .label { font-size: 6pt; color: #666; line-height: 1.2; }
+    .arrow { color: #b8962e; font-size: 14pt; }
+    .mini-table { width: 100%; border-collapse: collapse; font-size: 7pt; margin: 1mm 0; }
     .mini-table th {
-      background: rgba(184, 150, 46, 0.15); padding: 1.5mm;
-      text-align: left; color: #1a1a24; font-size: 7pt; text-transform: uppercase;
+      background: rgba(184, 150, 46, 0.15); padding: 1mm;
+      text-align: left; color: #1a1a24; font-size: 6pt; text-transform: uppercase;
     }
-    .mini-table td { padding: 1.5mm; border-bottom: 1px solid #e0e0e0; color: #444; }
+    .mini-table td { padding: 1mm; border-bottom: 1px solid #e0e0e0; color: #444; }
     .tag {
       display: inline-block; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
       color: #fff; font-size: 5pt; padding: 0.5mm 1.5mm; border-radius: 1mm; font-weight: 700;
     }
-    .logo-dark { filter: none; }
+    .tag-blue {
+      display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: #fff; font-size: 5pt; padding: 0.5mm 1.5mm; border-radius: 1mm; font-weight: 700;
+    }
+    .tag-green {
+      display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #fff; font-size: 5pt; padding: 0.5mm 1.5mm; border-radius: 1mm; font-weight: 700;
+    }
+    .toc-item {
+      display: flex; align-items: center; gap: 2mm; margin-bottom: 2mm;
+    }
+    .toc-num {
+      width: 6mm; height: 6mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 7pt; flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
   <div class="print-controls">
     <h2>MCC Provider Platform Presentation</h2>
-    <p>Print-Friendly Light Theme - Portrait A4 Format - 13 Slides</p>
+    <p>Complete Feature Showcase - Print-Friendly - 18 Slides</p>
     <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
   </div>
 
   <!-- SLIDE 1: TITLE -->
   <div class="slide">
     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
-      <img src="logo.png" style="width: 55mm; margin-bottom: 8mm;" alt="My Car Concierge">
+      <img src="logo.png" style="width: 50mm; margin-bottom: 6mm;" alt="My Car Concierge">
       <div class="hero-text">Provider Platform<br>Overview</div>
       <div class="hero-sub">Your Gateway to New Customers & Revenue</div>
       <div class="platform-badges">
@@ -167,12 +189,12 @@
         <div class="badge">Web Platform</div>
         <div class="badge">Desktop Apps</div>
       </div>
-      <div class="screenshot-container" style="width: 150mm; margin-top: 8mm;">
+      <div class="screenshot-container" style="width: 140mm; margin-top: 6mm;">
         <img src="screenshots/homepage.png" class="screenshot" alt="Homepage">
         <div class="screenshot-label">Platform Homepage</div>
       </div>
-      <div style="margin-top: 8mm; text-align: center;">
-        <div style="font-size: 11pt; color: #b8962e; font-weight: 600;">www.mycarconcierge.com</div>
+      <div style="margin-top: 6mm; text-align: center;">
+        <div style="font-size: 10pt; color: #b8962e; font-weight: 600;">www.mycarconcierge.com</div>
       </div>
     </div>
     <div class="footer-bar"></div>
@@ -183,83 +205,46 @@
     <div class="slide-header">
       <img src="logo.png" class="logo" alt="MCC">
       <div class="slide-title">Table of Contents</div>
-      <div class="slide-subtitle">What's Covered in This Presentation</div>
+      <div class="slide-subtitle">Complete Platform Overview</div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-top: 4mm;">
+    <div class="two-col" style="margin-top: 2mm;">
       <div class="content-box">
-        <div style="display: flex; align-items: center; gap: 3mm; margin-bottom: 3mm;">
-          <div style="width: 8mm; height: 8mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 10pt;">3</div>
-          <div><div class="feature-title">What Is My Car Concierge?</div><div class="feature-desc">Platform concept & how it works</div></div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 3mm; margin-bottom: 3mm;">
-          <div style="width: 8mm; height: 8mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 10pt;">4</div>
-          <div><div class="feature-title">Your Provider Dashboard</div><div class="feature-desc">Your business command center</div></div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 3mm; margin-bottom: 3mm;">
-          <div style="width: 8mm; height: 8mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 10pt;">5</div>
-          <div><div class="feature-title">The Bidding System</div><div class="feature-desc">Bid packs & pricing tiers</div></div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 3mm; margin-bottom: 3mm;">
-          <div style="width: 8mm; height: 8mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 10pt;">6</div>
-          <div><div class="feature-title">Payment Protection</div><div class="feature-desc">Escrow & guaranteed payouts</div></div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 3mm; margin-bottom: 3mm;">
-          <div style="width: 8mm; height: 8mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 10pt;">7</div>
-          <div><div class="feature-title">Vehicle Status Tracking</div><div class="feature-desc">Real-time customer updates</div></div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 3mm;">
-          <div style="width: 8mm; height: 8mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 10pt;">8</div>
-          <div><div class="feature-title">Ratings & Reputation</div><div class="feature-desc">Building trust & winning jobs</div></div>
-        </div>
+        <div class="box-title" style="color: #b8962e;">Platform & Provider Features</div>
+        <div class="toc-item"><div class="toc-num">3</div><div><div class="feature-title">What Is My Car Concierge?</div><div class="feature-desc">Platform concept & marketplace</div></div></div>
+        <div class="toc-item"><div class="toc-num">4</div><div><div class="feature-title">Your Provider Dashboard</div><div class="feature-desc">Business command center</div></div></div>
+        <div class="toc-item"><div class="toc-num">5</div><div><div class="feature-title">The Bidding System</div><div class="feature-desc">Bid packs & pricing tiers</div></div></div>
+        <div class="toc-item"><div class="toc-num">6</div><div><div class="feature-title">Payment Protection</div><div class="feature-desc">Escrow & guaranteed payouts</div></div></div>
+        <div class="toc-item"><div class="toc-num">7</div><div><div class="feature-title">Vehicle Status Tracking</div><div class="feature-desc">Real-time customer updates</div></div></div>
+        <div class="toc-item"><div class="toc-num">8</div><div><div class="feature-title">Ratings & Team Management</div><div class="feature-desc">Reviews, security & multi-user</div></div></div>
       </div>
       <div class="content-box">
-        <div style="display: flex; align-items: center; gap: 3mm; margin-bottom: 3mm;">
-          <div style="width: 8mm; height: 8mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 10pt;">9</div>
-          <div><div class="feature-title">Team Management & Security</div><div class="feature-desc">Multi-user access & 2FA</div></div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 3mm; margin-bottom: 3mm;">
-          <div style="width: 8mm; height: 8mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 9pt;">10</div>
-          <div><div class="feature-title">Who Is MCC For?</div><div class="feature-desc">All automotive professionals</div></div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 3mm; margin-bottom: 3mm;">
-          <div style="width: 8mm; height: 8mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 9pt;">11</div>
-          <div><div class="feature-title">Founding Provider Program</div><div class="feature-desc">Exclusive early access benefits</div></div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 3mm; margin-bottom: 3mm;">
-          <div style="width: 8mm; height: 8mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 9pt;">12</div>
-          <div><div class="feature-title">How to Get Started</div><div class="feature-desc">Simple onboarding steps</div></div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 3mm;">
-          <div style="width: 8mm; height: 8mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 9pt;">13</div>
-          <div><div class="feature-title">Ready to Grow Your Business?</div><div class="feature-desc">Apply now & next steps</div></div>
-        </div>
+        <div class="box-title" style="color: #3b82f6;">Member Benefits (Why They Join)</div>
+        <div class="toc-item"><div class="toc-num" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">9</div><div><div class="feature-title">Dream Car Finder</div><div class="feature-desc">AI-powered car search</div></div></div>
+        <div class="toc-item"><div class="toc-num" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">10</div><div><div class="feature-title">My Next Car Tool</div><div class="feature-desc">Compare & track prospects</div></div></div>
+        <div class="toc-item"><div class="toc-num" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">11</div><div><div class="feature-title">Cost Estimator</div><div class="feature-desc">Fair pricing calculator</div></div></div>
+        <div class="toc-item"><div class="toc-num" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">12</div><div><div class="feature-title">Maintenance Scheduler</div><div class="feature-desc">Personalized service reminders</div></div></div>
+        <div class="toc-item"><div class="toc-num" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">13</div><div><div class="feature-title">Car Care Academy</div><div class="feature-desc">Education & glossary</div></div></div>
+        <div class="toc-item"><div class="toc-num" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">14</div><div><div class="feature-title">Vehicle Management Tools</div><div class="feature-desc">Fuel, recalls, insurance, history</div></div></div>
       </div>
     </div>
 
-    <div class="content-box highlight" style="margin-top: 5mm;">
-      <div class="box-title">Presentation Highlights</div>
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin-top: 2mm;">
-        <div style="text-align: center;">
-          <div style="font-size: 20pt;">📸</div>
-          <div style="font-size: 8pt; color: #666;">5 Platform Screenshots</div>
-        </div>
-        <div style="text-align: center;">
-          <div style="font-size: 20pt;">📊</div>
-          <div style="font-size: 8pt; color: #666;">Visual Flow Diagrams</div>
-        </div>
-        <div style="text-align: center;">
-          <div style="font-size: 20pt;">💰</div>
-          <div style="font-size: 8pt; color: #666;">Pricing & Benefits</div>
-        </div>
-        <div style="text-align: center;">
-          <div style="font-size: 20pt;">🚀</div>
-          <div style="font-size: 8pt; color: #666;">Getting Started Guide</div>
-        </div>
+    <div class="content-box highlight" style="margin-top: 2mm;">
+      <div class="box-title">Program & Getting Started</div>
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm;">
+        <div class="toc-item"><div class="toc-num">15</div><div><div class="feature-title">Who Is MCC For?</div></div></div>
+        <div class="toc-item"><div class="toc-num">16</div><div><div class="feature-title">Founding Program</div></div></div>
+        <div class="toc-item"><div class="toc-num">17</div><div><div class="feature-title">How to Start</div></div></div>
+        <div class="toc-item"><div class="toc-num">18</div><div><div class="feature-title">Apply Now</div></div></div>
       </div>
     </div>
 
-    <div class="slide-number">2 / 13</div>
+    <div class="callout">
+      <div class="title">Why Member Features Matter to You</div>
+      <div class="text">These features attract and retain members on the platform. More members = more service requests = more bidding opportunities for you. The better the member experience, the more jobs available in your area.</div>
+    </div>
+
+    <div class="slide-number">2 / 18</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -289,7 +274,7 @@
 
     <div class="screenshot-container">
       <img src="screenshots/member-dashboard.png" class="screenshot" alt="Member Dashboard">
-      <div class="screenshot-label">Member Dashboard - Where Customers Manage Their Vehicles & Service Requests</div>
+      <div class="screenshot-label">Member Dashboard - Where Customers Manage Vehicles & Request Services</div>
     </div>
 
     <div class="callout">
@@ -297,11 +282,11 @@
       <div class="text">Every customer you bring onto MCC becomes part of a shared pool. When they need a service you don't offer, another provider wins. When other providers' customers need YOUR specialty, you win.</div>
     </div>
 
-    <div class="slide-number">3 / 13</div>
+    <div class="slide-number">3 / 18</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- SLIDE 3: PROVIDER DASHBOARD -->
+  <!-- SLIDE 4: PROVIDER DASHBOARD -->
   <div class="slide">
     <div class="slide-header">
       <img src="logo.png" class="logo" alt="MCC">
@@ -318,22 +303,22 @@
       <div class="feature-item">
         <div class="feature-icon">📊</div>
         <div class="feature-title">Real-Time Stats</div>
-        <div class="feature-desc">See your bid credits, members in area, open packages, pending bids, and jobs won at a glance</div>
+        <div class="feature-desc">Bid credits, members in area, open packages, pending bids, jobs won</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">⭐</div>
         <div class="feature-title">Rating Display</div>
-        <div class="feature-desc">Your star rating is prominently displayed—build trust with great reviews</div>
+        <div class="feature-desc">Your star rating prominently displayed—build trust with reviews</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">📋</div>
         <div class="feature-title">Job Queue</div>
-        <div class="feature-desc">Browse packages to bid on, view active jobs, track emergency requests</div>
+        <div class="feature-desc">Browse packages, view active jobs, track emergency requests</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">💰</div>
         <div class="feature-title">Earnings Tracking</div>
-        <div class="feature-desc">Monitor your revenue, view analytics, and manage payouts</div>
+        <div class="feature-desc">Revenue monitoring, analytics, payout management</div>
       </div>
     </div>
 
@@ -342,11 +327,11 @@
       <div class="box-text">Quick access to: Bid Credits, Browse Packages, My Bids, Active Jobs, Emergency Queue, Fleet Services, Customer Queue, Earnings, Analytics, Reviews, Team Management, and Settings.</div>
     </div>
 
-    <div class="slide-number">4 / 13</div>
+    <div class="slide-number">4 / 18</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- SLIDE 4: BID PACKS -->
+  <!-- SLIDE 5: BID PACKS -->
   <div class="slide">
     <div class="slide-header">
       <img src="logo.png" class="logo" alt="MCC">
@@ -356,7 +341,7 @@
 
     <div class="screenshot-container">
       <img src="screenshots/bid-packs.png" class="screenshot" alt="Bid Packs">
-      <div class="screenshot-label">Bid Pack Selection - Choose the Right Package for Your Business</div>
+      <div class="screenshot-label">Bid Pack Selection - 18 Tiers with Up to 84% Savings</div>
     </div>
 
     <div class="two-col">
@@ -373,13 +358,11 @@
       <div class="content-box highlight">
         <div class="box-title">Sample Pricing</div>
         <table class="mini-table">
-          <tr><td>Dipstick</td><td>50 bids</td><td>$200</td></tr>
-          <tr><td>V8 <span class="tag">POPULAR</span></td><td>140 bids</td><td>$400</td></tr>
-          <tr><td>Racing Team</td><td>385 bids</td><td>$800</td></tr>
-          <tr><td>Formula One</td><td>1,470 bids</td><td>$2,000</td></tr>
-          <tr><td>Championship</td><td>15,400 bids</td><td>$10,000</td></tr>
+          <tr><td>Dipstick</td><td>50 bids</td><td>$200</td><td>$4.00/bid</td></tr>
+          <tr><td>V8 <span class="tag">POPULAR</span></td><td>140 bids</td><td>$400</td><td>$2.86/bid</td></tr>
+          <tr><td>Racing Team</td><td>385 bids</td><td>$800</td><td>$2.08/bid</td></tr>
+          <tr><td>Championship</td><td>15,400 bids</td><td>$10K</td><td>$0.65/bid</td></tr>
         </table>
-        <div style="font-size: 7pt; color: #888; margin-top: 1mm;">*18 total tiers available</div>
       </div>
     </div>
 
@@ -388,11 +371,11 @@
       <div class="text">Founding Providers receive unlimited bidding during the pilot period—no credits needed!</div>
     </div>
 
-    <div class="slide-number">5 / 13</div>
+    <div class="slide-number">5 / 18</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- SLIDE 5: PAYMENT & PROTECTION -->
+  <!-- SLIDE 6: PAYMENT & PROTECTION -->
   <div class="slide">
     <div class="slide-header">
       <img src="logo.png" class="logo" alt="MCC">
@@ -451,14 +434,14 @@
 
     <div class="content-box highlight">
       <div class="box-title">Stripe-Powered Payments</div>
-      <div class="box-text">All payments processed through Stripe—the same secure platform used by millions of businesses. PCI-compliant and trusted worldwide.</div>
+      <div class="box-text">All payments processed through Stripe—PCI-compliant and trusted by millions of businesses worldwide.</div>
     </div>
 
-    <div class="slide-number">6 / 13</div>
+    <div class="slide-number">6 / 18</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- SLIDE 6: VEHICLE TRACKING -->
+  <!-- SLIDE 7: VEHICLE TRACKING -->
   <div class="slide">
     <div class="slide-header">
       <img src="logo.png" class="logo" alt="MCC">
@@ -468,7 +451,7 @@
 
     <div class="content-box highlight">
       <div class="box-title">Real-Time Updates</div>
-      <div class="box-text">Members can track their vehicle's status throughout the service process. This reduces "is my car ready?" calls and builds trust with your customers.</div>
+      <div class="box-text">Members track their vehicle's status throughout service. This reduces "is my car ready?" calls and builds trust.</div>
     </div>
 
     <div class="section-title">Status Workflow</div>
@@ -492,16 +475,14 @@
           <li>Professional appearance</li>
           <li>Documented handoffs</li>
           <li>Reduced disputes</li>
-          <li>Customer confidence</li>
         </ul>
       </div>
       <div class="content-box">
         <div class="box-title">Member Experience</div>
         <ul class="bullet-list">
           <li>Real-time visibility</li>
-          <li>Push notifications</li>
+          <li>Push/email/SMS notifications</li>
           <li>Location sharing option</li>
-          <li>Appointment reminders</li>
           <li>Service history log</li>
         </ul>
       </div>
@@ -509,19 +490,19 @@
 
     <div class="content-box">
       <div class="box-title">Multi-Channel Notifications</div>
-      <div class="box-text">Members receive updates via push notifications, email, and SMS based on their preferences. You update the status in one click—the system handles the rest.</div>
+      <div class="box-text">Members receive updates via push, email, and SMS based on preferences. Update status in one click—system handles the rest.</div>
     </div>
 
-    <div class="slide-number">7 / 13</div>
+    <div class="slide-number">7 / 18</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- SLIDE 7: RATINGS & REVIEWS -->
+  <!-- SLIDE 8: RATINGS & TEAM -->
   <div class="slide">
     <div class="slide-header">
       <img src="logo.png" class="logo" alt="MCC">
-      <div class="slide-title">Ratings & Reputation</div>
-      <div class="slide-subtitle">Build Trust, Win More Jobs</div>
+      <div class="slide-title">Ratings, Team & Security</div>
+      <div class="slide-subtitle">Build Reputation & Manage Your Business</div>
     </div>
 
     <div class="stat-grid">
@@ -539,109 +520,480 @@
       </div>
     </div>
 
-    <div class="two-col">
-      <div class="content-box">
-        <div class="box-title">How Ratings Work</div>
-        <ul class="bullet-list">
-          <li>Members rate after each job</li>
-          <li>5-star scale with comments</li>
-          <li>Only verified transactions</li>
-          <li>Public profile display</li>
-          <li>Response option for providers</li>
-        </ul>
-      </div>
-      <div class="content-box">
-        <div class="box-title">Why It Matters</div>
-        <ul class="bullet-list">
-          <li>Higher rating = more visibility</li>
-          <li>Reviews build customer trust</li>
-          <li>Quality providers stand out</li>
-          <li>Repeat business opportunity</li>
-          <li>Competitive differentiation</li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="content-box highlight">
-      <div class="box-title">Quality Standards</div>
-      <div class="box-text">Providers must maintain a 4.0+ star average (with 3+ reviews) to remain active. This protects marketplace quality and ensures members have confidence in every provider.</div>
-    </div>
-
-    <div class="callout">
-      <div class="title">First Mover Advantage</div>
-      <div class="text">Founding Providers can build their review base before the market gets crowded. Early positive reviews compound over time and establish your reputation.</div>
-    </div>
-
-    <div class="slide-number">8 / 13</div>
-    <div class="footer-bar"></div>
-  </div>
-
-  <!-- SLIDE 8: TEAM & SECURITY -->
-  <div class="slide">
-    <div class="slide-header">
-      <img src="logo.png" class="logo" alt="MCC">
-      <div class="slide-title">Team Management & Security</div>
-      <div class="slide-subtitle">Enterprise-Grade Features for Your Business</div>
-    </div>
-
     <div class="section-title">Multi-User Access</div>
-    <div class="feature-grid">
+    <div class="feature-grid-4">
       <div class="feature-item">
         <div class="feature-icon">👑</div>
         <div class="feature-title">Owner</div>
-        <div class="feature-desc">Full access: billing, team mgmt, settings, bid credits</div>
+        <div class="feature-desc">Full access to billing, team, settings</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">👔</div>
         <div class="feature-title">Admin</div>
-        <div class="feature-desc">Manage jobs, messages, analytics—no billing access</div>
+        <div class="feature-desc">Manage jobs, messages, analytics</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">👤</div>
         <div class="feature-title">Staff</div>
-        <div class="feature-desc">Update job status, communicate on assigned jobs</div>
+        <div class="feature-desc">Update status, communicate</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">📧</div>
-        <div class="feature-title">Easy Invite</div>
-        <div class="feature-desc">Add team via email invitation system</div>
+        <div class="feature-title">Email Invite</div>
+        <div class="feature-desc">Add team members easily</div>
       </div>
     </div>
 
     <div class="section-title">Security Features</div>
-    <div class="feature-grid">
+    <div class="feature-grid-4">
       <div class="feature-item">
         <div class="feature-icon">🔐</div>
         <div class="feature-title">Two-Factor Auth</div>
-        <div class="feature-desc">SMS-based 2FA on all accounts</div>
+        <div class="feature-desc">SMS-based 2FA</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">🔒</div>
         <div class="feature-title">Encrypted Data</div>
-        <div class="feature-desc">TLS encryption in transit, at rest</div>
+        <div class="feature-desc">TLS encryption</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">📱</div>
         <div class="feature-title">Login Activity</div>
-        <div class="feature-desc">Track all login attempts & devices</div>
+        <div class="feature-desc">Track all logins</div>
       </div>
       <div class="feature-item">
         <div class="feature-icon">🛡️</div>
         <div class="feature-title">Rate Limiting</div>
-        <div class="feature-desc">Protection against abuse & attacks</div>
+        <div class="feature-desc">Abuse protection</div>
+      </div>
+    </div>
+
+    <div class="slide-number">8 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 9: DREAM CAR FINDER -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Dream Car Finder <span class="tag-blue">AI-POWERED</span></div>
+      <div class="slide-subtitle">Member Feature: Automated Car Search That Works in the Background</div>
+    </div>
+
+    <div class="content-box blue">
+      <div class="box-title">How It Works</div>
+      <div class="box-text">Members set their preferences once, and our AI automatically searches for matching vehicles. When a match is found, they get notified via SMS/email—no more endless scrolling through listings.</div>
+    </div>
+
+    <div class="section-title">Search Criteria Options</div>
+    <div class="feature-grid-4">
+      <div class="feature-item">
+        <div class="feature-icon">🚗</div>
+        <div class="feature-title">Make & Model</div>
+        <div class="feature-desc">Preferred brands and models</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📅</div>
+        <div class="feature-title">Year Range</div>
+        <div class="feature-desc">Min/max year preferences</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💰</div>
+        <div class="feature-title">Price Range</div>
+        <div class="feature-desc">Budget limits</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📍</div>
+        <div class="feature-title">Location Radius</div>
+        <div class="feature-desc">Search distance from zip</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🛣️</div>
+        <div class="feature-title">Max Mileage</div>
+        <div class="feature-desc">Mileage limit</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🎨</div>
+        <div class="feature-title">Exterior Colors</div>
+        <div class="feature-desc">Color preferences</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⛽</div>
+        <div class="feature-title">Fuel Type</div>
+        <div class="feature-desc">Gas, hybrid, electric</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">✨</div>
+        <div class="feature-title">Must-Have Features</div>
+        <div class="feature-desc">Sunroof, leather, etc.</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="content-box">
+        <div class="box-title">Search Frequency</div>
+        <ul class="bullet-list">
+          <li>Hourly updates for hot markets</li>
+          <li>Twice daily option</li>
+          <li>Daily digest option</li>
+        </ul>
+      </div>
+      <div class="content-box">
+        <div class="box-title">Match Features</div>
+        <ul class="bullet-list">
+          <li>Match scoring with reasons</li>
+          <li>Save or dismiss matches</li>
+          <li>Add to prospect list</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Why This Matters to Providers</div>
+      <div class="text">When members find and purchase new vehicles through MCC, they bring those vehicles onto the platform—creating new service opportunities for YOU.</div>
+    </div>
+
+    <div class="slide-number">9 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 10: MY NEXT CAR -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">My Next Car Tool <span class="tag-blue">CAR SHOPPING</span></div>
+      <div class="slide-subtitle">Member Feature: Track & Compare Prospective Vehicles</div>
+    </div>
+
+    <div class="content-box blue">
+      <div class="box-title">The Car Shopping Hub</div>
+      <div class="box-text">Members can track vehicles they're considering purchasing—whether found through Dream Car Finder, dealerships, or private sellers. Compare side-by-side and make informed decisions.</div>
+    </div>
+
+    <div class="section-title">Features</div>
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">🔍</div>
+        <div class="feature-title">VIN Lookup</div>
+        <div class="feature-desc">Free NHTSA API lookup for vehicle specs and recall history</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📝</div>
+        <div class="feature-title">Manual Entry</div>
+        <div class="feature-desc">Add vehicles manually with photos, notes, and dealer info</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Side-by-Side Compare</div>
+        <div class="feature-desc">Compare 2-4 vehicles at once on specs, price, features</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💯</div>
+        <div class="feature-title">Match Scoring</div>
+        <div class="feature-desc">Personal preferences scored against each vehicle</div>
+      </div>
+    </div>
+
+    <div class="section-title">Status Tracking</div>
+    <div class="icon-flow">
+      <div class="icon-step"><div class="icon">🤔</div><div class="label">Considering</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">🚗</div><div class="label">Test Driven</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">💰</div><div class="label">Offer Made</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">✅</div><div class="label">Purchased</div></div>
+      <div class="arrow">or</div>
+      <div class="icon-step"><div class="icon">👎</div><div class="label">Passed</div></div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Provider Opportunity</div>
+      <div class="text">Members often need pre-purchase inspections before buying. When they're shopping, they may request inspection services through MCC—jobs you can bid on!</div>
+    </div>
+
+    <div class="slide-number">10 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 11: COST ESTIMATOR -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Cost Estimator <span class="tag-blue">FAIR PRICING</span></div>
+      <div class="slide-subtitle">Member Feature: Know What to Expect Before Getting Bids</div>
+    </div>
+
+    <div class="content-box blue">
+      <div class="box-title">Informed Customers Are Better Customers</div>
+      <div class="box-text">Members use the Cost Estimator to understand fair pricing before requesting bids. This means realistic expectations and fewer price disputes.</div>
+    </div>
+
+    <div class="section-title">9 Service Categories</div>
+    <div class="feature-grid-3">
+      <div class="feature-item">
+        <div class="feature-icon">🔧</div>
+        <div class="feature-title">Maintenance</div>
+        <div class="feature-desc">Oil, brakes, fluids, filters</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⚙️</div>
+        <div class="feature-title">Repairs</div>
+        <div class="feature-desc">Engine, trans, AC, electrical</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">✨</div>
+        <div class="feature-title">Detailing</div>
+        <div class="feature-desc">Wash, wax, ceramic coating</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🎨</div>
+        <div class="feature-title">Body Work</div>
+        <div class="feature-desc">Dents, paint, bumpers</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔍</div>
+        <div class="feature-title">Inspection</div>
+        <div class="feature-desc">Pre-purchase, state, multi-point</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🖥️</div>
+        <div class="feature-title">Diagnostics</div>
+        <div class="feature-desc">Check engine, electrical</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-title">EV & Hybrid</div>
+        <div class="feature-desc">Battery, charging systems</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🛡️</div>
+        <div class="feature-title">Protection</div>
+        <div class="feature-desc">PPF, tinting, rustproofing</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🏎️</div>
+        <div class="feature-title">Performance</div>
+        <div class="feature-desc">Carbon cleaning, ECU tuning</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="content-box">
+        <div class="box-title">Smart Pricing Factors</div>
+        <ul class="bullet-list">
+          <li>Vehicle class multipliers (Domestic, Asian, European, Electric)</li>
+          <li>Regional labor rate adjustments</li>
+          <li>Basic/Standard/Premium tiers</li>
+        </ul>
+      </div>
+      <div class="content-box">
+        <div class="box-title">Educational Elements</div>
+        <ul class="bullet-list">
+          <li>"Why This Range?" explainer</li>
+          <li>"Ways to Save" tips</li>
+          <li>One-click to service request</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="slide-number">11 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 12: MAINTENANCE SCHEDULER -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Maintenance Scheduler <span class="tag-blue">AUTO-REMINDERS</span></div>
+      <div class="slide-subtitle">Member Feature: Personalized Service Reminders</div>
+    </div>
+
+    <div class="content-box blue">
+      <div class="box-title">Never Miss a Service Again</div>
+      <div class="box-text">Each vehicle gets a personalized maintenance schedule based on manufacturer recommendations, mileage, and driving conditions. Automated reminders via push, email, and SMS.</div>
+    </div>
+
+    <div class="section-title">17 Maintenance Items Tracked</div>
+    <div class="feature-grid-4">
+      <div class="feature-item"><div class="feature-title">Oil Change</div></div>
+      <div class="feature-item"><div class="feature-title">Tire Rotation</div></div>
+      <div class="feature-item"><div class="feature-title">Air Filters</div></div>
+      <div class="feature-item"><div class="feature-title">Brake Fluid</div></div>
+      <div class="feature-item"><div class="feature-title">Transmission</div></div>
+      <div class="feature-item"><div class="feature-title">Coolant</div></div>
+      <div class="feature-item"><div class="feature-title">Spark Plugs</div></div>
+      <div class="feature-item"><div class="feature-title">Brake Pads</div></div>
+      <div class="feature-item"><div class="feature-title">Battery</div></div>
+      <div class="feature-item"><div class="feature-title">Wiper Blades</div></div>
+      <div class="feature-item"><div class="feature-title">Alignment</div></div>
+      <div class="feature-item"><div class="feature-title">Timing Belt</div></div>
+      <div class="feature-item"><div class="feature-title">Carbon Cleaning <span class="tag-green">GDI</span></div></div>
+      <div class="feature-item"><div class="feature-title">Fuel System</div></div>
+      <div class="feature-item"><div class="feature-title">Throttle Body</div></div>
+      <div class="feature-item"><div class="feature-title">Multi-Point</div></div>
+    </div>
+
+    <div class="two-col">
+      <div class="content-box">
+        <div class="box-title">Smart Adjustments</div>
+        <ul class="bullet-list">
+          <li>Vehicle class detection (interval adjustments)</li>
+          <li>High-mileage adjustments (100K+)</li>
+          <li>Driving conditions (city, towing, climate)</li>
+          <li>Direct injection detection for carbon cleaning</li>
+        </ul>
+      </div>
+      <div class="content-box highlight">
+        <div class="box-title">One-Click Service Request</div>
+        <div class="box-text">When a maintenance item is due, members can convert it to a service request with one click—sending it directly to providers like you!</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Steady Stream of Jobs</div>
+      <div class="text">Maintenance reminders create predictable, recurring service requests. Oil changes, tire rotations, and inspections happen on schedule—generating consistent bidding opportunities.</div>
+    </div>
+
+    <div class="slide-number">12 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 13: CAR CARE ACADEMY -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Car Care Academy <span class="tag-blue">EDUCATION</span></div>
+      <div class="slide-subtitle">Member Feature: Learn About Car Maintenance & Repairs</div>
+    </div>
+
+    <div class="content-box blue">
+      <div class="box-title">Educated Customers = Better Decisions</div>
+      <div class="box-text">The Car Care Academy helps members understand automotive maintenance and repairs—so they value quality work and understand why services matter.</div>
+    </div>
+
+    <div class="section-title">Learning Components</div>
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">📚</div>
+        <div class="feature-title">Learn Hub</div>
+        <div class="feature-desc">36+ articles across 6 categories: Maintenance 101, Understanding Repairs, Warning Signs, Money-Saving Tips, Rideshare/High-Mileage, Commercial/Fleet</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📖</div>
+        <div class="feature-title">Automotive Glossary</div>
+        <div class="feature-desc">32+ searchable terms with plain-language definitions for common automotive jargon</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">❓</div>
+        <div class="feature-title">Contextual Education</div>
+        <div class="feature-desc">"What is this?" explanations on maintenance items and "Why this matters" on services</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🤖</div>
+        <div class="feature-title">AI Tutor</div>
+        <div class="feature-desc">"Ask our AI about cars" - Get instant answers to automotive questions from AI assistant</div>
       </div>
     </div>
 
     <div class="content-box">
-      <div class="box-title">Your Data, Your Control</div>
-      <div class="box-text">We never sell your data or customer information. Your business relationships remain yours. MCC simply facilitates the connection.</div>
+      <div class="box-title">Content for Every Driver</div>
+      <div class="box-text">
+        <strong>Regular drivers:</strong> Basic maintenance understanding, warning signs, when to see a professional<br>
+        <strong>Rideshare/High-mileage:</strong> Managing wear on vehicles driven 30-50K+ miles/year<br>
+        <strong>Commercial/Fleet:</strong> DOT requirements, preventative maintenance schedules, compliance
+      </div>
     </div>
 
-    <div class="slide-number">9 / 13</div>
+    <div class="callout">
+      <div class="title">Why Education Helps Providers</div>
+      <div class="text">Educated members understand the value of quality work. They're less likely to price-shop on complex repairs and more likely to approve recommended services.</div>
+    </div>
+
+    <div class="slide-number">13 / 18</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- SLIDE 9: WHO IT'S FOR -->
+  <!-- SLIDE 14: VEHICLE MANAGEMENT TOOLS -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Vehicle Management Tools <span class="tag-blue">ALL-IN-ONE</span></div>
+      <div class="slide-subtitle">Member Features: Complete Vehicle Ownership Toolkit</div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">⛽</div>
+        <div class="feature-title">Fuel Cost Tracking</div>
+        <div class="feature-desc">Track fill-ups, calculate MPG, view monthly/yearly spending, cost per mile with trend charts</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⚠️</div>
+        <div class="feature-title">Vehicle Recall Alerts</div>
+        <div class="feature-desc">Auto-check NHTSA database weekly. Badge on vehicles with active recalls. Safety first!</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📄</div>
+        <div class="feature-title">Insurance Card Storage</div>
+        <div class="feature-desc">Upload and store insurance documents (PDF, JPG, PNG) with expiration tracking</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📋</div>
+        <div class="feature-title">Service History Export</div>
+        <div class="feature-desc">Download complete service records as PDF or CSV for resale or personal records</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">✅</div>
+        <div class="feature-title">Identity Verification</div>
+        <div class="feature-desc">Stripe Identity verification (govt ID + selfie) for vehicle ownership. "Verified Owner" badge</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🎁</div>
+        <div class="feature-title">Referral Program</div>
+        <div class="feature-desc">$10 credit for referring friends. New members get $10 welcome bonus. Share via email/SMS</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔔</div>
+        <div class="feature-title">Notification Preferences</div>
+        <div class="feature-desc">Control notifications via push, email, or SMS. Toggle for bids, status, reminders, marketing</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">👨‍👩‍👧‍👦</div>
+        <div class="feature-title">Household Management</div>
+        <div class="feature-desc">Manage multiple vehicles across family members in one account</div>
+      </div>
+    </div>
+
+    <div class="stat-grid-4">
+      <div class="stat-box">
+        <div class="stat-value">📱</div>
+        <div class="stat-label">iOS & Android Apps</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">💻</div>
+        <div class="stat-label">Web Platform</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">🖥️</div>
+        <div class="stat-label">Desktop Apps</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">🔄</div>
+        <div class="stat-label">Synced Everywhere</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Everything in One Place</div>
+      <div class="text">Members don't need 5 different apps. MCC is their complete vehicle management solution—which keeps them engaged and generating service requests.</div>
+    </div>
+
+    <div class="slide-number">14 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 15: WHO IT'S FOR -->
   <div class="slide">
     <div class="slide-header">
       <img src="logo.png" class="logo" alt="MCC">
@@ -702,11 +1054,11 @@
       <div class="text">Have slow days? MCC brings you pre-qualified customers ready to book. No advertising costs—just jobs delivered to your dashboard.</div>
     </div>
 
-    <div class="slide-number">10 / 13</div>
+    <div class="slide-number">15 / 18</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- SLIDE 10: FOUNDING PROVIDER PROGRAM -->
+  <!-- SLIDE 16: FOUNDING PROVIDER PROGRAM -->
   <div class="slide">
     <div class="slide-header">
       <img src="logo.png" class="logo" alt="MCC">
@@ -716,7 +1068,7 @@
 
     <div class="content-box highlight">
       <div class="box-title">Get In on the Ground Floor</div>
-      <div class="box-text">We're onboarding a limited group of Founding Providers while we launch the member side. This is an invitation to build something together and secure your position in a new marketplace.</div>
+      <div class="box-text">We're onboarding a limited group of Founding Providers while we launch the member side. This is an invitation to build something together and secure your position.</div>
     </div>
 
     <div class="feature-grid">
@@ -757,11 +1109,11 @@
       <div class="text">Founding Provider spots are limited by market area. Early applicants secure the best positions and start building reviews before competition arrives.</div>
     </div>
 
-    <div class="slide-number">11 / 13</div>
+    <div class="slide-number">16 / 18</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- SLIDE 11: HOW TO GET STARTED -->
+  <!-- SLIDE 17: HOW TO GET STARTED -->
   <div class="slide">
     <div class="slide-header">
       <img src="logo.png" class="logo" alt="MCC">
@@ -794,31 +1146,31 @@
       </div>
       <div class="content-box highlight">
         <div class="box-title">Get Started Today</div>
-        <div class="box-text" style="text-align: center; font-size: 10pt;">
-          Scan the QR code or visit<br>
+        <div class="box-text" style="text-align: center; font-size: 9pt;">
+          Visit<br>
           <strong style="color: #b8962e;">mycarconcierge.com/signup-provider</strong>
         </div>
       </div>
     </div>
 
-    <div class="slide-number">12 / 13</div>
+    <div class="slide-number">17 / 18</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- SLIDE 12: CALL TO ACTION -->
+  <!-- SLIDE 18: CALL TO ACTION -->
   <div class="slide">
     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
-      <img src="logo.png" style="width: 50mm; margin-bottom: 6mm;" alt="My Car Concierge">
+      <img src="logo.png" style="width: 45mm; margin-bottom: 5mm;" alt="My Car Concierge">
       
-      <div style="font-family: 'Playfair Display', serif; font-size: 26pt; color: #1a1a24; text-align: center; margin-bottom: 4mm;">
+      <div style="font-family: 'Playfair Display', serif; font-size: 24pt; color: #1a1a24; text-align: center; margin-bottom: 3mm;">
         Ready to Grow Your Business?
       </div>
       
-      <div style="font-size: 12pt; color: #666; text-align: center; max-width: 140mm; margin-bottom: 8mm; line-height: 1.4;">
-        Join the Founding Provider program today and be among the first to access a new stream of qualified customers.
+      <div style="font-size: 11pt; color: #666; text-align: center; max-width: 140mm; margin-bottom: 6mm; line-height: 1.4;">
+        Join the Founding Provider program today and be among the first to access a platform packed with features that attract and retain customers.
       </div>
 
-      <div class="stat-grid" style="width: 160mm;">
+      <div class="stat-grid" style="width: 150mm;">
         <div class="stat-box">
           <div class="stat-value">0%</div>
           <div class="stat-label">Platform Fees During Pilot</div>
@@ -833,24 +1185,38 @@
         </div>
       </div>
 
-      <div class="cta-box" style="width: 150mm; margin-top: 8mm;">
+      <div class="content-box blue" style="width: 150mm; margin-top: 5mm;">
+        <div class="box-title" style="text-align: center;">Platform Features Summary</div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm; text-align: center; font-size: 7pt; color: #444;">
+          <div>Dream Car Finder</div>
+          <div>My Next Car</div>
+          <div>Cost Estimator</div>
+          <div>Maintenance Scheduler</div>
+          <div>Car Care Academy</div>
+          <div>Fuel Tracking</div>
+          <div>Recall Alerts</div>
+          <div>Identity Verification</div>
+        </div>
+      </div>
+
+      <div class="cta-box" style="width: 140mm; margin-top: 5mm;">
         <div class="cta-title">Apply Now</div>
         <div class="cta-text">www.mycarconcierge.com/signup-provider.html</div>
       </div>
 
-      <div style="margin-top: 10mm; text-align: center;">
-        <div style="font-size: 11pt; color: #b8962e; margin-bottom: 2mm;">Questions?</div>
-        <div style="font-size: 11pt; color: #444;">info@mycarconcierge.com</div>
+      <div style="margin-top: 6mm; text-align: center;">
+        <div style="font-size: 10pt; color: #b8962e; margin-bottom: 1mm;">Questions?</div>
+        <div style="font-size: 10pt; color: #444;">info@mycarconcierge.com</div>
       </div>
 
-      <div class="platform-badges" style="margin-top: 8mm;">
+      <div class="platform-badges" style="margin-top: 5mm;">
         <div class="badge">iOS App</div>
         <div class="badge">Android App</div>
         <div class="badge">Web Platform</div>
         <div class="badge">Desktop Apps</div>
       </div>
     </div>
-    <div class="slide-number">13 / 13</div>
+    <div class="slide-number">18 / 18</div>
     <div class="footer-bar"></div>
   </div>
 
