@@ -303,6 +303,49 @@
     .service-history-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); margin-bottom: 16px; overflow: hidden; transition: all 0.2s ease; }
     .service-history-card:hover { border-color: var(--border-medium); }
     .service-history-card.expanded { border-color: var(--accent-blue); }
+
+    /* Order History Cards */
+    .order-history-list { display: flex; flex-direction: column; gap: 16px; }
+    .order-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); overflow: hidden; transition: all 0.2s ease; }
+    .order-card:hover { border-color: var(--border-medium); }
+    .order-card.expanded { border-color: var(--accent-blue); }
+    .order-card-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; cursor: pointer; gap: 16px; flex-wrap: wrap; }
+    .order-card-header:hover { background: var(--bg-elevated); }
+    .order-card-info { display: flex; align-items: center; gap: 16px; flex: 1; flex-wrap: wrap; }
+    .order-icon { width: 48px; height: 48px; border-radius: 12px; background: var(--accent-gold-soft); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+    .order-meta { flex: 1; min-width: 200px; }
+    .order-number { font-weight: 600; font-size: 1rem; margin-bottom: 4px; }
+    .order-date { font-size: 0.85rem; color: var(--text-secondary); }
+    .order-summary { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+    .order-items-count { font-size: 0.88rem; color: var(--text-muted); }
+    .order-total { font-size: 1.15rem; font-weight: 600; color: var(--accent-gold); }
+    .order-status { padding: 6px 14px; border-radius: 100px; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .order-status.pending { background: rgba(148, 148, 168, 0.15); color: var(--text-muted); }
+    .order-status.paid { background: var(--accent-blue-soft); color: var(--accent-blue); }
+    .order-status.processing { background: var(--accent-orange-soft); color: var(--accent-orange); }
+    .order-status.shipped { background: var(--accent-green-soft); color: var(--accent-green); }
+    .order-status.delivered { background: var(--accent-gold-soft); color: var(--accent-gold); }
+    .order-status.cancelled { background: rgba(239, 95, 95, 0.15); color: var(--accent-red); }
+    .order-expand-icon { font-size: 18px; color: var(--text-muted); transition: transform 0.2s; }
+    .order-card.expanded .order-expand-icon { transform: rotate(180deg); }
+    .order-details { display: none; padding: 0 24px 24px; border-top: 1px solid var(--border-subtle); }
+    .order-card.expanded .order-details { display: block; padding-top: 20px; }
+    .order-details-section { margin-bottom: 20px; }
+    .order-details-section:last-child { margin-bottom: 0; }
+    .order-details-title { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .order-item-row { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border-subtle); }
+    .order-item-row:last-child { border-bottom: none; }
+    .order-item-image { width: 60px; height: 60px; border-radius: var(--radius-sm); background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: 28px; overflow: hidden; flex-shrink: 0; }
+    .order-item-image img { width: 100%; height: 100%; object-fit: cover; }
+    .order-item-info { flex: 1; }
+    .order-item-name { font-weight: 500; margin-bottom: 4px; }
+    .order-item-variant { font-size: 0.82rem; color: var(--text-muted); }
+    .order-item-qty { font-size: 0.88rem; color: var(--text-secondary); }
+    .order-item-price { font-weight: 600; color: var(--accent-gold); }
+    .order-shipping-info { background: var(--bg-input); border-radius: var(--radius-md); padding: 16px; }
+    .order-shipping-info p { margin-bottom: 4px; font-size: 0.9rem; color: var(--text-secondary); }
+    .order-shipping-info p:last-child { margin-bottom: 0; }
+    .order-tracking-btn { margin-top: 12px; }
     .service-history-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; cursor: pointer; gap: 16px; flex-wrap: wrap; }
     .service-history-header:hover { background: var(--bg-elevated); }
     .service-history-provider { display: flex; align-items: center; gap: 14px; }
@@ -421,6 +464,10 @@
       .bidding-window-options { grid-template-columns: repeat(3, 1fr); }
       .vehicles-grid { grid-template-columns: 1fr; }
       .vehicle-card-photo { height: 180px; }
+      .shop-layout { grid-template-columns: 1fr !important; }
+      .shop-cart-sidebar { position: relative !important; top: 0 !important; order: -1; margin-bottom: 24px; }
+      #mobile-cart-btn { display: block !important; }
+      .shop-products-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important; }
       .vehicle-card-body { padding: 16px 20px 20px; }
       .vehicle-card-actions { flex-wrap: wrap; }
       .nav-item { padding: 13px 16px; font-size: 0.95rem; border-radius: 12px; margin-bottom: 3px; }
@@ -431,6 +478,12 @@
       body.sidebar-open { overflow: hidden; }
     }
     @media (min-width: 901px) { .mobile-header { display: none; } }
+
+    /* Shop Section Styles */
+    .shop-filter-btn { background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-subtle); transition: all 0.2s ease; }
+    .shop-filter-btn:hover { border-color: var(--accent-gold); color: var(--text-primary); }
+    .shop-filter-btn.active { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; border-color: var(--accent-gold); }
+    .product-card:hover { border-color: var(--accent-gold); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
 
     /* Emergency Button */
     @keyframes emergencyPulse { 0%, 100% { box-shadow: 0 4px 20px rgba(239, 95, 95, 0.4); } 50% { box-shadow: 0 4px 30px rgba(239, 95, 95, 0.7), 0 0 0 10px rgba(239, 95, 95, 0.1); } }
@@ -654,6 +707,8 @@
     
     <div class="nav-label" data-i18n="member.navServices">Services</div>
     <div class="nav-item" data-section="packages"><span data-i18n="member.maintenancePackages">📦 Maintenance Packages</span></div>
+    <div class="nav-item" data-section="shop" style="background:linear-gradient(135deg, rgba(212,168,85,0.1), rgba(74,124,255,0.05));border:1px solid rgba(212,168,85,0.2);"><span style="color:var(--accent-gold);">🛍️ Shop</span></div>
+    <div class="nav-item" data-section="order-history"><span>📦 Order History</span></div>
     <div class="nav-item" data-section="cost-estimator"><span>💰 Cost Estimator</span></div>
     <div class="nav-item" data-section="upsells"><span data-i18n="member.additionalWork">⚠️ Additional Work</span> <span class="nav-badge" id="upsell-count" style="display:none;background:var(--accent-orange);">0</span></div>
     <div class="nav-item" data-section="messages"><span data-i18n="nav.messages">💬 Messages</span> <span class="nav-badge" id="message-count" style="display:none;">0</span></div>
@@ -1460,6 +1515,137 @@
         <div class="empty-state">
           <div class="empty-state-icon">📦</div>
           <p>No maintenance packages yet.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Shop Section -->
+    <section id="shop" class="section">
+      <div class="page-header">
+        <h1 class="page-title">🛍️ MCC Shop</h1>
+        <p class="page-subtitle">Official My Car Concierge merchandise and accessories</p>
+      </div>
+
+      <div class="shop-layout" style="display:grid;grid-template-columns:1fr 320px;gap:24px;">
+        <!-- Products Area -->
+        <div class="shop-products-area">
+          <!-- Category Filters -->
+          <div class="shop-filters" style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;">
+            <button class="btn shop-filter-btn active" data-category="all" onclick="filterShopProducts('all')">All Products</button>
+            <button class="btn shop-filter-btn" data-category="apparel" onclick="filterShopProducts('apparel')">👕 Apparel</button>
+            <button class="btn shop-filter-btn" data-category="accessories" onclick="filterShopProducts('accessories')">🎒 Accessories</button>
+            <button class="btn shop-filter-btn" data-category="decals" onclick="filterShopProducts('decals')">🏷️ Decals</button>
+          </div>
+
+          <!-- Product Grid -->
+          <div class="shop-products-grid" id="shop-products-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:20px;">
+            <!-- Products will be loaded here -->
+          </div>
+
+          <div id="shop-empty-state" class="empty-state" style="display:none;">
+            <div class="empty-state-icon">🛍️</div>
+            <p>No products available in this category.</p>
+          </div>
+        </div>
+
+        <!-- Cart Sidebar -->
+        <div class="shop-cart-sidebar" style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:24px;height:fit-content;position:sticky;top:24px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border-subtle);">
+            <span style="font-size:24px;">🛒</span>
+            <h3 style="font-size:1.1rem;font-weight:600;">Your Cart</h3>
+            <span class="nav-badge" id="cart-item-count" style="margin-left:auto;background:var(--accent-gold);color:#0a0a0f;">0</span>
+          </div>
+
+          <div id="cart-items-list" style="max-height:300px;overflow-y:auto;margin-bottom:16px;">
+            <div class="empty-state" style="padding:24px 0;">
+              <div style="font-size:40px;margin-bottom:12px;">🛒</div>
+              <p style="color:var(--text-muted);font-size:0.9rem;">Your cart is empty</p>
+            </div>
+          </div>
+
+          <div id="cart-summary" style="display:none;padding-top:16px;border-top:1px solid var(--border-subtle);">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+              <span style="color:var(--text-secondary);">Subtotal:</span>
+              <span id="cart-subtotal" style="font-weight:500;">$0.00</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+              <span style="color:var(--text-secondary);">Shipping:</span>
+              <span id="cart-shipping" style="font-weight:500;">Calculated at checkout</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding-top:12px;border-top:1px solid var(--border-subtle);margin-top:12px;">
+              <span style="font-weight:600;">Estimated Total:</span>
+              <span id="cart-total" style="font-size:1.2rem;font-weight:700;color:var(--accent-gold);">$0.00</span>
+            </div>
+          </div>
+
+          <button id="checkout-btn" class="btn btn-primary" onclick="proceedToCheckout()" style="width:100%;margin-top:20px;padding:14px 20px;font-size:1rem;" disabled>
+            Proceed to Checkout
+          </button>
+          <button id="clear-cart-btn" class="btn btn-ghost" onclick="clearCart()" style="width:100%;margin-top:8px;display:none;">
+            Clear Cart
+          </button>
+        </div>
+      </div>
+
+      <!-- Mobile Cart Button -->
+      <div id="mobile-cart-btn" style="display:none;position:fixed;bottom:24px;right:24px;z-index:50;">
+        <button class="btn btn-primary" onclick="showCartModal()" style="width:60px;height:60px;border-radius:50%;font-size:24px;padding:0;box-shadow:0 4px 20px rgba(212,168,85,0.4);">
+          🛒
+          <span id="mobile-cart-count" style="position:absolute;top:-5px;right:-5px;background:var(--accent-red);color:white;font-size:0.7rem;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;">0</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Cart Modal (for mobile) -->
+    <div id="cart-modal" class="modal-backdrop">
+      <div class="modal" style="max-width:400px;">
+        <div class="modal-header">
+          <h3 class="modal-title">🛒 Your Cart</h3>
+          <button class="btn btn-ghost" onclick="closeModal('cart-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="cart-modal-items" style="max-height:400px;overflow-y:auto;margin-bottom:16px;">
+            <!-- Cart items rendered here -->
+          </div>
+          <div id="cart-modal-summary" style="padding-top:16px;border-top:1px solid var(--border-subtle);">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+              <span style="color:var(--text-secondary);">Subtotal:</span>
+              <span id="cart-modal-subtotal" style="font-weight:500;">$0.00</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding-top:12px;border-top:1px solid var(--border-subtle);margin-top:12px;">
+              <span style="font-weight:600;">Total:</span>
+              <span id="cart-modal-total" style="font-size:1.2rem;font-weight:700;color:var(--accent-gold);">$0.00</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal('cart-modal')">Continue Shopping</button>
+          <button class="btn btn-primary" onclick="proceedToCheckout()">Checkout</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Order History Section -->
+    <section id="order-history" class="section">
+      <div class="page-header">
+        <h1 class="page-title">📦 Order History</h1>
+        <p class="page-subtitle">View your merchandise orders and track shipments</p>
+      </div>
+
+      <div id="order-history-content">
+        <div id="order-history-loading" class="empty-state" style="padding:60px 20px;">
+          <div style="font-size:48px;margin-bottom:16px;">⏳</div>
+          <p style="color:var(--text-secondary);">Loading your orders...</p>
+        </div>
+
+        <div id="order-history-empty" class="empty-state" style="display:none;padding:60px 20px;">
+          <div style="font-size:64px;margin-bottom:16px;">📦</div>
+          <h3 style="font-size:1.2rem;font-weight:600;margin-bottom:8px;">No Orders Yet</h3>
+          <p style="color:var(--text-secondary);margin-bottom:24px;">You haven't placed any merchandise orders yet.</p>
+          <button class="btn btn-primary" onclick="showSection('shop')">🛍️ Browse Shop</button>
+        </div>
+
+        <div id="order-history-list" class="order-history-list" style="display:none;">
         </div>
       </div>
     </section>

@@ -381,6 +381,678 @@ async function syncSquareTransactions(providerId, locationId, accessToken, envir
   return syncedCount;
 }
 
+const PRINTFUL_API_URL = 'https://api.printful.com';
+
+async function fetchPrintfulProducts() {
+  const apiKey = process.env.PRINTFUL_API_KEY;
+  
+  if (!apiKey) {
+    return {
+      success: false,
+      products: [],
+      error: 'Printful API key not configured'
+    };
+  }
+  
+  try {
+    const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.result || `Printful API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const products = [];
+    
+    for (const item of (data.result || [])) {
+      const productResponse = await fetch(`${PRINTFUL_API_URL}/store/products/${item.id}`, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (productResponse.ok) {
+        const productData = await productResponse.json();
+        const product = productData.result;
+        
+        if (product && product.sync_variants && product.sync_variants.length > 0) {
+          const categoryMap = {
+            'T-SHIRT': 'apparel',
+            'HOODIE': 'apparel',
+            'HAT': 'accessories',
+            'MUG': 'accessories',
+            'POSTER': 'decals',
+            'STICKER': 'decals'
+          };
+          
+          const productType = product.sync_product?.product?.type || '';
+          const category = categoryMap[productType.toUpperCase()] || 'accessories';
+          
+          products.push({
+            id: `printful_${product.sync_product.id}`,
+            printfulId: product.sync_product.id,
+            name: product.sync_product.name,
+            category: category,
+            price: parseFloat(product.sync_variants[0].retail_price) || 0,
+            image: product.sync_product.thumbnail_url,
+            variants: product.sync_variants.map(v => ({
+              id: `var_${v.id}`,
+              printfulVariantId: v.id,
+              printfulSyncVariantId: v.id,
+              name: v.name.replace(product.sync_product.name + ' - ', ''),
+              price: parseFloat(v.retail_price) || 0,
+              sku: v.sku
+            }))
+          });
+        }
+      }
+    }
+    
+    return {
+      success: true,
+      products
+    };
+  } catch (error) {
+    console.error('Printful API error:', error);
+    return {
+      success: false,
+      products: [],
+      error: error.message
+    };
+  }
+}
+
+async function createPrintfulOrder(orderData) {
+  const apiKey = process.env.PRINTFUL_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error('Printful API key not configured');
+  }
+  
+  const printfulOrderData = {
+    recipient: {
+      name: orderData.shipping_name,
+      address1: orderData.shipping_address,
+      city: orderData.shipping_city,
+      state_code: orderData.shipping_state,
+      country_code: orderData.shipping_country || 'US',
+      zip: orderData.shipping_zip,
+      email: orderData.email
+    },
+    items: orderData.items.map(item => ({
+      sync_variant_id: item.printfulSyncVariantId,
+      quantity: item.quantity,
+      retail_price: (item.price / 100).toFixed(2)
+    }))
+  };
+  
+  try {
+    const response = await fetch(`${PRINTFUL_API_URL}/orders`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(printfulOrderData)
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.result || data.error?.message || `Printful order creation failed: ${response.status}`);
+    }
+    
+    return {
+      success: true,
+      orderId: data.result.id,
+      externalId: data.result.external_id,
+      status: data.result.status
+    };
+  } catch (error) {
+    console.error('Printful order creation error:', error);
+    throw error;
+  }
+}
+
+async function getPrintfulOrderStatus(orderId) {
+  const apiKey = process.env.PRINTFUL_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error('Printful API key not configured');
+  }
+  
+  try {
+    const response = await fetch(`${PRINTFUL_API_URL}/orders/${orderId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.result || `Printful API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const order = data.result;
+    
+    const statusMap = {
+      'draft': 'pending',
+      'pending': 'processing',
+      'failed': 'cancelled',
+      'canceled': 'cancelled',
+      'inprocess': 'processing',
+      'onhold': 'processing',
+      'partial': 'processing',
+      'fulfilled': 'shipped'
+    };
+    
+    let trackingNumber = null;
+    let trackingUrl = null;
+    
+    if (order.shipments && order.shipments.length > 0) {
+      const shipment = order.shipments[0];
+      trackingNumber = shipment.tracking_number;
+      trackingUrl = shipment.tracking_url;
+    }
+    
+    return {
+      success: true,
+      printfulStatus: order.status,
+      status: statusMap[order.status] || 'processing',
+      trackingNumber,
+      trackingUrl,
+      created: order.created,
+      updated: order.updated
+    };
+  } catch (error) {
+    console.error('Printful order status error:', error);
+    throw error;
+  }
+}
+
+async function handleShopProducts(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  try {
+    const printfulResult = await fetchPrintfulProducts();
+    
+    if (printfulResult.success && printfulResult.products.length > 0) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        products: printfulResult.products,
+        source: 'printful'
+      }));
+    } else {
+      const placeholderProducts = [
+        {
+          id: 'prod_1',
+          name: 'MCC Classic Logo T-Shirt',
+          category: 'apparel',
+          price: 29.99,
+          image: null,
+          variants: [
+            { id: 'var_1a', name: 'Small', price: 29.99 },
+            { id: 'var_1b', name: 'Medium', price: 29.99 },
+            { id: 'var_1c', name: 'Large', price: 29.99 },
+            { id: 'var_1d', name: 'XL', price: 29.99 }
+          ]
+        },
+        {
+          id: 'prod_2',
+          name: 'MCC Premium Hoodie',
+          category: 'apparel',
+          price: 59.99,
+          image: null,
+          variants: [
+            { id: 'var_2a', name: 'Small', price: 59.99 },
+            { id: 'var_2b', name: 'Medium', price: 59.99 },
+            { id: 'var_2c', name: 'Large', price: 59.99 },
+            { id: 'var_2d', name: 'XL', price: 59.99 }
+          ]
+        },
+        {
+          id: 'prod_3',
+          name: 'MCC Performance Cap',
+          category: 'accessories',
+          price: 24.99,
+          image: null,
+          variants: [
+            { id: 'var_3a', name: 'One Size', price: 24.99 }
+          ]
+        },
+        {
+          id: 'prod_4',
+          name: 'MCC Travel Mug',
+          category: 'accessories',
+          price: 19.99,
+          image: null,
+          variants: [
+            { id: 'var_4a', name: '16oz', price: 19.99 },
+            { id: 'var_4b', name: '20oz', price: 22.99 }
+          ]
+        },
+        {
+          id: 'prod_5',
+          name: 'MCC Keychain',
+          category: 'accessories',
+          price: 12.99,
+          image: null,
+          variants: [
+            { id: 'var_5a', name: 'Standard', price: 12.99 }
+          ]
+        },
+        {
+          id: 'prod_6',
+          name: 'MCC Logo Decal - Small',
+          category: 'decals',
+          price: 5.99,
+          image: null,
+          variants: [
+            { id: 'var_6a', name: 'White', price: 5.99 },
+            { id: 'var_6b', name: 'Gold', price: 5.99 },
+            { id: 'var_6c', name: 'Black', price: 5.99 }
+          ]
+        },
+        {
+          id: 'prod_7',
+          name: 'MCC Logo Decal - Large',
+          category: 'decals',
+          price: 9.99,
+          image: null,
+          variants: [
+            { id: 'var_7a', name: 'White', price: 9.99 },
+            { id: 'var_7b', name: 'Gold', price: 9.99 },
+            { id: 'var_7c', name: 'Black', price: 9.99 }
+          ]
+        },
+        {
+          id: 'prod_8',
+          name: 'MCC Window Sticker Pack',
+          category: 'decals',
+          price: 14.99,
+          image: null,
+          variants: [
+            { id: 'var_8a', name: '5-Pack', price: 14.99 },
+            { id: 'var_8b', name: '10-Pack', price: 24.99 }
+          ]
+        }
+      ];
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        products: placeholderProducts,
+        source: 'placeholder',
+        message: printfulResult.error || 'Using placeholder products'
+      }));
+    }
+  } catch (error) {
+    console.error(`[${requestId}] Shop products error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to fetch products' }));
+  }
+}
+
+async function handleShopCheckout(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  
+  req.on('end', async () => {
+    try {
+      const { items, shippingAddress } = JSON.parse(body);
+      
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Cart items are required' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, full_name')
+        .eq('id', user.id)
+        .single();
+      
+      const subtotal = items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0);
+      const shipping = 599;
+      const total = subtotal + shipping;
+      
+      const lineItems = items.map(item => ({
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: item.name,
+            description: item.variantName || undefined
+          },
+          unit_amount: Math.round(item.price * 100)
+        },
+        quantity: item.quantity
+      }));
+      
+      lineItems.push({
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: 'Shipping'
+          },
+          unit_amount: shipping
+        },
+        quantity: 1
+      });
+      
+      const stripe = await getStripeClient();
+      
+      const protocol = process.env.REPLIT_DEPLOYMENT === '1' ? 'https' : 'https';
+      const domain = process.env.REPLIT_DEV_DOMAIN || process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co';
+      const baseUrl = `${protocol}://${domain}`;
+      
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: lineItems,
+        mode: 'payment',
+        success_url: `${baseUrl}/members.html?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/members.html?checkout=cancelled`,
+        customer_email: profile?.email,
+        shipping_address_collection: {
+          allowed_countries: ['US', 'CA']
+        },
+        metadata: {
+          type: 'merch_order',
+          member_id: user.id,
+          items: JSON.stringify(items.map(item => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            printfulSyncVariantId: item.printfulSyncVariantId,
+            name: item.name,
+            variantName: item.variantName,
+            price: Math.round(item.price * 100),
+            quantity: item.quantity
+          })))
+        }
+      });
+      
+      const { error: insertError } = await supabase
+        .from('merch_orders')
+        .insert({
+          member_id: user.id,
+          stripe_session_id: session.id,
+          items: items.map(item => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            printfulSyncVariantId: item.printfulSyncVariantId,
+            name: item.name,
+            variantName: item.variantName,
+            price: Math.round(item.price * 100),
+            quantity: item.quantity
+          })),
+          subtotal: subtotal,
+          shipping: shipping,
+          total: total,
+          status: 'pending'
+        });
+      
+      if (insertError) {
+        console.error(`[${requestId}] Error creating order record:`, insertError);
+      }
+      
+      console.log(`[${requestId}] Created Stripe checkout session for merch: ${session.id}`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        sessionId: session.id,
+        url: session.url
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Shop checkout error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to create checkout session' }));
+    }
+  });
+}
+
+async function handleMemberMerchOrders(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: orders, error } = await supabase
+      .from('merch_orders')
+      .select('*')
+      .eq('member_id', memberId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      throw error;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      orders: orders || []
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Member orders error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to fetch orders' }));
+  }
+}
+
+async function handleShopOrderStatus(req, res, requestId, orderId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: order, error } = await supabase
+      .from('merch_orders')
+      .select('*')
+      .eq('id', orderId)
+      .eq('member_id', user.id)
+      .single();
+    
+    if (error || !order) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Order not found' }));
+      return;
+    }
+    
+    let printfulStatus = null;
+    if (order.printful_order_id) {
+      try {
+        printfulStatus = await getPrintfulOrderStatus(order.printful_order_id);
+        
+        if (printfulStatus.success) {
+          const updates = {
+            status: printfulStatus.status
+          };
+          
+          if (printfulStatus.trackingNumber) {
+            updates.tracking_number = printfulStatus.trackingNumber;
+          }
+          if (printfulStatus.trackingUrl) {
+            updates.tracking_url = printfulStatus.trackingUrl;
+          }
+          
+          await supabase
+            .from('merch_orders')
+            .update(updates)
+            .eq('id', orderId);
+          
+          order.status = printfulStatus.status;
+          order.tracking_number = printfulStatus.trackingNumber || order.tracking_number;
+          order.tracking_url = printfulStatus.trackingUrl || order.tracking_url;
+        }
+      } catch (printfulError) {
+        console.error(`[${requestId}] Printful status check error:`, printfulError);
+      }
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      order,
+      printfulStatus: printfulStatus?.printfulStatus || null
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Order status error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to get order status' }));
+  }
+}
+
+async function handleMerchOrderWebhook(session, requestId) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.error(`[${requestId}] Database not configured for merch webhook`);
+    return;
+  }
+  
+  if (session.payment_status !== 'paid') {
+    console.log(`[${requestId}] Merch webhook skipped: payment_status is '${session.payment_status}', expected 'paid'`);
+    return;
+  }
+  
+  try {
+    const memberId = session.metadata?.member_id;
+    const itemsJson = session.metadata?.items;
+    
+    if (!memberId || !itemsJson) {
+      console.error(`[${requestId}] Missing metadata in merch checkout session`);
+      return;
+    }
+    
+    const items = JSON.parse(itemsJson);
+    const shippingDetails = session.shipping_details || session.customer_details;
+    
+    const orderUpdate = {
+      stripe_payment_intent: session.payment_intent,
+      status: 'paid',
+      shipping_name: shippingDetails?.name || null,
+      shipping_address: shippingDetails?.address?.line1 || null,
+      shipping_city: shippingDetails?.address?.city || null,
+      shipping_state: shippingDetails?.address?.state || null,
+      shipping_zip: shippingDetails?.address?.postal_code || null,
+      shipping_country: shippingDetails?.address?.country || 'US'
+    };
+    
+    const { error: updateError } = await supabase
+      .from('merch_orders')
+      .update(orderUpdate)
+      .eq('stripe_session_id', session.id);
+    
+    if (updateError) {
+      console.error(`[${requestId}] Error updating merch order:`, updateError);
+      return;
+    }
+    
+    const { data: order } = await supabase
+      .from('merch_orders')
+      .select('*')
+      .eq('stripe_session_id', session.id)
+      .single();
+    
+    const hasPrintfulItems = items.some(item => item.printfulSyncVariantId);
+    
+    if (hasPrintfulItems && process.env.PRINTFUL_API_KEY) {
+      try {
+        const printfulItems = items.filter(item => item.printfulSyncVariantId);
+        
+        const printfulOrder = await createPrintfulOrder({
+          shipping_name: orderUpdate.shipping_name,
+          shipping_address: orderUpdate.shipping_address,
+          shipping_city: orderUpdate.shipping_city,
+          shipping_state: orderUpdate.shipping_state,
+          shipping_zip: orderUpdate.shipping_zip,
+          shipping_country: orderUpdate.shipping_country,
+          email: session.customer_email,
+          items: printfulItems
+        });
+        
+        if (printfulOrder.success) {
+          await supabase
+            .from('merch_orders')
+            .update({
+              printful_order_id: String(printfulOrder.orderId),
+              status: 'processing'
+            })
+            .eq('stripe_session_id', session.id);
+          
+          console.log(`[${requestId}] Created Printful order: ${printfulOrder.orderId}`);
+        }
+      } catch (printfulError) {
+        console.error(`[${requestId}] Printful order creation failed:`, printfulError);
+      }
+    }
+    
+    console.log(`[${requestId}] Merch order processed successfully for session: ${session.id}`);
+    
+  } catch (error) {
+    console.error(`[${requestId}] Merch webhook processing error:`, error);
+  }
+}
+
 function generateRequestId() {
   return crypto.randomBytes(8).toString('hex');
 }
@@ -580,7 +1252,66 @@ const BID_PACKS = {
   'championship': { name: 'Championship', bids: 15400, bonus: 0, price: 1000000 }
 };
 
-async function sendSmsNotification(phoneNumber, message) {
+async function checkNotificationPreference(userId, channel, type) {
+  if (!userId) return true;
+  
+  const supabase = getSupabaseClient();
+  if (!supabase) return true;
+  
+  try {
+    const { data: prefs, error } = await supabase
+      .from('member_notification_preferences')
+      .select('*')
+      .eq('member_id', userId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') {
+      if (error.code === '42P01' || error.code === 'PGRST205') {
+        return true;
+      }
+      console.error('Error checking notification preference:', error);
+      return true;
+    }
+    
+    if (!prefs) return true;
+    
+    const channelMap = {
+      'sms': 'sms',
+      'email': 'emails',
+      'push': 'push'
+    };
+    
+    const typeMap = {
+      'bid_alerts': channel === 'push' ? 'push_bid_alerts' : `follow_up_${channelMap[channel]}`,
+      'vehicle_status': channel === 'push' ? 'push_vehicle_status' : `urgent_update_${channelMap[channel]}`,
+      'maintenance_reminders': channel === 'push' ? 'push_maintenance_reminders' : `maintenance_reminder_${channelMap[channel]}`,
+      'dream_car_matches': channel === 'push' ? 'push_dream_car_matches' : `follow_up_${channelMap[channel]}`,
+      'marketing': `marketing_${channelMap[channel]}`
+    };
+    
+    const prefKey = typeMap[type];
+    if (!prefKey) return true;
+    
+    if (channel === 'push' && prefs.push_enabled === false) {
+      return false;
+    }
+    
+    return prefs[prefKey] !== false;
+  } catch (error) {
+    console.error('Error checking notification preference:', error);
+    return true;
+  }
+}
+
+async function sendSmsNotification(phoneNumber, message, userId = null, notificationType = null) {
+  if (userId && notificationType) {
+    const shouldSend = await checkNotificationPreference(userId, 'sms', notificationType);
+    if (!shouldSend) {
+      console.log(`SMS skipped: user ${userId} has disabled ${notificationType} SMS notifications`);
+      return { sent: false, reason: 'user_preference_disabled' };
+    }
+  }
+  
   const twilioSid = process.env.TWILIO_ACCOUNT_SID;
   const twilioToken = process.env.TWILIO_AUTH_TOKEN;
   const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
@@ -626,7 +1357,15 @@ async function sendSmsNotification(phoneNumber, message) {
   }
 }
 
-async function sendEmailNotification(toEmail, toName, subject, htmlContent) {
+async function sendEmailNotification(toEmail, toName, subject, htmlContent, userId = null, notificationType = null) {
+  if (userId && notificationType) {
+    const shouldSend = await checkNotificationPreference(userId, 'email', notificationType);
+    if (!shouldSend) {
+      console.log(`Email skipped: user ${userId} has disabled ${notificationType} email notifications`);
+      return { sent: false, reason: 'user_preference_disabled' };
+    }
+  }
+  
   const resendApiKey = process.env.RESEND_API_KEY;
   
   if (!resendApiKey) {
@@ -2995,35 +3734,40 @@ async function handleStripeWebhook(req, res, requestId) {
       const session = event.data.object;
       const metadata = session.metadata || {};
       
-      const providerId = metadata.provider_id;
-      const packId = metadata.pack_id;
-      const bids = metadata.bids;
-      const bonusBids = metadata.bonus_bids;
-      
-      console.log(`[${requestId}] Checkout completed - Provider: ${providerId}, Pack: ${packId}, Bids: ${bids}, Bonus: ${bonusBids}`);
-      
-      if (providerId && session.amount_total && session.payment_intent) {
-        const purchaseAmount = session.amount_total / 100;
-        const transactionId = session.payment_intent;
+      if (metadata.type === 'merch_order') {
+        console.log(`[${requestId}] Merch order checkout completed: ${session.id}`);
+        await handleMerchOrderWebhook(session, requestId);
+      } else {
+        const providerId = metadata.provider_id;
+        const packId = metadata.pack_id;
+        const bids = metadata.bids;
+        const bonusBids = metadata.bonus_bids;
         
-        const supabase = getSupabaseClient();
-        if (!supabase) {
-          console.error(`[${requestId}] Supabase not configured, skipping commission recording`);
-        } else {
-          try {
-            const { error } = await supabase.rpc('record_bid_pack_commission', {
-              p_provider_id: providerId,
-              p_purchase_amount: purchaseAmount,
-              p_transaction_id: transactionId
-            });
-            
-            if (error) {
-              console.error(`[${requestId}] Failed to record commission:`, error);
-            } else {
-              console.log(`[${requestId}] Commission recorded for provider ${providerId}, amount: $${purchaseAmount}`);
+        console.log(`[${requestId}] Checkout completed - Provider: ${providerId}, Pack: ${packId}, Bids: ${bids}, Bonus: ${bonusBids}`);
+        
+        if (providerId && session.amount_total && session.payment_intent) {
+          const purchaseAmount = session.amount_total / 100;
+          const transactionId = session.payment_intent;
+          
+          const supabase = getSupabaseClient();
+          if (!supabase) {
+            console.error(`[${requestId}] Supabase not configured, skipping commission recording`);
+          } else {
+            try {
+              const { error } = await supabase.rpc('record_bid_pack_commission', {
+                p_provider_id: providerId,
+                p_purchase_amount: purchaseAmount,
+                p_transaction_id: transactionId
+              });
+              
+              if (error) {
+                console.error(`[${requestId}] Failed to record commission:`, error);
+              } else {
+                console.log(`[${requestId}] Commission recorded for provider ${providerId}, amount: $${purchaseAmount}`);
+              }
+            } catch (err) {
+              console.error(`[${requestId}] Error calling record_bid_pack_commission:`, err);
             }
-          } catch (err) {
-            console.error(`[${requestId}] Error calling record_bid_pack_commission:`, err);
           }
         }
       }
@@ -7705,6 +8449,8 @@ async function handlePosSelectVehicle(req, res, requestId, sessionId) {
         
         if (error) throw error;
         selectedVehicleId = vehicle.id;
+        
+        await createDefaultMaintenanceSchedules(supabase, vehicle.id, session.member_id);
       }
       
       await supabase
@@ -9262,6 +10008,571 @@ async function checkNotificationPreference(supabase, memberId, notificationType,
   }
 }
 
+// ==================== MAINTENANCE SCHEDULES ====================
+
+const DEFAULT_MAINTENANCE_SCHEDULES = [
+  { service_type: 'oil_change', interval_miles: 5000, interval_months: 6 },
+  { service_type: 'tire_rotation', interval_miles: 7500, interval_months: 6 },
+  { service_type: 'brake_inspection', interval_miles: 15000, interval_months: 12 },
+  { service_type: 'air_filter', interval_miles: 15000, interval_months: 12 },
+  { service_type: 'state_inspection', interval_miles: null, interval_months: 12 }
+];
+
+const SERVICE_TYPE_LABELS = {
+  'oil_change': 'Oil Change',
+  'tire_rotation': 'Tire Rotation',
+  'brake_inspection': 'Brake Inspection',
+  'air_filter': 'Air Filter',
+  'transmission_fluid': 'Transmission Fluid',
+  'coolant_flush': 'Coolant Flush',
+  'spark_plugs': 'Spark Plugs',
+  'timing_belt': 'Timing Belt',
+  'state_inspection': 'State Inspection',
+  'emissions_test': 'Emissions Test'
+};
+
+const SERVICE_TYPE_ICONS = {
+  'oil_change': '🛢️',
+  'tire_rotation': '🔄',
+  'brake_inspection': '🛑',
+  'air_filter': '💨',
+  'transmission_fluid': '⚙️',
+  'coolant_flush': '❄️',
+  'spark_plugs': '⚡',
+  'timing_belt': '🔧',
+  'state_inspection': '📋',
+  'emissions_test': '🌿'
+};
+
+async function createDefaultMaintenanceSchedules(supabase, vehicleId, memberId) {
+  try {
+    const schedules = DEFAULT_MAINTENANCE_SCHEDULES.map(schedule => ({
+      vehicle_id: vehicleId,
+      member_id: memberId,
+      service_type: schedule.service_type,
+      interval_miles: schedule.interval_miles,
+      interval_months: schedule.interval_months,
+      is_active: true
+    }));
+    
+    const { data, error } = await supabase
+      .from('maintenance_schedules')
+      .insert(schedules)
+      .select();
+    
+    if (error) {
+      if (error.code === '42P01') {
+        console.log('maintenance_schedules table not found - run migration');
+        return { success: false, tableNotFound: true };
+      }
+      throw error;
+    }
+    
+    console.log(`Created ${data.length} default maintenance schedules for vehicle ${vehicleId}`);
+    return { success: true, schedules: data };
+  } catch (error) {
+    console.error('Error creating default maintenance schedules:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function handleGetMaintenanceSchedules(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(memberId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid member ID' }));
+    return;
+  }
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: schedules, error } = await supabase
+      .from('maintenance_schedules')
+      .select(`
+        *,
+        vehicles:vehicle_id (id, year, make, model, color, current_mileage)
+      `)
+      .eq('member_id', memberId)
+      .eq('is_active', true)
+      .order('next_due_date', { ascending: true, nullsFirst: false });
+    
+    if (error) {
+      if (error.code === '42P01') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          warning: 'Maintenance schedules table not found. Run migration.',
+          schedules: []
+        }));
+        return;
+      }
+      throw error;
+    }
+    
+    const enrichedSchedules = (schedules || []).map(schedule => ({
+      ...schedule,
+      service_label: SERVICE_TYPE_LABELS[schedule.service_type] || schedule.service_type,
+      service_icon: SERVICE_TYPE_ICONS[schedule.service_type] || '🔧'
+    }));
+    
+    console.log(`[${requestId}] Fetched ${enrichedSchedules.length} maintenance schedules for member ${memberId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, schedules: enrichedSchedules }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get maintenance schedules error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to fetch maintenance schedules' }));
+  }
+}
+
+async function handleCreateMaintenanceSchedule(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(memberId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid member ID' }));
+    return;
+  }
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  const chunks = [];
+  req.on('data', chunk => { chunks.push(chunk); });
+  
+  req.on('end', async () => {
+    try {
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      const { 
+        vehicle_id, 
+        service_type, 
+        interval_miles, 
+        interval_months,
+        last_service_date,
+        last_service_mileage
+      } = body;
+      
+      if (!vehicle_id || !service_type) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'vehicle_id and service_type are required' }));
+        return;
+      }
+      
+      if (!interval_miles && !interval_months) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'At least one of interval_miles or interval_months is required' }));
+        return;
+      }
+      
+      const validServiceTypes = Object.keys(SERVICE_TYPE_LABELS);
+      if (!validServiceTypes.includes(service_type)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Invalid service_type. Must be one of: ${validServiceTypes.join(', ')}` }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: vehicle } = await supabase
+        .from('vehicles')
+        .select('id, owner_id')
+        .eq('id', vehicle_id)
+        .single();
+      
+      if (!vehicle || vehicle.owner_id !== memberId) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Vehicle not found or not owned by member' }));
+        return;
+      }
+      
+      const scheduleData = {
+        vehicle_id,
+        member_id: memberId,
+        service_type,
+        interval_miles: interval_miles || null,
+        interval_months: interval_months || null,
+        last_service_date: last_service_date || null,
+        last_service_mileage: last_service_mileage || null,
+        is_active: true
+      };
+      
+      const { data: schedule, error } = await supabase
+        .from('maintenance_schedules')
+        .insert(scheduleData)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log(`[${requestId}] Created maintenance schedule ${schedule.id} for member ${memberId}`);
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: true, 
+        schedule: {
+          ...schedule,
+          service_label: SERVICE_TYPE_LABELS[schedule.service_type],
+          service_icon: SERVICE_TYPE_ICONS[schedule.service_type]
+        }
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Create maintenance schedule error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to create maintenance schedule' }));
+    }
+  });
+}
+
+async function handleUpdateMaintenanceSchedule(req, res, requestId, memberId, scheduleId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(memberId) || !isValidUUID(scheduleId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid member ID or schedule ID' }));
+    return;
+  }
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  const chunks = [];
+  req.on('data', chunk => { chunks.push(chunk); });
+  
+  req.on('end', async () => {
+    try {
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      const {
+        interval_miles,
+        interval_months,
+        last_service_date,
+        last_service_mileage,
+        is_active
+      } = body;
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: existing } = await supabase
+        .from('maintenance_schedules')
+        .select('id, member_id')
+        .eq('id', scheduleId)
+        .single();
+      
+      if (!existing || existing.member_id !== memberId) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Maintenance schedule not found' }));
+        return;
+      }
+      
+      const updateData = {};
+      if (interval_miles !== undefined) updateData.interval_miles = interval_miles;
+      if (interval_months !== undefined) updateData.interval_months = interval_months;
+      if (last_service_date !== undefined) updateData.last_service_date = last_service_date;
+      if (last_service_mileage !== undefined) updateData.last_service_mileage = last_service_mileage;
+      if (is_active !== undefined) updateData.is_active = is_active;
+      
+      if (last_service_date !== undefined || last_service_mileage !== undefined) {
+        updateData.reminder_sent = false;
+        updateData.reminder_sent_at = null;
+      }
+      
+      const { data: schedule, error } = await supabase
+        .from('maintenance_schedules')
+        .update(updateData)
+        .eq('id', scheduleId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log(`[${requestId}] Updated maintenance schedule ${scheduleId} for member ${memberId}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: true, 
+        schedule: {
+          ...schedule,
+          service_label: SERVICE_TYPE_LABELS[schedule.service_type],
+          service_icon: SERVICE_TYPE_ICONS[schedule.service_type]
+        }
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Update maintenance schedule error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to update maintenance schedule' }));
+    }
+  });
+}
+
+async function handleDeleteMaintenanceSchedule(req, res, requestId, memberId, scheduleId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(memberId) || !isValidUUID(scheduleId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid member ID or schedule ID' }));
+    return;
+  }
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: existing } = await supabase
+      .from('maintenance_schedules')
+      .select('id, member_id')
+      .eq('id', scheduleId)
+      .single();
+    
+    if (!existing || existing.member_id !== memberId) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Maintenance schedule not found' }));
+      return;
+    }
+    
+    const { error } = await supabase
+      .from('maintenance_schedules')
+      .delete()
+      .eq('id', scheduleId);
+    
+    if (error) throw error;
+    
+    console.log(`[${requestId}] Deleted maintenance schedule ${scheduleId} for member ${memberId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Delete maintenance schedule error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to delete maintenance schedule' }));
+  }
+}
+
+async function checkAndSendMaintenanceReminders() {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.log('Maintenance reminders: Database not available');
+    return { sent: 0, errors: 0 };
+  }
+  
+  try {
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    
+    const { data: dueSchedules, error } = await supabase
+      .from('maintenance_schedules')
+      .select(`
+        *,
+        vehicles:vehicle_id (id, year, make, model, color, current_mileage, nickname),
+        profiles:member_id (id, email, full_name, phone)
+      `)
+      .eq('is_active', true)
+      .eq('reminder_sent', false)
+      .or(`next_due_date.lte.${sevenDaysFromNow.toISOString()},next_due_mileage.not.is.null`);
+    
+    if (error) {
+      if (error.code === '42P01') {
+        console.log('maintenance_schedules table not found - run migration');
+        return { sent: 0, errors: 0, tableNotFound: true };
+      }
+      throw error;
+    }
+    
+    if (!dueSchedules || dueSchedules.length === 0) {
+      console.log('No maintenance reminders due');
+      return { sent: 0, errors: 0 };
+    }
+    
+    let sent = 0;
+    let errors = 0;
+    
+    for (const schedule of dueSchedules) {
+      try {
+        const vehicle = schedule.vehicles;
+        const profile = schedule.profiles;
+        
+        if (!vehicle || !profile) continue;
+        
+        let shouldSend = false;
+        let urgency = 'upcoming';
+        let daysUntilDue = null;
+        
+        if (schedule.next_due_date) {
+          const dueDate = new Date(schedule.next_due_date);
+          const now = new Date();
+          daysUntilDue = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
+          
+          if (daysUntilDue <= 0) {
+            shouldSend = true;
+            urgency = 'overdue';
+          } else if (daysUntilDue <= 7) {
+            shouldSend = true;
+            urgency = 'due_soon';
+          }
+        }
+        
+        if (schedule.next_due_mileage && vehicle.current_mileage) {
+          const milesRemaining = schedule.next_due_mileage - vehicle.current_mileage;
+          if (milesRemaining <= 500) {
+            shouldSend = true;
+            urgency = milesRemaining <= 0 ? 'overdue' : 'due_soon';
+          }
+        }
+        
+        if (!shouldSend) continue;
+        
+        const serviceLabel = SERVICE_TYPE_LABELS[schedule.service_type] || schedule.service_type;
+        const serviceIcon = SERVICE_TYPE_ICONS[schedule.service_type] || '🔧';
+        const vehicleName = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
+        
+        const appUrl = process.env.REPLIT_DEV_DOMAIN 
+          ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+          : 'https://mycarconcierge.com';
+        
+        const shouldSendEmail = await checkNotificationPreference(profile.id, 'email', 'maintenance_reminders');
+        if (shouldSendEmail && profile.email) {
+          const dueDateFormatted = schedule.next_due_date 
+            ? new Date(schedule.next_due_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+            : 'N/A';
+          const dueMileageFormatted = schedule.next_due_mileage 
+            ? schedule.next_due_mileage.toLocaleString()
+            : 'N/A';
+          const currentMileageFormatted = vehicle.current_mileage 
+            ? vehicle.current_mileage.toLocaleString()
+            : 'N/A';
+          
+          const htmlContent = `
+            <p>Hi ${profile.full_name || 'there'},</p>
+            <p>Your <strong>${vehicleName}</strong> is ${urgency === 'overdue' ? 'overdue' : 'due soon'} for <strong>${serviceLabel}</strong>.</p>
+            <div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin: 16px 0;">
+              <p style="margin: 8px 0;"><strong>${serviceIcon} Service:</strong> ${serviceLabel}</p>
+              <p style="margin: 8px 0;"><strong>🚗 Vehicle:</strong> ${vehicleName}</p>
+              <p style="margin: 8px 0;"><strong>📅 Due Date:</strong> ${dueDateFormatted}</p>
+              <p style="margin: 8px 0;"><strong>📏 Due Mileage:</strong> ${dueMileageFormatted} miles</p>
+              <p style="margin: 8px 0;"><strong>Current Mileage:</strong> ${currentMileageFormatted} miles</p>
+            </div>
+            <p><a href="${appUrl}/members.html" class="button">Schedule Service</a></p>
+            <p>Regular maintenance keeps your vehicle running smoothly and helps prevent costly repairs!</p>
+          `;
+          
+          await sendEmailNotification(
+            profile.email,
+            profile.full_name,
+            `${serviceIcon} ${serviceLabel} Due for Your ${vehicleName}`,
+            htmlContent,
+            profile.id,
+            'maintenance_reminders'
+          );
+        }
+        
+        const shouldSendSms = await checkNotificationPreference(profile.id, 'sms', 'maintenance_reminders');
+        if (shouldSendSms && profile.phone) {
+          const smsMessage = `My Car Concierge: Your ${vehicleName} is ${urgency === 'overdue' ? 'overdue' : 'due soon'} for ${serviceLabel}. Schedule service at ${appUrl}/members.html`;
+          await sendSmsNotification(profile.phone, smsMessage, profile.id, 'maintenance_reminders');
+        }
+        
+        await supabase
+          .from('maintenance_schedules')
+          .update({ 
+            reminder_sent: true, 
+            reminder_sent_at: new Date().toISOString() 
+          })
+          .eq('id', schedule.id);
+        
+        sent++;
+        console.log(`Sent maintenance reminder for ${serviceLabel} to ${profile.email || profile.phone}`);
+        
+      } catch (scheduleError) {
+        console.error(`Error sending reminder for schedule ${schedule.id}:`, scheduleError);
+        errors++;
+      }
+    }
+    
+    console.log(`Maintenance reminders: sent ${sent}, errors ${errors}`);
+    return { sent, errors };
+    
+  } catch (error) {
+    console.error('checkAndSendMaintenanceReminders error:', error);
+    return { sent: 0, errors: 1, error: error.message };
+  }
+}
+
+async function handleCheckMaintenanceReminders(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  try {
+    const result = await checkAndSendMaintenanceReminders();
+    
+    console.log(`[${requestId}] Maintenance reminders check complete: ${result.sent} sent, ${result.errors} errors`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      sent: result.sent, 
+      errors: result.errors,
+      tableNotFound: result.tableNotFound || false
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Check maintenance reminders error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to check maintenance reminders' }));
+  }
+}
+
 async function handleGetNotificationPreferences(req, res, requestId, memberId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -9559,6 +10870,133 @@ async function handlePushUnsubscribe(req, res, requestId) {
     console.error(`[${requestId}] Push unsubscribe error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Failed to remove push subscription' }));
+  }
+}
+
+// ==================== PROVIDER PUSH NOTIFICATION API ====================
+
+async function handleProviderPushSubscribe(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  const chunks = [];
+  req.on('data', chunk => { chunks.push(chunk); });
+  
+  req.on('end', async () => {
+    try {
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      const { subscription } = body;
+      const providerId = user.id;
+      
+      if (!subscription) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'subscription is required' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: existing } = await supabase
+        .from('provider_notification_preferences')
+        .select('id')
+        .eq('provider_id', providerId)
+        .single();
+      
+      let result;
+      if (existing) {
+        result = await supabase
+          .from('provider_notification_preferences')
+          .update({ 
+            push_enabled: true,
+            push_subscription: subscription,
+            updated_at: new Date().toISOString()
+          })
+          .eq('provider_id', providerId)
+          .select()
+          .single();
+      } else {
+        result = await supabase
+          .from('provider_notification_preferences')
+          .insert({ 
+            provider_id: providerId,
+            push_enabled: true,
+            push_subscription: subscription
+          })
+          .select()
+          .single();
+      }
+      
+      if (result.error) {
+        if (result.error.code === '42P01' || result.error.code === 'PGRST205') {
+          console.log(`[${requestId}] provider_notification_preferences table not found`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false,
+            warning: 'Provider notification preferences table not found. Run provider_notification_preferences_migration.sql.'
+          }));
+          return;
+        }
+        throw result.error;
+      }
+      
+      console.log(`[${requestId}] Provider push subscription saved for provider ${providerId}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Provider push subscribe error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to save provider push subscription' }));
+    }
+  });
+}
+
+async function handleProviderPushUnsubscribe(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  const providerId = user.id;
+  
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Database not configured' }));
+    return;
+  }
+  
+  try {
+    const { error } = await supabase
+      .from('provider_notification_preferences')
+      .update({ 
+        push_enabled: false,
+        push_subscription: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('provider_id', providerId);
+    
+    if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
+      throw error;
+    }
+    
+    console.log(`[${requestId}] Provider push subscription removed for provider ${providerId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Provider push unsubscribe error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to remove provider push subscription' }));
   }
 }
 
@@ -9893,6 +11331,8 @@ async function handleCheckinVehicle(req, res, requestId, sessionId) {
         
         if (error) throw error;
         selectedVehicleId = vehicle.id;
+        
+        await createDefaultMaintenanceSchedules(supabase, vehicle.id, session.member_id);
       }
       
       await supabase
@@ -11439,6 +12879,40 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  // Maintenance Schedules API Routes
+  if (req.method === 'GET' && req.url.match(/^\/api\/member\/[^/]+\/maintenance-schedules$/)) {
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleGetMaintenanceSchedules(req, res, requestId, memberId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/member\/[^/]+\/maintenance-schedule$/)) {
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleCreateMaintenanceSchedule(req, res, requestId, memberId);
+    return;
+  }
+  
+  if (req.method === 'PUT' && req.url.match(/^\/api\/member\/[^/]+\/maintenance-schedule\/[^/]+$/)) {
+    const urlParts = req.url.split('/api/member/')[1]?.split('/');
+    const memberId = urlParts?.[0];
+    const scheduleId = urlParts?.[2];
+    handleUpdateMaintenanceSchedule(req, res, requestId, memberId, scheduleId);
+    return;
+  }
+  
+  if (req.method === 'DELETE' && req.url.match(/^\/api\/member\/[^/]+\/maintenance-schedule\/[^/]+$/)) {
+    const urlParts = req.url.split('/api/member/')[1]?.split('/');
+    const memberId = urlParts?.[0];
+    const scheduleId = urlParts?.[2];
+    handleDeleteMaintenanceSchedule(req, res, requestId, memberId, scheduleId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/maintenance/check-reminders') {
+    handleCheckMaintenanceReminders(req, res, requestId);
+    return;
+  }
+  
   // Member Notification Preferences API Routes
   if (req.method === 'GET' && req.url.match(/^\/api\/member\/[^/]+\/notification-preferences$/)) {
     const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
@@ -11465,6 +12939,17 @@ const server = http.createServer((req, res) => {
   
   if (req.method === 'POST' && req.url === '/api/push/unsubscribe') {
     handlePushUnsubscribe(req, res, requestId);
+    return;
+  }
+  
+  // Provider Push Notification API Routes
+  if (req.method === 'POST' && req.url === '/api/provider/push/subscribe') {
+    handleProviderPushSubscribe(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/provider/push/unsubscribe') {
+    handleProviderPushUnsubscribe(req, res, requestId);
     return;
   }
   
@@ -11647,6 +13132,29 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({ 
       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null 
     }));
+    return;
+  }
+  
+  // Shop / Merch Store API Routes
+  if (req.method === 'GET' && req.url === '/api/shop/products') {
+    handleShopProducts(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/shop/checkout') {
+    handleShopCheckout(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/member\/[^/]+\/orders$/)) {
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleMemberMerchOrders(req, res, requestId, memberId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/shop\/order\/[^/]+\/status$/)) {
+    const orderId = req.url.split('/api/shop/order/')[1]?.split('/')[0];
+    handleShopOrderStatus(req, res, requestId, orderId);
     return;
   }
   
