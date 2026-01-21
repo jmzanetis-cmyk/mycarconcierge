@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Car Concierge - Provider Opportunity Brochure V2</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0a0a0f;
+      color: #e8e8e8;
+      line-height: 1.5;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .print-controls {
+      background: linear-gradient(135deg, #1a1a24 0%, #0d0d12 100%);
+      padding: 24px;
+      text-align: center;
+      border-bottom: 2px solid #d4af37;
+    }
+
+    .print-controls h2 {
+      font-family: 'Playfair Display', serif;
+      color: #d4af37;
+      margin-bottom: 8px;
+      font-size: 1.5rem;
+    }
+
+    .print-controls p {
+      color: #888;
+      margin-bottom: 16px;
+      font-size: 0.9rem;
+    }
+
+    .print-btn {
+      background: linear-gradient(135deg, #d4af37, #b8962e);
+      color: #0a0a0f;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      margin: 0 10px;
+      transition: all 0.2s;
+    }
+
+    .print-btn:hover {
+      background: linear-gradient(135deg, #e5c348, #d4af37);
+      transform: translateY(-2px);
+    }
+
+    .brochure-container {
+      max-width: 210mm;
+      margin: 30px auto;
+    }
+
+    @media print {
+      .print-controls {
+        display: none !important;
+      }
+      .brochure-container {
+        margin: 0;
+        max-width: none;
+      }
+    }
+
+    /* PAGE STYLING */
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      background: linear-gradient(180deg, #0a0a0f 0%, #0d0d14 50%, #0a0a0f 100%);
+      padding: 14mm;
+      page-break-after: always;
+      position: relative;
+    }
+
+    .page-break {
+      page-break-after: always;
+    }
+
+    /* FRONT PAGE - COVER */
+    .page-front {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .logo-hero-wrap {
+      margin-top: 20mm;
+      margin-bottom: 16mm;
+    }
+
+    .logo-hero {
+      width: 100mm;
+      height: auto;
+      filter: drop-shadow(0 8px 32px rgba(212, 175, 55, 0.3));
+    }
+
+    .positioning-line {
+      font-size: 13pt;
+      color: #b0b0b0;
+      max-width: 160mm;
+      line-height: 1.5;
+      margin-bottom: 20mm;
+    }
+
+    .cta-block {
+      margin-bottom: 16mm;
+    }
+
+    .cta-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 22pt;
+      font-weight: 600;
+      color: #d4af37;
+      margin-bottom: 4mm;
+    }
+
+    .cta-sub {
+      font-size: 12pt;
+      color: #888;
+    }
+
+    .qr-placeholder {
+      width: 35mm;
+      height: 35mm;
+      background: #fff;
+      border-radius: 4mm;
+      margin: 0 auto 12mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .qr-placeholder canvas {
+      width: 30mm !important;
+      height: 30mm !important;
+    }
+
+    .connect-block {
+      margin-top: auto;
+      padding-bottom: 10mm;
+    }
+
+    .brand-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 14pt;
+      font-weight: 600;
+      color: #e8e8e8;
+      margin-bottom: 2mm;
+    }
+
+    .brand-web {
+      font-size: 11pt;
+      color: #d4af37;
+      margin-bottom: 1mm;
+    }
+
+    .brand-email {
+      font-size: 10pt;
+      color: #888;
+    }
+
+    /* FRONT CONTENT CARDS */
+    .front-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5mm;
+      margin-top: 10mm;
+      width: 100%;
+    }
+
+    .card {
+      background: linear-gradient(135deg, rgba(26, 26, 36, 0.8) 0%, rgba(20, 20, 28, 0.9) 100%);
+      border: 1px solid rgba(212, 175, 55, 0.2);
+      border-radius: 4mm;
+      padding: 5mm;
+      text-align: left;
+    }
+
+    .card-title {
+      font-family: 'Playfair Display', serif;
+      font-weight: 600;
+      font-size: 11pt;
+      color: #d4af37;
+      margin-bottom: 3mm;
+    }
+
+    .card .bullet {
+      font-size: 9.5pt;
+      color: #c0c0c0;
+      margin: 1.5mm 0;
+      padding-left: 4mm;
+      position: relative;
+    }
+
+    .card .bullet::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #4ac88c;
+    }
+
+    .card .body {
+      font-size: 9.5pt;
+      color: #a0a0a0;
+      line-height: 1.4;
+    }
+
+    .ideal-for {
+      grid-column: 1 / -1;
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%);
+      border: 1px solid rgba(212, 175, 55, 0.3);
+      text-align: center;
+      padding: 4mm;
+    }
+
+    .ideal-for-text {
+      font-size: 10pt;
+      color: #d4af37;
+      font-weight: 500;
+    }
+
+    /* BACK PAGE */
+    .page-back {
+      padding: 10mm;
+    }
+
+    .back-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+    }
+
+    .panel {
+      background: linear-gradient(135deg, rgba(26, 26, 36, 0.6) 0%, rgba(20, 20, 28, 0.8) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 3mm;
+      padding: 4mm;
+    }
+
+    .panel.full {
+      grid-column: 1 / -1;
+    }
+
+    .panel .h {
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      font-size: 11pt;
+      color: #d4af37;
+      margin-bottom: 2mm;
+    }
+
+    .panel .subh {
+      font-weight: 600;
+      font-size: 9.5pt;
+      color: #e8e8e8;
+      margin-top: 3mm;
+      margin-bottom: 1.5mm;
+    }
+
+    .panel .p {
+      font-size: 9pt;
+      color: #a0a0a0;
+      line-height: 1.35;
+      margin-bottom: 2mm;
+    }
+
+    .panel .bullet {
+      font-size: 9pt;
+      color: #c0c0c0;
+      margin: 1mm 0;
+      padding-left: 4mm;
+      position: relative;
+    }
+
+    .panel .bullet::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #4ac88c;
+    }
+
+    .steps {
+      margin: 0 0 2mm 5mm;
+      padding: 0;
+      font-size: 9pt;
+      color: #b0b0b0;
+    }
+
+    .steps li {
+      margin: 1mm 0;
+    }
+
+    /* PRICING TABLE */
+    .pricing-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+      margin-top: 2mm;
+    }
+
+    .pricing-table thead {
+      background: rgba(212, 175, 55, 0.15);
+    }
+
+    .pricing-table th {
+      padding: 2mm;
+      text-align: left;
+      font-weight: 600;
+      color: #d4af37;
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .pricing-table td {
+      padding: 1.5mm 2mm;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: #c0c0c0;
+    }
+
+    .pricing-table tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .tag {
+      display: inline-block;
+      background: linear-gradient(135deg, #d4af37, #b8962e);
+      color: #0a0a0f;
+      font-size: 7pt;
+      font-weight: 700;
+      padding: 0.5mm 2mm;
+      border-radius: 2mm;
+      margin-left: 2mm;
+    }
+
+    .pricing-note {
+      font-size: 8pt;
+      color: #666;
+      margin-top: 2mm;
+      font-style: italic;
+    }
+
+    .founding-highlight {
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(212, 175, 55, 0.05) 100%);
+      border: 1px solid rgba(212, 175, 55, 0.3);
+    }
+
+    .back-footer {
+      margin-top: 4mm;
+      text-align: center;
+      padding: 3mm;
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%);
+      border: 1px solid rgba(212, 175, 55, 0.2);
+      border-radius: 3mm;
+    }
+
+    .back-footer .ideal {
+      font-size: 10pt;
+      color: #d4af37;
+      font-weight: 600;
+    }
+
+    .back-footer .contact {
+      font-size: 9pt;
+      color: #888;
+      margin-top: 2mm;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="print-controls">
+    <h2>MCC Provider Brochure V2</h2>
+    <p>A4 Format - Print double-sided for best results</p>
+    <button class="print-btn" onclick="window.print()">🖨️ Print Brochure</button>
+    <button class="print-btn" onclick="generatePDF()">📄 Save as PDF</button>
+  </div>
+
+  <div class="brochure-container">
+
+    <!-- PAGE 1: FRONT COVER -->
+    <section class="page page-front">
+      <div class="logo-hero-wrap">
+        <img src="logo.png" class="logo-hero" alt="My Car Concierge">
+      </div>
+
+      <div class="positioning-line">
+        A provider-first platform connecting vehicle owners with trusted automotive professionals.
+      </div>
+
+      <div class="cta-block">
+        <div class="cta-title">Become a Provider</div>
+        <div class="cta-sub">Scan to apply</div>
+      </div>
+
+      <div class="qr-placeholder" id="front-qr"></div>
+
+      <div class="connect-block">
+        <div class="brand-name">My Car Concierge</div>
+        <div class="brand-web">www.mycarconcierge.com</div>
+        <div class="brand-email">info@mycarconcierge.com</div>
+      </div>
+
+      <div class="front-content">
+        <div class="card">
+          <div class="card-title">First Mover Advantage</div>
+          <div class="bullet">Direct access to give feedback on platform features</div>
+          <div class="bullet">Shape the future of the platform alongside the development team</div>
+          <div class="bullet">Establish yourself as a trusted provider early</div>
+          <div class="bullet">Build a strong review base before competition arrives</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Your Customers, Your Growth</div>
+          <div class="body">Give your existing customers the member signup QR code. As the member pool grows, so does the opportunity for everyone. You're not just joining a platform—you're helping build an ecosystem.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Ready to Get Started?</div>
+          <div class="body">Scan the QR code to apply or visit our website. Join the founding providers who are building the future of automotive service connections.</div>
+        </div>
+
+        <div class="card ideal-for">
+          <div class="ideal-for-text">Ideal for: Repair shops • Mobile mechanics • Detailers • Body shops • Tint • Wrap • Tires • Glass</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE 2: BACK -->
+    <section class="page page-back">
+      <div class="back-grid">
+
+        <div class="panel">
+          <div class="h">What Is My Car Concierge?</div>
+          <div class="p">MCC is a platform connecting vehicle owners with professional automotive service providers. We're not a replacement for your business—we're a tool to help you grow it.</div>
+
+          <div class="h">Your New Business Asset</div>
+          <div class="p">Think of it this way: Every customer you bring onto MCC becomes part of a shared pool. When they need a service you don't offer, another provider wins. When other providers' customers need YOUR specialty, you win.</div>
+        </div>
+
+        <div class="panel">
+          <div class="h">How It Works</div>
+          <ol class="steps">
+            <li>Create a provider account</li>
+            <li>Get verified by MCC</li>
+            <li>Receive service requests</li>
+            <li>Bid on jobs that fit your shop</li>
+            <li>Complete work & get paid</li>
+          </ol>
+
+          <div class="h">Why MCC?</div>
+          <div class="bullet">New revenue channel without advertising costs</div>
+          <div class="bullet">Fill unused capacity on slow days</div>
+          <div class="bullet">Pre-qualified customers ready to book</div>
+          <div class="bullet">No contracts or exclusivity required</div>
+          <div class="bullet">You choose which jobs to accept</div>
+        </div>
+
+        <div class="panel full">
+          <div class="h">How Bidding Works</div>
+          <div class="p">Providers purchase bid credits to compete for jobs. You only spend credits on jobs YOU choose to bid on.</div>
+
+          <div class="h">Bid Pack Pricing</div>
+          <table class="pricing-table">
+            <thead>
+              <tr><th>Pack</th><th>Bids</th><th>Price</th><th>Per Bid</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Dipstick</td><td>50</td><td>$200</td><td>$4.00</td></tr>
+              <tr><td>Spark Plug</td><td>70</td><td>$250</td><td>$3.57</td></tr>
+              <tr><td>Turbo</td><td>95</td><td>$300</td><td>$3.16</td></tr>
+              <tr><td>V8 <span class="tag">★ POPULAR</span></td><td>140</td><td>$400</td><td>$2.86</td></tr>
+              <tr><td>Muscle Car</td><td>195</td><td>$500</td><td>$2.56</td></tr>
+              <tr><td>Supercharger</td><td>270</td><td>$625</td><td>$2.31</td></tr>
+              <tr><td>Racing Team <span class="tag">★ POPULAR</span></td><td>385</td><td>$800</td><td>$2.08</td></tr>
+              <tr><td>Pit Crew</td><td>535</td><td>$1,000</td><td>$1.87</td></tr>
+              <tr><td>Speedway</td><td>745</td><td>$1,250</td><td>$1.68</td></tr>
+              <tr><td>Grand Prix</td><td>990</td><td>$1,500</td><td>$1.52</td></tr>
+              <tr><td>Formula One <span class="tag">★ POPULAR</span></td><td>1,470</td><td>$2,000</td><td>$1.36</td></tr>
+              <tr><td>Championship</td><td>15,400</td><td>$10,000</td><td>$0.65</td></tr>
+            </tbody>
+          </table>
+          <div class="pricing-note">*Higher tiers available. Visit website for complete pricing.</div>
+        </div>
+
+        <div class="panel founding-highlight">
+          <div class="h">Founding Provider Program</div>
+          <div class="subh">Get In Early</div>
+          <div class="p">We're at the ground floor. This isn't a promise of instant leads—it's an invitation to build something together.</div>
+
+          <div class="subh">Early Access Pilot</div>
+          <div class="p">We're onboarding a limited group of Founding Providers while we launch the member side. Early providers help shape the product, earn priority visibility, and build reviews before the market is crowded.</div>
+
+          <div class="subh">Founding Provider Benefits</div>
+          <div class="bullet">No platform fees for first 90 days</div>
+          <div class="bullet">Unlimited bidding during pilot</div>
+          <div class="bullet">Priority visibility in your area</div>
+          <div class="bullet">Permanent "Founding Provider" badge</div>
+          <div class="bullet">Lifetime referral commission on providers you refer</div>
+        </div>
+
+        <div class="panel">
+          <div class="h">Payment Protection</div>
+          <div class="p"><strong>Guaranteed Payment:</strong> When a member accepts your bid, funds are held in escrow. You complete the work, the member confirms, and you get paid. No chasing invoices. No bad checks.</div>
+          <div class="p"><strong>Platform Fee:</strong> 7.5% on completed jobs (waived for Founding Providers during pilot)</div>
+
+          <div class="h">Build Your Reputation</div>
+          <div class="p"><strong>5-Star Rating System:</strong> Members rate providers after every completed job. Your rating directly impacts your visibility and success on the platform.</div>
+
+          <div class="h">Platform Protections</div>
+          <div class="bullet">Anti-bait protection: No "free diagnostic" upselling</div>
+          <div class="bullet">Upsell approval: Members approve any additional work</div>
+          <div class="bullet">24-hour window: No pressure decisions</div>
+        </div>
+
+      </div>
+
+      <div class="back-footer">
+        <div class="ideal">Ideal for: Repair shops • Mobile mechanics • Detailers • Body shops • Tint • Wrap • Tires • Glass</div>
+        <div class="contact">www.mycarconcierge.com • info@mycarconcierge.com</div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js" defer></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(() => {
+        if (typeof QRCode !== 'undefined') {
+          const qrContainer = document.getElementById('front-qr');
+          if (qrContainer) {
+            QRCode.toCanvas(document.createElement('canvas'), 'https://www.mycarconcierge.com/signup-provider.html', {
+              width: 120,
+              margin: 0,
+              color: { dark: '#0a0a0f', light: '#ffffff' }
+            }, function(error, canvas) {
+              if (!error) {
+                qrContainer.innerHTML = '';
+                qrContainer.appendChild(canvas);
+              }
+            });
+          }
+        }
+      }, 500);
+    });
+
+    function generatePDF() {
+      window.print();
+    }
+  </script>
+</body>
+</html>
