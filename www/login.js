@@ -455,6 +455,7 @@
         if (result.success && result.enabled) {
           // If recently verified (within 1 hour), skip 2FA
           if (result.recently_verified) {
+            await logLoginActivityClient(session.access_token);
             await handleUserRedirect(user);
             return;
           }
@@ -486,10 +487,30 @@
             await supabaseClient.auth.signOut();
           }
         } else {
+          // No 2FA enabled, log login activity directly
+          await logLoginActivityClient(session.access_token);
           await handleUserRedirect(user);
         }
       } catch (error) {
         console.error('2FA check error:', error);
         await handleUserRedirect(user);
+      }
+    }
+    
+    async function logLoginActivityClient(accessToken, isSuccessful = true, failureReason = null) {
+      try {
+        await fetch('/api/log-login-activity', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            is_successful: isSuccessful,
+            failure_reason: failureReason
+          })
+        });
+      } catch (error) {
+        console.error('Failed to log login activity:', error);
       }
     }

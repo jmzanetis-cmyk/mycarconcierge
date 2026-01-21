@@ -266,6 +266,7 @@
         loadAllPackages(),
         loadViolationReports(),
         loadAnalytics(),
+        loadDashboardCharts(),
         loadPilotApplications(),
         loadMemberFounderApplications(),
         loadFounderPayouts(),
@@ -569,6 +570,231 @@
         loadAnalytics();
       }
     });
+
+    // ========== DASHBOARD CHARTS (Chart.js) ==========
+    let dashboardCharts = {
+      revenue: null,
+      users: null,
+      orders: null
+    };
+    let dashboardPeriod = 'week';
+
+    const chartColors = {
+      gold: '#d4a855',
+      blue: '#4a7cff',
+      green: '#4ac88c',
+      textColor: '#f4f4f6',
+      gridColor: 'rgba(148, 148, 168, 0.1)',
+      goldSoft: 'rgba(212, 168, 85, 0.2)',
+      blueSoft: 'rgba(74, 124, 255, 0.2)',
+      greenSoft: 'rgba(74, 200, 140, 0.2)'
+    };
+
+    const chartDefaults = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: chartColors.textColor, font: { size: 11 } }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: chartColors.textColor, font: { size: 10 } },
+          grid: { color: chartColors.gridColor }
+        },
+        y: {
+          ticks: { color: chartColors.textColor, font: { size: 10 } },
+          grid: { color: chartColors.gridColor },
+          beginAtZero: true
+        }
+      }
+    };
+
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('dashboard-period')) {
+        document.querySelectorAll('.dashboard-period').forEach(btn => btn.classList.remove('active'));
+        e.target.classList.add('active');
+        dashboardPeriod = e.target.dataset.period;
+        loadDashboardCharts();
+      }
+    });
+
+    async function loadDashboardCharts() {
+      try {
+        const [overviewRes, revenueRes, usersRes, ordersRes] = await Promise.all([
+          fetch('/api/admin/stats/overview'),
+          fetch(`/api/admin/stats/revenue?period=${dashboardPeriod}`),
+          fetch(`/api/admin/stats/users?period=${dashboardPeriod}`),
+          fetch(`/api/admin/stats/orders?period=${dashboardPeriod}`)
+        ]);
+
+        const [overview, revenue, users, orders] = await Promise.all([
+          overviewRes.json(),
+          revenueRes.json(),
+          usersRes.json(),
+          ordersRes.json()
+        ]);
+
+        if (overview.success) {
+          document.getElementById('dash-total-members').textContent = (overview.data.totalMembers || 0).toLocaleString();
+          document.getElementById('dash-total-providers').textContent = (overview.data.totalProviders || 0).toLocaleString();
+          document.getElementById('dash-active-packages').textContent = (overview.data.activePackages || 0).toLocaleString();
+          document.getElementById('dash-total-revenue').textContent = '$' + (overview.data.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        if (revenue.success) {
+          renderDashboardRevenueChart(revenue.data.chartData || []);
+        }
+
+        if (users.success) {
+          renderDashboardUsersChart(users.data.chartData || []);
+        }
+
+        if (orders.success) {
+          renderDashboardOrdersChart(orders.data.chartData || []);
+        }
+      } catch (err) {
+        console.error('Dashboard charts error:', err);
+      }
+    }
+
+    function formatChartLabel(dateStr) {
+      if (!dateStr) return '';
+      if (dateStr.length === 7) {
+        const [year, month] = dateStr.split('-');
+        return new Date(year, month - 1).toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+      }
+      const date = new Date(dateStr);
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+
+    function renderDashboardRevenueChart(data) {
+      const ctx = document.getElementById('dashboard-revenue-chart');
+      if (!ctx) return;
+
+      if (dashboardCharts.revenue) {
+        dashboardCharts.revenue.destroy();
+      }
+
+      const labels = data.map(d => formatChartLabel(d.label));
+      const values = data.map(d => d.revenue || 0);
+
+      dashboardCharts.revenue = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Revenue ($)',
+            data: values,
+            borderColor: chartColors.gold,
+            backgroundColor: chartColors.goldSoft,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 3,
+            pointBackgroundColor: chartColors.gold
+          }]
+        },
+        options: {
+          ...chartDefaults,
+          plugins: {
+            ...chartDefaults.plugins,
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `$${ctx.raw.toFixed(2)}`
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderDashboardUsersChart(data) {
+      const ctx = document.getElementById('dashboard-users-chart');
+      if (!ctx) return;
+
+      if (dashboardCharts.users) {
+        dashboardCharts.users.destroy();
+      }
+
+      const labels = data.map(d => formatChartLabel(d.label));
+      const members = data.map(d => d.members || 0);
+      const providers = data.map(d => d.providers || 0);
+
+      dashboardCharts.users = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Members',
+              data: members,
+              borderColor: chartColors.blue,
+              backgroundColor: chartColors.blueSoft,
+              fill: true,
+              tension: 0.3,
+              pointRadius: 3,
+              pointBackgroundColor: chartColors.blue
+            },
+            {
+              label: 'Providers',
+              data: providers,
+              borderColor: chartColors.gold,
+              backgroundColor: chartColors.goldSoft,
+              fill: true,
+              tension: 0.3,
+              pointRadius: 3,
+              pointBackgroundColor: chartColors.gold
+            }
+          ]
+        },
+        options: chartDefaults
+      });
+    }
+
+    function renderDashboardOrdersChart(data) {
+      const ctx = document.getElementById('dashboard-orders-chart');
+      if (!ctx) return;
+
+      if (dashboardCharts.orders) {
+        dashboardCharts.orders.destroy();
+      }
+
+      const labels = data.map(d => formatChartLabel(d.label));
+      const created = data.map(d => d.created || 0);
+      const completed = data.map(d => d.completed || 0);
+
+      dashboardCharts.orders = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Created',
+              data: created,
+              backgroundColor: chartColors.blue,
+              borderRadius: 4
+            },
+            {
+              label: 'Completed',
+              data: completed,
+              backgroundColor: chartColors.green,
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          ...chartDefaults,
+          plugins: {
+            ...chartDefaults.plugins,
+            legend: {
+              ...chartDefaults.plugins.legend,
+              position: 'top'
+            }
+          }
+        }
+      });
+    }
 
     async function loadApplications() {
       const { data } = await supabaseClient.from('provider_applications').select('*').order('created_at', { ascending: false });

@@ -261,6 +261,7 @@
     .sidebar-overlay.active { display: block; }
   </style>
   <script src="/i18n.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
   <!-- Mobile Header -->
@@ -364,6 +365,61 @@
           <div class="stat-label">Active Packages</div>
           <div class="stat-preview" id="preview-packages"></div>
           <div class="stat-tap-hint">Tap to view →</div>
+        </div>
+      </div>
+
+      <!-- Dashboard Charts Section -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header">
+          <h2 class="card-title">📊 Dashboard Overview</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-sm dashboard-period active" data-period="week">Week</button>
+            <button class="btn btn-sm dashboard-period" data-period="month">Month</button>
+            <button class="btn btn-sm dashboard-period" data-period="quarter">Quarter</button>
+            <button class="btn btn-sm dashboard-period" data-period="year">Year</button>
+          </div>
+        </div>
+        <div class="stats-grid" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));margin-bottom:24px;">
+          <div class="stat-card">
+            <div class="stat-icon" style="background:var(--accent-blue-soft);color:var(--accent-blue);">👥</div>
+            <div class="stat-value" id="dash-total-members">0</div>
+            <div class="stat-label">Total Members</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:var(--accent-gold-soft);color:var(--accent-gold);">🔧</div>
+            <div class="stat-value" id="dash-total-providers">0</div>
+            <div class="stat-label">Total Providers</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);">📦</div>
+            <div class="stat-value" id="dash-active-packages">0</div>
+            <div class="stat-label">Active Packages</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:var(--accent-gold-soft);color:var(--accent-gold);">💰</div>
+            <div class="stat-value" id="dash-total-revenue">$0</div>
+            <div class="stat-label">Total Revenue</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(350px, 1fr));gap:20px;">
+          <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:16px;">
+            <h3 style="font-size:0.95rem;margin-bottom:12px;color:var(--text-secondary);">💰 Revenue Over Time</h3>
+            <div style="height:220px;position:relative;">
+              <canvas id="dashboard-revenue-chart"></canvas>
+            </div>
+          </div>
+          <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:16px;">
+            <h3 style="font-size:0.95rem;margin-bottom:12px;color:var(--text-secondary);">👥 User Growth</h3>
+            <div style="height:220px;position:relative;">
+              <canvas id="dashboard-users-chart"></canvas>
+            </div>
+          </div>
+          <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:16px;">
+            <h3 style="font-size:0.95rem;margin-bottom:12px;color:var(--text-secondary);">📦 Orders / Services</h3>
+            <div style="height:220px;position:relative;">
+              <canvas id="dashboard-orders-chart"></canvas>
+            </div>
+          </div>
         </div>
       </div>
 

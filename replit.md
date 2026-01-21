@@ -39,6 +39,22 @@ Key features include:
 - **Lazy Loading**: Shop product images use lazy loading with skeleton placeholders
 - **Scheduled Tasks**: Maintenance reminder checks run automatically every 24 hours (configurable via ENABLE_MAINTENANCE_SCHEDULER env var)
 
+## Business Features
+- **Referral Program**: Members earn $10 credit for referring friends, new members get $10 welcome bonus. Unique referral codes, share via email/SMS. Database table: `referrals`, `member_credits`. Migration file: `referrals_migration.sql`.
+- **Vehicle Recall Alerts**: Auto-check NHTSA database for safety recalls. Weekly scheduled checks. Badge on vehicles with active recalls. Database table: `vehicle_recalls`. Migration file: `vehicle_recalls_migration.sql`.
+- **Fuel Cost Tracking**: Track fill-ups, calculate MPG, monthly/yearly spending, cost per mile with trend charts. Database table: `fuel_logs`. Migration file: `fuel_logs_migration.sql`.
+- **Insurance Card Storage**: Upload and store insurance documents with expiration tracking. Supports PDF, JPG, PNG. Database table: `insurance_documents`. Migration file: `insurance_documents_migration.sql`.
+- **Service History Export**: Download service records as PDF or CSV with professional formatting.
+
+## Security Features
+- **API Rate Limiting**: In-memory rate limiting to prevent abuse. Login: 5/min, SMS/2FA: 3/min, API: 100/min, Public: 30/min.
+- **Login Activity Log**: Track login history with device, browser, IP. Alert on failed attempts. Database table: `login_activity`. Migration file: `login_activity_migration.sql`.
+- **SMS Appointment Reminders**: Text members 24 hours before scheduled service. Runs hourly. Migration file: `appointment_reminders_migration.sql`.
+
+## UX Features
+- **Theme Toggle**: Light/dark mode preference saved to localStorage. Sun/moon toggle in sidebar.
+- **Admin Dashboard Charts**: Revenue, user growth, and order statistics with Chart.js visualizations.
+
 ## External Dependencies
 - **Supabase**: Backend services including PostgreSQL database, authentication, and storage.
 - **Stripe**: Payment processing for member services, provider bid credit purchases, and platform fee collection.

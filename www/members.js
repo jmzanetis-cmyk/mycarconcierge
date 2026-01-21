@@ -1,3 +1,57 @@
+    // ========== THEME TOGGLE ==========
+    function toggleTheme() {
+      document.documentElement.classList.add('theme-transition');
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateThemeIcon();
+      updateThemeToggleUI();
+      setTimeout(() => {
+        document.documentElement.classList.remove('theme-transition');
+      }, 300);
+    }
+
+    function updateThemeIcon() {
+      const themeIcon = document.getElementById('theme-icon');
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      if (themeIcon) {
+        themeIcon.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+      }
+    }
+
+    function updateThemeToggleUI() {
+      const themeToggle = document.getElementById('settings-theme-toggle');
+      const themeLabel = document.getElementById('settings-theme-label');
+      const iconDisplay = document.getElementById('settings-theme-icon-display');
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      if (themeToggle) {
+        themeToggle.checked = currentTheme === 'light';
+      }
+      if (themeLabel) {
+        themeLabel.textContent = currentTheme === 'dark' ? 'Dark Mode' : 'Light Mode';
+      }
+      if (iconDisplay) {
+        iconDisplay.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+      }
+    }
+
+    function setThemeFromToggle(isLight) {
+      document.documentElement.classList.add('theme-transition');
+      const newTheme = isLight ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateThemeIcon();
+      updateThemeToggleUI();
+      setTimeout(() => {
+        document.documentElement.classList.remove('theme-transition');
+      }, 300);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      updateThemeIcon();
+    });
+
     // ========== STATE ==========
     let currentUser = null;
     let userProfile = null;
@@ -34,6 +88,10 @@
     // Identity Verification State
     let userVerificationStatus = null; // { verified: boolean, status: string }
     let stripeInstance = null; // Stripe.js instance
+    
+    // Vehicle Recalls State
+    let vehicleRecalls = {}; // Map of vehicle_id -> { recalls: [], activeCount: 0 }
+    let currentRecallsVehicleId = null; // Currently viewing recalls for this vehicle
 
     // Service types by category
     const serviceTypes = {
@@ -762,6 +820,9 @@
         
         renderVehicles();
         updateVehicleSelects();
+        
+        // Load recalls for all vehicles in background
+        loadAllVehicleRecalls();
       } catch (err) {
         console.error('loadVehicles error:', err);
         vehicles = [];
@@ -2149,11 +2210,15 @@
         const verifiedBadge = userVerificationStatus?.verified 
           ? '<span style="position:absolute;top:12px;left:12px;background:linear-gradient(135deg, var(--accent-green), #3da577);color:white;padding:4px 10px;border-radius:100px;font-size:0.7rem;font-weight:600;display:flex;align-items:center;gap:4px;">🛡️ Verified Owner</span>' 
           : '';
+        const recallData = vehicleRecalls[v.id];
+        const recallBadge = recallData && recallData.activeCount > 0 
+          ? `<span class="recall-badge" onclick="event.stopPropagation(); openRecallsModal('${v.id}')">⚠️ ${recallData.activeCount} Recall${recallData.activeCount > 1 ? 's' : ''}</span>` 
+          : '';
         return `
           <div class="vehicle-card">
             <div class="vehicle-card-photo">
               ${photoContent}
-              ${verifiedBadge}
+              ${recallBadge || verifiedBadge}
               <span class="vehicle-card-badge ${healthClass}">${healthLabel}</span>
             </div>
             <div class="vehicle-card-body">
@@ -2174,6 +2239,175 @@
         `;
       }).join('');
     }
+
+    // ========== VEHICLE RECALLS FUNCTIONS ==========
+    
+    async function fetchVehicleRecalls(vehicleId, refresh = false) {
+      try {
+        const url = `/api/vehicle/${vehicleId}/recalls${refresh ? '?refresh=true' : ''}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success) {
+          vehicleRecalls[vehicleId] = {
+            recalls: data.recalls || [],
+            activeCount: data.active_count || 0,
+            totalCount: data.total_count || 0
+          };
+          return vehicleRecalls[vehicleId];
+        }
+        return null;
+      } catch (error) {
+        console.error('Error fetching recalls:', error);
+        return null;
+      }
+    }
+    
+    async function loadAllVehicleRecalls() {
+      for (const vehicle of vehicles) {
+        await fetchVehicleRecalls(vehicle.id, false);
+      }
+      renderVehicles();
+    }
+    
+    async function openRecallsModal(vehicleId) {
+      currentRecallsVehicleId = vehicleId;
+      const vehicle = vehicles.find(v => v.id === vehicleId);
+      if (!vehicle) return;
+      
+      const vehicleName = vehicle.nickname || `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim();
+      const vehicleDetails = `${vehicle.year || ''} ${vehicle.make} ${vehicle.model} ${vehicle.trim || ''}`.trim();
+      
+      document.getElementById('recalls-vehicle-name').textContent = vehicleName;
+      document.getElementById('recalls-vehicle-details').textContent = vehicleDetails;
+      document.getElementById('recalls-list').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Loading recalls...</div>';
+      document.getElementById('recalls-empty').style.display = 'none';
+      document.getElementById('recalls-active-count').textContent = '...';
+      
+      openModal('recalls-modal');
+      
+      const recallData = await fetchVehicleRecalls(vehicleId, false);
+      renderRecallsList(recallData);
+    }
+    
+    async function refreshVehicleRecalls() {
+      if (!currentRecallsVehicleId) return;
+      
+      const btn = document.getElementById('refresh-recalls-btn');
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Checking...';
+      
+      document.getElementById('recalls-list').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Checking NHTSA for updates...</div>';
+      
+      try {
+        const recallData = await fetchVehicleRecalls(currentRecallsVehicleId, true);
+        renderRecallsList(recallData);
+        renderVehicles();
+      } catch (error) {
+        console.error('Error refreshing recalls:', error);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '🔄 Check for Updates';
+      }
+    }
+    
+    function renderRecallsList(recallData) {
+      const listEl = document.getElementById('recalls-list');
+      const emptyEl = document.getElementById('recalls-empty');
+      const countEl = document.getElementById('recalls-active-count');
+      
+      if (!recallData || !recallData.recalls || recallData.recalls.length === 0) {
+        listEl.innerHTML = '';
+        emptyEl.style.display = 'block';
+        countEl.textContent = '0';
+        return;
+      }
+      
+      emptyEl.style.display = 'none';
+      countEl.textContent = recallData.activeCount || 0;
+      
+      listEl.innerHTML = recallData.recalls.map(recall => {
+        const isAcknowledged = recall.is_acknowledged;
+        const statusClass = isAcknowledged ? 'addressed' : 'active';
+        const cardClass = isAcknowledged ? 'acknowledged' : 'unacknowledged';
+        const statusText = isAcknowledged ? 'Addressed' : 'Active';
+        
+        return `
+          <div class="recall-card ${cardClass}">
+            <div class="recall-card-header">
+              <div>
+                <div class="recall-card-title">${escapeHtml(recall.component || 'Unknown Component')}</div>
+                <div class="recall-card-campaign">Campaign #${escapeHtml(recall.nhtsa_campaign_number || 'N/A')}</div>
+              </div>
+              <span class="recall-card-status ${statusClass}">${statusText}</span>
+            </div>
+            
+            ${recall.summary ? `
+              <div class="recall-card-section">
+                <div class="recall-card-section-title">Summary</div>
+                <div class="recall-card-section-content">${escapeHtml(recall.summary)}</div>
+              </div>
+            ` : ''}
+            
+            ${recall.consequence ? `
+              <div class="recall-card-section">
+                <div class="recall-card-section-title">⚠️ Consequence</div>
+                <div class="recall-card-section-content" style="color: var(--accent-red);">${escapeHtml(recall.consequence)}</div>
+              </div>
+            ` : ''}
+            
+            ${recall.remedy ? `
+              <div class="recall-card-section">
+                <div class="recall-card-section-title">✅ Remedy</div>
+                <div class="recall-card-section-content">${escapeHtml(recall.remedy)}</div>
+              </div>
+            ` : ''}
+            
+            ${!isAcknowledged ? `
+              <div class="recall-card-actions">
+                <button class="btn btn-success btn-sm" onclick="acknowledgeRecall('${recall.id}')">
+                  ✓ Mark as Addressed
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="createPackageForVehicle('${currentRecallsVehicleId}')">
+                  📦 Request Service
+                </button>
+              </div>
+            ` : `
+              <div class="recall-card-actions">
+                <span style="font-size: 0.82rem; color: var(--text-muted);">
+                  ✓ Addressed ${recall.acknowledged_at ? new Date(recall.acknowledged_at).toLocaleDateString() : ''}
+                </span>
+              </div>
+            `}
+          </div>
+        `;
+      }).join('');
+    }
+    
+    async function acknowledgeRecall(recallId) {
+      try {
+        const response = await fetch(`/api/recalls/${recallId}/acknowledge`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: currentUser?.id || null })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          const recallData = await fetchVehicleRecalls(currentRecallsVehicleId, false);
+          renderRecallsList(recallData);
+          renderVehicles();
+        } else {
+          alert('Failed to acknowledge recall: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error acknowledging recall:', error);
+        alert('Error acknowledging recall');
+      }
+    }
+    
+    // ========== END VEHICLE RECALLS ==========
 
     function renderPackages() {
       const list = document.getElementById('packages-list');
@@ -3298,6 +3532,238 @@
       loadPosServiceHistory();
     }
     
+    function toggleExportDropdown() {
+      const dropdown = document.getElementById('export-dropdown');
+      dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    }
+    
+    document.addEventListener('click', function(e) {
+      const dropdown = document.getElementById('export-dropdown');
+      const btn = document.getElementById('export-history-btn');
+      if (dropdown && btn && !dropdown.contains(e.target) && !btn.contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+    
+    async function exportServiceHistory(format) {
+      if (!currentUser) {
+        showToast('Please log in to export service history', 'error');
+        return;
+      }
+      
+      const dropdown = document.getElementById('export-dropdown');
+      dropdown.style.display = 'none';
+      
+      const btn = document.getElementById('export-history-btn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '⏳ Generating...';
+      btn.disabled = true;
+      
+      try {
+        const response = await fetch(`/api/member/${currentUser.id}/service-history/export?format=${format}`);
+        
+        if (format === 'csv') {
+          if (!response.ok) {
+            throw new Error('Failed to generate CSV');
+          }
+          const blob = await response.blob();
+          const contentDisposition = response.headers.get('Content-Disposition');
+          let filename = `MCC_Service_History_${new Date().toISOString().split('T')[0]}.csv`;
+          if (contentDisposition) {
+            const match = contentDisposition.match(/filename="(.+)"/);
+            if (match) filename = match[1];
+          }
+          
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          
+          showToast('CSV downloaded successfully!', 'success');
+        } else if (format === 'pdf') {
+          const result = await response.json();
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to generate PDF');
+          }
+          
+          generateServiceHistoryPDF(result.exportData);
+          showToast('PDF downloaded successfully!', 'success');
+        }
+      } catch (error) {
+        console.error('Export error:', error);
+        showToast('Failed to export service history: ' + error.message, 'error');
+      } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+      }
+    }
+    
+    function generateServiceHistoryPDF(data) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      
+      const bgDeep = '#0a0a0f';
+      const bgCard = '#12121c';
+      const accentGold = '#d4a855';
+      const accentBlue = '#4a7cff';
+      const textPrimary = '#f4f4f6';
+      const textSecondary = '#9898a8';
+      const textMuted = '#6b6b7a';
+      
+      doc.setFillColor(10, 10, 15);
+      doc.rect(0, 0, 210, 297, 'F');
+      
+      doc.setFillColor(18, 18, 28);
+      doc.roundedRect(10, 10, 190, 35, 3, 3, 'F');
+      
+      doc.setFontSize(22);
+      doc.setTextColor(212, 168, 85);
+      doc.text('My Car Concierge', 20, 25);
+      
+      doc.setFontSize(12);
+      doc.setTextColor(244, 244, 246);
+      doc.text('Service History Report', 20, 35);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(152, 152, 168);
+      doc.text(`Member: ${data.memberName}`, 120, 25);
+      doc.text(`Generated: ${data.dateGenerated}`, 120, 33);
+      
+      let yPos = 55;
+      
+      doc.setFillColor(18, 18, 28);
+      doc.roundedRect(10, yPos, 190, 25, 3, 3, 'F');
+      
+      doc.setFontSize(11);
+      doc.setTextColor(212, 168, 85);
+      doc.text('Summary', 20, yPos + 10);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(244, 244, 246);
+      doc.text(`Total Services: ${data.summary.totalServices}`, 20, yPos + 18);
+      doc.text(`Total Spent: $${data.summary.totalSpent}`, 80, yPos + 18);
+      doc.text(`Vehicles: ${data.summary.vehicleCount}`, 150, yPos + 18);
+      
+      yPos += 35;
+      
+      if (data.vehicles && data.vehicles.length > 0) {
+        doc.setFontSize(12);
+        doc.setTextColor(74, 124, 255);
+        doc.text('Vehicles', 15, yPos);
+        yPos += 8;
+        
+        data.vehicles.forEach((vehicle, idx) => {
+          if (yPos > 270) {
+            doc.addPage();
+            doc.setFillColor(10, 10, 15);
+            doc.rect(0, 0, 210, 297, 'F');
+            yPos = 20;
+          }
+          
+          doc.setFillColor(22, 22, 34);
+          doc.roundedRect(15, yPos, 180, 12, 2, 2, 'F');
+          
+          doc.setFontSize(9);
+          doc.setTextColor(244, 244, 246);
+          doc.text(vehicle.displayName || `${vehicle.year} ${vehicle.make} ${vehicle.model}`, 20, yPos + 8);
+          
+          if (vehicle.vin) {
+            doc.setTextColor(107, 107, 122);
+            doc.text(`VIN: ${vehicle.vin}`, 120, yPos + 8);
+          }
+          
+          yPos += 16;
+        });
+        
+        yPos += 10;
+      }
+      
+      doc.setFontSize(12);
+      doc.setTextColor(74, 124, 255);
+      doc.text('Service History', 15, yPos);
+      yPos += 10;
+      
+      doc.setFillColor(28, 28, 42);
+      doc.roundedRect(15, yPos, 180, 10, 2, 2, 'F');
+      
+      doc.setFontSize(8);
+      doc.setTextColor(152, 152, 168);
+      doc.text('Date', 20, yPos + 7);
+      doc.text('Vehicle', 45, yPos + 7);
+      doc.text('Service', 85, yPos + 7);
+      doc.text('Provider', 130, yPos + 7);
+      doc.text('Amount', 170, yPos + 7);
+      yPos += 14;
+      
+      const records = data.serviceHistory || [];
+      records.forEach((record, idx) => {
+        if (yPos > 270) {
+          doc.addPage();
+          doc.setFillColor(10, 10, 15);
+          doc.rect(0, 0, 210, 297, 'F');
+          yPos = 20;
+          
+          doc.setFillColor(28, 28, 42);
+          doc.roundedRect(15, yPos, 180, 10, 2, 2, 'F');
+          doc.setFontSize(8);
+          doc.setTextColor(152, 152, 168);
+          doc.text('Date', 20, yPos + 7);
+          doc.text('Vehicle', 45, yPos + 7);
+          doc.text('Service', 85, yPos + 7);
+          doc.text('Provider', 130, yPos + 7);
+          doc.text('Amount', 170, yPos + 7);
+          yPos += 14;
+        }
+        
+        const bgColor = idx % 2 === 0 ? [18, 18, 28] : [22, 22, 34];
+        doc.setFillColor(...bgColor);
+        doc.roundedRect(15, yPos, 180, 10, 1, 1, 'F');
+        
+        doc.setFontSize(8);
+        doc.setTextColor(244, 244, 246);
+        
+        const dateStr = new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+        doc.text(dateStr, 20, yPos + 7);
+        
+        const vehicleName = (record.vehicle || '').substring(0, 15);
+        doc.text(vehicleName, 45, yPos + 7);
+        
+        const serviceName = (record.serviceType || '').substring(0, 18);
+        doc.text(serviceName, 85, yPos + 7);
+        
+        const providerName = (record.provider || '').substring(0, 15);
+        doc.text(providerName, 130, yPos + 7);
+        
+        doc.setTextColor(212, 168, 85);
+        doc.text(`$${record.amount.toFixed(2)}`, 170, yPos + 7);
+        
+        yPos += 12;
+        
+        if (record.notes && record.notes.trim()) {
+          doc.setFontSize(7);
+          doc.setTextColor(107, 107, 122);
+          const noteText = 'Note: ' + record.notes.substring(0, 80);
+          doc.text(noteText, 20, yPos + 3);
+          yPos += 8;
+        }
+      });
+      
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(107, 107, 122);
+        doc.text(`My Car Concierge - Service History Report - Page ${i} of ${pageCount}`, 105, 290, { align: 'center' });
+      }
+      
+      const filename = `MCC_Service_History_${data.memberName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+    }
+    
     function updateHistoryStats() {
       const totalServices = posServiceHistory.length;
       const totalSpent = posServiceHistory.reduce((sum, h) => sum + (h.total || 0), 0);
@@ -4366,6 +4832,7 @@
       }
       if (sectionId === 'settings') {
         initPushNotifications();
+        loadLoginActivity();
       }
       if (sectionId === 'order-history') {
         loadOrderHistory();
@@ -14706,3 +15173,1299 @@ Note: This assessment was generated by AI and is for informational purposes only
         showToast('No tracking information available', 'error');
       }
     }
+
+    // ========== REFERRAL PROGRAM ==========
+    let memberReferralCode = null;
+    let memberReferrals = [];
+    let memberCredits = [];
+    let totalReferralCredits = 0;
+
+    async function loadReferralData() {
+      if (!currentUser?.id) return;
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        
+        const [codeRes, referralsRes, creditsRes] = await Promise.all([
+          fetch(`/api/member/${currentUser.id}/referral-code`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }),
+          fetch(`/api/member/${currentUser.id}/referrals`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }),
+          fetch(`/api/member/${currentUser.id}/credits`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+        ]);
+        
+        if (codeRes.ok) {
+          const codeData = await codeRes.json();
+          if (codeData.success && codeData.referral_code) {
+            memberReferralCode = codeData.referral_code;
+            document.getElementById('referral-code-display').textContent = memberReferralCode;
+          }
+        }
+        
+        if (referralsRes.ok) {
+          const referralsData = await referralsRes.json();
+          if (referralsData.success) {
+            memberReferrals = referralsData.referrals || [];
+            renderReferrals();
+          }
+        }
+        
+        if (creditsRes.ok) {
+          const creditsData = await creditsRes.json();
+          if (creditsData.success) {
+            memberCredits = creditsData.credits || [];
+            totalReferralCredits = creditsData.total_credits || 0;
+            updateReferralStats();
+          }
+        }
+        
+      } catch (error) {
+        console.error('Error loading referral data:', error);
+        document.getElementById('referral-code-display').textContent = 'Error';
+      }
+    }
+
+    function updateReferralStats() {
+      const totalCreditsEl = document.getElementById('referral-total-credits');
+      const completedCountEl = document.getElementById('referral-completed-count');
+      const pendingCountEl = document.getElementById('referral-pending-count');
+      const creditsBadge = document.getElementById('referral-credits-badge');
+      
+      const completedCount = memberReferrals.filter(r => r.status === 'credited' || r.status === 'completed').length;
+      const pendingCount = memberReferrals.filter(r => r.status === 'pending').length;
+      
+      if (totalCreditsEl) {
+        totalCreditsEl.textContent = `$${(totalReferralCredits / 100).toFixed(0)}`;
+      }
+      if (completedCountEl) {
+        completedCountEl.textContent = completedCount;
+      }
+      if (pendingCountEl) {
+        pendingCountEl.textContent = pendingCount;
+      }
+      
+      if (creditsBadge) {
+        if (totalReferralCredits > 0) {
+          creditsBadge.textContent = `$${(totalReferralCredits / 100).toFixed(0)}`;
+          creditsBadge.style.display = 'inline-block';
+        } else {
+          creditsBadge.style.display = 'none';
+        }
+      }
+    }
+
+    function renderReferrals() {
+      const loadingEl = document.getElementById('referrals-loading');
+      const emptyEl = document.getElementById('referrals-empty');
+      const listEl = document.getElementById('referrals-list');
+      
+      if (loadingEl) loadingEl.style.display = 'none';
+      
+      if (memberReferrals.length === 0) {
+        if (emptyEl) emptyEl.style.display = 'block';
+        if (listEl) listEl.style.display = 'none';
+        return;
+      }
+      
+      if (emptyEl) emptyEl.style.display = 'none';
+      if (listEl) {
+        listEl.style.display = 'flex';
+        listEl.innerHTML = memberReferrals.map(referral => {
+          const date = new Date(referral.created_at).toLocaleDateString('en-US', {
+            year: 'numeric', month: 'short', day: 'numeric'
+          });
+          
+          let statusClass = '';
+          let statusLabel = '';
+          let statusIcon = '';
+          
+          switch (referral.status) {
+            case 'credited':
+            case 'completed':
+              statusClass = 'background:var(--accent-green-soft);color:var(--accent-green);';
+              statusLabel = 'Completed';
+              statusIcon = '✅';
+              break;
+            case 'pending':
+            default:
+              statusClass = 'background:var(--accent-orange-soft);color:var(--accent-orange);';
+              statusLabel = 'Pending';
+              statusIcon = '⏳';
+              break;
+          }
+          
+          const creditAmount = referral.status === 'credited' ? `+$${(referral.credit_amount / 100).toFixed(0)}` : '-';
+          
+          return `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:var(--bg-elevated);border-radius:12px;border:1px solid var(--border-subtle);">
+              <div style="display:flex;align-items:center;gap:16px;">
+                <div style="width:48px;height:48px;border-radius:50%;background:var(--accent-blue-soft);display:flex;align-items:center;justify-content:center;font-size:20px;">👤</div>
+                <div>
+                  <div style="font-weight:600;margin-bottom:2px;">${referral.referred_name || 'Member'}</div>
+                  <div style="font-size:0.85rem;color:var(--text-muted);">Joined ${date}</div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:16px;">
+                <span style="font-weight:600;color:${referral.status === 'credited' ? 'var(--accent-gold)' : 'var(--text-muted)'};">${creditAmount}</span>
+                <span style="padding:6px 12px;border-radius:100px;font-size:0.8rem;font-weight:500;${statusClass}">${statusIcon} ${statusLabel}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    function copyReferralCode() {
+      if (!memberReferralCode) {
+        showToast('Referral code not loaded', 'error');
+        return;
+      }
+      
+      navigator.clipboard.writeText(memberReferralCode).then(() => {
+        showToast('Referral code copied!', 'success');
+      }).catch(() => {
+        showToast('Failed to copy code', 'error');
+      });
+    }
+
+    function copyReferralLink() {
+      if (!memberReferralCode) {
+        showToast('Referral code not loaded', 'error');
+        return;
+      }
+      
+      const baseUrl = window.location.origin;
+      const referralLink = `${baseUrl}/signup-member.html?ref=${memberReferralCode}`;
+      
+      navigator.clipboard.writeText(referralLink).then(() => {
+        showToast('Referral link copied!', 'success');
+      }).catch(() => {
+        showToast('Failed to copy link', 'error');
+      });
+    }
+
+    function shareReferralEmail() {
+      if (!memberReferralCode) {
+        showToast('Referral code not loaded', 'error');
+        return;
+      }
+      
+      const baseUrl = window.location.origin;
+      const referralLink = `${baseUrl}/signup-member.html?ref=${memberReferralCode}`;
+      const subject = encodeURIComponent('Join My Car Concierge - Get $10 Off!');
+      const body = encodeURIComponent(`Hey!
+
+I've been using My Car Concierge for my car maintenance and services, and I think you'd love it too!
+
+Sign up with my referral code and get a $10 welcome bonus:
+
+Referral Code: ${memberReferralCode}
+Sign Up Here: ${referralLink}
+
+My Car Concierge connects you with trusted automotive service providers. It's super convenient!
+
+See you there!`);
+      
+      window.open(`mailto:?subject=${subject}&body=${body}`);
+    }
+
+    function shareReferralSMS() {
+      if (!memberReferralCode) {
+        showToast('Referral code not loaded', 'error');
+        return;
+      }
+      
+      const baseUrl = window.location.origin;
+      const referralLink = `${baseUrl}/signup-member.html?ref=${memberReferralCode}`;
+      const message = encodeURIComponent(`Join My Car Concierge and get $10 off! Use my code ${memberReferralCode} or sign up here: ${referralLink}`);
+      
+      if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        window.open(`sms:&body=${message}`);
+      } else {
+        window.open(`sms:?body=${message}`);
+      }
+    }
+
+    const originalShowSectionForReferrals = showSection;
+    showSection = function(sectionId) {
+      if (sectionId === 'referrals') {
+        loadReferralData();
+      }
+      if (sectionId === 'fuel-tracker') {
+        loadFuelLogs();
+      }
+      if (sectionId === 'insurance') {
+        loadInsuranceDocuments();
+      }
+      originalShowSectionForReferrals(sectionId);
+    };
+
+    // ========== FUEL TRACKER SECTION ==========
+    let fuelLogs = [];
+    let fuelStats = null;
+    let fuelVehicleStats = {};
+    let fuelMpgChart = null;
+    let fuelSpendingChart = null;
+    let editingFuelLogId = null;
+
+    async function loadFuelLogs() {
+      if (!currentUser) return;
+      
+      try {
+        const vehicleFilter = document.getElementById('fuel-vehicle-filter')?.value || '';
+        let url = `/api/member/${currentUser.id}/fuel-logs`;
+        if (vehicleFilter) {
+          url += `?vehicle_id=${vehicleFilter}`;
+        }
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          fuelLogs = data.fuel_logs || [];
+          fuelStats = data.stats || {};
+          fuelVehicleStats = data.vehicle_stats || {};
+          
+          updateFuelVehicleFilter();
+          updateFuelStats();
+          renderFuelLogs();
+          renderFuelCharts();
+        } else {
+          console.error('Failed to load fuel logs:', data.error);
+        }
+      } catch (error) {
+        console.error('Error loading fuel logs:', error);
+      }
+    }
+
+    function updateFuelVehicleFilter() {
+      const filter = document.getElementById('fuel-vehicle-filter');
+      if (!filter) return;
+      
+      const currentValue = filter.value;
+      
+      filter.innerHTML = '<option value="">All Vehicles</option>';
+      
+      for (const vehicle of vehicles) {
+        const option = document.createElement('option');
+        option.value = vehicle.id;
+        option.textContent = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
+        filter.appendChild(option);
+      }
+      
+      if (currentValue) {
+        filter.value = currentValue;
+      }
+    }
+
+    function updateFuelStats() {
+      const avgMpgEl = document.getElementById('fuel-avg-mpg');
+      const monthlyEl = document.getElementById('fuel-monthly-cost');
+      const costPerMileEl = document.getElementById('fuel-cost-per-mile');
+      const totalGallonsEl = document.getElementById('fuel-total-gallons');
+      
+      if (avgMpgEl) {
+        avgMpgEl.textContent = fuelStats.avg_mpg ? `${fuelStats.avg_mpg}` : '--';
+      }
+      if (monthlyEl) {
+        monthlyEl.textContent = `$${(fuelStats.current_month_spent || 0).toFixed(0)}`;
+      }
+      if (costPerMileEl) {
+        costPerMileEl.textContent = fuelStats.avg_cost_per_mile 
+          ? `$${fuelStats.avg_cost_per_mile.toFixed(2)}` 
+          : '--';
+      }
+      if (totalGallonsEl) {
+        totalGallonsEl.textContent = (fuelStats.total_gallons || 0).toFixed(0);
+      }
+    }
+
+    function renderFuelLogs() {
+      const container = document.getElementById('fuel-logs-list');
+      if (!container) return;
+      
+      if (fuelLogs.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="padding:40px;">
+            <div class="empty-state-icon">⛽</div>
+            <p>No fuel logs yet.</p>
+            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Start tracking your fuel expenses to see stats and trends.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      container.innerHTML = `
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;min-width:600px;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border-subtle);">
+                <th style="text-align:left;padding:12px 8px;font-size:0.85rem;color:var(--text-muted);font-weight:600;">Date</th>
+                <th style="text-align:left;padding:12px 8px;font-size:0.85rem;color:var(--text-muted);font-weight:600;">Vehicle</th>
+                <th style="text-align:right;padding:12px 8px;font-size:0.85rem;color:var(--text-muted);font-weight:600;">Odometer</th>
+                <th style="text-align:right;padding:12px 8px;font-size:0.85rem;color:var(--text-muted);font-weight:600;">Gallons</th>
+                <th style="text-align:right;padding:12px 8px;font-size:0.85rem;color:var(--text-muted);font-weight:600;">$/Gal</th>
+                <th style="text-align:right;padding:12px 8px;font-size:0.85rem;color:var(--text-muted);font-weight:600;">Total</th>
+                <th style="text-align:left;padding:12px 8px;font-size:0.85rem;color:var(--text-muted);font-weight:600;">Station</th>
+                <th style="text-align:center;padding:12px 8px;font-size:0.85rem;color:var(--text-muted);font-weight:600;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${fuelLogs.map(log => {
+                const vehicle = log.vehicles || {};
+                const vehicleName = vehicle.year ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : 'Unknown';
+                const date = new Date(log.date).toLocaleDateString();
+                const fuelTypeEmoji = getFuelTypeEmoji(log.fuel_type);
+                
+                return `
+                  <tr style="border-bottom:1px solid var(--border-subtle);transition:background 0.2s;" onmouseover="this.style.background='var(--bg-elevated)'" onmouseout="this.style.background='transparent'">
+                    <td style="padding:14px 8px;font-size:0.9rem;">${date}</td>
+                    <td style="padding:14px 8px;font-size:0.9rem;">${vehicleName}</td>
+                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">${log.odometer.toLocaleString()} mi</td>
+                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">${fuelTypeEmoji} ${parseFloat(log.gallons).toFixed(2)}</td>
+                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">$${parseFloat(log.price_per_gallon).toFixed(2)}</td>
+                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;font-weight:600;color:var(--accent-gold);">$${parseFloat(log.total_cost).toFixed(2)}</td>
+                    <td style="padding:14px 8px;font-size:0.9rem;color:var(--text-secondary);">${log.station_name || '-'}</td>
+                    <td style="padding:14px 8px;text-align:center;">
+                      <button class="btn btn-ghost btn-sm" onclick="editFuelLog('${log.id}')" title="Edit">✏️</button>
+                      <button class="btn btn-ghost btn-sm" onclick="deleteFuelLog('${log.id}')" title="Delete" style="color:var(--accent-red);">🗑️</button>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function getFuelTypeEmoji(type) {
+      switch (type) {
+        case 'regular': return '⛽';
+        case 'mid-grade': return '⛽';
+        case 'premium': return '🏎️';
+        case 'diesel': return '🛢️';
+        case 'electric': return '🔋';
+        default: return '⛽';
+      }
+    }
+
+    function renderFuelCharts() {
+      renderMpgTrendChart();
+      renderSpendingChart();
+    }
+
+    function renderMpgTrendChart() {
+      const canvas = document.getElementById('fuel-mpg-chart');
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      
+      if (fuelMpgChart) {
+        fuelMpgChart.destroy();
+      }
+      
+      const mpgTrend = fuelStats.mpg_trend || [];
+      
+      if (mpgTrend.length === 0) {
+        const container = document.getElementById('fuel-mpg-chart-container');
+        if (container) {
+          container.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:60px;">Not enough data for MPG trend. Add more fill-ups!</p>';
+        }
+        return;
+      }
+      
+      fuelMpgChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: mpgTrend.map(e => new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+          datasets: [{
+            label: 'MPG',
+            data: mpgTrend.map(e => e.mpg),
+            borderColor: '#d4a855',
+            backgroundColor: 'rgba(212, 168, 85, 0.1)',
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointBackgroundColor: '#d4a855'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(148, 148, 168, 0.1)' },
+              ticks: { color: '#9898a8' }
+            },
+            y: {
+              grid: { color: 'rgba(148, 148, 168, 0.1)' },
+              ticks: { color: '#9898a8' }
+            }
+          }
+        }
+      });
+    }
+
+    function renderSpendingChart() {
+      const canvas = document.getElementById('fuel-spending-chart');
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      
+      if (fuelSpendingChart) {
+        fuelSpendingChart.destroy();
+      }
+      
+      const monthlySpending = fuelStats.monthly_spending || {};
+      const sortedMonths = Object.keys(monthlySpending).sort().slice(-6);
+      
+      if (sortedMonths.length === 0) {
+        const container = document.getElementById('fuel-spending-chart-container');
+        if (container) {
+          container.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:60px;">No spending data yet. Add your first fill-up!</p>';
+        }
+        return;
+      }
+      
+      fuelSpendingChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: sortedMonths.map(m => {
+            const [year, month] = m.split('-');
+            return new Date(year, parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+          }),
+          datasets: [{
+            label: 'Fuel Spending',
+            data: sortedMonths.map(m => monthlySpending[m] || 0),
+            backgroundColor: 'rgba(74, 124, 255, 0.6)',
+            borderColor: '#4a7cff',
+            borderWidth: 1,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#9898a8' }
+            },
+            y: {
+              grid: { color: 'rgba(148, 148, 168, 0.1)' },
+              ticks: { 
+                color: '#9898a8',
+                callback: value => '$' + value
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function openFuelLogModal(logId = null) {
+      editingFuelLogId = logId;
+      
+      const modal = document.getElementById('fuel-log-modal');
+      const title = document.getElementById('fuel-log-modal-title');
+      const vehicleSelect = document.getElementById('fuel-log-vehicle');
+      const form = document.getElementById('fuel-log-form');
+      
+      title.textContent = logId ? 'Edit Fill-Up' : 'Add Fill-Up';
+      form.reset();
+      document.getElementById('fuel-log-id').value = '';
+      
+      vehicleSelect.innerHTML = '<option value="">Select a vehicle</option>';
+      for (const vehicle of vehicles) {
+        const option = document.createElement('option');
+        option.value = vehicle.id;
+        option.textContent = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
+        vehicleSelect.appendChild(option);
+      }
+      
+      if (!logId) {
+        document.getElementById('fuel-log-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('fuel-log-full-tank').checked = true;
+        
+        if (vehicles.length === 1) {
+          vehicleSelect.value = vehicles[0].id;
+        }
+      } else {
+        const log = fuelLogs.find(l => l.id === logId);
+        if (log) {
+          document.getElementById('fuel-log-id').value = log.id;
+          document.getElementById('fuel-log-vehicle').value = log.vehicle_id;
+          document.getElementById('fuel-log-date').value = log.date;
+          document.getElementById('fuel-log-odometer').value = log.odometer;
+          document.getElementById('fuel-log-gallons').value = log.gallons;
+          document.getElementById('fuel-log-price').value = log.price_per_gallon;
+          document.getElementById('fuel-log-total').value = log.total_cost;
+          document.getElementById('fuel-log-type').value = log.fuel_type || 'regular';
+          document.getElementById('fuel-log-station').value = log.station_name || '';
+          document.getElementById('fuel-log-notes').value = log.notes || '';
+          document.getElementById('fuel-log-full-tank').checked = log.is_full_tank !== false;
+        }
+      }
+      
+      const gallonsInput = document.getElementById('fuel-log-gallons');
+      const priceInput = document.getElementById('fuel-log-price');
+      const totalInput = document.getElementById('fuel-log-total');
+      
+      const calcTotal = () => {
+        const gallons = parseFloat(gallonsInput.value) || 0;
+        const price = parseFloat(priceInput.value) || 0;
+        if (gallons > 0 && price > 0) {
+          totalInput.value = (gallons * price).toFixed(2);
+        }
+      };
+      
+      gallonsInput.oninput = calcTotal;
+      priceInput.oninput = calcTotal;
+      
+      modal.classList.add('active');
+    }
+
+    function closeFuelLogModal() {
+      document.getElementById('fuel-log-modal').classList.remove('active');
+      editingFuelLogId = null;
+    }
+
+    function editFuelLog(logId) {
+      openFuelLogModal(logId);
+    }
+
+    async function saveFuelLog(event) {
+      event.preventDefault();
+      
+      if (!currentUser) {
+        showToast('Please log in to save fuel logs', 'error');
+        return;
+      }
+      
+      const logId = document.getElementById('fuel-log-id').value;
+      const vehicleId = document.getElementById('fuel-log-vehicle').value;
+      const date = document.getElementById('fuel-log-date').value;
+      const odometer = document.getElementById('fuel-log-odometer').value;
+      const gallons = document.getElementById('fuel-log-gallons').value;
+      const pricePerGallon = document.getElementById('fuel-log-price').value;
+      const totalCost = document.getElementById('fuel-log-total').value;
+      const fuelType = document.getElementById('fuel-log-type').value;
+      const stationName = document.getElementById('fuel-log-station').value;
+      const notes = document.getElementById('fuel-log-notes').value;
+      const isFullTank = document.getElementById('fuel-log-full-tank').checked;
+      
+      if (!vehicleId || !date || !odometer || !gallons || !pricePerGallon) {
+        showToast('Please fill in all required fields', 'error');
+        return;
+      }
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        const payload = {
+          vehicle_id: vehicleId,
+          date,
+          odometer: parseInt(odometer),
+          gallons: parseFloat(gallons),
+          price_per_gallon: parseFloat(pricePerGallon),
+          total_cost: totalCost ? parseFloat(totalCost) : null,
+          fuel_type: fuelType,
+          station_name: stationName || null,
+          notes: notes || null,
+          is_full_tank: isFullTank
+        };
+        
+        let url = `/api/member/${currentUser.id}/fuel-log`;
+        let method = 'POST';
+        
+        if (logId) {
+          url = `/api/member/${currentUser.id}/fuel-log/${logId}`;
+          method = 'PUT';
+        }
+        
+        const response = await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          showToast(logId ? 'Fill-up updated!' : 'Fill-up added!', 'success');
+          closeFuelLogModal();
+          loadFuelLogs();
+        } else {
+          showToast(data.error || 'Failed to save fuel log', 'error');
+        }
+      } catch (error) {
+        console.error('Error saving fuel log:', error);
+        showToast('Failed to save fuel log', 'error');
+      }
+    }
+
+    async function deleteFuelLog(logId) {
+      if (!confirm('Are you sure you want to delete this fill-up record?')) {
+        return;
+      }
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        const response = await fetch(`/api/member/${currentUser.id}/fuel-log/${logId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          showToast('Fill-up deleted', 'success');
+          loadFuelLogs();
+        } else {
+          showToast(data.error || 'Failed to delete fuel log', 'error');
+        }
+      } catch (error) {
+        console.error('Error deleting fuel log:', error);
+        showToast('Failed to delete fuel log', 'error');
+      }
+    }
+
+    // ========== INSURANCE DOCUMENTS SECTION ==========
+    let insuranceDocuments = [];
+    let insuranceStats = null;
+    let selectedInsuranceFile = null;
+
+    async function loadInsuranceDocuments() {
+      if (!currentUser) return;
+      
+      try {
+        const vehicleFilter = document.getElementById('insurance-vehicle-filter')?.value || '';
+        let url = `/api/member/${currentUser.id}/insurance-documents`;
+        if (vehicleFilter) {
+          url += `?vehicle_id=${vehicleFilter}`;
+        }
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          insuranceDocuments = data.documents || [];
+          insuranceStats = data.stats || {};
+          
+          updateInsuranceVehicleFilter();
+          updateInsuranceStats();
+          renderInsuranceDocuments();
+        } else {
+          console.error('Failed to load insurance documents:', data.error);
+        }
+      } catch (error) {
+        console.error('Error loading insurance documents:', error);
+      }
+    }
+
+    function updateInsuranceVehicleFilter() {
+      const filter = document.getElementById('insurance-vehicle-filter');
+      if (!filter) return;
+      
+      const currentValue = filter.value;
+      filter.innerHTML = '<option value="">All Vehicles</option>';
+      
+      for (const vehicle of vehicles) {
+        const option = document.createElement('option');
+        option.value = vehicle.id;
+        option.textContent = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
+        filter.appendChild(option);
+      }
+      
+      if (currentValue) {
+        filter.value = currentValue;
+      }
+    }
+
+    function updateInsuranceStats() {
+      const totalEl = document.getElementById('insurance-total-docs');
+      const activeEl = document.getElementById('insurance-active-count');
+      const expiringEl = document.getElementById('insurance-expiring-count');
+      const expiredEl = document.getElementById('insurance-expired-count');
+      
+      if (totalEl) totalEl.textContent = insuranceStats.total || 0;
+      if (activeEl) activeEl.textContent = insuranceStats.active || 0;
+      if (expiringEl) expiringEl.textContent = insuranceStats.expiring_soon || 0;
+      if (expiredEl) expiredEl.textContent = insuranceStats.expired || 0;
+    }
+
+    function renderInsuranceDocuments() {
+      const container = document.getElementById('insurance-documents-list');
+      if (!container) return;
+      
+      if (insuranceDocuments.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="padding:40px;">
+            <div class="empty-state-icon">📋</div>
+            <p>No insurance documents yet.</p>
+            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Upload your insurance cards and policy documents to keep them handy.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      const groupedByVehicle = {};
+      for (const doc of insuranceDocuments) {
+        const vehicleId = doc.vehicle_id;
+        if (!groupedByVehicle[vehicleId]) {
+          groupedByVehicle[vehicleId] = {
+            vehicle: doc.vehicles || {},
+            documents: []
+          };
+        }
+        groupedByVehicle[vehicleId].documents.push(doc);
+      }
+      
+      let html = '';
+      for (const vehicleId of Object.keys(groupedByVehicle)) {
+        const group = groupedByVehicle[vehicleId];
+        const vehicleName = group.vehicle.year 
+          ? `${group.vehicle.year} ${group.vehicle.make} ${group.vehicle.model}` 
+          : 'Unknown Vehicle';
+        
+        html += `
+          <div style="margin-bottom:24px;">
+            <h3 style="font-size:0.95rem;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+              <span>🚗</span> ${vehicleName}
+            </h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));gap:12px;">
+              ${group.documents.map(doc => renderInsuranceCard(doc)).join('')}
+            </div>
+          </div>
+        `;
+      }
+      
+      container.innerHTML = html;
+    }
+
+    function renderInsuranceCard(doc) {
+      const docTypeLabel = {
+        'insurance_card': 'Insurance Card',
+        'policy_declaration': 'Policy Declaration',
+        'proof_of_insurance': 'Proof of Insurance'
+      };
+      
+      let statusBadge = '';
+      if (doc.is_expired) {
+        statusBadge = `<span style="padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:rgba(239,95,95,0.15);color:var(--accent-red);">Expired</span>`;
+      } else if (doc.is_expiring_soon) {
+        statusBadge = `<span style="padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-orange-soft);color:var(--accent-orange);">Expires in ${doc.days_until_expiry} days</span>`;
+      } else if (doc.coverage_end_date) {
+        statusBadge = `<span style="padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-green-soft);color:var(--accent-green);">Active</span>`;
+      }
+      
+      const endDateStr = doc.coverage_end_date 
+        ? new Date(doc.coverage_end_date).toLocaleDateString() 
+        : 'N/A';
+      
+      const hasFile = doc.storage_path || doc.file_url;
+      
+      return `
+        <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;transition:all 0.2s;${doc.is_expired ? 'border-left:3px solid var(--accent-red);' : doc.is_expiring_soon ? 'border-left:3px solid var(--accent-orange);' : ''}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+            <div>
+              <div style="font-weight:600;font-size:0.95rem;margin-bottom:4px;">${doc.provider_name}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">${docTypeLabel[doc.document_type] || doc.document_type}</div>
+            </div>
+            ${statusBadge}
+          </div>
+          
+          ${doc.policy_number ? `
+            <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">
+              <span style="color:var(--text-muted);">Policy:</span> ${doc.policy_number}
+            </div>
+          ` : ''}
+          
+          <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">
+            <span style="color:var(--text-muted);">Expires:</span> ${endDateStr}
+          </div>
+          
+          <div style="display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--border-subtle);">
+            ${hasFile ? `
+              <button class="btn btn-secondary btn-sm" onclick="downloadInsuranceDocument('${doc.id}')" style="flex:1;">
+                📥 Download
+              </button>
+            ` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="deleteInsuranceDocument('${doc.id}')" style="color:var(--accent-red);" title="Delete">
+              🗑️
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function openInsuranceDocumentModal() {
+      const modal = document.getElementById('insurance-document-modal');
+      if (!modal) return;
+      
+      document.getElementById('insurance-document-form')?.reset();
+      selectedInsuranceFile = null;
+      
+      const filePreview = document.getElementById('insurance-file-preview');
+      const dropzone = document.getElementById('insurance-file-dropzone');
+      if (filePreview) filePreview.style.display = 'none';
+      if (dropzone) dropzone.style.display = 'block';
+      
+      const vehicleSelect = document.getElementById('insurance-doc-vehicle');
+      if (vehicleSelect) {
+        vehicleSelect.innerHTML = '<option value="">Select a vehicle</option>';
+        for (const vehicle of vehicles) {
+          const option = document.createElement('option');
+          option.value = vehicle.id;
+          option.textContent = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
+          vehicleSelect.appendChild(option);
+        }
+      }
+      
+      modal.classList.add('active');
+    }
+
+    function closeInsuranceDocumentModal() {
+      const modal = document.getElementById('insurance-document-modal');
+      if (modal) {
+        modal.classList.remove('active');
+      }
+      selectedInsuranceFile = null;
+    }
+
+    function handleInsuranceFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        showToast('File size must be less than 10MB', 'error');
+        return;
+      }
+      
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+      if (!allowedTypes.includes(file.type)) {
+        showToast('Please upload a PDF, JPG, or PNG file', 'error');
+        return;
+      }
+      
+      selectedInsuranceFile = file;
+      
+      const dropzone = document.getElementById('insurance-file-dropzone');
+      const preview = document.getElementById('insurance-file-preview');
+      const fileName = document.getElementById('insurance-file-name');
+      const fileSize = document.getElementById('insurance-file-size');
+      
+      if (dropzone) dropzone.style.display = 'none';
+      if (preview) preview.style.display = 'flex';
+      if (fileName) fileName.textContent = file.name;
+      if (fileSize) fileSize.textContent = formatFileSize(file.size);
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function clearInsuranceFile() {
+      selectedInsuranceFile = null;
+      const fileInput = document.getElementById('insurance-file-input');
+      const dropzone = document.getElementById('insurance-file-dropzone');
+      const preview = document.getElementById('insurance-file-preview');
+      
+      if (fileInput) fileInput.value = '';
+      if (dropzone) dropzone.style.display = 'block';
+      if (preview) preview.style.display = 'none';
+    }
+
+    async function saveInsuranceDocument(event) {
+      event.preventDefault();
+      
+      const vehicleId = document.getElementById('insurance-doc-vehicle')?.value;
+      const documentType = document.getElementById('insurance-doc-type')?.value;
+      const providerName = document.getElementById('insurance-doc-provider')?.value;
+      const policyNumber = document.getElementById('insurance-doc-policy-number')?.value;
+      const startDate = document.getElementById('insurance-doc-start-date')?.value;
+      const endDate = document.getElementById('insurance-doc-end-date')?.value;
+      
+      if (!vehicleId || !providerName) {
+        showToast('Please select a vehicle and enter provider name', 'error');
+        return;
+      }
+      
+      const submitBtn = document.getElementById('insurance-submit-btn');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving...';
+      }
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        let storagePath = null;
+        let fileUrl = null;
+        let fileName = null;
+        let fileSize = null;
+        
+        if (selectedInsuranceFile) {
+          const uploadUrlResponse = await fetch(
+            `/api/member/${currentUser.id}/insurance-document/upload-url?file_name=${encodeURIComponent(selectedInsuranceFile.name)}&file_type=${encodeURIComponent(selectedInsuranceFile.type)}`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session?.access_token || ''}`
+              }
+            }
+          );
+          
+          const uploadUrlData = await uploadUrlResponse.json();
+          
+          if (!uploadUrlData.success) {
+            throw new Error(uploadUrlData.error || 'Failed to get upload URL');
+          }
+          
+          const uploadResponse = await fetch(uploadUrlData.upload_url, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': selectedInsuranceFile.type
+            },
+            body: selectedInsuranceFile
+          });
+          
+          if (!uploadResponse.ok) {
+            throw new Error('Failed to upload file');
+          }
+          
+          storagePath = uploadUrlData.storage_path;
+          fileName = selectedInsuranceFile.name;
+          fileSize = selectedInsuranceFile.size;
+        }
+        
+        const docData = {
+          vehicle_id: vehicleId,
+          document_type: documentType,
+          provider_name: providerName,
+          policy_number: policyNumber || null,
+          coverage_start_date: startDate || null,
+          coverage_end_date: endDate || null,
+          storage_path: storagePath,
+          file_url: fileUrl,
+          file_name: fileName,
+          file_size: fileSize
+        };
+        
+        const response = await fetch(`/api/member/${currentUser.id}/insurance-document`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || ''}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(docData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          showToast('Insurance document saved successfully', 'success');
+          closeInsuranceDocumentModal();
+          loadInsuranceDocuments();
+        } else {
+          showToast(data.error || 'Failed to save document', 'error');
+        }
+      } catch (error) {
+        console.error('Error saving insurance document:', error);
+        showToast('Failed to save document: ' + error.message, 'error');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Save Document';
+        }
+      }
+    }
+
+    async function downloadInsuranceDocument(docId) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        const response = await fetch(`/api/member/${currentUser.id}/insurance-document/${docId}/download`, {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.download_url) {
+          window.open(data.download_url, '_blank');
+        } else {
+          showToast(data.error || 'Failed to get download URL', 'error');
+        }
+      } catch (error) {
+        console.error('Error downloading document:', error);
+        showToast('Failed to download document', 'error');
+      }
+    }
+
+    async function deleteInsuranceDocument(docId) {
+      if (!confirm('Are you sure you want to delete this insurance document?')) {
+        return;
+      }
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        const response = await fetch(`/api/member/${currentUser.id}/insurance-document/${docId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          showToast('Insurance document deleted', 'success');
+          loadInsuranceDocuments();
+        } else {
+          showToast(data.error || 'Failed to delete document', 'error');
+        }
+      } catch (error) {
+        console.error('Error deleting insurance document:', error);
+        showToast('Failed to delete document', 'error');
+      }
+    }
+
+    // ========== END INSURANCE DOCUMENTS SECTION ==========
+
+    // ========== LOGIN ACTIVITY SECTION ==========
+    
+    let loginActivities = [];
+    
+    async function loadLoginActivity() {
+      const loadingEl = document.getElementById('login-activity-loading');
+      const contentEl = document.getElementById('login-activity-content');
+      const emptyEl = document.getElementById('login-activity-empty');
+      const alertEl = document.getElementById('login-activity-alert');
+      const tableEl = document.getElementById('login-activity-table');
+      const tbodyEl = document.getElementById('login-activity-tbody');
+      
+      if (!currentUser) return;
+      
+      if (loadingEl) loadingEl.style.display = 'block';
+      if (contentEl) contentEl.style.display = 'none';
+      if (alertEl) alertEl.style.display = 'none';
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        const response = await fetch(`/api/member/${currentUser.id}/login-activity`, {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (contentEl) contentEl.style.display = 'block';
+        
+        if (!data.success) {
+          console.error('Failed to load login activity:', data.error);
+          if (tbodyEl) tbodyEl.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Failed to load login activity</td></tr>';
+          return;
+        }
+        
+        loginActivities = data.activities || [];
+        
+        if (loginActivities.length === 0) {
+          if (emptyEl) emptyEl.style.display = 'block';
+          if (tableEl) tableEl.style.display = 'none';
+          return;
+        }
+        
+        if (emptyEl) emptyEl.style.display = 'none';
+        if (tableEl) tableEl.style.display = 'table';
+        
+        if (data.failed_unacknowledged_count > 0) {
+          if (alertEl) {
+            alertEl.style.display = 'block';
+            const alertText = document.getElementById('login-activity-alert-text');
+            if (alertText) {
+              alertText.textContent = `There ${data.failed_unacknowledged_count === 1 ? 'was' : 'were'} ${data.failed_unacknowledged_count} recent failed login attempt${data.failed_unacknowledged_count === 1 ? '' : 's'} on your account. Review them below and consider changing your password if you don't recognize them.`;
+            }
+          }
+        }
+        
+        renderLoginActivityTable();
+      } catch (error) {
+        console.error('Error loading login activity:', error);
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (contentEl) contentEl.style.display = 'block';
+        if (tbodyEl) tbodyEl.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Error loading login activity</td></tr>';
+      }
+    }
+    
+    function renderLoginActivityTable() {
+      const tbodyEl = document.getElementById('login-activity-tbody');
+      if (!tbodyEl) return;
+      
+      tbodyEl.innerHTML = loginActivities.map(activity => {
+        const loginDate = new Date(activity.login_at);
+        const dateStr = loginDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const timeStr = loginDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        
+        const deviceIcon = activity.device_type === 'mobile' ? '📱' : 
+                          activity.device_type === 'tablet' ? '📱' : '💻';
+        const deviceLabel = activity.device_type ? (activity.device_type.charAt(0).toUpperCase() + activity.device_type.slice(1)) : 'Unknown';
+        
+        const statusBadge = activity.is_successful 
+          ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--accent-green-soft);color:var(--accent-green);border-radius:100px;font-size:0.78rem;font-weight:500;">✓ Success</span>'
+          : '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:rgba(239,95,95,0.15);color:var(--accent-red);border-radius:100px;font-size:0.78rem;font-weight:500;">✕ Failed</span>';
+        
+        const needsAction = !activity.is_successful && !activity.acknowledged_at;
+        const isSuspicious = activity.reported_suspicious;
+        
+        let actionsHtml = '';
+        if (isSuspicious) {
+          actionsHtml = '<span style="font-size:0.8rem;color:var(--accent-red);">🚨 Reported</span>';
+        } else if (needsAction) {
+          actionsHtml = `
+            <button class="btn btn-sm" style="padding:4px 10px;font-size:0.78rem;background:var(--accent-green-soft);color:var(--accent-green);border:1px solid rgba(74,200,140,0.3);" onclick="acknowledgeLoginActivity('${activity.id}')">
+              ✓ This was me
+            </button>
+            <button class="btn btn-sm" style="padding:4px 10px;font-size:0.78rem;background:rgba(239,95,95,0.15);color:var(--accent-red);border:1px solid rgba(239,95,95,0.3);margin-left:4px;" onclick="reportSuspiciousLogin('${activity.id}')">
+              🚨 Report
+            </button>
+          `;
+        } else if (activity.acknowledged_at) {
+          actionsHtml = '<span style="font-size:0.8rem;color:var(--text-muted);">✓ Acknowledged</span>';
+        } else {
+          actionsHtml = '<span style="font-size:0.8rem;color:var(--text-muted);">—</span>';
+        }
+        
+        const rowStyle = needsAction ? 'background:rgba(239,95,95,0.05);' : '';
+        
+        return `
+          <tr style="border-bottom:1px solid var(--border-subtle);${rowStyle}">
+            <td style="padding:12px 8px;">
+              <div style="font-weight:500;">${dateStr}</div>
+              <div style="font-size:0.82rem;color:var(--text-muted);">${timeStr}</div>
+            </td>
+            <td style="padding:12px 8px;">
+              <span style="display:flex;align-items:center;gap:6px;">
+                ${deviceIcon} ${deviceLabel}
+                <span style="font-size:0.82rem;color:var(--text-muted);">(${activity.os || 'Unknown'})</span>
+              </span>
+            </td>
+            <td style="padding:12px 8px;">${activity.browser || 'Unknown'}</td>
+            <td style="padding:12px 8px;font-family:monospace;font-size:0.82rem;">${maskIpAddress(activity.ip_address)}</td>
+            <td style="padding:12px 8px;">${statusBadge}</td>
+            <td style="padding:12px 8px;text-align:right;">${actionsHtml}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+    
+    function maskIpAddress(ip) {
+      if (!ip) return 'Unknown';
+      const parts = ip.split('.');
+      if (parts.length === 4) {
+        return `${parts[0]}.${parts[1]}.***.***`;
+      }
+      if (ip.includes(':')) {
+        const colonParts = ip.split(':');
+        if (colonParts.length > 2) {
+          return `${colonParts[0]}:${colonParts[1]}:***`;
+        }
+      }
+      return ip;
+    }
+    
+    async function acknowledgeLoginActivity(activityId) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        const response = await fetch(`/api/login-activity/${activityId}/acknowledge`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || ''}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          showToast('Login activity acknowledged', 'success');
+          loadLoginActivity();
+        } else {
+          showToast(data.error || 'Failed to acknowledge', 'error');
+        }
+      } catch (error) {
+        console.error('Error acknowledging login activity:', error);
+        showToast('Failed to acknowledge login activity', 'error');
+      }
+    }
+    
+    async function reportSuspiciousLogin(activityId) {
+      if (!confirm('Are you sure you want to report this login as suspicious? This will flag the activity for security review. We recommend changing your password after reporting.')) {
+        return;
+      }
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        const response = await fetch(`/api/login-activity/${activityId}/report-suspicious`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || ''}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          showToast(data.message || 'Suspicious activity reported', 'warning');
+          loadLoginActivity();
+        } else {
+          showToast(data.error || 'Failed to report', 'error');
+        }
+      } catch (error) {
+        console.error('Error reporting suspicious login:', error);
+        showToast('Failed to report suspicious activity', 'error');
+      }
+    }
+    
+    // ========== END LOGIN ACTIVITY SECTION ==========

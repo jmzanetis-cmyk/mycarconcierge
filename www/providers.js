@@ -1,3 +1,57 @@
+    // ========== THEME TOGGLE ==========
+    function toggleTheme() {
+      document.documentElement.classList.add('theme-transition');
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateThemeIcon();
+      updateThemeToggleUI();
+      setTimeout(() => {
+        document.documentElement.classList.remove('theme-transition');
+      }, 300);
+    }
+
+    function updateThemeIcon() {
+      const themeIcon = document.getElementById('theme-icon');
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      if (themeIcon) {
+        themeIcon.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+      }
+    }
+
+    function updateThemeToggleUI() {
+      const themeToggle = document.getElementById('settings-theme-toggle');
+      const themeLabel = document.getElementById('settings-theme-label');
+      const iconDisplay = document.getElementById('settings-theme-icon-display');
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      if (themeToggle) {
+        themeToggle.checked = currentTheme === 'light';
+      }
+      if (themeLabel) {
+        themeLabel.textContent = currentTheme === 'dark' ? 'Dark Mode' : 'Light Mode';
+      }
+      if (iconDisplay) {
+        iconDisplay.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+      }
+    }
+
+    function setThemeFromToggle(isLight) {
+      document.documentElement.classList.add('theme-transition');
+      const newTheme = isLight ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateThemeIcon();
+      updateThemeToggleUI();
+      setTimeout(() => {
+        document.documentElement.classList.remove('theme-transition');
+      }, 300);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      updateThemeIcon();
+    });
+
     let currentUser = null;
     let providerProfile = null;
     let openPackages = [];

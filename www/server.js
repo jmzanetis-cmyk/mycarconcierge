@@ -148,6 +148,438 @@ let global2faEnabled = process.env.GLOBAL_2FA_ENABLED !== 'false';
 
 const WWW_DIR = path.resolve(__dirname);
 
+// ========== RATE LIMITING ==========
+
+const rateLimitStore = new Map();
+
+const rateLimitConfig = {
+  login: { limit: 5, windowMs: 60000 },
+  sms2fa: { limit: 3, windowMs: 60000 },
+  apiAuth: { limit: 100, windowMs: 60000 },
+  public: { limit: 30, windowMs: 60000 },
+  adminVerify: { limit: 3, windowMs: 60000 }
+};
+
+function getClientIP(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown';
+}
+
+function checkRateLimit(identifier, limit, windowMs) {
+  const now = Date.now();
+  const key = identifier;
+  
+  let entry = rateLimitStore.get(key);
+  
+  if (!entry || entry.resetTime <= now) {
+    entry = {
+      count: 1,
+      resetTime: now + windowMs
+    };
+    rateLimitStore.set(key, entry);
+    return {
+      allowed: true,
+      remaining: limit - 1,
+      resetTime: entry.resetTime
+    };
+  }
+  
+  entry.count++;
+  
+  if (entry.count > limit) {
+    return {
+      allowed: false,
+      remaining: 0,
+      resetTime: entry.resetTime
+    };
+  }
+  
+  return {
+    allowed: true,
+    remaining: limit - entry.count,
+    resetTime: entry.resetTime
+  };
+}
+
+function applyRateLimit(req, res, limitName, customIdentifier = null) {
+  const config = rateLimitConfig[limitName];
+  if (!config) {
+    console.error(`[RATE_LIMIT] Unknown limit name: ${limitName}`);
+    return { allowed: true, remaining: 999, resetTime: Date.now() + 60000 };
+  }
+  
+  const identifier = customIdentifier || `${limitName}:${getClientIP(req)}`;
+  const result = checkRateLimit(identifier, config.limit, config.windowMs);
+  
+  if (!result.allowed) {
+    const retryAfter = Math.ceil((result.resetTime - Date.now()) / 1000);
+    console.log(`[RATE_LIMIT] Violation: ${limitName} for ${identifier} - retry after ${retryAfter}s`);
+    
+    res.setHeader('Retry-After', String(retryAfter));
+    res.setHeader('X-RateLimit-Limit', String(config.limit));
+    res.setHeader('X-RateLimit-Remaining', '0');
+    res.setHeader('X-RateLimit-Reset', String(Math.floor(result.resetTime / 1000)));
+    
+    res.writeHead(429, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      error: 'Too many requests',
+      retryAfter: retryAfter,
+      message: `Rate limit exceeded. Please try again in ${retryAfter} seconds.`
+    }));
+    return { allowed: false };
+  }
+  
+  res.setHeader('X-RateLimit-Limit', String(config.limit));
+  res.setHeader('X-RateLimit-Remaining', String(result.remaining));
+  res.setHeader('X-RateLimit-Reset', String(Math.floor(result.resetTime / 1000)));
+  
+  return result;
+}
+
+function cleanupExpiredRateLimits() {
+  const now = Date.now();
+  let cleaned = 0;
+  for (const [key, entry] of rateLimitStore.entries()) {
+    if (entry.resetTime <= now) {
+      rateLimitStore.delete(key);
+      cleaned++;
+    }
+  }
+  if (cleaned > 0) {
+    console.log(`[RATE_LIMIT] Cleaned up ${cleaned} expired entries. Store size: ${rateLimitStore.size}`);
+  }
+}
+
+setInterval(cleanupExpiredRateLimits, 60000);
+
+// ========== END RATE LIMITING ==========
+
+// ========== LOGIN ACTIVITY LOGGING ==========
+
+function parseUserAgent(userAgent) {
+  if (!userAgent) {
+    return { browser: 'Unknown', os: 'Unknown', deviceType: 'unknown' };
+  }
+  
+  const ua = userAgent.toLowerCase();
+  
+  let browser = 'Unknown';
+  if (ua.includes('edg/')) browser = 'Edge';
+  else if (ua.includes('opr/') || ua.includes('opera')) browser = 'Opera';
+  else if (ua.includes('chrome') && !ua.includes('edg/')) browser = 'Chrome';
+  else if (ua.includes('safari') && !ua.includes('chrome')) browser = 'Safari';
+  else if (ua.includes('firefox')) browser = 'Firefox';
+  else if (ua.includes('msie') || ua.includes('trident')) browser = 'Internet Explorer';
+  
+  let os = 'Unknown';
+  if (ua.includes('windows')) os = 'Windows';
+  else if (ua.includes('mac os') || ua.includes('macintosh')) os = 'macOS';
+  else if (ua.includes('iphone')) os = 'iOS';
+  else if (ua.includes('ipad')) os = 'iPadOS';
+  else if (ua.includes('android')) os = 'Android';
+  else if (ua.includes('linux')) os = 'Linux';
+  else if (ua.includes('chromeos') || ua.includes('cros')) os = 'ChromeOS';
+  
+  let deviceType = 'desktop';
+  if (ua.includes('mobile') || ua.includes('iphone') || (ua.includes('android') && !ua.includes('tablet'))) {
+    deviceType = 'mobile';
+  } else if (ua.includes('ipad') || ua.includes('tablet') || (ua.includes('android') && ua.includes('tablet'))) {
+    deviceType = 'tablet';
+  }
+  
+  return { browser, os, deviceType };
+}
+
+async function logLoginActivity(userId, req, isSuccessful = true, failureReason = null) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.log('[LOGIN_ACTIVITY] Supabase not configured, skipping log');
+    return { success: false, error: 'Database not configured' };
+  }
+  
+  try {
+    const userAgent = req.headers['user-agent'] || '';
+    const ipAddress = getClientIP(req);
+    const { browser, os, deviceType } = parseUserAgent(userAgent);
+    
+    const activityData = {
+      user_id: userId,
+      login_at: new Date().toISOString(),
+      ip_address: ipAddress,
+      user_agent: userAgent.substring(0, 500),
+      device_type: deviceType,
+      browser: browser,
+      os: os,
+      location_city: null,
+      location_country: null,
+      is_successful: isSuccessful,
+      failure_reason: failureReason ? failureReason.substring(0, 255) : null
+    };
+    
+    const { data, error } = await supabase
+      .from('login_activity')
+      .insert(activityData)
+      .select('id')
+      .single();
+    
+    if (error) {
+      console.error('[LOGIN_ACTIVITY] Failed to log:', error.message);
+      return { success: false, error: error.message };
+    }
+    
+    console.log(`[LOGIN_ACTIVITY] Logged ${isSuccessful ? 'successful' : 'failed'} login for user ${userId}`);
+    return { success: true, id: data?.id };
+  } catch (err) {
+    console.error('[LOGIN_ACTIVITY] Exception:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+async function handleLogLoginActivity(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+    if (body.length > MAX_BODY_SIZE) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Request too large' }));
+    }
+  });
+  
+  req.on('end', async () => {
+    try {
+      const data = JSON.parse(body || '{}');
+      const isSuccessful = data.is_successful !== false;
+      const failureReason = data.failure_reason || null;
+      
+      const result = await logLoginActivity(user.id, req, isSuccessful, failureReason);
+      
+      res.writeHead(result.success ? 200 : 500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (error) {
+      console.error(`[${requestId}] Log login activity error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    }
+  });
+}
+
+async function handleGetLoginActivity(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Access denied' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const { data: activities, error } = await supabase
+      .from('login_activity')
+      .select('id, login_at, ip_address, device_type, browser, os, is_successful, failure_reason, acknowledged_at, reported_suspicious')
+      .eq('user_id', memberId)
+      .gte('login_at', thirtyDaysAgo.toISOString())
+      .order('login_at', { ascending: false })
+      .limit(50);
+    
+    if (error) {
+      console.error(`[${requestId}] Get login activity error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch login activity' }));
+      return;
+    }
+    
+    const failedCount = (activities || []).filter(a => !a.is_successful && !a.acknowledged_at).length;
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      activities: activities || [],
+      failed_unacknowledged_count: failedCount
+    }));
+  } catch (error) {
+    console.error(`[${requestId}] Get login activity exception:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  }
+}
+
+async function handleAcknowledgeLoginActivity(req, res, requestId, activityId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: activity, error: fetchError } = await supabase
+      .from('login_activity')
+      .select('id, user_id')
+      .eq('id', activityId)
+      .single();
+    
+    if (fetchError || !activity) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Activity not found' }));
+      return;
+    }
+    
+    if (activity.user_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Access denied' }));
+      return;
+    }
+    
+    const { error: updateError } = await supabase
+      .from('login_activity')
+      .update({ acknowledged_at: new Date().toISOString() })
+      .eq('id', activityId);
+    
+    if (updateError) {
+      console.error(`[${requestId}] Acknowledge login activity error:`, updateError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to acknowledge' }));
+      return;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+  } catch (error) {
+    console.error(`[${requestId}] Acknowledge login activity exception:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  }
+}
+
+async function handleReportSuspiciousLogin(req, res, requestId, activityId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: activity, error: fetchError } = await supabase
+      .from('login_activity')
+      .select('id, user_id')
+      .eq('id', activityId)
+      .single();
+    
+    if (fetchError || !activity) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Activity not found' }));
+      return;
+    }
+    
+    if (activity.user_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Access denied' }));
+      return;
+    }
+    
+    const { error: updateError } = await supabase
+      .from('login_activity')
+      .update({ 
+        reported_suspicious: true,
+        acknowledged_at: new Date().toISOString()
+      })
+      .eq('id', activityId);
+    
+    if (updateError) {
+      console.error(`[${requestId}] Report suspicious login error:`, updateError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to report' }));
+      return;
+    }
+    
+    console.log(`[${requestId}] User ${user.id} reported suspicious login activity ${activityId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Suspicious activity reported. Consider changing your password.' }));
+  } catch (error) {
+    console.error(`[${requestId}] Report suspicious login exception:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  }
+}
+
+// ========== END LOGIN ACTIVITY LOGGING ==========
+
 const CLOVER_SANDBOX_URL = 'https://apisandbox.dev.clover.com';
 const CLOVER_PROD_URL = 'https://api.clover.com';
 const CLOVER_SANDBOX_OAUTH = 'https://sandbox.dev.clover.com/oauth/v2/token';
@@ -1014,6 +1446,743 @@ async function handleShopOrderStatus(req, res, requestId, orderId) {
     res.end(JSON.stringify({ error: 'Failed to get order status' }));
   }
 }
+
+// ========== FUEL LOGS API HANDLERS ==========
+
+async function handleGetFuelLogs(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
+    const vehicleId = urlParams.get('vehicle_id');
+    
+    let query = supabase
+      .from('fuel_logs')
+      .select(`
+        *,
+        vehicles:vehicle_id (id, year, make, model, trim)
+      `)
+      .eq('member_id', memberId)
+      .order('date', { ascending: false })
+      .order('odometer', { ascending: false });
+    
+    if (vehicleId) {
+      query = query.eq('vehicle_id', vehicleId);
+    }
+    
+    const { data: fuelLogs, error } = await query;
+    
+    if (error) throw error;
+    
+    const stats = calculateFuelStats(fuelLogs || []);
+    
+    const vehicleStatsMap = {};
+    if (fuelLogs && fuelLogs.length > 0) {
+      const vehicleIds = [...new Set(fuelLogs.map(l => l.vehicle_id))];
+      for (const vId of vehicleIds) {
+        const vehicleLogs = fuelLogs.filter(l => l.vehicle_id === vId);
+        vehicleStatsMap[vId] = calculateFuelStats(vehicleLogs);
+      }
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      fuel_logs: fuelLogs || [],
+      stats,
+      vehicle_stats: vehicleStatsMap
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get fuel logs error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to fetch fuel logs' }));
+  }
+}
+
+function calculateFuelStats(logs) {
+  if (!logs || logs.length === 0) {
+    return {
+      avg_mpg: null,
+      total_spent: 0,
+      total_gallons: 0,
+      total_miles: 0,
+      avg_cost_per_mile: null,
+      avg_price_per_gallon: null,
+      fill_up_count: 0,
+      monthly_spending: {},
+      yearly_spending: {},
+      mpg_trend: []
+    };
+  }
+  
+  const sortedLogs = [...logs].sort((a, b) => {
+    const dateA = new Date(a.date);
+    const dateB = new Date(b.date);
+    if (dateA.getTime() !== dateB.getTime()) return dateA - dateB;
+    return a.odometer - b.odometer;
+  });
+  
+  let totalGallons = 0;
+  let totalSpent = 0;
+  const mpgEntries = [];
+  
+  for (let i = 0; i < sortedLogs.length; i++) {
+    const log = sortedLogs[i];
+    totalGallons += parseFloat(log.gallons) || 0;
+    totalSpent += parseFloat(log.total_cost) || 0;
+    
+    if (i > 0 && log.is_full_tank) {
+      const prevLog = sortedLogs[i - 1];
+      const milesDriven = log.odometer - prevLog.odometer;
+      if (milesDriven > 0 && log.gallons > 0) {
+        const mpg = milesDriven / parseFloat(log.gallons);
+        if (mpg > 0 && mpg < 200) {
+          mpgEntries.push({
+            date: log.date,
+            mpg: Math.round(mpg * 10) / 10,
+            miles: milesDriven
+          });
+        }
+      }
+    }
+  }
+  
+  const firstOdometer = sortedLogs[0]?.odometer || 0;
+  const lastOdometer = sortedLogs[sortedLogs.length - 1]?.odometer || 0;
+  const totalMiles = lastOdometer - firstOdometer;
+  
+  const avgMpg = mpgEntries.length > 0
+    ? Math.round((mpgEntries.reduce((sum, e) => sum + e.mpg, 0) / mpgEntries.length) * 10) / 10
+    : null;
+  
+  const avgCostPerMile = totalMiles > 0
+    ? Math.round((totalSpent / totalMiles) * 1000) / 1000
+    : null;
+  
+  const avgPricePerGallon = logs.length > 0
+    ? Math.round((logs.reduce((sum, l) => sum + parseFloat(l.price_per_gallon || 0), 0) / logs.length) * 1000) / 1000
+    : null;
+  
+  const monthlySpending = {};
+  const yearlySpending = {};
+  
+  for (const log of logs) {
+    const date = new Date(log.date);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const yearKey = `${date.getFullYear()}`;
+    
+    monthlySpending[monthKey] = (monthlySpending[monthKey] || 0) + parseFloat(log.total_cost || 0);
+    yearlySpending[yearKey] = (yearlySpending[yearKey] || 0) + parseFloat(log.total_cost || 0);
+  }
+  
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const currentYearKey = `${now.getFullYear()}`;
+  
+  return {
+    avg_mpg: avgMpg,
+    total_spent: Math.round(totalSpent * 100) / 100,
+    total_gallons: Math.round(totalGallons * 1000) / 1000,
+    total_miles: totalMiles,
+    avg_cost_per_mile: avgCostPerMile,
+    avg_price_per_gallon: avgPricePerGallon,
+    fill_up_count: logs.length,
+    monthly_spending: monthlySpending,
+    yearly_spending: yearlySpending,
+    current_month_spent: Math.round((monthlySpending[currentMonthKey] || 0) * 100) / 100,
+    current_year_spent: Math.round((yearlySpending[currentYearKey] || 0) * 100) / 100,
+    mpg_trend: mpgEntries.slice(-12)
+  };
+}
+
+async function handleCreateFuelLog(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  collectBody(req, async (body) => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+      
+      const {
+        vehicle_id,
+        date,
+        odometer,
+        gallons,
+        price_per_gallon,
+        total_cost,
+        fuel_type,
+        station_name,
+        notes,
+        is_full_tank
+      } = JSON.parse(body);
+      
+      if (!vehicle_id || !date || !odometer || !gallons || !price_per_gallon) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing required fields' }));
+        return;
+      }
+      
+      const { data: vehicle, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select('id, owner_id')
+        .eq('id', vehicle_id)
+        .single();
+      
+      if (vehicleError || !vehicle || vehicle.owner_id !== memberId) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Vehicle not found or access denied' }));
+        return;
+      }
+      
+      const calculatedTotal = total_cost || (parseFloat(gallons) * parseFloat(price_per_gallon));
+      
+      const { data: fuelLog, error } = await supabase
+        .from('fuel_logs')
+        .insert({
+          vehicle_id,
+          member_id: memberId,
+          date,
+          odometer: parseInt(odometer),
+          gallons: parseFloat(gallons),
+          price_per_gallon: parseFloat(price_per_gallon),
+          total_cost: Math.round(calculatedTotal * 100) / 100,
+          fuel_type: fuel_type || 'regular',
+          station_name: station_name || null,
+          notes: notes || null,
+          is_full_tank: is_full_tank !== false
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log(`[${requestId}] Fuel log created for member ${memberId}, vehicle ${vehicle_id}`);
+      
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        fuel_log: fuelLog
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Create fuel log error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to create fuel log' }));
+    }
+  });
+}
+
+async function handleUpdateFuelLog(req, res, requestId, memberId, logId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  collectBody(req, async (body) => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: existingLog, error: fetchError } = await supabase
+        .from('fuel_logs')
+        .select('*')
+        .eq('id', logId)
+        .eq('member_id', memberId)
+        .single();
+      
+      if (fetchError || !existingLog) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Fuel log not found' }));
+        return;
+      }
+      
+      const updates = JSON.parse(body);
+      const allowedFields = ['date', 'odometer', 'gallons', 'price_per_gallon', 'total_cost', 'fuel_type', 'station_name', 'notes', 'is_full_tank'];
+      const updateData = {};
+      
+      for (const field of allowedFields) {
+        if (updates[field] !== undefined) {
+          if (field === 'odometer') {
+            updateData[field] = parseInt(updates[field]);
+          } else if (['gallons', 'price_per_gallon', 'total_cost'].includes(field)) {
+            updateData[field] = parseFloat(updates[field]);
+          } else {
+            updateData[field] = updates[field];
+          }
+        }
+      }
+      
+      if (updateData.gallons && updateData.price_per_gallon && !updateData.total_cost) {
+        updateData.total_cost = Math.round(updateData.gallons * updateData.price_per_gallon * 100) / 100;
+      }
+      
+      const { data: fuelLog, error } = await supabase
+        .from('fuel_logs')
+        .update(updateData)
+        .eq('id', logId)
+        .eq('member_id', memberId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        fuel_log: fuelLog
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Update fuel log error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to update fuel log' }));
+    }
+  });
+}
+
+async function handleDeleteFuelLog(req, res, requestId, memberId, logId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { error } = await supabase
+      .from('fuel_logs')
+      .delete()
+      .eq('id', logId)
+      .eq('member_id', memberId);
+    
+    if (error) throw error;
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Delete fuel log error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to delete fuel log' }));
+  }
+}
+
+// ========== END FUEL LOGS API HANDLERS ==========
+
+// ========== INSURANCE DOCUMENTS API HANDLERS ==========
+
+async function handleGetInsuranceDocuments(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
+    const vehicleId = urlParams.get('vehicle_id');
+    
+    let query = supabase
+      .from('insurance_documents')
+      .select(`
+        *,
+        vehicles:vehicle_id (id, year, make, model, trim)
+      `)
+      .eq('member_id', memberId)
+      .order('created_at', { ascending: false });
+    
+    if (vehicleId) {
+      query = query.eq('vehicle_id', vehicleId);
+    }
+    
+    const { data: documents, error } = await query;
+    
+    if (error) throw error;
+    
+    const now = new Date();
+    const enrichedDocs = (documents || []).map(doc => {
+      let is_expired = false;
+      let is_expiring_soon = false;
+      let days_until_expiry = null;
+      
+      if (doc.coverage_end_date) {
+        const endDate = new Date(doc.coverage_end_date);
+        days_until_expiry = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+        is_expired = days_until_expiry < 0;
+        is_expiring_soon = days_until_expiry >= 0 && days_until_expiry <= 30;
+      }
+      
+      return {
+        ...doc,
+        is_expired,
+        is_expiring_soon,
+        days_until_expiry
+      };
+    });
+    
+    const stats = {
+      total: enrichedDocs.length,
+      expired: enrichedDocs.filter(d => d.is_expired).length,
+      expiring_soon: enrichedDocs.filter(d => d.is_expiring_soon).length,
+      active: enrichedDocs.filter(d => !d.is_expired && !d.is_expiring_soon).length
+    };
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      documents: enrichedDocs,
+      stats
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get insurance documents error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to fetch insurance documents' }));
+  }
+}
+
+async function handleCreateInsuranceDocument(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  collectBody(req, async (body) => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+      
+      const {
+        vehicle_id,
+        document_type,
+        provider_name,
+        policy_number,
+        coverage_start_date,
+        coverage_end_date,
+        file_url,
+        file_name,
+        file_size,
+        storage_path
+      } = JSON.parse(body);
+      
+      if (!vehicle_id || !provider_name) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing required fields: vehicle_id and provider_name are required' }));
+        return;
+      }
+      
+      const { data: vehicle, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select('id, owner_id')
+        .eq('id', vehicle_id)
+        .single();
+      
+      if (vehicleError || !vehicle || vehicle.owner_id !== memberId) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Vehicle not found or access denied' }));
+        return;
+      }
+      
+      const { data: document, error } = await supabase
+        .from('insurance_documents')
+        .insert({
+          vehicle_id,
+          member_id: memberId,
+          document_type: document_type || 'insurance_card',
+          provider_name,
+          policy_number: policy_number || null,
+          coverage_start_date: coverage_start_date || null,
+          coverage_end_date: coverage_end_date || null,
+          file_url: file_url || null,
+          file_name: file_name || null,
+          file_size: file_size ? parseInt(file_size) : null,
+          storage_path: storage_path || null
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log(`[${requestId}] Insurance document created for member ${memberId}, vehicle ${vehicle_id}`);
+      
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        document
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Create insurance document error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to create insurance document' }));
+    }
+  });
+}
+
+async function handleDeleteInsuranceDocument(req, res, requestId, memberId, docId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: existingDoc, error: fetchError } = await supabase
+      .from('insurance_documents')
+      .select('*')
+      .eq('id', docId)
+      .eq('member_id', memberId)
+      .single();
+    
+    if (fetchError || !existingDoc) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Insurance document not found' }));
+      return;
+    }
+    
+    if (existingDoc.storage_path) {
+      try {
+        await supabase.storage
+          .from('insurance-documents')
+          .remove([existingDoc.storage_path]);
+      } catch (storageError) {
+        console.error(`[${requestId}] Storage file deletion error:`, storageError);
+      }
+    }
+    
+    const { error } = await supabase
+      .from('insurance_documents')
+      .delete()
+      .eq('id', docId)
+      .eq('member_id', memberId);
+    
+    if (error) throw error;
+    
+    console.log(`[${requestId}] Insurance document deleted: ${docId}`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Delete insurance document error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to delete insurance document' }));
+  }
+}
+
+async function handleGetInsuranceDocumentDownload(req, res, requestId, memberId, docId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: document, error: fetchError } = await supabase
+      .from('insurance_documents')
+      .select('*')
+      .eq('id', docId)
+      .eq('member_id', memberId)
+      .single();
+    
+    if (fetchError || !document) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Insurance document not found' }));
+      return;
+    }
+    
+    if (!document.storage_path && !document.file_url) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No file attached to this document' }));
+      return;
+    }
+    
+    if (document.storage_path) {
+      const { data: signedUrlData, error: urlError } = await supabase.storage
+        .from('insurance-documents')
+        .createSignedUrl(document.storage_path, 3600);
+      
+      if (urlError) throw urlError;
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        download_url: signedUrlData.signedUrl,
+        file_name: document.file_name,
+        expires_in: 3600
+      }));
+    } else {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        download_url: document.file_url,
+        file_name: document.file_name
+      }));
+    }
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get insurance document download error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to get download URL' }));
+  }
+}
+
+async function handleInsuranceFileUpload(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (user.id !== memberId) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
+    const fileName = urlParams.get('file_name') || 'insurance_document';
+    const fileType = urlParams.get('file_type') || 'application/pdf';
+    
+    const timestamp = Date.now();
+    const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const storagePath = `${memberId}/${timestamp}_${safeName}`;
+    
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('insurance-documents')
+      .createSignedUploadUrl(storagePath);
+    
+    if (uploadError) throw uploadError;
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      upload_url: uploadData.signedUrl,
+      storage_path: storagePath,
+      token: uploadData.token
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Insurance file upload URL error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to create upload URL' }));
+  }
+}
+
+// ========== END INSURANCE DOCUMENTS API HANDLERS ==========
 
 async function handleMerchOrderWebhook(session, requestId) {
   const supabase = getSupabaseClient();
@@ -2080,6 +3249,9 @@ async function handle2faVerifyCode(req, res, requestId) {
       // Clear rate limit on successful verification
       await clearVerifyCodeRateLimit(userId);
       
+      // Log successful login activity
+      await logLoginActivity(userId, req, true, null);
+      
       console.log(`[${requestId}] 2FA code verified for user ${userId}`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true, verified: true }));
@@ -2657,6 +3829,894 @@ async function handleIdentityVerificationStatus(req, res, requestId, userId) {
     res.end(JSON.stringify({ success: false, error: 'Failed to fetch verification status' }));
   }
 }
+
+function generateReferralCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'MCC';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+async function handleGetReferralCode(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  // Verify user can only access their own referral code (or is admin)
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+    return;
+  }
+  
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+  
+  const isAdmin = profile?.role === 'admin';
+  if (user.id !== memberId && !isAdmin) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Access denied' }));
+    return;
+  }
+  
+  try {
+    const { data: existing, error: fetchError } = await supabase
+      .from('referrals')
+      .select('referral_code')
+      .eq('referrer_id', memberId)
+      .is('referred_id', null)
+      .limit(1);
+    
+    if (fetchError && !fetchError.message.includes('does not exist')) {
+      console.error(`[${requestId}] Error fetching referral code:`, fetchError);
+    }
+    
+    if (existing && existing.length > 0) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: true, 
+        referral_code: existing[0].referral_code 
+      }));
+      return;
+    }
+    
+    let referralCode = generateReferralCode();
+    let attempts = 0;
+    let inserted = false;
+    
+    while (!inserted && attempts < 5) {
+      const { error: insertError } = await supabase
+        .from('referrals')
+        .insert({
+          referrer_id: memberId,
+          referral_code: referralCode,
+          status: 'pending'
+        });
+      
+      if (!insertError) {
+        inserted = true;
+      } else if (insertError.code === '23505') {
+        referralCode = generateReferralCode();
+        attempts++;
+      } else {
+        console.error(`[${requestId}] Error inserting referral code:`, insertError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to generate referral code' }));
+        return;
+      }
+    }
+    
+    if (!inserted) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to generate unique referral code' }));
+      return;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      referral_code: referralCode 
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get referral code error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  }
+}
+
+async function handleGetMemberReferrals(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    // Verify user can only access their own referrals (or is admin)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    const isAdmin = profile?.role === 'admin';
+    if (user.id !== memberId && !isAdmin) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Access denied' }));
+      return;
+    }
+    
+    const { data: referrals, error } = await supabase
+      .from('referrals')
+      .select(`
+        id,
+        referral_code,
+        referred_id,
+        status,
+        credit_amount,
+        credited_at,
+        created_at,
+        updated_at
+      `)
+      .eq('referrer_id', memberId)
+      .not('referred_id', 'is', null)
+      .order('created_at', { ascending: false });
+    
+    if (error && !error.message.includes('does not exist')) {
+      console.error(`[${requestId}] Error fetching referrals:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch referrals' }));
+      return;
+    }
+    
+    const referralList = referrals || [];
+    
+    for (let i = 0; i < referralList.length; i++) {
+      if (referralList[i].referred_id) {
+        const { data: profile } = await supabase
+          .from('member_profiles')
+          .select('first_name, last_name')
+          .eq('id', referralList[i].referred_id)
+          .single();
+        
+        if (profile) {
+          referralList[i].referred_name = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Member';
+        } else {
+          referralList[i].referred_name = 'Member';
+        }
+      }
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      referrals: referralList 
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get member referrals error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  }
+}
+
+async function handleGetMemberCredits(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: credits, error } = await supabase
+      .from('member_credits')
+      .select('*')
+      .eq('member_id', memberId)
+      .order('created_at', { ascending: false });
+    
+    if (error && !error.message.includes('does not exist')) {
+      console.error(`[${requestId}] Error fetching member credits:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch credits' }));
+      return;
+    }
+    
+    const creditsList = credits || [];
+    const totalCredits = creditsList.reduce((sum, c) => sum + (c.amount || 0), 0);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      credits: creditsList,
+      total_credits: totalCredits
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get member credits error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  }
+}
+
+async function handleApplyReferralCode(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Authentication required - user must be logged in to apply a referral code
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  req.on('end', async () => {
+    try {
+      const parsed = JSON.parse(body);
+      const { referral_code, referred_id } = parsed;
+      
+      if (!referral_code || !referred_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Missing required fields' }));
+        return;
+      }
+      
+      // Verify that the authenticated user is applying the referral for themselves
+      if (user.id !== referred_id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'You can only apply a referral code for yourself' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: referralRecord, error: fetchError } = await supabase
+        .from('referrals')
+        .select('*')
+        .eq('referral_code', referral_code.toUpperCase())
+        .is('referred_id', null)
+        .single();
+      
+      if (fetchError || !referralRecord) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid or already used referral code' }));
+        return;
+      }
+      
+      if (referralRecord.referrer_id === referred_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'You cannot use your own referral code' }));
+        return;
+      }
+      
+      const { data: existingReferral } = await supabase
+        .from('referrals')
+        .select('id')
+        .eq('referred_id', referred_id)
+        .limit(1);
+      
+      if (existingReferral && existingReferral.length > 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'You have already been referred by another member' }));
+        return;
+      }
+      
+      const { error: insertError } = await supabase
+        .from('referrals')
+        .insert({
+          referrer_id: referralRecord.referrer_id,
+          referred_id: referred_id,
+          referral_code: referralRecord.referral_code,
+          status: 'pending',
+          referrer_credit_amount: 1000,
+          referred_credit_amount: 1000
+        });
+      
+      if (insertError) {
+        console.error(`[${requestId}] Error applying referral code:`, insertError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to apply referral code' }));
+        return;
+      }
+      
+      await supabase
+        .from('member_credits')
+        .insert({
+          member_id: referred_id,
+          amount: 1000,
+          type: 'referral_welcome_bonus',
+          description: 'Welcome bonus for signing up with a referral code'
+        });
+      
+      console.log(`[${requestId}] Referral code ${referral_code} applied for user ${referred_id}`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: true, 
+        message: 'Referral code applied! You received a $10 welcome bonus.',
+        welcome_bonus: 1000
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Apply referral code error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    }
+  });
+}
+
+async function handleCompleteReferral(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Authentication required - admin-only OR service-role for internal calls
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  req.on('end', async () => {
+    try {
+      const parsed = JSON.parse(body);
+      const { referred_id } = parsed;
+      
+      if (!referred_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Missing referred_id' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      // Check if user is admin
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      const isAdmin = profile?.role === 'admin';
+      
+      // If not admin, verify the referred user has actually completed a paid service
+      if (!isAdmin) {
+        // Check for completed paid services (pos_sessions with completed status and payment)
+        const { data: completedServices, error: servicesError } = await supabase
+          .from('pos_sessions')
+          .select('id, status, total_amount')
+          .eq('member_id', referred_id)
+          .eq('status', 'completed')
+          .gt('total_amount', 0)
+          .limit(1);
+        
+        // Also check for completed bookings with payment
+        const { data: completedBookings, error: bookingsError } = await supabase
+          .from('bookings')
+          .select('id, status, payment_status')
+          .eq('member_id', referred_id)
+          .eq('status', 'completed')
+          .eq('payment_status', 'paid')
+          .limit(1);
+        
+        const hasCompletedPaidService = 
+          (completedServices && completedServices.length > 0) || 
+          (completedBookings && completedBookings.length > 0);
+        
+        if (!hasCompletedPaidService) {
+          console.log(`[${requestId}] Referral completion denied - referred user ${referred_id} has no completed paid services`);
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: 'Referral cannot be completed - referred user has not completed their first paid service'
+          }));
+          return;
+        }
+      }
+      
+      const { data: pendingReferral, error: fetchError } = await supabase
+        .from('referrals')
+        .select('*')
+        .eq('referred_id', referred_id)
+        .eq('status', 'pending')
+        .single();
+      
+      if (fetchError || !pendingReferral) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: true, 
+          message: 'No pending referral to complete',
+          credited: false
+        }));
+        return;
+      }
+      
+      const { error: updateError } = await supabase
+        .from('referrals')
+        .update({
+          status: 'credited',
+          credited_at: new Date().toISOString()
+        })
+        .eq('id', pendingReferral.id);
+      
+      if (updateError) {
+        console.error(`[${requestId}] Error updating referral status:`, updateError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to complete referral' }));
+        return;
+      }
+      
+      await supabase
+        .from('member_credits')
+        .insert({
+          member_id: pendingReferral.referrer_id,
+          amount: 1000,
+          type: 'referral_bonus',
+          description: 'Referral bonus - friend completed their first service',
+          referral_id: pendingReferral.id
+        });
+      
+      console.log(`[${requestId}] Referral completed: credited $10 to referrer ${pendingReferral.referrer_id}${isAdmin ? ' (admin action)' : ''}`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: true, 
+        message: 'Referral completed! Referrer credited $10.',
+        credited: true,
+        referrer_id: pendingReferral.referrer_id,
+        credit_amount: 1000
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Complete referral error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    }
+  });
+}
+
+// =====================================================
+// NHTSA VEHICLE RECALLS API INTEGRATION
+// =====================================================
+
+const NHTSA_RECALLS_API_URL = 'https://api.nhtsa.gov/recalls/recallsByVehicle';
+let lastRecallCheckTime = null;
+const RECALL_CHECK_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // Weekly (7 days)
+
+async function checkVehicleRecalls(vehicleId, make, model, year) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Database not configured');
+  }
+  
+  const apiUrl = `${NHTSA_RECALLS_API_URL}?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${encodeURIComponent(year)}`;
+  
+  try {
+    const response = await fetch(apiUrl);
+    if (!response.ok) {
+      throw new Error(`NHTSA API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const recalls = data.results || [];
+    
+    let newRecallsAdded = 0;
+    const activeRecalls = [];
+    
+    for (const recall of recalls) {
+      const recallData = {
+        vehicle_id: vehicleId,
+        nhtsa_campaign_number: recall.NHTSACampaignNumber || recall.campaignNumber,
+        component: recall.Component || null,
+        summary: recall.Summary || null,
+        consequence: recall.Consequence || null,
+        remedy: recall.Remedy || null,
+        manufacturer: recall.Manufacturer || null,
+        report_received_date: recall.ReportReceivedDate ? new Date(recall.ReportReceivedDate).toISOString().split('T')[0] : null
+      };
+      
+      const { data: existing } = await supabase
+        .from('vehicle_recalls')
+        .select('id, is_acknowledged')
+        .eq('vehicle_id', vehicleId)
+        .eq('nhtsa_campaign_number', recallData.nhtsa_campaign_number)
+        .single();
+      
+      if (!existing) {
+        const { error: insertError } = await supabase
+          .from('vehicle_recalls')
+          .insert(recallData);
+        
+        if (!insertError) {
+          newRecallsAdded++;
+          activeRecalls.push({ ...recallData, is_acknowledged: false });
+        }
+      } else if (!existing.is_acknowledged) {
+        activeRecalls.push({ ...recallData, id: existing.id, is_acknowledged: false });
+      }
+    }
+    
+    return {
+      total_recalls: recalls.length,
+      new_recalls_added: newRecallsAdded,
+      active_recalls: activeRecalls
+    };
+  } catch (error) {
+    console.error(`Error checking recalls for vehicle ${vehicleId}:`, error);
+    throw error;
+  }
+}
+
+async function handleGetVehicleRecalls(req, res, requestId, vehicleId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Authentication required
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: vehicle, error: vehicleError } = await supabase
+      .from('vehicles')
+      .select('id, make, model, year, owner_id')
+      .eq('id', vehicleId)
+      .single();
+    
+    if (vehicleError || !vehicle) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Vehicle not found' }));
+      return;
+    }
+    
+    // Verify user owns this vehicle or is admin
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    const isAdmin = profile?.role === 'admin';
+    if (vehicle.owner_id !== user.id && !isAdmin) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Access denied' }));
+      return;
+    }
+    
+    const checkNHTSA = req.url.includes('refresh=true');
+    
+    if (checkNHTSA && vehicle.make && vehicle.model && vehicle.year) {
+      try {
+        await checkVehicleRecalls(vehicleId, vehicle.make, vehicle.model, vehicle.year);
+      } catch (err) {
+        console.error(`[${requestId}] NHTSA check failed:`, err.message);
+      }
+    }
+    
+    const { data: recalls, error: recallsError } = await supabase
+      .from('vehicle_recalls')
+      .select('*')
+      .eq('vehicle_id', vehicleId)
+      .order('is_acknowledged', { ascending: true })
+      .order('created_at', { ascending: false });
+    
+    if (recallsError) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch recalls' }));
+      return;
+    }
+    
+    const activeCount = (recalls || []).filter(r => !r.is_acknowledged).length;
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      vehicle_id: vehicleId,
+      recalls: recalls || [],
+      active_count: activeCount,
+      total_count: (recalls || []).length
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get vehicle recalls error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  }
+}
+
+async function handleCheckAllRecalls(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  // Admin-only endpoint
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+    return;
+  }
+  
+  // Check if user is admin
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+  
+  if (!profile || profile.role !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  req.on('end', async () => {
+    try {
+      const { data: checkLog } = await supabase
+        .from('recall_check_log')
+        .insert({
+          check_type: 'batch',
+          vehicles_checked: 0,
+          recalls_found: 0,
+          new_recalls_added: 0,
+          started_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      const logId = checkLog?.id;
+      
+      const { data: vehicles, error: vehiclesError } = await supabase
+        .from('vehicles')
+        .select('id, make, model, year')
+        .not('make', 'is', null)
+        .not('model', 'is', null)
+        .not('year', 'is', null);
+      
+      if (vehiclesError) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to fetch vehicles' }));
+        return;
+      }
+      
+      let vehiclesChecked = 0;
+      let totalRecallsFound = 0;
+      let totalNewRecalls = 0;
+      
+      for (const vehicle of vehicles || []) {
+        try {
+          const result = await checkVehicleRecalls(vehicle.id, vehicle.make, vehicle.model, vehicle.year);
+          vehiclesChecked++;
+          totalRecallsFound += result.total_recalls;
+          totalNewRecalls += result.new_recalls_added;
+          
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (err) {
+          console.error(`[${requestId}] Error checking recalls for vehicle ${vehicle.id}:`, err.message);
+        }
+      }
+      
+      if (logId) {
+        await supabase
+          .from('recall_check_log')
+          .update({
+            vehicles_checked: vehiclesChecked,
+            recalls_found: totalRecallsFound,
+            new_recalls_added: totalNewRecalls,
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', logId);
+      }
+      
+      console.log(`[${requestId}] Recall check complete: ${vehiclesChecked} vehicles, ${totalNewRecalls} new recalls found`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        vehicles_checked: vehiclesChecked,
+        recalls_found: totalRecallsFound,
+        new_recalls_added: totalNewRecalls
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Check all recalls error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    }
+  });
+}
+
+async function handleAcknowledgeRecall(req, res, requestId, recallId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  req.on('end', async () => {
+    try {
+      const parsed = JSON.parse(body || '{}');
+      const { user_id } = parsed;
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: recall, error: fetchError } = await supabase
+        .from('vehicle_recalls')
+        .select('id, vehicle_id, is_acknowledged')
+        .eq('id', recallId)
+        .single();
+      
+      if (fetchError || !recall) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Recall not found' }));
+        return;
+      }
+      
+      const { error: updateError } = await supabase
+        .from('vehicle_recalls')
+        .update({
+          is_acknowledged: true,
+          acknowledged_at: new Date().toISOString(),
+          acknowledged_by: user_id || null
+        })
+        .eq('id', recallId);
+      
+      if (updateError) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to acknowledge recall' }));
+        return;
+      }
+      
+      console.log(`[${requestId}] Recall ${recallId} acknowledged`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: 'Recall acknowledged' }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Acknowledge recall error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    }
+  });
+}
+
+function startWeeklyRecallCheckScheduler() {
+  console.log('Weekly recall check scheduler started');
+  
+  setInterval(async () => {
+    const now = new Date();
+    if (!lastRecallCheckTime || (now - lastRecallCheckTime) >= RECALL_CHECK_INTERVAL_MS) {
+      console.log('Running scheduled weekly recall check...');
+      lastRecallCheckTime = now;
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      
+      try {
+        const { data: checkLog } = await supabase
+          .from('recall_check_log')
+          .insert({
+            check_type: 'scheduled',
+            vehicles_checked: 0,
+            recalls_found: 0,
+            new_recalls_added: 0,
+            started_at: now.toISOString()
+          })
+          .select()
+          .single();
+        
+        const logId = checkLog?.id;
+        
+        const { data: vehicles } = await supabase
+          .from('vehicles')
+          .select('id, make, model, year')
+          .not('make', 'is', null)
+          .not('model', 'is', null)
+          .not('year', 'is', null);
+        
+        let vehiclesChecked = 0;
+        let totalRecallsFound = 0;
+        let totalNewRecalls = 0;
+        
+        for (const vehicle of vehicles || []) {
+          try {
+            const result = await checkVehicleRecalls(vehicle.id, vehicle.make, vehicle.model, vehicle.year);
+            vehiclesChecked++;
+            totalRecallsFound += result.total_recalls;
+            totalNewRecalls += result.new_recalls_added;
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } catch (err) {
+            console.error(`Scheduled recall check error for vehicle ${vehicle.id}:`, err.message);
+          }
+        }
+        
+        if (logId) {
+          await supabase
+            .from('recall_check_log')
+            .update({
+              vehicles_checked: vehiclesChecked,
+              recalls_found: totalRecallsFound,
+              new_recalls_added: totalNewRecalls,
+              completed_at: new Date().toISOString()
+            })
+            .eq('id', logId);
+        }
+        
+        console.log(`Scheduled recall check complete: ${vehiclesChecked} vehicles, ${totalNewRecalls} new recalls`);
+      } catch (error) {
+        console.error('Scheduled recall check failed:', error);
+      }
+    }
+  }, 60 * 60 * 1000); // Check every hour if weekly interval has passed
+}
+
+// =====================================================
+// END NHTSA RECALLS
+// =====================================================
 
 const mimeTypes = {
   '.html': 'text/html',
@@ -10785,6 +12845,230 @@ async function handleAdminTriggerMaintenanceReminders(req, res, requestId) {
   }
 }
 
+async function sendAppointmentReminders() {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.log('[AppointmentReminders] Database not configured');
+    return { sent: 0, errors: 0, skipped: 0 };
+  }
+  
+  let sent = 0;
+  let errors = 0;
+  let skipped = 0;
+  
+  try {
+    const now = new Date();
+    const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const in28Hours = new Date(now.getTime() + 28 * 60 * 60 * 1000);
+    
+    const today24 = in24Hours.toISOString().split('T')[0];
+    const today28 = in28Hours.toISOString().split('T')[0];
+    
+    const { data: appointments, error: fetchError } = await supabase
+      .from('service_appointments')
+      .select(`
+        id,
+        member_id,
+        provider_id,
+        confirmed_date,
+        confirmed_time_start,
+        package_id,
+        member:profiles!service_appointments_member_id_fkey(id, full_name, phone, email),
+        provider:profiles!service_appointments_provider_id_fkey(id, full_name, business_name),
+        package:maintenance_packages(id, title, service_type, vehicle:vehicles(id, year, make, model))
+      `)
+      .eq('status', 'confirmed')
+      .eq('reminder_sent', false)
+      .gte('confirmed_date', today24)
+      .lte('confirmed_date', today28);
+    
+    if (fetchError) {
+      if (fetchError.code === '42703' || fetchError.message?.includes('reminder_sent')) {
+        console.log('[AppointmentReminders] reminder_sent column not found. Run appointment_reminders_migration.sql');
+        return { sent: 0, errors: 0, skipped: 0, tableNeedsMigration: true };
+      }
+      console.error('[AppointmentReminders] Error fetching appointments:', fetchError);
+      return { sent: 0, errors: 1, skipped: 0, error: fetchError.message };
+    }
+    
+    if (!appointments || appointments.length === 0) {
+      console.log('[AppointmentReminders] No appointments found requiring reminders');
+      return { sent: 0, errors: 0, skipped: 0 };
+    }
+    
+    console.log(`[AppointmentReminders] Found ${appointments.length} appointments to process`);
+    
+    for (const appointment of appointments) {
+      try {
+        const member = appointment.member;
+        const provider = appointment.provider;
+        const pkg = appointment.package;
+        
+        if (!member?.phone) {
+          console.log(`[AppointmentReminders] No phone number for appointment ${appointment.id}`);
+          skipped++;
+          continue;
+        }
+        
+        const shouldSendSms = await checkNotificationPreference(member.id, 'sms', 'maintenance_reminders');
+        if (!shouldSendSms) {
+          console.log(`[AppointmentReminders] SMS disabled for member ${member.id}`);
+          skipped++;
+          continue;
+        }
+        
+        const serviceType = pkg?.service_type || pkg?.title || 'service appointment';
+        const vehicle = pkg?.vehicle;
+        const vehicleName = vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : 'your vehicle';
+        const providerName = provider?.business_name || provider?.full_name || 'your service provider';
+        
+        let appointmentTime = 'scheduled time';
+        if (appointment.confirmed_time_start) {
+          const timeStr = appointment.confirmed_time_start;
+          const [hours, minutes] = timeStr.split(':');
+          const hour = parseInt(hours, 10);
+          const ampm = hour >= 12 ? 'PM' : 'AM';
+          const hour12 = hour % 12 || 12;
+          appointmentTime = `${hour12}:${minutes} ${ampm}`;
+        }
+        
+        const message = `My Car Concierge: Reminder - Your ${serviceType} for ${vehicleName} is scheduled tomorrow at ${appointmentTime} with ${providerName}. Reply HELP for assistance.`;
+        
+        const smsResult = await sendSmsNotification(member.phone, message, member.id, 'maintenance_reminders');
+        
+        if (smsResult.sent) {
+          const { error: updateError } = await supabase
+            .from('service_appointments')
+            .update({
+              reminder_sent: true,
+              reminder_sent_at: new Date().toISOString()
+            })
+            .eq('id', appointment.id);
+          
+          if (updateError) {
+            console.error(`[AppointmentReminders] Failed to update appointment ${appointment.id}:`, updateError);
+            errors++;
+          } else {
+            sent++;
+            console.log(`[AppointmentReminders] Sent reminder for appointment ${appointment.id} to ${member.phone}`);
+          }
+        } else {
+          console.log(`[AppointmentReminders] SMS not sent for ${appointment.id}: ${smsResult.reason}`);
+          if (smsResult.reason !== 'not_configured' && smsResult.reason !== 'user_preference_disabled') {
+            errors++;
+          } else {
+            skipped++;
+          }
+        }
+        
+      } catch (appointmentError) {
+        console.error(`[AppointmentReminders] Error processing appointment ${appointment.id}:`, appointmentError);
+        errors++;
+      }
+    }
+    
+    console.log(`[AppointmentReminders] Complete: sent=${sent}, errors=${errors}, skipped=${skipped}`);
+    return { sent, errors, skipped };
+    
+  } catch (error) {
+    console.error('[AppointmentReminders] Error:', error);
+    return { sent: 0, errors: 1, skipped: 0, error: error.message };
+  }
+}
+
+function startAppointmentReminderScheduler() {
+  const enabled = process.env.ENABLE_APPOINTMENT_REMINDERS !== 'false';
+  
+  if (!enabled) {
+    console.log('[Scheduler] Appointment reminder scheduler is DISABLED (ENABLE_APPOINTMENT_REMINDERS=false)');
+    return;
+  }
+  
+  console.log('[Scheduler] Appointment reminder scheduler is ENABLED');
+  
+  const ONE_HOUR = 60 * 60 * 1000;
+  const INITIAL_DELAY = 60 * 1000;
+  
+  setTimeout(async () => {
+    console.log('[Scheduler] Running initial appointment reminder check...');
+    try {
+      const result = await sendAppointmentReminders();
+      console.log(`[Scheduler] Initial appointment check complete: ${result.sent} sent, ${result.errors} errors, ${result.skipped} skipped`);
+    } catch (error) {
+      console.error('[Scheduler] Initial appointment reminder check failed:', error.message);
+    }
+  }, INITIAL_DELAY);
+  
+  setInterval(async () => {
+    console.log('[Scheduler] Running hourly appointment reminder check...');
+    try {
+      const result = await sendAppointmentReminders();
+      console.log(`[Scheduler] Hourly check complete: ${result.sent} sent, ${result.errors} errors, ${result.skipped} skipped`);
+    } catch (error) {
+      console.error('[Scheduler] Hourly appointment reminder check failed:', error.message);
+    }
+  }, ONE_HOUR);
+  
+  console.log('[Scheduler] Scheduled: initial appointment check in 60s, then every hour');
+}
+
+async function handleAdminTriggerAppointmentReminders(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+      return;
+    }
+    
+    console.log(`[${requestId}] Admin triggered appointment reminder check`);
+    const result = await sendAppointmentReminders();
+    
+    console.log(`[${requestId}] Admin trigger complete: ${result.sent} sent, ${result.errors} errors, ${result.skipped} skipped`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      sent: result.sent,
+      errors: result.errors,
+      skipped: result.skipped,
+      tableNeedsMigration: result.tableNeedsMigration || false
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Admin trigger appointment reminders error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Failed to trigger appointment reminders' }));
+  }
+}
+
 async function handleGetNotificationPreferences(req, res, requestId, memberId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -12680,6 +14964,519 @@ async function handleMemberServiceHistory(req, res, requestId, memberId) {
   }
 }
 
+async function handleMemberServiceHistoryExport(req, res, requestId, memberId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    if (!memberId || !isValidUUID(memberId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Valid member ID is required' }));
+      return;
+    }
+    
+    // Verify user can only export their own service history (or is admin)
+    const supabase = getSupabaseClient();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    const isAdmin = profile?.role === 'admin';
+    if (user.id !== memberId && !isAdmin) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Access denied' }));
+      return;
+    }
+    
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const format = url.searchParams.get('format') || 'csv';
+    
+    const { data: memberProfile } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .eq('id', memberId)
+      .single();
+    
+    const memberName = memberProfile?.full_name || 'Member';
+    
+    const { data: vehicles } = await supabase
+      .from('vehicles')
+      .select('id, year, make, model, nickname, vin, mileage')
+      .eq('owner_id', memberId)
+      .order('created_at', { ascending: false });
+    
+    const { data: sessions, error } = await supabase
+      .from('pos_sessions')
+      .select(`
+        id,
+        created_at,
+        completed_at,
+        status,
+        service_description,
+        services,
+        subtotal,
+        labor_total,
+        parts_total,
+        tax_total,
+        total,
+        payment_method,
+        technician_notes,
+        provider_id,
+        vehicle_id,
+        profiles!pos_sessions_provider_id_fkey (
+          id,
+          full_name,
+          business_name
+        ),
+        vehicles (
+          id,
+          year,
+          make,
+          model,
+          nickname
+        )
+      `)
+      .eq('member_id', memberId)
+      .in('status', ['completed', 'refunded'])
+      .order('completed_at', { ascending: false, nullsFirst: false });
+    
+    if (error) {
+      console.error(`[${requestId}] Error fetching service history for export:`, error);
+      throw error;
+    }
+    
+    const serviceHistory = (sessions || []).map(session => {
+      const provider = session.profiles || {};
+      const vehicle = session.vehicles || {};
+      const servicesArray = session.services || [];
+      const serviceTypes = servicesArray.length > 0
+        ? servicesArray.map(s => s.name || s.description || 'Service').join(', ')
+        : (session.service_description || 'Walk-in Service');
+      
+      return {
+        date: session.completed_at || session.created_at,
+        vehicle: vehicle.nickname || `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() || 'Unknown Vehicle',
+        vehicleId: vehicle.id,
+        serviceType: serviceTypes,
+        provider: provider.business_name || provider.full_name || 'Unknown Provider',
+        amount: session.total || 0,
+        laborTotal: session.labor_total || 0,
+        partsTotal: session.parts_total || 0,
+        taxTotal: session.tax_total || 0,
+        status: session.status,
+        notes: session.technician_notes || ''
+      };
+    });
+    
+    if (format === 'csv') {
+      const dateGenerated = new Date().toISOString().split('T')[0];
+      let csv = 'Date,Vehicle,Service Type,Provider,Amount,Labor,Parts,Tax,Status,Notes\n';
+      
+      serviceHistory.forEach(record => {
+        const date = new Date(record.date).toLocaleDateString('en-US');
+        const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
+        
+        csv += [
+          escapeCsv(date),
+          escapeCsv(record.vehicle),
+          escapeCsv(record.serviceType),
+          escapeCsv(record.provider),
+          `$${record.amount.toFixed(2)}`,
+          `$${record.laborTotal.toFixed(2)}`,
+          `$${record.partsTotal.toFixed(2)}`,
+          `$${record.taxTotal.toFixed(2)}`,
+          escapeCsv(record.status),
+          escapeCsv(record.notes)
+        ].join(',') + '\n';
+      });
+      
+      const filename = `MCC_Service_History_${memberName.replace(/[^a-zA-Z0-9]/g, '_')}_${dateGenerated}.csv`;
+      
+      res.writeHead(200, {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'no-cache'
+      });
+      res.end(csv);
+      console.log(`[${requestId}] Generated CSV export for member ${memberId} with ${serviceHistory.length} records`);
+      return;
+    }
+    
+    if (format === 'pdf') {
+      const dateGenerated = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const vehiclesList = (vehicles || []).map(v => ({
+        id: v.id,
+        displayName: v.nickname || `${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim(),
+        year: v.year,
+        make: v.make,
+        model: v.model,
+        vin: v.vin,
+        mileage: v.mileage
+      }));
+      
+      const historyByVehicle = {};
+      serviceHistory.forEach(record => {
+        const vid = record.vehicleId || 'unknown';
+        if (!historyByVehicle[vid]) {
+          historyByVehicle[vid] = [];
+        }
+        historyByVehicle[vid].push(record);
+      });
+      
+      const totalSpent = serviceHistory.reduce((sum, r) => sum + r.amount, 0);
+      const totalServices = serviceHistory.length;
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        exportData: {
+          memberName,
+          dateGenerated,
+          vehicles: vehiclesList,
+          historyByVehicle,
+          serviceHistory,
+          summary: {
+            totalServices,
+            totalSpent: totalSpent.toFixed(2),
+            vehicleCount: vehiclesList.length
+          }
+        }
+      }));
+      console.log(`[${requestId}] Generated PDF data for member ${memberId} with ${serviceHistory.length} records`);
+      return;
+    }
+    
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid format. Use pdf or csv.' }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Service history export error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to export service history' }));
+  }
+}
+
+// ========== ADMIN DASHBOARD ANALYTICS HANDLERS ==========
+
+async function handleAdminStatsOverview(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const [
+      { count: totalMembers },
+      { count: totalProviders },
+      { count: totalVehicles },
+      { count: totalPackages },
+      { count: activePackages },
+      { data: paymentsData }
+    ] = await Promise.all([
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'member'),
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider'),
+      supabase.from('vehicles').select('*', { count: 'exact', head: true }),
+      supabase.from('maintenance_packages').select('*', { count: 'exact', head: true }),
+      supabase.from('maintenance_packages').select('*', { count: 'exact', head: true }).in('status', ['open', 'accepted', 'in_progress']),
+      supabase.from('payments').select('amount_total, mcc_fee, status').eq('status', 'released')
+    ]);
+    
+    const totalRevenue = (paymentsData || []).reduce((sum, p) => sum + (p.mcc_fee || 0), 0);
+    const totalTransactionVolume = (paymentsData || []).reduce((sum, p) => sum + (p.amount_total || 0), 0);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      data: {
+        totalMembers: totalMembers || 0,
+        totalProviders: totalProviders || 0,
+        totalVehicles: totalVehicles || 0,
+        totalPackages: totalPackages || 0,
+        activePackages: activePackages || 0,
+        totalRevenue: totalRevenue,
+        totalTransactionVolume: totalTransactionVolume,
+        totalOrders: paymentsData?.length || 0
+      }
+    }));
+  } catch (error) {
+    console.error(`[${requestId}] Admin stats overview error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Failed to fetch overview stats' }));
+  }
+}
+
+function getDateRangeFromPeriod(period) {
+  const now = new Date();
+  let startDate, groupBy;
+  
+  switch (period) {
+    case 'week':
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      groupBy = 'day';
+      break;
+    case 'month':
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      groupBy = 'day';
+      break;
+    case 'quarter':
+      startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      groupBy = 'week';
+      break;
+    case 'year':
+      startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+      groupBy = 'month';
+      break;
+    default:
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      groupBy = 'day';
+  }
+  
+  return { startDate, groupBy };
+}
+
+function groupDataByPeriod(data, dateField, valueField, groupBy) {
+  const groups = {};
+  
+  data.forEach(item => {
+    if (!item[dateField]) return;
+    
+    const date = new Date(item[dateField]);
+    let key;
+    
+    if (groupBy === 'day') {
+      key = date.toISOString().split('T')[0];
+    } else if (groupBy === 'week') {
+      const weekStart = new Date(date);
+      weekStart.setDate(date.getDate() - date.getDay());
+      key = weekStart.toISOString().split('T')[0];
+    } else if (groupBy === 'month') {
+      key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    }
+    
+    if (!groups[key]) {
+      groups[key] = { date: key, value: 0, count: 0 };
+    }
+    
+    if (valueField) {
+      groups[key].value += (item[valueField] || 0);
+    }
+    groups[key].count += 1;
+  });
+  
+  return Object.values(groups).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function handleAdminStatsRevenue(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const urlParams = new URL(req.url, `http://localhost`).searchParams;
+    const period = urlParams.get('period') || 'month';
+    const { startDate, groupBy } = getDateRangeFromPeriod(period);
+    
+    const { data: payments, error } = await supabase
+      .from('payments')
+      .select('amount_total, mcc_fee, released_at, created_at, status')
+      .eq('status', 'released')
+      .gte('released_at', startDate.toISOString())
+      .order('released_at', { ascending: true });
+    
+    if (error) {
+      console.error(`[${requestId}] Revenue query error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch revenue data' }));
+      return;
+    }
+    
+    const grouped = groupDataByPeriod(payments || [], 'released_at', 'mcc_fee', groupBy);
+    const totalRevenue = (payments || []).reduce((sum, p) => sum + (p.mcc_fee || 0), 0);
+    const totalVolume = (payments || []).reduce((sum, p) => sum + (p.amount_total || 0), 0);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      data: {
+        period,
+        groupBy,
+        totalRevenue,
+        totalVolume,
+        totalTransactions: payments?.length || 0,
+        chartData: grouped.map(g => ({
+          label: g.date,
+          revenue: g.value,
+          orders: g.count
+        }))
+      }
+    }));
+  } catch (error) {
+    console.error(`[${requestId}] Admin stats revenue error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Failed to fetch revenue stats' }));
+  }
+}
+
+async function handleAdminStatsUsers(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const urlParams = new URL(req.url, `http://localhost`).searchParams;
+    const period = urlParams.get('period') || 'month';
+    const { startDate, groupBy } = getDateRangeFromPeriod(period);
+    
+    const [{ data: members }, { data: providers }] = await Promise.all([
+      supabase.from('profiles').select('created_at, role').eq('role', 'member').gte('created_at', startDate.toISOString()),
+      supabase.from('profiles').select('created_at, role').eq('role', 'provider').gte('created_at', startDate.toISOString())
+    ]);
+    
+    const memberGroups = groupDataByPeriod(members || [], 'created_at', null, groupBy);
+    const providerGroups = groupDataByPeriod(providers || [], 'created_at', null, groupBy);
+    
+    const allDates = new Set([
+      ...memberGroups.map(g => g.date),
+      ...providerGroups.map(g => g.date)
+    ]);
+    
+    const chartData = Array.from(allDates).sort().map(date => {
+      const memberData = memberGroups.find(g => g.date === date);
+      const providerData = providerGroups.find(g => g.date === date);
+      return {
+        label: date,
+        members: memberData?.count || 0,
+        providers: providerData?.count || 0,
+        total: (memberData?.count || 0) + (providerData?.count || 0)
+      };
+    });
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      data: {
+        period,
+        groupBy,
+        totalNewMembers: members?.length || 0,
+        totalNewProviders: providers?.length || 0,
+        chartData
+      }
+    }));
+  } catch (error) {
+    console.error(`[${requestId}] Admin stats users error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Failed to fetch user stats' }));
+  }
+}
+
+async function handleAdminStatsOrders(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const urlParams = new URL(req.url, `http://localhost`).searchParams;
+    const period = urlParams.get('period') || 'month';
+    const { startDate, groupBy } = getDateRangeFromPeriod(period);
+    
+    const { data: packages, error } = await supabase
+      .from('maintenance_packages')
+      .select('created_at, status, category')
+      .gte('created_at', startDate.toISOString())
+      .order('created_at', { ascending: true });
+    
+    if (error) {
+      console.error(`[${requestId}] Orders query error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch order data' }));
+      return;
+    }
+    
+    const allPackages = packages || [];
+    const completedPackages = allPackages.filter(p => p.status === 'completed');
+    
+    const grouped = groupDataByPeriod(allPackages, 'created_at', null, groupBy);
+    const completedGrouped = groupDataByPeriod(completedPackages, 'created_at', null, groupBy);
+    
+    const allDates = new Set([
+      ...grouped.map(g => g.date),
+      ...completedGrouped.map(g => g.date)
+    ]);
+    
+    const chartData = Array.from(allDates).sort().map(date => {
+      const allData = grouped.find(g => g.date === date);
+      const completedData = completedGrouped.find(g => g.date === date);
+      return {
+        label: date,
+        created: allData?.count || 0,
+        completed: completedData?.count || 0
+      };
+    });
+    
+    const categoryBreakdown = {};
+    allPackages.forEach(p => {
+      const cat = p.category || 'other';
+      categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1;
+    });
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      data: {
+        period,
+        groupBy,
+        totalCreated: allPackages.length,
+        totalCompleted: completedPackages.length,
+        categoryBreakdown,
+        chartData
+      }
+    }));
+  } catch (error) {
+    console.error(`[${requestId}] Admin stats orders error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Failed to fetch order stats' }));
+  }
+}
+
 const server = http.createServer((req, res) => {
   const requestId = generateRequestId();
   console.log(`[${requestId}] ${req.method} ${req.url}`);
@@ -12712,6 +15509,14 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  if (req.method === 'GET' && req.url.match(/^\/api\/member\/[^/]+\/service-history\/export/)) {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleMemberServiceHistoryExport(req, res, requestId, memberId);
+    return;
+  }
+  
   if (req.method === 'GET' && req.url.startsWith('/api/member/service-history/')) {
     const memberId = req.url.split('/api/member/service-history/')[1]?.split('?')[0];
     handleMemberServiceHistory(req, res, requestId, memberId);
@@ -12719,26 +15524,36 @@ const server = http.createServer((req, res) => {
   }
   
   if (req.method === 'POST' && req.url === '/api/notify/urgent-update') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
     handleNotifyUrgentUpdate(req, res, requestId);
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/chat') {
+    const rateLimit = applyRateLimit(req, res, 'public');
+    if (!rateLimit.allowed) return;
     handleChatRequest(req, res, requestId);
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/helpdesk') {
+    const rateLimit = applyRateLimit(req, res, 'public');
+    if (!rateLimit.allowed) return;
     handleHelpdeskRequest(req, res, requestId);
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/diagnostics/generate') {
+    const rateLimit = applyRateLimit(req, res, 'public');
+    if (!rateLimit.allowed) return;
     handleDiagnosticsGenerate(req, res, requestId);
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/create-bid-checkout') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
     handleBidCheckout(req, res, requestId);
     return;
   }
@@ -12749,6 +15564,8 @@ const server = http.createServer((req, res) => {
   }
   
   if (req.method === 'POST' && req.url === '/api/verify-admin-password') {
+    const rateLimit = applyRateLimit(req, res, 'adminVerify');
+    if (!rateLimit.allowed) return;
     handleAdminPasswordVerify(req, res, requestId);
     return;
   }
@@ -13257,27 +16074,59 @@ const server = http.createServer((req, res) => {
   
   // Two-Factor Authentication (2FA) API Routes
   if (req.method === 'POST' && req.url === '/api/2fa/send-code') {
+    const rateLimit = applyRateLimit(req, res, 'sms2fa');
+    if (!rateLimit.allowed) return;
     handle2faSendCode(req, res, requestId);
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/2fa/verify-code') {
+    const rateLimit = applyRateLimit(req, res, 'login');
+    if (!rateLimit.allowed) return;
     handle2faVerifyCode(req, res, requestId);
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/2fa/enable') {
+    const rateLimit = applyRateLimit(req, res, 'sms2fa');
+    if (!rateLimit.allowed) return;
     handle2faEnable(req, res, requestId);
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/2fa/disable') {
+    const rateLimit = applyRateLimit(req, res, 'login');
+    if (!rateLimit.allowed) return;
     handle2faDisable(req, res, requestId);
     return;
   }
   
   if (req.method === 'GET' && req.url.startsWith('/api/2fa/status')) {
     handle2faStatus(req, res, requestId);
+    return;
+  }
+  
+  // Login Activity API Routes
+  if (req.method === 'POST' && req.url === '/api/log-login-activity') {
+    handleLogLoginActivity(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/member\/[^/]+\/login-activity$/)) {
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleGetLoginActivity(req, res, requestId, memberId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/login-activity\/[^/]+\/acknowledge$/)) {
+    const activityId = req.url.split('/api/login-activity/')[1]?.split('/')[0];
+    handleAcknowledgeLoginActivity(req, res, requestId, activityId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/login-activity\/[^/]+\/report-suspicious$/)) {
+    const activityId = req.url.split('/api/login-activity/')[1]?.split('/')[0];
+    handleReportSuspiciousLogin(req, res, requestId, activityId);
     return;
   }
   
@@ -13294,6 +16143,11 @@ const server = http.createServer((req, res) => {
   
   if (req.method === 'POST' && req.url === '/api/admin/trigger-maintenance-reminders') {
     handleAdminTriggerMaintenanceReminders(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/admin/trigger-appointment-reminders') {
+    handleAdminTriggerAppointmentReminders(req, res, requestId);
     return;
   }
   
@@ -13375,6 +16229,80 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  // Fuel Logs API Endpoints
+  if (req.method === 'GET' && req.url.match(/^\/api\/member\/[^/]+\/fuel-logs/)) {
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleGetFuelLogs(req, res, requestId, memberId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/member\/[^/]+\/fuel-log$/)) {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleCreateFuelLog(req, res, requestId, memberId);
+    return;
+  }
+  
+  if (req.method === 'PUT' && req.url.match(/^\/api\/member\/[^/]+\/fuel-log\/[^/]+$/)) {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    const urlParts = req.url.split('/api/member/')[1]?.split('/');
+    const memberId = urlParts?.[0];
+    const logId = urlParts?.[2];
+    handleUpdateFuelLog(req, res, requestId, memberId, logId);
+    return;
+  }
+  
+  if (req.method === 'DELETE' && req.url.match(/^\/api\/member\/[^/]+\/fuel-log\/[^/]+$/)) {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    const urlParts = req.url.split('/api/member/')[1]?.split('/');
+    const memberId = urlParts?.[0];
+    const logId = urlParts?.[2];
+    handleDeleteFuelLog(req, res, requestId, memberId, logId);
+    return;
+  }
+  
+  // Insurance Documents API Endpoints
+  if (req.method === 'GET' && req.url.match(/^\/api\/member\/[^/]+\/insurance-documents/)) {
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleGetInsuranceDocuments(req, res, requestId, memberId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/member\/[^/]+\/insurance-document$/)) {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleCreateInsuranceDocument(req, res, requestId, memberId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/member\/[^/]+\/insurance-document\/upload-url$/)) {
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleInsuranceFileUpload(req, res, requestId, memberId);
+    return;
+  }
+  
+  if (req.method === 'DELETE' && req.url.match(/^\/api\/member\/[^/]+\/insurance-document\/[^/]+$/)) {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    const urlParts = req.url.split('/api/member/')[1]?.split('/');
+    const memberId = urlParts?.[0];
+    const docId = urlParts?.[2];
+    handleDeleteInsuranceDocument(req, res, requestId, memberId, docId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/member\/[^/]+\/insurance-document\/[^/]+\/download$/)) {
+    const urlParts = req.url.split('/api/member/')[1]?.split('/');
+    const memberId = urlParts?.[0];
+    const docId = urlParts?.[2];
+    handleGetInsuranceDocumentDownload(req, res, requestId, memberId, docId);
+    return;
+  }
+  
   // Stripe Identity Verification Endpoints
   if (req.method === 'POST' && req.url === '/api/identity/create-verification-session') {
     handleCreateIdentityVerificationSession(req, res, requestId);
@@ -13384,6 +16312,84 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url.match(/^\/api\/identity\/status\/[^/]+$/)) {
     const userId = req.url.split('/api/identity/status/')[1]?.split('?')[0];
     handleIdentityVerificationStatus(req, res, requestId, userId);
+    return;
+  }
+  
+  // Referral Program API Endpoints
+  if (req.method === 'GET' && req.url.match(/^\/api\/member\/[^/]+\/referral-code$/)) {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleGetReferralCode(req, res, requestId, memberId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/member\/[^/]+\/referrals$/)) {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleGetMemberReferrals(req, res, requestId, memberId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/member\/[^/]+\/credits$/)) {
+    const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
+    handleGetMemberCredits(req, res, requestId, memberId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/referral/apply') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleApplyReferralCode(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/referral/complete') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleCompleteReferral(req, res, requestId);
+    return;
+  }
+  
+  // Vehicle Recalls API Endpoints
+  if (req.method === 'GET' && req.url.match(/^\/api\/vehicle\/[^/]+\/recalls/)) {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    const vehicleId = req.url.split('/api/vehicle/')[1]?.split('/')[0];
+    handleGetVehicleRecalls(req, res, requestId, vehicleId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/recalls/check-all') {
+    handleCheckAllRecalls(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'PUT' && req.url.match(/^\/api\/recalls\/[^/]+\/acknowledge$/)) {
+    const recallId = req.url.split('/api/recalls/')[1]?.split('/')[0];
+    handleAcknowledgeRecall(req, res, requestId, recallId);
+    return;
+  }
+  
+  // Admin Dashboard Analytics API Endpoints
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/stats/overview')) {
+    handleAdminStatsOverview(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/stats/revenue')) {
+    handleAdminStatsRevenue(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/stats/users')) {
+    handleAdminStatsUsers(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/stats/orders')) {
+    handleAdminStatsOrders(req, res, requestId);
     return;
   }
   
@@ -13462,4 +16468,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('AI Assistant connected and ready to help!');
   
   startMaintenanceReminderScheduler();
+  startWeeklyRecallCheckScheduler();
+  startAppointmentReminderScheduler();
 });

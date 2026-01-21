@@ -1,8 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <title>My Garage – My Car Concierge</title>
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -46,6 +52,47 @@
       --radius-md: 12px;
       --radius-lg: 16px;
       --radius-xl: 24px;
+    }
+
+    /* Light Theme */
+    [data-theme="light"] {
+      --bg-deep: #f5f5f7;
+      --bg-card: rgba(255, 255, 255, 0.95);
+      --bg-elevated: rgba(245, 245, 250, 0.98);
+      --bg-input: rgba(240, 240, 245, 0.95);
+      --text-primary: #1a1a2e;
+      --text-secondary: #4a4a5a;
+      --text-muted: #7a7a8a;
+      --border-subtle: rgba(0, 0, 0, 0.08);
+      --border-medium: rgba(0, 0, 0, 0.12);
+    }
+
+    /* Theme transition */
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+    }
+
+    /* Theme Toggle Button */
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 1.2rem;
+    }
+    .theme-toggle:hover {
+      background: var(--accent-gold-soft);
+      border-color: var(--accent-gold);
+      transform: scale(1.05);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; scrollbar-width: thin; scrollbar-color: var(--border-medium) var(--bg-deep); }
@@ -113,6 +160,9 @@
     .btn-success { background: var(--accent-green); color: #022c22; }
     .btn-danger { background: rgba(239, 95, 95, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 95, 95, 0.3); }
 
+    /* Export Dropdown */
+    .export-option:hover { background: var(--accent-blue-soft); color: var(--accent-blue); }
+
     /* Vehicle Cards */
     /* Premium Vehicle Cards - Turo Style */
     .vehicles-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; }
@@ -138,6 +188,28 @@
     .health-badge.good { background: var(--accent-blue-soft); color: var(--accent-blue); }
     .health-badge.fair { background: var(--accent-orange-soft); color: var(--accent-orange); }
     .health-badge.poor { background: rgba(239, 95, 95, 0.15); color: var(--accent-red); }
+    
+    /* Recall Alert Badge */
+    .recall-badge { position: absolute; top: 12px; left: 12px; padding: 5px 12px; border-radius: 100px; font-size: 0.75rem; font-weight: 600; background: linear-gradient(135deg, #ef5f5f, #dc3545); color: white; display: flex; align-items: center; gap: 5px; cursor: pointer; animation: pulse-recall 2s infinite; z-index: 5; box-shadow: 0 2px 8px rgba(239, 95, 95, 0.4); }
+    .recall-badge:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(239, 95, 95, 0.5); }
+    @keyframes pulse-recall { 0%, 100% { box-shadow: 0 2px 8px rgba(239, 95, 95, 0.4); } 50% { box-shadow: 0 2px 16px rgba(239, 95, 95, 0.7); } }
+    
+    /* Recall Card Styles */
+    .recall-card { background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; margin-bottom: 12px; transition: all 0.2s; }
+    .recall-card:hover { border-color: var(--border-medium); }
+    .recall-card.unacknowledged { border-left: 3px solid var(--accent-red); }
+    .recall-card.acknowledged { opacity: 0.7; border-left: 3px solid var(--accent-green); }
+    .recall-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .recall-card-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 4px; }
+    .recall-card-campaign { font-size: 0.78rem; color: var(--text-muted); }
+    .recall-card-status { padding: 4px 10px; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+    .recall-card-status.active { background: rgba(239, 95, 95, 0.15); color: var(--accent-red); }
+    .recall-card-status.addressed { background: var(--accent-green-soft); color: var(--accent-green); }
+    .recall-card-section { margin-bottom: 12px; }
+    .recall-card-section-title { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .recall-card-section-content { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; }
+    .recall-card-actions { display: flex; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+    
     .vehicle-content { padding: 20px; }
     .vehicle-name { font-size: 1.15rem; font-weight: 600; margin-bottom: 4px; }
     .vehicle-details { font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 12px; }
@@ -696,9 +768,14 @@
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:40;"></div>
   <aside class="sidebar" id="sidebar">
     <div class="mobile-close" onclick="toggleSidebar()" style="display:none;position:absolute;top:16px;right:16px;width:36px;height:36px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:50%;cursor:pointer;font-size:1.2rem;display:flex;align-items:center;justify-content:center;">✕</div>
-    <a href="index.html" class="sidebar-brand">
-      <img src="logo.png" alt="My Car Concierge" class="sidebar-brand-icon">
-    </a>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 8px 16px;">
+      <a href="index.html" class="sidebar-brand" style="padding:8px 4px 8px;margin-bottom:0;border-bottom:none;">
+        <img src="logo.png" alt="My Car Concierge" class="sidebar-brand-icon">
+      </a>
+      <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle theme">
+        <span id="theme-icon">🌙</span>
+      </button>
+    </div>
     <div id="language-switcher" style="padding:0 12px 16px;"></div>
 
     <div class="nav-label" data-i18n="member.navDashboard">Dashboard</div>
@@ -712,6 +789,7 @@
     <div class="nav-item" data-section="household"><span>👨‍👩‍👧‍👦 Household</span> <span class="nav-badge" id="household-count" style="display:none;">0</span></div>
     <div class="nav-item" data-section="fleet" style="background:linear-gradient(135deg, rgba(212,168,85,0.1), rgba(74,124,255,0.05));border:1px solid rgba(212,168,85,0.2);"><span style="color:var(--accent-gold);">🏢 Fleet</span> <span class="nav-badge" id="fleet-count" style="display:none;">0</span></div>
     <div class="nav-item" data-section="reminders"><span data-i18n="member.reminders">🔔 Reminders</span> <span class="nav-badge" id="reminder-count" style="display:none;">0</span></div>
+    <div class="nav-item" data-section="referrals" style="background:linear-gradient(135deg, rgba(212,168,85,0.1), rgba(74,200,140,0.05));border:1px solid rgba(212,168,85,0.2);"><span style="color:var(--accent-gold);">🎁 Refer a Friend</span> <span class="nav-badge" id="referral-credits-badge" style="display:none;background:var(--accent-green);">$0</span></div>
     
     <div class="nav-label" data-i18n="member.navServices">Services</div>
     <div class="nav-item" data-section="packages"><span data-i18n="member.maintenancePackages">📦 Maintenance Packages</span></div>
@@ -722,6 +800,8 @@
     <div class="nav-item" data-section="messages"><span data-i18n="nav.messages">💬 Messages</span> <span class="nav-badge" id="message-count" style="display:none;">0</span></div>
     <div class="nav-item" data-section="history"><span data-i18n="member.serviceHistory">📜 Service History</span></div>
     <div class="nav-item" data-section="spending-analytics"><span>📊 Spending Analytics</span></div>
+    <div class="nav-item" data-section="fuel-tracker"><span>⛽ Fuel Tracker</span></div>
+    <div class="nav-item" data-section="insurance"><span>📋 Insurance</span></div>
     <div class="nav-item" data-section="emergency" style="background:linear-gradient(135deg, rgba(239,95,95,0.1), rgba(255,68,68,0.05));border:1px solid rgba(239,95,95,0.2);"><span style="color:var(--accent-red);">🆘 Emergency Roadside</span></div>
     <div class="nav-item" data-section="destination-services" style="background:linear-gradient(135deg, rgba(74,124,255,0.1), rgba(212,168,85,0.05));border:1px solid rgba(74,124,255,0.2);"><span style="color:var(--accent-blue);">🚗 Destination Services</span> <span class="nav-badge" id="destination-count" style="display:none;background:var(--accent-blue);">0</span></div>
 
@@ -2184,6 +2264,19 @@
           <button class="btn btn-ghost" onclick="clearHistoryFilters()" style="height:44px;">
             Clear
           </button>
+          <div style="position:relative;margin-left:auto;">
+            <button class="btn btn-primary" id="export-history-btn" onclick="toggleExportDropdown()" style="height:44px;">
+              📥 Export History
+            </button>
+            <div id="export-dropdown" class="export-dropdown" style="display:none;position:absolute;right:0;top:100%;margin-top:8px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:8px 0;min-width:160px;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.3);">
+              <button class="export-option" onclick="exportServiceHistory('pdf')" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 16px;background:none;border:none;color:var(--text-primary);font-size:0.9rem;cursor:pointer;text-align:left;font-family:inherit;">
+                📄 Export as PDF
+              </button>
+              <button class="export-option" onclick="exportServiceHistory('csv')" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 16px;background:none;border:none;color:var(--text-primary);font-size:0.9rem;cursor:pointer;text-align:left;font-family:inherit;">
+                📊 Export as CSV
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2288,6 +2381,102 @@
       </div>
     </section>
 
+    <!-- Referrals Section -->
+    <section id="referrals" class="section">
+      <div class="page-header">
+        <h1 class="page-title" style="display:flex;align-items:center;gap:12px;">🎁 Refer a Friend</h1>
+        <p class="page-subtitle">Share the love and earn $10 for every friend who completes their first service!</p>
+      </div>
+
+      <!-- Referral Stats -->
+      <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));margin-bottom:32px;">
+        <div class="stat-card">
+          <div class="stat-icon gold">💰</div>
+          <div class="stat-value" id="referral-total-credits">$0</div>
+          <div class="stat-label">Total Credits Earned</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">✅</div>
+          <div class="stat-value" id="referral-completed-count">0</div>
+          <div class="stat-label">Completed Referrals</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue">⏳</div>
+          <div class="stat-value" id="referral-pending-count">0</div>
+          <div class="stat-label">Pending Referrals</div>
+        </div>
+      </div>
+
+      <!-- Referral Code Card -->
+      <div class="card" style="background:linear-gradient(135deg, rgba(212,168,85,0.15), rgba(74,200,140,0.08));border:1px solid rgba(212,168,85,0.3);">
+        <div class="card-header" style="border-bottom:none;margin-bottom:0;">
+          <h2 class="card-title" style="color:var(--accent-gold);">Your Referral Code</h2>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:20px;">
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div id="referral-code-display" style="font-size:2rem;font-weight:700;letter-spacing:0.15em;font-family:monospace;background:var(--bg-deep);padding:16px 32px;border-radius:12px;border:2px dashed var(--accent-gold);color:var(--accent-gold);">
+              Loading...
+            </div>
+            <button class="btn btn-primary" onclick="copyReferralCode()" style="padding:14px 24px;">
+              📋 Copy Code
+            </button>
+          </div>
+          
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <button class="btn btn-secondary" onclick="copyReferralLink()" style="flex:1;min-width:140px;">
+              🔗 Copy Link
+            </button>
+            <button class="btn btn-secondary" onclick="shareReferralEmail()" style="flex:1;min-width:140px;">
+              ✉️ Share via Email
+            </button>
+            <button class="btn btn-secondary" onclick="shareReferralSMS()" style="flex:1;min-width:140px;">
+              💬 Share via SMS
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- How it Works -->
+      <div class="card" style="margin-top:24px;">
+        <div class="card-header">
+          <h2 class="card-title">How It Works</h2>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:24px;">
+          <div style="text-align:center;padding:16px;">
+            <div style="font-size:48px;margin-bottom:12px;">📤</div>
+            <h3 style="font-size:1.1rem;margin-bottom:8px;">1. Share Your Code</h3>
+            <p style="color:var(--text-secondary);font-size:0.9rem;">Send your unique referral code to friends and family who need car services.</p>
+          </div>
+          <div style="text-align:center;padding:16px;">
+            <div style="font-size:48px;margin-bottom:12px;">👋</div>
+            <h3 style="font-size:1.1rem;margin-bottom:8px;">2. They Sign Up</h3>
+            <p style="color:var(--text-secondary);font-size:0.9rem;">Your friend creates an account using your code and gets a <strong style="color:var(--accent-gold);">$10 welcome bonus</strong>!</p>
+          </div>
+          <div style="text-align:center;padding:16px;">
+            <div style="font-size:48px;margin-bottom:12px;">🚗</div>
+            <h3 style="font-size:1.1rem;margin-bottom:8px;">3. First Service</h3>
+            <p style="color:var(--text-secondary);font-size:0.9rem;">When they complete their first paid service, you earn <strong style="color:var(--accent-gold);">$10 in credits</strong>!</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Referral List -->
+      <div class="card" style="margin-top:24px;">
+        <div class="card-header">
+          <h2 class="card-title">Your Referrals</h2>
+        </div>
+        <div id="referrals-loading" style="text-align:center;padding:40px;color:var(--text-muted);">
+          Loading referrals...
+        </div>
+        <div id="referrals-empty" style="display:none;text-align:center;padding:60px 20px;">
+          <div style="font-size:64px;margin-bottom:16px;opacity:0.5;">👥</div>
+          <h3 style="color:var(--text-secondary);margin-bottom:8px;">No referrals yet</h3>
+          <p style="color:var(--text-muted);font-size:0.9rem;">Share your referral code with friends to start earning credits!</p>
+        </div>
+        <div id="referrals-list" style="display:none;flex-direction:column;gap:12px;"></div>
+      </div>
+    </section>
+
     <!-- Settings Section -->
     <section id="settings" class="section">
       <div class="page-header">
@@ -2295,7 +2484,60 @@
         <p class="page-subtitle">Manage your profile and preferences.</p>
       </div>
 
+      <!-- Theme Settings -->
       <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">🎨 Appearance</h2>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:1.5rem;" id="settings-theme-icon-display">🌙</span>
+            <div>
+              <div style="font-weight:600;" id="settings-theme-label">Dark Mode</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);">Switch between light and dark themes</div>
+            </div>
+          </div>
+          <label class="toggle-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+            <input type="checkbox" id="settings-theme-toggle" onchange="setThemeFromToggle(this.checked)">
+            <span class="toggle-slider" style="position:relative;width:50px;height:26px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:13px;transition:all 0.3s;display:inline-block;"></span>
+          </label>
+        </div>
+        <style>
+          #settings-theme-toggle { display: none; }
+          #settings-theme-toggle + .toggle-slider::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 18px;
+            height: 18px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            transition: all 0.3s;
+          }
+          #settings-theme-toggle:checked + .toggle-slider {
+            background: var(--accent-gold);
+            border-color: var(--accent-gold);
+          }
+          #settings-theme-toggle:checked + .toggle-slider::after {
+            left: 27px;
+            background: #0a0a0f;
+          }
+        </style>
+        <script>
+          document.addEventListener('DOMContentLoaded', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const toggle = document.getElementById('settings-theme-toggle');
+            const label = document.getElementById('settings-theme-label');
+            const iconDisplay = document.getElementById('settings-theme-icon-display');
+            if (toggle) toggle.checked = currentTheme === 'light';
+            if (label) label.textContent = currentTheme === 'dark' ? 'Dark Mode' : 'Light Mode';
+            if (iconDisplay) iconDisplay.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+          });
+        </script>
+      </div>
+
+      <div class="card" style="margin-top:20px;">
         <div class="card-header">
           <h2 class="card-title">Profile Information</h2>
         </div>
@@ -2630,6 +2872,58 @@
         </div>
       </div>
 
+      <!-- Login Activity -->
+      <div class="card" style="margin-top:20px;">
+        <div class="card-header">
+          <h2 class="card-title">📋 Login Activity</h2>
+          <p style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">Review your recent login history for security.</p>
+        </div>
+        
+        <div id="login-activity-alert" style="display:none;margin-bottom:20px;padding:16px;background:rgba(239,95,95,0.1);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:1.5rem;">⚠️</span>
+            <div style="flex:1;">
+              <div style="font-weight:600;color:var(--accent-red);margin-bottom:2px;">Failed Login Attempts Detected</div>
+              <div style="font-size:0.9rem;color:var(--text-secondary);" id="login-activity-alert-text">There were recent failed login attempts on your account. Review them below and consider changing your password if you don't recognize them.</div>
+            </div>
+          </div>
+        </div>
+        
+        <div id="login-activity-loading" style="text-align:center;padding:24px;">
+          <div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px;"></div>
+          <p style="color:var(--text-muted);font-size:0.9rem;">Loading login activity...</p>
+        </div>
+        
+        <div id="login-activity-content" style="display:none;">
+          <div id="login-activity-empty" style="display:none;text-align:center;padding:32px;color:var(--text-muted);">
+            <span style="font-size:48px;display:block;margin-bottom:12px;">📋</span>
+            <p>No login activity recorded yet.</p>
+          </div>
+          
+          <div style="overflow-x:auto;">
+            <table id="login-activity-table" style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border-subtle);">
+                  <th style="text-align:left;padding:12px 8px;color:var(--text-muted);font-weight:500;">Date/Time</th>
+                  <th style="text-align:left;padding:12px 8px;color:var(--text-muted);font-weight:500;">Device</th>
+                  <th style="text-align:left;padding:12px 8px;color:var(--text-muted);font-weight:500;">Browser</th>
+                  <th style="text-align:left;padding:12px 8px;color:var(--text-muted);font-weight:500;">IP Address</th>
+                  <th style="text-align:left;padding:12px 8px;color:var(--text-muted);font-weight:500;">Status</th>
+                  <th style="text-align:right;padding:12px 8px;color:var(--text-muted);font-weight:500;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="login-activity-tbody">
+              </tbody>
+            </table>
+          </div>
+          
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle);">
+            <button class="btn btn-secondary btn-sm" onclick="loadLoginActivity()">🔄 Refresh</button>
+            <span style="font-size:0.82rem;color:var(--text-muted);margin-left:12px;">Showing last 30 days (up to 50 entries)</span>
+          </div>
+        </div>
+      </div>
+
       <div style="margin-top:24px;">
         <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
       </div>
@@ -2771,6 +3065,276 @@
         <p style="margin-top:16px;color:#333;font-weight:600;">My Car Concierge Check-In</p>
       </div>
       <p style="color:#fff;margin-top:24px;font-size:1.1rem;">Scan this code for instant check-in</p>
+    </div>
+
+    <!-- Fuel Tracker Section -->
+    <section id="fuel-tracker" class="section">
+      <div class="page-header">
+        <h1 class="page-title">⛽ Fuel Tracker</h1>
+        <p class="page-subtitle">Track your fuel expenses and monitor your vehicle's efficiency.</p>
+      </div>
+
+      <div class="stats-grid" id="fuel-stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon gold">⛽</div>
+          <div class="stat-value" id="fuel-avg-mpg">--</div>
+          <div class="stat-label">Avg MPG</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue">💵</div>
+          <div class="stat-value" id="fuel-monthly-cost">$0</div>
+          <div class="stat-label">This Month</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">📈</div>
+          <div class="stat-value" id="fuel-cost-per-mile">--</div>
+          <div class="stat-label">Cost/Mile</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange">🛢️</div>
+          <div class="stat-value" id="fuel-total-gallons">0</div>
+          <div class="stat-label">Total Gallons</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Recent Fill-Ups</h2>
+          <div style="display:flex;gap:12px;align-items:center;">
+            <select id="fuel-vehicle-filter" onchange="loadFuelLogs()" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);font-size:0.88rem;">
+              <option value="">All Vehicles</option>
+            </select>
+            <button class="btn btn-primary" onclick="openFuelLogModal()">+ Add Fill-Up</button>
+          </div>
+        </div>
+
+        <div id="fuel-logs-list">
+          <div class="empty-state" style="padding:40px;">
+            <div class="empty-state-icon">⛽</div>
+            <p>No fuel logs yet.</p>
+            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Start tracking your fuel expenses to see stats and trends.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:24px;">
+        <div class="card-header">
+          <h2 class="card-title">📊 MPG Trend</h2>
+        </div>
+        <div id="fuel-mpg-chart-container" style="height:250px;position:relative;">
+          <canvas id="fuel-mpg-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:24px;">
+        <div class="card-header">
+          <h2 class="card-title">💰 Spending by Month</h2>
+        </div>
+        <div id="fuel-spending-chart-container" style="height:250px;position:relative;">
+          <canvas id="fuel-spending-chart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Add/Edit Fuel Log Modal -->
+    <div class="modal-backdrop" id="fuel-log-modal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title" id="fuel-log-modal-title">Add Fill-Up</h3>
+          <button class="modal-close" onclick="closeFuelLogModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <form id="fuel-log-form" onsubmit="saveFuelLog(event)">
+            <input type="hidden" id="fuel-log-id">
+            
+            <div class="form-group">
+              <label class="form-label">Vehicle *</label>
+              <select id="fuel-log-vehicle" class="form-select" required>
+                <option value="">Select a vehicle</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Date *</label>
+                <input type="date" id="fuel-log-date" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Odometer (miles) *</label>
+                <input type="number" id="fuel-log-odometer" class="form-input" placeholder="e.g. 45000" required min="0">
+              </div>
+            </div>
+
+            <div class="form-row three">
+              <div class="form-group">
+                <label class="form-label">Gallons *</label>
+                <input type="number" id="fuel-log-gallons" class="form-input" placeholder="e.g. 12.5" required step="0.001" min="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Price/Gallon *</label>
+                <input type="number" id="fuel-log-price" class="form-input" placeholder="e.g. 3.45" required step="0.001" min="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Total Cost</label>
+                <input type="number" id="fuel-log-total" class="form-input" placeholder="Auto-calculated" step="0.01" min="0">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Fuel Type</label>
+              <select id="fuel-log-type" class="form-select">
+                <option value="regular">Regular</option>
+                <option value="mid-grade">Mid-Grade</option>
+                <option value="premium">Premium</option>
+                <option value="diesel">Diesel</option>
+                <option value="electric">Electric</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Station Name</label>
+              <input type="text" id="fuel-log-station" class="form-input" placeholder="e.g. Shell, Costco, BP">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              <textarea id="fuel-log-notes" class="form-textarea" rows="2" placeholder="Any additional notes..."></textarea>
+            </div>
+
+            <div class="form-group" style="display:flex;align-items:center;gap:12px;">
+              <input type="checkbox" id="fuel-log-full-tank" checked style="width:20px;height:20px;accent-color:var(--accent-gold);">
+              <label for="fuel-log-full-tank" style="cursor:pointer;">Filled to full tank (for accurate MPG calculation)</label>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeFuelLogModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" form="fuel-log-form">Save Fill-Up</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Insurance Documents Section -->
+    <section id="insurance" class="section">
+      <div class="page-header">
+        <h1 class="page-title">📋 Insurance Documents</h1>
+        <p class="page-subtitle">Store and manage your vehicle insurance cards and policy documents.</p>
+      </div>
+
+      <div class="stats-grid" id="insurance-stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue">📄</div>
+          <div class="stat-value" id="insurance-total-docs">0</div>
+          <div class="stat-label">Total Documents</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">✓</div>
+          <div class="stat-value" id="insurance-active-count">0</div>
+          <div class="stat-label">Active Policies</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange">⏳</div>
+          <div class="stat-value" id="insurance-expiring-count">0</div>
+          <div class="stat-label">Expiring Soon</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:rgba(239,95,95,0.15);">⚠️</div>
+          <div class="stat-value" id="insurance-expired-count" style="color:var(--accent-red);">0</div>
+          <div class="stat-label">Expired</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Your Insurance Documents</h2>
+          <div style="display:flex;gap:12px;align-items:center;">
+            <select id="insurance-vehicle-filter" onchange="loadInsuranceDocuments()" style="padding:8px 16px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);font-size:0.88rem;">
+              <option value="">All Vehicles</option>
+            </select>
+            <button class="btn btn-primary" onclick="openInsuranceDocumentModal()">+ Add Document</button>
+          </div>
+        </div>
+
+        <div id="insurance-documents-list">
+          <div class="empty-state" style="padding:40px;">
+            <div class="empty-state-icon">📋</div>
+            <p>No insurance documents yet.</p>
+            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Upload your insurance cards and policy documents to keep them handy.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Add Insurance Document Modal -->
+    <div class="modal-backdrop" id="insurance-document-modal">
+      <div class="modal" style="max-width:560px;">
+        <div class="modal-header">
+          <h3 class="modal-title">Add Insurance Document</h3>
+          <button class="modal-close" onclick="closeInsuranceDocumentModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <form id="insurance-document-form" onsubmit="saveInsuranceDocument(event)">
+            <div class="form-group">
+              <label class="form-label">Vehicle *</label>
+              <select id="insurance-doc-vehicle" class="form-select" required>
+                <option value="">Select a vehicle</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Document Type *</label>
+              <select id="insurance-doc-type" class="form-select" required>
+                <option value="insurance_card">Insurance Card</option>
+                <option value="policy_declaration">Policy Declaration</option>
+                <option value="proof_of_insurance">Proof of Insurance</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Insurance Provider *</label>
+              <input type="text" id="insurance-doc-provider" class="form-input" placeholder="e.g. State Farm, Geico, Progressive" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Policy Number</label>
+              <input type="text" id="insurance-doc-policy-number" class="form-input" placeholder="e.g. POL-123456789">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Coverage Start Date</label>
+                <input type="date" id="insurance-doc-start-date" class="form-input">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Coverage End Date</label>
+                <input type="date" id="insurance-doc-end-date" class="form-input">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Upload Document (PDF, JPG, PNG)</label>
+              <div id="insurance-file-dropzone" style="border:2px dashed var(--border-subtle);border-radius:var(--radius-md);padding:32px;text-align:center;cursor:pointer;transition:all 0.2s;background:var(--bg-input);" onclick="document.getElementById('insurance-file-input').click()">
+                <div style="font-size:2.5rem;margin-bottom:12px;">📤</div>
+                <p style="color:var(--text-secondary);margin:0;">Drag & drop a file here or click to browse</p>
+                <p style="font-size:0.78rem;color:var(--text-muted);margin-top:8px;">Supported formats: PDF, JPG, PNG (Max 10MB)</p>
+                <input type="file" id="insurance-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="handleInsuranceFileSelect(event)">
+              </div>
+              <div id="insurance-file-preview" style="display:none;margin-top:12px;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);display:flex;align-items:center;gap:12px;">
+                <span style="font-size:1.5rem;">📄</span>
+                <div style="flex:1;">
+                  <p id="insurance-file-name" style="margin:0;font-weight:500;"></p>
+                  <p id="insurance-file-size" style="margin:2px 0 0;font-size:0.78rem;color:var(--text-muted);"></p>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="clearInsuranceFile()">Remove</button>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeInsuranceDocumentModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" form="insurance-document-form" id="insurance-submit-btn">Save Document</button>
+        </div>
+      </div>
     </div>
 
     <!-- Emergency Roadside Section -->
@@ -4400,6 +4964,44 @@
       </div>
       <div class="modal-body" id="view-package-body">
         <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Vehicle Recalls Modal -->
+  <div class="modal-backdrop" id="recalls-modal">
+    <div class="modal wide">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <span style="color: var(--accent-red);">⚠️</span> Safety Recalls
+        </h3>
+        <button class="modal-close" onclick="closeModal('recalls-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="recalls-vehicle-info" style="margin-bottom: 20px; padding: 16px; background: var(--bg-input); border-radius: var(--radius-md);">
+          <div id="recalls-vehicle-name" style="font-weight: 600; font-size: 1.1rem;"></div>
+          <div id="recalls-vehicle-details" style="color: var(--text-muted); font-size: 0.88rem;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <div>
+            <span id="recalls-active-count" style="font-weight: 600; color: var(--accent-red);"></span>
+            <span style="color: var(--text-muted);"> active recalls</span>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="refreshVehicleRecalls()" id="refresh-recalls-btn">
+            🔄 Check for Updates
+          </button>
+        </div>
+        <div id="recalls-list" style="max-height: 400px; overflow-y: auto;">
+          <!-- Populated by JS -->
+        </div>
+        <div id="recalls-empty" style="display: none; text-align: center; padding: 40px 20px; color: var(--text-muted);">
+          <div style="font-size: 48px; margin-bottom: 12px;">✅</div>
+          <div style="font-weight: 500; margin-bottom: 4px;">No recalls found!</div>
+          <div style="font-size: 0.88rem;">Your vehicle has no active safety recalls.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('recalls-modal')">Close</button>
       </div>
     </div>
   </div>
