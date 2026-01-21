@@ -33,6 +33,12 @@ Key features include:
 - **Provider Push Notifications**: Providers can receive push notifications for new bid opportunities, appointment reminders, payment received, and customer messages. Database table: `provider_notification_preferences`. Migration file: `provider_notification_preferences_migration.sql`.
 - **Branded Email Templates**: Professional HTML email templates with dark theme matching the app. Includes Dream Car match notifications, maintenance reminders, bid alerts with improved styling.
 
+## Performance Optimizations
+- **Gzip Compression**: All text-based responses (HTML, CSS, JS, JSON) are compressed, reducing transfer size by 60-80%
+- **Product Caching**: Shop products are cached for 5 minutes to reduce Printful API calls
+- **Lazy Loading**: Shop product images use lazy loading with skeleton placeholders
+- **Scheduled Tasks**: Maintenance reminder checks run automatically every 24 hours (configurable via ENABLE_MAINTENANCE_SCHEDULER env var)
+
 ## External Dependencies
 - **Supabase**: Backend services including PostgreSQL database, authentication, and storage.
 - **Stripe**: Payment processing for member services, provider bid credit purchases, and platform fee collection.

@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 const Stripe = require('stripe');
@@ -383,6 +384,37 @@ async function syncSquareTransactions(providerId, locationId, accessToken, envir
 
 const PRINTFUL_API_URL = 'https://api.printful.com';
 
+// Product cache for Printful products (5 minute TTL)
+const productCache = {
+  data: null,
+  timestamp: null,
+  ttl: 300000 // 5 minutes in milliseconds
+};
+
+function isCacheValid() {
+  if (!productCache.data || !productCache.timestamp) {
+    return false;
+  }
+  return (Date.now() - productCache.timestamp) < productCache.ttl;
+}
+
+function getCachedProducts() {
+  if (isCacheValid()) {
+    return productCache.data;
+  }
+  return null;
+}
+
+function setCachedProducts(products) {
+  productCache.data = products;
+  productCache.timestamp = Date.now();
+}
+
+function clearProductCache() {
+  productCache.data = null;
+  productCache.timestamp = null;
+}
+
 async function fetchPrintfulProducts() {
   const apiKey = process.env.PRINTFUL_API_KEY;
   
@@ -586,14 +618,35 @@ async function handleShopProducts(req, res, requestId) {
   setCorsHeaders(res);
   
   try {
+    // Check cache first
+    const cachedProducts = getCachedProducts();
+    if (cachedProducts) {
+      console.log(`[${requestId}] Returning cached products (${cachedProducts.length} items)`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        products: cachedProducts,
+        source: 'printful',
+        cached: true
+      }));
+      return;
+    }
+    
+    // Fetch fresh from Printful
     const printfulResult = await fetchPrintfulProducts();
     
     if (printfulResult.success && printfulResult.products.length > 0) {
+      // Clear old cache and set new data
+      clearProductCache();
+      setCachedProducts(printfulResult.products);
+      console.log(`[${requestId}] Cached ${printfulResult.products.length} products for 5 minutes`);
+      
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         success: true,
         products: printfulResult.products,
-        source: 'printful'
+        source: 'printful',
+        cached: false
       }));
     } else {
       const placeholderProducts = [
@@ -2622,6 +2675,73 @@ const mimeTypes = {
   '.ttf': 'font/ttf',
   '.eot': 'application/vnd.ms-fontobject'
 };
+
+const COMPRESSIBLE_TYPES = [
+  'text/html',
+  'text/css',
+  'application/javascript',
+  'application/json',
+  'image/svg+xml',
+  'text/plain',
+  'text/xml',
+  'application/xml'
+];
+
+function shouldCompress(contentType) {
+  return COMPRESSIBLE_TYPES.some(type => contentType.startsWith(type));
+}
+
+function clientAcceptsGzip(req) {
+  const acceptEncoding = req.headers['accept-encoding'] || '';
+  return acceptEncoding.includes('gzip');
+}
+
+function compressResponse(req, res, content, contentType, additionalHeaders = {}) {
+  const headers = { 'Content-Type': contentType, ...additionalHeaders };
+  
+  if (shouldCompress(contentType) && clientAcceptsGzip(req)) {
+    zlib.gzip(content, (err, compressed) => {
+      if (err) {
+        console.error('Gzip compression error:', err);
+        res.writeHead(200, headers);
+        res.end(content, 'utf-8');
+        return;
+      }
+      headers['Content-Encoding'] = 'gzip';
+      headers['Vary'] = 'Accept-Encoding';
+      res.writeHead(200, headers);
+      res.end(compressed);
+    });
+  } else {
+    res.writeHead(200, headers);
+    res.end(content, typeof content === 'string' ? 'utf-8' : undefined);
+  }
+}
+
+function sendCompressedJson(req, res, data, statusCode = 200) {
+  const jsonContent = JSON.stringify(data);
+  const contentType = 'application/json';
+  
+  if (clientAcceptsGzip(req)) {
+    zlib.gzip(jsonContent, (err, compressed) => {
+      if (err) {
+        console.error('Gzip compression error:', err);
+        res.writeHead(statusCode, { 'Content-Type': contentType });
+        res.end(jsonContent);
+        return;
+      }
+      res.writeHead(statusCode, {
+        'Content-Type': contentType,
+        'Content-Encoding': 'gzip',
+        'Vary': 'Accept-Encoding'
+      });
+      res.end(compressed);
+    });
+  } else {
+    res.writeHead(statusCode, { 'Content-Type': contentType });
+    res.end(jsonContent);
+  }
+}
 
 const SYSTEM_PROMPT = `You are the AI Assistant for My Car Concierge, a premium automotive service marketplace that connects vehicle owners with vetted service providers.
 
@@ -10573,6 +10693,98 @@ async function handleCheckMaintenanceReminders(req, res, requestId) {
   }
 }
 
+function startMaintenanceReminderScheduler() {
+  const enabled = process.env.ENABLE_MAINTENANCE_SCHEDULER !== 'false';
+  
+  if (!enabled) {
+    console.log('[Scheduler] Maintenance reminder scheduler is DISABLED (ENABLE_MAINTENANCE_SCHEDULER=false)');
+    return;
+  }
+  
+  console.log('[Scheduler] Maintenance reminder scheduler is ENABLED');
+  
+  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+  const INITIAL_DELAY = 30 * 1000;
+  
+  setTimeout(async () => {
+    console.log('[Scheduler] Running initial maintenance reminder check...');
+    try {
+      const result = await checkAndSendMaintenanceReminders();
+      console.log(`[Scheduler] Initial check complete: ${result.sent} reminders sent, ${result.errors} errors`);
+    } catch (error) {
+      console.error('[Scheduler] Initial maintenance reminder check failed:', error.message);
+    }
+  }, INITIAL_DELAY);
+  
+  setInterval(async () => {
+    console.log('[Scheduler] Running scheduled daily maintenance reminder check...');
+    try {
+      const result = await checkAndSendMaintenanceReminders();
+      console.log(`[Scheduler] Daily check complete: ${result.sent} reminders sent, ${result.errors} errors`);
+    } catch (error) {
+      console.error('[Scheduler] Daily maintenance reminder check failed:', error.message);
+    }
+  }, TWENTY_FOUR_HOURS);
+  
+  console.log('[Scheduler] Scheduled: initial check in 30s, then every 24 hours');
+}
+
+async function handleAdminTriggerMaintenanceReminders(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+      return;
+    }
+    
+    console.log(`[${requestId}] Admin triggered maintenance reminder check`);
+    const result = await checkAndSendMaintenanceReminders();
+    
+    console.log(`[${requestId}] Admin trigger complete: ${result.sent} sent, ${result.errors} errors`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      sent: result.sent,
+      errors: result.errors,
+      tableNotFound: result.tableNotFound || false
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Admin trigger maintenance reminders error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Failed to trigger maintenance reminders' }));
+  }
+}
+
 async function handleGetNotificationPreferences(req, res, requestId, memberId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -13080,6 +13292,11 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  if (req.method === 'POST' && req.url === '/api/admin/trigger-maintenance-reminders') {
+    handleAdminTriggerMaintenanceReminders(req, res, requestId);
+    return;
+  }
+  
   // Dream Car Finder AI Search API Routes
   if (req.method === 'POST' && req.url === '/api/dream-car/searches') {
     handleDreamCarCreateSearch(req, res, requestId);
@@ -13214,11 +13431,9 @@ const server = http.createServer((req, res) => {
             res.writeHead(404);
             res.end('Page not found');
           } else {
-            res.writeHead(200, { 
-              'Content-Type': 'text/html',
+            compressResponse(req, res, content, 'text/html', {
               'Cache-Control': 'no-cache, no-store, must-revalidate'
             });
-            res.end(content, 'utf-8');
           }
         });
       } else {
@@ -13227,17 +13442,16 @@ const server = http.createServer((req, res) => {
         res.end('Server error');
       }
     } else {
-      const headers = { 'Content-Type': contentType };
+      const additionalHeaders = {};
       
       if (contentType === 'text/html') {
-        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        additionalHeaders['Cache-Control'] = 'no-cache, no-store, must-revalidate';
       } else if (filePath.includes('sw.js')) {
-        headers['Cache-Control'] = 'no-cache';
-        headers['Service-Worker-Allowed'] = '/';
+        additionalHeaders['Cache-Control'] = 'no-cache';
+        additionalHeaders['Service-Worker-Allowed'] = '/';
       }
       
-      res.writeHead(200, headers);
-      res.end(content, 'utf-8');
+      compressResponse(req, res, content, contentType, additionalHeaders);
     }
   });
 });
@@ -13246,4 +13460,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running at http://0.0.0.0:${PORT}/`);
   console.log('PWA-enabled My Car Concierge is ready!');
   console.log('AI Assistant connected and ready to help!');
+  
+  startMaintenanceReminderScheduler();
 });

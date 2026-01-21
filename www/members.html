@@ -484,6 +484,14 @@
     .shop-filter-btn:hover { border-color: var(--accent-gold); color: var(--text-primary); }
     .shop-filter-btn.active { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; border-color: var(--accent-gold); }
     .product-card:hover { border-color: var(--accent-gold); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+    
+    /* Product Image Lazy Loading */
+    .product-image-container { background: linear-gradient(135deg, rgba(74,124,255,0.1), rgba(212,168,85,0.1)); }
+    .product-skeleton { animation: skeletonPulse 1.5s ease-in-out infinite; }
+    .skeleton-shimmer { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent); animation: shimmer 2s infinite; }
+    @keyframes skeletonPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+    .product-image-lazy { position: absolute; inset: 0; }
 
     /* Emergency Button */
     @keyframes emergencyPulse { 0%, 100% { box-shadow: 0 4px 20px rgba(239, 95, 95, 0.4); } 50% { box-shadow: 0 4px 30px rgba(239, 95, 95, 0.7), 0 0 0 10px rgba(239, 95, 95, 0.1); } }
