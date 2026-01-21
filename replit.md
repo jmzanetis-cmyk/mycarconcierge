@@ -8,7 +8,11 @@ My Car Concierge (MCC) is an automotive service marketplace connecting vehicle o
 - Premium, luxury aesthetic
 
 ## System Architecture
-The application is built with a modern web stack, leveraging vanilla HTML, CSS, and JavaScript for the frontend. Supabase serves as the backend, providing PostgreSQL for the database, authentication, and storage. The system is designed for multi-platform availability, utilizing PWA features for web access, Capacitor for iOS and Android mobile applications, and Electron for Windows, Mac, and Linux desktop applications.
+The application is built with a modern web stack, leveraging vanilla HTML, CSS, and JavaScript for the frontend. JavaScript has been extracted into separate cached files for improved performance:
+- `members.js` (~14,000 lines) - Member dashboard logic
+- `providers.js` (~11,000 lines) - Provider dashboard logic
+
+Supabase serves as the backend, providing PostgreSQL for the database, authentication, and storage. The system is designed for multi-platform availability, utilizing PWA features for web access, Capacitor for iOS and Android mobile applications, and Electron for Windows, Mac, and Linux desktop applications.
 
 Key features include:
 - **PWA Capabilities**: Install to Home Screen, offline support, app-like experience, and auto-updates through a service worker.
