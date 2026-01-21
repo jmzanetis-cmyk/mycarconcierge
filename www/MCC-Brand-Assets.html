@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Car Concierge - Brand Assets</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #ffffff;
+      color: #1a1a2e;
+      line-height: 1.6;
+    }
+    
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 20mm;
+      margin: 0 auto;
+      background: #ffffff;
+      page-break-after: always;
+    }
+    
+    .page:last-child {
+      page-break-after: avoid;
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 3px solid #b8962e;
+    }
+    
+    .logo {
+      width: 80px;
+      height: 80px;
+    }
+    
+    .header-text h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 32px;
+      color: #0a1628;
+      margin-bottom: 5px;
+    }
+    
+    .header-text p {
+      font-size: 14px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    
+    .section {
+      margin-bottom: 35px;
+    }
+    
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      color: #b8962e;
+      margin-bottom: 15px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+    
+    .color-swatch {
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .swatch-color {
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Inter', monospace;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    .swatch-info {
+      padding: 12px;
+      background: #f8f8f8;
+    }
+    
+    .swatch-name {
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 3px;
+    }
+    
+    .swatch-usage {
+      font-size: 11px;
+      color: #666;
+    }
+    
+    .font-example {
+      background: #f8f8f8;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+    
+    .font-name {
+      font-size: 12px;
+      color: #b8962e;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+    
+    .font-playfair {
+      font-family: 'Playfair Display', serif;
+    }
+    
+    .font-inter {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    .font-sample-large {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    
+    .font-sample-medium {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+    
+    .font-sample-small {
+      font-size: 14px;
+      color: #444;
+    }
+    
+    .font-weights {
+      display: flex;
+      gap: 20px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .logo-section {
+      display: flex;
+      gap: 30px;
+      align-items: flex-start;
+    }
+    
+    .logo-display {
+      flex: 1;
+      display: flex;
+      gap: 20px;
+    }
+    
+    .logo-box {
+      flex: 1;
+      padding: 30px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .logo-box.dark {
+      background: #0a1628;
+    }
+    
+    .logo-box.light {
+      background: #f0f0f0;
+      border: 1px solid #ddd;
+    }
+    
+    .logo-box img {
+      width: 100px;
+      height: 100px;
+    }
+    
+    .logo-rules {
+      flex: 1;
+    }
+    
+    .logo-rules ul {
+      list-style: none;
+      font-size: 13px;
+    }
+    
+    .logo-rules li {
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .logo-rules li:before {
+      content: "✓";
+      color: #22c55e;
+      margin-right: 10px;
+    }
+    
+    .logo-rules li.dont:before {
+      content: "✗";
+      color: #ef4444;
+    }
+    
+    .tagline-box {
+      background: linear-gradient(135deg, #0a1628 0%, #1a1a2e 100%);
+      padding: 25px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+    
+    .tagline-primary {
+      font-family: 'Playfair Display', serif;
+      font-size: 24px;
+      color: #b8962e;
+      margin-bottom: 10px;
+    }
+    
+    .tagline-secondary {
+      font-size: 14px;
+      color: #ffffff;
+    }
+    
+    .voice-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+    }
+    
+    .voice-box {
+      background: #f8f8f8;
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid #b8962e;
+    }
+    
+    .voice-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #0a1628;
+    }
+    
+    .voice-desc {
+      font-size: 13px;
+      color: #555;
+    }
+    
+    .spacing-example {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+      background: #f8f8f8;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    
+    .spacing-logo {
+      position: relative;
+      padding: 20px;
+      border: 2px dashed #b8962e;
+    }
+    
+    .spacing-logo img {
+      width: 60px;
+      height: 60px;
+    }
+    
+    .spacing-label {
+      position: absolute;
+      font-size: 10px;
+      color: #b8962e;
+    }
+    
+    .spacing-label.top { top: 2px; left: 50%; transform: translateX(-50%); }
+    .spacing-label.bottom { bottom: 2px; left: 50%; transform: translateX(-50%); }
+    .spacing-label.left { left: 2px; top: 50%; transform: translateY(-50%); }
+    .spacing-label.right { right: 2px; top: 50%; transform: translateY(-50%); }
+    
+    .spacing-text {
+      font-size: 13px;
+      color: #555;
+    }
+    
+    .business-card-preview {
+      display: flex;
+      gap: 20px;
+      margin-top: 15px;
+    }
+    
+    .card-mockup {
+      width: 320px;
+      height: 180px;
+      border-radius: 8px;
+      padding: 25px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+    
+    .card-front {
+      background: linear-gradient(135deg, #0a1628 0%, #1a1a2e 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    
+    .card-front .card-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .card-front .card-logo img {
+      width: 45px;
+      height: 45px;
+    }
+    
+    .card-front .card-logo-text {
+      font-family: 'Playfair Display', serif;
+      font-size: 16px;
+      color: #b8962e;
+    }
+    
+    .card-front .card-tagline {
+      font-size: 11px;
+      color: #888;
+      text-align: right;
+    }
+    
+    .card-back {
+      background: #ffffff;
+      border: 1px solid #e0e0e0;
+    }
+    
+    .card-back .card-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      color: #0a1628;
+      margin-bottom: 3px;
+    }
+    
+    .card-back .card-title {
+      font-size: 11px;
+      color: #b8962e;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+    }
+    
+    .card-back .card-contact {
+      font-size: 11px;
+      color: #555;
+      line-height: 1.8;
+    }
+    
+    .footer-note {
+      margin-top: 30px;
+      padding: 15px;
+      background: #f8f8f8;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #666;
+      text-align: center;
+    }
+    
+    @media print {
+      body { background: #fff; }
+      .page { 
+        margin: 0; 
+        padding: 15mm;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PAGE 1: Colors & Typography -->
+  <div class="page">
+    <div class="header">
+      <img src="logo.png" class="logo" alt="MCC Logo">
+      <div class="header-text">
+        <h1>My Car Concierge</h1>
+        <p>Brand Assets & Style Guide</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Primary Colors</div>
+      <div class="color-grid">
+        <div class="color-swatch">
+          <div class="swatch-color" style="background: #b8962e; color: #fff;">#b8962e</div>
+          <div class="swatch-info">
+            <div class="swatch-name">Gold / Bronze</div>
+            <div class="swatch-usage">Primary accent, CTAs, highlights</div>
+          </div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-color" style="background: #0a1628; color: #fff;">#0a1628</div>
+          <div class="swatch-info">
+            <div class="swatch-name">Deep Navy</div>
+            <div class="swatch-usage">Primary background</div>
+          </div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-color" style="background: #1a1a2e; color: #fff;">#1a1a2e</div>
+          <div class="swatch-info">
+            <div class="swatch-name">Charcoal</div>
+            <div class="swatch-usage">Card backgrounds, secondary</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Accent Colors</div>
+      <div class="color-grid">
+        <div class="color-swatch">
+          <div class="swatch-color" style="background: #d4af37; color: #fff;">#d4af37</div>
+          <div class="swatch-info">
+            <div class="swatch-name">Light Gold</div>
+            <div class="swatch-usage">Digital displays, hover states</div>
+          </div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-color" style="background: #3b82f6; color: #fff;">#3b82f6</div>
+          <div class="swatch-info">
+            <div class="swatch-name">Blue</div>
+            <div class="swatch-usage">Member features, links</div>
+          </div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-color" style="background: #22c55e; color: #fff;">#22c55e</div>
+          <div class="swatch-info">
+            <div class="swatch-name">Green</div>
+            <div class="swatch-usage">Success states, confirmations</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Typography</div>
+      <div class="font-example">
+        <div class="font-name">Primary Typeface — Headlines</div>
+        <div class="font-playfair font-sample-large">Playfair Display</div>
+        <div class="font-playfair font-sample-medium">Premium Automotive Service Marketplace</div>
+        <div class="font-playfair font-sample-small">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</div>
+        <div class="font-weights">
+          <span>Regular 400</span>
+          <span>SemiBold 600</span>
+          <span>Bold 700</span>
+        </div>
+      </div>
+      <div class="font-example">
+        <div class="font-name">Secondary Typeface — Body & UI</div>
+        <div class="font-inter font-sample-large">Inter</div>
+        <div class="font-inter font-sample-medium">Clean, modern, highly readable sans-serif</div>
+        <div class="font-inter font-sample-small">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</div>
+        <div class="font-weights">
+          <span>Light 300</span>
+          <span>Regular 400</span>
+          <span>Medium 500</span>
+          <span>SemiBold 600</span>
+          <span>Bold 700</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE 2: Logo & Brand Voice -->
+  <div class="page">
+    <div class="header">
+      <img src="logo.png" class="logo" alt="MCC Logo">
+      <div class="header-text">
+        <h1>My Car Concierge</h1>
+        <p>Brand Assets & Style Guide</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Logo Usage</div>
+      <div class="logo-section">
+        <div class="logo-display">
+          <div class="logo-box dark">
+            <img src="logo.png" alt="Logo on dark">
+          </div>
+          <div class="logo-box light">
+            <img src="logo.png" alt="Logo on light">
+          </div>
+        </div>
+        <div class="logo-rules">
+          <ul>
+            <li>Use on dark or light backgrounds</li>
+            <li>Maintain clear space around logo</li>
+            <li>Minimum size: 40px height</li>
+            <li class="dont">Do not stretch or distort</li>
+            <li class="dont">Do not change colors</li>
+            <li class="dont">Do not add effects or shadows</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Clear Space</div>
+      <div class="spacing-example">
+        <div class="spacing-logo">
+          <span class="spacing-label top">X</span>
+          <span class="spacing-label bottom">X</span>
+          <span class="spacing-label left">X</span>
+          <span class="spacing-label right">X</span>
+          <img src="logo.png" alt="Logo spacing">
+        </div>
+        <div class="spacing-text">
+          <strong>Minimum clear space = X</strong><br>
+          Where X equals the height of the "M" in MCC.<br>
+          Always maintain this clear space on all sides.
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Taglines</div>
+      <div class="tagline-box">
+        <div class="tagline-primary">"Your Car, Our Priority"</div>
+        <div class="tagline-secondary">Primary tagline for marketing materials</div>
+      </div>
+      <div class="tagline-box">
+        <div class="tagline-primary">"Premium Automotive Service Marketplace"</div>
+        <div class="tagline-secondary">Descriptive tagline for formal communications</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Brand Voice</div>
+      <div class="voice-grid">
+        <div class="voice-box">
+          <div class="voice-title">Luxury & Premium</div>
+          <div class="voice-desc">Convey exclusivity and high-end service. We're not just automotive—we're concierge-level care.</div>
+        </div>
+        <div class="voice-box">
+          <div class="voice-title">Professional</div>
+          <div class="voice-desc">Trustworthy, reliable, and competent. Every interaction reflects expertise.</div>
+        </div>
+        <div class="voice-box">
+          <div class="voice-title">Approachable</div>
+          <div class="voice-desc">While premium, we're never pretentious. Warm and welcoming to all vehicle owners.</div>
+        </div>
+        <div class="voice-box">
+          <div class="voice-title">Innovative</div>
+          <div class="voice-desc">Technology-forward thinking. We're modernizing automotive service coordination.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE 3: Business Card Example -->
+  <div class="page">
+    <div class="header">
+      <img src="logo.png" class="logo" alt="MCC Logo">
+      <div class="header-text">
+        <h1>My Car Concierge</h1>
+        <p>Brand Assets & Style Guide</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Business Card Template</div>
+      <p style="font-size: 13px; color: #666; margin-bottom: 20px;">Standard size: 3.5" x 2" (89mm x 51mm)</p>
+      <div class="business-card-preview">
+        <div class="card-mockup card-front">
+          <div class="card-logo">
+            <img src="logo.png" alt="Logo">
+            <div class="card-logo-text">My Car Concierge</div>
+          </div>
+          <div class="card-tagline">Your Car, Our Priority</div>
+        </div>
+        <div class="card-mockup card-back">
+          <div class="card-name">John Smith</div>
+          <div class="card-title">Founding Provider</div>
+          <div class="card-contact">
+            <div>john@example.com</div>
+            <div>(555) 123-4567</div>
+            <div>www.mycarconcierge.com</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Design Specifications</div>
+      <div class="voice-grid">
+        <div class="voice-box">
+          <div class="voice-title">Front Side</div>
+          <div class="voice-desc">
+            • Background: Deep Navy gradient (#0a1628 → #1a1a2e)<br>
+            • Logo: Left-aligned with company name<br>
+            • Tagline: Right-aligned, bottom<br>
+            • Text color: Gold (#b8962e)
+          </div>
+        </div>
+        <div class="voice-box">
+          <div class="voice-title">Back Side</div>
+          <div class="voice-desc">
+            • Background: Clean white<br>
+            • Name: Playfair Display, 18pt<br>
+            • Title: Inter, 11pt, Gold, uppercase<br>
+            • Contact: Inter, 11pt, Charcoal
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Quick Reference</div>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <tr style="background: #f8f8f8;">
+          <td style="padding: 10px; border: 1px solid #ddd;"><strong>Primary Gold</strong></td>
+          <td style="padding: 10px; border: 1px solid #ddd;">#b8962e</td>
+          <td style="padding: 10px; border: 1px solid #ddd;">RGB: 184, 150, 46</td>
+          <td style="padding: 10px; border: 1px solid #ddd;">CMYK: 0, 18, 75, 28</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border: 1px solid #ddd;"><strong>Deep Navy</strong></td>
+          <td style="padding: 10px; border: 1px solid #ddd;">#0a1628</td>
+          <td style="padding: 10px; border: 1px solid #ddd;">RGB: 10, 22, 40</td>
+          <td style="padding: 10px; border: 1px solid #ddd;">CMYK: 75, 45, 0, 84</td>
+        </tr>
+        <tr style="background: #f8f8f8;">
+          <td style="padding: 10px; border: 1px solid #ddd;"><strong>Headline Font</strong></td>
+          <td style="padding: 10px; border: 1px solid #ddd;" colspan="3">Playfair Display (Google Fonts)</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border: 1px solid #ddd;"><strong>Body Font</strong></td>
+          <td style="padding: 10px; border: 1px solid #ddd;" colspan="3">Inter (Google Fonts)</td>
+        </tr>
+        <tr style="background: #f8f8f8;">
+          <td style="padding: 10px; border: 1px solid #ddd;"><strong>Website</strong></td>
+          <td style="padding: 10px; border: 1px solid #ddd;" colspan="3">www.mycarconcierge.com</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="footer-note">
+      <strong>My Car Concierge</strong> — Premium Automotive Service Marketplace<br>
+      For brand questions, contact the marketing team.
+    </div>
+  </div>
+
+</body>
+</html>
