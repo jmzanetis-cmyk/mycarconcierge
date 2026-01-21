@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Car Concierge - Provider Platform Overview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 0;
+    }
+
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .print-controls {
+        display: none !important;
+      }
+      .slide {
+        page-break-after: always;
+        page-break-inside: avoid;
+      }
+      .slide:last-child {
+        page-break-after: auto;
+      }
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #1a1a24;
+      color: #e8e8e8;
+    }
+
+    .print-controls {
+      background: #2a2a3a;
+      padding: 20px;
+      text-align: center;
+      border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .print-controls h2 {
+      color: #d4af37;
+      margin-bottom: 10px;
+      font-family: 'Playfair Display', serif;
+    }
+
+    .print-controls p {
+      color: #888;
+      margin-bottom: 15px;
+    }
+
+    .print-btn {
+      background: linear-gradient(135deg, #d4af37 0%, #b8962e 100%);
+      color: #0a0a0f;
+      border: none;
+      padding: 12px 30px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      margin: 0 10px;
+    }
+
+    .slide {
+      width: 210mm;
+      height: 297mm;
+      margin: 0 auto 20px;
+      background: linear-gradient(180deg, #0a0a0f 0%, #0d0d14 50%, #0a0a0f 100%);
+      padding: 12mm;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide-header {
+      text-align: center;
+      margin-bottom: 8mm;
+      padding-bottom: 5mm;
+      border-bottom: 2px solid rgba(212, 175, 55, 0.3);
+    }
+
+    .logo {
+      width: 35mm;
+      margin-bottom: 3mm;
+    }
+
+    .slide-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 24pt;
+      color: #d4af37;
+      margin-bottom: 2mm;
+    }
+
+    .slide-subtitle {
+      font-size: 11pt;
+      color: #a0a0a0;
+    }
+
+    .slide-number {
+      position: absolute;
+      bottom: 8mm;
+      right: 12mm;
+      font-size: 9pt;
+      color: #666;
+    }
+
+    .footer-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 8mm;
+      background: linear-gradient(90deg, #d4af37 0%, #b8962e 100%);
+    }
+
+    .content-box {
+      background: linear-gradient(135deg, rgba(26, 26, 36, 0.7) 0%, rgba(20, 20, 28, 0.9) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4mm;
+      padding: 5mm;
+      margin-bottom: 4mm;
+    }
+
+    .content-box.highlight {
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%);
+      border-color: rgba(212, 175, 55, 0.3);
+    }
+
+    .box-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 14pt;
+      color: #d4af37;
+      margin-bottom: 3mm;
+    }
+
+    .box-text {
+      font-size: 10pt;
+      color: #c0c0c0;
+      line-height: 1.5;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+    }
+
+    .feature-item {
+      background: linear-gradient(135deg, rgba(26, 26, 36, 0.6) 0%, rgba(20, 20, 28, 0.8) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 3mm;
+      padding: 4mm;
+    }
+
+    .feature-icon {
+      font-size: 20pt;
+      margin-bottom: 2mm;
+    }
+
+    .feature-title {
+      font-weight: 600;
+      font-size: 11pt;
+      color: #fff;
+      margin-bottom: 2mm;
+    }
+
+    .feature-desc {
+      font-size: 9pt;
+      color: #a0a0a0;
+      line-height: 1.4;
+    }
+
+    .bullet-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .bullet-list li {
+      font-size: 10pt;
+      color: #c0c0c0;
+      margin: 2mm 0;
+      padding-left: 5mm;
+      position: relative;
+      line-height: 1.4;
+    }
+
+    .bullet-list li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #4ac88c;
+      font-weight: bold;
+    }
+
+    .step-list {
+      counter-reset: step;
+      list-style: none;
+      padding: 0;
+    }
+
+    .step-list li {
+      font-size: 10pt;
+      color: #c0c0c0;
+      margin: 3mm 0;
+      padding-left: 10mm;
+      position: relative;
+      line-height: 1.4;
+    }
+
+    .step-list li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      width: 7mm;
+      height: 7mm;
+      background: linear-gradient(135deg, #d4af37 0%, #b8962e 100%);
+      color: #0a0a0f;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 9pt;
+    }
+
+    .pricing-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8pt;
+    }
+
+    .pricing-table th {
+      background: rgba(212, 175, 55, 0.15);
+      padding: 2mm;
+      text-align: left;
+      color: #d4af37;
+      font-size: 8pt;
+      text-transform: uppercase;
+    }
+
+    .pricing-table td {
+      padding: 1.5mm 2mm;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: #c0c0c0;
+    }
+
+    .tag {
+      display: inline-block;
+      background: linear-gradient(135deg, #d4af37 0%, #b8962e 100%);
+      color: #0a0a0f;
+      font-size: 6pt;
+      padding: 0.5mm 1.5mm;
+      border-radius: 1mm;
+      font-weight: 700;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4mm;
+      margin: 4mm 0;
+    }
+
+    .stat-box {
+      text-align: center;
+      background: linear-gradient(135deg, rgba(26, 26, 36, 0.6) 0%, rgba(20, 20, 28, 0.8) 100%);
+      border: 1px solid rgba(212, 175, 55, 0.2);
+      border-radius: 3mm;
+      padding: 4mm;
+    }
+
+    .stat-value {
+      font-family: 'Playfair Display', serif;
+      font-size: 22pt;
+      color: #d4af37;
+      font-weight: 700;
+    }
+
+    .stat-label {
+      font-size: 8pt;
+      color: #888;
+      margin-top: 1mm;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+    }
+
+    .hero-text {
+      font-family: 'Playfair Display', serif;
+      font-size: 32pt;
+      color: #fff;
+      text-align: center;
+      margin: 20mm 0 10mm;
+      line-height: 1.3;
+    }
+
+    .hero-sub {
+      font-size: 14pt;
+      color: #a0a0a0;
+      text-align: center;
+      margin-bottom: 15mm;
+    }
+
+    .cta-box {
+      background: linear-gradient(135deg, #d4af37 0%, #b8962e 100%);
+      color: #0a0a0f;
+      text-align: center;
+      padding: 8mm;
+      border-radius: 4mm;
+      margin-top: 5mm;
+    }
+
+    .cta-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 18pt;
+      font-weight: 700;
+      margin-bottom: 2mm;
+    }
+
+    .cta-text {
+      font-size: 11pt;
+    }
+
+    .platform-badges {
+      display: flex;
+      justify-content: center;
+      gap: 5mm;
+      margin: 5mm 0;
+    }
+
+    .badge {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 2mm;
+      padding: 2mm 4mm;
+      font-size: 9pt;
+      color: #c0c0c0;
+    }
+
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 16pt;
+      color: #d4af37;
+      margin: 4mm 0 3mm;
+      padding-bottom: 2mm;
+      border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+    }
+
+    .icon-row {
+      display: flex;
+      justify-content: space-around;
+      margin: 5mm 0;
+    }
+
+    .icon-item {
+      text-align: center;
+      width: 25mm;
+    }
+
+    .icon-item .icon {
+      font-size: 24pt;
+      margin-bottom: 2mm;
+    }
+
+    .icon-item .label {
+      font-size: 8pt;
+      color: #a0a0a0;
+    }
+
+    .warning-box {
+      background: linear-gradient(135deg, rgba(74, 200, 140, 0.1) 0%, rgba(74, 200, 140, 0.05) 100%);
+      border: 1px solid rgba(74, 200, 140, 0.3);
+      border-radius: 3mm;
+      padding: 4mm;
+      margin: 3mm 0;
+    }
+
+    .warning-box .title {
+      color: #4ac88c;
+      font-weight: 600;
+      font-size: 11pt;
+      margin-bottom: 2mm;
+    }
+
+    .warning-box .text {
+      font-size: 9pt;
+      color: #a0a0a0;
+    }
+  </style>
+</head>
+<body>
+  <div class="print-controls">
+    <h2>MCC Provider Platform Presentation</h2>
+    <p>Portrait A4 Format - 15 Slides</p>
+    <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+
+  <!-- SLIDE 1: TITLE -->
+  <div class="slide">
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+      <img src="logo.png" style="width: 60mm; margin-bottom: 10mm;" alt="My Car Concierge">
+      <div class="hero-text">Provider Platform<br>Overview</div>
+      <div class="hero-sub">Your Gateway to New Customers & Revenue</div>
+      <div class="platform-badges">
+        <div class="badge">iOS</div>
+        <div class="badge">Android</div>
+        <div class="badge">Web</div>
+        <div class="badge">Desktop</div>
+      </div>
+      <div style="margin-top: 15mm; text-align: center;">
+        <div style="font-size: 12pt; color: #d4af37; font-weight: 600;">www.mycarconcierge.com</div>
+        <div style="font-size: 10pt; color: #888; margin-top: 2mm;">info@mycarconcierge.com</div>
+      </div>
+    </div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 2: WHAT IS MCC -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">What Is My Car Concierge?</div>
+      <div class="slide-subtitle">A New Way to Connect with Customers</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">The Concept</div>
+      <div class="box-text">My Car Concierge is a marketplace that connects vehicle owners (members) with professional automotive service providers. We're not a replacement for your business—we're a tool to help you grow it.</div>
+    </div>
+
+    <div class="section-title">How It Works</div>
+    <ol class="step-list">
+      <li>Members post service requests describing what they need</li>
+      <li>Providers receive notifications and review the job details</li>
+      <li>Providers submit competitive bids on jobs they want</li>
+      <li>Members choose their preferred provider based on price, reviews, and proximity</li>
+      <li>Work is completed and payment is released from escrow</li>
+    </ol>
+
+    <div class="content-box" style="margin-top: 5mm;">
+      <div class="box-title">Your Advantage</div>
+      <div class="box-text">Think of it this way: Every customer you bring onto MCC becomes part of a shared pool. When they need a service you don't offer, another provider wins. When other providers' customers need YOUR specialty, you win.</div>
+    </div>
+
+    <div class="slide-number">2 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 3: WHO IT'S FOR -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Who Is MCC For?</div>
+      <div class="slide-subtitle">All Automotive Service Professionals</div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">🔧</div>
+        <div class="feature-title">Repair Shops</div>
+        <div class="feature-desc">General mechanics, specialty shops, dealership service departments</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🚗</div>
+        <div class="feature-title">Mobile Mechanics</div>
+        <div class="feature-desc">On-site repair services, emergency roadside, fleet maintenance</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">✨</div>
+        <div class="feature-title">Detailers</div>
+        <div class="feature-desc">Interior/exterior detailing, paint correction, ceramic coating</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🎨</div>
+        <div class="feature-title">Body Shops</div>
+        <div class="feature-desc">Collision repair, paint work, dent removal, restoration</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🪟</div>
+        <div class="feature-title">Tint & Wrap</div>
+        <div class="feature-desc">Window tinting, vinyl wraps, PPF installation</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🛞</div>
+        <div class="feature-title">Tire Shops</div>
+        <div class="feature-desc">Tire sales, mounting, balancing, alignment</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔊</div>
+        <div class="feature-title">Audio & Electronics</div>
+        <div class="feature-desc">Car audio, alarms, remote start, custom electronics</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🪨</div>
+        <div class="feature-title">Glass Services</div>
+        <div class="feature-desc">Windshield repair/replacement, chip repair</div>
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <div class="title">No Exclusivity Required</div>
+      <div class="text">MCC is a supplemental channel. Keep your existing customers, advertising, and business model. We're just another way to find new work.</div>
+    </div>
+
+    <div class="slide-number">3 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 4: THE BIDDING SYSTEM -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">The Bidding System</div>
+      <div class="slide-subtitle">Pay Only for Jobs You Choose</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">How Bidding Works</div>
+      <div class="box-text">Providers purchase bid credits upfront. Each time you submit a bid on a job, one credit is used. You decide which jobs to bid on—no automated charges or subscriptions.</div>
+    </div>
+
+    <div class="section-title">Why This Model?</div>
+    <ul class="bullet-list">
+      <li>You control your spending—only bid on jobs you actually want</li>
+      <li>No monthly fees or contracts to worry about</li>
+      <li>Credits never expire—use them at your own pace</li>
+      <li>Larger packs = lower per-bid cost (up to 84% savings)</li>
+      <li>Founding Providers get unlimited bidding during pilot</li>
+    </ul>
+
+    <div class="section-title">Sample Bid Packs</div>
+    <table class="pricing-table">
+      <thead>
+        <tr><th>Pack</th><th>Bids</th><th>Price</th><th>Per Bid</th><th>Savings</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Dipstick</td><td>50</td><td>$200</td><td>$4.00</td><td>—</td></tr>
+        <tr><td>V8 <span class="tag">POPULAR</span></td><td>140</td><td>$400</td><td>$2.86</td><td>29%</td></tr>
+        <tr><td>Racing Team <span class="tag">POPULAR</span></td><td>385</td><td>$800</td><td>$2.08</td><td>48%</td></tr>
+        <tr><td>Formula One</td><td>1,470</td><td>$2,000</td><td>$1.36</td><td>66%</td></tr>
+        <tr><td>Championship</td><td>15,400</td><td>$10,000</td><td>$0.65</td><td>84%</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size: 8pt; color: #888; margin-top: 2mm; font-style: italic;">*18 total bid pack tiers available. See complete pricing sheet for full list.</div>
+
+    <div class="slide-number">4 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 5: PAYMENT PROTECTION -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Payment Protection</div>
+      <div class="slide-subtitle">Get Paid Reliably, Every Time</div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-value">100%</div>
+        <div class="stat-label">Escrow Protected</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">7.5%</div>
+        <div class="stat-label">Platform Fee</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">24-48h</div>
+        <div class="stat-label">Payout Speed</div>
+      </div>
+    </div>
+
+    <div class="section-title">How Payments Work</div>
+    <ol class="step-list">
+      <li>Member accepts your bid—funds are held in escrow immediately</li>
+      <li>You complete the work as agreed</li>
+      <li>Member confirms completion in the app</li>
+      <li>Payment is released to your account (minus platform fee)</li>
+      <li>Funds transfer to your bank within 24-48 hours</li>
+    </ol>
+
+    <div class="content-box highlight">
+      <div class="box-title">No More Chasing Payments</div>
+      <div class="box-text">Funds are secured before you start work. No invoicing, no collections, no bad checks. The member has already committed their payment when they accept your bid.</div>
+    </div>
+
+    <div class="warning-box">
+      <div class="title">Founding Provider Benefit</div>
+      <div class="text">Platform fee is waived for all Founding Providers during the pilot period. You keep 100% of your earnings.</div>
+    </div>
+
+    <div class="slide-number">5 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 6: PROVIDER DASHBOARD -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Provider Dashboard</div>
+      <div class="slide-subtitle">Your Business Command Center</div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">📋</div>
+        <div class="feature-title">Job Queue</div>
+        <div class="feature-desc">View all available service requests in your area and specialties</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Analytics</div>
+        <div class="feature-desc">Track your win rate, revenue, and performance metrics</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📅</div>
+        <div class="feature-title">Scheduling</div>
+        <div class="feature-desc">Manage appointments, set availability, track vehicle status</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💬</div>
+        <div class="feature-title">Messaging</div>
+        <div class="feature-desc">Communicate directly with members through secure chat</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💳</div>
+        <div class="feature-title">Payments</div>
+        <div class="feature-desc">View earnings, purchase bid credits, manage payouts</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⭐</div>
+        <div class="feature-title">Reviews</div>
+        <div class="feature-desc">Monitor your rating and respond to customer feedback</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">👥</div>
+        <div class="feature-title">Team Management</div>
+        <div class="feature-desc">Add staff with role-based access (Owner, Admin, Staff)</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔔</div>
+        <div class="feature-title">Notifications</div>
+        <div class="feature-desc">Real-time alerts for new jobs, messages, and payments</div>
+      </div>
+    </div>
+
+    <div class="content-box">
+      <div class="box-title">Works Everywhere</div>
+      <div class="box-text">Access your dashboard from any device—phone, tablet, or computer. Native apps for iOS and Android plus full web access.</div>
+    </div>
+
+    <div class="slide-number">6 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 7: VEHICLE TRACKING -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Vehicle Tracking</div>
+      <div class="slide-subtitle">Keep Customers Informed Automatically</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">Real-Time Status Updates</div>
+      <div class="box-text">Members can track their vehicle's status throughout the service process. This reduces phone calls asking "is my car ready?" and builds trust with your customers.</div>
+    </div>
+
+    <div class="section-title">Status Workflow</div>
+    <div class="icon-row">
+      <div class="icon-item">
+        <div class="icon">🚗</div>
+        <div class="label">Pickup</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon">📍</div>
+        <div class="label">At Provider</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon">🔧</div>
+        <div class="label">In Progress</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon">🚙</div>
+        <div class="label">Returning</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon">✅</div>
+        <div class="label">Returned</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="content-box">
+        <div class="box-title">Provider Benefits</div>
+        <ul class="bullet-list">
+          <li>Fewer interruption calls</li>
+          <li>Professional appearance</li>
+          <li>Documented handoffs</li>
+          <li>Reduced disputes</li>
+        </ul>
+      </div>
+      <div class="content-box">
+        <div class="box-title">Member Benefits</div>
+        <ul class="bullet-list">
+          <li>Peace of mind</li>
+          <li>Know when to expect car</li>
+          <li>Location sharing option</li>
+          <li>Push notification updates</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="content-box">
+      <div class="box-title">Location Sharing</div>
+      <div class="box-text">For pickup/delivery services, temporary location sharing via Google Maps lets members track their vehicle in transit. Sharing automatically disables after the handoff.</div>
+    </div>
+
+    <div class="slide-number">7 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 8: RATING SYSTEM -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Rating & Reputation</div>
+      <div class="slide-subtitle">Build Trust, Win More Jobs</div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-value">5⭐</div>
+        <div class="stat-label">Rating System</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">4.0+</div>
+        <div class="stat-label">Minimum Rating</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">100%</div>
+        <div class="stat-label">Verified Reviews</div>
+      </div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">How Ratings Work</div>
+      <div class="box-text">After every completed job, members rate their experience on a 5-star scale and can leave written feedback. Your rating directly impacts your visibility and success on the platform.</div>
+    </div>
+
+    <div class="section-title">Quality Standards</div>
+    <ul class="bullet-list">
+      <li>All reviews are from verified, completed transactions</li>
+      <li>Providers can respond publicly to reviews</li>
+      <li>High-rated providers get priority visibility in search results</li>
+      <li>Consistent quality leads to more wins and repeat customers</li>
+    </ul>
+
+    <div class="content-box">
+      <div class="box-title">Accountability</div>
+      <div class="box-text">Providers whose average rating drops below 4.0 stars (with 3+ reviews) are automatically suspended. This protects the marketplace quality and your reputation by association.</div>
+    </div>
+
+    <div class="warning-box">
+      <div class="title">Build Your Reputation Early</div>
+      <div class="text">Founding Providers have the advantage of building reviews before the market gets crowded. Early positive reviews compound over time.</div>
+    </div>
+
+    <div class="slide-number">8 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 9: NOTIFICATIONS -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Notifications & Alerts</div>
+      <div class="slide-subtitle">Never Miss an Opportunity</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">Multi-Channel Alerts</div>
+      <div class="box-text">Receive notifications through push, email, and SMS. You choose which channels you prefer for different notification types.</div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">🔔</div>
+        <div class="feature-title">New Job Alerts</div>
+        <div class="feature-desc">Instant notification when a job matching your services is posted</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💰</div>
+        <div class="feature-title">Bid Accepted</div>
+        <div class="feature-desc">Know immediately when a member chooses your bid</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💳</div>
+        <div class="feature-title">Payment Received</div>
+        <div class="feature-desc">Confirmation when funds are released to your account</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💬</div>
+        <div class="feature-title">New Messages</div>
+        <div class="feature-desc">Alert when a member sends you a message</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📅</div>
+        <div class="feature-title">Appointment Reminders</div>
+        <div class="feature-desc">Reminders for upcoming scheduled services</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⭐</div>
+        <div class="feature-title">New Reviews</div>
+        <div class="feature-desc">Notification when a customer leaves a review</div>
+      </div>
+    </div>
+
+    <div class="content-box">
+      <div class="box-title">Customizable Preferences</div>
+      <div class="box-text">Control exactly which notifications you receive and how. Turn off marketing emails while keeping critical alerts on. Set quiet hours. Your preferences, your way.</div>
+    </div>
+
+    <div class="slide-number">9 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 10: TEAM MANAGEMENT -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Team Management</div>
+      <div class="slide-subtitle">Add Your Staff with Role-Based Access</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">Multi-User Access</div>
+      <div class="box-text">Your MCC provider account isn't limited to one person. Add team members so multiple people can manage jobs, respond to customers, and update vehicle status.</div>
+    </div>
+
+    <div class="section-title">Team Roles</div>
+    <div class="feature-grid">
+      <div class="feature-item" style="grid-column: span 2;">
+        <div class="feature-title">Owner</div>
+        <div class="feature-desc">Full access including billing, team management, and account settings. Can add/remove team members and purchase bid credits.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-title">Admin</div>
+        <div class="feature-desc">Manage jobs, respond to messages, update vehicle status, view analytics. Cannot modify billing or team.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-title">Staff</div>
+        <div class="feature-desc">Update job status, communicate with members on assigned jobs. Limited dashboard access.</div>
+      </div>
+    </div>
+
+    <div class="section-title">How to Add Team Members</div>
+    <ol class="step-list">
+      <li>Go to Team Management in your provider dashboard</li>
+      <li>Enter the team member's email address</li>
+      <li>Select their role (Admin or Staff)</li>
+      <li>They receive an invitation email to join</li>
+      <li>Once accepted, they can log in with their own credentials</li>
+    </ol>
+
+    <div class="content-box">
+      <div class="box-title">Audit Trail</div>
+      <div class="box-text">All actions are logged with the team member who performed them. Know who updated a job status or sent a message at any time.</div>
+    </div>
+
+    <div class="slide-number">10 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 11: PLATFORM PROTECTIONS -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Platform Protections</div>
+      <div class="slide-subtitle">Fair Practices for Everyone</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">A Level Playing Field</div>
+      <div class="box-text">MCC enforces rules that protect both members and honest providers. Bad actors are removed quickly, and fair practices are rewarded.</div>
+    </div>
+
+    <div class="section-title">Member Protections (That Help You)</div>
+    <ul class="bullet-list">
+      <li><strong>Anti-Bait Protection:</strong> No "free diagnostic" upselling tactics. Honest pricing from the start builds trust in the platform.</li>
+      <li><strong>Upsell Approval:</strong> Any additional work beyond the original bid must be approved by the member in-app. No surprise charges.</li>
+      <li><strong>24-Hour Window:</strong> Members have time to review and approve additional work. No high-pressure decisions.</li>
+      <li><strong>Verified Reviews:</strong> Only completed transactions can leave reviews. No fake reviews from competitors.</li>
+    </ul>
+
+    <div class="section-title">Provider Protections</div>
+    <ul class="bullet-list">
+      <li><strong>Escrow Payments:</strong> Funds secured before work begins. No non-payment risk.</li>
+      <li><strong>Dispute Resolution:</strong> MCC mediates disputes fairly with evidence from both sides.</li>
+      <li><strong>Identity Verification:</strong> Members verify their identity, reducing fraud risk.</li>
+      <li><strong>No-Show Protection:</strong> Members who repeatedly no-show are flagged.</li>
+    </ul>
+
+    <div class="slide-number">11 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 12: SECURITY -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Security & Privacy</div>
+      <div class="slide-subtitle">Enterprise-Grade Protection</div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">🔐</div>
+        <div class="feature-title">Two-Factor Authentication</div>
+        <div class="feature-desc">SMS-based 2FA protects your account with a code sent to your phone</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔒</div>
+        <div class="feature-title">Encrypted Data</div>
+        <div class="feature-desc">All data encrypted in transit (TLS) and at rest</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🛡️</div>
+        <div class="feature-title">Rate Limiting</div>
+        <div class="feature-desc">Protection against brute force attacks and abuse</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📱</div>
+        <div class="feature-title">Login Activity</div>
+        <div class="feature-desc">View all login attempts with device and location info</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">👤</div>
+        <div class="feature-title">Role-Based Access</div>
+        <div class="feature-desc">Team members only see what they need for their role</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💳</div>
+        <div class="feature-title">PCI Compliant</div>
+        <div class="feature-desc">Payment processing through Stripe, fully PCI compliant</div>
+      </div>
+    </div>
+
+    <div class="content-box">
+      <div class="box-title">Your Data, Your Control</div>
+      <div class="box-text">We never sell your data or customer information. Your business relationships remain yours. MCC simply facilitates the connection.</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">Compliance</div>
+      <div class="box-text">MCC is built on Supabase (PostgreSQL) with row-level security policies. Over 200 security policies ensure data access is properly controlled.</div>
+    </div>
+
+    <div class="slide-number">12 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 13: FOUNDING PROVIDER PROGRAM -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Founding Provider Program</div>
+      <div class="slide-subtitle">Exclusive Early Access Benefits</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">Get In on the Ground Floor</div>
+      <div class="box-text">We're onboarding a limited group of Founding Providers while we launch the member side. This isn't a promise of instant leads—it's an invitation to build something together.</div>
+    </div>
+
+    <div class="section-title">Founding Provider Benefits</div>
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">🎫</div>
+        <div class="feature-title">No Platform Fees</div>
+        <div class="feature-desc">Keep 100% of your earnings during pilot (normally 7.5%)</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">♾️</div>
+        <div class="feature-title">Unlimited Bidding</div>
+        <div class="feature-desc">Bid on any job without using credits during pilot</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🏆</div>
+        <div class="feature-title">Priority Visibility</div>
+        <div class="feature-desc">Founding Providers appear first in search results</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🎖️</div>
+        <div class="feature-title">Permanent Badge</div>
+        <div class="feature-desc">"Founding Provider" badge displayed on your profile forever</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💰</div>
+        <div class="feature-title">Referral Commissions</div>
+        <div class="feature-desc">Lifetime commission on providers you refer (up to 50%)</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🎯</div>
+        <div class="feature-title">Direct Input</div>
+        <div class="feature-desc">Help shape the platform with direct feedback to the team</div>
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <div class="title">Limited Availability</div>
+      <div class="text">Founding Provider spots are limited by market. Early applicants secure the best positions in their area.</div>
+    </div>
+
+    <div class="slide-number">13 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 14: HOW TO GET STARTED -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">How to Get Started</div>
+      <div class="slide-subtitle">Simple Onboarding Process</div>
+    </div>
+
+    <div class="section-title">Application Steps</div>
+    <ol class="step-list">
+      <li><strong>Submit Application:</strong> Fill out the online form with your business information, services offered, and service area</li>
+      <li><strong>Verification:</strong> MCC reviews your application and verifies your business credentials</li>
+      <li><strong>Account Setup:</strong> Once approved, set up your provider profile with photos, description, and service details</li>
+      <li><strong>Add Team:</strong> Invite any team members who will help manage jobs</li>
+      <li><strong>Start Bidding:</strong> Begin receiving job notifications and submitting bids</li>
+    </ol>
+
+    <div class="section-title">What You'll Need</div>
+    <ul class="bullet-list">
+      <li>Business name and contact information</li>
+      <li>Service categories you offer</li>
+      <li>Service area (zip codes or radius)</li>
+      <li>Business license or proof of operation (if applicable)</li>
+      <li>Bank account for receiving payments</li>
+    </ul>
+
+    <div class="content-box highlight">
+      <div class="box-title">Typical Timeline</div>
+      <div class="box-text">Most applications are reviewed within 24-48 hours. Once approved, you can be bidding on jobs the same day.</div>
+    </div>
+
+    <div class="slide-number">14 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 15: CALL TO ACTION -->
+  <div class="slide">
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+      <img src="logo.png" style="width: 50mm; margin-bottom: 8mm;" alt="My Car Concierge">
+      
+      <div style="font-family: 'Playfair Display', serif; font-size: 28pt; color: #fff; text-align: center; margin-bottom: 5mm;">
+        Ready to Grow Your Business?
+      </div>
+      
+      <div style="font-size: 13pt; color: #a0a0a0; text-align: center; max-width: 140mm; margin-bottom: 10mm; line-height: 1.5;">
+        Join the Founding Provider program today and be among the first to access a new stream of qualified customers.
+      </div>
+
+      <div class="cta-box" style="width: 140mm;">
+        <div class="cta-title">Apply Now</div>
+        <div class="cta-text">www.mycarconcierge.com/signup-provider.html</div>
+      </div>
+
+      <div style="margin-top: 12mm; text-align: center;">
+        <div style="font-size: 11pt; color: #d4af37; margin-bottom: 3mm;">Questions?</div>
+        <div style="font-size: 11pt; color: #c0c0c0;">info@mycarconcierge.com</div>
+      </div>
+
+      <div style="margin-top: 10mm; display: flex; gap: 15mm; color: #888; font-size: 9pt;">
+        <div>iOS App</div>
+        <div>Android App</div>
+        <div>Web Platform</div>
+        <div>Desktop Apps</div>
+      </div>
+    </div>
+    <div class="slide-number">15 / 15</div>
+    <div class="footer-bar"></div>
+  </div>
+
+</body>
+</html>
