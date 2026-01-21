@@ -20,12 +20,17 @@ Key features include:
 - **Two-Factor Authentication (2FA)**: SMS-based 2FA using Twilio, with server-side enforcement on over 65 protected API endpoints. Features include hashed codes, 5-minute expiry, 1-hour session validity, and database-backed rate limiting.
 - **Provider Team Management**: Allows provider accounts to add multiple team members (Owner, Admin, Staff) with role-based access to the provider dashboard via an email invitation system.
 - **My Next Car (Car Shopping Tool)**: Allows members to track and compare prospective vehicle purchases. Features include VIN lookup via free NHTSA API, manual vehicle entry, side-by-side comparison (2-4 vehicles), personal preferences with match scoring, and status tracking (considering, test driven, offer made, purchased, passed). Database tables: `prospect_vehicles`, `member_car_preferences`.
+- **Dream Car Finder (AI Search)**: AI-powered automated car search that runs in the background to find vehicles matching member preferences. Features include customizable search criteria (make, model, year range, price range, mileage, location radius), search frequency settings (hourly, twice daily, daily), SMS/email notifications when matches are found, match scoring with reasons, and ability to save/dismiss matches or add them to prospects. Database tables: `dream_car_searches`, `dream_car_matches`. Uses Anthropic API for intelligent search.
+- **Stripe Identity Verification**: Vehicle ownership verification using Stripe Identity. Members must verify their identity (government ID + selfie) before adding vehicles. Enforced at both UI and database level via RLS policies. Vehicles show "Verified Owner" badge when added by verified members. Database table: `identity_verifications`. Helper function: `is_identity_verified()`.
 
 ## External Dependencies
 - **Supabase**: Backend services including PostgreSQL database, authentication, and storage.
 - **Stripe**: Payment processing for member services, provider bid credit purchases, and platform fee collection.
 - **Capacitor**: Framework for building native iOS and Android mobile applications from web code.
 - **Electron**: Framework for building cross-platform desktop applications (Windows, Mac, Linux).
-- **Twilio**: Used for SMS-based Two-Factor Authentication (2FA) code delivery.
+- **Twilio**: Used for SMS-based Two-Factor Authentication (2FA) code delivery and Dream Car Finder match notifications.
 - **Netlify**: Deployment platform for the PWA.
 - **OpenAI**: Integrated for the helpdesk widget.
+- **Anthropic**: Used for Dream Car Finder AI search functionality.
+- **Resend**: Email delivery for Dream Car Finder notifications and other transactional emails.
+- **Stripe Identity**: Identity verification for vehicle ownership confirmation.

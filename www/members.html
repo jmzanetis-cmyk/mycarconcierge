@@ -20,6 +20,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" defer></script>
+  <script src="https://js.stripe.com/v3/"></script>
   <style>
     :root {
       --bg-deep: #0a0a0f;
@@ -855,6 +856,7 @@
         <div class="tab active" data-prospect-tab="prospects" onclick="showProspectTab('prospects')">🚗 Prospects</div>
         <div class="tab" data-prospect-tab="compare" onclick="showProspectTab('compare')">⚖️ Compare</div>
         <div class="tab" data-prospect-tab="preferences" onclick="showProspectTab('preferences')">⚙️ My Preferences</div>
+        <div class="tab" data-prospect-tab="ai-search" onclick="showProspectTab('ai-search')">🤖 AI Search</div>
       </div>
 
       <!-- Prospects Tab -->
@@ -1003,7 +1005,241 @@
           </form>
         </div>
       </div>
+
+      <!-- AI Search Tab -->
+      <div id="ai-search-tab" class="prospect-tab-content" style="display: none;">
+        <!-- Section A: Active Searches -->
+        <div class="card" style="margin-bottom: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div>
+              <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 4px;" data-i18n="member.aiSearch.activeSearches">🔍 Active Searches</h3>
+              <p style="color: var(--text-secondary); font-size: 0.85rem;" data-i18n="member.aiSearch.activeSearchesDesc">AI-powered searches running in the background to find your dream car.</p>
+            </div>
+            <button class="btn btn-primary" onclick="openAISearchModal()" style="padding: 10px 20px; font-weight: 600; border-radius: 100px;">
+              <span data-i18n="member.aiSearch.createNew">+ Create New Search</span>
+            </button>
+          </div>
+          
+          <div id="ai-searches-list">
+            <div class="empty-state" style="padding: 40px 20px;">
+              <div class="empty-state-icon">🤖</div>
+              <p data-i18n="member.aiSearch.noSearches">No AI searches yet.</p>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;" data-i18n="member.aiSearch.noSearchesDesc">Create a search and we'll automatically find matching cars for you.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section B: Recent Matches -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div>
+              <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 4px;" data-i18n="member.aiSearch.recentMatches">🎯 Recent Matches</h3>
+              <p style="color: var(--text-secondary); font-size: 0.85rem;" data-i18n="member.aiSearch.recentMatchesDesc">Cars found by your AI searches that match your criteria.</p>
+            </div>
+            <select id="ai-matches-filter" onchange="filterAIMatches()" style="padding: 8px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 0.88rem;">
+              <option value="all" data-i18n="member.aiSearch.filterAll">All Matches</option>
+              <option value="unseen" data-i18n="member.aiSearch.filterUnseen">Unseen</option>
+              <option value="saved" data-i18n="member.aiSearch.filterSaved">Saved</option>
+            </select>
+          </div>
+          
+          <div class="vehicles-grid" id="ai-matches-grid" style="grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));">
+            <div class="empty-state" style="padding: 40px 20px; grid-column: 1 / -1;">
+              <div class="empty-state-icon">🚗</div>
+              <p data-i18n="member.aiSearch.noMatches">No matches found yet.</p>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;" data-i18n="member.aiSearch.noMatchesDesc">Create an AI search and matches will appear here.</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
+
+    <!-- AI Search Modal -->
+    <div class="modal-backdrop" id="ai-search-modal">
+      <div class="modal wide">
+        <div class="modal-header">
+          <h2 class="modal-title" id="ai-search-modal-title" data-i18n="member.aiSearch.createSearch">Create AI Search</h2>
+          <button class="modal-close" onclick="closeAISearchModal()">×</button>
+        </div>
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+          <form id="ai-search-form" onsubmit="saveAISearch(event)">
+            <input type="hidden" id="ai-search-id">
+            
+            <div class="form-group">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.searchName">Search Name *</label>
+              <input type="text" id="ai-search-name" required placeholder="e.g. Family SUV under 40k" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+            </div>
+
+            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);" data-i18n="member.aiSearch.vehicleCriteria">Vehicle Criteria</h4>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.yearRange">Year Range</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <input type="number" id="ai-search-min-year" placeholder="Min" min="1990" max="2030" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <span style="color: var(--text-muted);">to</span>
+                  <input type="number" id="ai-search-max-year" placeholder="Max" min="1990" max="2030" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.priceRange">Price Range ($)</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <input type="number" id="ai-search-min-price" placeholder="Min" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <span style="color: var(--text-muted);">to</span>
+                  <input type="number" id="ai-search-max-price" placeholder="Max" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.maxMileage">Max Mileage</label>
+                <input type="number" id="ai-search-max-mileage" placeholder="e.g. 50000" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 16px;">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.preferredMakes">Preferred Makes (comma separated)</label>
+              <input type="text" id="ai-search-makes" placeholder="e.g. Toyota, Honda, BMW, Mercedes" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+            </div>
+
+            <div class="form-group" style="margin-top: 16px;">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.preferredModels">Preferred Models (comma separated)</label>
+              <input type="text" id="ai-search-models" placeholder="e.g. Camry, Accord, 3 Series" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+            </div>
+
+            <div class="form-group" style="margin-top: 16px;">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 12px; display: block;" data-i18n="member.aiSearch.bodyStyles">Body Styles</label>
+              <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-body-style" value="Sedan"> Sedan
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-body-style" value="SUV"> SUV
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-body-style" value="Coupe"> Coupe
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-body-style" value="Truck"> Truck
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-body-style" value="Van"> Van
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-body-style" value="Convertible"> Convertible
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-body-style" value="Hatchback"> Hatchback
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-body-style" value="Wagon"> Wagon
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 16px;">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 12px; display: block;" data-i18n="member.aiSearch.fuelTypes">Fuel Types</label>
+              <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-fuel-type" value="Gasoline"> Gasoline
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-fuel-type" value="Diesel"> Diesel
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-fuel-type" value="Hybrid"> Hybrid
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-fuel-type" value="Electric"> Electric
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                  <input type="checkbox" name="ai-fuel-type" value="Plug-in Hybrid"> Plug-in Hybrid
+                </label>
+              </div>
+            </div>
+
+            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);" data-i18n="member.aiSearch.location">Location</h4>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.zipCode">Zip Code</label>
+                <input type="text" id="ai-search-zip" placeholder="e.g. 90210" maxlength="10" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.searchRadius">Search Radius (miles)</label>
+                <input type="number" id="ai-search-radius" placeholder="e.g. 50" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 16px;">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.exteriorColors">Exterior Colors (optional, comma separated)</label>
+              <input type="text" id="ai-search-colors" placeholder="e.g. Black, White, Silver" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+            </div>
+
+            <div class="form-group" style="margin-top: 16px;">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.mustHaveFeatures">Must-Have Features (comma separated)</label>
+              <input type="text" id="ai-search-features" placeholder="e.g. Leather seats, Sunroof, Navigation" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+            </div>
+
+            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);" data-i18n="member.aiSearch.notifications">Notifications & Settings</h4>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 12px; display: block;" data-i18n="member.aiSearch.notifyVia">Notify me via</label>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="ai-search-notify-email" checked> 
+                    <span data-i18n="member.aiSearch.emailNotify">Email notifications</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="ai-search-notify-sms"> 
+                    <span data-i18n="member.aiSearch.smsNotify">SMS notifications</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.searchFrequency">Search Frequency</label>
+                <select id="ai-search-frequency" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <option value="hourly" data-i18n="member.aiSearch.freqHourly">Hourly</option>
+                  <option value="twice_daily" data-i18n="member.aiSearch.freqTwiceDaily">Twice Daily</option>
+                  <option value="daily" selected data-i18n="member.aiSearch.freqDaily">Daily</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 12px; display: block;" data-i18n="member.aiSearch.activeStatus">Active Status</label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <input type="checkbox" id="ai-search-active" checked>
+                  <span data-i18n="member.aiSearch.searchActive">Search is active</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="modal-footer" style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: flex-end; gap: 12px;">
+              <button type="button" class="btn btn-secondary" onclick="closeAISearchModal()" data-i18n="common.cancel">Cancel</button>
+              <button type="submit" class="btn btn-primary" data-i18n="common.save">Save Search</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Match Detail Modal -->
+    <div class="modal-backdrop" id="ai-match-detail-modal">
+      <div class="modal wide">
+        <div class="modal-header">
+          <h2 class="modal-title" id="ai-match-modal-title" data-i18n="member.aiSearch.matchDetails">Match Details</h2>
+          <button class="modal-close" onclick="closeAIMatchModal()">×</button>
+        </div>
+        <div class="modal-body" id="ai-match-modal-body">
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeAIMatchModal()" data-i18n="common.close">Close</button>
+          <button class="btn btn-primary" id="ai-match-add-prospect-btn" onclick="addMatchToProspects()" data-i18n="member.aiSearch.addToProspects">Add to Prospects</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Add Prospect Vehicle Modal -->
     <div id="add-prospect-modal" class="modal" style="display:none;">
@@ -3230,10 +3466,30 @@
   <div class="modal-backdrop" id="vehicle-modal">
     <div class="modal">
       <div class="modal-header">
-        <h3 class="modal-title">Add Vehicle to Garage</h3>
+        <h3 class="modal-title" style="display:flex;align-items:center;gap:10px;">
+          Add Vehicle to Garage
+          <span id="identity-verified-badge" style="display:none;background:linear-gradient(135deg, var(--accent-green), #3da577);color:white;padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;">✓ Identity Verified</span>
+        </h3>
         <button class="modal-close" onclick="closeModal('vehicle-modal')">×</button>
       </div>
       <div class="modal-body">
+        <!-- Identity Verification Required Section -->
+        <div id="identity-verification-section" style="display:none;text-align:center;padding:40px 20px;">
+          <div style="font-size:64px;margin-bottom:16px;">🛡️</div>
+          <h3 style="font-size:1.2rem;margin-bottom:12px;">Identity Verification Required</h3>
+          <p style="color:var(--text-secondary);margin-bottom:24px;line-height:1.6;max-width:400px;margin-left:auto;margin-right:auto;">
+            To add vehicles, we need to verify your identity first. This is a one-time process that helps protect vehicle owners.
+          </p>
+          <button id="verify-identity-btn" class="btn btn-primary" onclick="startIdentityVerification()" style="padding:14px 28px;font-size:1rem;">
+            🛡️ Verify My Identity
+          </button>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-top:16px;">
+            Powered by Stripe Identity • Takes about 2 minutes
+          </p>
+        </div>
+        
+        <!-- Vehicle Form Section (shown when verified) -->
+        <div id="vehicle-form-section">
         <div class="form-section">
           <div class="form-section-title">Vehicle Photo</div>
           <div id="vehicle-photo-upload-area" class="vehicle-photo-upload-container" onclick="document.getElementById('vehicle-photo-input').click()" style="position:relative;height:200px;background:linear-gradient(135deg, var(--bg-elevated), var(--bg-input));border:2px dashed var(--border-subtle);border-radius:var(--radius-lg);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s ease;overflow:hidden;">
@@ -3335,6 +3591,7 @@
             </div>
           </div>
         </div>
+        </div><!-- End vehicle-form-section -->
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('vehicle-modal')">Cancel</button>
@@ -5374,6 +5631,10 @@
     let bulkSelectedVehicles = []; // Selected vehicles for bulk service
     let editingFleetMemberId = null; // Member being edited
     let editingFleetVehicleId = null; // Vehicle assignment being edited
+    
+    // Identity Verification State
+    let userVerificationStatus = null; // { verified: boolean, status: string }
+    let stripeInstance = null; // Stripe.js instance
 
     // Service types by category
     const serviceTypes = {
@@ -5717,6 +5978,141 @@
       updateStats();
       setupEventListeners();
       setupRealtimeSubscriptions();
+      
+      // Initialize Stripe and check identity verification
+      await initStripeIdentity();
+      await checkIdentityVerification();
+      
+      // Check for identity verification return
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('identity_verification') === 'complete') {
+        // Refresh verification status after returning from Stripe Identity
+        await checkIdentityVerification();
+        showToast('Verification check complete. Please wait while we confirm your status.', 'success');
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+    
+    // ========== STRIPE IDENTITY VERIFICATION ==========
+    async function initStripeIdentity() {
+      try {
+        const response = await fetch('/api/config/stripe');
+        const config = await response.json();
+        if (config.publishableKey) {
+          stripeInstance = Stripe(config.publishableKey);
+        } else {
+          console.warn('Stripe publishable key not configured');
+        }
+      } catch (error) {
+        console.error('Failed to initialize Stripe:', error);
+      }
+    }
+    
+    async function checkIdentityVerification() {
+      if (!currentUser) return;
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const response = await fetch(`/api/identity/status/${currentUser.id}`, {
+          headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          userVerificationStatus = {
+            verified: result.status === 'verified',
+            status: result.status,
+            verifiedAt: result.verified_at,
+            verifiedName: result.verified_name
+          };
+        } else {
+          userVerificationStatus = { verified: false, status: 'not_started' };
+        }
+        
+        // Update UI based on verification status
+        updateVerificationUI();
+      } catch (error) {
+        console.error('Failed to check identity verification:', error);
+        userVerificationStatus = { verified: false, status: 'error' };
+      }
+    }
+    
+    function updateVerificationUI() {
+      const verificationSection = document.getElementById('identity-verification-section');
+      const vehicleFormSection = document.getElementById('vehicle-form-section');
+      const verifiedBadge = document.getElementById('identity-verified-badge');
+      
+      if (!verificationSection || !vehicleFormSection) return;
+      
+      if (userVerificationStatus?.verified) {
+        // User is verified - show form with badge
+        verificationSection.style.display = 'none';
+        vehicleFormSection.style.display = 'block';
+        if (verifiedBadge) verifiedBadge.style.display = 'inline-flex';
+      } else {
+        // User is not verified - show verification required
+        verificationSection.style.display = 'block';
+        vehicleFormSection.style.display = 'none';
+        if (verifiedBadge) verifiedBadge.style.display = 'none';
+      }
+    }
+    
+    async function startIdentityVerification() {
+      if (!stripeInstance) {
+        showToast('Stripe not initialized. Please refresh the page.', 'error');
+        return;
+      }
+      
+      try {
+        const verifyBtn = document.getElementById('verify-identity-btn');
+        if (verifyBtn) {
+          verifyBtn.disabled = true;
+          verifyBtn.innerHTML = '⏳ Starting verification...';
+        }
+        
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const response = await fetch('/api/identity/create-verification-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          }
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to create verification session');
+        }
+        
+        // Open Stripe Identity modal
+        const { error } = await stripeInstance.verifyIdentity(result.client_secret);
+        
+        if (error) {
+          console.error('Stripe Identity error:', error);
+          if (error.type !== 'modal_closed') {
+            showToast('Verification was not completed: ' + error.message, 'error');
+          }
+        } else {
+          // Verification session was submitted
+          showToast('Verification submitted! We will verify your identity shortly.', 'success');
+        }
+        
+        // Refresh status regardless of outcome
+        await checkIdentityVerification();
+        
+      } catch (error) {
+        console.error('Identity verification error:', error);
+        showToast('Failed to start verification: ' + error.message, 'error');
+      } finally {
+        const verifyBtn = document.getElementById('verify-identity-btn');
+        if (verifyBtn) {
+          verifyBtn.disabled = false;
+          verifyBtn.innerHTML = '🛡️ Verify My Identity';
+        }
+      }
     }
 
     // ========== REALTIME SUBSCRIPTIONS ==========
@@ -7347,10 +7743,14 @@
         const photoContent = v.photo_url 
           ? `<img src="${v.photo_url}" alt="${vehicleTitle}" style="width:100%;height:100%;object-fit:cover;">`
           : `<span class="vehicle-emoji">🚗</span>`;
+        const verifiedBadge = userVerificationStatus?.verified 
+          ? '<span style="position:absolute;top:12px;left:12px;background:linear-gradient(135deg, var(--accent-green), #3da577);color:white;padding:4px 10px;border-radius:100px;font-size:0.7rem;font-weight:600;display:flex;align-items:center;gap:4px;">🛡️ Verified Owner</span>' 
+          : '';
         return `
           <div class="vehicle-card">
             <div class="vehicle-card-photo">
               ${photoContent}
+              ${verifiedBadge}
               <span class="vehicle-card-badge ${healthClass}">${healthLabel}</span>
             </div>
             <div class="vehicle-card-body">
@@ -9657,6 +10057,9 @@
     function openVehicleModal() {
       document.getElementById('vehicle-modal').classList.add('active');
       
+      // Update verification UI when modal opens
+      updateVerificationUI();
+      
       // Reset all form fields
       ['v-year','v-make','v-model','v-trim','v-color','v-nickname','v-mileage','v-vin'].forEach(id => {
         const el = document.getElementById(id);
@@ -10195,6 +10598,13 @@
 
     // ========== SAVE FUNCTIONS ==========
     async function saveVehicle() {
+      // Check identity verification before allowing vehicle save
+      if (!userVerificationStatus?.verified) {
+        showToast('Please verify your identity before adding a vehicle', 'error');
+        updateVerificationUI();
+        return;
+      }
+      
       const make = document.getElementById('v-make').value.trim();
       const model = document.getElementById('v-model').value.trim();
       if (!make || !model) return showToast('Make and model are required', 'error');
@@ -10242,7 +10652,8 @@
         vin: document.getElementById('v-vin').value.trim().toUpperCase() || null,
         health_score: 100,
         photo_url: photoUrl,
-        fuel_injection_type: fuelInjectionType
+        fuel_injection_type: fuelInjectionType,
+        identity_verified_at_add: userVerificationStatus?.verified || false
       };
 
       const { data, error } = await supabaseClient.from('vehicles').insert(vehicleData).select();
@@ -17787,6 +18198,537 @@ Note: This assessment was generated by AI and is for informational purposes only
         updateCompareSelection();
       } else if (tabName === 'preferences') {
         loadCarPreferences();
+      } else if (tabName === 'ai-search') {
+        loadDreamCarSearches();
+      }
+    }
+
+    // =============================================
+    // AI SEARCH - Dream Car Finder Functions
+    // =============================================
+    
+    let dreamCarSearches = [];
+    let dreamCarMatches = [];
+    let editingSearchId = null;
+    let currentMatchDetail = null;
+
+    async function loadDreamCarSearches() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const { data, error } = await supabaseClient
+          .from('dream_car_searches')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        
+        dreamCarSearches = data || [];
+        renderDreamCarSearches();
+        loadDreamCarMatches();
+      } catch (error) {
+        console.error('Error loading dream car searches:', error);
+      }
+    }
+
+    async function loadDreamCarMatches(searchId = null) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        let query = supabaseClient
+          .from('dream_car_matches')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .eq('is_dismissed', false)
+          .order('found_at', { ascending: false })
+          .limit(50);
+
+        if (searchId) {
+          query = query.eq('search_id', searchId);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+        
+        dreamCarMatches = data || [];
+        renderDreamCarMatches();
+      } catch (error) {
+        console.error('Error loading dream car matches:', error);
+      }
+    }
+
+    function renderDreamCarSearches() {
+      const list = document.getElementById('ai-searches-list');
+      
+      if (dreamCarSearches.length === 0) {
+        list.innerHTML = `
+          <div class="empty-state" style="padding: 40px 20px;">
+            <div class="empty-state-icon">🤖</div>
+            <p>No AI searches yet.</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">Create a search and we'll automatically find matching cars for you.</p>
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = dreamCarSearches.map(search => {
+        const statusColor = search.is_active ? 'var(--accent-green)' : 'var(--text-muted)';
+        const statusText = search.is_active ? 'Active' : 'Paused';
+        const lastSearched = search.last_searched_at ? new Date(search.last_searched_at).toLocaleDateString() : 'Never';
+        
+        const criteriaParts = [];
+        if (search.min_year || search.max_year) {
+          criteriaParts.push(`${search.min_year || 'Any'} - ${search.max_year || 'Any'}`);
+        }
+        if (search.preferred_makes && search.preferred_makes.length > 0) {
+          criteriaParts.push(search.preferred_makes.slice(0, 3).join(', '));
+        }
+        if (search.max_price) {
+          criteriaParts.push('$' + Number(search.max_price).toLocaleString() + ' max');
+        }
+        if (search.max_mileage) {
+          criteriaParts.push(Number(search.max_mileage).toLocaleString() + ' mi max');
+        }
+        
+        const matchCount = dreamCarMatches.filter(m => m.search_id === search.id && !m.is_dismissed).length;
+
+        return `
+          <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px; margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+              <div style="flex: 1; min-width: 200px;">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                  <h4 style="font-size: 1rem; font-weight: 600;">${escapeHtml(search.search_name || 'Untitled Search')}</h4>
+                  <span style="padding: 4px 10px; border-radius: 100px; font-size: 0.75rem; font-weight: 500; background: ${search.is_active ? 'var(--accent-green-soft)' : 'var(--bg-input)'}; color: ${statusColor};">
+                    ${statusText}
+                  </span>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">
+                  ${criteriaParts.length > 0 ? criteriaParts.join(' • ') : 'No criteria set'}
+                </p>
+                <div style="display: flex; gap: 16px; font-size: 0.82rem; color: var(--text-muted);">
+                  <span>📅 Last searched: ${lastSearched}</span>
+                  <span>🎯 Matches: ${matchCount}</span>
+                  <span>🔄 ${search.search_frequency === 'hourly' ? 'Every hour' : search.search_frequency === 'twice_daily' ? 'Twice daily' : 'Daily'}</span>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn btn-sm btn-secondary" onclick="viewSearchMatches('${search.id}')">
+                  🎯 View Matches
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="editDreamCarSearch('${search.id}')">
+                  ✏️ Edit
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="toggleSearchActive('${search.id}')">
+                  ${search.is_active ? '⏸️ Pause' : '▶️ Resume'}
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="deleteDreamCarSearch('${search.id}')">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderDreamCarMatches() {
+      const grid = document.getElementById('ai-matches-grid');
+      const filter = document.getElementById('ai-matches-filter').value;
+      
+      let filtered = dreamCarMatches;
+      if (filter === 'unseen') {
+        filtered = dreamCarMatches.filter(m => !m.is_seen);
+      } else if (filter === 'saved') {
+        filtered = dreamCarMatches.filter(m => m.is_saved);
+      }
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state" style="padding: 40px 20px; grid-column: 1 / -1;">
+            <div class="empty-state-icon">🚗</div>
+            <p>No matches found yet.</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">Create an AI search and matches will appear here.</p>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(match => {
+        const photo = match.photos && match.photos.length > 0 ? match.photos[0] : null;
+        const scoreColor = match.match_score >= 90 ? 'var(--accent-green)' : match.match_score >= 70 ? 'var(--accent-gold)' : 'var(--accent-blue)';
+        
+        return `
+          <div class="vehicle-card" style="cursor: pointer;" onclick="viewMatchDetail('${match.id}')">
+            <div class="vehicle-card-photo">
+              ${photo ? `<img src="${escapeHtml(photo)}" alt="Car photo" onerror="this.parentNode.innerHTML='<div class=\\'vehicle-emoji\\'>🚗</div>'">` : '<div class="vehicle-emoji">🚗</div>'}
+              <div style="position: absolute; top: 12px; right: 12px; padding: 6px 12px; border-radius: 100px; font-size: 0.8rem; font-weight: 600; background: linear-gradient(135deg, ${scoreColor}, ${scoreColor}88); color: white;">
+                ${match.match_score || 0}% Match
+              </div>
+              ${!match.is_seen ? '<div style="position: absolute; top: 12px; left: 12px; width: 10px; height: 10px; background: var(--accent-blue); border-radius: 50%;"></div>' : ''}
+            </div>
+            <div class="vehicle-card-body">
+              <h3 class="vehicle-card-title">${match.year || ''} ${escapeHtml(match.make || '')} ${escapeHtml(match.model || '')}</h3>
+              <p class="vehicle-card-subtitle">${match.trim ? escapeHtml(match.trim) : ''}</p>
+              <div class="vehicle-card-meta">
+                ${match.price ? `<span>💰 $${Number(match.price).toLocaleString()}</span>` : ''}
+                ${match.mileage ? `<span>🛣️ ${Number(match.mileage).toLocaleString()} mi</span>` : ''}
+              </div>
+              <div style="display: flex; gap: 8px; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
+                ${match.location ? `<span>📍 ${escapeHtml(match.location)}</span>` : ''}
+                ${match.source ? `<span>🔗 ${escapeHtml(match.source)}</span>` : ''}
+              </div>
+              <div class="vehicle-card-actions" onclick="event.stopPropagation();">
+                <button class="btn btn-sm ${match.is_seen ? 'btn-ghost' : 'btn-secondary'}" onclick="markMatchSeen('${match.id}', ${!match.is_seen})">
+                  ${match.is_seen ? '👁️ Seen' : '👁️ Mark Seen'}
+                </button>
+                <button class="btn btn-sm ${match.is_saved ? 'btn-primary' : 'btn-secondary'}" onclick="saveMatch('${match.id}', ${!match.is_saved})">
+                  ${match.is_saved ? '⭐ Saved' : '☆ Save'}
+                </button>
+                <button class="btn btn-sm btn-ghost" onclick="dismissMatch('${match.id}')" title="Dismiss">
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function filterAIMatches() {
+      renderDreamCarMatches();
+    }
+
+    function viewSearchMatches(searchId) {
+      loadDreamCarMatches(searchId);
+    }
+
+    function openAISearchModal(searchId = null) {
+      editingSearchId = searchId;
+      const modal = document.getElementById('ai-search-modal');
+      const titleEl = document.getElementById('ai-search-modal-title');
+      const form = document.getElementById('ai-search-form');
+      
+      form.reset();
+      document.getElementById('ai-search-id').value = '';
+      
+      document.querySelectorAll('input[name="ai-body-style"]').forEach(cb => cb.checked = false);
+      document.querySelectorAll('input[name="ai-fuel-type"]').forEach(cb => cb.checked = false);
+      document.getElementById('ai-search-notify-email').checked = true;
+      document.getElementById('ai-search-active').checked = true;
+      
+      if (searchId) {
+        titleEl.textContent = 'Edit AI Search';
+        const search = dreamCarSearches.find(s => s.id === searchId);
+        if (search) {
+          document.getElementById('ai-search-id').value = search.id;
+          document.getElementById('ai-search-name').value = search.search_name || '';
+          document.getElementById('ai-search-min-year').value = search.min_year || '';
+          document.getElementById('ai-search-max-year').value = search.max_year || '';
+          document.getElementById('ai-search-min-price').value = search.min_price || '';
+          document.getElementById('ai-search-max-price').value = search.max_price || '';
+          document.getElementById('ai-search-max-mileage').value = search.max_mileage || '';
+          document.getElementById('ai-search-makes').value = (search.preferred_makes || []).join(', ');
+          document.getElementById('ai-search-models').value = (search.preferred_models || []).join(', ');
+          document.getElementById('ai-search-zip').value = search.zip_code || '';
+          document.getElementById('ai-search-radius').value = search.max_distance_miles || '';
+          document.getElementById('ai-search-colors').value = (search.exterior_colors || []).join(', ');
+          document.getElementById('ai-search-features').value = (search.must_have_features || []).join(', ');
+          document.getElementById('ai-search-frequency').value = search.search_frequency || 'daily';
+          document.getElementById('ai-search-notify-email').checked = search.notify_email !== false;
+          document.getElementById('ai-search-notify-sms').checked = search.notify_sms === true;
+          document.getElementById('ai-search-active').checked = search.is_active !== false;
+          
+          (search.body_styles || []).forEach(style => {
+            const cb = document.querySelector(`input[name="ai-body-style"][value="${style}"]`);
+            if (cb) cb.checked = true;
+          });
+          
+          (search.fuel_types || []).forEach(type => {
+            const cb = document.querySelector(`input[name="ai-fuel-type"][value="${type}"]`);
+            if (cb) cb.checked = true;
+          });
+        }
+      } else {
+        titleEl.textContent = 'Create AI Search';
+      }
+      
+      modal.classList.add('active');
+    }
+
+    function closeAISearchModal() {
+      document.getElementById('ai-search-modal').classList.remove('active');
+      editingSearchId = null;
+    }
+
+    function editDreamCarSearch(searchId) {
+      openAISearchModal(searchId);
+    }
+
+    async function saveAISearch(event) {
+      event.preventDefault();
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Please log in to save search', 'error');
+          return;
+        }
+
+        const bodyStyles = Array.from(document.querySelectorAll('input[name="ai-body-style"]:checked')).map(cb => cb.value);
+        const fuelTypes = Array.from(document.querySelectorAll('input[name="ai-fuel-type"]:checked')).map(cb => cb.value);
+        
+        const searchData = {
+          user_id: session.user.id,
+          search_name: document.getElementById('ai-search-name').value.trim(),
+          min_year: parseInt(document.getElementById('ai-search-min-year').value) || null,
+          max_year: parseInt(document.getElementById('ai-search-max-year').value) || null,
+          min_price: parseFloat(document.getElementById('ai-search-min-price').value) || null,
+          max_price: parseFloat(document.getElementById('ai-search-max-price').value) || null,
+          max_mileage: parseInt(document.getElementById('ai-search-max-mileage').value) || null,
+          preferred_makes: document.getElementById('ai-search-makes').value.split(',').map(s => s.trim()).filter(s => s),
+          preferred_models: document.getElementById('ai-search-models').value.split(',').map(s => s.trim()).filter(s => s),
+          body_styles: bodyStyles,
+          fuel_types: fuelTypes,
+          zip_code: document.getElementById('ai-search-zip').value.trim() || null,
+          max_distance_miles: parseInt(document.getElementById('ai-search-radius').value) || null,
+          exterior_colors: document.getElementById('ai-search-colors').value.split(',').map(s => s.trim()).filter(s => s),
+          must_have_features: document.getElementById('ai-search-features').value.split(',').map(s => s.trim()).filter(s => s),
+          search_frequency: document.getElementById('ai-search-frequency').value,
+          notify_email: document.getElementById('ai-search-notify-email').checked,
+          notify_sms: document.getElementById('ai-search-notify-sms').checked,
+          is_active: document.getElementById('ai-search-active').checked
+        };
+
+        const existingId = document.getElementById('ai-search-id').value;
+        
+        if (existingId) {
+          const { error } = await supabaseClient
+            .from('dream_car_searches')
+            .update(searchData)
+            .eq('id', existingId);
+          
+          if (error) throw error;
+          showToast('Search updated successfully!', 'success');
+        } else {
+          const { error } = await supabaseClient
+            .from('dream_car_searches')
+            .insert([searchData]);
+          
+          if (error) throw error;
+          showToast('Search created successfully!', 'success');
+        }
+        
+        closeAISearchModal();
+        loadDreamCarSearches();
+      } catch (error) {
+        console.error('Error saving AI search:', error);
+        showToast('Failed to save search. Please try again.', 'error');
+      }
+    }
+
+    async function deleteDreamCarSearch(searchId) {
+      if (!confirm('Are you sure you want to delete this search? All matches will also be deleted.')) return;
+      
+      try {
+        const { error } = await supabaseClient
+          .from('dream_car_searches')
+          .delete()
+          .eq('id', searchId);
+        
+        if (error) throw error;
+        
+        showToast('Search deleted successfully!', 'success');
+        loadDreamCarSearches();
+      } catch (error) {
+        console.error('Error deleting search:', error);
+        showToast('Failed to delete search. Please try again.', 'error');
+      }
+    }
+
+    async function toggleSearchActive(searchId) {
+      try {
+        const search = dreamCarSearches.find(s => s.id === searchId);
+        if (!search) return;
+        
+        const { error } = await supabaseClient
+          .from('dream_car_searches')
+          .update({ is_active: !search.is_active })
+          .eq('id', searchId);
+        
+        if (error) throw error;
+        
+        showToast(search.is_active ? 'Search paused' : 'Search resumed', 'success');
+        loadDreamCarSearches();
+      } catch (error) {
+        console.error('Error toggling search:', error);
+        showToast('Failed to update search. Please try again.', 'error');
+      }
+    }
+
+    async function markMatchSeen(matchId, seen = true) {
+      try {
+        const { error } = await supabaseClient
+          .from('dream_car_matches')
+          .update({ is_seen: seen })
+          .eq('id', matchId);
+        
+        if (error) throw error;
+        
+        const match = dreamCarMatches.find(m => m.id === matchId);
+        if (match) match.is_seen = seen;
+        renderDreamCarMatches();
+      } catch (error) {
+        console.error('Error marking match:', error);
+      }
+    }
+
+    async function saveMatch(matchId, save = true) {
+      try {
+        const { error } = await supabaseClient
+          .from('dream_car_matches')
+          .update({ is_saved: save })
+          .eq('id', matchId);
+        
+        if (error) throw error;
+        
+        const match = dreamCarMatches.find(m => m.id === matchId);
+        if (match) match.is_saved = save;
+        renderDreamCarMatches();
+        showToast(save ? 'Match saved!' : 'Match unsaved', 'success');
+      } catch (error) {
+        console.error('Error saving match:', error);
+      }
+    }
+
+    async function dismissMatch(matchId) {
+      try {
+        const { error } = await supabaseClient
+          .from('dream_car_matches')
+          .update({ is_dismissed: true })
+          .eq('id', matchId);
+        
+        if (error) throw error;
+        
+        dreamCarMatches = dreamCarMatches.filter(m => m.id !== matchId);
+        renderDreamCarMatches();
+        showToast('Match dismissed', 'success');
+      } catch (error) {
+        console.error('Error dismissing match:', error);
+      }
+    }
+
+    function viewMatchDetail(matchId) {
+      const match = dreamCarMatches.find(m => m.id === matchId);
+      if (!match) return;
+      
+      currentMatchDetail = match;
+      markMatchSeen(matchId, true);
+      
+      const modal = document.getElementById('ai-match-detail-modal');
+      const titleEl = document.getElementById('ai-match-modal-title');
+      const bodyEl = document.getElementById('ai-match-modal-body');
+      
+      titleEl.textContent = `${match.year || ''} ${match.make || ''} ${match.model || ''}`.trim();
+      
+      const photo = match.photos && match.photos.length > 0 ? match.photos[0] : null;
+      const scoreColor = match.match_score >= 90 ? 'var(--accent-green)' : match.match_score >= 70 ? 'var(--accent-gold)' : 'var(--accent-blue)';
+      
+      bodyEl.innerHTML = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+          <div>
+            <div style="height: 200px; background: var(--bg-input); border-radius: var(--radius-md); overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+              ${photo ? `<img src="${escapeHtml(photo)}" alt="Car photo" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentNode.innerHTML='<div style=\\'font-size: 60px;\\'>🚗</div>'">` : '<div style="font-size: 60px;">🚗</div>'}
+            </div>
+            ${match.photos && match.photos.length > 1 ? `
+              <div style="display: flex; gap: 8px; overflow-x: auto;">
+                ${match.photos.slice(1, 5).map(p => `
+                  <img src="${escapeHtml(p)}" alt="Photo" style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); cursor: pointer;" onerror="this.style.display='none'">
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+          <div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+              <div style="padding: 8px 16px; border-radius: 100px; font-size: 1rem; font-weight: 600; background: linear-gradient(135deg, ${scoreColor}, ${scoreColor}88); color: white;">
+                ${match.match_score || 0}% Match
+              </div>
+              ${match.is_saved ? '<span style="color: var(--accent-gold);">⭐ Saved</span>' : ''}
+            </div>
+            <div style="display: grid; gap: 12px;">
+              ${match.price ? `<div><span style="color: var(--text-muted);">Price:</span> <strong>$${Number(match.price).toLocaleString()}</strong></div>` : ''}
+              ${match.mileage ? `<div><span style="color: var(--text-muted);">Mileage:</span> <strong>${Number(match.mileage).toLocaleString()} miles</strong></div>` : ''}
+              ${match.exterior_color ? `<div><span style="color: var(--text-muted);">Color:</span> ${escapeHtml(match.exterior_color)}</div>` : ''}
+              ${match.location ? `<div><span style="color: var(--text-muted);">Location:</span> ${escapeHtml(match.location)}</div>` : ''}
+              ${match.seller_type ? `<div><span style="color: var(--text-muted);">Seller:</span> ${match.seller_type === 'dealer' ? 'Dealer' : match.seller_type === 'private' ? 'Private' : 'Other'}</div>` : ''}
+              ${match.source ? `<div><span style="color: var(--text-muted);">Source:</span> ${escapeHtml(match.source)}</div>` : ''}
+            </div>
+            ${match.listing_url ? `
+              <a href="${escapeHtml(match.listing_url)}" target="_blank" rel="noopener" class="btn btn-secondary" style="margin-top: 16px; width: 100%; justify-content: center;">
+                🔗 View Original Listing
+              </a>
+            ` : ''}
+          </div>
+        </div>
+        ${match.match_reasons && match.match_reasons.length > 0 ? `
+          <div style="margin-top: 20px; padding: 16px; background: var(--bg-input); border-radius: var(--radius-md);">
+            <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 12px; color: var(--accent-gold);">Why this matches:</h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              ${match.match_reasons.map(r => `<span style="padding: 4px 10px; background: var(--accent-gold-soft); color: var(--accent-gold); border-radius: 100px; font-size: 0.82rem;">✓ ${escapeHtml(r)}</span>`).join('')}
+            </div>
+          </div>
+        ` : ''}
+      `;
+      
+      modal.classList.add('active');
+    }
+
+    function closeAIMatchModal() {
+      document.getElementById('ai-match-detail-modal').classList.remove('active');
+      currentMatchDetail = null;
+    }
+
+    async function addMatchToProspects() {
+      if (!currentMatchDetail) return;
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Please log in', 'error');
+          return;
+        }
+
+        const prospectData = {
+          user_id: session.user.id,
+          year: parseInt(currentMatchDetail.year) || null,
+          make: currentMatchDetail.make,
+          model: currentMatchDetail.model,
+          trim: currentMatchDetail.trim,
+          asking_price: currentMatchDetail.price,
+          mileage: currentMatchDetail.mileage,
+          exterior_color: currentMatchDetail.exterior_color,
+          seller_location: currentMatchDetail.location,
+          seller_type: currentMatchDetail.seller_type,
+          listing_url: currentMatchDetail.listing_url,
+          photos: currentMatchDetail.photos || [],
+          status: 'considering'
+        };
+
+        const { error } = await supabaseClient
+          .from('prospect_vehicles')
+          .insert([prospectData]);
+
+        if (error) throw error;
+
+        showToast('Added to prospects!', 'success');
+        closeAIMatchModal();
+        loadProspectVehicles();
+      } catch (error) {
+        console.error('Error adding to prospects:', error);
+        showToast('Failed to add to prospects', 'error');
       }
     }
 
