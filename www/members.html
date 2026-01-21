@@ -5964,23 +5964,27 @@
     async function initializeDashboard() {
       initYearDropdown(); // Initialize year dropdown
       
-      await loadProfile();
-      await loadVehicles();
-      await loadPackages();
-      await loadDestinationServices();
-      await loadReminders();
-      await loadRecommendations();
-      await loadServiceHistory();
-      await loadUpsellRequests();
-      await loadConversations();
-      await loadNotifications();
-      await checkActiveEmergency();
+      // Load all data in parallel for faster dashboard loading
+      await Promise.all([
+        loadProfile(),
+        loadVehicles(),
+        loadPackages(),
+        loadDestinationServices(),
+        loadReminders(),
+        loadRecommendations(),
+        loadServiceHistory(),
+        loadUpsellRequests(),
+        loadConversations(),
+        loadNotifications(),
+        checkActiveEmergency(),
+        initStripeIdentity()
+      ]);
+      
       updateStats();
       setupEventListeners();
       setupRealtimeSubscriptions();
       
-      // Initialize Stripe and check identity verification
-      await initStripeIdentity();
+      // Check identity verification after Stripe is initialized
       await checkIdentityVerification();
       
       // Check for identity verification return
