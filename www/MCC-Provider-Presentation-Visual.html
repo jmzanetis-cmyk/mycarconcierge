@@ -14,141 +14,144 @@
       .slide { page-break-after: always; page-break-inside: avoid; }
       .slide:last-child { page-break-after: auto; }
     }
-    body { font-family: 'Inter', sans-serif; background: #1a1a24; color: #e8e8e8; }
+    body { font-family: 'Inter', sans-serif; background: #f5f5f5; color: #1a1a24; }
     .print-controls {
-      background: #2a2a3a; padding: 20px; text-align: center;
-      border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+      background: #fff; padding: 20px; text-align: center;
+      border-bottom: 2px solid #b8962e;
       position: sticky; top: 0; z-index: 100;
     }
-    .print-controls h2 { color: #d4af37; margin-bottom: 10px; font-family: 'Playfair Display', serif; }
-    .print-controls p { color: #888; margin-bottom: 15px; }
+    .print-controls h2 { color: #b8962e; margin-bottom: 10px; font-family: 'Playfair Display', serif; }
+    .print-controls p { color: #666; margin-bottom: 15px; }
     .print-btn {
-      background: linear-gradient(135deg, #d4af37 0%, #b8962e 100%);
-      color: #0a0a0f; border: none; padding: 12px 30px;
+      background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
+      color: #fff; border: none; padding: 12px 30px;
       font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; margin: 0 10px;
     }
     .slide {
       width: 210mm; height: 297mm; margin: 0 auto 20px;
-      background: linear-gradient(180deg, #0a0a0f 0%, #0d0d14 50%, #0a0a0f 100%);
+      background: #ffffff;
       padding: 10mm; position: relative; overflow: hidden;
     }
     .slide-header {
       text-align: center; margin-bottom: 5mm; padding-bottom: 4mm;
-      border-bottom: 2px solid rgba(212, 175, 55, 0.3);
+      border-bottom: 2px solid #b8962e;
     }
     .logo { width: 30mm; margin-bottom: 2mm; }
-    .slide-title { font-family: 'Playfair Display', serif; font-size: 22pt; color: #d4af37; margin-bottom: 1mm; }
-    .slide-subtitle { font-size: 10pt; color: #a0a0a0; }
-    .slide-number { position: absolute; bottom: 12mm; right: 10mm; font-size: 9pt; color: #666; }
-    .footer-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 6mm; background: linear-gradient(90deg, #d4af37 0%, #b8962e 100%); }
+    .slide-title { font-family: 'Playfair Display', serif; font-size: 22pt; color: #1a1a24; margin-bottom: 1mm; }
+    .slide-subtitle { font-size: 10pt; color: #666; }
+    .slide-number { position: absolute; bottom: 12mm; right: 10mm; font-size: 9pt; color: #999; }
+    .footer-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 6mm; background: linear-gradient(90deg, #b8962e 0%, #9a7d26 100%); }
     .screenshot {
-      width: 100%; border-radius: 4mm; border: 2px solid rgba(212, 175, 55, 0.3);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      width: 100%; border-radius: 4mm; border: 2px solid #ddd;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
     }
     .screenshot-container {
-      background: linear-gradient(135deg, rgba(26, 26, 36, 0.5) 0%, rgba(20, 20, 28, 0.7) 100%);
+      background: #f8f8f8;
+      border: 1px solid #e0e0e0;
       border-radius: 5mm; padding: 3mm; margin: 3mm 0;
     }
     .screenshot-label {
-      font-size: 9pt; color: #d4af37; text-align: center; margin-top: 2mm; font-weight: 600;
+      font-size: 9pt; color: #b8962e; text-align: center; margin-top: 2mm; font-weight: 600;
     }
     .content-box {
-      background: linear-gradient(135deg, rgba(26, 26, 36, 0.7) 0%, rgba(20, 20, 28, 0.9) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 3mm; padding: 4mm; margin-bottom: 3mm;
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0; border-radius: 3mm; padding: 4mm; margin-bottom: 3mm;
     }
     .content-box.highlight {
-      background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%);
-      border-color: rgba(212, 175, 55, 0.3);
+      background: linear-gradient(135deg, rgba(184, 150, 46, 0.08) 0%, rgba(184, 150, 46, 0.04) 100%);
+      border-color: #b8962e;
     }
-    .box-title { font-family: 'Playfair Display', serif; font-size: 12pt; color: #d4af37; margin-bottom: 2mm; }
-    .box-text { font-size: 9pt; color: #c0c0c0; line-height: 1.4; }
+    .box-title { font-family: 'Playfair Display', serif; font-size: 12pt; color: #1a1a24; margin-bottom: 2mm; }
+    .box-text { font-size: 9pt; color: #444; line-height: 1.4; }
     .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
     .feature-item {
-      background: linear-gradient(135deg, rgba(26, 26, 36, 0.6) 0%, rgba(20, 20, 28, 0.8) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 2mm; padding: 3mm;
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0; border-radius: 2mm; padding: 3mm;
     }
     .feature-icon { font-size: 16pt; margin-bottom: 1mm; }
-    .feature-title { font-weight: 600; font-size: 9pt; color: #fff; margin-bottom: 1mm; }
-    .feature-desc { font-size: 8pt; color: #a0a0a0; line-height: 1.3; }
+    .feature-title { font-weight: 600; font-size: 9pt; color: #1a1a24; margin-bottom: 1mm; }
+    .feature-desc { font-size: 8pt; color: #666; line-height: 1.3; }
     .bullet-list { list-style: none; padding: 0; }
     .bullet-list li {
-      font-size: 9pt; color: #c0c0c0; margin: 1.5mm 0; padding-left: 4mm;
+      font-size: 9pt; color: #444; margin: 1.5mm 0; padding-left: 4mm;
       position: relative; line-height: 1.3;
     }
-    .bullet-list li::before { content: "✓"; position: absolute; left: 0; color: #4ac88c; font-weight: bold; }
+    .bullet-list li::before { content: "✓"; position: absolute; left: 0; color: #2e8b57; font-weight: bold; }
     .step-list { counter-reset: step; list-style: none; padding: 0; }
     .step-list li {
-      font-size: 9pt; color: #c0c0c0; margin: 2mm 0; padding-left: 8mm;
+      font-size: 9pt; color: #444; margin: 2mm 0; padding-left: 8mm;
       position: relative; line-height: 1.3;
     }
     .step-list li::before {
       counter-increment: step; content: counter(step);
       position: absolute; left: 0; width: 5mm; height: 5mm;
-      background: linear-gradient(135deg, #d4af37 0%, #b8962e 100%);
-      color: #0a0a0f; border-radius: 50%; display: flex; align-items: center;
+      background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
+      color: #fff; border-radius: 50%; display: flex; align-items: center;
       justify-content: center; font-weight: 700; font-size: 8pt;
     }
     .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin: 3mm 0; }
     .stat-box {
       text-align: center;
-      background: linear-gradient(135deg, rgba(26, 26, 36, 0.6) 0%, rgba(20, 20, 28, 0.8) 100%);
-      border: 1px solid rgba(212, 175, 55, 0.2); border-radius: 2mm; padding: 3mm;
+      background: #f8f9fa;
+      border: 1px solid #b8962e; border-radius: 2mm; padding: 3mm;
     }
-    .stat-value { font-family: 'Playfair Display', serif; font-size: 18pt; color: #d4af37; font-weight: 700; }
-    .stat-label { font-size: 7pt; color: #888; margin-top: 1mm; }
+    .stat-value { font-family: 'Playfair Display', serif; font-size: 18pt; color: #b8962e; font-weight: 700; }
+    .stat-label { font-size: 7pt; color: #666; margin-top: 1mm; }
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
     .section-title {
-      font-family: 'Playfair Display', serif; font-size: 13pt; color: #d4af37;
-      margin: 3mm 0 2mm; padding-bottom: 1mm; border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+      font-family: 'Playfair Display', serif; font-size: 13pt; color: #1a1a24;
+      margin: 3mm 0 2mm; padding-bottom: 1mm; border-bottom: 1px solid #b8962e;
     }
     .callout {
-      background: linear-gradient(135deg, rgba(74, 200, 140, 0.1) 0%, rgba(74, 200, 140, 0.05) 100%);
-      border: 1px solid rgba(74, 200, 140, 0.3); border-radius: 2mm; padding: 3mm; margin: 2mm 0;
+      background: linear-gradient(135deg, rgba(46, 139, 87, 0.08) 0%, rgba(46, 139, 87, 0.04) 100%);
+      border: 1px solid #2e8b57; border-radius: 2mm; padding: 3mm; margin: 2mm 0;
     }
-    .callout .title { color: #4ac88c; font-weight: 600; font-size: 10pt; margin-bottom: 1mm; }
-    .callout .text { font-size: 8pt; color: #a0a0a0; }
+    .callout .title { color: #2e8b57; font-weight: 600; font-size: 10pt; margin-bottom: 1mm; }
+    .callout .text { font-size: 8pt; color: #444; }
     .hero-text {
-      font-family: 'Playfair Display', serif; font-size: 28pt; color: #fff;
+      font-family: 'Playfair Display', serif; font-size: 28pt; color: #1a1a24;
       text-align: center; margin: 15mm 0 8mm; line-height: 1.2;
     }
-    .hero-sub { font-size: 12pt; color: #a0a0a0; text-align: center; margin-bottom: 10mm; }
+    .hero-sub { font-size: 12pt; color: #666; text-align: center; margin-bottom: 10mm; }
     .cta-box {
-      background: linear-gradient(135deg, #d4af37 0%, #b8962e 100%);
-      color: #0a0a0f; text-align: center; padding: 6mm; border-radius: 3mm; margin-top: 4mm;
+      background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
+      color: #fff; text-align: center; padding: 6mm; border-radius: 3mm; margin-top: 4mm;
     }
     .cta-title { font-family: 'Playfair Display', serif; font-size: 16pt; font-weight: 700; margin-bottom: 1mm; }
     .cta-text { font-size: 10pt; }
     .platform-badges { display: flex; justify-content: center; gap: 4mm; margin: 4mm 0; }
     .badge {
-      background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 1.5mm; padding: 1.5mm 3mm; font-size: 8pt; color: #c0c0c0;
+      background: #f0f0f0; border: 1px solid #ccc;
+      border-radius: 1.5mm; padding: 1.5mm 3mm; font-size: 8pt; color: #444;
     }
     .icon-flow {
       display: flex; justify-content: space-between; align-items: center;
       margin: 4mm 0; padding: 3mm;
-      background: linear-gradient(135deg, rgba(26, 26, 36, 0.5) 0%, rgba(20, 20, 28, 0.7) 100%);
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
       border-radius: 3mm;
     }
     .icon-step { text-align: center; flex: 1; }
     .icon-step .icon { font-size: 20pt; margin-bottom: 1mm; }
-    .icon-step .label { font-size: 7pt; color: #a0a0a0; }
-    .arrow { color: #d4af37; font-size: 16pt; }
+    .icon-step .label { font-size: 7pt; color: #666; }
+    .arrow { color: #b8962e; font-size: 16pt; }
     .mini-table { width: 100%; border-collapse: collapse; font-size: 8pt; margin: 2mm 0; }
     .mini-table th {
-      background: rgba(212, 175, 55, 0.15); padding: 1.5mm;
-      text-align: left; color: #d4af37; font-size: 7pt; text-transform: uppercase;
+      background: rgba(184, 150, 46, 0.15); padding: 1.5mm;
+      text-align: left; color: #1a1a24; font-size: 7pt; text-transform: uppercase;
     }
-    .mini-table td { padding: 1.5mm; border-bottom: 1px solid rgba(255,255,255,0.05); color: #c0c0c0; }
+    .mini-table td { padding: 1.5mm; border-bottom: 1px solid #e0e0e0; color: #444; }
     .tag {
-      display: inline-block; background: linear-gradient(135deg, #d4af37 0%, #b8962e 100%);
-      color: #0a0a0f; font-size: 5pt; padding: 0.5mm 1.5mm; border-radius: 1mm; font-weight: 700;
+      display: inline-block; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
+      color: #fff; font-size: 5pt; padding: 0.5mm 1.5mm; border-radius: 1mm; font-weight: 700;
     }
+    .logo-dark { filter: none; }
   </style>
 </head>
 <body>
   <div class="print-controls">
     <h2>MCC Provider Platform Presentation</h2>
-    <p>Visual Edition - Portrait A4 Format - 12 Slides</p>
+    <p>Print-Friendly Light Theme - Portrait A4 Format - 12 Slides</p>
     <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
   </div>
 
@@ -169,7 +172,7 @@
         <div class="screenshot-label">Platform Homepage</div>
       </div>
       <div style="margin-top: 8mm; text-align: center;">
-        <div style="font-size: 11pt; color: #d4af37; font-weight: 600;">www.mycarconcierge.com</div>
+        <div style="font-size: 11pt; color: #b8962e; font-weight: 600;">www.mycarconcierge.com</div>
       </div>
     </div>
     <div class="footer-bar"></div>
@@ -708,7 +711,7 @@
         <div class="box-title">Get Started Today</div>
         <div class="box-text" style="text-align: center; font-size: 10pt;">
           Scan the QR code or visit<br>
-          <strong style="color: #d4af37;">mycarconcierge.com/signup-provider</strong>
+          <strong style="color: #b8962e;">mycarconcierge.com/signup-provider</strong>
         </div>
       </div>
     </div>
@@ -722,11 +725,11 @@
     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
       <img src="logo.png" style="width: 50mm; margin-bottom: 6mm;" alt="My Car Concierge">
       
-      <div style="font-family: 'Playfair Display', serif; font-size: 26pt; color: #fff; text-align: center; margin-bottom: 4mm;">
+      <div style="font-family: 'Playfair Display', serif; font-size: 26pt; color: #1a1a24; text-align: center; margin-bottom: 4mm;">
         Ready to Grow Your Business?
       </div>
       
-      <div style="font-size: 12pt; color: #a0a0a0; text-align: center; max-width: 140mm; margin-bottom: 8mm; line-height: 1.4;">
+      <div style="font-size: 12pt; color: #666; text-align: center; max-width: 140mm; margin-bottom: 8mm; line-height: 1.4;">
         Join the Founding Provider program today and be among the first to access a new stream of qualified customers.
       </div>
 
@@ -751,8 +754,8 @@
       </div>
 
       <div style="margin-top: 10mm; text-align: center;">
-        <div style="font-size: 11pt; color: #d4af37; margin-bottom: 2mm;">Questions?</div>
-        <div style="font-size: 11pt; color: #c0c0c0;">info@mycarconcierge.com</div>
+        <div style="font-size: 11pt; color: #b8962e; margin-bottom: 2mm;">Questions?</div>
+        <div style="font-size: 11pt; color: #444;">info@mycarconcierge.com</div>
       </div>
 
       <div class="platform-badges" style="margin-top: 8mm;">
