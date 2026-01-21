@@ -16549,6 +16549,21 @@ const server = http.createServer((req, res) => {
       } else if (filePath.includes('sw.js')) {
         additionalHeaders['Cache-Control'] = 'no-cache';
         additionalHeaders['Service-Worker-Allowed'] = '/';
+      } else if (contentType.startsWith('image/') || extname === '.ico') {
+        // Cache images for 7 days
+        additionalHeaders['Cache-Control'] = 'public, max-age=604800, immutable';
+      } else if (extname === '.css') {
+        // Cache CSS for 1 day, revalidate
+        additionalHeaders['Cache-Control'] = 'public, max-age=86400, stale-while-revalidate=604800';
+      } else if (extname === '.js' && !filePath.includes('sw.js')) {
+        // Cache JS for 1 day, revalidate
+        additionalHeaders['Cache-Control'] = 'public, max-age=86400, stale-while-revalidate=604800';
+      } else if (extname === '.woff' || extname === '.woff2' || extname === '.ttf' || extname === '.eot') {
+        // Cache fonts for 30 days
+        additionalHeaders['Cache-Control'] = 'public, max-age=2592000, immutable';
+      } else if (extname === '.json' && filePath.includes('locales')) {
+        // Cache locale files for 1 hour
+        additionalHeaders['Cache-Control'] = 'public, max-age=3600';
       }
       
       compressResponse(req, res, content, contentType, additionalHeaders);

@@ -38,6 +38,8 @@ Key features include:
 - **Product Caching**: Shop products are cached for 5 minutes to reduce Printful API calls
 - **Lazy Loading**: Shop product images use lazy loading with skeleton placeholders
 - **Admin Stats Caching**: Dashboard statistics cached for 5 minutes to reduce database queries
+- **Static Asset Caching**: JS/CSS cached 1 day, images cached 7 days, fonts cached 30 days with stale-while-revalidate
+- **Resource Preloading**: Critical JS, CSS, and images preloaded in HTML head for faster initial render
 - **Scheduled Tasks**: Maintenance reminder checks run automatically every 24 hours (configurable via ENABLE_MAINTENANCE_SCHEDULER env var)
 - **Login Activity Cleanup**: Automatically removes login activity entries older than 90 days (runs daily)
 
