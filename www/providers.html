@@ -5259,23 +5259,31 @@
       document.getElementById('user-email').textContent = user.email;
       document.getElementById('user-avatar').textContent = displayName[0].toUpperCase();
 
-      await loadOpenPackages();
-      await loadMyBids();
-      await loadEarnings();
-      await loadMyReviews();
-      await loadProviderProfile();
-      await loadSubscription();
-      await loadNotifications();
-      await loadPerformance();
+      // Load all data in parallel for faster dashboard loading
+      await Promise.all([
+        loadOpenPackages(),
+        loadMyBids(),
+        loadEarnings(),
+        loadMyReviews(),
+        loadProviderProfile(),
+        loadSubscription(),
+        loadNotifications(),
+        loadPerformance(),
+        loadPosIntegrationStatus(),
+        loadTeamManagementData()
+      ]);
+      
       updateStats();
       setupNav();
       
       // Setup emergency settings
       setupEmergencySettings();
-      await refreshEmergencies();
       
-      // Load destination tasks
-      await loadDestinationTasks();
+      // Load emergency and destination tasks in parallel
+      await Promise.all([
+        refreshEmergencies(),
+        loadDestinationTasks()
+      ]);
       
       // Check if returning from Stripe checkout
       checkPurchaseStatus();
@@ -5285,12 +5293,6 @@
       
       // Setup realtime updates
       setupRealtimeSubscriptions();
-      
-      // Load POS integration status (Clover and Square)
-      await loadPosIntegrationStatus();
-      
-      // Load team management data for nav visibility
-      await loadTeamManagementData();
     }
 
     // ========== POS INTEGRATION (CLOVER + SQUARE) ==========
