@@ -294,6 +294,23 @@ const I18n = (function() {
         content: ' ✓';
         color: #4a7cff;
       }
+      
+      /* Mobile dropdown opens upward */
+      .mobile-lang-switcher .lang-dropdown {
+        top: auto;
+        bottom: calc(100% + 8px);
+        transform: translateY(10px);
+      }
+      .mobile-lang-switcher .lang-dropdown.show {
+        transform: translateY(0);
+      }
+      .mobile-lang-switcher .lang-btn .chevron {
+        transform: rotate(180deg);
+      }
+      .mobile-lang-switcher .lang-dropdown.show + .lang-btn .chevron,
+      .mobile-lang-switcher .lang-btn:focus + .lang-dropdown .chevron {
+        transform: rotate(0deg);
+      }
     `;
     document.head.appendChild(style);
   }
