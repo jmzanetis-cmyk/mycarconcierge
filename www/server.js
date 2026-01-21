@@ -847,6 +847,32 @@ function clearProductCache() {
   productCache.timestamp = null;
 }
 
+// Admin stats cache (5 minute TTL)
+const adminStatsCache = {
+  overview: { data: null, timestamp: null },
+  revenue: {},
+  users: {},
+  orders: {},
+  ttl: 300000 // 5 minutes
+};
+
+function getCachedAdminStats(type, period = null) {
+  const cacheKey = period ? `${type}_${period}` : type;
+  const cache = period ? adminStatsCache[type]?.[period] : adminStatsCache[type];
+  if (!cache?.data || !cache?.timestamp) return null;
+  if (Date.now() - cache.timestamp > adminStatsCache.ttl) return null;
+  return cache.data;
+}
+
+function setCachedAdminStats(type, data, period = null) {
+  if (period) {
+    if (!adminStatsCache[type]) adminStatsCache[type] = {};
+    adminStatsCache[type][period] = { data, timestamp: Date.now() };
+  } else {
+    adminStatsCache[type] = { data, timestamp: Date.now() };
+  }
+}
+
 async function fetchPrintfulProducts() {
   const apiKey = process.env.PRINTFUL_API_KEY;
   
@@ -13012,6 +13038,62 @@ function startAppointmentReminderScheduler() {
   console.log('[Scheduler] Scheduled: initial appointment check in 60s, then every hour');
 }
 
+// Login Activity Cleanup - removes entries older than 90 days
+async function cleanupOldLoginActivity() {
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { deleted: 0 };
+    
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    
+    const { data, error } = await supabase
+      .from('login_activity')
+      .delete()
+      .lt('created_at', ninetyDaysAgo.toISOString())
+      .select('id');
+    
+    if (error) {
+      console.error('[LoginCleanup] Error:', error.message);
+      return { deleted: 0, error: error.message };
+    }
+    
+    return { deleted: data?.length || 0 };
+  } catch (error) {
+    console.error('[LoginCleanup] Error:', error);
+    return { deleted: 0, error: error.message };
+  }
+}
+
+function startLoginActivityCleanupScheduler() {
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  const INITIAL_DELAY = 5 * 60 * 1000; // 5 minutes after startup
+  
+  console.log('[Scheduler] Login activity cleanup scheduler is ENABLED');
+  
+  setTimeout(async () => {
+    console.log('[Scheduler] Running initial login activity cleanup...');
+    try {
+      const result = await cleanupOldLoginActivity();
+      console.log(`[Scheduler] Initial login cleanup complete: ${result.deleted} old entries removed`);
+    } catch (error) {
+      console.error('[Scheduler] Initial login cleanup failed:', error.message);
+    }
+  }, INITIAL_DELAY);
+  
+  setInterval(async () => {
+    console.log('[Scheduler] Running daily login activity cleanup...');
+    try {
+      const result = await cleanupOldLoginActivity();
+      console.log(`[Scheduler] Daily login cleanup complete: ${result.deleted} old entries removed`);
+    } catch (error) {
+      console.error('[Scheduler] Daily login cleanup failed:', error.message);
+    }
+  }, ONE_DAY);
+  
+  console.log('[Scheduler] Scheduled: initial login cleanup in 5min, then every 24 hours');
+}
+
 async function handleAdminTriggerAppointmentReminders(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -15179,6 +15261,15 @@ async function handleAdminStatsOverview(req, res, requestId) {
   setCorsHeaders(res);
   
   try {
+    // Check cache first
+    const cached = getCachedAdminStats('overview');
+    if (cached) {
+      console.log(`[${requestId}] Returning cached admin overview stats`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, data: cached, cached: true }));
+      return;
+    }
+    
     const supabase = getSupabaseClient();
     if (!supabase) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -15205,20 +15296,23 @@ async function handleAdminStatsOverview(req, res, requestId) {
     const totalRevenue = (paymentsData || []).reduce((sum, p) => sum + (p.mcc_fee || 0), 0);
     const totalTransactionVolume = (paymentsData || []).reduce((sum, p) => sum + (p.amount_total || 0), 0);
     
+    const data = {
+      totalMembers: totalMembers || 0,
+      totalProviders: totalProviders || 0,
+      totalVehicles: totalVehicles || 0,
+      totalPackages: totalPackages || 0,
+      activePackages: activePackages || 0,
+      totalRevenue: totalRevenue,
+      totalTransactionVolume: totalTransactionVolume,
+      totalOrders: paymentsData?.length || 0
+    };
+    
+    // Cache the results
+    setCachedAdminStats('overview', data);
+    console.log(`[${requestId}] Cached admin overview stats for 5 minutes`);
+    
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      success: true,
-      data: {
-        totalMembers: totalMembers || 0,
-        totalProviders: totalProviders || 0,
-        totalVehicles: totalVehicles || 0,
-        totalPackages: totalPackages || 0,
-        activePackages: activePackages || 0,
-        totalRevenue: totalRevenue,
-        totalTransactionVolume: totalTransactionVolume,
-        totalOrders: paymentsData?.length || 0
-      }
-    }));
+    res.end(JSON.stringify({ success: true, data }));
   } catch (error) {
     console.error(`[${requestId}] Admin stats overview error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -16470,4 +16564,5 @@ server.listen(PORT, '0.0.0.0', () => {
   startMaintenanceReminderScheduler();
   startWeeklyRecallCheckScheduler();
   startAppointmentReminderScheduler();
+  startLoginActivityCleanupScheduler();
 });
