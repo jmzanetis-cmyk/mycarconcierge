@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Car Concierge - Activos de Marca</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #ffffff;
+      color: #1a1a2e;
+      line-height: 1.4;
+    }
+    
+    .page {
+      width: 210mm;
+      height: 297mm;
+      padding: 12mm 15mm;
+      margin: 0 auto;
+      background: #ffffff;
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #b8962e;
+    }
+    
+    .logo { width: 50px; height: 50px; }
+    
+    .header-text h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      color: #0a1628;
+    }
+    
+    .header-text p {
+      font-size: 10px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+    
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 12px;
+      color: #b8962e;
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e0e0e0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .color-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    
+    .color-swatch {
+      flex: 1;
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .swatch-color {
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      font-weight: 600;
+    }
+    
+    .swatch-info {
+      padding: 4px 6px;
+      background: #f8f8f8;
+    }
+    
+    .swatch-name { font-weight: 600; font-size: 8px; }
+    .swatch-usage { font-size: 7px; color: #666; }
+    
+    .font-box {
+      background: #f8f8f8;
+      padding: 8px 10px;
+      border-radius: 4px;
+      margin-bottom: 6px;
+    }
+    
+    .font-label {
+      font-size: 7px;
+      color: #b8962e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 3px;
+    }
+    
+    .font-playfair { font-family: 'Playfair Display', serif; }
+    .font-inter { font-family: 'Inter', sans-serif; }
+    
+    .font-sample { font-size: 16px; margin-bottom: 2px; }
+    .font-chars { font-size: 8px; color: #444; }
+    
+    .logo-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    
+    .logo-box {
+      flex: 1;
+      padding: 12px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .logo-box.dark { background: #0a1628; }
+    .logo-box.light { background: #f0f0f0; border: 1px solid #ddd; }
+    .logo-box img { width: 40px; height: 40px; }
+    
+    .rules-list {
+      list-style: none;
+      font-size: 8px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px;
+    }
+    
+    .rules-list li { padding: 2px 0; }
+    .rules-list li:before { content: "✓"; color: #22c55e; margin-right: 4px; font-size: 7px; }
+    .rules-list li.dont:before { content: "✗"; color: #ef4444; }
+    
+    .tagline-box {
+      background: linear-gradient(135deg, #0a1628 0%, #1a1a2e 100%);
+      padding: 10px 12px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+    
+    .tagline-text {
+      font-family: 'Playfair Display', serif;
+      font-size: 13px;
+      color: #b8962e;
+    }
+    
+    .tagline-desc {
+      font-size: 8px;
+      color: #888;
+      margin-top: 2px;
+    }
+    
+    .voice-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    
+    .voice-box {
+      background: #f8f8f8;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border-left: 2px solid #b8962e;
+    }
+    
+    .voice-title { font-weight: 600; font-size: 9px; color: #0a1628; }
+    .voice-desc { font-size: 7px; color: #555; margin-top: 2px; }
+    
+    .card-section {
+      grid-column: 1 / -1;
+      margin-top: 6px;
+    }
+    
+    .card-row {
+      display: flex;
+      gap: 15px;
+      align-items: flex-start;
+    }
+    
+    .card-mockup {
+      width: 160px;
+      height: 90px;
+      border-radius: 4px;
+      padding: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      flex-shrink: 0;
+    }
+    
+    .card-front {
+      background: linear-gradient(135deg, #0a1628 0%, #1a1a2e 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    
+    .card-front .card-logo {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .card-front .card-logo img { width: 22px; height: 22px; }
+    
+    .card-front .card-logo-text {
+      font-family: 'Playfair Display', serif;
+      font-size: 9px;
+      color: #b8962e;
+    }
+    
+    .card-front .card-tagline {
+      font-size: 6px;
+      color: #888;
+      text-align: right;
+    }
+    
+    .card-back {
+      background: #ffffff;
+      border: 1px solid #e0e0e0;
+    }
+    
+    .card-back .card-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 10px;
+      color: #0a1628;
+    }
+    
+    .card-back .card-title {
+      font-size: 6px;
+      color: #b8962e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    
+    .card-back .card-contact {
+      font-size: 6px;
+      color: #555;
+      line-height: 1.6;
+    }
+    
+    .specs-table {
+      flex: 1;
+      font-size: 8px;
+    }
+    
+    .specs-table table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    .specs-table td {
+      padding: 4px 6px;
+      border: 1px solid #e0e0e0;
+    }
+    
+    .specs-table tr:nth-child(odd) { background: #f8f8f8; }
+    .specs-table strong { color: #0a1628; }
+    
+    .footer {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #e0e0e0;
+      text-align: center;
+      font-size: 8px;
+      color: #888;
+    }
+    
+    @media print {
+      body { background: #fff; }
+      .page { margin: 0; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page">
+    <div class="header">
+      <img src="logo.png" class="logo" alt="Logo MCC">
+      <div class="header-text">
+        <h1>My Car Concierge</h1>
+        <p>Activos de Marca y Guía de Estilo</p>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      
+      <!-- COLUMNA IZQUIERDA -->
+      <div>
+        <div class="section-title">Colores Primarios</div>
+        <div class="color-row">
+          <div class="color-swatch">
+            <div class="swatch-color" style="background: #b8962e; color: #fff;">#b8962e</div>
+            <div class="swatch-info">
+              <div class="swatch-name">Dorado / Bronce</div>
+              <div class="swatch-usage">Acento principal, CTAs</div>
+            </div>
+          </div>
+          <div class="color-swatch">
+            <div class="swatch-color" style="background: #0a1628; color: #fff;">#0a1628</div>
+            <div class="swatch-info">
+              <div class="swatch-name">Azul Marino</div>
+              <div class="swatch-usage">Fondo principal</div>
+            </div>
+          </div>
+          <div class="color-swatch">
+            <div class="swatch-color" style="background: #1a1a2e; color: #fff;">#1a1a2e</div>
+            <div class="swatch-info">
+              <div class="swatch-name">Carbón</div>
+              <div class="swatch-usage">Tarjetas, secundario</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">Colores de Acento</div>
+        <div class="color-row">
+          <div class="color-swatch">
+            <div class="swatch-color" style="background: #d4af37; color: #fff;">#d4af37</div>
+            <div class="swatch-info">
+              <div class="swatch-name">Dorado Claro</div>
+              <div class="swatch-usage">Estados hover</div>
+            </div>
+          </div>
+          <div class="color-swatch">
+            <div class="swatch-color" style="background: #3b82f6; color: #fff;">#3b82f6</div>
+            <div class="swatch-info">
+              <div class="swatch-name">Azul</div>
+              <div class="swatch-usage">Enlaces, miembros</div>
+            </div>
+          </div>
+          <div class="color-swatch">
+            <div class="swatch-color" style="background: #22c55e; color: #fff;">#22c55e</div>
+            <div class="swatch-info">
+              <div class="swatch-name">Verde</div>
+              <div class="swatch-usage">Estados de éxito</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">Tipografía</div>
+        <div class="font-box">
+          <div class="font-label">Títulos — Playfair Display</div>
+          <div class="font-playfair font-sample">Servicio Automotriz Premium</div>
+          <div class="font-playfair font-chars">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</div>
+        </div>
+        <div class="font-box">
+          <div class="font-label">Cuerpo e Interfaz — Inter</div>
+          <div class="font-inter font-sample">Limpia, moderna, legible</div>
+          <div class="font-inter font-chars">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789</div>
+        </div>
+
+        <div class="section-title">Voz de Marca</div>
+        <div class="voice-grid">
+          <div class="voice-box">
+            <div class="voice-title">Lujo</div>
+            <div class="voice-desc">Servicio premium, exclusivo</div>
+          </div>
+          <div class="voice-box">
+            <div class="voice-title">Profesional</div>
+            <div class="voice-desc">Confiable, fiable</div>
+          </div>
+          <div class="voice-box">
+            <div class="voice-title">Accesible</div>
+            <div class="voice-desc">Cálido, sin pretensiones</div>
+          </div>
+          <div class="voice-box">
+            <div class="voice-title">Innovador</div>
+            <div class="voice-desc">Enfoque tecnológico</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COLUMNA DERECHA -->
+      <div>
+        <div class="section-title">Uso del Logotipo</div>
+        <div class="logo-row">
+          <div class="logo-box dark">
+            <img src="logo.png" alt="Logo sobre oscuro">
+          </div>
+          <div class="logo-box light">
+            <img src="logo.png" alt="Logo sobre claro">
+          </div>
+        </div>
+        <ul class="rules-list">
+          <li>Usar sobre fondos claros u oscuros</li>
+          <li>Mantener espacio libre alrededor</li>
+          <li>Tamaño mínimo: 40px de altura</li>
+          <li class="dont">No estirar ni distorsionar</li>
+          <li class="dont">No cambiar los colores</li>
+          <li class="dont">No agregar efectos</li>
+        </ul>
+
+        <div class="section-title" style="margin-top: 10px;">Eslóganes</div>
+        <div class="tagline-box">
+          <div class="tagline-text">"Tu Auto, Nuestra Prioridad"</div>
+          <div class="tagline-desc">Eslogan principal para marketing</div>
+        </div>
+        <div class="tagline-box">
+          <div class="tagline-text">"Mercado Premium de Servicios Automotrices"</div>
+          <div class="tagline-desc">Eslogan descriptivo</div>
+        </div>
+
+        <div class="section-title" style="margin-top: 10px;">Referencia Rápida</div>
+        <div class="specs-table">
+          <table>
+            <tr><td><strong>Dorado</strong></td><td>#b8962e</td><td>RGB 184, 150, 46</td></tr>
+            <tr><td><strong>Azul Marino</strong></td><td>#0a1628</td><td>RGB 10, 22, 40</td></tr>
+            <tr><td><strong>Carbón</strong></td><td>#1a1a2e</td><td>RGB 26, 26, 46</td></tr>
+            <tr><td><strong>Títulos</strong></td><td colspan="2">Playfair Display (Google Fonts)</td></tr>
+            <tr><td><strong>Cuerpo</strong></td><td colspan="2">Inter (Google Fonts)</td></tr>
+            <tr><td><strong>Sitio Web</strong></td><td colspan="2">www.mycarconcierge.com</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECCIÓN TARJETA DE PRESENTACIÓN - ANCHO COMPLETO -->
+      <div class="card-section">
+        <div class="section-title">Plantilla de Tarjeta de Presentación (8.9cm x 5.1cm)</div>
+        <div class="card-row">
+          <div class="card-mockup card-front">
+            <div class="card-logo">
+              <img src="logo.png" alt="Logo">
+              <div class="card-logo-text">My Car Concierge</div>
+            </div>
+            <div class="card-tagline">Tu Auto, Nuestra Prioridad</div>
+          </div>
+          <div class="card-mockup card-back">
+            <div class="card-name">Juan García</div>
+            <div class="card-title">Proveedor Fundador</div>
+            <div class="card-contact">
+              <div>juan@ejemplo.com</div>
+              <div>(555) 123-4567</div>
+              <div>www.mycarconcierge.com</div>
+            </div>
+          </div>
+          <div class="specs-table">
+            <table>
+              <tr><td><strong>Frente</strong></td><td>Fondo degradado azul marino, logo y texto dorado</td></tr>
+              <tr><td><strong>Reverso</strong></td><td>Fondo blanco, nombre Playfair, contacto Inter</td></tr>
+              <tr><td><strong>Nombre</strong></td><td>Playfair Display, 18pt, Azul Marino</td></tr>
+              <tr><td><strong>Título</strong></td><td>Inter, 11pt, Dorado, mayúsculas</td></tr>
+              <tr><td><strong>Contacto</strong></td><td>Inter, 11pt, Carbón</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      <strong>My Car Concierge</strong> — Mercado Premium de Servicios Automotrices — www.mycarconcierge.com
+    </div>
+  </div>
+
+</body>
+</html>
