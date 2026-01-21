@@ -4364,6 +4364,9 @@
       if (sectionId === 'maintenance-schedule') {
         loadMaintenanceSchedule();
       }
+      if (sectionId === 'settings') {
+        initPushNotifications();
+      }
     }
 
     let memberQrToken = null;
@@ -7219,6 +7222,238 @@
         statusEl.style.color = 'var(--accent-red)';
         showToast('Failed to save notification preferences', 'error');
       }
+    }
+
+    // ==================== PUSH NOTIFICATIONS ====================
+    
+    let pushSubscription = null;
+    
+    async function initPushNotifications() {
+      const notSupportedEl = document.getElementById('push-not-supported');
+      const contentEl = document.getElementById('push-content');
+      
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        if (notSupportedEl) notSupportedEl.style.display = 'block';
+        if (contentEl) contentEl.style.display = 'none';
+        return;
+      }
+      
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        pushSubscription = await registration.pushManager.getSubscription();
+        
+        updatePushUI(!!pushSubscription);
+        
+        if (pushSubscription) {
+          await loadPushPreferences();
+        }
+      } catch (error) {
+        console.error('Push init error:', error);
+      }
+    }
+    
+    function updatePushUI(enabled) {
+      const statusIcon = document.getElementById('push-status-icon');
+      const statusText = document.getElementById('push-status-text');
+      const statusDesc = document.getElementById('push-status-desc');
+      const statusBadge = document.getElementById('push-status-badge');
+      const enableSection = document.getElementById('push-enable-section');
+      const enabledSection = document.getElementById('push-enabled-section');
+      
+      if (!statusIcon) return;
+      
+      if (enabled) {
+        statusIcon.textContent = '🔔';
+        statusText.textContent = 'Push Notifications Enabled';
+        statusDesc.textContent = 'You\'ll receive instant alerts on this device.';
+        statusBadge.textContent = 'On';
+        statusBadge.style.background = 'rgba(74,200,140,0.15)';
+        statusBadge.style.color = 'var(--accent-green)';
+        enableSection.style.display = 'none';
+        enabledSection.style.display = 'block';
+      } else {
+        statusIcon.textContent = '🔕';
+        statusText.textContent = 'Push Notifications Disabled';
+        statusDesc.textContent = 'Enable to receive instant alerts for bids, vehicle updates, and more.';
+        statusBadge.textContent = 'Off';
+        statusBadge.style.background = 'rgba(239,95,95,0.15)';
+        statusBadge.style.color = 'var(--accent-red)';
+        enableSection.style.display = 'block';
+        enabledSection.style.display = 'none';
+      }
+    }
+    
+    async function enablePushNotifications() {
+      try {
+        const btn = document.getElementById('push-enable-btn');
+        btn.disabled = true;
+        btn.textContent = 'Enabling...';
+        
+        const permission = await Notification.requestPermission();
+        
+        if (permission !== 'granted') {
+          showToast('Please allow notifications in your browser settings', 'error');
+          btn.disabled = false;
+          btn.textContent = '🔔 Enable Push Notifications';
+          return;
+        }
+        
+        const registration = await navigator.serviceWorker.ready;
+        
+        const vapidKey = await getVapidKey();
+        if (!vapidKey) {
+          showToast('Push notifications not configured', 'error');
+          btn.disabled = false;
+          btn.textContent = '🔔 Enable Push Notifications';
+          return;
+        }
+        
+        pushSubscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey)
+        });
+        
+        await savePushSubscription(pushSubscription);
+        
+        updatePushUI(true);
+        showToast('Push notifications enabled!', 'success');
+        
+      } catch (error) {
+        console.error('Enable push error:', error);
+        showToast('Failed to enable push notifications', 'error');
+        const btn = document.getElementById('push-enable-btn');
+        btn.disabled = false;
+        btn.textContent = '🔔 Enable Push Notifications';
+      }
+    }
+    
+    async function disablePushNotifications() {
+      try {
+        if (pushSubscription) {
+          await pushSubscription.unsubscribe();
+          await removePushSubscription();
+          pushSubscription = null;
+        }
+        
+        updatePushUI(false);
+        showToast('Push notifications disabled', 'success');
+        
+      } catch (error) {
+        console.error('Disable push error:', error);
+        showToast('Failed to disable push notifications', 'error');
+      }
+    }
+    
+    async function getVapidKey() {
+      try {
+        const response = await fetch('/api/push/vapid-key');
+        const data = await response.json();
+        return data.publicKey;
+      } catch (error) {
+        console.error('Failed to get VAPID key:', error);
+        return null;
+      }
+    }
+    
+    async function savePushSubscription(subscription) {
+      if (!currentUser) return;
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session?.access_token) return;
+        
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            subscription: subscription.toJSON()
+          })
+        });
+      } catch (error) {
+        console.error('Failed to save push subscription:', error);
+      }
+    }
+    
+    async function removePushSubscription() {
+      if (!currentUser) return;
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session?.access_token) return;
+        
+        await fetch('/api/push/unsubscribe', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({})
+        });
+      } catch (error) {
+        console.error('Failed to remove push subscription:', error);
+      }
+    }
+    
+    async function loadPushPreferences() {
+      const bidAlerts = document.getElementById('push-bid-alerts');
+      const vehicleStatus = document.getElementById('push-vehicle-status');
+      const dreamCar = document.getElementById('push-dream-car');
+      const maintenance = document.getElementById('push-maintenance');
+      
+      if (!bidAlerts) return;
+      
+      try {
+        const response = await fetch(`/api/member/${currentUser.id}/notification-preferences`);
+        const data = await response.json();
+        const prefs = data.preferences || {};
+        
+        bidAlerts.checked = prefs.push_bid_alerts !== false;
+        vehicleStatus.checked = prefs.push_vehicle_status !== false;
+        dreamCar.checked = prefs.push_dream_car_matches !== false;
+        maintenance.checked = prefs.push_maintenance_reminders !== false;
+        
+        [bidAlerts, vehicleStatus, dreamCar, maintenance].forEach(el => {
+          el.addEventListener('change', savePushPreferences);
+        });
+        
+      } catch (error) {
+        console.error('Failed to load push preferences:', error);
+      }
+    }
+    
+    async function savePushPreferences() {
+      if (!currentUser) return;
+      
+      const preferences = {
+        push_bid_alerts: document.getElementById('push-bid-alerts')?.checked ?? true,
+        push_vehicle_status: document.getElementById('push-vehicle-status')?.checked ?? true,
+        push_dream_car_matches: document.getElementById('push-dream-car')?.checked ?? true,
+        push_maintenance_reminders: document.getElementById('push-maintenance')?.checked ?? true
+      };
+      
+      try {
+        await fetch(`/api/member/${currentUser.id}/notification-preferences`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(preferences)
+        });
+      } catch (error) {
+        console.error('Failed to save push preferences:', error);
+      }
+    }
+    
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
     }
 
     // ==================== SERVICE COORDINATION FUNCTIONS ====================

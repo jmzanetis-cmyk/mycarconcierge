@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcc-cache-v38';
+const CACHE_NAME = 'mcc-cache-v39';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -17,6 +17,14 @@ const STATIC_ASSETS = [
   '/manifest.json',
   '/pwa-init.js',
   '/i18n.js',
+  '/members.js',
+  '/providers.js',
+  '/admin.js',
+  '/login.js',
+  '/fleet.js',
+  '/founder-dashboard.js',
+  '/check-in.js',
+  '/signup-provider.js',
   '/locales/en.json',
   '/locales/es.json',
   '/locales/fr.json',
@@ -124,4 +132,52 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+self.addEventListener('push', (event) => {
+  let data = { title: 'My Car Concierge', body: 'You have a new notification' };
+  
+  try {
+    if (event.data) {
+      data = event.data.json();
+    }
+  } catch (e) {
+    console.log('Push data parse error:', e);
+  }
+  
+  const options = {
+    body: data.body || 'You have a new notification',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    vibrate: [100, 50, 100],
+    data: {
+      url: data.url || '/members.html',
+      type: data.type || 'general'
+    },
+    actions: data.actions || []
+  };
+  
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'My Car Concierge', options)
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  
+  const url = event.notification.data?.url || '/members.html';
+  
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin) && 'focus' in client) {
+            client.focus();
+            client.navigate(url);
+            return;
+          }
+        }
+        return clients.openWindow(url);
+      })
+  );
 });

@@ -9341,7 +9341,11 @@ async function handleUpdateNotificationPreferences(req, res, requestId, memberId
         urgent_update_emails,
         urgent_update_sms,
         marketing_emails,
-        marketing_sms
+        marketing_sms,
+        push_bid_alerts,
+        push_vehicle_status,
+        push_dream_car_matches,
+        push_maintenance_reminders
       } = body;
       
       const supabase = getSupabaseClient();
@@ -9362,6 +9366,11 @@ async function handleUpdateNotificationPreferences(req, res, requestId, memberId
         marketing_sms: marketing_sms === true,
         updated_at: new Date().toISOString()
       };
+      
+      if (push_bid_alerts !== undefined) updateData.push_bid_alerts = push_bid_alerts;
+      if (push_vehicle_status !== undefined) updateData.push_vehicle_status = push_vehicle_status;
+      if (push_dream_car_matches !== undefined) updateData.push_dream_car_matches = push_dream_car_matches;
+      if (push_maintenance_reminders !== undefined) updateData.push_maintenance_reminders = push_maintenance_reminders;
       
       const { data: existing } = await supabase
         .from('member_notification_preferences')
@@ -9407,6 +9416,150 @@ async function handleUpdateNotificationPreferences(req, res, requestId, memberId
       res.end(JSON.stringify({ error: 'Failed to update notification preferences' }));
     }
   });
+}
+
+// ==================== PUSH NOTIFICATION API ====================
+
+function handleGetVapidKey(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+  
+  if (!vapidPublicKey) {
+    console.log(`[${requestId}] VAPID_PUBLIC_KEY not configured`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ publicKey: null, message: 'Push notifications not configured' }));
+    return;
+  }
+  
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ publicKey: vapidPublicKey }));
+}
+
+async function handlePushSubscribe(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  const chunks = [];
+  req.on('data', chunk => { chunks.push(chunk); });
+  
+  req.on('end', async () => {
+    try {
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      const { subscription } = body;
+      const userId = user.id;
+      
+      if (!subscription) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'subscription is required' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: existing } = await supabase
+        .from('member_notification_preferences')
+        .select('id')
+        .eq('member_id', userId)
+        .single();
+      
+      let result;
+      if (existing) {
+        result = await supabase
+          .from('member_notification_preferences')
+          .update({ 
+            push_enabled: true,
+            push_subscription: subscription,
+            updated_at: new Date().toISOString()
+          })
+          .eq('member_id', userId)
+          .select()
+          .single();
+      } else {
+        result = await supabase
+          .from('member_notification_preferences')
+          .insert({ 
+            member_id: userId,
+            push_enabled: true,
+            push_subscription: subscription
+          })
+          .select()
+          .single();
+      }
+      
+      if (result.error) {
+        if (result.error.code === '42P01' || result.error.code === 'PGRST205') {
+          console.log(`[${requestId}] member_notification_preferences table not found`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false,
+            warning: 'Push notification table not found. Add push columns to member_notification_preferences.'
+          }));
+          return;
+        }
+        throw result.error;
+      }
+      
+      console.log(`[${requestId}] Push subscription saved for user ${userId}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Push subscribe error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to save push subscription' }));
+    }
+  });
+}
+
+async function handlePushUnsubscribe(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  const userId = user.id;
+  
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Database not configured' }));
+    return;
+  }
+  
+  try {
+    const { error } = await supabase
+      .from('member_notification_preferences')
+      .update({ 
+        push_enabled: false,
+        push_subscription: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('member_id', userId);
+    
+    if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
+      throw error;
+    }
+    
+    console.log(`[${requestId}] Push subscription removed for user ${userId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Push unsubscribe error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to remove push subscription' }));
+  }
 }
 
 // ==================== SELF CHECK-IN KIOSK API ====================
@@ -11296,6 +11449,22 @@ const server = http.createServer((req, res) => {
   if (req.method === 'PUT' && req.url.match(/^\/api\/member\/[^/]+\/notification-preferences$/)) {
     const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
     handleUpdateNotificationPreferences(req, res, requestId, memberId);
+    return;
+  }
+  
+  // Push Notification API Routes
+  if (req.method === 'GET' && req.url === '/api/push/vapid-key') {
+    handleGetVapidKey(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/push/subscribe') {
+    handlePushSubscribe(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/push/unsubscribe') {
+    handlePushUnsubscribe(req, res, requestId);
     return;
   }
   

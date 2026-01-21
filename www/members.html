@@ -2196,11 +2196,85 @@
         </div>
       </div>
 
+      <!-- Push Notifications -->
+      <div class="card" style="margin-top:20px;">
+        <div class="card-header">
+          <h2 class="card-title">🔔 Push Notifications</h2>
+          <p style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">Get instant alerts on your device - even when you're not on the site.</p>
+        </div>
+        
+        <div id="push-not-supported" style="display:none;padding:16px;background:rgba(239,95,95,0.1);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);">
+          <p style="color:var(--accent-red);margin:0;font-size:0.9rem;">Your browser doesn't support push notifications.</p>
+        </div>
+        
+        <div id="push-content">
+          <div id="push-status-display" style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+            <span id="push-status-icon" style="font-size:1.5rem;">🔕</span>
+            <div style="flex:1;">
+              <div id="push-status-text" style="font-weight:600;margin-bottom:2px;">Push Notifications Disabled</div>
+              <div id="push-status-desc" style="font-size:0.85rem;color:var(--text-muted);">Enable to receive instant alerts for bids, vehicle updates, and more.</div>
+            </div>
+            <span id="push-status-badge" class="package-status" style="background:rgba(239,95,95,0.15);color:var(--accent-red);">Off</span>
+          </div>
+          
+          <div id="push-enable-section">
+            <button class="btn btn-primary" id="push-enable-btn" onclick="enablePushNotifications()">
+              🔔 Enable Push Notifications
+            </button>
+          </div>
+          
+          <div id="push-enabled-section" style="display:none;">
+            <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);border-radius:var(--radius-md);margin-bottom:20px;">
+              <span style="font-size:1.5rem;">✅</span>
+              <div style="flex:1;">
+                <div style="font-weight:600;color:var(--accent-green);margin-bottom:2px;">Push Notifications Active</div>
+                <div style="font-size:0.9rem;color:var(--text-secondary);">You'll receive instant alerts on this device.</div>
+              </div>
+            </div>
+            
+            <div style="display:grid;gap:12px;">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-bid-alerts" checked>
+                <div>
+                  <span style="font-weight:500;">💰 Bid Alerts</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Get notified when providers submit bids on your requests</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-vehicle-status" checked>
+                <div>
+                  <span style="font-weight:500;">🚗 Vehicle Status</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Updates when your vehicle is picked up, in service, or ready</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-dream-car" checked>
+                <div>
+                  <span style="font-weight:500;">🚘 Dream Car Finder</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Alerts when we find vehicles matching your search criteria</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-maintenance" checked>
+                <div>
+                  <span style="font-weight:500;">🔧 Maintenance Reminders</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Get reminded when service is due for your vehicles</p>
+                </div>
+              </label>
+            </div>
+            
+            <button class="btn btn-secondary" style="margin-top:16px;" onclick="disablePushNotifications()">
+              🔕 Disable Push Notifications
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Notification Preferences -->
       <div class="card" style="margin-top:20px;">
         <div class="card-header" style="flex-wrap:wrap;gap:12px;">
           <div>
-            <h2 class="card-title">🔔 Notification Preferences</h2>
+            <h2 class="card-title">📧 Email & SMS Preferences</h2>
             <p style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">Control which notifications you receive via email and SMS.</p>
           </div>
           <div id="notif-prefs-status" style="display:none;padding:6px 12px;border-radius:100px;font-size:0.8rem;font-weight:500;"></div>
