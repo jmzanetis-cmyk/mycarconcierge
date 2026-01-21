@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Car Concierge - Presentación para Proveedores</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    @page { size: A4 portrait; margin: 0; }
+    @media print {
+      body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      .print-controls { display: none !important; }
+      .slide { page-break-after: always; page-break-inside: avoid; }
+      .slide:last-child { page-break-after: auto; }
+    }
+    body { font-family: 'Inter', sans-serif; background: #f5f5f5; color: #1a1a24; }
+    .print-controls {
+      background: #fff; padding: 20px; text-align: center;
+      border-bottom: 2px solid #b8962e;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .print-controls h2 { color: #b8962e; margin-bottom: 10px; font-family: 'Playfair Display', serif; }
+    .print-controls p { color: #666; margin-bottom: 15px; }
+    .print-btn {
+      background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
+      color: #fff; border: none; padding: 12px 30px;
+      font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; margin: 0 10px;
+    }
+    .slide {
+      width: 210mm; height: 297mm; margin: 0 auto 20px;
+      background: #ffffff;
+      padding: 10mm; position: relative; overflow: hidden;
+    }
+    .slide-header {
+      text-align: center; margin-bottom: 4mm; padding-bottom: 3mm;
+      border-bottom: 2px solid #b8962e;
+    }
+    .logo { width: 25mm; margin-bottom: 2mm; }
+    .slide-title { font-family: 'Playfair Display', serif; font-size: 20pt; color: #1a1a24; margin-bottom: 1mm; }
+    .slide-subtitle { font-size: 9pt; color: #666; }
+    .slide-number { position: absolute; bottom: 10mm; right: 10mm; font-size: 8pt; color: #999; }
+    .footer-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 5mm; background: linear-gradient(90deg, #b8962e 0%, #9a7d26 100%); }
+    .screenshot {
+      width: 100%; border-radius: 3mm; border: 2px solid #ddd;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    .screenshot-container {
+      background: #f8f8f8;
+      border: 1px solid #e0e0e0;
+      border-radius: 4mm; padding: 2mm; margin: 2mm 0;
+    }
+    .screenshot-label {
+      font-size: 8pt; color: #b8962e; text-align: center; margin-top: 1mm; font-weight: 600;
+    }
+    .content-box {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0; border-radius: 3mm; padding: 3mm; margin-bottom: 2mm;
+    }
+    .content-box.highlight {
+      background: linear-gradient(135deg, rgba(184, 150, 46, 0.08) 0%, rgba(184, 150, 46, 0.04) 100%);
+      border-color: #b8962e;
+    }
+    .content-box.blue {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.04) 100%);
+      border-color: #3b82f6;
+    }
+    .box-title { font-family: 'Playfair Display', serif; font-size: 11pt; color: #1a1a24; margin-bottom: 1mm; }
+    .box-text { font-size: 8pt; color: #444; line-height: 1.35; }
+    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; }
+    .feature-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2mm; }
+    .feature-grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 2mm; }
+    .feature-item {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0; border-radius: 2mm; padding: 2mm;
+    }
+    .feature-icon { font-size: 14pt; margin-bottom: 1mm; }
+    .feature-title { font-weight: 600; font-size: 8pt; color: #1a1a24; margin-bottom: 0.5mm; }
+    .feature-desc { font-size: 7pt; color: #666; line-height: 1.25; }
+    .bullet-list { list-style: none; padding: 0; }
+    .bullet-list li {
+      font-size: 8pt; color: #444; margin: 1mm 0; padding-left: 3mm;
+      position: relative; line-height: 1.25;
+    }
+    .bullet-list li::before { content: "✓"; position: absolute; left: 0; color: #2e8b57; font-weight: bold; font-size: 7pt; }
+    .step-list { counter-reset: step; list-style: none; padding: 0; }
+    .step-list li {
+      font-size: 8pt; color: #444; margin: 1.5mm 0; padding-left: 7mm;
+      position: relative; line-height: 1.25;
+    }
+    .step-list li::before {
+      counter-increment: step; content: counter(step);
+      position: absolute; left: 0; width: 4mm; height: 4mm;
+      background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
+      color: #fff; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-weight: 700; font-size: 7pt;
+    }
+    .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; margin: 2mm 0; }
+    .stat-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm; margin: 2mm 0; }
+    .stat-box {
+      text-align: center;
+      background: #f8f9fa;
+      border: 1px solid #b8962e; border-radius: 2mm; padding: 2mm;
+    }
+    .stat-value { font-family: 'Playfair Display', serif; font-size: 14pt; color: #b8962e; font-weight: 700; }
+    .stat-label { font-size: 6pt; color: #666; margin-top: 0.5mm; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; }
+    .section-title {
+      font-family: 'Playfair Display', serif; font-size: 11pt; color: #1a1a24;
+      margin: 2mm 0 1mm; padding-bottom: 1mm; border-bottom: 1px solid #b8962e;
+    }
+    .callout {
+      background: linear-gradient(135deg, rgba(46, 139, 87, 0.08) 0%, rgba(46, 139, 87, 0.04) 100%);
+      border: 1px solid #2e8b57; border-radius: 2mm; padding: 2mm; margin: 2mm 0;
+    }
+    .callout .title { color: #2e8b57; font-weight: 600; font-size: 9pt; margin-bottom: 0.5mm; }
+    .callout .text { font-size: 7pt; color: #444; }
+    .hero-text {
+      font-family: 'Playfair Display', serif; font-size: 26pt; color: #1a1a24;
+      text-align: center; margin: 12mm 0 6mm; line-height: 1.2;
+    }
+    .hero-sub { font-size: 11pt; color: #666; text-align: center; margin-bottom: 8mm; }
+    .cta-box {
+      background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
+      color: #fff; text-align: center; padding: 5mm; border-radius: 3mm; margin-top: 3mm;
+    }
+    .cta-title { font-family: 'Playfair Display', serif; font-size: 14pt; font-weight: 700; margin-bottom: 1mm; }
+    .cta-text { font-size: 9pt; }
+    .platform-badges { display: flex; justify-content: center; gap: 3mm; margin: 3mm 0; }
+    .badge {
+      background: #f0f0f0; border: 1px solid #ccc;
+      border-radius: 1.5mm; padding: 1mm 2mm; font-size: 7pt; color: #444;
+    }
+    .icon-flow {
+      display: flex; justify-content: space-between; align-items: center;
+      margin: 3mm 0; padding: 2mm;
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 2mm;
+    }
+    .icon-step { text-align: center; flex: 1; }
+    .icon-step .icon { font-size: 16pt; margin-bottom: 0.5mm; }
+    .icon-step .label { font-size: 6pt; color: #666; line-height: 1.2; }
+    .arrow { color: #b8962e; font-size: 14pt; }
+    .mini-table { width: 100%; border-collapse: collapse; font-size: 7pt; margin: 1mm 0; }
+    .mini-table th {
+      background: rgba(184, 150, 46, 0.15); padding: 1mm;
+      text-align: left; color: #1a1a24; font-size: 6pt; text-transform: uppercase;
+    }
+    .mini-table td { padding: 1mm; border-bottom: 1px solid #e0e0e0; color: #444; }
+    .tag {
+      display: inline-block; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
+      color: #fff; font-size: 5pt; padding: 0.5mm 1.5mm; border-radius: 1mm; font-weight: 700;
+    }
+    .tag-blue {
+      display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: #fff; font-size: 5pt; padding: 0.5mm 1.5mm; border-radius: 1mm; font-weight: 700;
+    }
+    .tag-green {
+      display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #fff; font-size: 5pt; padding: 0.5mm 1.5mm; border-radius: 1mm; font-weight: 700;
+    }
+    .toc-item {
+      display: flex; align-items: center; gap: 2mm; margin-bottom: 2mm;
+    }
+    .toc-num {
+      width: 6mm; height: 6mm; background: linear-gradient(135deg, #b8962e 0%, #9a7d26 100%);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 7pt; flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="print-controls">
+    <h2>Presentación de Plataforma MCC para Proveedores</h2>
+    <p>Catálogo Completo de Funciones - Formato Imprimible - 18 Diapositivas</p>
+    <button class="print-btn" onclick="window.print()">Imprimir / Guardar como PDF</button>
+  </div>
+
+  <!-- DIAPOSITIVA 1: TÍTULO -->
+  <div class="slide">
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+      <img src="logo.png" style="width: 50mm; margin-bottom: 6mm;" alt="My Car Concierge">
+      <div class="hero-text">Plataforma para<br>Proveedores</div>
+      <div class="hero-sub">Tu Puerta de Entrada a Nuevos Clientes e Ingresos</div>
+      <div class="platform-badges">
+        <div class="badge">App iOS</div>
+        <div class="badge">App Android</div>
+        <div class="badge">Plataforma Web</div>
+        <div class="badge">Apps de Escritorio</div>
+      </div>
+      <div class="screenshot-container" style="width: 140mm; margin-top: 6mm;">
+        <img src="screenshots/homepage.png" class="screenshot" alt="Página Principal">
+        <div class="screenshot-label">Página Principal de la Plataforma</div>
+      </div>
+      <div style="margin-top: 6mm; text-align: center;">
+        <div style="font-size: 10pt; color: #b8962e; font-weight: 600;">www.mycarconcierge.com</div>
+      </div>
+    </div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 2: ÍNDICE -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Índice de Contenidos</div>
+      <div class="slide-subtitle">Descripción Completa de la Plataforma</div>
+    </div>
+
+    <div class="two-col" style="margin-top: 2mm;">
+      <div class="content-box">
+        <div class="box-title" style="color: #b8962e;">Plataforma y Funciones para Proveedores</div>
+        <div class="toc-item"><div class="toc-num">3</div><div><div class="feature-title">¿Qué es My Car Concierge?</div><div class="feature-desc">Concepto y mercado</div></div></div>
+        <div class="toc-item"><div class="toc-num">4</div><div><div class="feature-title">Tu Panel de Proveedor</div><div class="feature-desc">Centro de control de tu negocio</div></div></div>
+        <div class="toc-item"><div class="toc-num">5</div><div><div class="feature-title">Sistema de Ofertas</div><div class="feature-desc">Paquetes de ofertas y precios</div></div></div>
+        <div class="toc-item"><div class="toc-num">6</div><div><div class="feature-title">Protección de Pagos</div><div class="feature-desc">Depósito en garantía y pagos seguros</div></div></div>
+        <div class="toc-item"><div class="toc-num">7</div><div><div class="feature-title">Check-In QR y Seguimiento</div><div class="feature-desc">Escanear para registrar, actualizaciones en tiempo real</div></div></div>
+        <div class="toc-item"><div class="toc-num">8</div><div><div class="feature-title">Calificaciones y Gestión de Equipo</div><div class="feature-desc">Reseñas, seguridad y multiusuario</div></div></div>
+      </div>
+      <div class="content-box">
+        <div class="box-title" style="color: #3b82f6;">Beneficios para Miembros (Por Qué Se Unen)</div>
+        <div class="toc-item"><div class="toc-num" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">9</div><div><div class="feature-title">Buscador de Auto Soñado</div><div class="feature-desc">Búsqueda con IA</div></div></div>
+        <div class="toc-item"><div class="toc-num" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">10</div><div><div class="feature-title">Herramienta Mi Próximo Auto</div><div class="feature-desc">Comparar y rastrear prospectos</div></div></div>
+        <div class="toc-item"><div class="toc-num" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">11</div><div><div class="feature-title">Estimador de Costos</div><div class="feature-desc">Calculadora de precios justos</div></div></div>
+        <div class="toc-item"><div class="toc-num" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">12</div><div><div class="feature-title">Programador de Mantenimiento</div><div class="feature-desc">Recordatorios personalizados</div></div></div>
+        <div class="toc-item"><div class="toc-num" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">13</div><div><div class="feature-title">Academia de Cuidado Automotriz</div><div class="feature-desc">Educación y glosario</div></div></div>
+        <div class="toc-item"><div class="toc-num" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">14</div><div><div class="feature-title">Herramientas de Gestión Vehicular</div><div class="feature-desc">Combustible, retiros, seguro, historial</div></div></div>
+      </div>
+    </div>
+
+    <div class="content-box highlight" style="margin-top: 2mm;">
+      <div class="box-title">Programa y Cómo Empezar</div>
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm;">
+        <div class="toc-item"><div class="toc-num">15</div><div><div class="feature-title">¿Para Quién es MCC?</div></div></div>
+        <div class="toc-item"><div class="toc-num">16</div><div><div class="feature-title">Programa Fundador</div></div></div>
+        <div class="toc-item"><div class="toc-num">17</div><div><div class="feature-title">Cómo Empezar</div></div></div>
+        <div class="toc-item"><div class="toc-num">18</div><div><div class="feature-title">Aplica Ahora</div></div></div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Por Qué las Funciones para Miembros Te Importan</div>
+      <div class="text">Estas funciones atraen y retienen miembros en la plataforma. Más miembros = más solicitudes de servicio = más oportunidades de ofertas para ti. Mientras mejor sea la experiencia del miembro, más trabajos disponibles en tu área.</div>
+    </div>
+
+    <div class="slide-number">2 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 3: EL CONCEPTO -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">¿Qué es My Car Concierge?</div>
+      <div class="slide-subtitle">Un Mercado que Conecta Propietarios de Vehículos con Proveedores de Servicio</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">El Concepto</div>
+      <div class="box-text">MCC es una plataforma que trae solicitudes de servicio automotriz directamente a ti. Los miembros publican lo que necesitan, y tú ofertas por los trabajos que quieres. Sin costos de publicidad, sin llamadas en frío—solo prospectos calificados entregados a tu panel.</div>
+    </div>
+
+    <div class="section-title">Cómo Funciona</div>
+    <div class="icon-flow">
+      <div class="icon-step"><div class="icon">📝</div><div class="label">Miembro Publica<br>Solicitud de Servicio</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">🔔</div><div class="label">Proveedores<br>Notificados</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">💰</div><div class="label">Envía Tu<br>Oferta Competitiva</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">✅</div><div class="label">Gana el Trabajo<br>y Cobra</div></div>
+    </div>
+
+    <div class="screenshot-container">
+      <img src="screenshots/member-dashboard.png" class="screenshot" alt="Panel de Miembro">
+      <div class="screenshot-label">Panel de Miembro - Donde los Clientes Gestionan Vehículos y Solicitan Servicios</div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Base de Clientes Compartida</div>
+      <div class="text">Cada cliente que traes a MCC se convierte en parte de una base compartida. Cuando necesitan un servicio que no ofreces, otro proveedor gana. Cuando los clientes de otros proveedores necesitan TU especialidad, tú ganas.</div>
+    </div>
+
+    <div class="slide-number">3 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 4: PANEL DEL PROVEEDOR -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Tu Panel de Proveedor</div>
+      <div class="slide-subtitle">Todo lo que Necesitas en Un Solo Lugar</div>
+    </div>
+
+    <div class="screenshot-container">
+      <img src="screenshots/provider-dashboard.png" class="screenshot" alt="Panel del Proveedor">
+      <div class="screenshot-label">Panel del Proveedor - Tu Centro de Comando de Negocios</div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Estadísticas en Tiempo Real</div>
+        <div class="feature-desc">Créditos de oferta, miembros en tu área, paquetes abiertos, ofertas pendientes, trabajos ganados</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⭐</div>
+        <div class="feature-title">Visualización de Calificación</div>
+        <div class="feature-desc">Tu calificación de estrellas prominentemente mostrada—genera confianza con reseñas</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📋</div>
+        <div class="feature-title">Cola de Trabajos</div>
+        <div class="feature-desc">Explora paquetes, ve trabajos activos, rastrea solicitudes de emergencia</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💰</div>
+        <div class="feature-title">Seguimiento de Ganancias</div>
+        <div class="feature-desc">Monitoreo de ingresos, analíticas, gestión de pagos</div>
+      </div>
+    </div>
+
+    <div class="content-box">
+      <div class="box-title">Navegación Lateral</div>
+      <div class="box-text">Acceso rápido a: Créditos de Oferta, Explorar Paquetes, Mis Ofertas, Trabajos Activos, Cola de Emergencia, Servicios de Flota, Cola de Clientes, Ganancias, Analíticas, Reseñas, Gestión de Equipo y Configuración.</div>
+    </div>
+
+    <div class="slide-number">4 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 5: PAQUETES DE OFERTAS -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">El Sistema de Ofertas</div>
+      <div class="slide-subtitle">Paga Solo por los Trabajos que Eliges</div>
+    </div>
+
+    <div class="screenshot-container">
+      <img src="screenshots/bid-packs.png" class="screenshot" alt="Paquetes de Ofertas">
+      <div class="screenshot-label">Selección de Paquetes de Ofertas - 18 Niveles con Hasta 84% de Ahorro</div>
+    </div>
+
+    <div class="two-col">
+      <div class="content-box">
+        <div class="box-title">Cómo Funciona</div>
+        <ul class="bullet-list">
+          <li>Compra créditos de oferta por adelantado</li>
+          <li>Cada oferta cuesta 1 crédito</li>
+          <li>Tú eliges en qué trabajos ofertar</li>
+          <li>Los créditos nunca expiran</li>
+          <li>Paquetes más grandes = mayores ahorros</li>
+        </ul>
+      </div>
+      <div class="content-box highlight">
+        <div class="box-title">Ejemplos de Precios</div>
+        <table class="mini-table">
+          <tr><td>Dipstick</td><td>50 ofertas</td><td>$200</td><td>$4.00/oferta</td></tr>
+          <tr><td>V8 <span class="tag">POPULAR</span></td><td>140 ofertas</td><td>$400</td><td>$2.86/oferta</td></tr>
+          <tr><td>Racing Team</td><td>385 ofertas</td><td>$800</td><td>$2.08/oferta</td></tr>
+          <tr><td>Championship</td><td>15,400 ofertas</td><td>$10K</td><td>$0.65/oferta</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Beneficio de Proveedor Fundador</div>
+      <div class="text">¡Los Proveedores Fundadores reciben ofertas ilimitadas durante el período piloto—sin necesidad de créditos!</div>
+    </div>
+
+    <div class="slide-number">5 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 6: PAGOS Y PROTECCIÓN -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Protección de Pagos</div>
+      <div class="slide-subtitle">Cobra de Manera Confiable, Siempre</div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-value">100%</div>
+        <div class="stat-label">Protegido en Depósito</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">7.5%</div>
+        <div class="stat-label">Comisión de Plataforma</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">24-48h</div>
+        <div class="stat-label">Velocidad de Pago</div>
+      </div>
+    </div>
+
+    <div class="section-title">Flujo de Pago</div>
+    <div class="icon-flow">
+      <div class="icon-step"><div class="icon">🤝</div><div class="label">Oferta<br>Aceptada</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">🔒</div><div class="label">Fondos en<br>Depósito</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">🔧</div><div class="label">Completa el<br>Trabajo</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">✅</div><div class="label">Miembro<br>Confirma</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">💳</div><div class="label">Pago<br>Liberado</div></div>
+    </div>
+
+    <div class="two-col">
+      <div class="content-box">
+        <div class="box-title">No Más Perseguir Pagos</div>
+        <ul class="bullet-list">
+          <li>Fondos asegurados antes de iniciar el trabajo</li>
+          <li>Sin problemas de facturación</li>
+          <li>Sin cheques sin fondos</li>
+          <li>Transferencias bancarias automáticas</li>
+        </ul>
+      </div>
+      <div class="content-box">
+        <div class="box-title">Protecciones de la Plataforma</div>
+        <ul class="bullet-list">
+          <li>Protección anti-engaño</li>
+          <li>Aprobación requerida para trabajos adicionales</li>
+          <li>Ventana de decisión de 24 horas</li>
+          <li>Mediación de disputas</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">Pagos Potenciados por Stripe</div>
+      <div class="box-text">Todos los pagos procesados a través de Stripe—cumplimiento PCI y confiado por millones de negocios en todo el mundo.</div>
+    </div>
+
+    <div class="slide-number">6 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 7: SEGUIMIENTO DE VEHÍCULOS -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Seguimiento de Estado y Check-In QR</div>
+      <div class="slide-subtitle">Llegadas Simplificadas y Actualizaciones en Tiempo Real</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">Check-In de Vehículo con Código QR <span class="tag-green">NUEVO</span></div>
+      <div class="box-text">Cada vehículo tiene un código QR único. Cuando los miembros llegan a tu taller, simplemente escanean el código QR para registrarse—actualizando automáticamente el estado del vehículo, notificando a tu equipo e iniciando el reloj de servicio. Sin papeleos, sin llamadas telefónicas.</div>
+    </div>
+
+    <div class="section-title">Flujo de Check-In y Estado</div>
+    <div class="icon-flow">
+      <div class="icon-step"><div class="icon">📱</div><div class="label">Miembro Escanea<br>Código QR</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">📍</div><div class="label">En el<br>Proveedor</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">🔧</div><div class="label">Trabajo en<br>Progreso</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">🚙</div><div class="label">Devolviendo<br>Vehículo</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">✅</div><div class="label">Devuelto<br>Completo</div></div>
+    </div>
+
+    <div class="two-col">
+      <div class="content-box">
+        <div class="box-title">Beneficios del Check-In QR</div>
+        <ul class="bullet-list">
+          <li>Notificación instantánea de llegada a tu equipo</li>
+          <li>Actualización automática de estado (sin entrada manual)</li>
+          <li>Llegada con marca de tiempo para registros</li>
+          <li>Reduce cuellos de botella en recepción</li>
+        </ul>
+      </div>
+      <div class="content-box">
+        <div class="box-title">Experiencia del Miembro</div>
+        <ul class="bullet-list">
+          <li>Check-in rápido de autoservicio</li>
+          <li>Visibilidad de estado en tiempo real</li>
+          <li>Notificaciones push/email/SMS</li>
+          <li>Registro completo de historial de servicio</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="content-box">
+      <div class="box-title">Cómo Funciona</div>
+      <div class="box-text">Cada vehículo en el garaje del miembro tiene un código QR único. Muestra el escáner QR de tu taller o haz que los miembros escaneen con la cámara de su teléfono. La llegada se registra, tu equipo es notificado y la cita de servicio comienza—todo automáticamente.</div>
+    </div>
+
+    <div class="slide-number">7 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 8: CALIFICACIONES Y EQUIPO -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Calificaciones, Equipo y Seguridad</div>
+      <div class="slide-subtitle">Construye Reputación y Gestiona Tu Negocio</div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-value">5⭐</div>
+        <div class="stat-label">Sistema de Calificación</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">4.0+</div>
+        <div class="stat-label">Estándar Mínimo</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">100%</div>
+        <div class="stat-label">Reseñas Verificadas</div>
+      </div>
+    </div>
+
+    <div class="section-title">Acceso Multiusuario</div>
+    <div class="feature-grid-4">
+      <div class="feature-item">
+        <div class="feature-icon">👑</div>
+        <div class="feature-title">Propietario</div>
+        <div class="feature-desc">Acceso completo a facturación, equipo, configuración</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">👔</div>
+        <div class="feature-title">Administrador</div>
+        <div class="feature-desc">Gestiona trabajos, mensajes, analíticas</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">👤</div>
+        <div class="feature-title">Personal</div>
+        <div class="feature-desc">Actualiza estado, comunica</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📧</div>
+        <div class="feature-title">Invitación por Email</div>
+        <div class="feature-desc">Agrega miembros de equipo fácilmente</div>
+      </div>
+    </div>
+
+    <div class="section-title">Funciones de Seguridad</div>
+    <div class="feature-grid-4">
+      <div class="feature-item">
+        <div class="feature-icon">🔐</div>
+        <div class="feature-title">Autenticación 2FA</div>
+        <div class="feature-desc">2FA basado en SMS</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔒</div>
+        <div class="feature-title">Datos Encriptados</div>
+        <div class="feature-desc">Encriptación TLS</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📱</div>
+        <div class="feature-title">Actividad de Inicio</div>
+        <div class="feature-desc">Rastrea todos los inicios de sesión</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🛡️</div>
+        <div class="feature-title">Límite de Velocidad</div>
+        <div class="feature-desc">Protección contra abuso</div>
+      </div>
+    </div>
+
+    <div class="slide-number">8 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 9: BUSCADOR DE AUTO SOÑADO -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Buscador de Auto Soñado <span class="tag-blue">CON IA</span></div>
+      <div class="slide-subtitle">Función para Miembros: Búsqueda Automatizada que Trabaja en Segundo Plano</div>
+    </div>
+
+    <div class="content-box blue">
+      <div class="box-title">Cómo Funciona</div>
+      <div class="box-text">Los miembros configuran sus preferencias una vez, y nuestra IA busca automáticamente vehículos que coincidan. Cuando se encuentra una coincidencia, reciben notificación por SMS/email—sin más desplazamiento interminable por listados.</div>
+    </div>
+
+    <div class="section-title">Opciones de Criterios de Búsqueda</div>
+    <div class="feature-grid-4">
+      <div class="feature-item">
+        <div class="feature-icon">🚗</div>
+        <div class="feature-title">Marca y Modelo</div>
+        <div class="feature-desc">Marcas y modelos preferidos</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📅</div>
+        <div class="feature-title">Rango de Año</div>
+        <div class="feature-desc">Preferencias de año mín/máx</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💰</div>
+        <div class="feature-title">Rango de Precio</div>
+        <div class="feature-desc">Límites de presupuesto</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📍</div>
+        <div class="feature-title">Radio de Ubicación</div>
+        <div class="feature-desc">Distancia de búsqueda desde código postal</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🛣️</div>
+        <div class="feature-title">Kilometraje Máximo</div>
+        <div class="feature-desc">Límite de kilometraje</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🎨</div>
+        <div class="feature-title">Colores Exteriores</div>
+        <div class="feature-desc">Preferencias de color</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⛽</div>
+        <div class="feature-title">Tipo de Combustible</div>
+        <div class="feature-desc">Gasolina, híbrido, eléctrico</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">✨</div>
+        <div class="feature-title">Características Esenciales</div>
+        <div class="feature-desc">Techo solar, cuero, etc.</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="content-box">
+        <div class="box-title">Frecuencia de Búsqueda</div>
+        <ul class="bullet-list">
+          <li>Actualizaciones cada hora para mercados activos</li>
+          <li>Opción de dos veces al día</li>
+          <li>Opción de resumen diario</li>
+        </ul>
+      </div>
+      <div class="content-box">
+        <div class="box-title">Características de Coincidencia</div>
+        <ul class="bullet-list">
+          <li>Puntuación con razones</li>
+          <li>Guardar o descartar coincidencias</li>
+          <li>Agregar a lista de prospectos</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Por Qué Esto Importa a los Proveedores</div>
+      <div class="text">Cuando los miembros encuentran y compran nuevos vehículos a través de MCC, traen esos vehículos a la plataforma—creando nuevas oportunidades de servicio para TI.</div>
+    </div>
+
+    <div class="slide-number">9 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 10: MI PRÓXIMO AUTO -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Herramienta Mi Próximo Auto <span class="tag-blue">COMPRA DE AUTOS</span></div>
+      <div class="slide-subtitle">Función para Miembros: Rastrea y Compara Vehículos Prospecto</div>
+    </div>
+
+    <div class="content-box blue">
+      <div class="box-title">El Centro de Compras de Autos</div>
+      <div class="box-text">Los miembros pueden rastrear vehículos que están considerando comprar—ya sea encontrados a través del Buscador de Auto Soñado, concesionarios o vendedores privados. Compara lado a lado y toma decisiones informadas.</div>
+    </div>
+
+    <div class="section-title">Características</div>
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">🔍</div>
+        <div class="feature-title">Búsqueda por VIN</div>
+        <div class="feature-desc">Búsqueda gratuita de API NHTSA para especificaciones del vehículo e historial de retiros</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📝</div>
+        <div class="feature-title">Entrada Manual</div>
+        <div class="feature-desc">Agrega vehículos manualmente con fotos, notas e información del vendedor</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Comparación Lado a Lado</div>
+        <div class="feature-desc">Compara 2-4 vehículos a la vez en especificaciones, precio, características</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💯</div>
+        <div class="feature-title">Puntuación de Coincidencia</div>
+        <div class="feature-desc">Preferencias personales puntuadas contra cada vehículo</div>
+      </div>
+    </div>
+
+    <div class="section-title">Seguimiento de Estado</div>
+    <div class="icon-flow">
+      <div class="icon-step"><div class="icon">🤔</div><div class="label">Considerando</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">🚗</div><div class="label">Prueba de Manejo</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">💰</div><div class="label">Oferta Hecha</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon">✅</div><div class="label">Comprado</div></div>
+      <div class="arrow">o</div>
+      <div class="icon-step"><div class="icon">👎</div><div class="label">Descartado</div></div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Oportunidad para Proveedores</div>
+      <div class="text">Los miembros frecuentemente necesitan inspecciones pre-compra antes de comprar. Cuando están comprando, pueden solicitar servicios de inspección a través de MCC—¡trabajos por los que puedes ofertar!</div>
+    </div>
+
+    <div class="slide-number">10 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 11: ESTIMADOR DE COSTOS -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Estimador de Costos <span class="tag-blue">PRECIOS JUSTOS</span></div>
+      <div class="slide-subtitle">Función para Miembros: Conoce Qué Esperar Antes de Recibir Ofertas</div>
+    </div>
+
+    <div class="content-box blue">
+      <div class="box-title">Clientes Informados Son Mejores Clientes</div>
+      <div class="box-text">Los miembros usan el Estimador de Costos para entender precios justos antes de solicitar ofertas. Esto significa expectativas realistas y menos disputas de precios.</div>
+    </div>
+
+    <div class="section-title">9 Categorías de Servicio</div>
+    <div class="feature-grid-3">
+      <div class="feature-item">
+        <div class="feature-icon">🔧</div>
+        <div class="feature-title">Mantenimiento</div>
+        <div class="feature-desc">Aceite, frenos, fluidos, filtros</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⚙️</div>
+        <div class="feature-title">Reparaciones</div>
+        <div class="feature-desc">Motor, transmisión, AC, eléctrico</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">✨</div>
+        <div class="feature-title">Detallado</div>
+        <div class="feature-desc">Lavado, cera, recubrimiento cerámico</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🎨</div>
+        <div class="feature-title">Carrocería</div>
+        <div class="feature-desc">Abolladuras, pintura, parachoques</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔍</div>
+        <div class="feature-title">Inspección</div>
+        <div class="feature-desc">Pre-compra, estatal, multipunto</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🖥️</div>
+        <div class="feature-title">Diagnóstico</div>
+        <div class="feature-desc">Check engine, eléctrico</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-title">EV e Híbridos</div>
+        <div class="feature-desc">Batería, sistemas de carga</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🛡️</div>
+        <div class="feature-title">Protección</div>
+        <div class="feature-desc">PPF, polarizado, antióxido</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🏎️</div>
+        <div class="feature-title">Rendimiento</div>
+        <div class="feature-desc">Limpieza de carbón, tuneo ECU</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="content-box">
+        <div class="box-title">Factores de Precio Inteligente</div>
+        <ul class="bullet-list">
+          <li>Multiplicadores por clase de vehículo (Nacional, Asiático, Europeo, Eléctrico)</li>
+          <li>Ajustes de tarifa laboral regional</li>
+          <li>Niveles Básico/Estándar/Premium</li>
+        </ul>
+      </div>
+      <div class="content-box">
+        <div class="box-title">Elementos Educativos</div>
+        <ul class="bullet-list">
+          <li>Explicación "¿Por Qué Este Rango?"</li>
+          <li>Consejos "Formas de Ahorrar"</li>
+          <li>Un clic para solicitud de servicio</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="slide-number">11 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 12: PROGRAMADOR DE MANTENIMIENTO -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Programador de Mantenimiento <span class="tag-blue">AUTO-RECORDATORIOS</span></div>
+      <div class="slide-subtitle">Función para Miembros: Recordatorios de Servicio Personalizados</div>
+    </div>
+
+    <div class="content-box blue">
+      <div class="box-title">Nunca Pierdas un Servicio Otra Vez</div>
+      <div class="box-text">Cada vehículo obtiene un programa de mantenimiento personalizado basado en recomendaciones del fabricante, kilometraje y condiciones de manejo. Recordatorios automatizados vía push, email y SMS.</div>
+    </div>
+
+    <div class="section-title">17 Elementos de Mantenimiento Rastreados</div>
+    <div class="feature-grid-4">
+      <div class="feature-item"><div class="feature-title">Cambio de Aceite</div></div>
+      <div class="feature-item"><div class="feature-title">Rotación de Llantas</div></div>
+      <div class="feature-item"><div class="feature-title">Filtros de Aire</div></div>
+      <div class="feature-item"><div class="feature-title">Líquido de Frenos</div></div>
+      <div class="feature-item"><div class="feature-title">Transmisión</div></div>
+      <div class="feature-item"><div class="feature-title">Refrigerante</div></div>
+      <div class="feature-item"><div class="feature-title">Bujías</div></div>
+      <div class="feature-item"><div class="feature-title">Pastillas de Freno</div></div>
+      <div class="feature-item"><div class="feature-title">Batería</div></div>
+      <div class="feature-item"><div class="feature-title">Plumas Limpiaparabrisas</div></div>
+      <div class="feature-item"><div class="feature-title">Alineación</div></div>
+      <div class="feature-item"><div class="feature-title">Banda de Tiempo</div></div>
+      <div class="feature-item"><div class="feature-title">Limpieza de Carbón <span class="tag-green">GDI</span></div></div>
+      <div class="feature-item"><div class="feature-title">Sistema de Combustible</div></div>
+      <div class="feature-item"><div class="feature-title">Cuerpo de Aceleración</div></div>
+      <div class="feature-item"><div class="feature-title">Multipunto</div></div>
+    </div>
+
+    <div class="two-col">
+      <div class="content-box">
+        <div class="box-title">Ajustes Inteligentes</div>
+        <ul class="bullet-list">
+          <li>Detección de clase de vehículo (ajustes de intervalo)</li>
+          <li>Ajustes de alto kilometraje (100K+)</li>
+          <li>Condiciones de manejo (ciudad, remolque, clima)</li>
+          <li>Detección de inyección directa para limpieza de carbón</li>
+        </ul>
+      </div>
+      <div class="content-box highlight">
+        <div class="box-title">Solicitud de Servicio con Un Clic</div>
+        <div class="box-text">Cuando un elemento de mantenimiento vence, los miembros pueden convertirlo en una solicitud de servicio con un clic—¡enviándolo directamente a proveedores como tú!</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Flujo Constante de Trabajos</div>
+      <div class="text">Los recordatorios de mantenimiento crean solicitudes de servicio predecibles y recurrentes. Cambios de aceite, rotación de llantas e inspecciones suceden según el programa—generando oportunidades de ofertas consistentes.</div>
+    </div>
+
+    <div class="slide-number">12 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 13: ACADEMIA DE CUIDADO AUTOMOTRIZ -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Academia de Cuidado Automotriz <span class="tag-blue">EDUCACIÓN</span></div>
+      <div class="slide-subtitle">Función para Miembros: Aprende Sobre Mantenimiento y Reparaciones de Autos</div>
+    </div>
+
+    <div class="content-box blue">
+      <div class="box-title">Clientes Educados = Mejores Decisiones</div>
+      <div class="box-text">La Academia de Cuidado Automotriz ayuda a los miembros a entender el mantenimiento y reparaciones automotrices—para que valoren el trabajo de calidad y entiendan por qué los servicios importan.</div>
+    </div>
+
+    <div class="section-title">Componentes de Aprendizaje</div>
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">📚</div>
+        <div class="feature-title">Centro de Aprendizaje</div>
+        <div class="feature-desc">36+ artículos en 6 categorías: Mantenimiento 101, Entendiendo Reparaciones, Señales de Advertencia, Consejos para Ahorrar, Rideshare/Alto Kilometraje, Comercial/Flota</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📖</div>
+        <div class="feature-title">Glosario Automotriz</div>
+        <div class="feature-desc">32+ términos buscables con definiciones en lenguaje sencillo para jerga automotriz común</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">❓</div>
+        <div class="feature-title">Educación Contextual</div>
+        <div class="feature-desc">Explicaciones "¿Qué es esto?" en elementos de mantenimiento y "Por qué esto importa" en servicios</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🤖</div>
+        <div class="feature-title">Tutor IA</div>
+        <div class="feature-desc">"Pregunta a nuestra IA sobre autos" - Obtén respuestas instantáneas a preguntas automotrices del asistente IA</div>
+      </div>
+    </div>
+
+    <div class="content-box">
+      <div class="box-title">Contenido para Cada Conductor</div>
+      <div class="box-text">
+        <strong>Conductores regulares:</strong> Entendimiento básico de mantenimiento, señales de advertencia, cuándo ver a un profesional<br>
+        <strong>Rideshare/Alto kilometraje:</strong> Gestión del desgaste en vehículos con 50-80K+ km/año<br>
+        <strong>Comercial/Flota:</strong> Requisitos DOT, programas de mantenimiento preventivo, cumplimiento
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Por Qué la Educación Ayuda a los Proveedores</div>
+      <div class="text">Los miembros educados entienden el valor del trabajo de calidad. Son menos propensos a buscar el precio más bajo en reparaciones complejas y más propensos a aprobar servicios recomendados.</div>
+    </div>
+
+    <div class="slide-number">13 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 14: HERRAMIENTAS DE GESTIÓN VEHICULAR -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Herramientas de Gestión Vehicular <span class="tag-blue">TODO EN UNO</span></div>
+      <div class="slide-subtitle">Funciones para Miembros: Kit Completo de Propiedad Vehicular</div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">⛽</div>
+        <div class="feature-title">Seguimiento de Costos de Combustible</div>
+        <div class="feature-desc">Rastrea cargas, calcula consumo, ve gastos mensuales/anuales, costo por km con gráficos de tendencia</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⚠️</div>
+        <div class="feature-title">Alertas de Retiros de Vehículos</div>
+        <div class="feature-desc">Verificación automática semanal de base de datos NHTSA. Insignia en vehículos con retiros activos. ¡Seguridad primero!</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📄</div>
+        <div class="feature-title">Almacenamiento de Tarjeta de Seguro</div>
+        <div class="feature-desc">Sube y almacena documentos de seguro (PDF, JPG, PNG) con seguimiento de vencimiento</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📋</div>
+        <div class="feature-title">Exportación de Historial de Servicio</div>
+        <div class="feature-desc">Descarga registros completos de servicio como PDF o CSV para reventa o registros personales</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">✅</div>
+        <div class="feature-title">Verificación de Identidad</div>
+        <div class="feature-desc">Verificación de identidad Stripe (ID gubernamental + selfie) para propiedad vehicular. Insignia "Propietario Verificado"</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🎁</div>
+        <div class="feature-title">Programa de Referidos</div>
+        <div class="feature-desc">$10 de crédito por referir amigos. Nuevos miembros obtienen $10 de bono de bienvenida. Comparte vía email/SMS</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔔</div>
+        <div class="feature-title">Preferencias de Notificación</div>
+        <div class="feature-desc">Controla notificaciones vía push, email o SMS. Activa/desactiva para ofertas, estado, recordatorios, marketing</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">👨‍👩‍👧‍👦</div>
+        <div class="feature-title">Gestión del Hogar</div>
+        <div class="feature-desc">Gestiona múltiples vehículos de miembros de la familia en una cuenta</div>
+      </div>
+    </div>
+
+    <div class="stat-grid-4">
+      <div class="stat-box">
+        <div class="stat-value">📱</div>
+        <div class="stat-label">Apps iOS y Android</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">💻</div>
+        <div class="stat-label">Plataforma Web</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">🖥️</div>
+        <div class="stat-label">Apps de Escritorio</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">🔄</div>
+        <div class="stat-label">Sincronizado en Todas Partes</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Todo en Un Solo Lugar</div>
+      <div class="text">Los miembros no necesitan 5 apps diferentes. MCC es su solución completa de gestión vehicular—lo que los mantiene comprometidos y generando solicitudes de servicio.</div>
+    </div>
+
+    <div class="slide-number">14 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 15: PARA QUIÉN ES -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">¿Para Quién es MCC?</div>
+      <div class="slide-subtitle">Todos los Profesionales de Servicios Automotrices</div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">🔧</div>
+        <div class="feature-title">Talleres de Reparación</div>
+        <div class="feature-desc">Mecánicos generales, talleres especializados, concesionarios</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🚗</div>
+        <div class="feature-title">Mecánicos Móviles</div>
+        <div class="feature-desc">Reparación en sitio, asistencia en carretera, mantenimiento de flota</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">✨</div>
+        <div class="feature-title">Detalladores</div>
+        <div class="feature-desc">Interior/exterior, corrección de pintura, cerámico</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🎨</div>
+        <div class="feature-title">Talleres de Carrocería</div>
+        <div class="feature-desc">Colisión, pintura, remoción de abolladuras, restauración</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🪟</div>
+        <div class="feature-title">Polarizado y Viniles</div>
+        <div class="feature-desc">Polarizado de ventanas, rotulación, PPF</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🛞</div>
+        <div class="feature-title">Llanterías</div>
+        <div class="feature-desc">Venta, montaje, balanceo, alineación</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔊</div>
+        <div class="feature-title">Audio y Electrónica</div>
+        <div class="feature-desc">Audio automotriz, alarmas, arranque remoto</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🪨</div>
+        <div class="feature-title">Servicios de Cristales</div>
+        <div class="feature-desc">Reparación/reemplazo de parabrisas</div>
+      </div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">Sin Exclusividad Requerida</div>
+      <div class="box-text">MCC es un canal de ingresos complementario. Mantén tus clientes existentes, publicidad y modelo de negocio. Somos solo otra forma de encontrar trabajo nuevo cuando tienes capacidad.</div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Llena Capacidad No Utilizada</div>
+      <div class="text">¿Tienes días lentos? MCC te trae clientes pre-calificados listos para agendar. Sin costos de publicidad—solo trabajos entregados a tu panel.</div>
+    </div>
+
+    <div class="slide-number">15 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 16: PROGRAMA PROVEEDOR FUNDADOR -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Programa Proveedor Fundador</div>
+      <div class="slide-subtitle">Beneficios Exclusivos de Acceso Anticipado</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">Entra Desde el Inicio</div>
+      <div class="box-text">Estamos incorporando un grupo limitado de Proveedores Fundadores mientras lanzamos el lado de miembros. Esta es una invitación para construir algo juntos y asegurar tu posición.</div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">🎫</div>
+        <div class="feature-title">Sin Comisiones de Plataforma</div>
+        <div class="feature-desc">Quédate con el 100% de ganancias durante el piloto (normalmente 7.5%)</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">♾️</div>
+        <div class="feature-title">Ofertas Ilimitadas</div>
+        <div class="feature-desc">Oferta en cualquier trabajo sin usar créditos durante el piloto</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🏆</div>
+        <div class="feature-title">Visibilidad Prioritaria</div>
+        <div class="feature-desc">Los Proveedores Fundadores aparecen primero en resultados de búsqueda</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🎖️</div>
+        <div class="feature-title">Insignia Permanente</div>
+        <div class="feature-desc">Insignia "Proveedor Fundador" en tu perfil para siempre</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💰</div>
+        <div class="feature-title">Comisiones por Referidos</div>
+        <div class="feature-desc">Hasta 50% de comisión de por vida en proveedores referidos</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🎯</div>
+        <div class="feature-title">Opinión Directa</div>
+        <div class="feature-desc">Da forma a la plataforma con retroalimentación directa al equipo</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Disponibilidad Limitada</div>
+      <div class="text">Los espacios de Proveedor Fundador están limitados por área de mercado. Los primeros solicitantes aseguran las mejores posiciones y comienzan a construir reseñas antes de que llegue la competencia.</div>
+    </div>
+
+    <div class="slide-number">16 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 17: CÓMO EMPEZAR -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Cómo Empezar</div>
+      <div class="slide-subtitle">Proceso de Incorporación Simple</div>
+    </div>
+
+    <div class="screenshot-container">
+      <img src="screenshots/signup-provider.png" class="screenshot" alt="Registro de Proveedor">
+      <div class="screenshot-label">Solicitud de Proveedor - Registro Rápido y Fácil</div>
+    </div>
+
+    <div class="section-title">Pasos de la Solicitud</div>
+    <ol class="step-list">
+      <li><strong>Envía tu Solicitud:</strong> Completa el formulario con información del negocio, servicios y área de servicio</li>
+      <li><strong>Verificación:</strong> MCC revisa tu solicitud (típicamente 24-48 horas)</li>
+      <li><strong>Configuración de Cuenta:</strong> Crea tu perfil con fotos y detalles de servicios</li>
+      <li><strong>Comienza a Ofertar:</strong> Comienza a recibir notificaciones de trabajo y enviar ofertas</li>
+    </ol>
+
+    <div class="two-col">
+      <div class="content-box">
+        <div class="box-title">Lo Que Necesitarás</div>
+        <ul class="bullet-list">
+          <li>Nombre del negocio e información de contacto</li>
+          <li>Servicios que ofreces</li>
+          <li>Área de servicio (código postal/radio)</li>
+          <li>Cuenta bancaria para pagos</li>
+        </ul>
+      </div>
+      <div class="content-box highlight">
+        <div class="box-title">Comienza Hoy</div>
+        <div class="box-text" style="text-align: center; font-size: 9pt;">
+          Visita<br>
+          <strong style="color: #b8962e;">mycarconcierge.com/signup-provider</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="slide-number">17 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 18: LLAMADA A LA ACCIÓN -->
+  <div class="slide">
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+      <img src="logo.png" style="width: 45mm; margin-bottom: 5mm;" alt="My Car Concierge">
+      
+      <div style="font-family: 'Playfair Display', serif; font-size: 24pt; color: #1a1a24; text-align: center; margin-bottom: 3mm;">
+        ¿Listo para Hacer Crecer Tu Negocio?
+      </div>
+      
+      <div style="font-size: 11pt; color: #666; text-align: center; max-width: 140mm; margin-bottom: 6mm; line-height: 1.4;">
+        Únete al programa de Proveedor Fundador hoy y sé de los primeros en acceder a una plataforma llena de funciones que atraen y retienen clientes.
+      </div>
+
+      <div class="stat-grid" style="width: 150mm;">
+        <div class="stat-box">
+          <div class="stat-value">0%</div>
+          <div class="stat-label">Comisiones Durante el Piloto</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value">♾️</div>
+          <div class="stat-label">Ofertas Ilimitadas Durante el Piloto</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value">🏆</div>
+          <div class="stat-label">Visibilidad Prioritaria</div>
+        </div>
+      </div>
+
+      <div class="content-box blue" style="width: 150mm; margin-top: 5mm;">
+        <div class="box-title" style="text-align: center;">Resumen de Funciones de la Plataforma</div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm; text-align: center; font-size: 7pt; color: #444;">
+          <div>Buscador de Auto Soñado</div>
+          <div>Mi Próximo Auto</div>
+          <div>Estimador de Costos</div>
+          <div>Programador de Mantenimiento</div>
+          <div>Academia Automotriz</div>
+          <div>Seguimiento de Combustible</div>
+          <div>Alertas de Retiros</div>
+          <div>Verificación de Identidad</div>
+        </div>
+      </div>
+
+      <div class="cta-box" style="width: 140mm; margin-top: 5mm;">
+        <div class="cta-title">Aplica Ahora</div>
+        <div class="cta-text">www.mycarconcierge.com/signup-provider.html</div>
+      </div>
+
+      <div style="margin-top: 6mm; text-align: center;">
+        <div style="font-size: 10pt; color: #b8962e; margin-bottom: 1mm;">¿Preguntas?</div>
+        <div style="font-size: 10pt; color: #444;">info@mycarconcierge.com</div>
+      </div>
+
+      <div class="platform-badges" style="margin-top: 5mm;">
+        <div class="badge">App iOS</div>
+        <div class="badge">App Android</div>
+        <div class="badge">Plataforma Web</div>
+        <div class="badge">Apps de Escritorio</div>
+      </div>
+    </div>
+    <div class="slide-number">18 / 18</div>
+    <div class="footer-bar"></div>
+  </div>
+
+</body>
+</html>
