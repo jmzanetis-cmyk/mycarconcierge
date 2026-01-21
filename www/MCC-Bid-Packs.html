@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Car Concierge - Bid Pack Pricing</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .print-controls {
+        display: none !important;
+      }
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #1a1a24;
+      color: #e8e8e8;
+    }
+
+    .print-controls {
+      background: #2a2a3a;
+      padding: 20px;
+      text-align: center;
+      border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+    }
+
+    .print-controls h2 {
+      color: #d4af37;
+      margin-bottom: 10px;
+      font-family: 'Playfair Display', serif;
+    }
+
+    .print-controls p {
+      color: #888;
+      margin-bottom: 15px;
+    }
+
+    .print-btn {
+      background: linear-gradient(135deg, #d4af37 0%, #b8962e 100%);
+      color: #0a0a0f;
+      border: none;
+      padding: 12px 30px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      margin: 0 10px;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      background: linear-gradient(180deg, #0a0a0f 0%, #0d0d14 50%, #0a0a0f 100%);
+      margin: 0 auto;
+      padding: 15mm;
+      position: relative;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 10mm;
+      padding-bottom: 8mm;
+      border-bottom: 2px solid rgba(212, 175, 55, 0.3);
+    }
+
+    .logo {
+      width: 50mm;
+      margin-bottom: 5mm;
+    }
+
+    .title {
+      font-family: 'Playfair Display', serif;
+      font-size: 28pt;
+      color: #d4af37;
+      margin-bottom: 3mm;
+    }
+
+    .subtitle {
+      font-size: 12pt;
+      color: #a0a0a0;
+    }
+
+    .intro {
+      text-align: center;
+      margin-bottom: 8mm;
+      padding: 5mm;
+      background: linear-gradient(135deg, rgba(26, 26, 36, 0.6) 0%, rgba(20, 20, 28, 0.8) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 3mm;
+    }
+
+    .intro p {
+      font-size: 10pt;
+      color: #c0c0c0;
+      line-height: 1.5;
+    }
+
+    .pricing-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 8mm;
+    }
+
+    .pricing-table thead {
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.2) 0%, rgba(212, 175, 55, 0.1) 100%);
+    }
+
+    .pricing-table th {
+      padding: 4mm 3mm;
+      text-align: left;
+      font-weight: 600;
+      color: #d4af37;
+      font-size: 10pt;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 2px solid rgba(212, 175, 55, 0.3);
+    }
+
+    .pricing-table td {
+      padding: 3.5mm 3mm;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      color: #e0e0e0;
+      font-size: 10pt;
+    }
+
+    .pricing-table tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .pricing-table tr:hover {
+      background: rgba(212, 175, 55, 0.05);
+    }
+
+    .pack-name {
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .tag {
+      display: inline-block;
+      background: linear-gradient(135deg, #d4af37 0%, #b8962e 100%);
+      color: #0a0a0f;
+      font-size: 7pt;
+      padding: 1mm 2mm;
+      border-radius: 2mm;
+      margin-left: 2mm;
+      font-weight: 700;
+    }
+
+    .savings {
+      color: #4ac88c;
+      font-weight: 500;
+    }
+
+    .highlight-row {
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%) !important;
+    }
+
+    .notes {
+      margin-top: 6mm;
+      padding: 5mm;
+      background: linear-gradient(135deg, rgba(26, 26, 36, 0.6) 0%, rgba(20, 20, 28, 0.8) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 3mm;
+    }
+
+    .notes h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 12pt;
+      color: #d4af37;
+      margin-bottom: 3mm;
+    }
+
+    .notes ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .notes li {
+      font-size: 9pt;
+      color: #b0b0b0;
+      margin: 2mm 0;
+      padding-left: 5mm;
+      position: relative;
+    }
+
+    .notes li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: #d4af37;
+    }
+
+    .footer {
+      position: absolute;
+      bottom: 10mm;
+      left: 15mm;
+      right: 15mm;
+      text-align: center;
+      padding-top: 5mm;
+      border-top: 1px solid rgba(212, 175, 55, 0.2);
+    }
+
+    .footer p {
+      font-size: 9pt;
+      color: #888;
+    }
+
+    .footer .website {
+      color: #d4af37;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="print-controls">
+    <h2>MCC Bid Pack Pricing</h2>
+    <p>Provider Bid Credit Packages</p>
+    <button class="print-btn" onclick="window.print()">Print</button>
+  </div>
+
+  <div class="page">
+    <div class="header">
+      <img src="logo.png" class="logo" alt="My Car Concierge">
+      <div class="title">Provider Bid Packs</div>
+      <div class="subtitle">Purchase bid credits to compete for service jobs</div>
+    </div>
+
+    <div class="intro">
+      <p>Bid credits are used to submit proposals on member service requests. You only spend credits on jobs YOU choose to bid on. No monthly fees, no contracts - just pay for what you use.</p>
+    </div>
+
+    <table class="pricing-table">
+      <thead>
+        <tr>
+          <th>Pack Name</th>
+          <th>Bids</th>
+          <th>Price</th>
+          <th>Per Bid</th>
+          <th>Savings</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="pack-name">Dipstick</span></td>
+          <td>50</td>
+          <td>$200</td>
+          <td>$4.00</td>
+          <td class="savings">—</td>
+        </tr>
+        <tr>
+          <td><span class="pack-name">Spark Plug</span></td>
+          <td>70</td>
+          <td>$250</td>
+          <td>$3.57</td>
+          <td class="savings">11%</td>
+        </tr>
+        <tr>
+          <td><span class="pack-name">Turbo</span></td>
+          <td>95</td>
+          <td>$300</td>
+          <td>$3.16</td>
+          <td class="savings">21%</td>
+        </tr>
+        <tr class="highlight-row">
+          <td><span class="pack-name">V8</span> <span class="tag">POPULAR</span></td>
+          <td>140</td>
+          <td>$400</td>
+          <td>$2.86</td>
+          <td class="savings">29%</td>
+        </tr>
+        <tr>
+          <td><span class="pack-name">Muscle Car</span></td>
+          <td>195</td>
+          <td>$500</td>
+          <td>$2.56</td>
+          <td class="savings">36%</td>
+        </tr>
+        <tr>
+          <td><span class="pack-name">Supercharger</span></td>
+          <td>270</td>
+          <td>$625</td>
+          <td>$2.31</td>
+          <td class="savings">42%</td>
+        </tr>
+        <tr class="highlight-row">
+          <td><span class="pack-name">Racing Team</span> <span class="tag">POPULAR</span></td>
+          <td>385</td>
+          <td>$800</td>
+          <td>$2.08</td>
+          <td class="savings">48%</td>
+        </tr>
+        <tr>
+          <td><span class="pack-name">Pit Crew</span></td>
+          <td>535</td>
+          <td>$1,000</td>
+          <td>$1.87</td>
+          <td class="savings">53%</td>
+        </tr>
+        <tr>
+          <td><span class="pack-name">Speedway</span></td>
+          <td>745</td>
+          <td>$1,250</td>
+          <td>$1.68</td>
+          <td class="savings">58%</td>
+        </tr>
+        <tr>
+          <td><span class="pack-name">Grand Prix</span></td>
+          <td>990</td>
+          <td>$1,500</td>
+          <td>$1.52</td>
+          <td class="savings">62%</td>
+        </tr>
+        <tr class="highlight-row">
+          <td><span class="pack-name">Formula One</span> <span class="tag">POPULAR</span></td>
+          <td>1,470</td>
+          <td>$2,000</td>
+          <td>$1.36</td>
+          <td class="savings">66%</td>
+        </tr>
+        <tr>
+          <td><span class="pack-name">Championship</span></td>
+          <td>15,400</td>
+          <td>$10,000</td>
+          <td>$0.65</td>
+          <td class="savings">84%</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="notes">
+      <h3>How Bidding Works</h3>
+      <ul>
+        <li>Each bid submission costs one credit from your purchased pack</li>
+        <li>Credits never expire - use them at your own pace</li>
+        <li>Win rate varies by service category and your reviews</li>
+        <li>Unused credits are refundable if your account is suspended</li>
+        <li>Founding Providers receive unlimited bidding during pilot period</li>
+        <li>Higher tier packs include priority support</li>
+      </ul>
+    </div>
+
+    <div class="footer">
+      <p><span class="website">www.mycarconcierge.com</span> • info@mycarconcierge.com</p>
+    </div>
+  </div>
+</body>
+</html>
