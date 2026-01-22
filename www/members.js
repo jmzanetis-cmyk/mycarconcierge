@@ -2533,6 +2533,7 @@
       pendingRegistrationFile = null;
       document.getElementById('registration-upload-area').style.display = 'none';
       document.getElementById('registration-upload-buttons').style.display = 'grid';
+      document.getElementById('registration-drop-zone').style.display = 'block';
       document.getElementById('registration-preview-img').src = '';
       document.getElementById('registration-file-info').style.display = 'none';
       document.getElementById('registration-loading').style.display = 'none';
@@ -2563,13 +2564,62 @@
       const file = event.target.files[0];
       if (!file) return;
       
-      if (file.size > 5 * 1024 * 1024) {
-        showToast('File is too large (max 5MB)', 'error');
+      if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+        showToast('Please upload a JPG or PNG image', 'error');
         return;
       }
       
-      if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
-        showToast('Please upload a JPG or PNG image', 'error');
+      processRegistrationFile(file);
+      event.target.value = '';
+    }
+    
+    function removeRegistrationFile() {
+      pendingRegistrationFile = null;
+      document.getElementById('registration-upload-area').style.display = 'none';
+      document.getElementById('registration-upload-buttons').style.display = 'grid';
+      document.getElementById('registration-drop-zone').style.display = 'block';
+      document.getElementById('registration-preview-img').src = '';
+      document.getElementById('registration-file-info').style.display = 'none';
+      document.getElementById('verify-registration-btn').disabled = true;
+    }
+    
+    function handleRegistrationDragOver(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const dropZone = document.getElementById('registration-drop-zone');
+      dropZone.style.borderColor = 'var(--accent-gold)';
+      dropZone.style.background = 'var(--accent-gold-soft)';
+    }
+    
+    function handleRegistrationDragLeave(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const dropZone = document.getElementById('registration-drop-zone');
+      dropZone.style.borderColor = 'var(--border-medium)';
+      dropZone.style.background = 'transparent';
+    }
+    
+    function handleRegistrationDrop(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const dropZone = document.getElementById('registration-drop-zone');
+      dropZone.style.borderColor = 'var(--border-medium)';
+      dropZone.style.background = 'transparent';
+      
+      const files = event.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        if (['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+          processRegistrationFile(file);
+        } else {
+          showToast('Please upload a JPG or PNG image', 'error');
+        }
+      }
+    }
+    
+    function processRegistrationFile(file) {
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('File is too large. Maximum size is 10MB.', 'error');
         return;
       }
       
@@ -2580,6 +2630,7 @@
         document.getElementById('registration-preview-img').src = e.target.result;
         document.getElementById('registration-upload-area').style.display = 'block';
         document.getElementById('registration-upload-buttons').style.display = 'none';
+        document.getElementById('registration-drop-zone').style.display = 'none';
         
         document.getElementById('registration-file-name').textContent = file.name;
         document.getElementById('registration-file-size').textContent = formatFileSize(file.size);
@@ -2588,17 +2639,6 @@
         document.getElementById('verify-registration-btn').disabled = false;
       };
       reader.readAsDataURL(file);
-      
-      event.target.value = '';
-    }
-    
-    function removeRegistrationFile() {
-      pendingRegistrationFile = null;
-      document.getElementById('registration-upload-area').style.display = 'none';
-      document.getElementById('registration-upload-buttons').style.display = 'grid';
-      document.getElementById('registration-preview-img').src = '';
-      document.getElementById('registration-file-info').style.display = 'none';
-      document.getElementById('verify-registration-btn').disabled = true;
     }
     
     function formatFileSize(bytes) {
@@ -2615,22 +2655,33 @@
       
       const btn = document.getElementById('verify-registration-btn');
       btn.disabled = true;
-      btn.innerHTML = '⏳ Uploading...';
+      btn.innerHTML = '⏳ Processing...';
       
       document.getElementById('registration-loading').style.display = 'block';
       document.getElementById('registration-result').style.display = 'none';
+      document.getElementById('registration-loading-icon').textContent = '📤';
+      document.getElementById('registration-loading-text').textContent = 'Uploading document...';
+      document.getElementById('registration-loading-subtext').textContent = 'Please wait';
+      document.getElementById('registration-progress-bar').style.width = '20%';
       
       try {
         const registrationUrl = await uploadRegistrationDocument(pendingRegistrationFile, currentRegistrationVehicleId);
+        
+        document.getElementById('registration-progress-bar').style.width = '50%';
         
         if (!registrationUrl) {
           throw new Error('Failed to upload document');
         }
         
-        btn.innerHTML = '🔍 Verifying...';
+        document.getElementById('registration-loading-icon').textContent = '🔍';
+        document.getElementById('registration-loading-text').textContent = 'Analyzing document...';
+        document.getElementById('registration-loading-subtext').textContent = 'Extracting registration details';
+        document.getElementById('registration-progress-bar').style.width = '70%';
         
         const result = await verifyRegistration(registrationUrl, currentRegistrationVehicleId);
         
+        document.getElementById('registration-progress-bar').style.width = '100%';
+        await new Promise(resolve => setTimeout(resolve, 300));
         document.getElementById('registration-loading').style.display = 'none';
         
         const resultContainer = document.getElementById('registration-result');

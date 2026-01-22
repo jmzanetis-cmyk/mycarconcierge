@@ -5278,6 +5278,13 @@
           <p style="font-size:0.88rem;color:var(--text-secondary);line-height:1.5;">
             Upload a clear photo of your vehicle registration. Our system will verify the vehicle details match your profile.
           </p>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;">Accepts JPG, PNG (max 10MB)</p>
+        </div>
+
+        <div id="registration-drop-zone" style="border:2px dashed var(--border-medium);border-radius:var(--radius-md);padding:24px;text-align:center;margin-bottom:16px;transition:all 0.2s;cursor:pointer;" ondragover="handleRegistrationDragOver(event)" ondragleave="handleRegistrationDragLeave(event)" ondrop="handleRegistrationDrop(event)" onclick="document.getElementById('registration-gallery-input').click()">
+          <div style="font-size:32px;margin-bottom:8px;">📄</div>
+          <div style="font-weight:500;color:var(--text-primary);">Drag & drop your registration here</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">or use the buttons below</div>
         </div>
 
         <div id="registration-upload-buttons" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
@@ -5305,9 +5312,12 @@
         </div>
 
         <div id="registration-loading" style="display:none;text-align:center;padding:30px;">
-          <div style="font-size:32px;margin-bottom:12px;animation:pulse 1.5s infinite;">🔍</div>
-          <div style="font-weight:500;">Verifying Registration...</div>
-          <div style="font-size:0.88rem;color:var(--text-muted);margin-top:4px;">This may take a moment</div>
+          <div style="font-size:32px;margin-bottom:12px;animation:pulse 1.5s infinite;" id="registration-loading-icon">📤</div>
+          <div style="font-weight:500;" id="registration-loading-text">Uploading document...</div>
+          <div style="font-size:0.88rem;color:var(--text-muted);margin-top:4px;" id="registration-loading-subtext">Please wait</div>
+          <div style="margin-top:16px;height:6px;background:var(--bg-elevated);border-radius:3px;overflow:hidden;">
+            <div id="registration-progress-bar" style="width:0%;height:100%;background:var(--accent-gold);border-radius:3px;transition:width 0.3s ease;"></div>
+          </div>
         </div>
 
         <div id="registration-result" style="display:none;margin-top:20px;"></div>
