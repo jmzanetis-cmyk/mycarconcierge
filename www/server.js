@@ -7,6 +7,7 @@ const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
+const vision = require('@google-cloud/vision');
 
 const anthropicClient = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
@@ -3857,6 +3858,449 @@ async function handleIdentityVerificationStatus(req, res, requestId, userId) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: false, error: 'Failed to fetch verification status' }));
   }
+}
+
+// ==================== REGISTRATION VERIFICATION (Google Vision OCR) ====================
+
+function calculateNameSimilarity(name1, name2) {
+  const normalize = (str) => 
+    str.toLowerCase()
+       .replace(/[^a-z\s]/g, '')
+       .trim()
+       .split(/\s+/)
+       .sort()
+       .join(' ');
+  
+  const n1 = normalize(name1);
+  const n2 = normalize(name2);
+  
+  if (n1 === n2) return 100;
+  if (n1.includes(n2) || n2.includes(n1)) return 90;
+  
+  const longer = n1.length > n2.length ? n1 : n2;
+  const shorter = n1.length > n2.length ? n2 : n1;
+  
+  if (longer.length === 0) return 100;
+  
+  const editDistance = levenshteinDistance(longer, shorter);
+  return Math.round(((longer.length - editDistance) / longer.length) * 100);
+}
+
+function levenshteinDistance(str1, str2) {
+  const matrix = [];
+  
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+  
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
+}
+
+function extractOwnerNameFromText(text) {
+  const patterns = [
+    /(?:owner|registered\s+owner|name)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i,
+    /^([A-Z][A-Z\s]+)$/m,
+    /\n([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\n/i
+  ];
+  
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const words = line.trim().split(/\s+/);
+    if (words.length >= 2 && words.length <= 4) {
+      const allCapitalized = words.every(w => /^[A-Z][a-z]+$/.test(w) || /^[A-Z]+$/.test(w));
+      if (allCapitalized) {
+        return words.join(' ');
+      }
+    }
+  }
+  
+  return null;
+}
+
+function extractVinFromText(text) {
+  const vinPattern = /\b[A-HJ-NPR-Z0-9]{17}\b/gi;
+  const match = text.match(vinPattern);
+  return match ? match[0].toUpperCase() : null;
+}
+
+function extractPlateFromText(text) {
+  const platePatterns = [
+    /(?:plate|license|tag)[:\s#]*([A-Z0-9]{1,3}[\s-]?[A-Z0-9]{2,4}[\s-]?[A-Z0-9]{1,4})/i,
+    /\b([A-Z]{1,3}[\s-]?[0-9]{2,4}[\s-]?[A-Z]{1,3})\b/,
+    /\b([0-9]{1,3}[\s-]?[A-Z]{2,4}[\s-]?[0-9]{1,4})\b/
+  ];
+  
+  for (const pattern of platePatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      return match[1].replace(/[\s-]/g, '').toUpperCase();
+    }
+  }
+  
+  return null;
+}
+
+let visionClient = null;
+function getVisionClient() {
+  if (!visionClient && process.env.GOOGLE_VISION_API_KEY) {
+    visionClient = new vision.ImageAnnotatorClient({
+      apiKey: process.env.GOOGLE_VISION_API_KEY
+    });
+  }
+  return visionClient;
+}
+
+async function handleVerifyRegistration(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', async () => {
+    try {
+      const { registrationUrl, vehicleId } = JSON.parse(body);
+      
+      if (!registrationUrl) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Missing registrationUrl' }));
+        return;
+      }
+      
+      const apiKey = process.env.GOOGLE_VISION_API_KEY;
+      if (!apiKey) {
+        console.error(`[${requestId}] GOOGLE_VISION_API_KEY not configured`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Vision API not configured' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      console.log(`[${requestId}] Starting registration verification for user ${user.id}`);
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, first_name, last_name')
+        .eq('id', user.id)
+        .single();
+      
+      const profileName = profile?.full_name || 
+                         `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() ||
+                         user.email?.split('@')[0] || '';
+      
+      let imageBase64;
+      try {
+        const imageResponse = await fetch(registrationUrl);
+        if (!imageResponse.ok) {
+          throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+        }
+        const imageBuffer = await imageResponse.arrayBuffer();
+        imageBase64 = Buffer.from(imageBuffer).toString('base64');
+      } catch (fetchError) {
+        console.error(`[${requestId}] Failed to fetch registration image:`, fetchError);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to fetch registration image' }));
+        return;
+      }
+      
+      console.log(`[${requestId}] Calling Google Vision API...`);
+      const visionResponse = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requests: [{
+            image: { content: imageBase64 },
+            features: [{ type: 'TEXT_DETECTION' }]
+          }]
+        })
+      });
+      
+      const visionData = await visionResponse.json();
+      
+      if (!visionResponse.ok) {
+        console.error(`[${requestId}] Vision API error:`, visionData);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Vision API error', details: visionData.error?.message }));
+        return;
+      }
+      
+      const extractedText = visionData.responses?.[0]?.fullTextAnnotation?.text || '';
+      console.log(`[${requestId}] Extracted text length: ${extractedText.length} chars`);
+      
+      if (!extractedText) {
+        const { data: verification } = await supabase.from('registration_verifications').insert({
+          user_id: user.id,
+          vehicle_id: vehicleId || null,
+          registration_url: registrationUrl,
+          extracted_text: null,
+          extracted_owner_name: null,
+          profile_name: profileName,
+          name_match_score: 0,
+          status: 'needs_review'
+        }).select().single();
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: false,
+          status: 'needs_review',
+          reason: 'No text found in registration document',
+          verificationId: verification?.id
+        }));
+        return;
+      }
+      
+      const extractedOwnerName = extractOwnerNameFromText(extractedText);
+      const extractedVin = extractVinFromText(extractedText);
+      const extractedPlate = extractPlateFromText(extractedText);
+      
+      console.log(`[${requestId}] Extracted: owner="${extractedOwnerName}", VIN="${extractedVin}", plate="${extractedPlate}"`);
+      
+      let matchScore = 0;
+      let status = 'needs_review';
+      
+      if (extractedOwnerName && profileName) {
+        matchScore = calculateNameSimilarity(extractedOwnerName, profileName);
+        
+        if (matchScore >= 85) {
+          status = 'approved';
+        } else if (matchScore >= 65) {
+          status = 'needs_review';
+        } else {
+          status = 'rejected';
+        }
+      }
+      
+      console.log(`[${requestId}] Name match score: ${matchScore}, status: ${status}`);
+      
+      const { data: verification, error: insertError } = await supabase
+        .from('registration_verifications')
+        .insert({
+          user_id: user.id,
+          vehicle_id: vehicleId || null,
+          registration_url: registrationUrl,
+          extracted_text: extractedText,
+          extracted_owner_name: extractedOwnerName,
+          extracted_vin: extractedVin,
+          extracted_plate: extractedPlate,
+          profile_name: profileName,
+          name_match_score: matchScore,
+          status
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        console.error(`[${requestId}] Failed to save verification:`, insertError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to save verification' }));
+        return;
+      }
+      
+      if (status === 'approved' && vehicleId) {
+        await supabase
+          .from('vehicles')
+          .update({
+            registration_verified: true,
+            registration_verification_id: verification.id
+          })
+          .eq('id', vehicleId);
+      }
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        status,
+        matchScore,
+        extractedOwnerName,
+        extractedVin,
+        extractedPlate,
+        profileName,
+        verificationId: verification.id
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Registration verification error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: error.message }));
+    }
+  });
+}
+
+async function handleGetRegistrationVerifications(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+    return;
+  }
+  
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    const isAdmin = profile?.role === 'admin';
+    
+    let query = supabase
+      .from('registration_verifications')
+      .select('*, profiles:user_id(full_name, email)')
+      .order('created_at', { ascending: false });
+    
+    if (!isAdmin) {
+      query = query.eq('user_id', user.id);
+    }
+    
+    const urlParams = new URL(req.url, 'http://localhost').searchParams;
+    const statusFilter = urlParams.get('status');
+    if (statusFilter) {
+      query = query.eq('status', statusFilter);
+    }
+    
+    const { data: verifications, error } = await query.limit(50);
+    
+    if (error) throw error;
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, verifications }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get verifications error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+}
+
+async function handleUpdateRegistrationVerification(req, res, requestId, verificationId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+    return;
+  }
+  
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+  
+  if (profile?.role !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', async () => {
+    try {
+      const { status, review_notes } = JSON.parse(body);
+      
+      if (!['approved', 'rejected', 'needs_review'].includes(status)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid status' }));
+        return;
+      }
+      
+      const { data: verification, error } = await supabase
+        .from('registration_verifications')
+        .update({
+          status,
+          review_notes,
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', verificationId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      if (status === 'approved' && verification.vehicle_id) {
+        await supabase
+          .from('vehicles')
+          .update({
+            registration_verified: true,
+            registration_verification_id: verificationId
+          })
+          .eq('id', verification.vehicle_id);
+      }
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, verification }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Update verification error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: error.message }));
+    }
+  });
 }
 
 function generateReferralCode() {
@@ -16441,6 +16885,25 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url.match(/^\/api\/identity\/status\/[^/]+$/)) {
     const userId = req.url.split('/api/identity/status/')[1]?.split('?')[0];
     handleIdentityVerificationStatus(req, res, requestId, userId);
+    return;
+  }
+  
+  // Registration Verification (Google Vision OCR) Endpoints
+  if (req.method === 'POST' && req.url === '/api/registration/verify') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleVerifyRegistration(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/registration/verifications')) {
+    handleGetRegistrationVerifications(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'PUT' && req.url.match(/^\/api\/registration\/verifications\/[^/]+$/)) {
+    const verificationId = req.url.split('/api/registration/verifications/')[1]?.split('?')[0];
+    handleUpdateRegistrationVerification(req, res, requestId, verificationId);
     return;
   }
   
