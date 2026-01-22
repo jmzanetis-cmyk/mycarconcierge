@@ -4004,18 +4004,45 @@ async function handleVerifyRegistration(req, res, requestId) {
         return;
       }
       
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      // SECURITY: Validate registrationUrl is from Supabase storage in user's folder
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const userFolderPattern = new RegExp(`^${supabaseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/storage/v1/object/public/registrations/${user.id}/`);
+      if (!supabaseUrl || !userFolderPattern.test(registrationUrl)) {
+        console.error(`[${requestId}] Invalid registration URL - must be from user's Supabase storage folder`);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid registration URL' }));
+        return;
+      }
+      
+      // SECURITY: If vehicleId provided, verify it belongs to the authenticated user
+      if (vehicleId) {
+        const { data: vehicle, error: vehicleError } = await supabase
+          .from('vehicles')
+          .select('id, user_id')
+          .eq('id', vehicleId)
+          .eq('user_id', user.id)
+          .single();
+        
+        if (vehicleError || !vehicle) {
+          console.error(`[${requestId}] Vehicle ${vehicleId} not found or does not belong to user ${user.id}`);
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'Vehicle not found or access denied' }));
+          return;
+        }
+      }
+      
       const apiKey = process.env.GOOGLE_VISION_API_KEY;
       if (!apiKey) {
         console.error(`[${requestId}] GOOGLE_VISION_API_KEY not configured`);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: 'Vision API not configured' }));
-        return;
-      }
-      
-      const supabase = getSupabaseClient();
-      if (!supabase) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
         return;
       }
       
@@ -4032,17 +4059,33 @@ async function handleVerifyRegistration(req, res, requestId) {
                          user.email?.split('@')[0] || '';
       
       let imageBase64;
+      const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB limit
       try {
-        const imageResponse = await fetch(registrationUrl);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+        
+        const imageResponse = await fetch(registrationUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
         if (!imageResponse.ok) {
           throw new Error(`Failed to fetch image: ${imageResponse.status}`);
         }
+        
+        const contentLength = imageResponse.headers.get('content-length');
+        if (contentLength && parseInt(contentLength) > MAX_IMAGE_SIZE) {
+          throw new Error('Image file too large (max 10MB)');
+        }
+        
         const imageBuffer = await imageResponse.arrayBuffer();
+        if (imageBuffer.byteLength > MAX_IMAGE_SIZE) {
+          throw new Error('Image file too large (max 10MB)');
+        }
+        
         imageBase64 = Buffer.from(imageBuffer).toString('base64');
       } catch (fetchError) {
         console.error(`[${requestId}] Failed to fetch registration image:`, fetchError);
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Failed to fetch registration image' }));
+        res.end(JSON.stringify({ success: false, error: fetchError.message || 'Failed to fetch registration image' }));
         return;
       }
       
@@ -4196,9 +4239,14 @@ async function handleGetRegistrationVerifications(req, res, requestId) {
     
     const isAdmin = profile?.role === 'admin';
     
+    // SECURITY: Only include profile email for admin queries
+    const selectFields = isAdmin 
+      ? '*, profiles:user_id(full_name, email)'
+      : '*';
+    
     let query = supabase
       .from('registration_verifications')
-      .select('*, profiles:user_id(full_name, email)')
+      .select(selectFields)
       .order('created_at', { ascending: false });
     
     if (!isAdmin) {
@@ -4216,7 +4264,7 @@ async function handleGetRegistrationVerifications(req, res, requestId) {
     if (error) throw error;
     
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, verifications }));
+    res.end(JSON.stringify({ success: true, verifications, isAdmin }));
     
   } catch (error) {
     console.error(`[${requestId}] Get verifications error:`, error);
