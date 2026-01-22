@@ -5974,6 +5974,38 @@ async function handleStripeWebhook(req, res, requestId) {
             } catch (err) {
               console.error(`[${requestId}] Error calling record_bid_pack_commission:`, err);
             }
+            
+            // Add bid credits to provider's account
+            const totalBids = parseInt(bids || '0') + parseInt(bonusBids || '0');
+            if (totalBids > 0) {
+              try {
+                const { data: profile, error: fetchError } = await supabase
+                  .from('profiles')
+                  .select('bid_credits')
+                  .eq('id', providerId)
+                  .single();
+                
+                if (fetchError) {
+                  console.error(`[${requestId}] Error fetching provider profile:`, fetchError);
+                } else {
+                  const currentCredits = profile?.bid_credits || 0;
+                  const newCredits = currentCredits + totalBids;
+                  
+                  const { error: updateError } = await supabase
+                    .from('profiles')
+                    .update({ bid_credits: newCredits })
+                    .eq('id', providerId);
+                  
+                  if (updateError) {
+                    console.error(`[${requestId}] Error updating bid credits:`, updateError);
+                  } else {
+                    console.log(`[${requestId}] Bid credits updated: ${currentCredits} -> ${newCredits} (+${totalBids}) for provider ${providerId}`);
+                  }
+                }
+              } catch (creditErr) {
+                console.error(`[${requestId}] Error adding bid credits:`, creditErr);
+              }
+            }
           }
         }
       }
