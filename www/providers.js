@@ -52,6 +52,21 @@
       updateThemeIcon();
     });
 
+    // Global function for mobile sidebar toggle (needs to be accessible from onclick)
+    function toggleSidebar() { 
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      sidebar.classList.toggle('open'); 
+      if (sidebar.classList.contains('open')) {
+        overlay.style.display = 'block';
+        document.querySelector('.mobile-close').style.display = 'flex';
+        document.body.classList.add('sidebar-open');
+      } else {
+        overlay.style.display = 'none';
+        document.body.classList.remove('sidebar-open');
+      }
+    }
+
     let currentUser = null;
     let providerProfile = null;
     let openPackages = [];
@@ -5765,19 +5780,6 @@
       }
     }
 
-    function toggleSidebar() { 
-      const sidebar = document.getElementById('sidebar');
-      const overlay = document.getElementById('sidebar-overlay');
-      sidebar.classList.toggle('open'); 
-      if (sidebar.classList.contains('open')) {
-        overlay.style.display = 'block';
-        document.querySelector('.mobile-close').style.display = 'flex';
-        document.body.classList.add('sidebar-open');
-      } else {
-        overlay.style.display = 'none';
-        document.body.classList.remove('sidebar-open');
-      }
-    }
     async function logout() { await supabaseClient.auth.signOut(); window.location.href = 'login.html'; }
     
     function switchToMember() {
