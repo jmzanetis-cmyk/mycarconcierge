@@ -3716,8 +3716,11 @@ async function handleCreateIdentityVerificationSession(req, res, requestId) {
       
     } catch (error) {
       console.error(`[${requestId}] Identity verification session error:`, error);
+      const errorMessage = error.message || 'Failed to create verification session';
+      const errorType = error.type || 'unknown';
+      console.error(`[${requestId}] Stripe Identity error type: ${errorType}, message: ${errorMessage}`);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Failed to create verification session' }));
+      res.end(JSON.stringify({ success: false, error: `Failed to create verification session: ${errorMessage}` }));
     }
   });
 }
