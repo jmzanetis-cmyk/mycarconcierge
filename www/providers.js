@@ -10497,7 +10497,7 @@
     }
 
     // ========== TEAM MANAGEMENT ==========
-    let teamMembers = [];
+    let managementTeamMembers = [];
     let teamInvitations = [];
     let currentUserTeamRole = null;
 
@@ -10515,7 +10515,7 @@
         
         if (teamResponse.ok) {
           const teamData = await teamResponse.json();
-          teamMembers = teamData.members || [];
+          managementTeamMembers = teamData.members || [];
           currentUserTeamRole = teamData.currentUserRole || null;
           
           // Show/hide team management nav based on role
@@ -10550,7 +10550,7 @@
       const tbody = document.getElementById('team-members-tbody');
       if (!tbody) return;
 
-      if (!teamMembers.length) {
+      if (!managementTeamMembers.length) {
         tbody.innerHTML = `
           <tr>
             <td colspan="5" style="padding:48px;text-align:center;color:var(--text-muted);">
@@ -10562,7 +10562,7 @@
         return;
       }
 
-      tbody.innerHTML = teamMembers.map(member => {
+      tbody.innerHTML = managementTeamMembers.map(member => {
         const isCurrentUser = member.user_id === currentUser?.id;
         const isOwner = member.role === 'owner';
         const canManage = (currentUserTeamRole === 'owner' || currentUserTeamRole === 'admin') && !isOwner && !isCurrentUser;
