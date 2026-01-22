@@ -4627,7 +4627,7 @@
         const userName = v.user?.full_name || v.user?.email || 'Unknown User';
         const vehicleInfo = v.vehicle ? `${v.vehicle.year || ''} ${v.vehicle.make || ''} ${v.vehicle.model || ''}`.trim() : 'Unknown Vehicle';
         const matchScore = v.name_match_score !== null && v.name_match_score !== undefined 
-          ? Math.round(v.name_match_score * 100) 
+          ? Math.round(v.name_match_score) 
           : '--';
         const scoreColor = matchScore === '--' ? 'var(--text-muted)' : 
           matchScore >= 80 ? 'var(--accent-green)' : 
@@ -4662,7 +4662,7 @@
       const userEmail = v.user?.email || '';
       const vehicleInfo = v.vehicle ? `${v.vehicle.year || ''} ${v.vehicle.make || ''} ${v.vehicle.model || ''}`.trim() : 'Unknown Vehicle';
       const matchScore = v.name_match_score !== null && v.name_match_score !== undefined 
-        ? Math.round(v.name_match_score * 100) 
+        ? Math.round(v.name_match_score) 
         : null;
 
       const modalBody = document.getElementById('verification-modal-body');
