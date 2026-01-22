@@ -2764,6 +2764,7 @@
         
       } catch (error) {
         console.error('Verification error:', error);
+        document.getElementById('registration-progress-bar').style.width = '0%';
         document.getElementById('registration-loading').style.display = 'none';
         document.getElementById('registration-result').innerHTML = `
           <div style="background:rgba(239,95,95,0.15);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);padding:20px;text-align:center;">
