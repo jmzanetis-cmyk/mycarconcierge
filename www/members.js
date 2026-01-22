@@ -93,6 +93,11 @@
     let vehicleRecalls = {}; // Map of vehicle_id -> { recalls: [], activeCount: 0 }
     let currentRecallsVehicleId = null; // Currently viewing recalls for this vehicle
 
+    // Registration Verification State
+    let pendingRegistrationFile = null; // File to upload for registration verification
+    let vehicleRegistrationStatus = {}; // Map of vehicle_id -> { verified: boolean, status: string }
+    let currentRegistrationVehicleId = null; // Currently verifying registration for this vehicle
+
     // Service types by category
     const serviceTypes = {
       maintenance: [
@@ -2214,11 +2219,16 @@
         const recallBadge = recallData && recallData.activeCount > 0 
           ? `<span class="recall-badge" onclick="event.stopPropagation(); openRecallsModal('${v.id}')">⚠️ ${recallData.activeCount} Recall${recallData.activeCount > 1 ? 's' : ''}</span>` 
           : '';
+        const registrationStatus = vehicleRegistrationStatus[v.id];
+        const registrationVerified = v.registration_verified || (registrationStatus && registrationStatus.verified);
+        const registrationBadge = registrationVerified
+          ? '<span class="registration-verified-badge">📋 Registration Verified</span>'
+          : '';
         return `
           <div class="vehicle-card">
             <div class="vehicle-card-photo">
               ${photoContent}
-              ${recallBadge || verifiedBadge}
+              ${registrationBadge || recallBadge || verifiedBadge}
               <span class="vehicle-card-badge ${healthClass}">${healthLabel}</span>
             </div>
             <div class="vehicle-card-body">
@@ -2231,6 +2241,7 @@
               <div class="vehicle-card-actions">
                 <button class="btn btn-secondary btn-sm" onclick="viewVehicleDetails('${v.id}')" style="flex: 1;">View Details</button>
                 <button class="btn btn-primary btn-sm" onclick="createPackageForVehicle('${v.id}')" style="flex: 1;">+ Service</button>
+                ${!registrationVerified ? `<button class="btn btn-ghost btn-sm" onclick="openRegistrationModal('${v.id}')" title="Verify Registration" style="padding: 8px;color:var(--accent-gold);">📋</button>` : ''}
                 <button class="btn btn-ghost btn-sm" onclick="generateHealthReportPDF('${v.id}')" title="Download Health Report" style="padding: 8px;">📄</button>
                 <button class="btn btn-ghost btn-sm" onclick="deleteVehicle('${v.id}')" title="Delete" style="padding: 8px;">🗑️</button>
               </div>
@@ -2408,6 +2419,318 @@
     }
     
     // ========== END VEHICLE RECALLS ==========
+
+    // ========== REGISTRATION VERIFICATION FUNCTIONS ==========
+    
+    async function uploadRegistrationDocument(file, vehicleId) {
+      if (!supabaseClient) {
+        console.error('Supabase client not initialized');
+        return null;
+      }
+      
+      try {
+        const userId = currentUser?.id;
+        if (!userId) {
+          showToast('User not authenticated', 'error');
+          return null;
+        }
+        
+        const timestamp = Date.now();
+        const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const filePath = `${userId}/${timestamp}_${safeFileName}`;
+        
+        const { data, error } = await supabaseClient.storage
+          .from('registrations')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+        
+        if (error) {
+          console.error('Upload error:', error);
+          showToast('Failed to upload document: ' + error.message, 'error');
+          return null;
+        }
+        
+        const { data: publicData } = supabaseClient.storage
+          .from('registrations')
+          .getPublicUrl(filePath);
+        
+        if (publicData?.publicUrl) {
+          return publicData.publicUrl;
+        }
+        
+        return null;
+      } catch (error) {
+        console.error('Upload error:', error);
+        showToast('Failed to upload document', 'error');
+        return null;
+      }
+    }
+    
+    async function verifyRegistration(registrationUrl, vehicleId) {
+      try {
+        const response = await fetch('/api/registration/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            registrationUrl: registrationUrl,
+            vehicleId: vehicleId
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          vehicleRegistrationStatus[vehicleId] = {
+            verified: data.status === 'approved',
+            status: data.status,
+            details: data.details || null
+          };
+          
+          if (data.status === 'approved') {
+            const vehicle = vehicles.find(v => v.id === vehicleId);
+            if (vehicle) {
+              vehicle.registration_verified = true;
+            }
+          }
+          
+          return data;
+        } else {
+          return { success: false, error: data.error || 'Verification failed' };
+        }
+      } catch (error) {
+        console.error('Verification error:', error);
+        return { success: false, error: 'Failed to verify registration' };
+      }
+    }
+    
+    async function checkRegistrationStatus(vehicleId) {
+      try {
+        const response = await fetch(`/api/registration/verifications?vehicleId=${vehicleId}`);
+        const data = await response.json();
+        
+        if (data.success && data.verifications && data.verifications.length > 0) {
+          const latestVerification = data.verifications[0];
+          vehicleRegistrationStatus[vehicleId] = {
+            verified: latestVerification.status === 'approved',
+            status: latestVerification.status,
+            details: latestVerification.extracted_data || null
+          };
+          return latestVerification;
+        }
+        return null;
+      } catch (error) {
+        console.error('Check status error:', error);
+        return null;
+      }
+    }
+    
+    function openRegistrationModal(vehicleId) {
+      currentRegistrationVehicleId = vehicleId;
+      document.getElementById('registration-vehicle-id').value = vehicleId;
+      
+      pendingRegistrationFile = null;
+      document.getElementById('registration-upload-area').classList.remove('has-file');
+      document.getElementById('registration-upload-placeholder').style.display = 'block';
+      document.getElementById('registration-preview-img').style.display = 'none';
+      document.getElementById('registration-file-info').style.display = 'none';
+      document.getElementById('registration-loading').style.display = 'none';
+      document.getElementById('registration-result').style.display = 'none';
+      document.getElementById('verify-registration-btn').disabled = true;
+      
+      const status = vehicleRegistrationStatus[vehicleId];
+      const statusContainer = document.getElementById('registration-current-status');
+      if (status) {
+        statusContainer.style.display = 'block';
+        const statusLabels = {
+          pending: '⏳ Pending Review',
+          approved: '✅ Approved',
+          rejected: '❌ Rejected',
+          needs_review: '🔍 Needs Manual Review'
+        };
+        document.getElementById('registration-status-display').innerHTML = `
+          <span class="registration-status-badge ${status.status}">${statusLabels[status.status] || status.status}</span>
+        `;
+      } else {
+        statusContainer.style.display = 'none';
+      }
+      
+      openModal('registration-modal');
+    }
+    
+    function handleRegistrationFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('File is too large (max 5MB)', 'error');
+        return;
+      }
+      
+      if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+        showToast('Please upload a JPG or PNG image', 'error');
+        return;
+      }
+      
+      pendingRegistrationFile = file;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById('registration-preview-img').src = e.target.result;
+        document.getElementById('registration-preview-img').style.display = 'block';
+        document.getElementById('registration-upload-placeholder').style.display = 'none';
+        document.getElementById('registration-upload-area').classList.add('has-file');
+        
+        document.getElementById('registration-file-name').textContent = file.name;
+        document.getElementById('registration-file-size').textContent = formatFileSize(file.size);
+        document.getElementById('registration-file-info').style.display = 'flex';
+        
+        document.getElementById('verify-registration-btn').disabled = false;
+      };
+      reader.readAsDataURL(file);
+      
+      event.target.value = '';
+    }
+    
+    function removeRegistrationFile() {
+      pendingRegistrationFile = null;
+      document.getElementById('registration-upload-area').classList.remove('has-file');
+      document.getElementById('registration-upload-placeholder').style.display = 'block';
+      document.getElementById('registration-preview-img').style.display = 'none';
+      document.getElementById('registration-preview-img').src = '';
+      document.getElementById('registration-file-info').style.display = 'none';
+      document.getElementById('verify-registration-btn').disabled = true;
+    }
+    
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    
+    async function submitRegistrationVerification() {
+      if (!pendingRegistrationFile || !currentRegistrationVehicleId) {
+        showToast('Please select a registration document', 'error');
+        return;
+      }
+      
+      const btn = document.getElementById('verify-registration-btn');
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Uploading...';
+      
+      document.getElementById('registration-loading').style.display = 'block';
+      document.getElementById('registration-result').style.display = 'none';
+      
+      try {
+        const registrationUrl = await uploadRegistrationDocument(pendingRegistrationFile, currentRegistrationVehicleId);
+        
+        if (!registrationUrl) {
+          throw new Error('Failed to upload document');
+        }
+        
+        btn.innerHTML = '🔍 Verifying...';
+        
+        const result = await verifyRegistration(registrationUrl, currentRegistrationVehicleId);
+        
+        document.getElementById('registration-loading').style.display = 'none';
+        
+        const resultContainer = document.getElementById('registration-result');
+        resultContainer.style.display = 'block';
+        
+        if (result.success) {
+          const statusConfig = {
+            approved: {
+              icon: '✅',
+              title: 'Registration Verified!',
+              message: 'Your vehicle registration has been successfully verified.',
+              class: 'approved',
+              bgColor: 'var(--accent-green-soft)',
+              borderColor: 'rgba(74,200,140,0.3)',
+              color: 'var(--accent-green)'
+            },
+            needs_review: {
+              icon: '🔍',
+              title: 'Manual Review Required',
+              message: 'Your registration requires manual review. We\'ll verify it within 24-48 hours.',
+              class: 'needs_review',
+              bgColor: 'var(--accent-blue-soft)',
+              borderColor: 'rgba(74,124,255,0.3)',
+              color: 'var(--accent-blue)'
+            },
+            rejected: {
+              icon: '❌',
+              title: 'Verification Failed',
+              message: 'The registration document could not be verified. Please ensure the image is clear and try again.',
+              class: 'rejected',
+              bgColor: 'rgba(239,95,95,0.15)',
+              borderColor: 'rgba(239,95,95,0.3)',
+              color: 'var(--accent-red)'
+            },
+            pending: {
+              icon: '⏳',
+              title: 'Verification Pending',
+              message: 'Your registration is being processed.',
+              class: 'pending',
+              bgColor: 'var(--accent-orange-soft)',
+              borderColor: 'rgba(245,158,11,0.3)',
+              color: 'var(--accent-orange)'
+            }
+          };
+          
+          const config = statusConfig[result.status] || statusConfig.pending;
+          
+          resultContainer.innerHTML = `
+            <div style="background:${config.bgColor};border:1px solid ${config.borderColor};border-radius:var(--radius-md);padding:20px;text-align:center;">
+              <div style="font-size:48px;margin-bottom:12px;">${config.icon}</div>
+              <div style="font-weight:600;font-size:1.1rem;margin-bottom:8px;color:${config.color};">${config.title}</div>
+              <p style="color:var(--text-secondary);font-size:0.9rem;">${config.message}</p>
+              ${result.details ? `
+                <div style="margin-top:12px;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);text-align:left;">
+                  <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">Extracted Information:</div>
+                  ${result.details.licensePlate ? `<div style="font-size:0.88rem;"><strong>Plate:</strong> ${result.details.licensePlate}</div>` : ''}
+                  ${result.details.vin ? `<div style="font-size:0.88rem;"><strong>VIN:</strong> ${result.details.vin}</div>` : ''}
+                  ${result.details.expirationDate ? `<div style="font-size:0.88rem;"><strong>Expires:</strong> ${result.details.expirationDate}</div>` : ''}
+                </div>
+              ` : ''}
+            </div>
+          `;
+          
+          if (result.status === 'approved') {
+            showToast('Registration verified successfully!', 'success');
+            renderVehicles();
+          }
+        } else {
+          resultContainer.innerHTML = `
+            <div style="background:rgba(239,95,95,0.15);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);padding:20px;text-align:center;">
+              <div style="font-size:48px;margin-bottom:12px;">❌</div>
+              <div style="font-weight:600;font-size:1.1rem;margin-bottom:8px;color:var(--accent-red);">Verification Error</div>
+              <p style="color:var(--text-secondary);font-size:0.9rem;">${result.error || 'An error occurred during verification. Please try again.'}</p>
+            </div>
+          `;
+        }
+        
+        btn.innerHTML = '✓ Verify Registration';
+        btn.disabled = true;
+        
+      } catch (error) {
+        console.error('Verification error:', error);
+        document.getElementById('registration-loading').style.display = 'none';
+        document.getElementById('registration-result').innerHTML = `
+          <div style="background:rgba(239,95,95,0.15);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);padding:20px;text-align:center;">
+            <div style="font-size:48px;margin-bottom:12px;">❌</div>
+            <div style="font-weight:600;font-size:1.1rem;margin-bottom:8px;color:var(--accent-red);">Upload Failed</div>
+            <p style="color:var(--text-secondary);font-size:0.9rem;">${error.message || 'Failed to upload the document. Please try again.'}</p>
+          </div>
+        `;
+        document.getElementById('registration-result').style.display = 'block';
+        
+        btn.innerHTML = '✓ Verify Registration';
+        btn.disabled = false;
+      }
+    }
+    
+    // ========== END REGISTRATION VERIFICATION ==========
 
     function renderPackages() {
       const list = document.getElementById('packages-list');
@@ -6643,6 +6966,28 @@
           <div class="form-row" style="margin-top:12px;">
             <div style="flex:1;"><strong>VIN:</strong> <span style="font-family: monospace;">${vehicle.vin || 'Not provided'}</span></div>
           </div>
+          
+          <div style="margin-top:24px;padding:16px;background:var(--bg-input);border-radius:var(--radius-lg);border:1px solid var(--border-subtle);">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+              <div>
+                <div style="font-weight:600;margin-bottom:4px;">📋 Registration Verification</div>
+                <div style="font-size:0.88rem;color:var(--text-muted);">
+                  ${vehicle.registration_verified || vehicleRegistrationStatus[vehicleId]?.verified 
+                    ? '<span style="color:var(--accent-green);">✅ Verified</span>' 
+                    : vehicleRegistrationStatus[vehicleId]?.status === 'pending' 
+                      ? '<span style="color:var(--accent-orange);">⏳ Pending Review</span>'
+                      : vehicleRegistrationStatus[vehicleId]?.status === 'needs_review'
+                        ? '<span style="color:var(--accent-blue);">🔍 Under Review</span>'
+                        : 'Not verified yet'}
+                </div>
+              </div>
+              ${vehicle.registration_verified || vehicleRegistrationStatus[vehicleId]?.verified 
+                ? '<span class="registration-status-badge approved">✓ Verified</span>'
+                : `<button class="btn btn-primary" onclick="openRegistrationModal('${vehicleId}')" style="padding:10px 20px;">📋 Verify Registration</button>`
+              }
+            </div>
+          </div>
+          
           <div style="margin-top:24px;display:flex;gap:12px;">
             <button class="btn btn-secondary" onclick="editVehicle('${vehicleId}')">Edit Details</button>
             <button class="btn btn-danger" onclick="deleteVehicle('${vehicleId}')">Delete Vehicle</button>

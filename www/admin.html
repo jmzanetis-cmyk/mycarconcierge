@@ -301,6 +301,7 @@
     <div class="nav-item" data-section="packages">📦 All Packages</div>
     <div class="nav-item" data-section="payments">💳 Payments</div>
     <div class="nav-item" data-section="disputes">⚠️ Disputes <span class="nav-badge red" id="dispute-count">0</span></div>
+    <div class="nav-item" data-section="registration-verifications">🔍 Registration Reviews <span class="nav-badge orange" id="registration-count">0</span></div>
 
     <div class="nav-label">Support</div>
     <div class="nav-item" data-section="tickets">🎫 Help Desk <span class="nav-badge green" id="ticket-count">0</span></div>
@@ -1323,6 +1324,66 @@
       </div>
     </section>
 
+    <!-- Registration Verifications Section -->
+    <section id="registration-verifications" class="section">
+      <div class="page-header">
+        <button class="back-to-dashboard" onclick="navigateToSection('dashboard')">← Dashboard</button>
+        <h1 class="page-title">🔍 Registration Verifications</h1>
+        <p class="page-subtitle">Review flagged vehicle registration verifications</p>
+      </div>
+
+      <div class="stats-grid" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-orange-soft);color:var(--accent-orange);">⏳</div>
+          <div class="stat-value" id="reg-needs-review">0</div>
+          <div class="stat-label">Needs Review</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-blue-soft);color:var(--accent-blue);">🔄</div>
+          <div class="stat-value" id="reg-pending">0</div>
+          <div class="stat-label">Pending</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);">✓</div>
+          <div class="stat-value" id="reg-approved">0</div>
+          <div class="stat-label">Approved</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-red-soft);color:var(--accent-red);">✗</div>
+          <div class="stat-value" id="reg-rejected">0</div>
+          <div class="stat-label">Rejected</div>
+        </div>
+      </div>
+
+      <div class="tabs" id="registration-tabs">
+        <div class="tab active" data-filter="all">All</div>
+        <div class="tab" data-filter="needs_review">Needs Review</div>
+        <div class="tab" data-filter="pending">Pending</div>
+        <div class="tab" data-filter="approved">Approved</div>
+        <div class="tab" data-filter="rejected">Rejected</div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Vehicle</th>
+                <th>Status</th>
+                <th>Match Score</th>
+                <th>Submitted Date</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="registration-verifications-table">
+              <tr><td colspan="6" class="empty-state">Loading verifications...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- Settings Section -->
     <section id="settings" class="section">
       <div class="page-header">
@@ -1440,6 +1501,23 @@
         <button class="btn btn-danger" onclick="showCARRejectionForm()">Reject</button>
         <button class="btn" style="background:var(--accent-orange-soft);color:var(--accent-orange);border:1px solid var(--accent-orange);" onclick="reviewCAR(currentCAR?.id, 'revision_requested')">Request Revision</button>
         <button class="btn btn-success" onclick="reviewCAR(currentCAR?.id, 'approved')">Approve & Lift Suspension</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Registration Verification Modal -->
+  <div class="modal-backdrop" id="verification-modal">
+    <div class="modal" style="max-width:900px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔍 Registration Verification Details</h3>
+        <button class="modal-close" onclick="closeModal('verification-modal')">×</button>
+      </div>
+      <div class="modal-body" id="verification-modal-body" style="max-height:70vh;">
+      </div>
+      <div class="modal-footer" id="verification-modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('verification-modal')">Close</button>
+        <button class="btn btn-danger" onclick="rejectVerification()">Reject</button>
+        <button class="btn btn-success" onclick="approveVerification()">Approve</button>
       </div>
     </div>
   </div>

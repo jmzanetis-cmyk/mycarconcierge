@@ -764,6 +764,67 @@
     .edu-difficulty.easy { background: var(--accent-green-soft); color: var(--accent-green); }
     .edu-difficulty.moderate { background: var(--accent-orange-soft); color: var(--accent-orange); }
     .edu-difficulty.professional { background: rgba(239, 95, 95, 0.15); color: var(--accent-red); }
+
+    /* Registration Verification Styles */
+    .registration-verified-badge { 
+      position: absolute; 
+      top: 12px; 
+      left: 12px; 
+      background: linear-gradient(135deg, var(--accent-green), #3da577); 
+      color: white; 
+      padding: 5px 12px; 
+      border-radius: 100px; 
+      font-size: 0.72rem; 
+      font-weight: 600; 
+      display: flex; 
+      align-items: center; 
+      gap: 5px; 
+      z-index: 5; 
+      box-shadow: 0 2px 8px rgba(74, 200, 140, 0.3); 
+    }
+    .registration-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 100px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .registration-status-badge.pending { background: var(--accent-orange-soft); color: var(--accent-orange); }
+    .registration-status-badge.approved { background: var(--accent-green-soft); color: var(--accent-green); }
+    .registration-status-badge.rejected { background: rgba(239, 95, 95, 0.15); color: var(--accent-red); }
+    .registration-status-badge.needs_review { background: var(--accent-blue-soft); color: var(--accent-blue); }
+    .registration-upload-area {
+      border: 2px dashed var(--border-medium);
+      border-radius: var(--radius-lg);
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--bg-input);
+    }
+    .registration-upload-area:hover {
+      border-color: var(--accent-gold);
+      background: var(--accent-gold-soft);
+    }
+    .registration-upload-area.has-file {
+      border-style: solid;
+      border-color: var(--accent-green);
+      background: var(--accent-green-soft);
+    }
+    .registration-preview-img {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: var(--radius-md);
+      margin-top: 12px;
+      display: none;
+    }
+    .verify-btn-container {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-subtle);
+    }
   </style>
   <script src="/i18n.js"></script>
 </head>
@@ -5193,6 +5254,64 @@
       </div>
       <div class="modal-body" id="vehicle-details-body">
         <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Registration Verification Modal -->
+  <div class="modal-backdrop" id="registration-modal">
+    <div class="modal" style="max-width:520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">📋 Verify Vehicle Registration</h3>
+        <button class="modal-close" onclick="closeModal('registration-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="registration-vehicle-id">
+        
+        <div id="registration-current-status" style="display:none;margin-bottom:20px;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+          <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;">Current Status</div>
+          <div id="registration-status-display"></div>
+        </div>
+
+        <div style="background:var(--accent-blue-soft);border:1px solid rgba(74,124,255,0.3);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
+          <h4 style="margin-bottom:8px;color:var(--accent-blue);font-size:0.95rem;">📸 Upload Registration Document</h4>
+          <p style="font-size:0.88rem;color:var(--text-secondary);line-height:1.5;">
+            Upload a clear photo of your vehicle registration. Our system will verify the vehicle details match your profile.
+          </p>
+        </div>
+
+        <div class="registration-upload-area" id="registration-upload-area" onclick="document.getElementById('registration-file-input').click()">
+          <div id="registration-upload-placeholder">
+            <div style="font-size:48px;margin-bottom:12px;">📄</div>
+            <div style="font-weight:500;margin-bottom:4px;">Click to upload registration</div>
+            <div style="font-size:0.85rem;color:var(--text-muted);">Accepts JPG, PNG, JPEG (max 5MB)</div>
+          </div>
+          <img id="registration-preview-img" class="registration-preview-img" alt="Registration preview">
+          <input type="file" id="registration-file-input" accept="image/jpeg,image/png,image/jpg" style="display:none;" onchange="handleRegistrationFileSelect(event)">
+        </div>
+        
+        <div id="registration-file-info" style="display:none;margin-top:12px;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);display:flex;align-items:center;gap:12px;">
+          <span style="font-size:24px;">📄</span>
+          <div style="flex:1;">
+            <div id="registration-file-name" style="font-weight:500;"></div>
+            <div id="registration-file-size" style="font-size:0.82rem;color:var(--text-muted);"></div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="removeRegistrationFile()" style="color:var(--accent-red);">✕ Remove</button>
+        </div>
+
+        <div id="registration-loading" style="display:none;text-align:center;padding:30px;">
+          <div style="font-size:32px;margin-bottom:12px;animation:pulse 1.5s infinite;">🔍</div>
+          <div style="font-weight:500;">Verifying Registration...</div>
+          <div style="font-size:0.88rem;color:var(--text-muted);margin-top:4px;">This may take a moment</div>
+        </div>
+
+        <div id="registration-result" style="display:none;margin-top:20px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('registration-modal')">Cancel</button>
+        <button class="btn btn-primary" id="verify-registration-btn" onclick="submitRegistrationVerification()" disabled>
+          ✓ Verify Registration
+        </button>
       </div>
     </div>
   </div>

@@ -6,14 +6,17 @@
     let disputes = [];
     let tickets = [];
     let members = [];
+    let registrationVerifications = [];
     let currentApplication = null;
     let currentDispute = null;
     let currentTicket = null;
+    let currentVerification = null;
     let currentFilters = {
       applications: 'pending',
       payments: 'held',
       disputes: 'open',
-      tickets: 'open'
+      tickets: 'open',
+      registrations: 'all'
     };
 
     // ========== INIT ==========
@@ -272,7 +275,8 @@
         loadFounderPayouts(),
         loadUserManagement(),
         loadPendingCARs(),
-        load2faGlobalStatus()
+        load2faGlobalStatus(),
+        loadRegistrationVerifications()
       ]);
       updateDashboard();
     }
@@ -4541,6 +4545,325 @@
         document.querySelectorAll('#car-tabs .tab').forEach(t => t.classList.remove('active'));
         e.target.classList.add('active');
         filterCARs(e.target.dataset.filter);
+      }
+    });
+
+    // ========== REGISTRATION VERIFICATIONS ==========
+    async function loadRegistrationVerifications(status = null) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        let url = '/api/registration/verifications';
+        if (status && status !== 'all') {
+          url += `?status=${status}`;
+        }
+
+        const response = await fetch(url, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+
+        if (!response.ok) {
+          console.error('Failed to load registration verifications');
+          registrationVerifications = [];
+          renderRegistrationVerifications();
+          return;
+        }
+
+        const data = await response.json();
+        registrationVerifications = data.verifications || [];
+        
+        updateRegistrationStats();
+        renderRegistrationVerifications();
+        updateRegistrationBadge();
+      } catch (err) {
+        console.error('Error loading registration verifications:', err);
+        registrationVerifications = [];
+        renderRegistrationVerifications();
+      }
+    }
+
+    function updateRegistrationStats() {
+      const needsReview = registrationVerifications.filter(v => v.status === 'needs_review').length;
+      const pending = registrationVerifications.filter(v => v.status === 'pending').length;
+      const approved = registrationVerifications.filter(v => v.status === 'approved').length;
+      const rejected = registrationVerifications.filter(v => v.status === 'rejected').length;
+
+      const needsReviewEl = document.getElementById('reg-needs-review');
+      const pendingEl = document.getElementById('reg-pending');
+      const approvedEl = document.getElementById('reg-approved');
+      const rejectedEl = document.getElementById('reg-rejected');
+
+      if (needsReviewEl) needsReviewEl.textContent = needsReview;
+      if (pendingEl) pendingEl.textContent = pending;
+      if (approvedEl) approvedEl.textContent = approved;
+      if (rejectedEl) rejectedEl.textContent = rejected;
+    }
+
+    function updateRegistrationBadge() {
+      const needsReview = registrationVerifications.filter(v => v.status === 'needs_review').length;
+      const badgeEl = document.getElementById('registration-count');
+      if (badgeEl) {
+        badgeEl.textContent = needsReview;
+        badgeEl.style.display = needsReview > 0 ? 'inline-block' : 'none';
+      }
+    }
+
+    function renderRegistrationVerifications() {
+      const tbody = document.getElementById('registration-verifications-table');
+      if (!tbody) return;
+
+      let filtered = registrationVerifications;
+      if (currentFilters.registrations && currentFilters.registrations !== 'all') {
+        filtered = registrationVerifications.filter(v => v.status === currentFilters.registrations);
+      }
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No verification requests found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(v => {
+        const userName = v.user?.full_name || v.user?.email || 'Unknown User';
+        const vehicleInfo = v.vehicle ? `${v.vehicle.year || ''} ${v.vehicle.make || ''} ${v.vehicle.model || ''}`.trim() : 'Unknown Vehicle';
+        const matchScore = v.name_match_score !== null && v.name_match_score !== undefined 
+          ? Math.round(v.name_match_score * 100) 
+          : '--';
+        const scoreColor = matchScore === '--' ? 'var(--text-muted)' : 
+          matchScore >= 80 ? 'var(--accent-green)' : 
+          matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
+        const submittedDate = v.created_at ? new Date(v.created_at).toLocaleDateString() : 'N/A';
+
+        return `
+          <tr style="cursor:pointer;" onclick="openVerificationDetail('${v.id}')">
+            <td>
+              <div><strong>${userName}</strong></div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">${v.user?.email || ''}</div>
+            </td>
+            <td>${vehicleInfo}</td>
+            <td><span class="status-badge ${v.status === 'needs_review' ? 'orange' : v.status === 'pending' ? 'blue' : v.status === 'approved' ? 'approved' : v.status === 'rejected' ? 'rejected' : 'muted'}">${v.status?.replace('_', ' ') || 'unknown'}</span></td>
+            <td><span style="color:${scoreColor};font-weight:600;">${matchScore}${matchScore !== '--' ? '%' : ''}</span></td>
+            <td>${submittedDate}</td>
+            <td><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openVerificationDetail('${v.id}')">Review</button></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function openVerificationDetail(verificationId) {
+      currentVerification = registrationVerifications.find(v => v.id === verificationId);
+      if (!currentVerification) {
+        showToast('Verification not found', 'error');
+        return;
+      }
+
+      const v = currentVerification;
+      const userName = v.user?.full_name || 'Unknown User';
+      const userEmail = v.user?.email || '';
+      const vehicleInfo = v.vehicle ? `${v.vehicle.year || ''} ${v.vehicle.make || ''} ${v.vehicle.model || ''}`.trim() : 'Unknown Vehicle';
+      const matchScore = v.name_match_score !== null && v.name_match_score !== undefined 
+        ? Math.round(v.name_match_score * 100) 
+        : null;
+
+      const modalBody = document.getElementById('verification-modal-body');
+      modalBody.innerHTML = `
+        <div class="form-section">
+          <div class="form-section-title">👤 User & Vehicle Information</div>
+          <div class="detail-grid">
+            <span class="detail-label">User Name:</span>
+            <span class="detail-value">${userName}</span>
+            <span class="detail-label">User Email:</span>
+            <span class="detail-value">${userEmail}</span>
+            <span class="detail-label">Vehicle:</span>
+            <span class="detail-value">${vehicleInfo}</span>
+            <span class="detail-label">Status:</span>
+            <span class="detail-value"><span class="status-badge ${v.status === 'needs_review' ? 'orange' : v.status === 'pending' ? 'blue' : v.status === 'approved' ? 'approved' : v.status === 'rejected' ? 'rejected' : 'muted'}">${v.status?.replace('_', ' ') || 'unknown'}</span></span>
+            <span class="detail-label">Submitted:</span>
+            <span class="detail-value">${v.created_at ? new Date(v.created_at).toLocaleString() : 'N/A'}</span>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">📷 Registration Image</div>
+          ${v.image_url ? `
+            <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);text-align:center;">
+              <img src="${v.image_url}" alt="Registration Document" style="max-width:100%;max-height:400px;border-radius:var(--radius-sm);cursor:pointer;" onclick="window.open('${v.image_url}', '_blank')">
+              <div style="margin-top:8px;font-size:0.8rem;color:var(--text-muted);">Click image to open in new tab</div>
+            </div>
+          ` : '<p style="color:var(--text-muted);">No image uploaded</p>'}
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">🔤 Extracted Text (OCR Results)</div>
+          <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);max-height:200px;overflow-y:auto;">
+            <pre style="font-family:monospace;font-size:0.85rem;white-space:pre-wrap;color:var(--text-primary);margin:0;">${v.extracted_text || 'No text extracted'}</pre>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">🔍 Name Comparison</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">Extracted Owner Name</div>
+              <div style="font-size:1.1rem;font-weight:600;">${v.extracted_owner_name || 'Not detected'}</div>
+            </div>
+            <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">Profile Name</div>
+              <div style="font-size:1.1rem;font-weight:600;">${userName}</div>
+            </div>
+          </div>
+          ${matchScore !== null ? `
+            <div style="margin-top:16px;padding:16px;border-radius:var(--radius-md);background:${matchScore >= 80 ? 'var(--accent-green-soft)' : matchScore >= 50 ? 'var(--accent-orange-soft)' : 'var(--accent-red-soft)'};">
+              <div style="display:flex;align-items:center;gap:16px;">
+                <div style="font-size:2rem;font-weight:700;color:${matchScore >= 80 ? 'var(--accent-green)' : matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)'};">${matchScore}%</div>
+                <div>
+                  <div style="font-weight:600;color:${matchScore >= 80 ? 'var(--accent-green)' : matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)'}">${matchScore >= 80 ? '✓ Good Match' : matchScore >= 50 ? '⚠️ Partial Match' : '✗ Poor Match'}</div>
+                  <div style="font-size:0.85rem;color:var(--text-muted);">Name match confidence score</div>
+                </div>
+              </div>
+              <div style="margin-top:12px;height:8px;background:var(--bg-card);border-radius:4px;overflow:hidden;">
+                <div style="width:${matchScore}%;height:100%;background:${matchScore >= 80 ? 'var(--accent-green)' : matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)'};border-radius:4px;"></div>
+              </div>
+            </div>
+          ` : '<p style="color:var(--text-muted);margin-top:8px;">Match score not available</p>'}
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">📋 Extracted Details</div>
+          <div class="detail-grid">
+            <span class="detail-label">VIN:</span>
+            <span class="detail-value" style="font-family:monospace;">${v.extracted_vin || 'Not detected'}</span>
+            <span class="detail-label">Plate Number:</span>
+            <span class="detail-value" style="font-family:monospace;">${v.extracted_plate || 'Not detected'}</span>
+          </div>
+        </div>
+
+        ${v.status !== 'approved' && v.status !== 'rejected' ? `
+        <div class="form-section" style="border-bottom:none;">
+          <div class="form-section-title">📝 Admin Notes</div>
+          <textarea class="form-textarea" id="verification-admin-notes" placeholder="Add notes about this verification decision (optional)..." rows="3"></textarea>
+        </div>
+        ` : ''}
+
+        ${v.admin_notes ? `
+        <div class="form-section" style="border-bottom:none;">
+          <div class="form-section-title">📝 Previous Admin Notes</div>
+          <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);">${v.admin_notes}</div>
+        </div>
+        ` : ''}
+      `;
+
+      const footer = document.getElementById('verification-modal-footer');
+      if (v.status === 'approved' || v.status === 'rejected') {
+        footer.innerHTML = `
+          <button class="btn btn-secondary" onclick="closeModal('verification-modal')">Close</button>
+        `;
+      } else {
+        footer.innerHTML = `
+          <button class="btn btn-secondary" onclick="closeModal('verification-modal')">Close</button>
+          <button class="btn btn-danger" onclick="rejectVerification()">Reject</button>
+          <button class="btn btn-success" onclick="approveVerification()">Approve</button>
+        `;
+      }
+
+      document.getElementById('verification-modal').classList.add('active');
+    }
+    window.openVerificationDetail = openVerificationDetail;
+
+    async function approveVerification() {
+      if (!currentVerification) {
+        showToast('No verification selected', 'error');
+        return;
+      }
+
+      const notes = document.getElementById('verification-admin-notes')?.value?.trim() || null;
+
+      if (!confirm('Approve this registration verification?')) return;
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('You must be logged in', 'error');
+          return;
+        }
+
+        const response = await fetch(`/api/registration/verifications/${currentVerification.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            status: 'approved',
+            admin_notes: notes
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to approve verification');
+        }
+
+        showToast('Verification approved successfully', 'success');
+        closeModal('verification-modal');
+        await loadRegistrationVerifications();
+      } catch (err) {
+        console.error('Error approving verification:', err);
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.approveVerification = approveVerification;
+
+    async function rejectVerification() {
+      if (!currentVerification) {
+        showToast('No verification selected', 'error');
+        return;
+      }
+
+      const notes = document.getElementById('verification-admin-notes')?.value?.trim() || null;
+
+      if (!confirm('Reject this registration verification?')) return;
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('You must be logged in', 'error');
+          return;
+        }
+
+        const response = await fetch(`/api/registration/verifications/${currentVerification.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            status: 'rejected',
+            admin_notes: notes
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to reject verification');
+        }
+
+        showToast('Verification rejected', 'success');
+        closeModal('verification-modal');
+        await loadRegistrationVerifications();
+      } catch (err) {
+        console.error('Error rejecting verification:', err);
+        showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.rejectVerification = rejectVerification;
+
+    document.getElementById('registration-tabs')?.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tab')) {
+        document.querySelectorAll('#registration-tabs .tab').forEach(t => t.classList.remove('active'));
+        e.target.classList.add('active');
+        currentFilters.registrations = e.target.dataset.filter;
+        renderRegistrationVerifications();
       }
     });
 
