@@ -1072,6 +1072,290 @@ async function getPrintfulOrderStatus(orderId) {
   }
 }
 
+// Printful Admin Catalog Handlers
+const PRINTFUL_POPULAR_CATEGORIES = [
+  { id: 24, name: 'T-shirts', description: 'Unisex and fitted t-shirts' },
+  { id: 55, name: 'Hoodies & Sweatshirts', description: 'Pullover and zip hoodies' },
+  { id: 60, name: 'Hats', description: 'Caps, beanies, and snapbacks' },
+  { id: 82, name: 'Drinkware', description: 'Mugs, tumblers, water bottles' },
+  { id: 57, name: 'Tank Tops', description: 'Tank tops and sleeveless' },
+  { id: 26, name: 'Long Sleeve Shirts', description: 'Long sleeve tees' },
+  { id: 52, name: 'Stickers', description: 'Die-cut and kiss-cut stickers' },
+  { id: 73, name: 'Phone Cases', description: 'iPhone and Samsung cases' },
+  { id: 72, name: 'Bags', description: 'Tote bags, backpacks, fanny packs' }
+];
+
+async function handlePrintfulCatalog(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const apiKey = process.env.PRINTFUL_API_KEY;
+  if (!apiKey) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Printful API key not configured' }));
+    return;
+  }
+  
+  try {
+    const products = [];
+    
+    for (const category of PRINTFUL_POPULAR_CATEGORIES) {
+      const response = await fetch(`${PRINTFUL_API_URL}/products?category_id=${category.id}`, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const categoryProducts = (data.result || []).slice(0, 10).map(p => ({
+          id: p.id,
+          title: p.title,
+          description: p.description,
+          image: p.image,
+          category: category.name,
+          categoryId: category.id,
+          variantCount: p.variant_count
+        }));
+        products.push(...categoryProducts);
+      }
+    }
+    
+    console.log(`[${requestId}] Fetched ${products.length} catalog products`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, products, categories: PRINTFUL_POPULAR_CATEGORIES }));
+  } catch (error) {
+    console.error(`[${requestId}] Printful catalog error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+}
+
+async function handlePrintfulCatalogProduct(req, res, requestId, productId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const apiKey = process.env.PRINTFUL_API_KEY;
+  if (!apiKey) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Printful API key not configured' }));
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${PRINTFUL_API_URL}/products/${productId}`, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch product: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const product = data.result.product;
+    const variants = data.result.variants;
+    
+    const colorMap = new Map();
+    const sizeSet = new Set();
+    
+    for (const v of variants) {
+      if (v.color) colorMap.set(v.color, v.color_code);
+      if (v.size) sizeSet.add(v.size);
+    }
+    
+    const formattedProduct = {
+      id: product.id,
+      title: product.title,
+      description: product.description,
+      image: product.image,
+      type: product.type,
+      typeName: product.type_name,
+      brand: product.brand,
+      model: product.model,
+      dimensions: product.dimensions,
+      colors: Array.from(colorMap.entries()).map(([name, code]) => ({ name, code })),
+      sizes: Array.from(sizeSet),
+      variants: variants.map(v => ({
+        id: v.id,
+        name: v.name,
+        size: v.size,
+        color: v.color,
+        colorCode: v.color_code,
+        price: v.price,
+        inStock: v.availability_status === 'active'
+      })),
+      files: data.result.product.files || []
+    };
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, product: formattedProduct }));
+  } catch (error) {
+    console.error(`[${requestId}] Printful product error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+}
+
+async function handleCreatePrintfulProduct(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const apiKey = process.env.PRINTFUL_API_KEY;
+  if (!apiKey) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Printful API key not configured' }));
+    return;
+  }
+  
+  try {
+    const body = await getRequestBody(req);
+    const { name, variantIds, retailPrice, designUrl, designPosition } = body;
+    
+    if (!name || !variantIds || !Array.isArray(variantIds) || variantIds.length === 0) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Missing required fields: name, variantIds' }));
+      return;
+    }
+    
+    const fileSpec = designUrl ? [{
+      type: designPosition || 'front',
+      url: designUrl
+    }] : [];
+    
+    const syncVariants = variantIds.map(vid => ({
+      variant_id: vid,
+      retail_price: retailPrice || '29.99',
+      files: fileSpec
+    }));
+    
+    const payload = {
+      sync_product: {
+        name: name,
+        thumbnail: designUrl || null
+      },
+      sync_variants: syncVariants
+    };
+    
+    console.log(`[${requestId}] Creating Printful product:`, name, `with ${variantIds.length} variants`);
+    
+    const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.result || data.error?.message || `Failed to create product: ${response.status}`);
+    }
+    
+    clearProductCache();
+    
+    console.log(`[${requestId}] Created Printful product: ${data.result.id}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      product: {
+        id: data.result.id,
+        externalId: data.result.external_id,
+        name: data.result.name,
+        variants: data.result.sync_variants?.length || 0
+      }
+    }));
+  } catch (error) {
+    console.error(`[${requestId}] Create Printful product error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+}
+
+async function handleDeletePrintfulProduct(req, res, requestId, productId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const apiKey = process.env.PRINTFUL_API_KEY;
+  if (!apiKey) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Printful API key not configured' }));
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${PRINTFUL_API_URL}/store/products/${productId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`
+      }
+    });
+    
+    if (!response.ok && response.status !== 404) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.result || `Failed to delete product: ${response.status}`);
+    }
+    
+    clearProductCache();
+    
+    console.log(`[${requestId}] Deleted Printful product: ${productId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+  } catch (error) {
+    console.error(`[${requestId}] Delete Printful product error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+}
+
+async function handleGetPrintfulStoreProducts(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const apiKey = process.env.PRINTFUL_API_KEY;
+  if (!apiKey) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Printful API key not configured' }));
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch store products: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const products = (data.result || []).map(p => ({
+      id: p.id,
+      externalId: p.external_id,
+      name: p.name,
+      variants: p.variants,
+      synced: p.synced,
+      thumbnail: p.thumbnail_url
+    }));
+    
+    console.log(`[${requestId}] Fetched ${products.length} store products`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, products }));
+  } catch (error) {
+    console.error(`[${requestId}] Get store products error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+}
+
 async function handleShopProducts(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -17009,6 +17293,34 @@ const server = http.createServer((req, res) => {
   if (req.method === 'PUT' && req.url.match(/^\/api\/recalls\/[^/]+\/acknowledge$/)) {
     const recallId = req.url.split('/api/recalls/')[1]?.split('/')[0];
     handleAcknowledgeRecall(req, res, requestId, recallId);
+    return;
+  }
+  
+  // Printful Admin API Endpoints (require admin role)
+  if (req.method === 'GET' && req.url === '/api/admin/printful/catalog') {
+    requireAuth(handlePrintfulCatalog, 'admin')(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/printful/catalog/')) {
+    const productId = req.url.split('/api/admin/printful/catalog/')[1]?.split('?')[0];
+    requireAuth((req, res, requestId) => handlePrintfulCatalogProduct(req, res, requestId, productId), 'admin')(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/admin/printful/products') {
+    requireAuth(handleCreatePrintfulProduct, 'admin')(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'DELETE' && req.url.startsWith('/api/admin/printful/products/')) {
+    const productId = req.url.split('/api/admin/printful/products/')[1]?.split('?')[0];
+    requireAuth((req, res, requestId) => handleDeletePrintfulProduct(req, res, requestId, productId), 'admin')(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url === '/api/admin/printful/store-products') {
+    requireAuth(handleGetPrintfulStoreProducts, 'admin')(req, res, requestId);
     return;
   }
   

@@ -4875,3 +4875,344 @@
       sidebar.classList.toggle('open');
       overlay.classList.toggle('active');
     }
+
+    // ========== PRINTFUL MERCH MANAGER ==========
+    let printfulCatalog = [];
+    let printfulStoreProducts = [];
+    let currentCatalogProduct = null;
+    let selectedColors = new Set();
+    let selectedSizes = new Set();
+    let productVariantsMap = {};
+
+    async function getAdminAuthHeader() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+      return { 'Authorization': `Bearer ${session.access_token}` };
+    }
+
+    async function loadPrintfulCatalog() {
+      const loadingEl = document.getElementById('catalog-loading');
+      const emptyEl = document.getElementById('catalog-empty');
+      const gridEl = document.getElementById('catalog-grid');
+      const filterEl = document.getElementById('catalog-category-filter');
+      
+      loadingEl.style.display = 'block';
+      emptyEl.style.display = 'none';
+      gridEl.style.display = 'none';
+      
+      try {
+        const headers = await getAdminAuthHeader();
+        const response = await fetch('/api/admin/printful/catalog', { headers });
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load catalog');
+        }
+        
+        printfulCatalog = data.products;
+        
+        filterEl.innerHTML = '<option value="all">All Categories</option>';
+        (data.categories || []).forEach(cat => {
+          filterEl.innerHTML += `<option value="${cat.name}">${cat.name}</option>`;
+        });
+        
+        renderCatalog();
+      } catch (error) {
+        console.error('Error loading catalog:', error);
+        showToast('Error loading catalog: ' + error.message, 'error');
+        loadingEl.style.display = 'none';
+        emptyEl.style.display = 'block';
+      }
+    }
+    window.loadPrintfulCatalog = loadPrintfulCatalog;
+
+    function renderCatalog(filter = 'all') {
+      const loadingEl = document.getElementById('catalog-loading');
+      const emptyEl = document.getElementById('catalog-empty');
+      const gridEl = document.getElementById('catalog-grid');
+      
+      loadingEl.style.display = 'none';
+      
+      const filtered = filter === 'all' ? printfulCatalog : printfulCatalog.filter(p => p.category === filter);
+      
+      if (filtered.length === 0) {
+        emptyEl.style.display = 'block';
+        gridEl.style.display = 'none';
+        return;
+      }
+      
+      emptyEl.style.display = 'none';
+      gridEl.style.display = 'grid';
+      
+      gridEl.innerHTML = filtered.map(product => `
+        <div style="background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--radius-md);overflow:hidden;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;" onclick="openProductCreator(${product.id})" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(0,0,0,0.3)';" onmouseout="this.style.transform='none';this.style.boxShadow='none';">
+          <div style="height:160px;background:var(--bg-input);display:flex;align-items:center;justify-content:center;overflow:hidden;">
+            <img src="${product.image}" alt="${product.title}" style="max-width:100%;max-height:100%;object-fit:contain;" loading="lazy">
+          </div>
+          <div style="padding:14px;">
+            <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${product.title}</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);">${product.category}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${product.variantCount} variants</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterCatalogByCategory() {
+      const filter = document.getElementById('catalog-category-filter').value;
+      renderCatalog(filter);
+    }
+    window.filterCatalogByCategory = filterCatalogByCategory;
+
+    async function openProductCreator(catalogProductId) {
+      const modal = document.getElementById('product-creator-modal');
+      const loadingEl = document.getElementById('product-creator-loading');
+      const formEl = document.getElementById('product-creator-form');
+      const submitBtn = document.getElementById('product-creator-submit');
+      
+      modal.style.display = 'flex';
+      loadingEl.style.display = 'block';
+      formEl.style.display = 'none';
+      submitBtn.disabled = true;
+      
+      selectedColors.clear();
+      selectedSizes.clear();
+      productVariantsMap = {};
+      
+      try {
+        const headers = await getAdminAuthHeader();
+        const response = await fetch(`/api/admin/printful/catalog/${catalogProductId}`, { headers });
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load product');
+        }
+        
+        currentCatalogProduct = data.product;
+        
+        document.getElementById('product-creator-title').textContent = data.product.title;
+        document.getElementById('product-creator-image').src = data.product.image;
+        document.getElementById('product-creator-name').value = 'MCC ' + data.product.title;
+        
+        const colorsEl = document.getElementById('product-creator-colors');
+        colorsEl.innerHTML = data.product.colors.map(c => `
+          <button type="button" class="color-option" data-color="${c.name}" onclick="toggleColorSelection(this, '${c.name}')" style="padding:8px 14px;border-radius:20px;border:2px solid var(--border-light);background:var(--bg-input);cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.15s;">
+            <span style="width:16px;height:16px;border-radius:50%;background:${c.code || '#888'};border:1px solid rgba(255,255,255,0.2);"></span>
+            <span>${c.name}</span>
+          </button>
+        `).join('');
+        
+        const sizesEl = document.getElementById('product-creator-sizes');
+        if (data.product.sizes.length > 0) {
+          sizesEl.innerHTML = data.product.sizes.map(s => `
+            <button type="button" class="size-option" data-size="${s}" onclick="toggleSizeSelection(this, '${s}')" style="padding:8px 16px;border-radius:8px;border:2px solid var(--border-light);background:var(--bg-input);cursor:pointer;min-width:50px;transition:all 0.15s;">
+              ${s}
+            </button>
+          `).join('');
+          sizesEl.parentElement.style.display = 'block';
+        } else {
+          sizesEl.parentElement.style.display = 'none';
+        }
+        
+        data.product.variants.forEach(v => {
+          const key = `${v.color || 'default'}|${v.size || 'default'}`;
+          productVariantsMap[key] = v.id;
+        });
+        
+        loadingEl.style.display = 'none';
+        formEl.style.display = 'block';
+        updateVariantCount();
+      } catch (error) {
+        console.error('Error loading product:', error);
+        showToast('Error loading product: ' + error.message, 'error');
+        closeProductCreatorModal();
+      }
+    }
+    window.openProductCreator = openProductCreator;
+
+    function toggleColorSelection(btn, color) {
+      if (selectedColors.has(color)) {
+        selectedColors.delete(color);
+        btn.style.borderColor = 'var(--border-light)';
+        btn.style.background = 'var(--bg-input)';
+      } else {
+        selectedColors.add(color);
+        btn.style.borderColor = 'var(--accent-gold)';
+        btn.style.background = 'var(--accent-gold-soft)';
+      }
+      updateVariantCount();
+    }
+    window.toggleColorSelection = toggleColorSelection;
+
+    function toggleSizeSelection(btn, size) {
+      if (selectedSizes.has(size)) {
+        selectedSizes.delete(size);
+        btn.style.borderColor = 'var(--border-light)';
+        btn.style.background = 'var(--bg-input)';
+      } else {
+        selectedSizes.add(size);
+        btn.style.borderColor = 'var(--accent-gold)';
+        btn.style.background = 'var(--accent-gold-soft)';
+      }
+      updateVariantCount();
+    }
+    window.toggleSizeSelection = toggleSizeSelection;
+
+    function updateVariantCount() {
+      const variantIds = getSelectedVariantIds();
+      const infoEl = document.getElementById('product-creator-variants-info');
+      const submitBtn = document.getElementById('product-creator-submit');
+      
+      infoEl.innerHTML = `<span style="font-weight:600;">${variantIds.length}</span> variants selected`;
+      submitBtn.disabled = variantIds.length === 0;
+    }
+
+    function getSelectedVariantIds() {
+      const variantIds = [];
+      const colors = selectedColors.size > 0 ? Array.from(selectedColors) : ['default'];
+      const sizes = selectedSizes.size > 0 ? Array.from(selectedSizes) : ['default'];
+      
+      for (const color of colors) {
+        for (const size of sizes) {
+          const key = `${color}|${size}`;
+          if (productVariantsMap[key]) {
+            variantIds.push(productVariantsMap[key]);
+          }
+        }
+      }
+      
+      return variantIds;
+    }
+
+    async function submitProductCreation() {
+      const submitBtn = document.getElementById('product-creator-submit');
+      const originalText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creating...';
+      
+      try {
+        const name = document.getElementById('product-creator-name').value.trim();
+        const price = document.getElementById('product-creator-price').value;
+        const designUrl = document.getElementById('product-creator-design').value.trim();
+        const variantIds = getSelectedVariantIds();
+        
+        if (!name) {
+          throw new Error('Please enter a product name');
+        }
+        
+        if (variantIds.length === 0) {
+          throw new Error('Please select at least one color/size combination');
+        }
+        
+        const authHeaders = await getAdminAuthHeader();
+        const response = await fetch('/api/admin/printful/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({
+            name,
+            variantIds,
+            retailPrice: price,
+            designUrl: designUrl || null,
+            designPosition: 'front'
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to create product');
+        }
+        
+        showToast(`Product created with ${data.product.variants} variants!`, 'success');
+        closeProductCreatorModal();
+        await refreshStoreProducts();
+      } catch (error) {
+        console.error('Error creating product:', error);
+        showToast('Error: ' + error.message, 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
+    }
+    window.submitProductCreation = submitProductCreation;
+
+    function closeProductCreatorModal() {
+      document.getElementById('product-creator-modal').style.display = 'none';
+      currentCatalogProduct = null;
+    }
+    window.closeProductCreatorModal = closeProductCreatorModal;
+
+    async function refreshStoreProducts() {
+      const loadingEl = document.getElementById('store-products-loading');
+      const emptyEl = document.getElementById('store-products-empty');
+      const gridEl = document.getElementById('store-products-grid');
+      
+      loadingEl.style.display = 'block';
+      emptyEl.style.display = 'none';
+      gridEl.innerHTML = '';
+      
+      try {
+        const headers = await getAdminAuthHeader();
+        const response = await fetch('/api/admin/printful/store-products', { headers });
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load store products');
+        }
+        
+        printfulStoreProducts = data.products;
+        loadingEl.style.display = 'none';
+        
+        if (printfulStoreProducts.length === 0) {
+          emptyEl.style.display = 'block';
+          return;
+        }
+        
+        gridEl.innerHTML = printfulStoreProducts.map(product => `
+          <div style="background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--radius-md);overflow:hidden;position:relative;">
+            <div style="height:120px;background:var(--bg-input);display:flex;align-items:center;justify-content:center;overflow:hidden;">
+              ${product.thumbnail ? `<img src="${product.thumbnail}" alt="${product.name}" style="max-width:100%;max-height:100%;object-fit:contain;">` : '<div style="font-size:48px;">📦</div>'}
+            </div>
+            <div style="padding:12px;">
+              <div style="font-weight:600;font-size:0.85rem;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${product.name}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">${product.variants} variants</div>
+            </div>
+            <button onclick="deleteStoreProduct(${product.id}, '${product.name.replace(/'/g, "\\'")}')" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(239,95,95,0.9);border:none;color:white;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;">×</button>
+          </div>
+        `).join('');
+      } catch (error) {
+        console.error('Error loading store products:', error);
+        showToast('Error: ' + error.message, 'error');
+        loadingEl.style.display = 'none';
+        emptyEl.style.display = 'block';
+      }
+    }
+    window.refreshStoreProducts = refreshStoreProducts;
+
+    async function deleteStoreProduct(productId, productName) {
+      if (!confirm(`Delete "${productName}" from your store?`)) {
+        return;
+      }
+      
+      try {
+        const headers = await getAdminAuthHeader();
+        const response = await fetch(`/api/admin/printful/products/${productId}`, {
+          method: 'DELETE',
+          headers
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to delete product');
+        }
+        
+        showToast('Product deleted', 'success');
+        await refreshStoreProducts();
+      } catch (error) {
+        console.error('Error deleting product:', error);
+        showToast('Error: ' + error.message, 'error');
+      }
+    }
+    window.deleteStoreProduct = deleteStoreProduct;
