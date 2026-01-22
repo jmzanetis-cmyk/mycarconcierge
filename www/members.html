@@ -5280,14 +5280,19 @@
           </p>
         </div>
 
-        <div class="registration-upload-area" id="registration-upload-area" onclick="document.getElementById('registration-file-input').click()">
-          <div id="registration-upload-placeholder">
-            <div style="font-size:48px;margin-bottom:12px;">📄</div>
-            <div style="font-weight:500;margin-bottom:4px;">Click to upload registration</div>
-            <div style="font-size:0.85rem;color:var(--text-muted);">Accepts JPG, PNG, JPEG (max 5MB)</div>
-          </div>
-          <img id="registration-preview-img" class="registration-preview-img" alt="Registration preview">
-          <input type="file" id="registration-file-input" accept="image/jpeg,image/png,image/jpg" style="display:none;" onchange="handleRegistrationFileSelect(event)">
+        <div id="registration-upload-buttons" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <button type="button" class="btn" onclick="document.getElementById('registration-camera-input').click()" style="background:var(--accent-gold-soft);border:1px solid var(--accent-gold);color:var(--accent-gold);padding:16px;font-size:1rem;">
+            <span style="font-size:24px;margin-right:8px;">📷</span> Take Photo
+          </button>
+          <button type="button" class="btn" onclick="document.getElementById('registration-gallery-input').click()" style="background:var(--accent-blue-soft);border:1px solid var(--accent-blue);color:var(--accent-blue);padding:16px;font-size:1rem;">
+            <span style="font-size:24px;margin-right:8px;">🖼️</span> Choose from Gallery
+          </button>
+        </div>
+        <input type="file" id="registration-camera-input" accept="image/jpeg,image/png" capture="environment" style="display:none;" onchange="handleRegistrationFileSelect(event)">
+        <input type="file" id="registration-gallery-input" accept="image/jpeg,image/png,image/jpg" style="display:none;" onchange="handleRegistrationFileSelect(event)">
+        
+        <div class="registration-upload-area" id="registration-upload-area" style="display:none;">
+          <img id="registration-preview-img" class="registration-preview-img" alt="Registration preview" style="max-width:100%;max-height:300px;border-radius:var(--radius-md);">
         </div>
         
         <div id="registration-file-info" style="display:none;margin-top:12px;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);display:flex;align-items:center;gap:12px;">

@@ -2531,9 +2531,9 @@
       document.getElementById('registration-vehicle-id').value = vehicleId;
       
       pendingRegistrationFile = null;
-      document.getElementById('registration-upload-area').classList.remove('has-file');
-      document.getElementById('registration-upload-placeholder').style.display = 'block';
-      document.getElementById('registration-preview-img').style.display = 'none';
+      document.getElementById('registration-upload-area').style.display = 'none';
+      document.getElementById('registration-upload-buttons').style.display = 'grid';
+      document.getElementById('registration-preview-img').src = '';
       document.getElementById('registration-file-info').style.display = 'none';
       document.getElementById('registration-loading').style.display = 'none';
       document.getElementById('registration-result').style.display = 'none';
@@ -2578,9 +2578,8 @@
       const reader = new FileReader();
       reader.onload = function(e) {
         document.getElementById('registration-preview-img').src = e.target.result;
-        document.getElementById('registration-preview-img').style.display = 'block';
-        document.getElementById('registration-upload-placeholder').style.display = 'none';
-        document.getElementById('registration-upload-area').classList.add('has-file');
+        document.getElementById('registration-upload-area').style.display = 'block';
+        document.getElementById('registration-upload-buttons').style.display = 'none';
         
         document.getElementById('registration-file-name').textContent = file.name;
         document.getElementById('registration-file-size').textContent = formatFileSize(file.size);
@@ -2595,9 +2594,8 @@
     
     function removeRegistrationFile() {
       pendingRegistrationFile = null;
-      document.getElementById('registration-upload-area').classList.remove('has-file');
-      document.getElementById('registration-upload-placeholder').style.display = 'block';
-      document.getElementById('registration-preview-img').style.display = 'none';
+      document.getElementById('registration-upload-area').style.display = 'none';
+      document.getElementById('registration-upload-buttons').style.display = 'grid';
       document.getElementById('registration-preview-img').src = '';
       document.getElementById('registration-file-info').style.display = 'none';
       document.getElementById('verify-registration-btn').disabled = true;
