@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcc-cache-v44';
+const CACHE_NAME = 'mcc-cache-v45';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -15,6 +15,8 @@ const STATIC_ASSETS = [
   '/terms.html',
   '/logo.png',
   '/manifest.json',
+  '/shared-styles.css',
+  '/utils.js',
   '/pwa-init.js',
   '/i18n.js',
   '/members-core.js',
