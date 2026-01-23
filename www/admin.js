@@ -4873,6 +4873,7 @@
     });
 
     async function logout() { await supabaseClient.auth.signOut(); window.location.href = 'login.html'; }
+    window.logout = logout;
 
     function toggleSidebar() {
       const sidebar = document.getElementById('sidebar');
@@ -4880,6 +4881,7 @@
       sidebar.classList.toggle('open');
       overlay.classList.toggle('active');
     }
+    window.toggleSidebar = toggleSidebar;
 
     // ========== PRINTFUL MERCH MANAGER ==========
     let printfulCatalog = [];

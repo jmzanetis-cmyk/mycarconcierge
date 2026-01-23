@@ -59,8 +59,8 @@
     .sidebar-brand span { font-family: 'Playfair Display', serif; font-weight: 500; color: var(--text-primary); }
     .nav-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); padding: 0 12px; margin: 20px 0 8px; }
     .nav-label:first-of-type { margin-top: 0; }
-    .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--radius-md); cursor: pointer; font-size: 0.92rem; color: var(--text-secondary); transition: all 0.15s; margin-bottom: 4px; }
-    .nav-item:hover { background: var(--accent-blue-soft); color: var(--text-primary); }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--radius-md); cursor: pointer; font-size: 0.92rem; color: var(--text-secondary); transition: all 0.15s; margin-bottom: 4px; touch-action: manipulation; -webkit-tap-highlight-color: rgba(212, 168, 85, 0.3); }
+    .nav-item:hover, .nav-item:active { background: var(--accent-blue-soft); color: var(--text-primary); }
     .nav-item.active { background: var(--accent-blue-soft); color: var(--accent-blue); }
     .nav-badge { margin-left: auto; font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 100px; }
     .nav-badge.red { background: var(--accent-red); color: white; }
@@ -227,18 +227,21 @@
     }
     .mobile-header-left { display: flex; align-items: center; gap: 12px; }
     .hamburger-btn {
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: transparent;
-      border: 1px solid var(--border-subtle);
+      background: var(--accent-gold);
+      border: none;
       border-radius: var(--radius-md);
-      color: var(--text-primary);
-      font-size: 20px;
+      color: var(--bg-dark);
+      font-size: 22px;
       cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
+    .hamburger-btn:active { transform: scale(0.95); }
     .mobile-header-title { font-family: 'Playfair Display', serif; font-size: 1.1rem; }
     .mobile-logout-btn {
       padding: 8px 16px;
@@ -250,7 +253,10 @@
       font-size: 0.85rem;
       font-weight: 500;
       cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
+    .mobile-logout-btn:active { transform: scale(0.95); }
     .sidebar-overlay {
       display: none;
       position: fixed;
