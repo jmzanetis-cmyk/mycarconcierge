@@ -11,7 +11,7 @@
  */
 
 // Stripe publishable key
-const STRIPE_PUBLISHABLE_KEY = 'pk_test_51SaOfv1Tn2HHjITclBdfGKQDyLq9pvH6F8uOKmR6ppWhqO9nW7nLDukDRufiNJyAs9WSjqULSUXgDrYnAy1AU3vA00gdKDKzyL';
+const STRIPE_PUBLISHABLE_KEY = 'pk_live_51Sa0fg0V5HwfygbhAapjgXWedMWajevRvx0DNz26w21kVEMCM7zvldoRytCaKy2vArn3duePaywnaQ32V620qK71ze0VbG9NvSH';
 
 // Initialize Stripe
 let stripe = null;
