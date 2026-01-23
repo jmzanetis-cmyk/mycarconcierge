@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcc-cache-v40';
+const CACHE_NAME = 'mcc-cache-v41';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -17,8 +17,16 @@ const STATIC_ASSETS = [
   '/manifest.json',
   '/pwa-init.js',
   '/i18n.js',
-  '/members.js',
-  '/providers.js',
+  '/members-core.js',
+  '/members-vehicles.js',
+  '/members-packages.js',
+  '/members-settings.js',
+  '/members-extras.js',
+  '/providers-core.js',
+  '/providers-bids.js',
+  '/providers-jobs.js',
+  '/providers-analytics.js',
+  '/providers-settings.js',
   '/admin.js',
   '/login.js',
   '/fleet.js',
