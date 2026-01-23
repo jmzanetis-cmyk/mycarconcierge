@@ -188,8 +188,12 @@
         loadPerformance(),
         loadPosIntegrationStatus(),
         loadTeamManagementData(),
-        loadLoyaltyNetwork()
+        loadLoyaltyNetwork(),
+        loadStripeConnectStatus()
       ]);
+      
+      // Check if returning from Stripe Connect onboarding
+      await checkStripeConnectReturn();
       
       updateStats();
       setupNav();
@@ -4122,6 +4126,118 @@
         }
       }
       warningContainer.innerHTML = warningHtml;
+    }
+
+    // ========== STRIPE CONNECT ONBOARDING ==========
+    let stripeConnectStatus = null;
+
+    async function loadStripeConnectStatus() {
+      const loadingEl = document.getElementById('stripe-loading');
+      const notConnectedEl = document.getElementById('stripe-not-connected');
+      const incompleteEl = document.getElementById('stripe-incomplete');
+      const connectedEl = document.getElementById('stripe-connected');
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const response = await fetch('/api/provider/connect-status', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          console.error('Stripe Connect status error:', data.error);
+          loadingEl.style.display = 'none';
+          notConnectedEl.style.display = 'block';
+          return;
+        }
+        
+        stripeConnectStatus = data;
+        loadingEl.style.display = 'none';
+        
+        if (data.status === 'connected') {
+          notConnectedEl.style.display = 'none';
+          incompleteEl.style.display = 'none';
+          connectedEl.style.display = 'block';
+        } else if (data.status === 'incomplete') {
+          notConnectedEl.style.display = 'none';
+          incompleteEl.style.display = 'block';
+          connectedEl.style.display = 'none';
+        } else {
+          notConnectedEl.style.display = 'block';
+          incompleteEl.style.display = 'none';
+          connectedEl.style.display = 'none';
+        }
+      } catch (err) {
+        console.error('Error loading Stripe Connect status:', err);
+        loadingEl.style.display = 'none';
+        notConnectedEl.style.display = 'block';
+      }
+    }
+
+    async function startStripeConnect() {
+      const connectBtn = document.getElementById('stripe-connect-btn');
+      const resumeBtn = document.getElementById('stripe-resume-btn');
+      
+      if (connectBtn) connectBtn.disabled = true;
+      if (resumeBtn) resumeBtn.disabled = true;
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Please log in to continue', 'error');
+          return;
+        }
+
+        const response = await fetch('/api/provider/connect-onboard', {
+          method: 'POST',
+          headers: { 
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to start Stripe onboarding');
+        }
+        
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          throw new Error('No onboarding URL received');
+        }
+      } catch (err) {
+        console.error('Stripe Connect error:', err);
+        showToast(err.message || 'Failed to start Stripe setup', 'error');
+        if (connectBtn) connectBtn.disabled = false;
+        if (resumeBtn) resumeBtn.disabled = false;
+      }
+    }
+
+    async function checkStripeConnectReturn() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const stripeConnect = urlParams.get('stripe_connect');
+      
+      if (stripeConnect === 'complete') {
+        showToast('Checking Stripe account status...', 'success');
+        await loadStripeConnectStatus();
+        
+        if (stripeConnectStatus?.status === 'connected') {
+          showToast('Stripe account connected successfully! You can now receive payments.', 'success');
+        } else if (stripeConnectStatus?.status === 'incomplete') {
+          showToast('Stripe setup is incomplete. Please complete all required steps.', 'error');
+        }
+        
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (stripeConnect === 'refresh') {
+        showToast('Stripe session expired. Please try again.', 'error');
+        await loadStripeConnectStatus();
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
 
     async function uploadVerificationDoc(docType) {

@@ -1297,6 +1297,8 @@
           `}
         </div>
 
+        ${await renderEscrowPaymentSection(pkg, bids)}
+
         ${(pkg.status === 'accepted' || pkg.status === 'in_progress') ? `
           <div class="form-section" id="logistics-dashboard-${packageId}">
             <div class="form-section-title">🎉 Service Coordination Dashboard</div>
@@ -1487,11 +1489,373 @@
         }
 
         closeModal('view-package-modal');
-        showToast('Bid accepted! Payment held in escrow. Provider has been notified.', 'success');
+        showToast('Bid accepted! Please authorize payment to hold funds in escrow.', 'success');
         await loadPackages();
+        
+        // Re-open the package view to show payment section
+        setTimeout(() => viewPackage(packageId), 500);
       } catch (err) {
         console.error('Error accepting bid:', err);
         showToast('Failed to accept bid. Please try again.', 'error');
+      }
+    }
+
+    // ========== ESCROW PAYMENT UI ==========
+    let currentEscrowCardElement = null;
+    let currentEscrowElements = null;
+    let currentEscrowClientSecret = null;
+    let currentEscrowPackageId = null;
+    let currentEscrowBidId = null;
+
+    async function renderEscrowPaymentSection(pkg, bids) {
+      if (!pkg) return '';
+      
+      const acceptedBid = bids?.find(b => b.status === 'accepted');
+      
+      // Only show payment section for accepted packages
+      if (pkg.status !== 'accepted' && pkg.status !== 'in_progress' && pkg.status !== 'completed') {
+        return '';
+      }
+      
+      // Get payment status
+      let paymentData = null;
+      try {
+        const { data } = await supabaseClient.from('payments')
+          .select('*')
+          .eq('package_id', pkg.id)
+          .single();
+        paymentData = data;
+      } catch (e) {
+        // No payment record yet
+      }
+      
+      const providerName = acceptedBid?.profiles?.provider_alias || acceptedBid?.profiles?.business_name || `Provider #${acceptedBid?.provider_id?.slice(0,4).toUpperCase()}`;
+      const amount = acceptedBid?.price || 0;
+      const mccFee = amount * 0.075;
+      const providerAmount = amount - mccFee;
+      
+      // Determine payment status
+      const paymentStatus = paymentData?.status || 'awaiting_payment';
+      
+      let statusBadge = '';
+      let statusColor = '';
+      let statusIcon = '';
+      
+      switch(paymentStatus) {
+        case 'held':
+        case 'authorized':
+          statusBadge = 'Payment Authorized';
+          statusColor = 'var(--accent-blue)';
+          statusIcon = '🔒';
+          break;
+        case 'released':
+        case 'completed':
+          statusBadge = 'Payment Released';
+          statusColor = 'var(--accent-green)';
+          statusIcon = '✓';
+          break;
+        case 'refunded':
+          statusBadge = 'Payment Refunded';
+          statusColor = 'var(--accent-orange)';
+          statusIcon = '↩️';
+          break;
+        case 'disputed':
+          statusBadge = 'Payment Disputed';
+          statusColor = 'var(--accent-red)';
+          statusIcon = '⚠️';
+          break;
+        default:
+          statusBadge = 'Awaiting Payment';
+          statusColor = 'var(--accent-orange)';
+          statusIcon = '💳';
+      }
+      
+      // Payment already released or completed
+      if (paymentStatus === 'released' || paymentStatus === 'completed') {
+        return `
+          <div class="form-section" id="escrow-payment-section-${pkg.id}">
+            <div class="form-section-title">💳 Payment</div>
+            <div style="background:var(--accent-green-soft);border:1px solid rgba(52,211,153,0.3);border-radius:var(--radius-lg);padding:20px;">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                <span style="font-size:1.5rem;">✓</span>
+                <div>
+                  <div style="font-weight:600;color:var(--accent-green);font-size:1.1rem;">Payment Released</div>
+                  <div style="color:var(--text-secondary);font-size:0.9rem;">$${amount.toFixed(2)} sent to ${providerName}</div>
+                </div>
+              </div>
+              ${paymentData?.released_at ? `<div style="color:var(--text-muted);font-size:0.85rem;">Released on ${new Date(paymentData.released_at).toLocaleDateString()}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }
+      
+      // Payment held - show status and release option
+      if (paymentStatus === 'held' || paymentStatus === 'authorized') {
+        const showReleaseButton = pkg.status === 'in_progress' && pkg.work_completed_at;
+        
+        return `
+          <div class="form-section" id="escrow-payment-section-${pkg.id}">
+            <div class="form-section-title">💳 Payment</div>
+            <div style="background:var(--accent-blue-soft);border:1px solid rgba(56,189,248,0.3);border-radius:var(--radius-lg);padding:20px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span style="font-size:1.5rem;">🔒</span>
+                  <div>
+                    <div style="font-weight:600;color:var(--accent-blue);font-size:1.1rem;">Payment Authorized</div>
+                    <div style="color:var(--text-secondary);font-size:0.9rem;">Funds held securely in escrow</div>
+                  </div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:1.4rem;font-weight:700;color:var(--text-primary);">$${amount.toFixed(2)}</div>
+                  <div style="color:var(--text-muted);font-size:0.85rem;">for ${providerName}</div>
+                </div>
+              </div>
+              
+              <div style="background:var(--bg-card);border-radius:var(--radius-md);padding:12px;margin-bottom:16px;">
+                <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-bottom:6px;">
+                  <span style="color:var(--text-secondary);">Total Amount</span>
+                  <span style="color:var(--text-primary);">$${amount.toFixed(2)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;">
+                  <span style="color:var(--text-muted);">Provider receives</span>
+                  <span style="color:var(--text-secondary);">$${providerAmount.toFixed(2)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:0.85rem;">
+                  <span style="color:var(--text-muted);">Platform fee (7.5%)</span>
+                  <span style="color:var(--text-muted);">$${mccFee.toFixed(2)}</span>
+                </div>
+              </div>
+              
+              <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px;">
+                💡 Payment will be released to the provider when you confirm the work is complete.
+              </p>
+              
+              ${showReleaseButton ? `
+                <button class="btn btn-success" onclick="confirmJobAndReleasePayment('${pkg.id}')" style="width:100%;">
+                  ✓ Confirm Complete & Release Payment
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }
+      
+      // Awaiting payment - show card form
+      return `
+        <div class="form-section" id="escrow-payment-section-${pkg.id}">
+          <div class="form-section-title">💳 Authorize Payment</div>
+          <div style="background:var(--accent-orange-soft);border:1px solid rgba(251,146,60,0.3);border-radius:var(--radius-lg);padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <span style="font-size:1.5rem;">💳</span>
+                <div>
+                  <div style="font-weight:600;color:var(--accent-orange);font-size:1.1rem;">Awaiting Payment</div>
+                  <div style="color:var(--text-secondary);font-size:0.9rem;">Authorize payment to hold funds in escrow</div>
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:1.4rem;font-weight:700;color:var(--text-primary);">$${amount.toFixed(2)}</div>
+                <div style="color:var(--text-muted);font-size:0.85rem;">for ${providerName}</div>
+              </div>
+            </div>
+            
+            <div style="background:var(--bg-card);border-radius:var(--radius-md);padding:12px;margin-bottom:20px;">
+              <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-bottom:6px;">
+                <span style="color:var(--text-secondary);">Total Amount</span>
+                <span style="color:var(--text-primary);">$${amount.toFixed(2)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;">
+                <span style="color:var(--text-muted);">Provider receives</span>
+                <span style="color:var(--text-secondary);">$${providerAmount.toFixed(2)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:0.85rem;">
+                <span style="color:var(--text-muted);">Platform fee (7.5%)</span>
+                <span style="color:var(--text-muted);">$${mccFee.toFixed(2)}</span>
+              </div>
+            </div>
+            
+            <div style="margin-bottom:20px;">
+              <label style="display:block;margin-bottom:8px;font-size:0.9rem;color:var(--text-secondary);">Card Details</label>
+              <div id="escrow-card-element-${pkg.id}" style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px;min-height:44px;"></div>
+              <div id="escrow-card-errors-${pkg.id}" style="color:var(--accent-red);font-size:0.85rem;margin-top:8px;"></div>
+            </div>
+            
+            <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:12px;margin-bottom:20px;">
+              <div style="display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:0.85rem;">
+                <span>🔒</span>
+                <span>Your payment is secured. Funds are held in escrow and only released when you confirm the work is complete.</span>
+              </div>
+            </div>
+            
+            <button id="authorize-payment-btn-${pkg.id}" class="btn btn-primary" onclick="authorizeEscrowPayment('${pkg.id}', '${acceptedBid?.id}')" style="width:100%;">
+              🔒 Authorize Payment ($${amount.toFixed(2)})
+            </button>
+          </div>
+        </div>
+        
+        <script>
+          (function() {
+            setTimeout(() => mountEscrowCardElement('${pkg.id}'), 100);
+          })();
+        </script>
+      `;
+    }
+
+    async function mountEscrowCardElement(packageId) {
+      try {
+        const stripe = await initStripe();
+        if (!stripe) {
+          console.error('Stripe not initialized');
+          const errorEl = document.getElementById(`escrow-card-errors-${packageId}`);
+          if (errorEl) errorEl.textContent = 'Payment system unavailable. Please try again later.';
+          return;
+        }
+        
+        const elements = stripe.elements({
+          appearance: {
+            theme: 'night',
+            variables: {
+              colorPrimary: '#c9a227',
+              colorBackground: 'rgba(30, 38, 48, 0.9)',
+              colorText: '#f5f5f7',
+              colorDanger: '#f87171',
+              fontFamily: 'Outfit, -apple-system, sans-serif',
+              borderRadius: '8px'
+            }
+          }
+        });
+        
+        const cardElement = elements.create('card', {
+          style: {
+            base: {
+              color: '#f5f5f7',
+              fontFamily: 'Outfit, -apple-system, sans-serif',
+              fontSmoothing: 'antialiased',
+              fontSize: '16px',
+              '::placeholder': {
+                color: '#6b7280'
+              }
+            },
+            invalid: {
+              color: '#f87171',
+              iconColor: '#f87171'
+            }
+          }
+        });
+        
+        const containerEl = document.getElementById(`escrow-card-element-${packageId}`);
+        if (containerEl) {
+          cardElement.mount(`#escrow-card-element-${packageId}`);
+          
+          cardElement.on('change', (event) => {
+            const errorEl = document.getElementById(`escrow-card-errors-${packageId}`);
+            if (errorEl) {
+              errorEl.textContent = event.error ? event.error.message : '';
+            }
+          });
+          
+          currentEscrowCardElement = cardElement;
+          currentEscrowElements = elements;
+          currentEscrowPackageId = packageId;
+        }
+      } catch (err) {
+        console.error('Error mounting card element:', err);
+        const errorEl = document.getElementById(`escrow-card-errors-${packageId}`);
+        if (errorEl) errorEl.textContent = 'Failed to load payment form. Please refresh the page.';
+      }
+    }
+
+    async function authorizeEscrowPayment(packageId, bidId) {
+      const btn = document.getElementById(`authorize-payment-btn-${packageId}`);
+      const errorEl = document.getElementById(`escrow-card-errors-${packageId}`);
+      
+      if (!currentEscrowCardElement) {
+        if (errorEl) errorEl.textContent = 'Payment form not loaded. Please refresh the page.';
+        return;
+      }
+      
+      try {
+        // Disable button and show loading
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;"><span class="spinner"></span> Processing...</span>';
+        }
+        if (errorEl) errorEl.textContent = '';
+        
+        // Step 1: Create escrow PaymentIntent
+        const escrowData = await createEscrowPayment(packageId, bidId);
+        
+        if (!escrowData.client_secret) {
+          throw new Error('Failed to create payment. Please try again.');
+        }
+        
+        currentEscrowClientSecret = escrowData.client_secret;
+        currentEscrowBidId = bidId;
+        
+        // Step 2: Confirm the payment with the card
+        const paymentIntent = await confirmEscrowPayment(currentEscrowClientSecret, currentEscrowCardElement);
+        
+        if (paymentIntent.status === 'requires_capture' || paymentIntent.status === 'succeeded') {
+          // Step 3: Mark payment as held in database
+          await confirmEscrowHeld(packageId);
+          
+          showToast('Payment authorized! Funds are now held in escrow.', 'success');
+          
+          // Refresh the view to show updated status
+          await loadPackages();
+          setTimeout(() => viewPackage(packageId), 300);
+        } else {
+          throw new Error('Payment authorization failed. Please try again.');
+        }
+        
+      } catch (err) {
+        console.error('Escrow payment error:', err);
+        if (errorEl) errorEl.textContent = err.message || 'Payment failed. Please try again.';
+        showToast(err.message || 'Payment failed. Please try again.', 'error');
+        
+        // Re-enable button
+        if (btn) {
+          btn.disabled = false;
+          const pkg = packages.find(p => p.id === packageId);
+          const amount = currentPackageBids?.find(b => b.id === bidId)?.price || 0;
+          btn.innerHTML = `🔒 Authorize Payment ($${amount.toFixed(2)})`;
+        }
+      }
+    }
+
+    async function confirmJobAndReleasePayment(packageId) {
+      if (!confirm('Confirm that the work is complete and you have received your vehicle?\n\nThis will release the escrowed payment to the provider.')) return;
+      
+      try {
+        showToast('Releasing payment...', 'info');
+        
+        // Release the escrow payment via API
+        await releaseEscrowPayment(packageId);
+        
+        // The API handles updating the payment record, package status, etc.
+        showToast('Payment released! Thank you for using My Car Concierge.', 'success');
+        
+        closeModal('view-package-modal');
+        await loadPackages();
+        await loadServiceHistory();
+        
+        // Get provider info for review modal
+        const pkg = packages.find(p => p.id === packageId);
+        const { data: bid } = await supabaseClient.from('bids')
+          .select('*, profiles:provider_id(provider_alias, business_name, full_name)')
+          .eq('package_id', packageId)
+          .eq('status', 'accepted')
+          .single();
+        
+        // Open review modal
+        if (bid) {
+          setTimeout(() => {
+            openReviewModal(packageId, bid.provider_id, bid.profiles?.business_name || bid.profiles?.full_name, pkg?.title, bid.price);
+          }, 500);
+        }
+      } catch (err) {
+        console.error('Error releasing payment:', err);
+        showToast('Failed to release payment: ' + (err.message || 'Please try again.'), 'error');
       }
     }
 

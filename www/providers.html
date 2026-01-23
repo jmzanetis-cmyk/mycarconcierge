@@ -1792,6 +1792,64 @@
         <p style="font-size:0.82rem;color:var(--text-muted);margin-top:16px;">📋 Upload documents below. Our team will review and verify within 1-2 business days.</p>
       </div>
 
+      <!-- Stripe Connect Card -->
+      <div class="card" id="stripe-connect-card">
+        <div class="card-header">
+          <h2 class="card-title">💳 Payment Setup</h2>
+        </div>
+        <div id="stripe-connect-content">
+          <!-- Not Connected State -->
+          <div id="stripe-not-connected" style="display:none;">
+            <div style="display:flex;align-items:flex-start;gap:16px;padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:2rem;">🔗</div>
+              <div style="flex:1;">
+                <div style="font-weight:600;margin-bottom:6px;">Connect Stripe to Get Paid</div>
+                <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">Connect your Stripe account to receive payments for completed jobs. Funds are transferred directly to your bank account.</p>
+                <button class="btn btn-primary" onclick="startStripeConnect()" id="stripe-connect-btn">
+                  🔗 Connect Stripe Account
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Onboarding Incomplete State -->
+          <div id="stripe-incomplete" style="display:none;">
+            <div style="display:flex;align-items:flex-start;gap:16px;padding:20px;background:var(--accent-gold-soft);border:1px solid var(--accent-gold);border-radius:var(--radius-md);">
+              <div style="font-size:2rem;">⏳</div>
+              <div style="flex:1;">
+                <div style="font-weight:600;margin-bottom:6px;color:var(--accent-gold);">Stripe Onboarding Incomplete</div>
+                <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">You started the Stripe setup but haven't completed it yet. Please finish your onboarding to start receiving payments.</p>
+                <button class="btn btn-primary" onclick="startStripeConnect()" id="stripe-resume-btn">
+                  📝 Complete Stripe Setup
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Connected State -->
+          <div id="stripe-connected" style="display:none;">
+            <div style="display:flex;align-items:flex-start;gap:16px;padding:20px;background:var(--accent-green-soft);border:1px solid var(--accent-green);border-radius:var(--radius-md);">
+              <div style="font-size:2rem;">✅</div>
+              <div style="flex:1;">
+                <div style="font-weight:600;margin-bottom:6px;color:var(--accent-green);">Stripe Connected</div>
+                <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">Your Stripe account is connected and ready to receive payments. Earnings from completed jobs will be transferred directly to your bank.</p>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+                  <span class="status-badge" style="background:var(--accent-green-soft);color:var(--accent-green);padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:500;">Charges Enabled</span>
+                  <span class="status-badge" style="background:var(--accent-green-soft);color:var(--accent-green);padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:500;">Payouts Enabled</span>
+                  <span class="status-badge" style="background:var(--accent-green-soft);color:var(--accent-green);padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:500;">Transfers Enabled</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Loading State -->
+          <div id="stripe-loading" style="display:flex;align-items:center;justify-content:center;padding:40px;">
+            <div class="spinner" style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-gold);border-radius:50%;animation:spin 1s linear infinite;"></div>
+            <span style="margin-left:12px;color:var(--text-muted);">Checking Stripe status...</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Verification Documents Upload -->
       <div class="card" id="verification-docs-card">
         <div class="card-header">

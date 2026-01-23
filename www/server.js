@@ -8000,6 +8000,185 @@ async function handleFounderConnectStatus(req, res, requestId, founderId) {
   }
 }
 
+// ========== PROVIDER STRIPE CONNECT ONBOARDING ==========
+
+async function handleProviderConnectOnboard(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, business_name, stripe_account_id, role, is_also_provider')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      console.log(`[${requestId}] Provider profile not found: ${user.id}`);
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Provider profile not found' }));
+      return;
+    }
+
+    if (profile.role !== 'provider' && !profile.is_also_provider) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Provider access required' }));
+      return;
+    }
+
+    const stripe = await getStripeClient();
+    const domain = process.env.REPLIT_DOMAINS?.split(',')[0] || 'localhost:5000';
+    const protocol = domain.includes('localhost') ? 'http' : 'https';
+    
+    let accountId = profile.stripe_account_id;
+
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        email: profile.email,
+        metadata: {
+          provider_id: profile.id,
+          business_name: profile.business_name || profile.full_name
+        },
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true }
+        }
+      });
+
+      accountId = account.id;
+      
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          stripe_account_id: accountId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', profile.id);
+
+      if (updateError) {
+        console.error(`[${requestId}] Failed to save Stripe account ID:`, updateError);
+      }
+      
+      console.log(`[${requestId}] Created Stripe Connect Express account ${accountId} for provider ${profile.id}`);
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${protocol}://${domain}/providers.html?stripe_connect=refresh`,
+      return_url: `${protocol}://${domain}/providers.html?stripe_connect=complete`,
+      type: 'account_onboarding'
+    });
+
+    console.log(`[${requestId}] Created onboarding link for provider ${profile.id}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      url: accountLink.url,
+      account_id: accountId
+    }));
+    
+  } catch (error) {
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleProviderConnectStatus(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, stripe_account_id, role, is_also_provider')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      console.log(`[${requestId}] Provider profile not found: ${user.id}`);
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Provider profile not found' }));
+      return;
+    }
+
+    if (profile.role !== 'provider' && !profile.is_also_provider) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Provider access required' }));
+      return;
+    }
+
+    if (!profile.stripe_account_id) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        status: 'not_connected',
+        account_id: null,
+        details_submitted: false,
+        charges_enabled: false,
+        payouts_enabled: false,
+        transfers_enabled: false
+      }));
+      return;
+    }
+
+    const stripe = await getStripeClient();
+    const account = await stripe.accounts.retrieve(profile.stripe_account_id);
+
+    const transfersEnabled = account.capabilities?.transfers === 'active';
+    const chargesEnabled = account.charges_enabled;
+    const payoutsEnabled = account.payouts_enabled;
+    const detailsSubmitted = account.details_submitted;
+
+    let status;
+    if (detailsSubmitted && chargesEnabled && transfersEnabled) {
+      status = 'connected';
+    } else if (profile.stripe_account_id) {
+      status = 'incomplete';
+    } else {
+      status = 'not_connected';
+    }
+
+    console.log(`[${requestId}] Retrieved Stripe Connect status for provider ${user.id}: ${status}`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      status: status,
+      account_id: profile.stripe_account_id,
+      details_submitted: detailsSubmitted,
+      charges_enabled: chargesEnabled,
+      payouts_enabled: payoutsEnabled,
+      transfers_enabled: transfersEnabled,
+      business_type: account.business_type,
+      country: account.country
+    }));
+    
+  } catch (error) {
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
 async function handleAdminProcessFounderPayout(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -18419,6 +18598,17 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url.startsWith('/api/founder/connect-status/')) {
     const founderId = req.url.split('/api/founder/connect-status/')[1]?.split('?')[0];
     handleFounderConnectStatus(req, res, requestId, founderId);
+    return;
+  }
+  
+  // Provider Stripe Connect Onboarding
+  if (req.method === 'POST' && req.url === '/api/provider/connect-onboard') {
+    handleProviderConnectOnboard(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url === '/api/provider/connect-status') {
+    handleProviderConnectStatus(req, res, requestId);
     return;
   }
   
