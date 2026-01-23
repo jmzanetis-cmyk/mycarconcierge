@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS dream_car_searches (
     max_year INTEGER,
     preferred_makes JSONB DEFAULT '[]'::jsonb,
     preferred_models JSONB DEFAULT '[]'::jsonb,
+    preferred_trims JSONB DEFAULT '[]'::jsonb,
     body_styles JSONB DEFAULT '[]'::jsonb,
     max_mileage INTEGER,
     min_price DECIMAL(12, 2),
@@ -146,3 +147,6 @@ CREATE TRIGGER trigger_dream_car_searches_updated_at
     BEFORE UPDATE ON dream_car_searches
     FOR EACH ROW
     EXECUTE FUNCTION update_dream_car_searches_updated_at();
+
+-- Add preferred_trims column for existing databases (run if upgrading)
+-- ALTER TABLE dream_car_searches ADD COLUMN IF NOT EXISTS preferred_trims JSONB DEFAULT '[]'::jsonb;

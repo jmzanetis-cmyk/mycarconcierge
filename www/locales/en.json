@@ -203,6 +203,7 @@
       "maxMileage": "Maximum Mileage",
       "preferredMakes": "Preferred Makes",
       "preferredModels": "Preferred Models",
+      "preferredTrims": "Preferred Trims/Versions",
       "bodyStyles": "Body Styles",
       "fuelTypes": "Fuel Types",
       "location": "Location",
