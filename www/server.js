@@ -875,6 +875,29 @@ function clearProductCache() {
   productCache.timestamp = null;
 }
 
+// Provider packages cache (30 second TTL for fast refresh)
+const providerPackagesCache = {
+  data: null,
+  timestamp: null,
+  ttl: 30000 // 30 seconds
+};
+
+function getCachedProviderPackages() {
+  if (!providerPackagesCache.data || !providerPackagesCache.timestamp) return null;
+  if (Date.now() - providerPackagesCache.timestamp > providerPackagesCache.ttl) return null;
+  return providerPackagesCache.data;
+}
+
+function setCachedProviderPackages(data) {
+  providerPackagesCache.data = data;
+  providerPackagesCache.timestamp = Date.now();
+}
+
+function clearProviderPackagesCache() {
+  providerPackagesCache.data = null;
+  providerPackagesCache.timestamp = null;
+}
+
 // Admin stats cache (5 minute TTL)
 const adminStatsCache = {
   overview: { data: null, timestamp: null },
@@ -11314,84 +11337,137 @@ async function handleProviderAvailablePackages(req, res, requestId) {
     }
     
     const providerId = user.id;
-    
-    const { data: packages, error } = await supabase
-      .from('maintenance_packages')
-      .select(`
-        *,
-        vehicles(year, make, model, nickname, vin),
-        member:profiles!maintenance_packages_member_id_fkey(id, full_name, platform_fee_exempt, provider_verified, referred_by_provider_id)
-      `)
-      .eq('status', 'open')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error(`[${requestId}] Error loading packages:`, error);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to load packages' }));
-      return;
-    }
-    
     const now = new Date();
-    const filteredPackages = (packages || []).filter(pkg => {
-      if (pkg.is_private_job) {
-        return pkg.exclusive_provider_id === providerId;
-      }
-      if (pkg.exclusive_until && new Date(pkg.exclusive_until) > now) {
-        return pkg.exclusive_provider_id === providerId;
-      }
-      return true;
-    });
     
-    filteredPackages.forEach(pkg => {
-      if (pkg.is_private_job && pkg.exclusive_provider_id === providerId) {
-        pkg._isPrivateJob = true;
-      }
-      if (pkg.exclusive_until && new Date(pkg.exclusive_until) > now && pkg.exclusive_provider_id === providerId) {
-        pkg._isExclusiveOpportunity = true;
-        pkg._exclusiveTimeRemaining = new Date(pkg.exclusive_until) - now;
-      }
-    });
+    // Check cache first for base packages data
+    let cachedBase = getCachedProviderPackages();
+    let packages, allBids, destServices;
     
-    if (filteredPackages.length > 0) {
-      const packageIds = filteredPackages.map(p => p.id);
-      const { data: allBids } = await supabase
-        .from('bids')
-        .select('package_id, price, provider_id')
-        .in('package_id', packageIds)
-        .eq('status', 'pending');
+    if (cachedBase) {
+      // Use cached packages and bids data - deep clone to avoid mutation
+      packages = JSON.parse(JSON.stringify(cachedBase.packages));
+      allBids = cachedBase.allBids;
+      destServices = cachedBase.destServices;
+      console.log(`[${requestId}] Using cached provider packages (${packages?.length || 0} items)`);
+    } else {
+      // Fetch packages first to get IDs for subsequent queries
+      const { data: pkgData, error } = await supabase
+        .from('maintenance_packages')
+        .select(`
+          *,
+          vehicles(year, make, model, nickname, vin),
+          member:profiles!maintenance_packages_member_id_fkey(id, full_name, platform_fee_exempt, provider_verified, referred_by_provider_id)
+        `)
+        .eq('status', 'open')
+        .order('created_at', { ascending: false });
       
-      filteredPackages.forEach(pkg => {
-        const packageBids = allBids?.filter(b => b.package_id === pkg.id) || [];
-        pkg._bidCount = packageBids.length;
-        pkg._lowestBid = packageBids.length > 0 ? Math.min(...packageBids.map(b => b.price)) : null;
-        pkg._myBid = packageBids.find(b => b.provider_id === providerId);
-      });
+      if (error) {
+        console.error(`[${requestId}] Error loading packages:`, error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to load packages' }));
+        return;
+      }
       
-      const destServicePackages = filteredPackages.filter(p => 
-        p.category === 'destination_service' || 
-        p.is_destination_service === true || 
-        p.pickup_preference === 'destination_service'
-      );
-      if (destServicePackages.length > 0) {
-        const destPackageIds = destServicePackages.map(p => p.id);
-        const { data: destServices } = await supabase
-          .from('destination_services')
-          .select('*')
-          .in('package_id', destPackageIds);
+      packages = pkgData || [];
+      allBids = [];
+      destServices = [];
+      
+      // Run bids and destination services queries in parallel if we have packages
+      if (packages.length > 0) {
+        const packageIds = packages.map(p => p.id);
+        const destPackageIds = packages
+          .filter(p => p.category === 'destination_service' || p.is_destination_service === true || p.pickup_preference === 'destination_service')
+          .map(p => p.id);
         
-        if (destServices) {
-          filteredPackages.forEach(pkg => {
-            const isDestService = pkg.category === 'destination_service' || 
-              pkg.is_destination_service === true || 
-              pkg.pickup_preference === 'destination_service';
-            if (isDestService) {
-              pkg._destinationService = destServices.find(ds => ds.package_id === pkg.id);
-            }
-          });
+        // Parallel queries for bids and destination services with proper error handling
+        const [bidsResult, destResult] = await Promise.all([
+          supabase
+            .from('bids')
+            .select('package_id, price, provider_id')
+            .in('package_id', packageIds)
+            .eq('status', 'pending'),
+          destPackageIds.length > 0 
+            ? supabase.from('destination_services').select('*').in('package_id', destPackageIds)
+            : Promise.resolve({ data: [], error: null })
+        ]);
+        
+        // Handle errors gracefully - log but continue with empty arrays
+        let bidsError = false;
+        let destError = false;
+        
+        if (bidsResult.error) {
+          console.error(`[${requestId}] Error loading bids:`, bidsResult.error);
+          bidsError = true;
+        } else {
+          allBids = bidsResult.data || [];
         }
+        
+        if (destResult.error) {
+          console.error(`[${requestId}] Error loading destination services:`, destResult.error);
+          destError = true;
+        } else {
+          destServices = destResult.data || [];
+        }
+        
+        // Only cache if all queries succeeded to avoid partial data
+        if (!bidsError && !destError) {
+          setCachedProviderPackages({ 
+            packages: JSON.parse(JSON.stringify(packages)), // Store immutable copy
+            allBids: [...allBids], 
+            destServices: [...destServices] 
+          });
+          console.log(`[${requestId}] Fetched and cached ${packages.length} packages for 30 seconds`);
+        } else {
+          console.log(`[${requestId}] Skipping cache due to query errors`);
+        }
+      } else {
+        // No packages, cache empty result
+        setCachedProviderPackages({ packages: [], allBids: [], destServices: [] });
+        console.log(`[${requestId}] Cached empty packages result for 30 seconds`);
       }
     }
+    
+    // Filter packages based on privacy/exclusivity (provider-specific, can't cache)
+    // Create fresh objects for each provider to avoid data leakage
+    const filteredPackages = packages
+      .filter(pkg => {
+        if (pkg.is_private_job) {
+          return pkg.exclusive_provider_id === providerId;
+        }
+        if (pkg.exclusive_until && new Date(pkg.exclusive_until) > now) {
+          return pkg.exclusive_provider_id === providerId;
+        }
+        return true;
+      })
+      .map(pkg => {
+        // Create a fresh copy for provider-specific fields
+        const pkgCopy = { ...pkg };
+        
+        // Add provider-specific metadata
+        if (pkgCopy.is_private_job && pkgCopy.exclusive_provider_id === providerId) {
+          pkgCopy._isPrivateJob = true;
+        }
+        if (pkgCopy.exclusive_until && new Date(pkgCopy.exclusive_until) > now && pkgCopy.exclusive_provider_id === providerId) {
+          pkgCopy._isExclusiveOpportunity = true;
+          pkgCopy._exclusiveTimeRemaining = new Date(pkgCopy.exclusive_until) - now;
+        }
+        
+        // Attach bid data
+        const packageBids = allBids?.filter(b => b.package_id === pkgCopy.id) || [];
+        pkgCopy._bidCount = packageBids.length;
+        pkgCopy._lowestBid = packageBids.length > 0 ? Math.min(...packageBids.map(b => b.price)) : null;
+        pkgCopy._myBid = packageBids.find(b => b.provider_id === providerId);
+        
+        // Attach destination service data
+        const isDestService = pkgCopy.category === 'destination_service' || 
+          pkgCopy.is_destination_service === true || 
+          pkgCopy.pickup_preference === 'destination_service';
+        if (isDestService && destServices) {
+          pkgCopy._destinationService = destServices.find(ds => ds.package_id === pkgCopy.id);
+        }
+        
+        return pkgCopy;
+      });
     
     console.log(`[${requestId}] Provider ${providerId} retrieved ${filteredPackages.length} available packages (${packages?.length || 0} total open)`);
     res.writeHead(200, { 'Content-Type': 'application/json' });

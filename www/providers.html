@@ -1065,7 +1065,13 @@
       </div>
 
       <div id="filter-results-info" style="margin-bottom:16px;font-size:0.9rem;color:var(--text-muted);"></div>
-      <div id="open-packages"><div class="empty-state"><div class="empty-state-icon">📦</div><p>No open packages.</p></div></div>
+      <div id="open-packages">
+        <div class="skeleton-loader">
+          <div class="skeleton-card"><div class="skeleton-title"></div><div class="skeleton-meta"></div><div class="skeleton-text"></div><div class="skeleton-button"></div></div>
+          <div class="skeleton-card"><div class="skeleton-title"></div><div class="skeleton-meta"></div><div class="skeleton-text"></div><div class="skeleton-button"></div></div>
+          <div class="skeleton-card"><div class="skeleton-title"></div><div class="skeleton-meta"></div><div class="skeleton-text"></div><div class="skeleton-button"></div></div>
+        </div>
+      </div>
     </section>
 
     <section id="bids" class="section">
