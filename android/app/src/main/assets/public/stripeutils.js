@@ -10,14 +10,51 @@
  * - PaymentIntents API for auth/capture flow
  */
 
-// Stripe publishable key
-const STRIPE_PUBLISHABLE_KEY = 'pk_live_51Sa0fg0V5HwfygbhAapjgXWedMWajevRvx0DNz26w21kVEMCM7zvldoRytCaKy2vArn3duePaywnaQ32V620qK71ze0VbG9NvSH';
+// Stripe publishable key - fetched from server
+let STRIPE_PUBLISHABLE_KEY = null;
+let stripeKeyPromise = null;
+
+// Fetch publishable key from server (cached)
+async function fetchStripeKey() {
+  if (STRIPE_PUBLISHABLE_KEY) return STRIPE_PUBLISHABLE_KEY;
+  if (stripeKeyPromise) return stripeKeyPromise;
+  
+  stripeKeyPromise = fetch('/api/config/stripe')
+    .then(res => res.json())
+    .then(data => {
+      STRIPE_PUBLISHABLE_KEY = data.publishableKey;
+      return STRIPE_PUBLISHABLE_KEY;
+    })
+    .catch(err => {
+      console.error('Failed to fetch Stripe config:', err);
+      return null;
+    });
+  
+  return stripeKeyPromise;
+}
 
 // Initialize Stripe
 let stripe = null;
 
-function initStripe() {
-  if (typeof Stripe !== 'undefined' && !stripe) {
+async function initStripe() {
+  if (stripe) return stripe;
+  
+  if (typeof Stripe === 'undefined') {
+    console.error('Stripe.js not loaded');
+    return null;
+  }
+  
+  const key = await fetchStripeKey();
+  if (key && !stripe) {
+    stripe = Stripe(key);
+  }
+  return stripe;
+}
+
+// Synchronous version for backward compatibility (uses cached key)
+function initStripeSync() {
+  if (stripe) return stripe;
+  if (typeof Stripe !== 'undefined' && STRIPE_PUBLISHABLE_KEY) {
     stripe = Stripe(STRIPE_PUBLISHABLE_KEY);
   }
   return stripe;
