@@ -4384,27 +4384,10 @@
       <div class="modal-header">
         <h3 class="modal-title" style="display:flex;align-items:center;gap:10px;">
           Add Vehicle to Garage
-          <span id="identity-verified-badge" style="display:none;background:linear-gradient(135deg, var(--accent-green), #3da577);color:white;padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;">✓ Identity Verified</span>
         </h3>
         <button class="modal-close" onclick="closeModal('vehicle-modal')">×</button>
       </div>
       <div class="modal-body">
-        <!-- Identity Verification Required Section -->
-        <div id="identity-verification-section" style="display:none;text-align:center;padding:40px 20px;">
-          <div style="font-size:64px;margin-bottom:16px;">🛡️</div>
-          <h3 style="font-size:1.2rem;margin-bottom:12px;">Identity Verification Required</h3>
-          <p style="color:var(--text-secondary);margin-bottom:24px;line-height:1.6;max-width:400px;margin-left:auto;margin-right:auto;">
-            To add vehicles, we need to verify your identity first. This is a one-time process that helps protect vehicle owners.
-          </p>
-          <button id="verify-identity-btn" class="btn btn-primary" onclick="startIdentityVerification()" style="padding:14px 28px;font-size:1rem;">
-            🛡️ Verify My Identity
-          </button>
-          <p style="font-size:0.8rem;color:var(--text-muted);margin-top:16px;">
-            Powered by Stripe Identity • Takes about 2 minutes
-          </p>
-        </div>
-        
-        <!-- Vehicle Form Section (shown when verified) -->
         <div id="vehicle-form-section">
         <div class="form-section">
           <div class="form-section-title">Vehicle Photo</div>

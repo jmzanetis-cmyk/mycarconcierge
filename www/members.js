@@ -85,9 +85,6 @@
     let editingFleetMemberId = null; // Member being edited
     let editingFleetVehicleId = null; // Vehicle assignment being edited
     
-    // Identity Verification State
-    let userVerificationStatus = null; // { verified: boolean, status: string }
-    let stripeInstance = null; // Stripe.js instance
     
     // Vehicle Recalls State
     let vehicleRecalls = {}; // Map of vehicle_id -> { recalls: [], activeCount: 0 }
@@ -438,149 +435,14 @@
         loadUpsellRequests(),
         loadConversations(),
         loadNotifications(),
-        checkActiveEmergency(),
-        initStripeIdentity()
+        checkActiveEmergency()
       ]);
       
       updateStats();
       setupEventListeners();
       setupRealtimeSubscriptions();
-      
-      // Check identity verification after Stripe is initialized
-      await checkIdentityVerification();
-      
-      // Check for identity verification return
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('identity_verification') === 'complete') {
-        // Refresh verification status after returning from Stripe Identity
-        await checkIdentityVerification();
-        showToast('Verification check complete. Please wait while we confirm your status.', 'success');
-        // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
     }
     
-    // ========== STRIPE IDENTITY VERIFICATION ==========
-    async function initStripeIdentity() {
-      try {
-        const response = await fetch('/api/config/stripe');
-        const config = await response.json();
-        if (config.publishableKey) {
-          stripeInstance = Stripe(config.publishableKey);
-        } else {
-          console.warn('Stripe publishable key not configured');
-        }
-      } catch (error) {
-        console.error('Failed to initialize Stripe:', error);
-      }
-    }
-    
-    async function checkIdentityVerification() {
-      if (!currentUser) return;
-      
-      try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        const response = await fetch(`/api/identity/status/${currentUser.id}`, {
-          headers: { 'Authorization': `Bearer ${session?.access_token}` }
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-          userVerificationStatus = {
-            verified: result.status === 'verified',
-            status: result.status,
-            verifiedAt: result.verified_at,
-            verifiedName: result.verified_name
-          };
-        } else {
-          userVerificationStatus = { verified: false, status: 'not_started' };
-        }
-        
-        // Update UI based on verification status
-        updateVerificationUI();
-      } catch (error) {
-        console.error('Failed to check identity verification:', error);
-        userVerificationStatus = { verified: false, status: 'error' };
-      }
-    }
-    
-    function updateVerificationUI() {
-      const verificationSection = document.getElementById('identity-verification-section');
-      const vehicleFormSection = document.getElementById('vehicle-form-section');
-      const verifiedBadge = document.getElementById('identity-verified-badge');
-      
-      if (!verificationSection || !vehicleFormSection) return;
-      
-      if (userVerificationStatus?.verified) {
-        // User is verified - show form with badge
-        verificationSection.style.display = 'none';
-        vehicleFormSection.style.display = 'block';
-        if (verifiedBadge) verifiedBadge.style.display = 'inline-flex';
-      } else {
-        // User is not verified - show verification required
-        verificationSection.style.display = 'block';
-        vehicleFormSection.style.display = 'none';
-        if (verifiedBadge) verifiedBadge.style.display = 'none';
-      }
-    }
-    
-    async function startIdentityVerification() {
-      if (!stripeInstance) {
-        showToast('Stripe not initialized. Please refresh the page.', 'error');
-        return;
-      }
-      
-      try {
-        const verifyBtn = document.getElementById('verify-identity-btn');
-        if (verifyBtn) {
-          verifyBtn.disabled = true;
-          verifyBtn.innerHTML = '⏳ Starting verification...';
-        }
-        
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        const response = await fetch('/api/identity/create-verification-session', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`
-          }
-        });
-        
-        const result = await response.json();
-        
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to create verification session');
-        }
-        
-        // Open Stripe Identity modal
-        const { error } = await stripeInstance.verifyIdentity(result.client_secret);
-        
-        if (error) {
-          console.error('Stripe Identity error:', error);
-          if (error.type !== 'modal_closed') {
-            showToast('Verification was not completed: ' + error.message, 'error');
-          }
-        } else {
-          // Verification session was submitted
-          showToast('Verification submitted! We will verify your identity shortly.', 'success');
-        }
-        
-        // Refresh status regardless of outcome
-        await checkIdentityVerification();
-        
-      } catch (error) {
-        console.error('Identity verification error:', error);
-        showToast('Failed to start verification: ' + error.message, 'error');
-      } finally {
-        const verifyBtn = document.getElementById('verify-identity-btn');
-        if (verifyBtn) {
-          verifyBtn.disabled = false;
-          verifyBtn.innerHTML = '🛡️ Verify My Identity';
-        }
-      }
-    }
-
     // ========== REALTIME SUBSCRIPTIONS ==========
     let realtimeChannel = null;
 
@@ -2264,9 +2126,6 @@
         const photoContent = v.photo_url 
           ? `<img src="${v.photo_url}" alt="${vehicleTitle}" style="width:100%;height:100%;object-fit:cover;">`
           : `<span class="vehicle-emoji">🚗</span>`;
-        const verifiedBadge = userVerificationStatus?.verified 
-          ? '<span style="position:absolute;top:12px;left:12px;background:linear-gradient(135deg, var(--accent-green), #3da577);color:white;padding:4px 10px;border-radius:100px;font-size:0.7rem;font-weight:600;display:flex;align-items:center;gap:4px;">🛡️ Verified Owner</span>' 
-          : '';
         const recallData = vehicleRecalls[v.id];
         const recallBadge = recallData && recallData.activeCount > 0 
           ? `<span class="recall-badge" onclick="event.stopPropagation(); openRecallsModal('${v.id}')">⚠️ ${recallData.activeCount} Recall${recallData.activeCount > 1 ? 's' : ''}</span>` 
@@ -2280,7 +2139,7 @@
           <div class="vehicle-card">
             <div class="vehicle-card-photo">
               ${photoContent}
-              ${registrationBadge || recallBadge || verifiedBadge}
+              ${registrationBadge || recallBadge}
               <span class="vehicle-card-badge ${healthClass}">${healthLabel}</span>
             </div>
             <div class="vehicle-card-body">
@@ -5943,13 +5802,6 @@
 
     // ========== SAVE FUNCTIONS ==========
     async function saveVehicle() {
-      // Check identity verification before allowing vehicle save
-      if (!userVerificationStatus?.verified) {
-        showToast('Please verify your identity before adding a vehicle', 'error');
-        updateVerificationUI();
-        return;
-      }
-      
       const make = document.getElementById('v-make').value.trim();
       const model = document.getElementById('v-model').value.trim();
       if (!make || !model) return showToast('Make and model are required', 'error');
@@ -5997,8 +5849,7 @@
         vin: document.getElementById('v-vin').value.trim().toUpperCase() || null,
         health_score: 100,
         photo_url: photoUrl,
-        fuel_injection_type: fuelInjectionType,
-        identity_verified_at_add: userVerificationStatus?.verified || false
+        fuel_injection_type: fuelInjectionType
       };
 
       const { data, error } = await supabaseClient.from('vehicles').insert(vehicleData).select();
