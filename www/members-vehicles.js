@@ -652,18 +652,21 @@
         modelSelect.innerHTML += `<option value="${vehicle.model}" selected>${vehicle.model}</option>`;
       }
       
-      // Populate trim dropdown based on make/model
-      const trimSelect = document.getElementById('edit-v-trim');
-      trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
-      if (vehicle.make && vehicle.model && vehicleData.trims[vehicle.make]?.[vehicle.model]) {
-        vehicleData.trims[vehicle.make][vehicle.model].forEach(trim => {
-          trimSelect.innerHTML += `<option value="${trim}" ${vehicle.trim === trim ? 'selected' : ''}>${trim}</option>`;
-        });
-      }
-      // If vehicle trim not in list, add it as an option
-      if (vehicle.trim && !vehicleData.trims[vehicle.make]?.[vehicle.model]?.includes(vehicle.trim)) {
-        trimSelect.innerHTML += `<option value="${vehicle.trim}" selected>${vehicle.trim}</option>`;
-      }
+      // Populate trim datalist based on make and set current value
+      const trimInput = document.getElementById('edit-v-trim');
+      const trimDatalist = document.getElementById('edit-v-trim-options');
+      trimDatalist.innerHTML = '';
+      
+      // Add trim options from the make's trim list
+      const trims = vehicleData.trims[vehicle.make] || vehicleData.trims['default'] || [];
+      trims.forEach(trim => {
+        const opt = document.createElement('option');
+        opt.value = trim;
+        trimDatalist.appendChild(opt);
+      });
+      
+      // Set the current trim value (works for both predefined and custom trims)
+      trimInput.value = vehicle.trim || '';
       
       // Set color
       document.getElementById('edit-v-color').value = vehicle.color || '';
@@ -785,11 +788,13 @@
       const yearValue = document.getElementById('edit-v-year').value;
       const makeSelect = document.getElementById('edit-v-make');
       const modelSelect = document.getElementById('edit-v-model');
-      const trimSelect = document.getElementById('edit-v-trim');
+      const trimInput = document.getElementById('edit-v-trim');
+      const trimDatalist = document.getElementById('edit-v-trim-options');
       
       // Reset model and trim
       modelSelect.innerHTML = '<option value="">Select Model</option>';
-      trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
+      trimInput.value = '';
+      trimDatalist.innerHTML = '';
       
       // Populate makes (same makes regardless of year)
       makeSelect.innerHTML = '<option value="">Select Make</option>';
@@ -801,10 +806,12 @@
     function updateEditModelOptions() {
       const makeValue = document.getElementById('edit-v-make').value;
       const modelSelect = document.getElementById('edit-v-model');
-      const trimSelect = document.getElementById('edit-v-trim');
+      const trimInput = document.getElementById('edit-v-trim');
+      const trimDatalist = document.getElementById('edit-v-trim-options');
       
       modelSelect.innerHTML = '<option value="">Select Model</option>';
-      trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
+      trimInput.value = '';
+      trimDatalist.innerHTML = '';
       
       if (makeValue && vehicleData.models[makeValue]) {
         vehicleData.models[makeValue].forEach(model => {
@@ -815,16 +822,19 @@
 
     function updateEditTrimOptions() {
       const makeValue = document.getElementById('edit-v-make').value;
-      const modelValue = document.getElementById('edit-v-model').value;
-      const trimSelect = document.getElementById('edit-v-trim');
+      const trimInput = document.getElementById('edit-v-trim');
+      const trimDatalist = document.getElementById('edit-v-trim-options');
       
-      trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
+      trimInput.value = '';
+      trimDatalist.innerHTML = '';
       
-      if (makeValue && modelValue && vehicleData.trims[makeValue]?.[modelValue]) {
-        vehicleData.trims[makeValue][modelValue].forEach(trim => {
-          trimSelect.innerHTML += `<option value="${trim}">${trim}</option>`;
-        });
-      }
+      // Populate with trims based on make (or default)
+      const trims = vehicleData.trims[makeValue] || vehicleData.trims['default'] || [];
+      trims.forEach(trim => {
+        const opt = document.createElement('option');
+        opt.value = trim;
+        trimDatalist.appendChild(opt);
+      });
     }
 
     async function uploadVehiclePhoto(vehicleId) {

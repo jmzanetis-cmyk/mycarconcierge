@@ -261,21 +261,36 @@
         'Volvo': ['C40 Recharge', 'S60', 'S90', 'V60', 'V90', 'XC40', 'XC60', 'XC90']
       },
       trims: {
-        // Common trim levels by make (simplified)
-        'default': ['Base', 'S', 'SE', 'SEL', 'Limited', 'Premium', 'Sport', 'Touring'],
-        'Toyota': ['L', 'LE', 'SE', 'XLE', 'XSE', 'Limited', 'TRD Sport', 'TRD Off-Road', 'TRD Pro', 'Nightshade', 'Platinum'],
-        'Honda': ['LX', 'EX', 'EX-L', 'Sport', 'Touring', 'Elite', 'Type R'],
-        'Ford': ['Base', 'XL', 'XLT', 'Lariat', 'King Ranch', 'Platinum', 'Limited', 'Raptor', 'ST', 'GT'],
-        'Chevrolet': ['LS', 'LT', 'RS', 'Premier', 'High Country', 'ZR2', 'Z71', 'SS', 'ZL1'],
-        'BMW': ['Base', 'xDrive', 'M Sport', 'M', 'Competition'],
-        'Mercedes-Benz': ['Base', '4MATIC', 'AMG Line', 'AMG 43', 'AMG 53', 'AMG 63'],
-        'Audi': ['Base', 'Premium', 'Premium Plus', 'Prestige', 'S Line', 'Black Optics'],
-        'Lexus': ['Base', 'Premium', 'Luxury', 'F Sport', 'Ultra Luxury'],
-        'Tesla': ['Standard Range', 'Long Range', 'Performance', 'Plaid'],
-        'Hyundai': ['SE', 'SEL', 'N Line', 'Limited', 'Calligraphy'],
-        'Kia': ['LX', 'LXS', 'S', 'EX', 'GT-Line', 'SX', 'SX Prestige'],
-        'Jeep': ['Sport', 'Sport S', 'Latitude', 'Altitude', 'Limited', 'Trailhawk', 'Overland', 'Summit', 'Rubicon', 'Sahara'],
-        'Subaru': ['Base', 'Premium', 'Sport', 'Limited', 'Touring', 'Wilderness', 'Onyx Edition XT']
+        // Common trim levels and versions by make (includes special editions, performance variants, generations)
+        'default': ['Base', 'S', 'SE', 'SEL', 'Limited', 'Premium', 'Sport', 'Touring', 'Luxury', 'GT', 'Turbo', 'Hybrid'],
+        'Toyota': ['L', 'LE', 'SE', 'XLE', 'XSE', 'Limited', 'TRD Sport', 'TRD Off-Road', 'TRD Pro', 'Nightshade', 'Platinum', 'GR', 'GR Sport', 'Prime', 'Hybrid'],
+        'Honda': ['LX', 'EX', 'EX-L', 'Sport', 'Touring', 'Elite', 'Type R', 'Type S', 'Si', 'Hybrid', 'e:HEV', 'Sport Touring'],
+        'Ford': ['Base', 'XL', 'XLT', 'Lariat', 'King Ranch', 'Platinum', 'Limited', 'Raptor', 'ST', 'GT', 'GT Performance', 'Tremor', 'Timberline', 'Dark Horse'],
+        'Chevrolet': ['LS', 'LT', 'RS', 'Premier', 'High Country', 'ZR2', 'Z71', 'SS', 'ZL1', 'Trail Boss', '1LE', 'Redline'],
+        'BMW': ['Base', 'xDrive', 'M Sport', 'M', 'Competition', 'M40i', 'M50i', 'M Performance', 'Individual'],
+        'Mercedes-Benz': ['Base', '4MATIC', 'AMG Line', 'AMG 35', 'AMG 43', 'AMG 45', 'AMG 53', 'AMG 63', 'AMG 63 S', 'Night Edition', 'Designo', 'CLA 45', 'C 43', 'E 53', 'S 63'],
+        'Audi': ['Base', 'Premium', 'Premium Plus', 'Prestige', 'S Line', 'Black Optics', 'Competition', 'RS', 'e-tron', 'Sportback'],
+        'Lexus': ['Base', 'Premium', 'Luxury', 'F Sport', 'Ultra Luxury', 'F Sport Handling', 'Executive'],
+        'Tesla': ['Standard Range', 'Standard Range Plus', 'Long Range', 'Performance', 'Plaid', 'Plaid+'],
+        'Hyundai': ['SE', 'SEL', 'N Line', 'Limited', 'Calligraphy', 'N', 'Ultimate', 'Blue Hybrid'],
+        'Kia': ['LX', 'LXS', 'S', 'EX', 'GT-Line', 'SX', 'SX Prestige', 'GT', 'GT1', 'GT2'],
+        'Jeep': ['Sport', 'Sport S', 'Latitude', 'Altitude', 'Limited', 'Trailhawk', 'Overland', 'Summit', 'Rubicon', 'Sahara', 'Rubicon 392', 'Willys', '4xe'],
+        'Subaru': ['Base', 'Premium', 'Sport', 'Limited', 'Touring', 'Wilderness', 'Onyx Edition XT', 'STI', 'WRX'],
+        'Volkswagen': ['S', 'SE', 'SEL', 'SEL Premium', 'R-Line', 'GTI', 'GLI', 'R', 'Mk 6', 'Mk 7', 'Mk 7.5', 'Mk 8', 'Autobahn', '1.8T', '2.0T', 'TDI'],
+        'Mazda': ['Base', 'Select', 'Preferred', 'Premium', 'Premium Plus', 'Turbo', 'Turbo Premium Plus', 'Carbon Edition', 'Signature'],
+        'Nissan': ['S', 'SV', 'SL', 'SR', 'Platinum', 'Midnight Edition', 'NISMO', 'Pro-4X', 'Rock Creek'],
+        'Porsche': ['Base', 'S', '4S', 'GTS', 'Turbo', 'Turbo S', 'GT3', 'GT3 RS', 'GT4', 'Taycan', 'Carrera', 'Carrera S'],
+        'Acura': ['Base', 'Technology', 'A-Spec', 'Advance', 'Type S', 'PMC Edition', 'SH-AWD'],
+        'Infiniti': ['Pure', 'Luxe', 'Essential', 'Sensory', 'Sport', 'Red Sport 400'],
+        'Genesis': ['Base', 'Standard', 'Advanced', 'Prestige', 'Sport', 'Sport Advanced', 'Sport Prestige'],
+        'Dodge': ['SXT', 'GT', 'R/T', 'R/T Scat Pack', 'SRT Hellcat', 'SRT Hellcat Redeye', 'SRT Demon', 'Jailbreak', 'Widebody'],
+        'Ram': ['Tradesman', 'Big Horn', 'Laramie', 'Rebel', 'Limited', 'TRX', 'Longhorn', 'Power Wagon'],
+        'GMC': ['SLE', 'SLT', 'Denali', 'AT4', 'AT4X', 'Elevation', 'Canyon'],
+        'Cadillac': ['Luxury', 'Premium Luxury', 'Sport', 'V-Series', 'Blackwing', 'Platinum'],
+        'Land Rover': ['S', 'SE', 'HSE', 'R-Dynamic', 'Autobiography', 'SVR', 'First Edition', 'Westminster'],
+        'Jaguar': ['Base', 'S', 'SE', 'R-Dynamic', 'R', 'SVR', 'First Edition', 'HSE'],
+        'Alfa Romeo': ['Base', 'Sprint', 'Ti', 'Ti Sport', 'Veloce', 'Quadrifoglio'],
+        'Maserati': ['Base', 'GT', 'Modena', 'Trofeo', 'MC Edition', 'GranSport', 'GranLusso']
       }
     };
 
@@ -296,14 +311,16 @@
       const yearSelect = document.getElementById('v-year');
       const makeSelect = document.getElementById('v-make');
       const modelSelect = document.getElementById('v-model');
-      const trimSelect = document.getElementById('v-trim');
+      const trimInput = document.getElementById('v-trim');
+      const trimDatalist = document.getElementById('v-trim-options');
       
       // Reset dependent dropdowns
       makeSelect.innerHTML = '<option value="">Select Make</option>';
       modelSelect.innerHTML = '<option value="">Select Model</option>';
-      trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
+      trimInput.value = '';
+      trimDatalist.innerHTML = '';
       modelSelect.disabled = true;
-      trimSelect.disabled = true;
+      trimInput.disabled = true;
       
       if (!yearSelect.value) {
         makeSelect.disabled = true;
@@ -323,12 +340,14 @@
     function updateModelOptions() {
       const makeSelect = document.getElementById('v-make');
       const modelSelect = document.getElementById('v-model');
-      const trimSelect = document.getElementById('v-trim');
+      const trimInput = document.getElementById('v-trim');
+      const trimDatalist = document.getElementById('v-trim-options');
       
       // Reset dependent dropdowns
       modelSelect.innerHTML = '<option value="">Select Model</option>';
-      trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
-      trimSelect.disabled = true;
+      trimInput.value = '';
+      trimDatalist.innerHTML = '';
+      trimInput.disabled = true;
       
       if (!makeSelect.value) {
         modelSelect.disabled = true;
@@ -349,22 +368,23 @@
     function updateTrimOptions() {
       const makeSelect = document.getElementById('v-make');
       const modelSelect = document.getElementById('v-model');
-      const trimSelect = document.getElementById('v-trim');
+      const trimInput = document.getElementById('v-trim');
+      const trimDatalist = document.getElementById('v-trim-options');
       
-      trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
+      trimInput.value = '';
+      trimDatalist.innerHTML = '';
       
       if (!modelSelect.value) {
-        trimSelect.disabled = true;
+        trimInput.disabled = true;
         return;
       }
       
-      trimSelect.disabled = false;
+      trimInput.disabled = false;
       const trims = vehicleData.trims[makeSelect.value] || vehicleData.trims['default'];
       trims.forEach(trim => {
         const opt = document.createElement('option');
         opt.value = trim;
-        opt.textContent = trim;
-        trimSelect.appendChild(opt);
+        trimDatalist.appendChild(opt);
       });
     }
 

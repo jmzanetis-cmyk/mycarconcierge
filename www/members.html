@@ -4525,10 +4525,10 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">Trim</label>
-              <select class="form-select" id="v-trim" disabled>
-                <option value="">Select Trim (Optional)</option>
-              </select>
+              <label class="form-label">Trim / Version</label>
+              <input type="text" class="form-input" id="v-trim" list="v-trim-options" placeholder="e.g. Sport, Turbo, Mk 7.5, CLA 45" disabled>
+              <datalist id="v-trim-options"></datalist>
+              <small style="color: var(--text-muted); font-size: 0.75rem;">Select from suggestions or type your own</small>
             </div>
             <div class="form-group">
               <label class="form-label">Color</label>
@@ -4643,10 +4643,10 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">Trim</label>
-              <select class="form-select" id="edit-v-trim">
-                <option value="">Select Trim (Optional)</option>
-              </select>
+              <label class="form-label">Trim / Version</label>
+              <input type="text" class="form-input" id="edit-v-trim" list="edit-v-trim-options" placeholder="e.g. Sport, Turbo, Mk 7.5, CLA 45">
+              <datalist id="edit-v-trim-options"></datalist>
+              <small style="color: var(--text-muted); font-size: 0.75rem;">Select from suggestions or type your own</small>
             </div>
             <div class="form-group">
               <label class="form-label">Color</label>
