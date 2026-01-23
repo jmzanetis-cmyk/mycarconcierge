@@ -4,8 +4,9 @@
 My Car Concierge (MCC) is an automotive service marketplace connecting vehicle owners (members) with service providers. It is built as a Progressive Web App (PWA) with broad native app support for iOS, Android, Windows, Mac, and Linux. The project aims to provide a comprehensive platform for automotive service coordination, from booking and payment to vehicle tracking and provider management, with a strong focus on security and user experience.
 
 ## User Preferences
-- Dark theme UI with gold and blue accents
-- Premium, luxury aesthetic
+- **Automotive Theme**: Warmer dark slate backgrounds (#12161c) with bronze/copper gold accents and coolant teal highlights
+- Premium, luxury garage-inspired aesthetic with metallic gradients on buttons and cards
+- Less harsh dark mode with improved contrast and depth
 
 ## System Architecture
 The application is built with a modern web stack, leveraging vanilla HTML, CSS, and JavaScript for the frontend. JavaScript has been extracted into separate cached files for improved performance:
