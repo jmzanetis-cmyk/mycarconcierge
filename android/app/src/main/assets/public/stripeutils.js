@@ -82,32 +82,40 @@ function calculateFees(totalAmount) {
 }
 
 /**
- * Payment Flow Functions
+ * Escrow Payment Flow Functions
  * 
- * Note: In production, these should call your backend API
- * which then communicates with Stripe securely.
+ * Complete escrow payment system for marketplace bids:
+ * 1. Create escrow payment intent (holds funds)
+ * 2. Confirm payment (authorizes card, holds funds)
+ * 3. Release payment (captures funds, transfers to provider)
+ * 4. Refund payment (cancels hold, returns funds to customer)
  */
 
-// Step 1: Create PaymentIntent with manual capture (escrow-like)
-async function createEscrowPayment(packageId, amount, memberId) {
-  // This should call your backend API
-  const response = await fetch('/api/payments/create-intent', {
+// Step 1: Create escrow PaymentIntent when bid is accepted
+// Note: Amount is derived server-side from the bid price for security
+async function createEscrowPayment(packageId, bidId) {
+  const response = await fetch('/api/escrow/create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       package_id: packageId,
-      amount: Math.round(amount * 100), // Stripe uses cents
-      member_id: memberId,
-      capture_method: 'manual' // Key for escrow behavior
+      bid_id: bidId
     })
   });
   
-  return response.json();
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to create escrow payment');
+  }
+  return data;
 }
 
-// Step 2: Confirm payment (authorize the card)
-async function confirmPayment(clientSecret, cardElement) {
-  const stripe = initStripe();
+// Step 2: Confirm payment with card element (authorizes the card)
+async function confirmEscrowPayment(clientSecret, cardElement) {
+  const stripe = await initStripe();
+  if (!stripe) {
+    throw new Error('Stripe not initialized');
+  }
   
   const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
     payment_method: {
@@ -122,23 +130,94 @@ async function confirmPayment(clientSecret, cardElement) {
   return paymentIntent;
 }
 
-// Step 3: Capture payment (when work is confirmed complete)
-async function capturePayment(paymentIntentId) {
-  // This should call your backend API
-  const response = await fetch('/api/payments/capture', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      payment_intent_id: paymentIntentId
-    })
+// Step 2b: Confirm payment with Payment Element (for modern checkout)
+async function confirmEscrowPaymentElement(clientSecret, elements, returnUrl) {
+  const stripe = await initStripe();
+  if (!stripe) {
+    throw new Error('Stripe not initialized');
+  }
+  
+  const { error, paymentIntent } = await stripe.confirmPayment({
+    elements,
+    confirmParams: {
+      return_url: returnUrl || window.location.href
+    },
+    redirect: 'if_required'
   });
   
-  return response.json();
+  if (error) {
+    throw new Error(error.message);
+  }
+  
+  return paymentIntent;
 }
 
-// Step 4: Cancel payment (refund/dispute)
+// Step 3: Mark payment as held in database after card is authorized
+async function confirmEscrowHeld(packageId) {
+  const response = await fetch(`/api/escrow/confirm/${packageId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to confirm escrow');
+  }
+  return data;
+}
+
+// Step 4: Release payment to provider (when work is confirmed complete)
+async function releaseEscrowPayment(packageId) {
+  const response = await fetch(`/api/escrow/release/${packageId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to release payment');
+  }
+  return data;
+}
+
+// Step 5: Refund/cancel escrow payment
+async function refundEscrowPayment(packageId, reason) {
+  const response = await fetch(`/api/escrow/refund/${packageId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason })
+  });
+  
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to refund payment');
+  }
+  return data;
+}
+
+// Get escrow status for a package
+async function getEscrowStatus(packageId) {
+  const response = await fetch(`/api/escrow/status/${packageId}`);
+  
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to get escrow status');
+  }
+  return data;
+}
+
+// Legacy compatibility functions
+async function confirmPayment(clientSecret, cardElement) {
+  return confirmEscrowPayment(clientSecret, cardElement);
+}
+
+async function capturePayment(paymentIntentId) {
+  console.warn('capturePayment is deprecated, use releaseEscrowPayment(packageId) instead');
+  return { error: 'Use releaseEscrowPayment(packageId) instead' };
+}
+
 async function cancelPayment(paymentIntentId, reason) {
-  // This should call your backend API
+  console.warn('cancelPayment is deprecated, use refundEscrowPayment(packageId, reason) instead');
   const response = await fetch('/api/payments/cancel', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -8177,6 +8177,709 @@ async function handleAdminProcessFounderPayout(req, res, requestId) {
   });
 }
 
+// =====================================================
+// ESCROW PAYMENT SYSTEM
+// Handles hold/release of payments for marketplace bids
+// =====================================================
+
+async function handleEscrowCreate(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  
+  req.on('end', async () => {
+    try {
+      const { package_id, bid_id } = JSON.parse(body);
+      
+      if (!package_id || !bid_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'package_id and bid_id are required' }));
+        return;
+      }
+      
+      if (!isValidUUID(package_id) || !isValidUUID(bid_id)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid package_id or bid_id format' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+      
+      // Verify package exists, belongs to user, and is in correct status
+      const { data: pkg, error: pkgError } = await supabase
+        .from('maintenance_packages')
+        .select('id, member_id, status, escrow_payment_intent_id, accepted_bid_id')
+        .eq('id', package_id)
+        .single();
+      
+      if (pkgError || !pkg) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package not found' }));
+        return;
+      }
+      
+      if (pkg.member_id !== user.id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not authorized to pay for this package' }));
+        return;
+      }
+      
+      // Verify package status allows payment creation
+      if (!['open', 'accepted'].includes(pkg.status)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Cannot create payment for package in ${pkg.status} status` }));
+        return;
+      }
+      
+      // Idempotency: if payment already initiated, return existing intent
+      if (pkg.escrow_payment_intent_id) {
+        const stripe = await getStripeClient();
+        if (!stripe) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Payment system not configured' }));
+          return;
+        }
+        try {
+          const existingIntent = await stripe.paymentIntents.retrieve(pkg.escrow_payment_intent_id);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: true, 
+            clientSecret: existingIntent.client_secret,
+            paymentIntentId: existingIntent.id,
+            amountCents: existingIntent.amount,
+            existing: true
+          }));
+          return;
+        } catch (stripeErr) {
+          // PaymentIntent may have been cancelled/expired, clear it to allow recreation
+          console.log(`[${requestId}] Existing PaymentIntent not found/invalid, clearing for recreation`);
+          await supabase.from('maintenance_packages')
+            .update({ escrow_payment_intent_id: null })
+            .eq('id', package_id);
+          // Continue to create new intent below
+        }
+      }
+      
+      // Get bid details including provider's Stripe account - SERVER-SIDE PRICE AUTHORITY
+      const { data: bid, error: bidError } = await supabase
+        .from('bids')
+        .select(`
+          id,
+          provider_id,
+          price,
+          status,
+          profiles!bids_provider_id_fkey(stripe_account_id, full_name)
+        `)
+        .eq('id', bid_id)
+        .eq('package_id', package_id)
+        .single();
+      
+      if (bidError || !bid) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Bid not found for this package' }));
+        return;
+      }
+      
+      // Verify bid is accepted (if status tracking exists)
+      if (bid.status && bid.status !== 'accepted') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Only accepted bids can be paid' }));
+        return;
+      }
+      
+      const providerStripeAccount = bid.profiles?.stripe_account_id;
+      
+      // SERVER-SIDE AMOUNT: Use bid.price as source of truth (not client amount)
+      const amountCents = Math.round(parseFloat(bid.price) * 100);
+      if (amountCents < 50) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Bid amount must be at least $0.50' }));
+        return;
+      }
+      
+      // Calculate platform fee (10%)
+      const platformFeeCents = Math.round(amountCents * 0.10);
+      const providerAmountCents = amountCents - platformFeeCents;
+      
+      const stripe = await getStripeClient();
+      if (!stripe) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Payment system not configured' }));
+        return;
+      }
+      
+      // Create PaymentIntent with manual capture (escrow)
+      const paymentIntentParams = {
+        amount: amountCents,
+        currency: 'usd',
+        capture_method: 'manual', // Key for escrow - holds funds without capturing
+        metadata: {
+          package_id: package_id,
+          bid_id: bid_id,
+          member_id: user.id,
+          provider_id: bid.provider_id,
+          platform_fee_cents: platformFeeCents.toString(),
+          provider_amount_cents: providerAmountCents.toString(),
+          type: 'marketplace_escrow'
+        },
+        description: `Escrow for service package ${package_id}`
+      };
+      
+      // If provider has connected Stripe account, use destination charges with application fee
+      if (providerStripeAccount) {
+        // Use application_fee_amount for proper platform fee collection
+        paymentIntentParams.application_fee_amount = platformFeeCents;
+        paymentIntentParams.transfer_data = {
+          destination: providerStripeAccount
+        };
+        // Note: With application_fee_amount, the platform keeps the fee and 
+        // the rest automatically goes to the destination account on capture
+      }
+      
+      const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
+      
+      // Update package with payment intent ID and accepted bid
+      await supabase
+        .from('maintenance_packages')
+        .update({
+          escrow_payment_intent_id: paymentIntent.id,
+          escrow_amount: bid.price,
+          accepted_bid_id: bid_id,
+          status: 'accepted',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', package_id);
+      
+      // Update bid status to accepted
+      await supabase
+        .from('bids')
+        .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+        .eq('id', bid_id);
+      
+      console.log(`[${requestId}] Created escrow PaymentIntent ${paymentIntent.id} for package ${package_id}, amount: $${bid.price}`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        clientSecret: paymentIntent.client_secret,
+        paymentIntentId: paymentIntent.id,
+        amountCents,
+        platformFeeCents,
+        providerAmountCents,
+        hasConnectedAccount: !!providerStripeAccount
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Escrow create error:`, error);
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: safeMsg }));
+    }
+  });
+}
+
+async function handleEscrowConfirm(req, res, requestId, packageId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(packageId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid package ID' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    // Verify package and payment intent
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('id, member_id, status, escrow_payment_intent_id, escrow_amount, accepted_bid_id')
+      .eq('id', packageId)
+      .single();
+    
+    if (pkgError || !pkg) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package not found' }));
+      return;
+    }
+    
+    if (pkg.member_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized' }));
+      return;
+    }
+    
+    // Idempotency: if already payment_held, return success
+    if (pkg.status === 'payment_held') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, status: 'payment_held', already_confirmed: true }));
+      return;
+    }
+    
+    // Verify package is in correct status (must be 'accepted')
+    if (pkg.status !== 'accepted') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Cannot confirm payment for package in ${pkg.status} status` }));
+      return;
+    }
+    
+    if (!pkg.escrow_payment_intent_id) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No payment intent found for this package' }));
+      return;
+    }
+    
+    if (!pkg.accepted_bid_id) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No accepted bid found for this package' }));
+      return;
+    }
+    
+    const stripe = await getStripeClient();
+    
+    // Check PaymentIntent status - must be requires_capture (card authorized)
+    const paymentIntent = await stripe.paymentIntents.retrieve(pkg.escrow_payment_intent_id);
+    
+    if (paymentIntent.status !== 'requires_capture') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        error: `Payment is in ${paymentIntent.status} status, expected requires_capture. Card may not be authorized.`,
+        status: paymentIntent.status
+      }));
+      return;
+    }
+    
+    // Get bid details for payment record
+    const { data: bid } = await supabase
+      .from('bids')
+      .select('provider_id, price')
+      .eq('id', pkg.accepted_bid_id)
+      .single();
+    
+    // Calculate fees
+    const amount = parseFloat(pkg.escrow_amount);
+    const platformFee = amount * 0.10;
+    const providerAmount = amount - platformFee;
+    
+    // Check if payment record already exists (idempotency)
+    const { data: existingPayment } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('package_id', packageId)
+      .eq('stripe_payment_intent_id', pkg.escrow_payment_intent_id)
+      .single();
+    
+    // Update package status to payment_held
+    await supabase
+      .from('maintenance_packages')
+      .update({
+        status: 'payment_held',
+        escrow_captured: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', packageId);
+    
+    // Create payment record only if it doesn't exist
+    if (!existingPayment) {
+      await supabase
+        .from('payments')
+        .insert({
+          package_id: packageId,
+          member_id: user.id,
+          provider_id: bid?.provider_id,
+          amount_total: amount,
+          amount_provider: providerAmount,
+          mcc_fee: platformFee,
+          status: 'held',
+          stripe_payment_intent_id: pkg.escrow_payment_intent_id,
+          held_at: new Date().toISOString()
+        });
+    }
+    
+    console.log(`[${requestId}] Escrow confirmed for package ${packageId}, status: payment_held`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      status: 'payment_held',
+      message: 'Payment authorized and held in escrow'
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Escrow confirm error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleEscrowRelease(req, res, requestId, packageId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(packageId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid package ID' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    // Get package with payment details
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select(`
+        id, 
+        member_id, 
+        status,
+        escrow_payment_intent_id, 
+        escrow_amount, 
+        escrow_captured,
+        accepted_bid_id
+      `)
+      .eq('id', packageId)
+      .single();
+    
+    if (pkgError || !pkg) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package not found' }));
+      return;
+    }
+    
+    // Only the member (customer) can release payment
+    if (pkg.member_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Only the customer can release payment' }));
+      return;
+    }
+    
+    // Idempotency: if already released, return success
+    if (pkg.status === 'payment_released' || pkg.escrow_captured) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, status: 'payment_released', already_released: true }));
+      return;
+    }
+    
+    // Verify package is in correct status (must be 'payment_held' or 'in_progress' or 'completed')
+    if (!['payment_held', 'in_progress', 'completed'].includes(pkg.status)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Cannot release payment for package in ${pkg.status} status. Payment must be held first.` }));
+      return;
+    }
+    
+    if (!pkg.escrow_payment_intent_id) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No payment to release' }));
+      return;
+    }
+    
+    const stripe = await getStripeClient();
+    
+    // Retrieve and capture the PaymentIntent
+    const paymentIntent = await stripe.paymentIntents.retrieve(pkg.escrow_payment_intent_id);
+    
+    if (paymentIntent.status !== 'requires_capture') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        error: `Cannot capture payment in ${paymentIntent.status} status`,
+        status: paymentIntent.status
+      }));
+      return;
+    }
+    
+    // Capture the payment (this moves money and triggers transfer if configured)
+    const capturedPayment = await stripe.paymentIntents.capture(pkg.escrow_payment_intent_id);
+    
+    // Update package status
+    await supabase
+      .from('maintenance_packages')
+      .update({
+        status: 'payment_released',
+        escrow_captured: true,
+        work_completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', packageId);
+    
+    // Update payment record
+    await supabase
+      .from('payments')
+      .update({
+        status: 'released',
+        released_at: new Date().toISOString()
+      })
+      .eq('package_id', packageId)
+      .eq('status', 'held');
+    
+    // Notify provider
+    const { data: bid } = await supabase
+      .from('bids')
+      .select('provider_id')
+      .eq('id', pkg.accepted_bid_id)
+      .single();
+    
+    if (bid?.provider_id) {
+      await supabase.from('notifications').insert({
+        user_id: bid.provider_id,
+        type: 'payment_released',
+        title: 'Payment Released! 💰',
+        message: `Payment of $${pkg.escrow_amount} has been released for your completed service.`,
+        entity_type: 'package',
+        entity_id: packageId
+      });
+    }
+    
+    console.log(`[${requestId}] Escrow released for package ${packageId}, captured ${capturedPayment.id}`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      status: 'payment_released',
+      capturedAmount: capturedPayment.amount / 100,
+      message: 'Payment has been released to the service provider'
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Escrow release error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleEscrowRefund(req, res, requestId, packageId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(packageId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid package ID' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  
+  req.on('end', async () => {
+    try {
+      const { reason } = body ? JSON.parse(body) : {};
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+      
+      // Get package details
+      const { data: pkg, error: pkgError } = await supabase
+        .from('maintenance_packages')
+        .select('id, member_id, escrow_payment_intent_id, escrow_amount, escrow_captured, accepted_bid_id')
+        .eq('id', packageId)
+        .single();
+      
+      if (pkgError || !pkg) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package not found' }));
+        return;
+      }
+      
+      // Only the member can request refund
+      if (pkg.member_id !== user.id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not authorized' }));
+        return;
+      }
+      
+      if (!pkg.escrow_payment_intent_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'No payment to refund' }));
+        return;
+      }
+      
+      const stripe = await getStripeClient();
+      const paymentIntent = await stripe.paymentIntents.retrieve(pkg.escrow_payment_intent_id);
+      
+      let refundResult;
+      
+      if (paymentIntent.status === 'requires_capture') {
+        // Payment not captured yet - just cancel it
+        refundResult = await stripe.paymentIntents.cancel(pkg.escrow_payment_intent_id, {
+          cancellation_reason: 'requested_by_customer'
+        });
+      } else if (paymentIntent.status === 'succeeded' && !pkg.escrow_captured) {
+        // Should not happen but handle it
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Payment already processed' }));
+        return;
+      } else {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Cannot refund payment in ${paymentIntent.status} status` }));
+        return;
+      }
+      
+      // Update package
+      await supabase
+        .from('maintenance_packages')
+        .update({
+          status: 'cancelled',
+          escrow_payment_intent_id: null,
+          escrow_amount: null,
+          cancellation_reason: reason || 'Customer requested refund',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', packageId);
+      
+      // Update payment record
+      await supabase
+        .from('payments')
+        .update({
+          status: 'refunded',
+          refunded_at: new Date().toISOString(),
+          refund_reason: reason
+        })
+        .eq('package_id', packageId)
+        .eq('status', 'held');
+      
+      // Notify provider
+      const { data: bid } = await supabase
+        .from('bids')
+        .select('provider_id')
+        .eq('id', pkg.accepted_bid_id)
+        .single();
+      
+      if (bid?.provider_id) {
+        await supabase.from('notifications').insert({
+          user_id: bid.provider_id,
+          type: 'payment_refunded',
+          title: 'Job Cancelled',
+          message: `The customer has cancelled the service and the payment has been refunded.`,
+          entity_type: 'package',
+          entity_id: packageId
+        });
+      }
+      
+      console.log(`[${requestId}] Escrow refunded for package ${packageId}`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        status: 'refunded',
+        message: 'Payment has been cancelled and refunded'
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Escrow refund error:`, error);
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: safeMsg }));
+    }
+  });
+}
+
+async function handleEscrowStatus(req, res, requestId, packageId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(packageId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid package ID' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('id, member_id, status, escrow_payment_intent_id, escrow_amount, escrow_captured')
+      .eq('id', packageId)
+      .single();
+    
+    if (pkgError || !pkg) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package not found' }));
+      return;
+    }
+    
+    let stripeStatus = null;
+    if (pkg.escrow_payment_intent_id) {
+      const stripe = await getStripeClient();
+      const paymentIntent = await stripe.paymentIntents.retrieve(pkg.escrow_payment_intent_id);
+      stripeStatus = paymentIntent.status;
+    }
+    
+    const { data: payment } = await supabase
+      .from('payments')
+      .select('status, held_at, released_at, refunded_at')
+      .eq('package_id', packageId)
+      .single();
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      packageStatus: pkg.status,
+      escrowAmount: pkg.escrow_amount,
+      escrowCaptured: pkg.escrow_captured,
+      stripeStatus,
+      paymentStatus: payment?.status || null,
+      heldAt: payment?.held_at || null,
+      releasedAt: payment?.released_at || null
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Escrow status error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
 async function handleFounderApprovedEmail(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -18220,6 +18923,36 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url.match(/^\/api\/stripe\/connect\/status\/[^/]+$/)) {
     const founderId = req.url.split('/api/stripe/connect/status/')[1]?.split('?')[0];
     handleStripeConnectStatus(req, res, requestId, founderId);
+    return;
+  }
+  
+  // Escrow Payment API Routes
+  if (req.method === 'POST' && req.url === '/api/escrow/create') {
+    handleEscrowCreate(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/escrow\/confirm\/[^/]+$/)) {
+    const packageId = req.url.split('/api/escrow/confirm/')[1]?.split('?')[0];
+    handleEscrowConfirm(req, res, requestId, packageId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/escrow\/release\/[^/]+$/)) {
+    const packageId = req.url.split('/api/escrow/release/')[1]?.split('?')[0];
+    handleEscrowRelease(req, res, requestId, packageId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/escrow\/refund\/[^/]+$/)) {
+    const packageId = req.url.split('/api/escrow/refund/')[1]?.split('?')[0];
+    handleEscrowRefund(req, res, requestId, packageId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/escrow\/status\/[^/]+$/)) {
+    const packageId = req.url.split('/api/escrow/status/')[1]?.split('?')[0];
+    handleEscrowStatus(req, res, requestId, packageId);
     return;
   }
   
