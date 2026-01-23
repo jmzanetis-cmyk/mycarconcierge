@@ -49,6 +49,9 @@ Key features include:
 - **Enhanced Service Worker Caching**: Cache-first for static assets, network-first with fallback for APIs, stale-while-revalidate for HTML pages.
 - **Admin Dashboard Lazy Loading**: Sections load data on-demand when clicked, not on initial page load.
 - **Server-Side Pagination**: Admin tables use paginated API endpoints with 25 items per page.
+- **Shared Styles & Utilities**: Centralized CSS (shared-styles.css) and JavaScript utilities (utils.js) reduce code duplication and improve caching.
+- **Image Lazy Loading**: Offscreen images use native lazy loading for faster initial page loads.
+- **CSS Skeleton Loaders**: Smooth loading states for dashboard sections with animated skeleton placeholders.
 
 ## External Dependencies
 - **Supabase**: Backend services (PostgreSQL, authentication, storage).
