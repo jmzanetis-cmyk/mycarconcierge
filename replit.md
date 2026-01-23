@@ -42,6 +42,7 @@ Key features include:
 - **Light/Dark Theme Toggle**: Premium dark mode and a dramatic light mode with smooth transitions and persistent preference.
 - **Vehicle Trim/Version Selector**: Members can select from predefined trim levels (Sport, Turbo, GTI, Mk 7.5, CLA 45, etc.) or type custom versions for accurate vehicle identification.
 - **Admin Dashboard Charts**: Visualizes revenue, user growth, and order statistics using Chart.js.
+- **Escrow Payment System (Stripe Connect)**: Secure marketplace payments using manual capture. Funds are held when member confirms card, then captured and transferred to provider (minus 10% platform fee) when job is marked complete. Features server-side amount validation, status state machine enforcement, and idempotent operations.
 
 ## Performance Optimizations
 - **Lazy-Loaded JS Modules**: Member and provider dashboards split into feature modules loaded on-demand, reducing initial load from ~500KB to ~25KB.
