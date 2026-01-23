@@ -21,7 +21,7 @@ Key features include:
 - **Two-Factor Authentication (2FA)**: SMS-based 2FA using Twilio, with server-side enforcement and rate limiting.
 - **Provider Team Management**: Allows providers to add team members with role-based access.
 - **My Next Car (Car Shopping Tool)**: Enables members to track and compare prospective vehicle purchases with VIN lookup and comparison features.
-- **Dream Car Finder (AI Search)**: AI-powered automated car search with customizable criteria, notifications, and match scoring.
+- **Dream Car Finder (AI Search)**: AI-powered automated car search with customizable criteria (makes, models, trims/versions, body styles, fuel types, colors, features), notifications, and match scoring.
 - **Vehicle Ownership Verification (Google Vision OCR)**: Simplifies verification using OCR for registration documents; includes admin review and referral-based bypass.
 - **Notification Preferences**: Members can control notification delivery (push, email, SMS) for various alerts.
 - **Push Notifications**: Web push notifications for instant alerts across devices.
