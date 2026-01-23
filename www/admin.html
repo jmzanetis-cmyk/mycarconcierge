@@ -1,7 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
   <title>Admin Portal – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#12161c" />
@@ -13,6 +19,11 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Preconnect to external services -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://js.stripe.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="dns-prefetch" href="https://supabase.co">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -48,6 +59,67 @@
       --radius-xl: 24px;
     }
 
+    /* Light Theme */
+    [data-theme="light"] {
+      /* Crisp, clean backgrounds */
+      --bg-deep: #ffffff;
+      --bg-card: rgba(250, 250, 252, 0.98);
+      --bg-elevated: rgba(255, 255, 255, 1);
+      --bg-input: #f0f2f5;
+      /* Bold, readable text */
+      --text-primary: #0d1117;
+      --text-secondary: #2d3748;
+      --text-muted: #5a6272;
+      /* Stronger borders for definition */
+      --border-subtle: rgba(0, 0, 0, 0.1);
+      --border-medium: rgba(0, 0, 0, 0.18);
+      --border-focus: rgba(201, 162, 39, 0.6);
+      /* Richer accents for light mode */
+      --accent-gold: #b8860b;
+      --accent-gold-soft: rgba(184, 134, 11, 0.15);
+      --accent-bronze: #a0522d;
+      --accent-bronze-soft: rgba(160, 82, 45, 0.12);
+      --accent-teal: #0891b2;
+      --accent-teal-soft: rgba(8, 145, 178, 0.12);
+      --accent-blue: #0284c7;
+      --accent-blue-soft: rgba(2, 132, 199, 0.12);
+    }
+
+    /* Light mode sidebar - sleek light panel */
+    [data-theme="light"] .sidebar {
+      background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+      border-right: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    [data-theme="light"] .sidebar-footer {
+      background: linear-gradient(180deg, transparent, rgba(248, 249, 250, 0.9));
+    }
+    [data-theme="light"] .user-info {
+      background: linear-gradient(135deg, rgba(240, 242, 245, 0.9), rgba(255, 255, 255, 0.95));
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    [data-theme="light"] .nav-item:hover {
+      background: rgba(184, 134, 11, 0.08);
+      border-color: rgba(184, 134, 11, 0.15);
+    }
+    [data-theme="light"] .nav-item.active {
+      background: linear-gradient(135deg, rgba(184, 134, 11, 0.12), rgba(184, 134, 11, 0.06));
+      color: #b8860b;
+      border-color: rgba(184, 134, 11, 0.25);
+    }
+
+    /* Light mode cards with subtle shadows */
+    [data-theme="light"] .card,
+    [data-theme="light"] .stat-card,
+    [data-theme="light"] .vehicle-card {
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    [data-theme="light"] .stat-card:hover,
+    [data-theme="light"] .vehicle-card:hover {
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { height: 100vh; font-family: 'Outfit', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); display: flex; overflow: hidden; }
 
@@ -74,6 +146,53 @@
     .nav-badge.orange { background: var(--accent-orange); color: #0a0a0f; }
     .nav-badge.green { background: var(--accent-green); color: #022c22; }
     .sidebar-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+
+    /* Theme transition */
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+    }
+
+    /* Headlight Theme Toggle */
+    .theme-toggle-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      transition: all 0.3s ease;
+    }
+    .theme-toggle-btn:hover {
+      background: var(--accent-gold-soft);
+      border-color: var(--accent-gold);
+      color: var(--accent-gold);
+      transform: scale(1.02);
+      box-shadow: 0 0 20px rgba(201, 162, 39, 0.2);
+    }
+    .theme-icon-dark, .theme-icon-light {
+      font-size: 1.2rem;
+      transition: transform 0.3s ease;
+    }
+    [data-theme="dark"] .theme-icon-light { display: none; }
+    [data-theme="light"] .theme-icon-dark { display: none; }
+    [data-theme="dark"] .theme-toggle-btn:hover .theme-icon-dark {
+      animation: flashlight 0.5s ease;
+    }
+    @keyframes flashlight {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.3); filter: drop-shadow(0 0 8px #ffd700); }
+    }
+    .theme-label { font-weight: 500; }
 
     .main { flex: 1; margin-left: 260px; padding: 32px 40px; height: 100%; overflow-y: auto; }
     .page-header { margin-bottom: 32px; }
@@ -337,6 +456,11 @@
 
     <div class="sidebar-footer">
       <button class="btn btn-secondary" onclick="window.location.href='members.html'" style="width:100%;margin-bottom:8px;padding:12px 16px;">🏠 Member Portal</button>
+      <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle light/dark mode">
+        <span class="theme-icon-dark">🔦</span>
+        <span class="theme-icon-light">🌙</span>
+        <span class="theme-label">Lights</span>
+      </button>
       <button class="btn btn-secondary" onclick="logout()" style="width:100%;padding:14px 20px;font-size:0.95rem;">🚪 Log Out</button>
     </div>
   </aside>
@@ -1948,6 +2072,20 @@
   <script src="admin.js?v=20260122"></script>
   <script src="/pwa-init.js?v=20260122"></script>
   <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      html.classList.add('theme-transition');
+      const current = html.getAttribute('data-theme');
+      const newTheme = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      const metaTheme = document.querySelector('meta[name="theme-color"]');
+      if (metaTheme) {
+        metaTheme.content = newTheme === 'dark' ? '#12161c' : '#ffffff';
+      }
+      setTimeout(() => html.classList.remove('theme-transition'), 300);
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');

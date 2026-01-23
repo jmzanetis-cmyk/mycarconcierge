@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <title>Create Account – My Car Concierge</title>
@@ -8,6 +8,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
@@ -35,6 +41,29 @@
       --radius-md: 12px;
       --radius-lg: 16px;
       --radius-xl: 24px;
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #ffffff;
+      --bg-card: rgba(250, 250, 252, 0.98);
+      --bg-elevated: rgba(255, 255, 255, 1);
+      --bg-input: #f0f2f5;
+      --text-primary: #0d1117;
+      --text-secondary: #2d3748;
+      --text-muted: #5a6272;
+      --border-subtle: rgba(0, 0, 0, 0.1);
+      --border-medium: rgba(0, 0, 0, 0.18);
+      --accent-gold: #b8860b;
+      --accent-gold-soft: rgba(184, 134, 11, 0.15);
+      --accent-teal: #0891b2;
+      --accent-blue: #0284c7;
+    }
+
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -350,6 +379,9 @@
   <script src="/i18n.js"></script>
 </head>
 <body>
+  <button class="theme-toggle-mini" onclick="toggleTheme()" title="Toggle theme" style="position: fixed; top: 20px; right: 20px; z-index: 1000; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 50%; width: 44px; height: 44px; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
+    <span class="theme-icon">🔦</span>
+  </button>
   <div class="ambient-bg"></div>
 
   <div class="signup-container">
@@ -749,7 +781,22 @@
   <script src="/footer.js"></script>
   <script src="/pwa-init.js"></script>
   <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      html.classList.add('theme-transition');
+      const current = html.getAttribute('data-theme');
+      const newTheme = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      const icon = document.querySelector('.theme-icon');
+      if (icon) icon.textContent = newTheme === 'dark' ? '🔦' : '🌙';
+      const metaTheme = document.querySelector('meta[name="theme-color"]');
+      if (metaTheme) metaTheme.content = newTheme === 'dark' ? '#12161c' : '#ffffff';
+      setTimeout(() => html.classList.remove('theme-transition'), 300);
+    }
     document.addEventListener('DOMContentLoaded', async () => {
+      const icon = document.querySelector('.theme-icon');
+      if (icon) icon.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '🔦' : '🌙';
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
       await initializeProviderReferral();

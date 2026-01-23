@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcc-cache-v39';
+const CACHE_NAME = 'mcc-cache-v40';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -37,94 +37,105 @@ const STATIC_ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Caching static assets');
-        return cache.addAll(STATIC_ASSETS);
-      })
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('Caching static assets');
+      return cache.addAll(STATIC_ASSETS);
+    })
   );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => {
-            console.log('Deleting old cache:', name);
-            return caches.delete(name);
-          })
-      );
-    }).then(() => self.clients.claim())
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => {
+        console.log('Deleting old cache:', k);
+        return caches.delete(k);
+      }))
+    )
   );
+  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
-  // Skip external CDN and API requests - let browser handle them directly
-  const url = event.request.url;
-  if (event.request.method !== 'GET' ||
-      url.includes('supabase.co') || 
-      url.includes('stripe.com') ||
-      url.includes('fonts.googleapis.com') ||
-      url.includes('fonts.gstatic.com') ||
-      url.includes('cdn.jsdelivr.net') ||
-      url.includes('unpkg.com') ||
-      url.includes('api.openai.com') ||
-      !url.startsWith(self.location.origin)) {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  if (request.method !== 'GET' || url.origin !== location.origin) return;
+
+  if (url.href.includes('supabase.co') ||
+      url.href.includes('stripe.com') ||
+      url.href.includes('fonts.googleapis.com') ||
+      url.href.includes('fonts.gstatic.com') ||
+      url.href.includes('cdn.jsdelivr.net') ||
+      url.href.includes('unpkg.com') ||
+      url.href.includes('api.openai.com')) {
     return;
   }
 
-  // For HTML files, use network-first strategy to always get fresh content
-  if (event.request.destination === 'document' || 
-      event.request.url.endsWith('.html') ||
-      event.request.headers.get('accept')?.includes('text/html')) {
+  if (url.pathname.startsWith('/api/')) {
     event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME)
-              .then((cache) => cache.put(event.request, responseToCache));
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           }
-          return networkResponse;
+          return response;
         })
-        .catch(() => {
-          return caches.match(event.request)
-            .then((cachedResponse) => {
-              if (cachedResponse) {
-                return cachedResponse;
-              }
-              return caches.match('/index.html');
-            });
-        })
+        .catch(() => caches.match(request))
     );
     return;
   }
 
-  // For other assets, use stale-while-revalidate
-  event.respondWith(
-    caches.match(event.request)
-      .then((cachedResponse) => {
-        const fetchPromise = fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200 && networkResponse.type !== 'opaque') {
-              try {
-                const responseToCache = networkResponse.clone();
-                caches.open(CACHE_NAME)
-                  .then((cache) => cache.put(event.request, responseToCache))
-                  .catch(() => {}); // Ignore cache errors
-              } catch (e) {
-                // Ignore clone errors
-              }
-            }
-            return networkResponse;
-          })
-          .catch(() => cachedResponse);
-
-        return cachedResponse || fetchPromise;
+  if (request.destination === 'image' || request.destination === 'font' ||
+      url.pathname.endsWith('.js') || url.pathname.endsWith('.css') ||
+      url.pathname.endsWith('.png') || url.pathname.endsWith('.jpg') ||
+      url.pathname.endsWith('.webp') || url.pathname.endsWith('.woff2')) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        });
       })
+    );
+    return;
+  }
+
+  if (request.destination === 'document' ||
+      url.pathname.endsWith('.html') ||
+      request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        const fetchPromise = fetch(request).then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        }).catch(() => cached);
+        return cached || fetchPromise;
+      })
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      const fetchPromise = fetch(request).then((response) => {
+        if (response && response.status === 200 && response.type !== 'opaque') {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+        }
+        return response;
+      }).catch(() => cached);
+      return cached || fetchPromise;
+    })
   );
 });
 
@@ -136,7 +147,7 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('push', (event) => {
   let data = { title: 'My Car Concierge', body: 'You have a new notification' };
-  
+
   try {
     if (event.data) {
       data = event.data.json();
@@ -144,7 +155,7 @@ self.addEventListener('push', (event) => {
   } catch (e) {
     console.log('Push data parse error:', e);
   }
-  
+
   const options = {
     body: data.body || 'You have a new notification',
     icon: '/icons/icon-192.png',
@@ -156,7 +167,7 @@ self.addEventListener('push', (event) => {
     },
     actions: data.actions || []
   };
-  
+
   event.waitUntil(
     self.registration.showNotification(data.title || 'My Car Concierge', options)
   );
@@ -164,9 +175,9 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  
+
   const url = event.notification.data?.url || '/members.html';
-  
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
