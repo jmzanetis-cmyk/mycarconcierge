@@ -2185,6 +2185,11 @@
       document.getElementById(id).classList.add('active');
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       document.querySelector(`.nav-item[data-section="${id}"]`)?.classList.add('active');
+      
+      if (id === 'merch-manager') {
+        loadDesignLibrary();
+        loadMerchPreferences();
+      }
     }
 
     function navigateToSection(id) {
@@ -4884,6 +4889,120 @@
     let selectedSizes = new Set();
     let productVariantsMap = {};
 
+    // ========== MERCH PREFERENCES ==========
+    const MERCH_PREFS_KEY = 'merch_manager_preferences';
+
+    function loadMerchPreferences() {
+      try {
+        const stored = localStorage.getItem(MERCH_PREFS_KEY);
+        if (stored) {
+          const prefs = JSON.parse(stored);
+          if (prefs.defaultPrice !== undefined) {
+            document.getElementById('merch-pref-price').value = prefs.defaultPrice;
+          }
+          if (prefs.priceMarkup !== undefined) {
+            document.getElementById('merch-pref-markup').value = prefs.priceMarkup;
+          }
+          if (prefs.favoriteColors && Array.isArray(prefs.favoriteColors)) {
+            document.querySelectorAll('.merch-color-pref input[type="checkbox"]').forEach(cb => {
+              cb.checked = prefs.favoriteColors.includes(cb.value);
+              updateMerchColorPrefStyle(cb);
+            });
+          }
+        } else {
+          document.querySelectorAll('.merch-color-pref input[type="checkbox"]').forEach(cb => {
+            updateMerchColorPrefStyle(cb);
+          });
+        }
+      } catch (err) {
+        console.error('Error loading merch preferences:', err);
+      }
+    }
+    window.loadMerchPreferences = loadMerchPreferences;
+
+    function saveMerchPreferences() {
+      try {
+        const prefs = {
+          defaultPrice: parseFloat(document.getElementById('merch-pref-price').value) || 29.99,
+          priceMarkup: parseInt(document.getElementById('merch-pref-markup').value) || 50,
+          favoriteColors: []
+        };
+        document.querySelectorAll('.merch-color-pref input[type="checkbox"]:checked').forEach(cb => {
+          prefs.favoriteColors.push(cb.value);
+        });
+        localStorage.setItem(MERCH_PREFS_KEY, JSON.stringify(prefs));
+        showToast('Preferences saved!', 'success');
+      } catch (err) {
+        console.error('Error saving merch preferences:', err);
+        showToast('Failed to save preferences', 'error');
+      }
+    }
+    window.saveMerchPreferences = saveMerchPreferences;
+
+    function getMerchDefaultPrice() {
+      try {
+        const stored = localStorage.getItem(MERCH_PREFS_KEY);
+        if (stored) {
+          const prefs = JSON.parse(stored);
+          if (prefs.defaultPrice !== undefined) {
+            return prefs.defaultPrice;
+          }
+        }
+      } catch (err) {
+        console.error('Error getting merch default price:', err);
+      }
+      return 29.99;
+    }
+    window.getMerchDefaultPrice = getMerchDefaultPrice;
+
+    function getMerchDefaultColors() {
+      try {
+        const stored = localStorage.getItem(MERCH_PREFS_KEY);
+        if (stored) {
+          const prefs = JSON.parse(stored);
+          if (prefs.favoriteColors && Array.isArray(prefs.favoriteColors)) {
+            return prefs.favoriteColors;
+          }
+        }
+      } catch (err) {
+        console.error('Error getting merch default colors:', err);
+      }
+      return ['Black', 'White', 'Navy'];
+    }
+    window.getMerchDefaultColors = getMerchDefaultColors;
+
+    function toggleMerchPreferencesPanel() {
+      const panel = document.getElementById('merch-preferences-panel');
+      const toggle = document.getElementById('merch-prefs-toggle');
+      if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        toggle.style.transform = 'rotate(180deg)';
+      } else {
+        panel.style.display = 'none';
+        toggle.style.transform = 'rotate(0deg)';
+      }
+    }
+    window.toggleMerchPreferencesPanel = toggleMerchPreferencesPanel;
+
+    function updateMerchColorPrefStyle(checkbox) {
+      const label = checkbox.closest('label');
+      if (label) {
+        if (checkbox.checked) {
+          label.style.borderColor = 'var(--accent-gold)';
+          label.style.background = 'var(--accent-gold-soft)';
+        } else {
+          label.style.borderColor = 'transparent';
+          label.style.background = 'var(--bg-input)';
+        }
+      }
+    }
+
+    document.addEventListener('change', (e) => {
+      if (e.target.closest('.merch-color-pref')) {
+        updateMerchColorPrefStyle(e.target);
+      }
+    });
+
     async function getAdminAuthHeader() {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (!session?.access_token) {
@@ -4995,14 +5114,22 @@
         document.getElementById('product-creator-title').textContent = data.product.title;
         document.getElementById('product-creator-image').src = data.product.image;
         document.getElementById('product-creator-name').value = 'MCC ' + data.product.title;
+        document.getElementById('product-creator-price').value = getMerchDefaultPrice();
         
+        const favoriteColors = getMerchDefaultColors();
         const colorsEl = document.getElementById('product-creator-colors');
-        colorsEl.innerHTML = data.product.colors.map(c => `
-          <button type="button" class="color-option" data-color="${c.name}" onclick="toggleColorSelection(this, '${c.name}')" style="padding:8px 14px;border-radius:20px;border:2px solid var(--border-light);background:var(--bg-input);cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.15s;">
+        colorsEl.innerHTML = data.product.colors.map(c => {
+          const isFavorite = favoriteColors.includes(c.name);
+          if (isFavorite) {
+            selectedColors.add(c.name);
+          }
+          return `
+          <button type="button" class="color-option" data-color="${c.name}" onclick="toggleColorSelection(this, '${c.name}')" style="padding:8px 14px;border-radius:20px;border:2px solid ${isFavorite ? 'var(--accent-gold)' : 'var(--border-light)'};background:${isFavorite ? 'var(--accent-gold-soft)' : 'var(--bg-input)'};cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.15s;">
             <span style="width:16px;height:16px;border-radius:50%;background:${c.code || '#888'};border:1px solid rgba(255,255,255,0.2);"></span>
             <span>${c.name}</span>
           </button>
-        `).join('');
+        `;
+        }).join('');
         
         const sizesEl = document.getElementById('product-creator-sizes');
         if (data.product.sizes.length > 0) {
@@ -5024,6 +5151,7 @@
         loadingEl.style.display = 'none';
         formEl.style.display = 'block';
         updateVariantCount();
+        renderModalDesignGallery();
       } catch (error) {
         console.error('Error loading product:', error);
         showToast('Error loading product: ' + error.message, 'error');
@@ -5140,8 +5268,84 @@
     function closeProductCreatorModal() {
       document.getElementById('product-creator-modal').style.display = 'none';
       currentCatalogProduct = null;
+      hideMockupPreview();
     }
     window.closeProductCreatorModal = closeProductCreatorModal;
+
+    async function generateMockupPreview() {
+      const designUrl = document.getElementById('product-creator-design').value.trim();
+      const variantIds = getSelectedVariantIds();
+      
+      if (!designUrl) {
+        showToast('Please enter a design URL first', 'error');
+        return;
+      }
+      
+      if (variantIds.length === 0) {
+        showToast('Please select at least one color variant', 'error');
+        return;
+      }
+      
+      if (!currentCatalogProduct) {
+        showToast('Product not loaded', 'error');
+        return;
+      }
+      
+      const previewArea = document.getElementById('mockup-preview-area');
+      const loadingEl = document.getElementById('mockup-preview-loading');
+      const contentEl = document.getElementById('mockup-preview-content');
+      const errorEl = document.getElementById('mockup-preview-error');
+      const btn = document.getElementById('preview-mockup-btn');
+      const btnText = document.getElementById('mockup-btn-text');
+      
+      previewArea.style.display = 'block';
+      loadingEl.style.display = 'block';
+      contentEl.style.display = 'none';
+      errorEl.style.display = 'none';
+      btn.disabled = true;
+      btnText.textContent = '⏳ Loading...';
+      
+      try {
+        const authHeaders = await getAdminAuthHeader();
+        const response = await fetch('/api/admin/printful/mockup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({
+            productId: currentCatalogProduct.id,
+            variantIds: [variantIds[0]],
+            designUrl: designUrl
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to generate mockup');
+        }
+        
+        loadingEl.style.display = 'none';
+        contentEl.style.display = 'block';
+        document.getElementById('mockup-preview-image').src = data.mockupUrl;
+        
+      } catch (error) {
+        console.error('Mockup generation error:', error);
+        loadingEl.style.display = 'none';
+        errorEl.style.display = 'block';
+        document.getElementById('mockup-error-text').textContent = 'Error: ' + error.message;
+      } finally {
+        btn.disabled = false;
+        btnText.textContent = '👁️ Preview';
+      }
+    }
+    window.generateMockupPreview = generateMockupPreview;
+    
+    function hideMockupPreview() {
+      const previewArea = document.getElementById('mockup-preview-area');
+      if (previewArea) {
+        previewArea.style.display = 'none';
+      }
+    }
+    window.hideMockupPreview = hideMockupPreview;
 
     async function refreshStoreProducts() {
       const loadingEl = document.getElementById('store-products-loading');
@@ -5216,3 +5420,497 @@
       }
     }
     window.deleteStoreProduct = deleteStoreProduct;
+
+    // ========== BULK PRODUCT CREATOR ==========
+    const BULK_CATEGORY_DEFAULTS = {
+      24: { name: 'T-Shirt', productId: 71, defaultColors: ['Black', 'White', 'Navy'], defaultSizes: ['S', 'M', 'L', 'XL'] },
+      55: { name: 'Hoodie', productId: 146, defaultColors: ['Black', 'White', 'Navy'], defaultSizes: ['S', 'M', 'L', 'XL'] },
+      60: { name: 'Hat', productId: 206, defaultColors: ['Black', 'White', 'Navy'], defaultSizes: [] },
+      82: { name: 'Mug', productId: 19, defaultColors: ['White'], defaultSizes: [] },
+      57: { name: 'Tank Top', productId: 163, defaultColors: ['Black', 'White'], defaultSizes: ['S', 'M', 'L', 'XL'] },
+      26: { name: 'Long Sleeve', productId: 116, defaultColors: ['Black', 'White', 'Navy'], defaultSizes: ['S', 'M', 'L', 'XL'] },
+      52: { name: 'Sticker', productId: 358, defaultColors: [], defaultSizes: [] },
+      73: { name: 'Phone Case', productId: 274, defaultColors: [], defaultSizes: [] },
+      72: { name: 'Bag', productId: 308, defaultColors: ['Black'], defaultSizes: [] }
+    };
+
+    function openBulkCreatorModal() {
+      const modal = document.getElementById('bulk-product-creator-modal');
+      modal.style.display = 'flex';
+      
+      document.getElementById('bulk-creator-name').value = 'MCC';
+      document.getElementById('bulk-creator-price').value = getMerchDefaultPrice();
+      document.getElementById('bulk-creator-design').value = '';
+      document.getElementById('bulk-creator-progress').style.display = 'none';
+      document.getElementById('bulk-creator-submit').disabled = false;
+      document.getElementById('bulk-creator-submit').textContent = 'Create Products';
+      
+      const checkboxes = document.querySelectorAll('.bulk-category-checkbox');
+      checkboxes.forEach((cb, idx) => {
+        cb.checked = idx < 4;
+        updateCategoryLabelStyle(cb);
+      });
+      
+      updateBulkCategoryCount();
+      renderBulkModalDesignGallery();
+    }
+    window.openBulkCreatorModal = openBulkCreatorModal;
+
+    function closeBulkCreatorModal() {
+      document.getElementById('bulk-product-creator-modal').style.display = 'none';
+    }
+    window.closeBulkCreatorModal = closeBulkCreatorModal;
+
+    function toggleAllCategories(checked) {
+      const checkboxes = document.querySelectorAll('.bulk-category-checkbox');
+      checkboxes.forEach(cb => {
+        cb.checked = checked;
+        updateCategoryLabelStyle(cb);
+      });
+      updateBulkCategoryCount();
+    }
+    window.toggleAllCategories = toggleAllCategories;
+
+    function updateCategoryLabelStyle(checkbox) {
+      const label = checkbox.closest('label');
+      if (label) {
+        if (checkbox.checked) {
+          label.style.borderColor = 'var(--accent-gold)';
+          label.style.background = 'var(--accent-gold-soft)';
+        } else {
+          label.style.borderColor = 'transparent';
+          label.style.background = 'var(--bg-input)';
+        }
+      }
+    }
+
+    function updateBulkCategoryCount() {
+      const checkboxes = document.querySelectorAll('.bulk-category-checkbox:checked');
+      const countEl = document.getElementById('bulk-category-count');
+      if (countEl) {
+        countEl.textContent = checkboxes.length;
+      }
+    }
+
+    document.addEventListener('change', (e) => {
+      if (e.target.classList.contains('bulk-category-checkbox')) {
+        updateCategoryLabelStyle(e.target);
+        updateBulkCategoryCount();
+      }
+    });
+
+    function renderBulkModalDesignGallery() {
+      const galleryEl = document.getElementById('bulk-modal-design-gallery');
+      if (!galleryEl) return;
+      
+      if (designLibrary.length === 0) {
+        galleryEl.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:0.8rem;">No designs uploaded. Upload designs in the Design Library section.</div>';
+        return;
+      }
+      
+      galleryEl.innerHTML = designLibrary.map(design => `
+        <div onclick="selectBulkDesign('${design.url}')" style="width:60px;height:60px;border-radius:var(--radius-sm);overflow:hidden;cursor:pointer;border:2px solid var(--border-subtle);transition:all 0.15s;background:var(--bg-elevated);" onmouseover="this.style.borderColor='var(--accent-gold)';" onmouseout="if(!this.classList.contains('selected'))this.style.borderColor='var(--border-subtle)';">
+          <img src="${design.url}" alt="${design.filename}" style="width:100%;height:100%;object-fit:contain;" loading="lazy">
+        </div>
+      `).join('');
+    }
+
+    function selectBulkDesign(url) {
+      document.getElementById('bulk-creator-design').value = url;
+      
+      const gallery = document.getElementById('bulk-modal-design-gallery');
+      if (gallery) {
+        gallery.querySelectorAll('div').forEach(div => {
+          div.classList.remove('selected');
+          div.style.borderColor = 'var(--border-subtle)';
+        });
+        
+        const selected = gallery.querySelector(`div[onclick*="${url}"]`);
+        if (selected) {
+          selected.classList.add('selected');
+          selected.style.borderColor = 'var(--accent-gold)';
+        }
+      }
+    }
+    window.selectBulkDesign = selectBulkDesign;
+
+    async function submitBulkCreation() {
+      const submitBtn = document.getElementById('bulk-creator-submit');
+      const progressEl = document.getElementById('bulk-creator-progress');
+      const progressBar = document.getElementById('bulk-progress-bar');
+      const progressText = document.getElementById('bulk-progress-text');
+      const progressLog = document.getElementById('bulk-progress-log');
+      
+      const namePrefix = document.getElementById('bulk-creator-name').value.trim();
+      const price = document.getElementById('bulk-creator-price').value;
+      const designUrl = document.getElementById('bulk-creator-design').value.trim();
+      
+      if (!namePrefix) {
+        showToast('Please enter a product name prefix', 'error');
+        return;
+      }
+      
+      const selectedCategories = [];
+      document.querySelectorAll('.bulk-category-checkbox:checked').forEach(cb => {
+        selectedCategories.push({
+          categoryId: parseInt(cb.value),
+          categoryName: cb.dataset.categoryName
+        });
+      });
+      
+      if (selectedCategories.length === 0) {
+        showToast('Please select at least one category', 'error');
+        return;
+      }
+      
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creating...';
+      progressEl.style.display = 'block';
+      progressBar.style.width = '0%';
+      progressText.textContent = `0 / ${selectedCategories.length}`;
+      progressLog.innerHTML = '';
+      
+      const products = [];
+      let completed = 0;
+      
+      for (const cat of selectedCategories) {
+        const config = BULK_CATEGORY_DEFAULTS[cat.categoryId];
+        if (!config) {
+          progressLog.innerHTML += `<div style="color:var(--accent-orange);">⚠️ Unknown category: ${cat.categoryName}</div>`;
+          continue;
+        }
+        
+        progressLog.innerHTML += `<div style="color:var(--text-muted);">📦 Fetching variants for ${cat.categoryName}...</div>`;
+        progressLog.scrollTop = progressLog.scrollHeight;
+        
+        try {
+          const headers = await getAdminAuthHeader();
+          const response = await fetch(`/api/admin/printful/catalog/${config.productId}`, { headers });
+          const data = await response.json();
+          
+          if (!data.success || !data.product) {
+            throw new Error(data.error || 'Failed to load product data');
+          }
+          
+          const variantIds = [];
+          const variants = data.product.variants || [];
+          
+          for (const variant of variants) {
+            const colorMatch = config.defaultColors.length === 0 || 
+                               config.defaultColors.some(c => (variant.color || '').toLowerCase().includes(c.toLowerCase()));
+            const sizeMatch = config.defaultSizes.length === 0 || 
+                              config.defaultSizes.includes(variant.size);
+            
+            if (colorMatch && sizeMatch) {
+              variantIds.push(variant.id);
+            }
+          }
+          
+          if (variantIds.length === 0 && variants.length > 0) {
+            variantIds.push(...variants.slice(0, 5).map(v => v.id));
+          }
+          
+          if (variantIds.length > 0) {
+            products.push({
+              catalogProductId: config.productId,
+              productName: `${namePrefix} ${cat.categoryName}`,
+              variantIds
+            });
+            progressLog.innerHTML += `<div style="color:var(--accent-green);">✓ ${cat.categoryName}: ${variantIds.length} variants</div>`;
+          } else {
+            progressLog.innerHTML += `<div style="color:var(--accent-orange);">⚠️ ${cat.categoryName}: No variants found</div>`;
+          }
+        } catch (error) {
+          progressLog.innerHTML += `<div style="color:var(--accent-red);">✗ ${cat.categoryName}: ${error.message}</div>`;
+        }
+        
+        completed++;
+        progressBar.style.width = `${(completed / selectedCategories.length) * 50}%`;
+        progressLog.scrollTop = progressLog.scrollHeight;
+      }
+      
+      if (products.length === 0) {
+        showToast('No products could be prepared. Check the logs above.', 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create Products';
+        return;
+      }
+      
+      progressLog.innerHTML += `<div style="color:var(--text-primary);font-weight:600;margin-top:8px;">Creating ${products.length} products...</div>`;
+      progressLog.scrollTop = progressLog.scrollHeight;
+      
+      try {
+        const headers = await getAdminAuthHeader();
+        const response = await fetch('/api/admin/printful/products/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({
+            name: namePrefix,
+            designUrl: designUrl || null,
+            retailPrice: price,
+            products
+          })
+        });
+        
+        const data = await response.json();
+        
+        progressBar.style.width = '100%';
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Bulk creation failed');
+        }
+        
+        for (const result of data.results) {
+          if (result.success) {
+            progressLog.innerHTML += `<div style="color:var(--accent-green);">✓ Created: ${result.product.name} (${result.product.variants} variants)</div>`;
+          } else {
+            progressLog.innerHTML += `<div style="color:var(--accent-red);">✗ Failed: ${result.error}</div>`;
+          }
+        }
+        
+        progressLog.scrollTop = progressLog.scrollHeight;
+        progressText.textContent = `${data.summary.succeeded} / ${data.summary.total} succeeded`;
+        
+        showToast(`Bulk creation complete: ${data.summary.succeeded} succeeded, ${data.summary.failed} failed`, 
+                  data.summary.failed > 0 ? 'warning' : 'success');
+        
+        await refreshStoreProducts();
+        
+        submitBtn.textContent = 'Done!';
+        setTimeout(() => {
+          closeBulkCreatorModal();
+        }, 2000);
+      } catch (error) {
+        console.error('Bulk creation error:', error);
+        progressLog.innerHTML += `<div style="color:var(--accent-red);font-weight:600;">✗ Error: ${error.message}</div>`;
+        showToast('Bulk creation failed: ' + error.message, 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Retry';
+      }
+    }
+    window.submitBulkCreation = submitBulkCreation;
+
+    // ========== DESIGN LIBRARY ==========
+    let designLibrary = [];
+
+    async function loadDesignLibrary() {
+      const loadingEl = document.getElementById('design-library-loading');
+      const emptyEl = document.getElementById('design-library-empty');
+      const gridEl = document.getElementById('design-library-grid');
+      
+      if (!loadingEl || !emptyEl || !gridEl) return;
+      
+      loadingEl.style.display = 'block';
+      emptyEl.style.display = 'none';
+      gridEl.style.display = 'none';
+      
+      try {
+        const headers = await getAdminAuthHeader();
+        const response = await fetch('/api/admin/designs', { headers });
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load designs');
+        }
+        
+        designLibrary = data.designs || [];
+        loadingEl.style.display = 'none';
+        
+        if (designLibrary.length === 0) {
+          emptyEl.style.display = 'block';
+          return;
+        }
+        
+        emptyEl.style.display = 'none';
+        gridEl.style.display = 'grid';
+        renderDesignLibrary();
+      } catch (error) {
+        console.error('Error loading designs:', error);
+        showToast('Error loading designs: ' + error.message, 'error');
+        loadingEl.style.display = 'none';
+        emptyEl.style.display = 'block';
+      }
+    }
+    window.loadDesignLibrary = loadDesignLibrary;
+
+    function renderDesignLibrary() {
+      const gridEl = document.getElementById('design-library-grid');
+      if (!gridEl) return;
+      
+      gridEl.innerHTML = designLibrary.map(design => `
+        <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);overflow:hidden;position:relative;">
+          <div style="height:100px;background:var(--bg-input);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:8px;">
+            <img src="${design.url}" alt="${design.filename}" style="max-width:100%;max-height:100%;object-fit:contain;" loading="lazy">
+          </div>
+          <div style="padding:10px;">
+            <div style="font-size:0.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px;" title="${design.filename}">${design.filename}</div>
+            <div style="display:flex;gap:6px;">
+              <button onclick="copyDesignUrl('${design.url}')" style="flex:1;padding:6px;border:none;border-radius:var(--radius-sm);background:var(--accent-blue-soft);color:var(--accent-blue);cursor:pointer;font-size:0.72rem;">📋 Copy URL</button>
+              <button onclick="deleteDesign('${encodeURIComponent(design.filename)}')" style="padding:6px 8px;border:none;border-radius:var(--radius-sm);background:var(--accent-red-soft);color:var(--accent-red);cursor:pointer;font-size:0.72rem;">🗑️</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function uploadDesign(file) {
+      if (!file) return;
+      
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+      if (!allowedTypes.includes(file.type)) {
+        showToast('Invalid file type. Use PNG, JPEG, WebP, or SVG.', 'error');
+        return;
+      }
+      
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('File too large. Max size is 10MB.', 'error');
+        return;
+      }
+      
+      showToast('Uploading design...', 'info');
+      
+      try {
+        const headers = await getAdminAuthHeader();
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('/api/admin/designs/upload', {
+          method: 'POST',
+          headers: headers,
+          body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Upload failed');
+        }
+        
+        showToast('Design uploaded successfully!', 'success');
+        await loadDesignLibrary();
+      } catch (error) {
+        console.error('Upload error:', error);
+        showToast('Upload failed: ' + error.message, 'error');
+      }
+    }
+    window.uploadDesign = uploadDesign;
+
+    async function deleteDesign(encodedFilename) {
+      const filename = decodeURIComponent(encodedFilename);
+      if (!confirm(`Delete design "${filename}"?`)) return;
+      
+      try {
+        const headers = await getAdminAuthHeader();
+        const response = await fetch(`/api/admin/designs/${encodedFilename}`, {
+          method: 'DELETE',
+          headers
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Delete failed');
+        }
+        
+        showToast('Design deleted', 'success');
+        await loadDesignLibrary();
+      } catch (error) {
+        console.error('Delete error:', error);
+        showToast('Delete failed: ' + error.message, 'error');
+      }
+    }
+    window.deleteDesign = deleteDesign;
+
+    function copyDesignUrl(url) {
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('URL copied to clipboard!', 'success');
+      }).catch(err => {
+        console.error('Copy failed:', err);
+        const input = document.createElement('input');
+        input.value = url;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        showToast('URL copied to clipboard!', 'success');
+      });
+    }
+    window.copyDesignUrl = copyDesignUrl;
+
+    function triggerDesignUpload() {
+      document.getElementById('design-upload-input').click();
+    }
+    window.triggerDesignUpload = triggerDesignUpload;
+
+    function handleDesignFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        uploadDesign(file);
+      }
+      event.target.value = '';
+    }
+    window.handleDesignFileSelect = handleDesignFileSelect;
+
+    function handleDesignDragOver(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const dropZone = document.getElementById('design-drop-zone');
+      if (dropZone) {
+        dropZone.style.borderColor = 'var(--accent-gold)';
+        dropZone.style.background = 'var(--accent-gold-soft)';
+      }
+    }
+    window.handleDesignDragOver = handleDesignDragOver;
+
+    function handleDesignDragLeave(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const dropZone = document.getElementById('design-drop-zone');
+      if (dropZone) {
+        dropZone.style.borderColor = 'var(--border-subtle)';
+        dropZone.style.background = 'transparent';
+      }
+    }
+    window.handleDesignDragLeave = handleDesignDragLeave;
+
+    function handleDesignDrop(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const dropZone = document.getElementById('design-drop-zone');
+      if (dropZone) {
+        dropZone.style.borderColor = 'var(--border-subtle)';
+        dropZone.style.background = 'transparent';
+      }
+      
+      const files = event.dataTransfer.files;
+      if (files.length > 0) {
+        uploadDesign(files[0]);
+      }
+    }
+    window.handleDesignDrop = handleDesignDrop;
+
+    function selectDesignForProduct(url) {
+      const designInput = document.getElementById('product-creator-design');
+      if (designInput) {
+        designInput.value = url;
+        showToast('Design selected', 'success');
+      }
+    }
+    window.selectDesignForProduct = selectDesignForProduct;
+
+    function renderModalDesignGallery() {
+      const galleryEl = document.getElementById('modal-design-gallery');
+      if (!galleryEl) return;
+      
+      if (designLibrary.length === 0) {
+        galleryEl.innerHTML = '<p style="color:var(--text-muted);font-size:0.8rem;margin:0;">No designs uploaded yet. Upload designs in the Design Library above.</p>';
+        return;
+      }
+      
+      galleryEl.innerHTML = designLibrary.map(design => `
+        <div onclick="selectDesignForProduct('${design.url}')" style="width:60px;height:60px;border:2px solid var(--border-subtle);border-radius:var(--radius-sm);overflow:hidden;cursor:pointer;transition:all 0.15s;flex-shrink:0;" onmouseover="this.style.borderColor='var(--accent-gold)'" onmouseout="this.style.borderColor='var(--border-subtle)'">
+          <img src="${design.url}" alt="${design.filename}" style="width:100%;height:100%;object-fit:contain;" loading="lazy">
+        </div>
+      `).join('');
+    }
+    window.renderModalDesignGallery = renderModalDesignGallery;

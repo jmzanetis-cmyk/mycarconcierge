@@ -8,6 +8,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 const vision = require('@google-cloud/vision');
+const sharp = require('sharp');
 
 const anthropicClient = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
@@ -824,6 +825,32 @@ const productCache = {
   ttl: 300000 // 5 minutes in milliseconds
 };
 
+// Catalog cache for Printful catalog (30 minute TTL for efficiency)
+const catalogCache = {
+  data: null,
+  timestamp: null,
+  ttl: 1800000 // 30 minutes in milliseconds
+};
+
+function isCatalogCacheValid() {
+  if (!catalogCache.data || !catalogCache.timestamp) {
+    return false;
+  }
+  return (Date.now() - catalogCache.timestamp) < catalogCache.ttl;
+}
+
+function getCachedCatalog() {
+  if (isCatalogCacheValid()) {
+    return catalogCache.data;
+  }
+  return null;
+}
+
+function setCachedCatalog(data) {
+  catalogCache.data = data;
+  catalogCache.timestamp = Date.now();
+}
+
 function isCacheValid() {
   if (!productCache.data || !productCache.timestamp) {
     return false;
@@ -1089,6 +1116,14 @@ async function handlePrintfulCatalog(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
   
+  const cachedData = getCachedCatalog();
+  if (cachedData) {
+    console.log(`[${requestId}] Returning cached catalog (${cachedData.products.length} products)`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, ...cachedData, cached: true }));
+    return;
+  }
+  
   const apiKey = process.env.PRINTFUL_API_KEY;
   if (!apiKey) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -1122,9 +1157,12 @@ async function handlePrintfulCatalog(req, res, requestId) {
       }
     }
     
-    console.log(`[${requestId}] Fetched ${products.length} catalog products`);
+    const catalogData = { products, categories: PRINTFUL_POPULAR_CATEGORIES };
+    setCachedCatalog(catalogData);
+    
+    console.log(`[${requestId}] Fetched and cached ${products.length} catalog products for 30 minutes`);
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, products, categories: PRINTFUL_POPULAR_CATEGORIES }));
+    res.end(JSON.stringify({ success: true, ...catalogData }));
   } catch (error) {
     console.error(`[${requestId}] Printful catalog error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -1277,6 +1315,121 @@ async function handleCreatePrintfulProduct(req, res, requestId) {
   }
 }
 
+async function handleBulkCreatePrintfulProducts(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const apiKey = process.env.PRINTFUL_API_KEY;
+  if (!apiKey) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Printful API key not configured' }));
+    return;
+  }
+  
+  try {
+    const body = await getRequestBody(req);
+    const { name, designUrl, retailPrice, products } = body;
+    
+    if (!name || !products || !Array.isArray(products) || products.length === 0) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Missing required fields: name, products array' }));
+      return;
+    }
+    
+    const results = [];
+    
+    for (const productSpec of products) {
+      const { catalogProductId, variantIds, productName } = productSpec;
+      
+      if (!catalogProductId || !variantIds || !Array.isArray(variantIds) || variantIds.length === 0) {
+        results.push({
+          catalogProductId,
+          success: false,
+          error: 'Missing catalogProductId or variantIds'
+        });
+        continue;
+      }
+      
+      const fileSpec = designUrl ? [{
+        type: 'front',
+        url: designUrl
+      }] : [];
+      
+      const syncVariants = variantIds.map(vid => ({
+        variant_id: vid,
+        retail_price: retailPrice || '29.99',
+        files: fileSpec
+      }));
+      
+      const fullProductName = productName || name;
+      
+      const payload = {
+        sync_product: {
+          name: fullProductName,
+          thumbnail: designUrl || null
+        },
+        sync_variants: syncVariants
+      };
+      
+      try {
+        console.log(`[${requestId}] Creating Printful product:`, fullProductName, `with ${variantIds.length} variants`);
+        
+        const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.result || data.error?.message || `Failed to create product: ${response.status}`);
+        }
+        
+        results.push({
+          catalogProductId,
+          success: true,
+          product: {
+            id: data.result.id,
+            externalId: data.result.external_id,
+            name: data.result.name,
+            variants: data.result.sync_variants?.length || 0
+          }
+        });
+        
+        console.log(`[${requestId}] Created Printful product: ${data.result.id} - ${fullProductName}`);
+      } catch (error) {
+        console.error(`[${requestId}] Failed to create product ${catalogProductId}:`, error.message);
+        results.push({
+          catalogProductId,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+    
+    clearProductCache();
+    
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
+    
+    console.log(`[${requestId}] Bulk create complete: ${successCount} succeeded, ${failCount} failed`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      results,
+      summary: { total: results.length, succeeded: successCount, failed: failCount }
+    }));
+  } catch (error) {
+    console.error(`[${requestId}] Bulk create Printful products error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+}
+
 async function handleDeletePrintfulProduct(req, res, requestId, productId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -1351,6 +1504,418 @@ async function handleGetPrintfulStoreProducts(req, res, requestId) {
     res.end(JSON.stringify({ success: true, products }));
   } catch (error) {
     console.error(`[${requestId}] Get store products error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+}
+
+// ========== PRINTFUL MOCKUP GENERATOR ==========
+
+async function handlePrintfulMockup(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const apiKey = process.env.PRINTFUL_API_KEY;
+  if (!apiKey) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Printful API key not configured' }));
+    return;
+  }
+  
+  try {
+    const body = await getRequestBody(req);
+    const { productId, variantIds, designUrl } = body;
+    
+    if (!productId || !variantIds || !Array.isArray(variantIds) || variantIds.length === 0 || !designUrl) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Missing required fields: productId, variantIds, designUrl' }));
+      return;
+    }
+    
+    console.log(`[${requestId}] Creating mockup for product ${productId} with variant ${variantIds[0]}`);
+    
+    const mockupPayload = {
+      variant_ids: variantIds.slice(0, 1),
+      format: 'jpg',
+      files: [{
+        placement: 'front',
+        image_url: designUrl,
+        position: {
+          area_width: 1800,
+          area_height: 2400,
+          width: 1200,
+          height: 1200,
+          top: 300,
+          left: 300
+        }
+      }]
+    };
+    
+    const createResponse = await fetch(`${PRINTFUL_API_URL}/mockup-generator/create-task/${productId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(mockupPayload)
+    });
+    
+    const createData = await createResponse.json();
+    
+    if (!createResponse.ok || !createData.result?.task_key) {
+      console.error(`[${requestId}] Mockup create task failed:`, createData);
+      throw new Error(createData.result || createData.error?.message || 'Failed to create mockup task');
+    }
+    
+    const taskKey = createData.result.task_key;
+    console.log(`[${requestId}] Mockup task created: ${taskKey}`);
+    
+    await new Promise(resolve => setTimeout(resolve, 2500));
+    
+    let mockupUrl = null;
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    while (!mockupUrl && attempts < maxAttempts) {
+      attempts++;
+      
+      const resultResponse = await fetch(`${PRINTFUL_API_URL}/mockup-generator/task?task_key=${taskKey}`, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const resultData = await resultResponse.json();
+      
+      if (resultData.result?.status === 'completed' && resultData.result?.mockups?.length > 0) {
+        mockupUrl = resultData.result.mockups[0].mockup_url;
+        console.log(`[${requestId}] Mockup generated: ${mockupUrl}`);
+        break;
+      } else if (resultData.result?.status === 'failed') {
+        throw new Error('Mockup generation failed: ' + (resultData.result.error || 'Unknown error'));
+      }
+      
+      if (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+    }
+    
+    if (!mockupUrl) {
+      throw new Error('Mockup generation timed out');
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      mockupUrl,
+      taskKey
+    }));
+  } catch (error) {
+    console.error(`[${requestId}] Mockup generation error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+}
+
+// ========== DESIGN LIBRARY HANDLERS ==========
+
+const DESIGN_BUCKET_NAME = 'designs';
+let designBucketInitialized = false;
+
+async function ensureDesignBucketExists() {
+  if (designBucketInitialized) return true;
+  
+  const supabase = getSupabaseClient();
+  if (!supabase) return false;
+  
+  try {
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+    
+    if (listError) {
+      console.error('Error listing buckets:', listError);
+      return false;
+    }
+    
+    const bucketExists = buckets.some(b => b.name === DESIGN_BUCKET_NAME);
+    
+    if (!bucketExists) {
+      const { error: createError } = await supabase.storage.createBucket(DESIGN_BUCKET_NAME, {
+        public: true,
+        fileSizeLimit: 10485760
+      });
+      
+      if (createError && !createError.message.includes('already exists')) {
+        console.error('Error creating designs bucket:', createError);
+        return false;
+      }
+      console.log('Created designs storage bucket');
+    }
+    
+    designBucketInitialized = true;
+    return true;
+  } catch (error) {
+    console.error('Error ensuring design bucket:', error);
+    return false;
+  }
+}
+
+function parseMultipartFormData(req) {
+  return new Promise((resolve, reject) => {
+    const contentType = req.headers['content-type'] || '';
+    const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+    
+    if (!boundaryMatch) {
+      reject(new Error('No boundary found in content-type'));
+      return;
+    }
+    
+    const boundary = boundaryMatch[1] || boundaryMatch[2];
+    const chunks = [];
+    let totalSize = 0;
+    const maxSize = 10 * 1024 * 1024;
+    
+    req.on('data', (chunk) => {
+      totalSize += chunk.length;
+      if (totalSize > maxSize) {
+        req.destroy();
+        reject(new Error('File too large (max 10MB)'));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    
+    req.on('end', () => {
+      try {
+        const buffer = Buffer.concat(chunks);
+        const content = buffer.toString('binary');
+        const parts = content.split('--' + boundary);
+        
+        let file = null;
+        let filename = null;
+        let contentType = 'application/octet-stream';
+        
+        for (const part of parts) {
+          if (part.includes('Content-Disposition')) {
+            const filenameMatch = part.match(/filename="([^"]+)"/i);
+            const contentTypeMatch = part.match(/Content-Type:\s*([^\r\n]+)/i);
+            
+            if (filenameMatch) {
+              filename = filenameMatch[1];
+              
+              if (contentTypeMatch) {
+                contentType = contentTypeMatch[1].trim();
+              }
+              
+              const headerEndIndex = part.indexOf('\r\n\r\n');
+              if (headerEndIndex !== -1) {
+                let fileContent = part.substring(headerEndIndex + 4);
+                if (fileContent.endsWith('\r\n')) {
+                  fileContent = fileContent.slice(0, -2);
+                }
+                file = Buffer.from(fileContent, 'binary');
+              }
+              break;
+            }
+          }
+        }
+        
+        if (!file || !filename) {
+          reject(new Error('No file found in upload'));
+          return;
+        }
+        
+        resolve({ file, filename, contentType });
+      } catch (error) {
+        reject(error);
+      }
+    });
+    
+    req.on('error', reject);
+  });
+}
+
+async function handleDesignUpload(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Supabase not configured' }));
+    return;
+  }
+  
+  const bucketReady = await ensureDesignBucketExists();
+  if (!bucketReady) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Failed to initialize storage bucket' }));
+    return;
+  }
+  
+  try {
+    const { file, filename, contentType } = await parseMultipartFormData(req);
+    
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+    if (!allowedTypes.includes(contentType)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Invalid file type. Allowed: PNG, JPEG, WebP, SVG' }));
+      return;
+    }
+    
+    const ext = path.extname(filename).toLowerCase() || '.png';
+    const baseName = path.basename(filename, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const timestamp = Date.now();
+    
+    let processedFile = file;
+    let finalContentType = contentType;
+    let finalExt = ext;
+    
+    if (contentType !== 'image/svg+xml' && contentType !== 'image/png') {
+      try {
+        console.log(`[${requestId}] Converting ${contentType} to PNG for print quality...`);
+        processedFile = await sharp(file)
+          .png({ quality: 100, compressionLevel: 6 })
+          .toBuffer();
+        finalContentType = 'image/png';
+        finalExt = '.png';
+        console.log(`[${requestId}] Image converted to PNG successfully`);
+      } catch (conversionError) {
+        console.error(`[${requestId}] PNG conversion failed, using original:`, conversionError.message);
+      }
+    }
+    
+    const storagePath = `${baseName}_${timestamp}${finalExt}`;
+    
+    const { data, error } = await supabase.storage
+      .from(DESIGN_BUCKET_NAME)
+      .upload(storagePath, processedFile, {
+        contentType: finalContentType,
+        upsert: false
+      });
+    
+    if (error) {
+      console.error(`[${requestId}] Design upload error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: error.message }));
+      return;
+    }
+    
+    const { data: urlData } = supabase.storage
+      .from(DESIGN_BUCKET_NAME)
+      .getPublicUrl(storagePath);
+    
+    console.log(`[${requestId}] Design uploaded: ${storagePath}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      design: {
+        filename: storagePath,
+        url: urlData.publicUrl,
+        originalName: filename
+      }
+    }));
+  } catch (error) {
+    console.error(`[${requestId}] Design upload error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+}
+
+async function handleDesignList(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Supabase not configured' }));
+    return;
+  }
+  
+  const bucketReady = await ensureDesignBucketExists();
+  if (!bucketReady) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Failed to initialize storage bucket' }));
+    return;
+  }
+  
+  try {
+    const { data: files, error } = await supabase.storage
+      .from(DESIGN_BUCKET_NAME)
+      .list('', {
+        limit: 100,
+        sortBy: { column: 'created_at', order: 'desc' }
+      });
+    
+    if (error) {
+      console.error(`[${requestId}] Design list error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: error.message }));
+      return;
+    }
+    
+    const designs = (files || [])
+      .filter(f => f.name && !f.name.startsWith('.'))
+      .map(f => {
+        const { data: urlData } = supabase.storage
+          .from(DESIGN_BUCKET_NAME)
+          .getPublicUrl(f.name);
+        
+        return {
+          filename: f.name,
+          url: urlData.publicUrl,
+          size: f.metadata?.size || 0,
+          createdAt: f.created_at
+        };
+      });
+    
+    console.log(`[${requestId}] Listed ${designs.length} designs`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, designs }));
+  } catch (error) {
+    console.error(`[${requestId}] Design list error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+}
+
+async function handleDesignDelete(req, res, requestId, filename) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Supabase not configured' }));
+    return;
+  }
+  
+  if (!filename) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Filename required' }));
+    return;
+  }
+  
+  try {
+    const decodedFilename = decodeURIComponent(filename);
+    
+    const { error } = await supabase.storage
+      .from(DESIGN_BUCKET_NAME)
+      .remove([decodedFilename]);
+    
+    if (error) {
+      console.error(`[${requestId}] Design delete error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: error.message }));
+      return;
+    }
+    
+    console.log(`[${requestId}] Design deleted: ${decodedFilename}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+  } catch (error) {
+    console.error(`[${requestId}] Design delete error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: false, error: error.message }));
   }
@@ -17313,6 +17878,11 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  if (req.method === 'POST' && req.url === '/api/admin/printful/products/bulk') {
+    requireAuth(handleBulkCreatePrintfulProducts, 'admin')(req, res, requestId);
+    return;
+  }
+  
   if (req.method === 'DELETE' && req.url.startsWith('/api/admin/printful/products/')) {
     const productId = req.url.split('/api/admin/printful/products/')[1]?.split('?')[0];
     requireAuth((req, res, requestId) => handleDeletePrintfulProduct(req, res, requestId, productId), 'admin')(req, res, requestId);
@@ -17321,6 +17891,28 @@ const server = http.createServer((req, res) => {
   
   if (req.method === 'GET' && req.url === '/api/admin/printful/store-products') {
     requireAuth(handleGetPrintfulStoreProducts, 'admin')(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/admin/printful/mockup') {
+    requireAuth(handlePrintfulMockup, 'admin')(req, res, requestId);
+    return;
+  }
+  
+  // Design Library Admin API Endpoints
+  if (req.method === 'POST' && req.url === '/api/admin/designs/upload') {
+    requireAuth(handleDesignUpload, 'admin')(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url === '/api/admin/designs') {
+    requireAuth(handleDesignList, 'admin')(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'DELETE' && req.url.startsWith('/api/admin/designs/')) {
+    const filename = req.url.split('/api/admin/designs/')[1]?.split('?')[0];
+    requireAuth((req, res, requestId) => handleDesignDelete(req, res, requestId, filename), 'admin')(req, res, requestId);
     return;
   }
   
