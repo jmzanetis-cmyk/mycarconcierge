@@ -14490,7 +14490,7 @@
         return;
       }
       
-      const stripeKey = window.STRIPE_PUBLIC_KEY || 'pk_test_placeholder';
+      const stripeKey = window.STRIPE_PUBLIC_KEY || 'pk_live_51Sa0fg0V5HwfygbhAapjgXWedMWajevRvx0DNz26w21kVEMCM7zvldoRytCaKy2vArn3duePaywnaQ32V620qK71ze0VbG9NvSH';
       const stripe = Stripe(stripeKey);
       const elements = stripe.elements({
         clientSecret: posState.paymentIntentClientSecret,
@@ -14525,7 +14525,7 @@
       try {
         if (!posState.stripeElements) throw new Error('Payment not initialized');
         
-        const stripeKey = window.STRIPE_PUBLIC_KEY || 'pk_test_placeholder';
+        const stripeKey = window.STRIPE_PUBLIC_KEY || 'pk_live_51Sa0fg0V5HwfygbhAapjgXWedMWajevRvx0DNz26w21kVEMCM7zvldoRytCaKy2vArn3duePaywnaQ32V620qK71ze0VbG9NvSH';
         const stripe = Stripe(stripeKey);
         
         const { error, paymentIntent } = await stripe.confirmPayment({
