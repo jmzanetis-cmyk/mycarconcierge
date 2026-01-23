@@ -54,6 +54,8 @@ Key features include:
 - **Server-Side Pagination**: Admin tables (providers, members, packages) use paginated API endpoints with 25 items per page, server-side search and filtering.
 - **Consolidated Chat Widgets**: AI chat and helpdesk widgets share a common ChatWidgetBase class (www/chat-widget-base.js) reducing code duplication by ~70%.
 - **Configurable URLs**: Site URLs loaded from /api/config endpoint and SITE_URL environment variable via www/mcc-config.js for easy environment switching.
+- **Preconnect Hints**: Early connection establishment for external APIs (Supabase, Stripe, CDN) to reduce latency.
+- **Enhanced Service Worker Caching**: Cache-first for static assets, network-first with fallback for APIs, stale-while-revalidate for HTML pages.
 
 ## Business Features
 - **Provider Loyalty Referral System**: Comprehensive provider-driven referral program with three QR code types:
@@ -77,7 +79,7 @@ Key features include:
 - **SMS Appointment Reminders**: Text members 24 hours before scheduled service. Runs hourly. Migration file: `appointment_reminders_migration.sql`.
 
 ## UX Features
-- **Theme Toggle**: Light/dark mode preference saved to localStorage. Sun/moon toggle in sidebar.
+- **Light/Dark Theme Toggle**: Dramatic light mode with bold contrast (crisp whites, deep bronze/gold #b8860b, punchy teal #0891b2) and premium dark mode. Headlight-style toggle (🔦/🌙) in sidebar for dashboards, fixed button on public pages. Preference saved to localStorage with flash-free theme initialization. Smooth CSS transitions and meta theme-color updates for mobile browsers.
 - **Admin Dashboard Charts**: Revenue, user growth, and order statistics with Chart.js visualizations.
 
 ## External Dependencies
