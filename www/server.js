@@ -4349,6 +4349,291 @@ async function handle2faStatus(req, res, requestId) {
   }
 }
 
+// Admin endpoint for paginated providers
+async function handleAdminGetProviders(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+      return;
+    }
+    
+    const urlObj = new URL(req.url, `http://${req.headers.host}`);
+    const page = parseInt(urlObj.searchParams.get('page')) || 1;
+    const limit = Math.min(parseInt(urlObj.searchParams.get('limit')) || 25, 100);
+    const search = urlObj.searchParams.get('search') || '';
+    const filter = urlObj.searchParams.get('filter') || 'all';
+    
+    const offset = (page - 1) * limit;
+    
+    let query = supabase
+      .from('profiles')
+      .select('*, provider_stats(*)', { count: 'exact' })
+      .eq('role', 'provider')
+      .eq('application_status', 'approved');
+    
+    if (search) {
+      query = query.or(`full_name.ilike.%${search}%,business_name.ilike.%${search}%,email.ilike.%${search}%`);
+    }
+    
+    if (filter === 'active') {
+      query = query.is('suspension_reason', null);
+    } else if (filter === 'suspended') {
+      query = query.not('suspension_reason', 'is', null);
+    } else if (filter === 'founding') {
+      query = query.eq('is_founding_provider', true);
+    }
+    
+    const { data, count, error } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    
+    if (error) {
+      console.error(`[${requestId}] Admin providers error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch providers' }));
+      return;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      data: data || [],
+      total: count || 0,
+      page,
+      totalPages: Math.ceil((count || 0) / limit)
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Admin providers exception:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  }
+}
+
+// Admin endpoint for paginated members
+async function handleAdminGetMembers(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+      return;
+    }
+    
+    const urlObj = new URL(req.url, `http://${req.headers.host}`);
+    const page = parseInt(urlObj.searchParams.get('page')) || 1;
+    const limit = Math.min(parseInt(urlObj.searchParams.get('limit')) || 25, 100);
+    const search = urlObj.searchParams.get('search') || '';
+    const filter = urlObj.searchParams.get('filter') || 'all';
+    
+    const offset = (page - 1) * limit;
+    
+    let query = supabase
+      .from('profiles')
+      .select('*', { count: 'exact' })
+      .eq('role', 'member');
+    
+    if (search) {
+      query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+    }
+    
+    if (filter === 'individual') {
+      query = query.or('account_type.eq.individual,account_type.is.null');
+    } else if (filter === 'family') {
+      query = query.eq('account_type', 'family');
+    } else if (filter === 'fleet') {
+      query = query.eq('account_type', 'fleet');
+    }
+    
+    const { data, count, error } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    
+    if (error) {
+      console.error(`[${requestId}] Admin members error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch members' }));
+      return;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      data: data || [],
+      total: count || 0,
+      page,
+      totalPages: Math.ceil((count || 0) / limit)
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Admin members exception:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  }
+}
+
+// Admin endpoint for paginated packages
+async function handleAdminGetPackages(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+      return;
+    }
+    
+    const urlObj = new URL(req.url, `http://${req.headers.host}`);
+    const page = parseInt(urlObj.searchParams.get('page')) || 1;
+    const limit = Math.min(parseInt(urlObj.searchParams.get('limit')) || 25, 100);
+    const search = urlObj.searchParams.get('search') || '';
+    const filter = urlObj.searchParams.get('filter') || 'all';
+    
+    const offset = (page - 1) * limit;
+    
+    let query = supabase
+      .from('maintenance_packages')
+      .select('*, member:member_id(full_name, email), vehicles(year, make, model)', { count: 'exact' });
+    
+    if (search) {
+      query = query.or(`title.ilike.%${search}%`);
+    }
+    
+    if (filter && filter !== 'all') {
+      query = query.eq('status', filter);
+    }
+    
+    const { data, count, error } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    
+    if (error) {
+      console.error(`[${requestId}] Admin packages error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch packages' }));
+      return;
+    }
+    
+    // Get bid counts for packages
+    const packageIds = (data || []).map(p => p.id);
+    let bidCounts = {};
+    if (packageIds.length > 0) {
+      const { data: bids } = await supabase
+        .from('bids')
+        .select('package_id')
+        .in('package_id', packageIds);
+      
+      (bids || []).forEach(b => {
+        bidCounts[b.package_id] = (bidCounts[b.package_id] || 0) + 1;
+      });
+    }
+    
+    const enrichedData = (data || []).map(p => ({
+      ...p,
+      bid_count: bidCounts[p.id] || 0
+    }));
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      data: enrichedData,
+      total: count || 0,
+      page,
+      totalPages: Math.ceil((count || 0) / limit)
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Admin packages exception:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+  }
+}
+
 // Admin endpoint to get global 2FA enforcement status
 async function handleAdminGet2faGlobalStatus(req, res, requestId) {
   setSecurityHeaders(res, true);
@@ -17258,6 +17543,19 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  if (req.method === 'GET' && req.url === '/api/config') {
+    const siteUrl = process.env.SITE_URL || 'https://mycarconcierge.com';
+    const config = {
+      siteUrl: siteUrl,
+      siteUrlWww: siteUrl.replace('https://', 'https://www.'),
+      appName: 'My Car Concierge',
+      supportEmail: 'support@mycarconcierge.com'
+    };
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(config));
+    return;
+  }
+  
   if (req.method === 'GET' && req.url.match(/^\/api\/member\/[^/]+\/service-history\/export/)) {
     const rateLimit = applyRateLimit(req, res, 'apiAuth');
     if (!rateLimit.allowed) return;
@@ -17910,6 +18208,22 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url.match(/^\/api\/login-activity\/[^/]+\/report-suspicious$/)) {
     const activityId = req.url.split('/api/login-activity/')[1]?.split('/')[0];
     handleReportSuspiciousLogin(req, res, requestId, activityId);
+    return;
+  }
+  
+  // Paginated admin endpoints
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/providers')) {
+    handleAdminGetProviders(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/members')) {
+    handleAdminGetMembers(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/packages')) {
+    handleAdminGetPackages(req, res, requestId);
     return;
   }
   

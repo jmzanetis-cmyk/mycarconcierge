@@ -143,6 +143,8 @@
     .modal-backdrop.active { display: flex; }
     .modal { background: var(--bg-elevated); border: 1px solid var(--border-medium); border-radius: var(--radius-xl); width: 100%; max-width: 700px; animation: modalIn 0.2s ease; }
     @keyframes modalIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .section-loader { position: relative; z-index: 10; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 24px 28px; border-bottom: 1px solid var(--border-subtle); }
     .modal-title { font-size: 1.15rem; font-weight: 600; }
     .modal-close { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: var(--text-muted); cursor: pointer; border-radius: var(--radius-sm); font-size: 20px; }
@@ -852,7 +854,7 @@
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
           <div class="form-group" style="margin:0;min-width:150px;">
-            <select class="form-input" id="provider-status-filter" onchange="filterProviders()" style="padding:8px 12px;">
+            <select class="form-input" id="provider-status-filter" onchange="filterProvidersApi()" style="padding:8px 12px;">
               <option value="all">All Status</option>
               <option value="active">Active</option>
               <option value="suspended">Suspended</option>
@@ -882,7 +884,7 @@
             </select>
           </div>
           <div class="form-group" style="margin:0;flex:1;min-width:200px;">
-            <input type="text" class="form-input" id="provider-search" placeholder="Search by name or email..." oninput="filterProviders()" style="padding:8px 12px;">
+            <input type="text" class="form-input" id="provider-search" placeholder="Search by name or email..." oninput="searchProviders()" style="padding:8px 12px;">
           </div>
           <button class="btn btn-sm" style="background:var(--accent-red-soft);color:var(--accent-red);border:1px solid rgba(220,53,69,0.3);" onclick="checkLowRatedProviders()">⚠️ Check Low Ratings</button>
         </div>
@@ -906,6 +908,7 @@
             <tr><td colspan="7" class="empty-state">No active providers</td></tr>
           </tbody>
         </table>
+        <div id="providers-pagination"></div>
       </div>
     </section>
 
@@ -983,13 +986,21 @@
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+          <div class="form-group" style="margin:0;flex:1;min-width:200px;">
+            <input type="text" class="form-input" id="package-search" placeholder="Search by package title..." oninput="searchPackages()" style="padding:8px 12px;">
+          </div>
+        </div>
+      </div>
+
       <div class="tabs" id="packages-tabs">
-        <div class="tab active" data-filter="all">All</div>
-        <div class="tab" data-filter="open">Open</div>
-        <div class="tab" data-filter="accepted">Accepted</div>
-        <div class="tab" data-filter="in_progress">In Progress</div>
-        <div class="tab" data-filter="completed">Completed</div>
-        <div class="tab" data-filter="expired">Expired</div>
+        <div class="tab active" data-filter="all" onclick="filterPackagesApi('all')">All</div>
+        <div class="tab" data-filter="open" onclick="filterPackagesApi('open')">Open</div>
+        <div class="tab" data-filter="accepted" onclick="filterPackagesApi('accepted')">Accepted</div>
+        <div class="tab" data-filter="in_progress" onclick="filterPackagesApi('in_progress')">In Progress</div>
+        <div class="tab" data-filter="completed" onclick="filterPackagesApi('completed')">Completed</div>
+        <div class="tab" data-filter="expired" onclick="filterPackagesApi('expired')">Expired</div>
       </div>
 
       <div class="card" style="padding:0;overflow:hidden;">
@@ -1009,6 +1020,7 @@
             <tr><td colspan="7" class="empty-state">Loading packages...</td></tr>
           </tbody>
         </table>
+        <div id="packages-pagination"></div>
       </div>
     </section>
 
@@ -1148,6 +1160,22 @@
         <p class="page-subtitle">View all registered members</p>
       </div>
 
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+          <div class="form-group" style="margin:0;min-width:150px;">
+            <select class="form-input" id="member-type-filter" onchange="filterMembersApi()" style="padding:8px 12px;">
+              <option value="all">All Types</option>
+              <option value="individual">Individual</option>
+              <option value="family">Family</option>
+              <option value="fleet">Fleet</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;flex:1;min-width:200px;">
+            <input type="text" class="form-input" id="member-search" placeholder="Search by name or email..." oninput="searchMembers()" style="padding:8px 12px;">
+          </div>
+        </div>
+      </div>
+
       <div class="card" style="padding:0;overflow:hidden;">
         <table>
           <thead>
@@ -1165,6 +1193,7 @@
             <tr><td colspan="7" class="empty-state">No members</td></tr>
           </tbody>
         </table>
+        <div id="members-pagination"></div>
       </div>
     </section>
 

@@ -50,6 +50,10 @@ Key features include:
 - **Resource Preloading**: Critical JS, CSS, and images preloaded in HTML head for faster initial render
 - **Scheduled Tasks**: Maintenance reminder checks run automatically every 24 hours (configurable via ENABLE_MAINTENANCE_SCHEDULER env var)
 - **Login Activity Cleanup**: Automatically removes login activity entries older than 90 days (runs daily)
+- **Admin Dashboard Lazy Loading**: Sections load data on-demand when clicked, not on initial page load. Uses efficient count queries for dashboard stats.
+- **Server-Side Pagination**: Admin tables (providers, members, packages) use paginated API endpoints with 25 items per page, server-side search and filtering.
+- **Consolidated Chat Widgets**: AI chat and helpdesk widgets share a common ChatWidgetBase class (www/chat-widget-base.js) reducing code duplication by ~70%.
+- **Configurable URLs**: Site URLs loaded from /api/config endpoint and SITE_URL environment variable via www/mcc-config.js for easy environment switching.
 
 ## Business Features
 - **Provider Loyalty Referral System**: Comprehensive provider-driven referral program with three QR code types:

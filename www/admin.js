@@ -19,6 +19,132 @@
       registrations: 'all'
     };
 
+    // ========== PAGINATION STATE ==========
+    const paginationState = {
+      providers: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
+      members: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
+      packages: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' }
+    };
+    
+    // Debounce helper for search functions
+    let searchDebounceTimers = {};
+    function debounceSearch(key, fn, delay = 300) {
+      if (searchDebounceTimers[key]) {
+        clearTimeout(searchDebounceTimers[key]);
+      }
+      searchDebounceTimers[key] = setTimeout(fn, delay);
+    }
+    
+    function renderPaginationControls(state, changePageFn) {
+      const start = state.total === 0 ? 0 : (state.page - 1) * state.limit + 1;
+      const end = Math.min(state.page * state.limit, state.total);
+      
+      return `
+        <div class="pagination-controls" style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-top:1px solid var(--border-subtle);margin-top:16px;">
+          <div style="color:var(--text-secondary);font-size:0.9rem;">
+            Showing ${start}-${end} of ${state.total}
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <button class="btn btn-secondary btn-sm" onclick="${changePageFn}(-1)" ${state.page <= 1 ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
+              ← Previous
+            </button>
+            <span style="color:var(--text-primary);font-size:0.9rem;font-weight:500;">
+              Page ${state.page} of ${state.totalPages || 1}
+            </span>
+            <button class="btn btn-secondary btn-sm" onclick="${changePageFn}(1)" ${state.page >= state.totalPages ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
+              Next →
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    // ========== LAZY LOADING STATE ==========
+    const loadedSections = {
+      dashboard: false,
+      analytics: false,
+      applications: false,
+      providers: false,
+      violations: false,
+      'car-reviews': false,
+      'pilot-applications': false,
+      'member-founders': false,
+      'commission-payouts': false,
+      packages: false,
+      payments: false,
+      disputes: false,
+      'registration-verifications': false,
+      tickets: false,
+      members: false,
+      'user-roles': false,
+      'user-management': false,
+      'merch-manager': false,
+      settings: false
+    };
+
+    const sectionLoaders = {
+      dashboard: async () => { await loadDashboardCharts(); },
+      analytics: async () => { await loadAnalytics(); },
+      applications: async () => { await loadApplications(); },
+      providers: async () => { await loadProviders(); },
+      violations: async () => { await loadViolationReports(); },
+      'car-reviews': async () => { await loadPendingCARs(); },
+      'pilot-applications': async () => { await loadPilotApplications(); },
+      'member-founders': async () => { await loadMemberFounderApplications(); },
+      'commission-payouts': async () => { await loadFounderPayouts(); },
+      packages: async () => { await loadAllPackages(); },
+      payments: async () => { await loadPayments(); },
+      disputes: async () => { await loadDisputes(); },
+      'registration-verifications': async () => { await loadRegistrationVerifications(); },
+      tickets: async () => { await loadTickets(); },
+      members: async () => { await loadMembers(); },
+      'user-roles': async () => { await loadUserRoles(); },
+      'user-management': async () => { await loadUserManagement(); },
+      'merch-manager': async () => { await loadDesignLibrary(); await loadMerchPreferences(); },
+      settings: async () => { await load2faGlobalStatus(); }
+    };
+
+    function showSectionLoading(sectionId) {
+      const section = document.getElementById(sectionId);
+      if (!section) return;
+      let loader = section.querySelector('.section-loader');
+      if (!loader) {
+        loader = document.createElement('div');
+        loader.className = 'section-loader';
+        loader.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px;color:var(--text-muted);">
+            <div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div>
+            <p style="margin-top:16px;">Loading...</p>
+          </div>
+        `;
+        section.insertBefore(loader, section.firstChild);
+      }
+      loader.style.display = 'block';
+    }
+
+    function hideSectionLoading(sectionId) {
+      const section = document.getElementById(sectionId);
+      if (!section) return;
+      const loader = section.querySelector('.section-loader');
+      if (loader) loader.style.display = 'none';
+    }
+
+    async function loadSectionIfNeeded(sectionId) {
+      if (loadedSections[sectionId]) return;
+      const loader = sectionLoaders[sectionId];
+      if (!loader) return;
+      
+      showSectionLoading(sectionId);
+      try {
+        await loader();
+        loadedSections[sectionId] = true;
+      } catch (err) {
+        console.error(`Error loading section ${sectionId}:`, err);
+      } finally {
+        hideSectionLoading(sectionId);
+      }
+    }
+
     // ========== INIT ==========
     let adminPasswordVerified = false;
     let currentModalState = 'loading'; // 'loading', 'login', 'password', 'not-admin'
@@ -259,26 +385,66 @@
 
     async function loadAllData() {
       await Promise.all([
-        loadApplications(),
-        loadProviders(),
-        loadPayments(),
-        loadDisputes(),
-        loadTickets(),
-        loadMembers(),
-        loadUserRoles(),
-        loadAllPackages(),
-        loadViolationReports(),
-        loadAnalytics(),
+        loadDashboardStats(),
         loadDashboardCharts(),
-        loadPilotApplications(),
-        loadMemberFounderApplications(),
-        loadFounderPayouts(),
-        loadUserManagement(),
-        loadPendingCARs(),
-        load2faGlobalStatus(),
-        loadRegistrationVerifications()
+        loadAnalytics()
       ]);
+      loadedSections.dashboard = true;
+      loadedSections.analytics = true;
       updateDashboard();
+    }
+
+    async function loadDashboardStats() {
+      try {
+        const [
+          { count: appCount },
+          { count: providerCount },
+          { count: disputeCount },
+          { count: ticketCount },
+          { count: violationCount },
+          { count: carCount },
+          { count: pilotCount },
+          { count: memberFounderCount },
+          { count: payoutCount },
+          { count: memberCount },
+          { count: registrationCount }
+        ] = await Promise.all([
+          supabaseClient.from('provider_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved'),
+          supabaseClient.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
+          supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open'),
+          supabaseClient.from('violation_reports').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabaseClient.from('completed_activity_reviews').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabaseClient.from('pilot_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabaseClient.from('member_founder_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabaseClient.from('founder_payouts').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'member'),
+          supabaseClient.from('registration_verifications').select('*', { count: 'exact', head: true }).in('status', ['pending', 'manual_review'])
+        ]);
+
+        document.getElementById('app-count').textContent = appCount || 0;
+        document.getElementById('dispute-count').textContent = disputeCount || 0;
+        document.getElementById('ticket-count').textContent = ticketCount || 0;
+        document.getElementById('violation-count').textContent = violationCount || 0;
+        document.getElementById('car-count').textContent = carCount || 0;
+        document.getElementById('pilot-count').textContent = pilotCount || 0;
+        document.getElementById('member-founder-count').textContent = memberFounderCount || 0;
+        document.getElementById('payout-count').textContent = payoutCount || 0;
+        document.getElementById('registration-count').textContent = registrationCount || 0;
+
+        const statApps = document.getElementById('stat-pending-apps');
+        const statProviders = document.getElementById('stat-providers');
+        const statDisputes = document.getElementById('stat-disputes');
+        const statTickets = document.getElementById('stat-tickets');
+        const statMembers = document.getElementById('stat-members');
+        if (statApps) statApps.textContent = appCount || 0;
+        if (statProviders) statProviders.textContent = providerCount || 0;
+        if (statDisputes) statDisputes.textContent = disputeCount || 0;
+        if (statTickets) statTickets.textContent = ticketCount || 0;
+        if (statMembers) statMembers.textContent = memberCount || 0;
+      } catch (err) {
+        console.error('Dashboard stats error:', err);
+      }
     }
 
     // ========== ANALYTICS ==========
@@ -807,10 +973,65 @@
       document.getElementById('app-count').textContent = applications.filter(a => a.status === 'pending').length;
     }
 
-    async function loadProviders() {
-      const { data } = await supabaseClient.from('profiles').select('*, provider_stats(*)').eq('role', 'provider');
-      providers = data || [];
-      renderProviders();
+    async function loadProviders(page = 1) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return;
+      
+      const state = paginationState.providers;
+      state.page = page;
+      
+      const params = new URLSearchParams({
+        page: state.page,
+        limit: state.limit,
+        search: state.search,
+        filter: state.filter
+      });
+      
+      try {
+        const response = await fetch(`/api/admin/providers?${params}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          providers = result.data || [];
+          state.total = result.total;
+          state.totalPages = result.totalPages;
+          renderProviders();
+        } else {
+          console.error('Failed to load providers:', result.error);
+          providers = [];
+          renderProviders();
+        }
+      } catch (err) {
+        console.error('Error loading providers:', err);
+        providers = [];
+        renderProviders();
+      }
+    }
+    
+    function changeProvidersPage(delta) {
+      const state = paginationState.providers;
+      const newPage = state.page + delta;
+      if (newPage >= 1 && newPage <= state.totalPages) {
+        loadProviders(newPage);
+      }
+    }
+    
+    function searchProviders() {
+      debounceSearch('providers', () => {
+        const searchInput = document.getElementById('provider-search');
+        paginationState.providers.search = searchInput?.value || '';
+        paginationState.providers.page = 1;
+        loadProviders(1);
+      });
+    }
+    
+    function filterProvidersApi() {
+      const statusFilter = document.getElementById('provider-status-filter')?.value || 'all';
+      paginationState.providers.filter = statusFilter;
+      paginationState.providers.page = 1;
+      loadProviders(1);
     }
 
     // Add suspended_at column if not exists
@@ -836,10 +1057,65 @@
       document.getElementById('ticket-count').textContent = tickets.filter(t => t.status === 'open').length;
     }
 
-    async function loadMembers() {
-      const { data } = await supabaseClient.from('profiles').select('*').eq('role', 'member').order('created_at', { ascending: false });
-      members = data || [];
-      renderMembers();
+    async function loadMembers(page = 1) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return;
+      
+      const state = paginationState.members;
+      state.page = page;
+      
+      const params = new URLSearchParams({
+        page: state.page,
+        limit: state.limit,
+        search: state.search,
+        filter: state.filter
+      });
+      
+      try {
+        const response = await fetch(`/api/admin/members?${params}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          members = result.data || [];
+          state.total = result.total;
+          state.totalPages = result.totalPages;
+          renderMembers();
+        } else {
+          console.error('Failed to load members:', result.error);
+          members = [];
+          renderMembers();
+        }
+      } catch (err) {
+        console.error('Error loading members:', err);
+        members = [];
+        renderMembers();
+      }
+    }
+    
+    function changeMembersPage(delta) {
+      const state = paginationState.members;
+      const newPage = state.page + delta;
+      if (newPage >= 1 && newPage <= state.totalPages) {
+        loadMembers(newPage);
+      }
+    }
+    
+    function searchMembers() {
+      debounceSearch('members', () => {
+        const searchInput = document.getElementById('member-search');
+        paginationState.members.search = searchInput?.value || '';
+        paginationState.members.page = 1;
+        loadMembers(1);
+      });
+    }
+    
+    function filterMembersApi() {
+      const typeFilter = document.getElementById('member-type-filter')?.value || 'all';
+      paginationState.members.filter = typeFilter;
+      paginationState.members.page = 1;
+      loadMembers(1);
     }
 
     // ========== USER ROLES MANAGEMENT ==========
@@ -975,39 +1251,75 @@
     let allPackages = [];
     let currentPackageFilter = 'all';
 
-    async function loadAllPackages() {
-      const { data, error } = await supabaseClient
-        .from('maintenance_packages')
-        .select('*, member:member_id(full_name, email), vehicles(year, make, model)')
-        .order('created_at', { ascending: false });
+    async function loadAllPackages(page = 1) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return;
       
-      if (error) {
-        console.error('Error loading packages:', error);
+      const state = paginationState.packages;
+      state.page = page;
+      
+      const params = new URLSearchParams({
+        page: state.page,
+        limit: state.limit,
+        search: state.search,
+        filter: state.filter
+      });
+      
+      try {
+        const response = await fetch(`/api/admin/packages?${params}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          allPackages = result.data || [];
+          state.total = result.total;
+          state.totalPages = result.totalPages;
+          renderAllPackages();
+          updatePackageStats();
+        } else {
+          console.error('Failed to load packages:', result.error);
+          allPackages = [];
+          renderAllPackages();
+        }
+      } catch (err) {
+        console.error('Error loading packages:', err);
         allPackages = [];
-      } else {
-        allPackages = data || [];
+        renderAllPackages();
       }
-
-      // Load bid counts
-      if (allPackages.length > 0) {
-        const { data: bids } = await supabaseClient
-          .from('bids')
-          .select('package_id');
-        
-        const bidCounts = {};
-        bids?.forEach(b => {
-          bidCounts[b.package_id] = (bidCounts[b.package_id] || 0) + 1;
-        });
-        
-        allPackages.forEach(p => {
-          p.bid_count = bidCounts[p.id] || 0;
-        });
-      }
-
-      renderAllPackages();
-      updatePackageStats();
     }
-
+    
+    function changePackagesPage(delta) {
+      const state = paginationState.packages;
+      const newPage = state.page + delta;
+      if (newPage >= 1 && newPage <= state.totalPages) {
+        loadAllPackages(newPage);
+      }
+    }
+    
+    function searchPackages() {
+      debounceSearch('packages', () => {
+        const searchInput = document.getElementById('package-search');
+        paginationState.packages.search = searchInput?.value || '';
+        paginationState.packages.page = 1;
+        loadAllPackages(1);
+      });
+    }
+    
+    function filterPackagesApi(filter) {
+      paginationState.packages.filter = filter;
+      paginationState.packages.page = 1;
+      currentPackageFilter = filter;
+      
+      // Update tab active state
+      const tabs = document.querySelectorAll('#packages-tabs .tab');
+      tabs.forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.filter === filter);
+      });
+      
+      loadAllPackages(1);
+    }
+    
     function updatePackageStats() {
       const now = new Date();
       document.getElementById('packages-open').textContent = allPackages.filter(p => p.status === 'open' && (!p.bidding_deadline || new Date(p.bidding_deadline) > now)).length;
@@ -1052,57 +1364,126 @@
           </tr>
         `;
       }).join('');
+      
+      // Add pagination controls
+      const paginationContainer = document.getElementById('packages-pagination');
+      if (paginationContainer) {
+        paginationContainer.innerHTML = renderPaginationControls(paginationState.packages, 'changePackagesPage');
+      }
     }
 
     // ========== DASHBOARD ==========
     async function updateDashboard() {
-      document.getElementById('stat-pending-apps').textContent = applications.filter(a => a.status === 'pending').length;
-      document.getElementById('stat-active-providers').textContent = providers.length;
-      
-      const heldPayments = payments.filter(p => p.status === 'held');
-      const heldAmount = heldPayments.reduce((sum, p) => sum + (p.amount_total || 0), 0);
-      document.getElementById('stat-escrow').textContent = '$' + heldAmount.toLocaleString();
-      
-      document.getElementById('stat-open-disputes').textContent = disputes.filter(d => d.status === 'open').length;
-      
-      const releasedPayments = payments.filter(p => p.status === 'released');
-      const revenue = releasedPayments.reduce((sum, p) => sum + (p.amount_mcc_fee || 0), 0);
-      document.getElementById('stat-revenue').textContent = '$' + revenue.toLocaleString();
-      
-      document.getElementById('stat-packages').textContent = allPackages.filter(p => ['open', 'accepted', 'in_progress'].includes(p.status)).length;
+      try {
+        const [
+          { count: pendingAppsCount },
+          { count: activeProvidersCount },
+          { data: heldPaymentsData },
+          { count: openDisputesCount },
+          { data: releasedPaymentsData },
+          { count: activePackagesCount },
+          { count: openTicketsCount }
+        ] = await Promise.all([
+          supabaseClient.from('provider_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved'),
+          supabaseClient.from('payments').select('amount_total').eq('status', 'held'),
+          supabaseClient.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
+          supabaseClient.from('payments').select('amount_mcc_fee').eq('status', 'released'),
+          supabaseClient.from('maintenance_packages').select('*', { count: 'exact', head: true }).in('status', ['open', 'accepted', 'in_progress']),
+          supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open')
+        ]);
 
-      // Update stat card previews
-      updateStatPreviews();
+        document.getElementById('stat-pending-apps').textContent = pendingAppsCount || 0;
+        document.getElementById('stat-active-providers').textContent = activeProvidersCount || 0;
+        
+        const heldAmount = (heldPaymentsData || []).reduce((sum, p) => sum + (p.amount_total || 0), 0);
+        document.getElementById('stat-escrow').textContent = '$' + heldAmount.toLocaleString();
+        
+        document.getElementById('stat-open-disputes').textContent = openDisputesCount || 0;
+        
+        const revenue = (releasedPaymentsData || []).reduce((sum, p) => sum + (p.amount_mcc_fee || 0), 0);
+        document.getElementById('stat-revenue').textContent = '$' + revenue.toLocaleString();
+        
+        document.getElementById('stat-packages').textContent = activePackagesCount || 0;
 
-      // Attention items
-      const attentionItems = [];
-      const pendingApps = applications.filter(a => a.status === 'pending').length;
-      const openDisputes = disputes.filter(d => d.status === 'open').length;
-      const openTickets = tickets.filter(t => t.status === 'open').length;
-      
-      if (pendingApps > 0) attentionItems.push({ icon: '📋', text: `${pendingApps} provider application(s) awaiting review`, section: 'applications' });
-      if (openDisputes > 0) attentionItems.push({ icon: '⚠️', text: `${openDisputes} dispute(s) need resolution`, section: 'disputes' });
-      if (openTickets > 0) attentionItems.push({ icon: '🎫', text: `${openTickets} support ticket(s) awaiting response`, section: 'tickets' });
+        const attentionItems = [];
+        if (pendingAppsCount > 0) attentionItems.push({ icon: '📋', text: `${pendingAppsCount} provider application(s) awaiting review`, section: 'applications' });
+        if (openDisputesCount > 0) attentionItems.push({ icon: '⚠️', text: `${openDisputesCount} dispute(s) need resolution`, section: 'disputes' });
+        if (openTicketsCount > 0) attentionItems.push({ icon: '🎫', text: `${openTicketsCount} support ticket(s) awaiting response`, section: 'tickets' });
 
-      const container = document.getElementById('attention-items');
-      if (attentionItems.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><p>All caught up!</p></div>';
-      } else {
-        container.innerHTML = attentionItems.map(item => `
-          <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--bg-elevated);border-radius:var(--radius-md);margin-bottom:8px;cursor:pointer;" onclick="showSection('${item.section}')">
-            <span style="font-size:24px;">${item.icon}</span>
-            <span>${item.text}</span>
-            <span style="margin-left:auto;color:var(--accent-blue);">View →</span>
+        const container = document.getElementById('attention-items');
+        if (attentionItems.length === 0) {
+          container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><p>All caught up!</p></div>';
+        } else {
+          container.innerHTML = attentionItems.map(item => `
+            <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--bg-elevated);border-radius:var(--radius-md);margin-bottom:8px;cursor:pointer;" onclick="showSection('${item.section}')">
+              <span style="font-size:24px;">${item.icon}</span>
+              <span>${item.text}</span>
+              <span style="margin-left:auto;color:var(--accent-blue);">View →</span>
+            </div>
+          `).join('');
+        }
+
+        await loadRecentActivityLazy();
+        await loadQuickStats();
+      } catch (err) {
+        console.error('Dashboard update error:', err);
+      }
+    }
+
+    async function loadRecentActivityLazy() {
+      try {
+        const [
+          { data: recentPayments },
+          { data: recentApps },
+          { data: recentDisputes }
+        ] = await Promise.all([
+          supabaseClient.from('payments').select('status, amount_total, created_at').order('created_at', { ascending: false }).limit(5),
+          supabaseClient.from('provider_applications').select('business_name, created_at').order('created_at', { ascending: false }).limit(3),
+          supabaseClient.from('disputes').select('status, created_at, maintenance_packages(title)').order('created_at', { ascending: false }).limit(3)
+        ]);
+
+        const activities = [];
+        (recentPayments || []).forEach(p => {
+          activities.push({
+            icon: p.status === 'released' ? '💰' : p.status === 'held' ? '🔒' : '💳',
+            text: `${p.status === 'released' ? 'Payment released' : p.status === 'held' ? 'Payment held in escrow' : 'Payment'} - $${p.amount_total?.toFixed(2) || 0}`,
+            time: p.created_at,
+            type: 'payment'
+          });
+        });
+        (recentApps || []).forEach(a => {
+          activities.push({ icon: '📋', text: `New provider application: ${a.business_name}`, time: a.created_at, type: 'application' });
+        });
+        (recentDisputes || []).forEach(d => {
+          activities.push({ icon: '⚠️', text: `Dispute ${d.status}: ${d.maintenance_packages?.title || 'Package'}`, time: d.created_at, type: 'dispute' });
+        });
+
+        activities.sort((a, b) => new Date(b.time) - new Date(a.time));
+        const container = document.getElementById('recent-activity-feed');
+        if (activities.length === 0) {
+          container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><p>No recent activity</p></div>';
+          return;
+        }
+        container.innerHTML = activities.slice(0, 8).map(a => `
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
+            <span style="font-size:18px;">${a.icon}</span>
+            <div style="flex:1;">
+              <div style="font-size:0.9rem;">${a.text}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">${formatTimeAgo(a.time)}</div>
+            </div>
           </div>
         `).join('');
+      } catch (err) {
+        console.error('Recent activity error:', err);
       }
-
-      // Load recent activity and quick stats
-      await loadRecentActivity();
-      await loadQuickStats();
     }
 
     function updateStatPreviews() {
+      // NOTE: This function is not currently called from anywhere.
+      // It uses global arrays which would be empty during lazy loading.
+      // If previews are needed in the future, this should be refactored to
+      // fetch its own data like loadRecentActivityLazy() does.
       // Preview for pending applications
       const pendingApps = applications.filter(a => a.status === 'pending').slice(0, 3);
       const appsPreview = document.getElementById('preview-pending-apps');
@@ -1170,62 +1551,6 @@
       } else {
         packagesPreview.classList.remove('has-data');
       }
-    }
-
-    async function loadRecentActivity() {
-      const activities = [];
-      
-      // Get recent payments
-      const recentPayments = payments.slice(0, 5);
-      recentPayments.forEach(p => {
-        activities.push({
-          icon: p.status === 'released' ? '💰' : p.status === 'held' ? '🔒' : '💳',
-          text: `${p.status === 'released' ? 'Payment released' : p.status === 'held' ? 'Payment held in escrow' : 'Payment'} - $${p.amount_total?.toFixed(2) || 0}`,
-          time: p.created_at,
-          type: 'payment'
-        });
-      });
-
-      // Get recent applications
-      const recentApps = applications.slice(0, 3);
-      recentApps.forEach(a => {
-        activities.push({
-          icon: '📋',
-          text: `New provider application: ${a.business_name}`,
-          time: a.created_at,
-          type: 'application'
-        });
-      });
-
-      // Get recent disputes
-      const recentDisputes = disputes.slice(0, 3);
-      recentDisputes.forEach(d => {
-        activities.push({
-          icon: '⚠️',
-          text: `Dispute ${d.status}: ${d.maintenance_packages?.title || 'Package'}`,
-          time: d.created_at,
-          type: 'dispute'
-        });
-      });
-
-      // Sort by time
-      activities.sort((a, b) => new Date(b.time) - new Date(a.time));
-
-      const container = document.getElementById('recent-activity-feed');
-      if (activities.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><p>No recent activity</p></div>';
-        return;
-      }
-
-      container.innerHTML = activities.slice(0, 8).map(a => `
-        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
-          <span style="font-size:18px;">${a.icon}</span>
-          <div style="flex:1;">
-            <div style="font-size:0.9rem;">${a.text}</div>
-            <div style="font-size:0.78rem;color:var(--text-muted);">${formatTimeAgo(a.time)}</div>
-          </div>
-        </div>
-      `).join('');
     }
 
     async function loadQuickStats() {
@@ -1355,6 +1680,12 @@
       }).join('');
       
       updateBulkBar();
+      
+      // Add pagination controls
+      const paginationContainer = document.getElementById('providers-pagination');
+      if (paginationContainer) {
+        paginationContainer.innerHTML = renderPaginationControls(paginationState.providers, 'changeProvidersPage');
+      }
     }
 
     function filterProvidersData() {
@@ -1716,6 +2047,11 @@
       const tbody = document.getElementById('members-table');
       if (!members.length) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No members</td></tr>';
+        // Still show pagination if there's state
+        const paginationContainer = document.getElementById('members-pagination');
+        if (paginationContainer) {
+          paginationContainer.innerHTML = renderPaginationControls(paginationState.members, 'changeMembersPage');
+        }
         return;
       }
 
@@ -1730,6 +2066,12 @@
           <td><button class="btn btn-secondary btn-sm" onclick="viewMember('${m.id}')">View</button></td>
         </tr>
       `).join('');
+      
+      // Add pagination controls
+      const paginationContainer = document.getElementById('members-pagination');
+      if (paginationContainer) {
+        paginationContainer.innerHTML = renderPaginationControls(paginationState.members, 'changeMembersPage');
+      }
     }
 
     // ========== APPLICATION REVIEW ==========
@@ -2180,16 +2522,13 @@
       });
     }
 
-    function showSection(id) {
+    async function showSection(id) {
       document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
       document.getElementById(id).classList.add('active');
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       document.querySelector(`.nav-item[data-section="${id}"]`)?.classList.add('active');
       
-      if (id === 'merch-manager') {
-        loadDesignLibrary();
-        loadMerchPreferences();
-      }
+      await loadSectionIfNeeded(id);
     }
 
     function navigateToSection(id) {
