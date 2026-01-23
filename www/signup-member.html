@@ -676,6 +676,12 @@
         return;
       }
 
+      if (!smsConsent) {
+        showMessage('Please accept the SMS Communications Consent to create your account', 'error');
+        document.getElementById('sms-consent').focus();
+        return;
+      }
+
       setLoading(true);
       showMessage('Creating your account...', 'info');
 

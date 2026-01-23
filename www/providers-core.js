@@ -765,4 +765,9 @@ async function logout() {
   window.location.href = 'login.html';
 }
 
+function switchToMember() {
+  localStorage.setItem('mcc_portal', 'member');
+  window.location.href = 'members.html';
+}
+
 console.log('providers-core.js loaded');
