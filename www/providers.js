@@ -187,7 +187,8 @@
         loadNotifications(),
         loadPerformance(),
         loadPosIntegrationStatus(),
-        loadTeamManagementData()
+        loadTeamManagementData(),
+        loadLoyaltyNetwork()
       ]);
       
       updateStats();
@@ -1196,55 +1197,26 @@
 
     async function loadOpenPackages() {
       try {
-        const { data, error } = await supabaseClient.from('maintenance_packages').select('*, vehicles(year, make, model, nickname, vin)').eq('status', 'open').order('created_at', { ascending: false });
-        if (error) {
-          console.error('Error loading packages:', error);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          console.error('No session for loading packages');
+          openPackages = [];
+          renderOpenPackages();
+          renderRecentPackages();
+          return;
+        }
+        
+        const response = await fetch('/api/provider/packages', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Error loading packages:', errorData.error || response.statusText);
           openPackages = [];
         } else {
-          openPackages = data || [];
-          
-          // Load bid stats for each package
-          if (openPackages.length > 0) {
-            const packageIds = openPackages.map(p => p.id);
-            const { data: allBids } = await supabaseClient
-              .from('bids')
-              .select('package_id, price, provider_id')
-              .in('package_id', packageIds)
-              .eq('status', 'pending');
-            
-            // Attach bid stats to each package
-            openPackages.forEach(p => {
-              const packageBids = allBids?.filter(b => b.package_id === p.id) || [];
-              p._bidCount = packageBids.length;
-              p._lowestBid = packageBids.length > 0 ? Math.min(...packageBids.map(b => b.price)) : null;
-              p._myBid = packageBids.find(b => b.provider_id === currentUser?.id);
-            });
-            
-            // Fetch destination service data for destination_service packages or packages with transport option
-            const destServicePackages = openPackages.filter(p => 
-              p.category === 'destination_service' || 
-              p.is_destination_service === true || 
-              p.pickup_preference === 'destination_service'
-            );
-            if (destServicePackages.length > 0) {
-              const destPackageIds = destServicePackages.map(p => p.id);
-              const { data: destServices } = await supabaseClient
-                .from('destination_services')
-                .select('*')
-                .in('package_id', destPackageIds);
-              
-              if (destServices) {
-                openPackages.forEach(p => {
-                  const isDestService = p.category === 'destination_service' || 
-                    p.is_destination_service === true || 
-                    p.pickup_preference === 'destination_service';
-                  if (isDestService) {
-                    p._destinationService = destServices.find(ds => ds.package_id === p.id);
-                  }
-                });
-              }
-            }
-          }
+          const result = await response.json();
+          openPackages = result.packages || [];
         }
         
         // Show location warning if provider hasn't set their ZIP
@@ -1466,6 +1438,19 @@
       const myCurrentBid = p._myBid || myBids.find(b => b.package_id === p.id);
       const vinDisplay = vehicle?.vin ? `<span title="${vehicle.vin}">🔖 VIN: ...${vehicle.vin.slice(-6)}</span>` : '';
       
+      // Member loyalty badges
+      const member = p.member || {};
+      let memberBadgesHtml = '';
+      if (member.platform_fee_exempt) {
+        memberBadgesHtml += '<span class="member-badge vip">👑 VIP</span>';
+      }
+      if (member.provider_verified) {
+        memberBadgesHtml += '<span class="member-badge trusted">✓ Trusted</span>';
+      }
+      if (member.referred_by_provider_id === currentUser?.id) {
+        memberBadgesHtml += '<span class="member-badge loyal">⭐ Loyal Customer</span>';
+      }
+      
       // Location display
       const locationDisplay = p.member_city && p.member_state 
         ? `${p.member_city}, ${p.member_state}` 
@@ -1541,16 +1526,51 @@
         destinationBadgeHtml = '<span class="package-badge" style="background:var(--accent-blue-soft);color:var(--accent-blue);">🚗 Transport Service</span>';
       }
 
+      // Private job indicator
+      let privateJobHtml = '';
+      if (p._isPrivateJob) {
+        privateJobHtml = `
+          <div class="private-job-banner" style="margin-bottom:12px;padding:12px 16px;background:linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(168, 85, 247, 0.1));border:1px solid rgba(139, 92, 246, 0.5);border-radius:var(--radius-md);display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.3rem;">🔒</span>
+            <div>
+              <div style="font-weight:600;color:#a78bfa;font-size:0.95rem;">Private Request</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary);">This customer sent this request directly to you. No competitive bidding required.</div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Exclusive opportunity indicator
+      let exclusiveOpportunityHtml = '';
+      if (p._isExclusiveOpportunity && p._exclusiveTimeRemaining && !p._isPrivateJob) {
+        const hoursRemaining = Math.ceil(p._exclusiveTimeRemaining / (1000 * 60 * 60));
+        const minutesRemaining = Math.ceil((p._exclusiveTimeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+        const timeText = hoursRemaining > 0 ? `${hoursRemaining}h ${minutesRemaining}m` : `${minutesRemaining}m`;
+        exclusiveOpportunityHtml = `
+          <div class="exclusive-opportunity-banner" style="margin-bottom:12px;padding:12px 16px;background:linear-gradient(135deg, var(--accent-gold-soft), var(--accent-bronze-soft));border:1px solid var(--accent-gold);border-radius:var(--radius-md);display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.3rem;">⭐</span>
+            <div>
+              <div style="font-weight:600;color:var(--accent-gold);font-size:0.95rem;">Exclusive Bid Opportunity</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary);">You have exclusive access for <strong style="color:var(--accent-gold);">${timeText}</strong> remaining</div>
+            </div>
+          </div>
+        `;
+      }
+
       return `
         <div class="package-card">
+          ${privateJobHtml}
+          ${exclusiveOpportunityHtml}
           <div class="package-header">
             <div>
-              <div class="package-title">${p.title}</div>
+              <div class="package-title">${p.title}${memberBadgesHtml ? `<span class="member-badges">${memberBadgesHtml}</span>` : ''}</div>
               <div class="package-vehicle">${vehicleName}</div>
             </div>
             <div style="text-align:right;">
               ${destinationBadgeHtml}
               ${isRecurring ? '<span class="package-badge recurring">Recurring</span>' : ''}
+              ${p._isPrivateJob ? '<span class="package-badge" style="background:rgba(139, 92, 246, 0.15);color:#a78bfa;border:1px solid rgba(139, 92, 246, 0.5);">🔒 Private Request</span>' : ''}
+              ${p._isExclusiveOpportunity && !p._isPrivateJob ? '<span class="package-badge" style="background:var(--accent-gold-soft);color:var(--accent-gold);border:1px solid var(--accent-gold);">⭐ Exclusive</span>' : ''}
               <span class="package-badge open">Open</span>
               ${countdownHtml}
             </div>
@@ -1565,19 +1585,25 @@
             <span>🚗 ${formatPickup(p.pickup_preference)}</span>
             ${vinDisplay}
           </div>
-          ${competitionHtml}
+          ${p._isPrivateJob ? '' : competitionHtml}
           ${p.description ? `<div class="package-description">${p.description.slice(0, 200)}${p.description.length > 200 ? '...' : ''}</div>` : ''}
           <div class="package-footer">
             <button class="btn btn-secondary btn-sm" onclick="viewPackageDetails('${p.id}')">View Details</button>
-            ${showBidButton && !biddingExpired ? `
-              ${alreadyBid ? `
-                <span style="color:var(--accent-green);font-size:0.85rem;margin-right:8px;">✓ Your bid: $${myCurrentBid?.price || '?'}</span>
-                <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replace(/'/g, "\\'")}', ${myCurrentBid?.price || 0})">Update Bid</button>
-              ` : `
-                <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replace(/'/g, "\\'")}')">Submit Bid</button>
-              `}
-            ` : ''}
-            ${biddingExpired && !alreadyBid ? '<span style="color:var(--text-muted);font-size:0.85rem;">Bidding closed</span>' : ''}
+            ${p._isPrivateJob ? `
+              <button class="btn btn-primary btn-sm" onclick="acceptPrivateJob('${p.id}')" style="background:linear-gradient(135deg, #8b5cf6, #a855f7);">
+                ⚡ Accept Job
+              </button>
+            ` : `
+              ${showBidButton && !biddingExpired ? `
+                ${alreadyBid ? `
+                  <span style="color:var(--accent-green);font-size:0.85rem;margin-right:8px;">✓ Your bid: $${myCurrentBid?.price || '?'}</span>
+                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replace(/'/g, "\\'")}', ${myCurrentBid?.price || 0})">Update Bid</button>
+                ` : `
+                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replace(/'/g, "\\'")}')">Submit Bid</button>
+                `}
+              ` : ''}
+              ${biddingExpired && !alreadyBid ? '<span style="color:var(--text-muted);font-size:0.85rem;">Bidding closed</span>' : ''}
+            `}
           </div>
         </div>
       `;
@@ -3080,6 +3106,15 @@
 
       document.getElementById('package-details-title').textContent = pkg.title;
       document.getElementById('package-details-body').innerHTML = `
+        ${pkg._isPrivateJob ? `
+          <div style="margin-bottom:20px;padding:16px;background:linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(168, 85, 247, 0.1));border:1px solid rgba(139, 92, 246, 0.5);border-radius:var(--radius-md);display:flex;align-items:center;gap:12px;">
+            <span style="font-size:1.5rem;">🔒</span>
+            <div>
+              <div style="font-weight:600;color:#a78bfa;font-size:1rem;">Private Request</div>
+              <div style="font-size:0.9rem;color:var(--text-secondary);">This customer sent this request directly to you. No competitive bidding - accept directly!</div>
+            </div>
+          </div>
+        ` : ''}
         <div style="margin-bottom:20px;">
           <div class="package-meta">
             <span>🚗 ${vehicleName}</span>
@@ -3139,10 +3174,70 @@
           </div>
         ` : ''}
         <div style="display:flex;gap:12px;margin-top:24px;">
-          ${!myBids.some(b => b.package_id === packageId) ? `<button class="btn btn-primary" onclick="closeModal('package-details-modal');openBidModal('${packageId}', '${pkg.title.replace(/'/g, "\\'")}')">Submit Bid</button>` : '<span style="color:var(--accent-green);">✓ You\'ve already bid on this package</span>'}
+          ${pkg._isPrivateJob ? `
+            <button class="btn btn-primary" onclick="closeModal('package-details-modal');acceptPrivateJob('${packageId}')" style="background:linear-gradient(135deg, #8b5cf6, #a855f7);">
+              ⚡ Accept Private Job
+            </button>
+          ` : `
+            ${!myBids.some(b => b.package_id === packageId) ? `<button class="btn btn-primary" onclick="closeModal('package-details-modal');openBidModal('${packageId}', '${pkg.title.replace(/'/g, "\\'")}')">Submit Bid</button>` : '<span style="color:var(--accent-green);">✓ You\'ve already bid on this package</span>'}
+          `}
         </div>
       `;
       document.getElementById('package-details-modal').classList.add('active');
+    }
+
+    async function acceptPrivateJob(packageId) {
+      if (!confirm('Accept this private job request? This will assign the job directly to you.')) {
+        return;
+      }
+      
+      try {
+        const pkg = openPackages.find(p => p.id === packageId);
+        if (!pkg || !pkg._isPrivateJob) {
+          showToast('This job is not a private request', 'error');
+          return;
+        }
+        
+        // Create a bid record marked as accepted (to track the job)
+        const { data: bidData, error: bidError } = await supabaseClient.from('bids').insert({
+          package_id: packageId,
+          provider_id: currentUser.id,
+          price: 0, // Price to be discussed directly with customer
+          notes: 'Private job - accepted directly without bidding',
+          status: 'accepted'
+        }).select().single();
+        
+        if (bidError) {
+          console.error('Error creating bid for private job:', bidError);
+          showToast('Failed to accept job: ' + (bidError.message || 'Unknown error'), 'error');
+          return;
+        }
+        
+        // Update package status to in_progress
+        const { error: pkgError } = await supabaseClient
+          .from('maintenance_packages')
+          .update({ 
+            status: 'in_progress',
+            accepted_bid_id: bidData.id
+          })
+          .eq('id', packageId);
+        
+        if (pkgError) {
+          console.error('Error updating package status:', pkgError);
+          showToast('Failed to update job status: ' + (pkgError.message || 'Unknown error'), 'error');
+          return;
+        }
+        
+        showToast('Private job accepted! Contact the customer to discuss details.', 'success');
+        
+        // Reload data
+        await Promise.all([loadOpenPackages(), loadMyBids()]);
+        updateStats();
+        
+      } catch (err) {
+        console.error('Accept private job error:', err);
+        showToast('An error occurred. Please try again.', 'error');
+      }
     }
 
     let isUpdatingBid = false;
@@ -8080,6 +8175,7 @@
           document.getElementById('provider-pending-balance').textContent = formatReferralCurrency(providerFounderProfile.pending_balance || 0);
           
           generateProviderQRCode();
+          loadReferralCodes();
           
           loadingEl.style.display = 'none';
           contentEl.style.display = 'block';
@@ -8269,6 +8365,330 @@
       setTimeout(() => {
         toast.style.display = 'none';
       }, 3000);
+    }
+
+    // ========== LOYALTY NETWORK SECTION ==========
+    let loyaltyNetworkData = {
+      referrals: [],
+      stats: { loyal_customers: 0, new_members: 0, providers: 0, total: 0 }
+    };
+
+    async function loadLoyaltyNetwork() {
+      const loadingEl = document.getElementById('loyalty-loading');
+      const contentEl = document.getElementById('loyalty-content');
+      
+      if (loadingEl) loadingEl.style.display = 'block';
+      if (contentEl) contentEl.style.display = 'none';
+      
+      try {
+        if (!currentUser) {
+          console.log('No user for loyalty network');
+          return;
+        }
+
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          console.log('No session for loyalty network');
+          return;
+        }
+
+        const response = await fetch(`/api/provider/${currentUser.id}/referrals`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to load loyalty network data');
+        }
+        
+        const data = await response.json();
+        loyaltyNetworkData = {
+          referrals: data.referrals || [],
+          stats: data.stats || { loyal_customers: 0, new_members: 0, providers: 0, total: 0 }
+        };
+        
+        renderLoyaltyStats();
+        renderLoyaltyReferralsList();
+        updateLoyaltyQRUsage();
+        updateLoyaltyBadge();
+        
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (contentEl) contentEl.style.display = 'block';
+        
+      } catch (error) {
+        console.error('Error loading loyalty network:', error);
+        if (loadingEl) {
+          loadingEl.innerHTML = '<p style="color:var(--text-muted);">Unable to load loyalty network. <button onclick="loadLoyaltyNetwork()" class="btn btn-secondary btn-sm" style="margin-left:8px;">Retry</button></p>';
+        }
+      }
+    }
+
+    function renderLoyaltyStats() {
+      const stats = loyaltyNetworkData.stats;
+      
+      const loyalCustomersEl = document.getElementById('loyalty-loyal-customers');
+      const newMembersEl = document.getElementById('loyalty-new-members');
+      const providersEl = document.getElementById('loyalty-providers');
+      const totalEl = document.getElementById('loyalty-total');
+      
+      if (loyalCustomersEl) loyalCustomersEl.textContent = stats.loyal_customers || 0;
+      if (newMembersEl) newMembersEl.textContent = stats.new_members || 0;
+      if (providersEl) providersEl.textContent = stats.providers || 0;
+      if (totalEl) totalEl.textContent = stats.total || 0;
+    }
+
+    function renderLoyaltyReferralsList() {
+      const listEl = document.getElementById('loyalty-referrals-list');
+      if (!listEl) return;
+      
+      const referrals = loyaltyNetworkData.referrals;
+      
+      if (!referrals || referrals.length === 0) {
+        listEl.innerHTML = `
+          <div class="empty-state" style="padding:32px;text-align:center;">
+            <div style="font-size:2rem;margin-bottom:12px;">👥</div>
+            <p style="color:var(--text-muted);">No referrals yet. Share your QR codes to grow your network!</p>
+            <button onclick="showSection('refer-providers')" class="btn btn-primary" style="margin-top:16px;">🔗 Get Your QR Codes</button>
+          </div>
+        `;
+        return;
+      }
+      
+      const html = referrals.slice(0, 20).map(referral => {
+        const referralType = referral.referral_type || 'new_member';
+        const typeClass = referralType.replace('_', '-');
+        const userName = referral.referred_user?.full_name || referral.referred_user?.email?.split('@')[0] || 'Unknown';
+        const userInitial = userName[0]?.toUpperCase() || '?';
+        const signupDate = referral.referred_user?.created_at || referral.created_at;
+        const formattedDate = signupDate ? new Date(signupDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
+        
+        let badgeText = 'New Member';
+        let badgeIcon = '🌟';
+        if (referralType === 'loyal_customer') {
+          badgeText = 'Loyal Customer';
+          badgeIcon = '👑';
+        } else if (referralType === 'provider') {
+          badgeText = 'Provider';
+          badgeIcon = '🔧';
+        }
+        
+        return `
+          <div class="loyalty-referral-item">
+            <div class="loyalty-referral-avatar ${typeClass}">${userInitial}</div>
+            <div class="loyalty-referral-info">
+              <div class="loyalty-referral-name">${escapeHtml(userName)}</div>
+              <div class="loyalty-referral-date">Joined ${formattedDate}</div>
+            </div>
+            <span class="referral-type-badge ${typeClass}">${badgeIcon} ${badgeText}</span>
+          </div>
+        `;
+      }).join('');
+      
+      listEl.innerHTML = html;
+    }
+
+    function updateLoyaltyQRUsage() {
+      const referrals = loyaltyNetworkData.referrals;
+      
+      const loyalUses = referrals.filter(r => r.referral_type === 'loyal_customer').length;
+      const memberUses = referrals.filter(r => r.referral_type === 'new_member').length;
+      const providerUses = referrals.filter(r => r.referral_type === 'provider').length;
+      
+      const loyalUsesEl = document.getElementById('qr-loyal-uses');
+      const memberUsesEl = document.getElementById('qr-member-uses');
+      const providerUsesEl = document.getElementById('qr-provider-uses');
+      
+      if (loyalUsesEl) loyalUsesEl.textContent = loyalUses;
+      if (memberUsesEl) memberUsesEl.textContent = memberUses;
+      if (providerUsesEl) providerUsesEl.textContent = providerUses;
+    }
+
+    function updateLoyaltyBadge() {
+      const total = loyaltyNetworkData.stats?.total || 0;
+      const badgeEl = document.getElementById('loyalty-count');
+      
+      if (badgeEl) {
+        if (total > 0) {
+          badgeEl.textContent = total;
+          badgeEl.style.display = 'inline-block';
+        } else {
+          badgeEl.style.display = 'none';
+        }
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ========== REFERRAL CODES SECTION ==========
+    let referralCodesData = {
+      loyalCustomer: { code: '', url: '' },
+      newMember: { code: '', url: '' },
+      referProvider: { code: '', url: '' }
+    };
+
+    async function loadReferralCodes() {
+      const loadingEl = document.getElementById('referral-codes-loading');
+      const gridEl = document.getElementById('referral-codes-grid');
+      
+      if (loadingEl) loadingEl.style.display = 'block';
+      if (gridEl) gridEl.style.opacity = '0.5';
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          showToast('Please log in to view referral codes', 'error');
+          return;
+        }
+
+        const response = await fetch('/api/provider/referral-codes', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to load referral codes');
+        }
+        
+        const data = await response.json();
+        
+        referralCodesData.loyalCustomer = {
+          code: data.loyal_customer?.code || generateReferralCode(),
+          url: data.loyal_customer?.url || `https://mycarconcierge.com/signup-loyal-customer.html?ref=${currentUser?.id}`
+        };
+        referralCodesData.newMember = {
+          code: data.new_member?.code || generateReferralCode(),
+          url: data.new_member?.url || `https://mycarconcierge.com/signup-member.html?ref=${currentUser?.id}`
+        };
+        referralCodesData.referProvider = {
+          code: data.refer_provider?.code || (providerFounderProfile?.referral_code || generateReferralCode()),
+          url: data.refer_provider?.url || `https://mycarconcierge.com/provider-pilot.html?ref=${providerFounderProfile?.referral_code || currentUser?.id}`
+        };
+        
+        generateAllReferralQRCodes();
+        updateReferralCodeDisplays();
+        
+      } catch (error) {
+        console.error('Error loading referral codes:', error);
+        referralCodesData.loyalCustomer = {
+          code: generateReferralCode(),
+          url: `https://mycarconcierge.com/signup-loyal-customer.html?ref=${currentUser?.id}`
+        };
+        referralCodesData.newMember = {
+          code: generateReferralCode(),
+          url: `https://mycarconcierge.com/signup-member.html?ref=${currentUser?.id}`
+        };
+        referralCodesData.referProvider = {
+          code: providerFounderProfile?.referral_code || generateReferralCode(),
+          url: `https://mycarconcierge.com/provider-pilot.html?ref=${providerFounderProfile?.referral_code || currentUser?.id}`
+        };
+        generateAllReferralQRCodes();
+        updateReferralCodeDisplays();
+      } finally {
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (gridEl) gridEl.style.opacity = '1';
+      }
+    }
+
+    function updateReferralCodeDisplays() {
+      const loyalCodeEl = document.getElementById('loyal-customer-code');
+      const newMemberCodeEl = document.getElementById('new-member-code');
+      const referProviderCodeEl = document.getElementById('refer-provider-code');
+      
+      if (loyalCodeEl) loyalCodeEl.textContent = referralCodesData.loyalCustomer.code;
+      if (newMemberCodeEl) newMemberCodeEl.textContent = referralCodesData.newMember.code;
+      if (referProviderCodeEl) referProviderCodeEl.textContent = referralCodesData.referProvider.code;
+    }
+
+    function generateAllReferralQRCodes() {
+      generateSingleReferralQR('loyal-customer-qr', referralCodesData.loyalCustomer.url);
+      generateSingleReferralQR('new-member-qr', referralCodesData.newMember.url);
+      generateSingleReferralQR('refer-provider-qr', referralCodesData.referProvider.url);
+    }
+
+    function generateSingleReferralQR(canvasId, url) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || !url) return;
+
+      try {
+        if (typeof QrCreator !== 'undefined') {
+          QrCreator.render({
+            text: url,
+            radius: 0.4,
+            ecLevel: 'H',
+            fill: '#0a0a0f',
+            background: '#ffffff',
+            size: 150
+          }, canvas);
+        } else {
+          canvas.style.display = 'none';
+          const container = canvas.parentElement;
+          if (container) {
+            container.innerHTML = '<p style="color:var(--text-muted);font-size:0.8rem;padding:20px;">QR unavailable</p>';
+          }
+        }
+      } catch (error) {
+        console.error('Error generating QR code for', canvasId, error);
+      }
+    }
+
+    function downloadReferralQR(type) {
+      let canvasId, filename;
+      switch (type) {
+        case 'loyal-customer':
+          canvasId = 'loyal-customer-qr';
+          filename = `mcc-loyal-customer-${referralCodesData.loyalCustomer.code}.png`;
+          break;
+        case 'new-member':
+          canvasId = 'new-member-qr';
+          filename = `mcc-new-member-${referralCodesData.newMember.code}.png`;
+          break;
+        case 'refer-provider':
+          canvasId = 'refer-provider-qr';
+          filename = `mcc-refer-provider-${referralCodesData.referProvider.code}.png`;
+          break;
+        default:
+          return;
+      }
+
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showReferralToast('QR code downloaded!');
+    }
+
+    function copyReferralLink(type) {
+      let url;
+      switch (type) {
+        case 'loyal-customer':
+          url = referralCodesData.loyalCustomer.url;
+          break;
+        case 'new-member':
+          url = referralCodesData.newMember.url;
+          break;
+        case 'refer-provider':
+          url = referralCodesData.referProvider.url;
+          break;
+        default:
+          return;
+      }
+
+      navigator.clipboard.writeText(url).then(() => {
+        showReferralToast('Link copied to clipboard!');
+      }).catch(() => {
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        showReferralToast('Link copied to clipboard!');
+      });
     }
 
     // ========== WALK-IN POS SYSTEM ==========
@@ -9240,12 +9660,21 @@
           posState.paymentClientSecret = data.clientSecret;
           posState.totalCents = data.totalCents;
           document.getElementById('pos-pay-total').textContent = `$${(data.totalCents / 100).toFixed(2)}`;
-          document.getElementById('pos-pay-breakdown').innerHTML = `
+          let breakdownHtml = `
             <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
               <span>Marketplace Job (Escrow)</span>
               <span>$${(data.totalCents / 100).toFixed(2)}</span>
             </div>
           `;
+          if (data.vipMember && data.vipMessage) {
+            breakdownHtml += `
+              <div style="display:flex;align-items:center;gap:8px;padding:12px;margin-top:12px;background:linear-gradient(135deg,rgba(201,162,39,0.15),rgba(201,162,39,0.05));border:1px solid rgba(201,162,39,0.3);border-radius:8px;color:#c9a227;">
+                <span style="font-size:1.2rem;">👑</span>
+                <span style="font-weight:600;">${data.vipMessage}</span>
+              </div>
+            `;
+          }
+          document.getElementById('pos-pay-breakdown').innerHTML = breakdownHtml;
           posGoToStep(5);
           posInitStripeMarketplace(data.clientSecret);
         }
@@ -9608,7 +10037,9 @@
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || 'Checkout failed');
         
-        posState.paymentIntentClientSecret = data.client_secret;
+        posState.paymentIntentClientSecret = data.clientSecret;
+        posState.vipMember = data.vipMember;
+        posState.vipMessage = data.vipMessage;
         
         const vehicle = posState.vehicles.find(v => v.id === posState.selectedVehicleId) || posState.newVehicle;
         const vehicleStr = vehicle ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() : 'N/A';
@@ -9620,6 +10051,22 @@
         document.getElementById('pos-summary-parts').textContent = '$' + posState.service.partsPrice.toFixed(2);
         const total = posState.service.laborPrice + posState.service.partsPrice;
         document.getElementById('pos-summary-total').textContent = '$' + total.toFixed(2);
+        
+        // Show VIP badge for platform fee exempt members
+        const vipBadgeEl = document.getElementById('pos-vip-badge');
+        if (vipBadgeEl) {
+          if (data.vipMember && data.vipMessage) {
+            vipBadgeEl.innerHTML = `
+              <div style="display:flex;align-items:center;gap:8px;padding:12px;background:linear-gradient(135deg,rgba(201,162,39,0.15),rgba(201,162,39,0.05));border:1px solid rgba(201,162,39,0.3);border-radius:8px;color:#c9a227;">
+                <span style="font-size:1.2rem;">👑</span>
+                <span style="font-weight:600;">${data.vipMessage}</span>
+              </div>
+            `;
+            vipBadgeEl.style.display = 'block';
+          } else {
+            vipBadgeEl.style.display = 'none';
+          }
+        }
         
         if (posState.signerName) {
           document.getElementById('pos-auth-signer').textContent = posState.signerName;

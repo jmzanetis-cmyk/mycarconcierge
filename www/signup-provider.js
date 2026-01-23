@@ -1,6 +1,7 @@
     let currentStep = 1;
     let uploadedFiles = { license: [], insurance: [], certs: [], portfolio: [] };
     let userId = null;
+    let providerReferralData = null;
 
     // ========== SIGNATURE PAD ==========
     let signaturePad = null;
@@ -106,6 +107,97 @@
     }
 
     // ========== END SIGNATURE PAD ==========
+
+    // ========== PROVIDER REFERRAL HANDLING ==========
+    async function lookupProviderReferral(refCode) {
+      try {
+        const { data, error } = await supabaseClient
+          .from('provider_referrals')
+          .select(`
+            id,
+            referral_code,
+            provider_id,
+            profiles!provider_referrals_provider_id_fkey (
+              id,
+              full_name,
+              business_name
+            )
+          `)
+          .eq('referral_code', refCode.toUpperCase())
+          .eq('is_active', true)
+          .single();
+
+        if (error || !data) {
+          // Try looking up from provider's referral code directly
+          const { data: profileData, error: profileError } = await supabaseClient
+            .from('profiles')
+            .select('id, full_name, business_name')
+            .eq('referral_code', refCode.toUpperCase())
+            .eq('role', 'provider')
+            .single();
+
+          if (profileError || !profileData) {
+            return null;
+          }
+
+          return {
+            provider_id: profileData.id,
+            provider_name: profileData.business_name || profileData.full_name,
+            referral_code: refCode.toUpperCase()
+          };
+        }
+
+        return {
+          provider_id: data.provider_id,
+          provider_name: data.profiles?.business_name || data.profiles?.full_name || 'Referrer Provider',
+          referral_code: data.referral_code
+        };
+      } catch (err) {
+        console.error('Provider referral lookup error:', err);
+        return null;
+      }
+    }
+
+    function initializeProviderReferral() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const refCode = urlParams.get('ref');
+
+      if (!refCode) {
+        return;
+      }
+
+      // Look up the referral code
+      lookupProviderReferral(refCode).then(data => {
+        if (data) {
+          providerReferralData = data;
+          
+          // Show the banner
+          const banner = document.getElementById('referral-banner');
+          const providerNameEl = document.getElementById('referring-provider-name');
+          
+          if (banner && providerNameEl) {
+            providerNameEl.textContent = data.provider_name;
+            banner.classList.add('show');
+          }
+          
+          // Store in hidden fields
+          document.getElementById('provider-referral-code').value = data.referral_code;
+          document.getElementById('provider-referral-id').value = data.provider_id;
+          
+          // Auto-fill the referral code field
+          document.getElementById('referral-code').value = data.referral_code;
+        }
+      });
+    }
+
+    // Initialize on page load (or immediately if DOM is already loaded)
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', initializeProviderReferral);
+    } else {
+      // DOM is already loaded, initialize immediately
+      initializeProviderReferral();
+    }
+    // ========== END PROVIDER REFERRAL HANDLING ==========
 
     // Checkbox toggle for service/brand selection checkboxes
     document.querySelectorAll('.checkbox-group .checkbox-item').forEach(item => {
@@ -564,6 +656,22 @@
           total_bids_purchased: 0,
           total_bids_used: 0
         }).eq('id', userId);
+
+        // Track provider-to-provider referral if one was used
+        if (providerReferralData && providerReferralData.provider_id) {
+          try {
+            // Create a provider referral record to track that this provider was referred by another provider
+            await supabaseClient.from('provider_referrals').insert({
+              provider_id: providerReferralData.provider_id,
+              referred_user_id: userId,
+              referral_type: 'provider',
+              referral_code: providerReferralData.referral_code
+            });
+          } catch (refError) {
+            console.log('Note: Could not log provider referral usage, but signup completed successfully:', refError);
+            // Don't fail the signup if referral tracking fails
+          }
+        }
 
         showStep('success');
 

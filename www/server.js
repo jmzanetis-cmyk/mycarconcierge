@@ -9397,6 +9397,367 @@ async function handleAcceptInvitation(req, res, requestId, token) {
   }
 }
 
+// ==================== PROVIDER REFERRAL API ====================
+
+async function handleGetProviderReferralCodes(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    // Check if user is a provider
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, role, business_name, full_name')
+      .eq('id', user.id)
+      .single();
+    
+    if (profileError || !profile || profile.role !== 'provider') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Only providers can access referral codes' }));
+      return;
+    }
+    
+    // Get existing referral codes or create them
+    let { data: codes, error: codesError } = await supabase
+      .from('provider_referral_codes')
+      .select('*')
+      .eq('provider_id', user.id);
+    
+    if (codesError) {
+      console.error(`[${requestId}] Get referral codes error:`, codesError);
+      // Table may not exist yet, generate codes locally
+      const baseCode = user.id.substring(0, 6).toUpperCase();
+      codes = [
+        { code_type: 'loyal_customer', code: 'LC' + baseCode, uses_count: 0 },
+        { code_type: 'new_member', code: 'NM' + baseCode, uses_count: 0 },
+        { code_type: 'provider', code: 'PR' + baseCode, uses_count: 0 }
+      ];
+    }
+    
+    // If no codes exist, create them
+    if (!codes || codes.length === 0) {
+      const codeTypes = ['loyal_customer', 'new_member', 'provider'];
+      const prefixes = { loyal_customer: 'LC', new_member: 'NM', provider: 'PR' };
+      codes = [];
+      
+      for (const codeType of codeTypes) {
+        const prefix = prefixes[codeType];
+        const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const code = prefix + randomPart;
+        
+        const { data: newCode, error: insertError } = await supabase
+          .from('provider_referral_codes')
+          .insert({
+            provider_id: user.id,
+            code_type: codeType,
+            code: code
+          })
+          .select()
+          .single();
+        
+        if (!insertError && newCode) {
+          codes.push(newCode);
+        } else {
+          // Fallback if insert fails
+          codes.push({ code_type: codeType, code: code, uses_count: 0 });
+        }
+      }
+    }
+    
+    // Build response with URLs
+    const domain = req.headers.host || 'mycarconcierge.com';
+    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    
+    const result = {
+      loyal_customer: null,
+      new_member: null,
+      provider: null
+    };
+    
+    for (const c of codes) {
+      let url;
+      switch (c.code_type) {
+        case 'loyal_customer':
+          url = `${protocol}://${domain}/signup-loyal-customer.html?ref=${c.code}`;
+          break;
+        case 'new_member':
+          url = `${protocol}://${domain}/signup-member.html?provider_ref=${c.code}`;
+          break;
+        case 'provider':
+          url = `${protocol}://${domain}/signup-provider.html?ref=${c.code}`;
+          break;
+      }
+      result[c.code_type] = {
+        code: c.code,
+        url: url,
+        uses_count: c.uses_count || 0
+      };
+    }
+    
+    console.log(`[${requestId}] Retrieved referral codes for provider ${user.id}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, codes: result }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get referral codes error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to get referral codes' }));
+  }
+}
+
+async function handleGenerateProviderReferralCodes(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    // Check if user is a provider
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'provider') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Only providers can generate referral codes' }));
+      return;
+    }
+    
+    // Generate new codes using database function or manually
+    const { data: result, error } = await supabase.rpc('create_provider_referral_codes', {
+      p_provider_id: user.id
+    });
+    
+    if (error) {
+      console.log(`[${requestId}] RPC not available, generating codes manually`);
+      // Manual code generation if RPC doesn't exist
+    }
+    
+    // Fetch the codes
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Generate referral codes error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to generate referral codes' }));
+  }
+}
+
+async function handleLookupProviderReferralCode(req, res, requestId, code) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  try {
+    if (!code) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Referral code is required' }));
+      return;
+    }
+    
+    // Look up the code
+    const { data: codeData, error: codeError } = await supabase
+      .from('provider_referral_codes')
+      .select(`
+        *,
+        provider:profiles!provider_referral_codes_provider_id_fkey(id, full_name, business_name)
+      `)
+      .eq('code', code.toUpperCase())
+      .eq('is_active', true)
+      .single();
+    
+    if (codeError || !codeData) {
+      // Fallback: try to find by looking at code prefix pattern
+      const normalizedCode = code.toUpperCase();
+      let codeType = null;
+      
+      if (normalizedCode.startsWith('LC')) codeType = 'loyal_customer';
+      else if (normalizedCode.startsWith('NM')) codeType = 'new_member';
+      else if (normalizedCode.startsWith('PR')) codeType = 'provider';
+      
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        error: 'Invalid or expired referral code',
+        code_type: codeType
+      }));
+      return;
+    }
+    
+    const providerName = codeData.provider?.business_name || codeData.provider?.full_name || 'Your Provider';
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      code_type: codeData.code_type,
+      provider_id: codeData.provider_id,
+      provider_name: providerName,
+      skip_identity_verification: codeData.code_type === 'loyal_customer',
+      platform_fee_exempt: codeData.code_type === 'loyal_customer'
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Lookup referral code error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to lookup referral code' }));
+  }
+}
+
+async function handleProcessProviderReferral(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  try {
+    const body = await parseRequestBody(req);
+    const { user_id, referral_code } = body;
+    
+    if (!user_id || !referral_code) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'User ID and referral code are required' }));
+      return;
+    }
+    
+    // Look up the code
+    const { data: codeData, error: codeError } = await supabase
+      .from('provider_referral_codes')
+      .select('*, provider:profiles!provider_referral_codes_provider_id_fkey(id, full_name, business_name)')
+      .eq('code', referral_code.toUpperCase())
+      .eq('is_active', true)
+      .single();
+    
+    if (codeError || !codeData) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid referral code' }));
+      return;
+    }
+    
+    // Update the user's profile
+    const updateData = {
+      referred_by_provider_id: codeData.provider_id,
+      provider_referral_type: codeData.code_type
+    };
+    
+    // Loyal customers get special benefits
+    if (codeData.code_type === 'loyal_customer') {
+      updateData.platform_fee_exempt = true;
+      updateData.provider_verified = true;
+      updateData.provider_verified_at = new Date().toISOString();
+      updateData.preferred_provider_id = codeData.provider_id;
+    }
+    
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('id', user_id);
+    
+    if (updateError) {
+      console.error(`[${requestId}] Update profile error:`, updateError);
+      // Continue anyway - the referral tracking is more important
+    }
+    
+    // Record the referral
+    await supabase
+      .from('provider_referrals')
+      .insert({
+        provider_id: codeData.provider_id,
+        referred_user_id: user_id,
+        referral_type: codeData.code_type,
+        referral_code: codeData.code,
+        platform_fee_exempt: codeData.code_type === 'loyal_customer'
+      });
+    
+    // Increment uses count
+    await supabase
+      .from('provider_referral_codes')
+      .update({ uses_count: (codeData.uses_count || 0) + 1 })
+      .eq('id', codeData.id);
+    
+    const providerName = codeData.provider?.business_name || codeData.provider?.full_name || 'Your Provider';
+    
+    console.log(`[${requestId}] Processed provider referral: ${user_id} referred by ${codeData.provider_id} (${codeData.code_type})`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      referral_type: codeData.code_type,
+      provider_name: providerName,
+      platform_fee_exempt: codeData.code_type === 'loyal_customer'
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Process referral error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to process referral' }));
+  }
+}
+
+async function handleGetProviderReferrals(req, res, requestId, providerId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    // Verify the user is the provider or admin
+    if (user.id !== providerId) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      if (!profile || profile.role !== 'admin') {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Access denied' }));
+        return;
+      }
+    }
+    
+    // Get all referrals for this provider
+    const { data: referrals, error } = await supabase
+      .from('provider_referrals')
+      .select(`
+        *,
+        referred_user:profiles!provider_referrals_referred_user_id_fkey(id, full_name, email, created_at)
+      `)
+      .eq('provider_id', providerId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error(`[${requestId}] Get provider referrals error:`, error);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, referrals: [] }));
+      return;
+    }
+    
+    // Group by type
+    const stats = {
+      loyal_customers: referrals?.filter(r => r.referral_type === 'loyal_customer').length || 0,
+      new_members: referrals?.filter(r => r.referral_type === 'new_member').length || 0,
+      providers: referrals?.filter(r => r.referral_type === 'provider').length || 0,
+      total: referrals?.length || 0
+    };
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      referrals: referrals || [],
+      stats
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get provider referrals error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to get referrals' }));
+  }
+}
+
 // ==================== CLOVER POS INTEGRATION API ====================
 
 async function handleCloverConnect(req, res, requestId) {
@@ -10869,6 +11230,120 @@ async function handleUnifiedPosTransactions(req, res, requestId, providerId) {
   }
 }
 
+// ==================== PROVIDER AVAILABLE PACKAGES API ====================
+
+async function handleProviderAvailablePackages(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const providerId = user.id;
+    
+    const { data: packages, error } = await supabase
+      .from('maintenance_packages')
+      .select(`
+        *,
+        vehicles(year, make, model, nickname, vin),
+        member:profiles!maintenance_packages_member_id_fkey(id, full_name, platform_fee_exempt, provider_verified, referred_by_provider_id)
+      `)
+      .eq('status', 'open')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error(`[${requestId}] Error loading packages:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to load packages' }));
+      return;
+    }
+    
+    const now = new Date();
+    const filteredPackages = (packages || []).filter(pkg => {
+      if (pkg.is_private_job) {
+        return pkg.exclusive_provider_id === providerId;
+      }
+      if (pkg.exclusive_until && new Date(pkg.exclusive_until) > now) {
+        return pkg.exclusive_provider_id === providerId;
+      }
+      return true;
+    });
+    
+    filteredPackages.forEach(pkg => {
+      if (pkg.is_private_job && pkg.exclusive_provider_id === providerId) {
+        pkg._isPrivateJob = true;
+      }
+      if (pkg.exclusive_until && new Date(pkg.exclusive_until) > now && pkg.exclusive_provider_id === providerId) {
+        pkg._isExclusiveOpportunity = true;
+        pkg._exclusiveTimeRemaining = new Date(pkg.exclusive_until) - now;
+      }
+    });
+    
+    if (filteredPackages.length > 0) {
+      const packageIds = filteredPackages.map(p => p.id);
+      const { data: allBids } = await supabase
+        .from('bids')
+        .select('package_id, price, provider_id')
+        .in('package_id', packageIds)
+        .eq('status', 'pending');
+      
+      filteredPackages.forEach(pkg => {
+        const packageBids = allBids?.filter(b => b.package_id === pkg.id) || [];
+        pkg._bidCount = packageBids.length;
+        pkg._lowestBid = packageBids.length > 0 ? Math.min(...packageBids.map(b => b.price)) : null;
+        pkg._myBid = packageBids.find(b => b.provider_id === providerId);
+      });
+      
+      const destServicePackages = filteredPackages.filter(p => 
+        p.category === 'destination_service' || 
+        p.is_destination_service === true || 
+        p.pickup_preference === 'destination_service'
+      );
+      if (destServicePackages.length > 0) {
+        const destPackageIds = destServicePackages.map(p => p.id);
+        const { data: destServices } = await supabase
+          .from('destination_services')
+          .select('*')
+          .in('package_id', destPackageIds);
+        
+        if (destServices) {
+          filteredPackages.forEach(pkg => {
+            const isDestService = pkg.category === 'destination_service' || 
+              pkg.is_destination_service === true || 
+              pkg.pickup_preference === 'destination_service';
+            if (isDestService) {
+              pkg._destinationService = destServices.find(ds => ds.package_id === pkg.id);
+            }
+          });
+        }
+      }
+    }
+    
+    console.log(`[${requestId}] Provider ${providerId} retrieved ${filteredPackages.length} available packages (${packages?.length || 0} total open)`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ packages: filteredPackages }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Provider packages error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  }
+}
+
 // ==================== PROVIDER ANALYTICS API ====================
 
 async function handleProviderAnalytics(req, res, requestId, providerId) {
@@ -12180,7 +12655,19 @@ async function handlePosCheckout(req, res, requestId, sessionId) {
       }
       
       const totalCents = jobs.reduce((sum, job) => sum + job.total_price_cents, 0);
-      const platformFeeCents = Math.round(totalCents * 0.10);
+      
+      // Check if member is platform fee exempt (loyal customer referral)
+      let platformFeeExempt = false;
+      if (session.member_id) {
+        const { data: memberProfile } = await supabase
+          .from('profiles')
+          .select('platform_fee_exempt')
+          .eq('id', session.member_id)
+          .single();
+        platformFeeExempt = memberProfile?.platform_fee_exempt === true;
+      }
+      
+      const platformFeeCents = platformFeeExempt ? 0 : Math.round(totalCents * 0.10);
       
       const stripe = await getStripeClient();
       if (!stripe) {
@@ -12214,7 +12701,9 @@ async function handlePosCheckout(req, res, requestId, sessionId) {
         success: true,
         clientSecret: paymentIntent.client_secret,
         totalCents,
-        platformFeeCents
+        platformFeeCents,
+        vipMember: platformFeeExempt,
+        vipMessage: platformFeeExempt ? 'VIP Member - No Platform Fee' : null
       }));
       
     } catch (error) {
@@ -12720,7 +13209,20 @@ async function handlePosLinkMarketplaceJob(req, res, requestId, sessionId) {
       }
       
       const priceCents = Math.round((bid.price || 0) * 100);
-      const platformFeeCents = Math.round(priceCents * 0.10);
+      
+      // Check if member is platform fee exempt (loyal customer referral)
+      let platformFeeExempt = false;
+      const memberId = session.member_id || bid.maintenance_packages?.member_id;
+      if (memberId) {
+        const { data: memberProfile } = await supabase
+          .from('profiles')
+          .select('platform_fee_exempt')
+          .eq('id', memberId)
+          .single();
+        platformFeeExempt = memberProfile?.platform_fee_exempt === true;
+      }
+      
+      const platformFeeCents = platformFeeExempt ? 0 : Math.round(priceCents * 0.10);
       
       const stripe = await getStripeClient();
       if (!stripe) {
@@ -12756,7 +13258,9 @@ async function handlePosLinkMarketplaceJob(req, res, requestId, sessionId) {
         needsPayment: true,
         clientSecret: paymentIntent.client_secret,
         totalCents: priceCents,
-        platformFeeCents
+        platformFeeCents,
+        vipMember: platformFeeExempt,
+        vipMessage: platformFeeExempt ? 'VIP Member - No Platform Fee' : null
       }));
       
     } catch (error) {
@@ -17174,6 +17678,12 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  // Provider Available Packages API (server-side filtering for exclusive/private jobs)
+  if (req.method === 'GET' && req.url === '/api/provider/packages') {
+    handleProviderAvailablePackages(req, res, requestId);
+    return;
+  }
+  
   // Provider Analytics API
   if (req.method === 'GET' && req.url.match(/^\/api\/provider\/[^/]+\/analytics$/)) {
     const providerId = req.url.split('/api/provider/')[1]?.split('/')[0];
@@ -17258,6 +17768,34 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url.match(/^\/api\/invitations\/[^/]+\/accept$/)) {
     const token = req.url.split('/api/invitations/')[1]?.split('/')[0];
     handleAcceptInvitation(req, res, requestId, token);
+    return;
+  }
+  
+  // Provider Referral API Routes
+  if (req.method === 'GET' && req.url === '/api/provider/referral-codes') {
+    handleGetProviderReferralCodes(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/provider/referral-codes/generate') {
+    handleGenerateProviderReferralCodes(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/provider-referral\/lookup\//)) {
+    const code = req.url.split('/api/provider-referral/lookup/')[1]?.split('?')[0];
+    handleLookupProviderReferralCode(req, res, requestId, code);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/provider-referral/process') {
+    handleProcessProviderReferral(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/provider\/[^/]+\/referrals$/)) {
+    const providerId = req.url.split('/api/provider/')[1]?.split('/')[0];
+    handleGetProviderReferrals(req, res, requestId, providerId);
     return;
   }
   

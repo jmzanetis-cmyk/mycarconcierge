@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>VIP Signup – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-bronze: #cd7f32;
+      --accent-blue: #38bdf8;
+      --accent-green: #34d399;
+      --accent-orange: #fb923c;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --border-focus: rgba(201, 162, 39, 0.5);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(201, 162, 39, 0.08), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(205, 127, 50, 0.06), transparent 50%);
+    }
+
+    .signup-container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 520px;
+    }
+
+    .signup-brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 24px;
+      text-decoration: none;
+    }
+
+    .brand-icon {
+      height: 100px;
+      width: auto;
+      border-radius: var(--radius-md);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
+    .signup-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 40px 36px;
+      backdrop-filter: blur(10px);
+    }
+
+    .invitation-banner {
+      background: linear-gradient(135deg, rgba(201, 162, 39, 0.15), rgba(205, 127, 50, 0.1));
+      border: 1px solid rgba(201, 162, 39, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .invitation-banner .invited-text {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .invitation-banner .provider-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem;
+      color: var(--accent-gold);
+      font-weight: 600;
+    }
+
+    .trusted-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+      color: #0a0a0f;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .trusted-badge svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .no-fees-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: rgba(52, 211, 153, 0.1);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .no-fees-badge .icon {
+      font-size: 20px;
+    }
+
+    .no-fees-badge .text {
+      color: var(--accent-green);
+      font-weight: 500;
+      font-size: 0.92rem;
+    }
+
+    .verification-bypass {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      margin-bottom: 24px;
+    }
+
+    .verification-bypass .icon {
+      width: 32px;
+      height: 32px;
+      background: rgba(56, 189, 248, 0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .verification-bypass .text {
+      flex: 1;
+    }
+
+    .verification-bypass .text strong {
+      color: var(--accent-blue);
+      display: block;
+      font-size: 0.9rem;
+    }
+
+    .verification-bypass .text span {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    .signup-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .signup-header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .signup-header p {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--text-secondary);
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: all 0.15s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.1);
+    }
+
+    .form-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .form-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px 24px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+      color: #0a0a0f;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(201, 162, 39, 0.35);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .signup-message {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 0.88rem;
+      text-align: center;
+      display: none;
+    }
+
+    .signup-message.show {
+      display: block;
+    }
+
+    .signup-message.error {
+      background: rgba(239, 95, 95, 0.1);
+      border: 1px solid rgba(239, 95, 95, 0.3);
+      color: #ef5f5f;
+    }
+
+    .signup-message.success {
+      background: rgba(74, 200, 140, 0.1);
+      border: 1px solid rgba(74, 200, 140, 0.3);
+      color: #4ac88c;
+    }
+
+    .signup-message.info {
+      background: rgba(74, 124, 255, 0.1);
+      border: 1px solid rgba(74, 124, 255, 0.3);
+      color: var(--accent-blue);
+    }
+
+    .signup-footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    .signup-footer a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .signup-footer a:hover {
+      color: var(--text-primary);
+    }
+
+    .loading-provider {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .loading-provider .spinner-large {
+      width: 48px;
+      height: 48px;
+      border: 3px solid var(--border-subtle);
+      border-top-color: var(--accent-gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    .error-state {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .error-state .icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .error-state h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem;
+      margin-bottom: 12px;
+    }
+
+    .error-state p {
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .error-state a {
+      color: var(--accent-gold);
+      text-decoration: none;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(10, 10, 15, 0.3);
+      border-top-color: #0a0a0f;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 520px) {
+      .signup-card {
+        padding: 32px 24px;
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+  <script src="/i18n.js"></script>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+
+  <div class="signup-container">
+    <a href="index.html" class="signup-brand">
+      <img src="logo.png" alt="My Car Concierge" class="brand-icon">
+    </a>
+
+    <div class="signup-card">
+      <div id="loading-state" class="loading-provider">
+        <div class="spinner-large"></div>
+        <p style="color: var(--text-secondary);">Looking up your invitation...</p>
+      </div>
+
+      <div id="error-state" class="error-state" style="display: none;">
+        <div class="icon">⚠️</div>
+        <h2>Invalid Referral Link</h2>
+        <p>This referral link is invalid or has expired. Please contact your provider for a new link.</p>
+        <a href="signup-member.html">Sign up as a regular member →</a>
+      </div>
+
+      <div id="signup-content" style="display: none;">
+        <div style="text-align: center;">
+          <span class="trusted-badge">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+            Trusted Customer
+          </span>
+        </div>
+
+        <div class="invitation-banner">
+          <div class="invited-text">You've been invited by</div>
+          <div class="provider-name" id="provider-name">Loading...</div>
+        </div>
+
+        <div class="no-fees-badge">
+          <span class="icon">🎁</span>
+          <span class="text">No platform fees – Loyal customer benefit</span>
+        </div>
+
+        <div class="verification-bypass">
+          <div class="icon">✓</div>
+          <div class="text">
+            <strong>Verified by your provider</strong>
+            <span>No identity verification required</span>
+          </div>
+        </div>
+
+        <div class="signup-header">
+          <h1>Create Your VIP Account</h1>
+          <p>Join as a trusted customer and enjoy premium benefits</p>
+        </div>
+
+        <form id="signup-form">
+          <div class="form-group">
+            <label class="form-label" for="name">Full Name</label>
+            <input 
+              type="text" 
+              id="name" 
+              class="form-input" 
+              placeholder="John Doe"
+              required
+              autocomplete="name"
+            >
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="email">Email Address</label>
+            <input 
+              type="email" 
+              id="email" 
+              class="form-input" 
+              placeholder="you@example.com"
+              required
+              autocomplete="email"
+            >
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="phone">Phone Number</label>
+            <input 
+              type="tel" 
+              id="phone" 
+              class="form-input" 
+              placeholder="(555) 123-4567"
+              required
+              autocomplete="tel"
+            >
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="password">Password</label>
+              <input 
+                type="password" 
+                id="password" 
+                class="form-input" 
+                placeholder="••••••••"
+                required
+                minlength="6"
+                autocomplete="new-password"
+              >
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="password-confirm">Confirm Password</label>
+              <input 
+                type="password" 
+                id="password-confirm" 
+                class="form-input" 
+                placeholder="••••••••"
+                required
+                minlength="6"
+                autocomplete="new-password"
+              >
+            </div>
+          </div>
+          <p class="form-hint">Password must be at least 6 characters.</p>
+
+          <input type="hidden" id="referral-code" value="">
+          <input type="hidden" id="provider-id" value="">
+
+          <button type="submit" class="btn btn-primary" id="submit-btn">
+            Create VIP Account
+          </button>
+        </form>
+
+        <div class="signup-message" id="message"></div>
+
+        <div class="signup-footer">
+          Already have an account? <a href="login.html">Sign in</a>
+        </div>
+      </div>
+
+      <div style="margin-top:20px;text-align:center;font-size:0.75rem;color:var(--text-muted);">
+        © 2025 My Car Concierge. All rights reserved.
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js"></script>
+  <script>
+    const loadingState = document.getElementById('loading-state');
+    const errorState = document.getElementById('error-state');
+    const signupContent = document.getElementById('signup-content');
+    const providerNameEl = document.getElementById('provider-name');
+    const form = document.getElementById('signup-form');
+    const messageEl = document.getElementById('message');
+    const submitBtn = document.getElementById('submit-btn');
+    const referralCodeInput = document.getElementById('referral-code');
+    const providerIdInput = document.getElementById('provider-id');
+
+    let providerData = null;
+
+    function showMessage(text, type = 'info') {
+      messageEl.textContent = text;
+      messageEl.className = `signup-message show ${type}`;
+    }
+
+    function setLoading(loading) {
+      if (loading) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span>Creating account...';
+      } else {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'Create VIP Account';
+      }
+    }
+
+    async function lookupProvider(refCode) {
+      try {
+        const { data, error } = await supabaseClient
+          .from('provider_referrals')
+          .select(`
+            id,
+            referral_code,
+            provider_id,
+            profiles!provider_referrals_provider_id_fkey (
+              id,
+              full_name,
+              business_name
+            )
+          `)
+          .eq('referral_code', refCode.toUpperCase())
+          .eq('is_active', true)
+          .single();
+
+        if (error || !data) {
+          const { data: profileData, error: profileError } = await supabaseClient
+            .from('profiles')
+            .select('id, full_name, business_name')
+            .eq('referral_code', refCode.toUpperCase())
+            .eq('role', 'provider')
+            .single();
+
+          if (profileError || !profileData) {
+            return null;
+          }
+
+          return {
+            provider_id: profileData.id,
+            provider_name: profileData.business_name || profileData.full_name,
+            referral_code: refCode.toUpperCase()
+          };
+        }
+
+        return {
+          provider_id: data.provider_id,
+          provider_name: data.profiles?.business_name || data.profiles?.full_name || 'Your Provider',
+          referral_code: data.referral_code
+        };
+      } catch (err) {
+        console.error('Provider lookup error:', err);
+        return null;
+      }
+    }
+
+    async function init() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const refCode = urlParams.get('ref');
+
+      if (!refCode) {
+        loadingState.style.display = 'none';
+        errorState.style.display = 'block';
+        return;
+      }
+
+      providerData = await lookupProvider(refCode);
+
+      if (!providerData) {
+        loadingState.style.display = 'none';
+        errorState.style.display = 'block';
+        return;
+      }
+
+      providerNameEl.textContent = providerData.provider_name;
+      referralCodeInput.value = providerData.referral_code;
+      providerIdInput.value = providerData.provider_id;
+
+      loadingState.style.display = 'none';
+      signupContent.style.display = 'block';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+      const password = document.getElementById('password').value;
+      const passwordConfirm = document.getElementById('password-confirm').value;
+      const referralCode = referralCodeInput.value;
+      const providerId = providerIdInput.value;
+
+      if (!name || !email || !phone || !password) {
+        showMessage('Please fill in all required fields', 'error');
+        return;
+      }
+
+      if (password !== passwordConfirm) {
+        showMessage('Passwords do not match', 'error');
+        return;
+      }
+
+      if (password.length < 6) {
+        showMessage('Password must be at least 6 characters', 'error');
+        return;
+      }
+
+      setLoading(true);
+      showMessage('Creating your VIP account...', 'info');
+
+      try {
+        const { data, error } = await supabaseClient.auth.signUp({ 
+          email, 
+          password 
+        });
+
+        if (error) {
+          showMessage(error.message, 'error');
+          setLoading(false);
+          return;
+        }
+
+        if (data.user) {
+          const { error: profileError } = await supabaseClient.from('profiles').insert({
+            id: data.user.id,
+            email: email,
+            role: 'member',
+            full_name: name,
+            phone: phone,
+            is_verified: true,
+            referred_by_provider: providerId,
+            loyalty_status: 'vip',
+            platform_fee_exempt: true
+          });
+          
+          if (profileError) {
+            console.error('Profile error:', profileError.message);
+          }
+
+          try {
+            const { data: referralResult, error: referralError } = await supabaseClient
+              .rpc('process_loyal_customer_referral', {
+                p_referral_code: referralCode,
+                p_customer_user_id: data.user.id,
+                p_customer_email: email,
+                p_customer_name: name,
+                p_customer_phone: phone
+              });
+
+            if (referralError) {
+              console.log('Referral processing note:', referralError.message);
+            }
+          } catch (refErr) {
+            console.log('Referral processing note:', refErr.message);
+          }
+
+          showMessage('VIP account created! Check your email to confirm, then log in.', 'success');
+          
+          setTimeout(() => {
+            window.location.href = 'login.html';
+          }, 2500);
+        }
+
+      } catch (err) {
+        showMessage('An unexpected error occurred: ' + err.message, 'error');
+        setLoading(false);
+      }
+    });
+
+    init();
+  </script>
+  <script src="/footer.js"></script>
+  <script src="/pwa-init.js"></script>
+</body>
+</html>

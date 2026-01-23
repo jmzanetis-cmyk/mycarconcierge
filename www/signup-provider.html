@@ -139,6 +139,11 @@
     .footer { text-align: center; margin-top: 32px; font-size: 0.88rem; color: var(--text-muted); }
     .footer a { color: var(--text-secondary); }
 
+    .referral-banner { background: linear-gradient(135deg, rgba(201, 162, 39, 0.15), rgba(205, 127, 50, 0.1)); border: 1px solid rgba(201, 162, 39, 0.3); border-radius: var(--radius-lg); padding: 16px 20px; text-align: center; margin-bottom: 24px; display: none; }
+    .referral-banner.show { display: block; }
+    .referral-banner .referred-text { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px; }
+    .referral-banner .provider-name { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--accent-gold); font-weight: 600; }
+
     @media (max-width: 600px) {
       .form-row, .form-row.three { grid-template-columns: 1fr; }
       .form-card { padding: 28px 20px; }
@@ -154,6 +159,10 @@
         <img src="logo.png" alt="My Car Concierge">
       </a>
       <div id="language-switcher" style="display:flex;justify-content:center;margin:16px 0;"></div>
+      <div class="referral-banner" id="referral-banner">
+        <div class="referred-text">You've been referred by</div>
+        <div class="provider-name" id="referring-provider-name">Loading...</div>
+      </div>
       <h1>Become a Provider</h1>
       <p>Join our network of vetted automotive professionals and grow your business with quality customers.</p>
     </div>
@@ -233,6 +242,9 @@
           <input type="text" class="form-input" id="referral-code" placeholder="e.g., JOHN1234">
           <div class="form-hint">Have a referral code from a Member Founder? Enter it here to connect.</div>
         </div>
+
+        <input type="hidden" id="provider-referral-code" value="">
+        <input type="hidden" id="provider-referral-id" value="">
 
         <div class="form-nav">
           <div></div>

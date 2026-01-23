@@ -731,6 +731,9 @@
       document.getElementById('user-email').textContent = currentUser.email;
       document.getElementById('user-avatar').textContent = initials;
 
+      // Display loyalty badges
+      displayLoyaltyBadges(userProfile);
+
       // Populate settings fields
       document.getElementById('settings-name').value = userProfile?.full_name || '';
       document.getElementById('settings-phone').value = userProfile?.phone || '';
@@ -784,6 +787,47 @@
         }
       } catch (err) {
         // No founder record found - keep hidden
+      }
+    }
+
+    async function displayLoyaltyBadges(profile) {
+      const badgesContainer = document.getElementById('user-loyalty-badges');
+      const preferredProviderDisplay = document.getElementById('preferred-provider-display');
+      if (!badgesContainer) return;
+
+      let badgesHtml = '';
+      
+      if (profile?.platform_fee_exempt) {
+        badgesHtml += '<span class="loyalty-badge vip">👑 VIP Member</span>';
+      }
+      
+      if (profile?.provider_verified) {
+        badgesHtml += '<span class="loyalty-badge trusted">✓ Trusted Customer</span>';
+      }
+
+      if (badgesHtml) {
+        badgesContainer.innerHTML = badgesHtml;
+        badgesContainer.style.display = 'flex';
+      } else {
+        badgesContainer.style.display = 'none';
+      }
+
+      if (profile?.preferred_provider_id && preferredProviderDisplay) {
+        try {
+          const { data: provider } = await supabaseClient
+            .from('profiles')
+            .select('business_name, full_name')
+            .eq('id', profile.preferred_provider_id)
+            .single();
+          
+          if (provider) {
+            const providerName = provider.business_name || provider.full_name || 'Your Provider';
+            preferredProviderDisplay.innerHTML = `⭐ Preferred Provider: <strong>${providerName}</strong>`;
+            preferredProviderDisplay.style.display = 'block';
+          }
+        } catch (err) {
+          console.log('Could not load preferred provider:', err);
+        }
       }
     }
 
@@ -1101,7 +1145,7 @@
       const pkg = packages.find(p => p.id === upsell?.package_id);
 
       // Create new package for the upsell work
-      const { data: newPkg } = await supabaseClient.from('maintenance_packages').insert({
+      const packageData = {
         member_id: currentUser.id,
         vehicle_id: pkg?.vehicle_id,
         title: `Rebid: ${title}`,
@@ -1112,7 +1156,15 @@
         parts_preference: 'standard',
         pickup_preference: 'either',
         status: 'open'
-      }).select().single();
+      };
+      
+      // Check if member has a preferred provider for exclusive first look
+      if (userProfile?.preferred_provider_id) {
+        packageData.exclusive_provider_id = userProfile.preferred_provider_id;
+        packageData.exclusive_until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      }
+      
+      const { data: newPkg } = await supabaseClient.from('maintenance_packages').insert(packageData).select().single();
 
       // Update upsell request
       await supabaseClient.from('upsell_requests').update({
@@ -2812,6 +2864,13 @@
           countdownHtml = `<span class="countdown-timer ${urgentClass}">⏱️ ${countdown.text}</span>`;
         }
         
+        // Exclusive first look indicator
+        let exclusiveHtml = '';
+        if (p.status === 'open' && p.exclusive_until && new Date(p.exclusive_until) > new Date()) {
+          const hoursRemaining = Math.ceil((new Date(p.exclusive_until) - new Date()) / (1000 * 60 * 60));
+          exclusiveHtml = `<div class="exclusive-first-look-badge" style="margin-top:6px;padding:6px 10px;background:var(--accent-gold-soft);border:1px solid var(--accent-gold);border-radius:var(--radius-sm);font-size:0.8rem;color:var(--accent-gold);">⭐ Your preferred provider has ${hoursRemaining}h first look</div>`;
+        }
+        
         // Repost button for expired packages
         const repostButton = isExpired ? `<button class="btn btn-primary btn-sm" onclick="repostPackage('${p.id}')">🔄 Repost</button>` : '';
         
@@ -2828,6 +2887,7 @@
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
                 <span class="package-status ${statusClass}">${displayStatus}</span>
                 ${countdownHtml}
+                ${exclusiveHtml}
               </div>
             </div>
             <div class="package-meta">
@@ -5370,6 +5430,42 @@
       // Clear photos
       pendingPackagePhotos = [];
       document.getElementById('package-photo-previews').innerHTML = '';
+      
+      // Handle private job section
+      const privateJobSection = document.getElementById('private-job-section');
+      const privateJobCheckbox = document.getElementById('p-private-job');
+      if (userProfile?.preferred_provider_id) {
+        privateJobSection.style.display = 'block';
+        privateJobCheckbox.checked = false;
+        document.getElementById('private-job-info').style.display = 'none';
+        loadPreferredProviderName();
+      } else {
+        privateJobSection.style.display = 'none';
+      }
+    }
+    
+    async function loadPreferredProviderName() {
+      if (!userProfile?.preferred_provider_id) return;
+      
+      try {
+        const { data: provider } = await supabaseClient
+          .from('profiles')
+          .select('business_name, full_name')
+          .eq('id', userProfile.preferred_provider_id)
+          .single();
+        
+        if (provider) {
+          const providerName = provider.business_name || provider.full_name || 'your preferred provider';
+          document.getElementById('preferred-provider-name').textContent = providerName;
+        }
+      } catch (err) {
+        console.error('Error loading preferred provider name:', err);
+      }
+    }
+    
+    function handlePrivateJobToggle() {
+      const isPrivate = document.getElementById('p-private-job').checked;
+      document.getElementById('private-job-info').style.display = isPrivate ? 'block' : 'none';
     }
 
     // ========== DESTINATION SERVICE HANDLING ==========
@@ -6052,6 +6148,20 @@
         status: 'open'
       };
 
+      // Check if this is a private job request
+      const isPrivateJob = document.getElementById('p-private-job')?.checked && userProfile.preferred_provider_id;
+      
+      if (isPrivateJob) {
+        // Private job - send directly to preferred provider, skip bidding
+        packageData.is_private_job = true;
+        packageData.exclusive_provider_id = userProfile.preferred_provider_id;
+        // No exclusive_until for private jobs - they stay private forever
+      } else if (userProfile.preferred_provider_id) {
+        // Regular job with preferred provider - give exclusive first look
+        packageData.exclusive_provider_id = userProfile.preferred_provider_id;
+        packageData.exclusive_until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
+      }
+
       const { data, error } = await supabaseClient.from('maintenance_packages').insert(packageData).select();
       if (error) {
         console.error('Package creation error:', error);
@@ -6080,9 +6190,14 @@
       pendingPackagePhotos = [];
       
       closeModal('package-modal');
-      const successMsg = isDestinationService 
-        ? 'Transport request created! Only drivers with verified credentials can bid.'
-        : 'Package created! Providers have ' + formatBiddingWindow(selectedBiddingWindowHours) + ' to submit bids.';
+      let successMsg;
+      if (isPrivateJob) {
+        successMsg = 'Private request sent directly to your preferred provider!';
+      } else if (isDestinationService) {
+        successMsg = 'Transport request created! Only drivers with verified credentials can bid.';
+      } else {
+        successMsg = 'Package created! Providers have ' + formatBiddingWindow(selectedBiddingWindowHours) + ' to submit bids.';
+      }
       showToast(successMsg, 'success');
       await loadPackages();
       updateStats();

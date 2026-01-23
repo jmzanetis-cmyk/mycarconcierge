@@ -53,6 +53,15 @@ Key features include:
 - **Login Activity Cleanup**: Automatically removes login activity entries older than 90 days (runs daily)
 
 ## Business Features
+- **Provider Loyalty Referral System**: Comprehensive provider-driven referral program with three QR code types:
+  - **Loyal Customer QR (Gold)**: Provider vouches for existing customers. Benefits: skip identity verification, 0% platform fee forever, auto-linked as preferred provider, loyalty badges (VIP Member, Trusted Customer). Signup page: `signup-loyal-customer.html`.
+  - **New Member QR (Blue)**: Standard member signup with referral tracking and bonus credits. Modified `signup-member.html`.
+  - **Provider QR (Green)**: Refer other service providers to the platform with tracking. Modified `signup-provider.html`.
+  - **Exclusive First Look**: Preferred providers get 24-hour exclusive bidding window before jobs open to all providers.
+  - **Private Jobs**: Loyal customers can send service requests directly to their preferred provider without public bidding.
+  - **Loyalty Network Dashboard**: Provider section showing referral stats, QR code usage, and recent referrals list.
+  - Database fields: `referred_by_provider_id`, `provider_referral_type`, `platform_fee_exempt`, `provider_verified`, `preferred_provider_id`, `exclusive_provider_id`, `exclusive_until`, `is_private_job`. Tables: `provider_referral_codes`, `provider_referrals`. Migration file: `provider_referrals_migration.sql`.
+  - Server-side enforcement for exclusive/private job visibility to prevent API bypass.
 - **Referral Program**: Members earn $10 credit for referring friends, new members get $10 welcome bonus. Unique referral codes, share via email/SMS. Database table: `referrals`, `member_credits`. Migration file: `referrals_migration.sql`.
 - **Vehicle Recall Alerts**: Auto-check NHTSA database for safety recalls. Weekly scheduled checks. Badge on vehicles with active recalls. Database table: `vehicle_recalls`. Migration file: `vehicle_recalls_migration.sql`.
 - **Fuel Cost Tracking**: Track fill-ups, calculate MPG, monthly/yearly spending, cost per mile with trend charts. Database table: `fuel_logs`. Migration file: `fuel_logs_migration.sql`.

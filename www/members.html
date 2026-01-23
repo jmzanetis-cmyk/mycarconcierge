@@ -135,6 +135,14 @@
     .user-name { font-size: 0.88rem; font-weight: 500; }
     .user-email { font-size: 0.75rem; color: var(--text-muted); }
 
+    /* Loyalty Badges */
+    .loyalty-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .loyalty-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 100px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; }
+    .loyalty-badge.vip { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: #1a1a2e; box-shadow: 0 2px 8px rgba(201, 162, 39, 0.35); border: 1px solid rgba(232, 188, 90, 0.5); }
+    .loyalty-badge.trusted { background: var(--accent-teal-soft); color: var(--accent-teal); border: 1px solid rgba(34, 211, 238, 0.4); }
+    .loyalty-badge.loyal { background: var(--accent-bronze-soft); color: var(--accent-bronze); border: 1px solid rgba(205, 127, 50, 0.4); }
+    .preferred-provider-info { margin-top: 8px; padding: 8px 12px; background: var(--accent-gold-soft); border-radius: var(--radius-sm); border: 1px solid rgba(201, 162, 39, 0.3); font-size: 0.75rem; color: var(--accent-gold); }
+
     /* Main */
     .main { flex: 1; margin-left: 260px; padding: 32px 40px 100px; min-height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .page-header { margin-bottom: 32px; }
@@ -904,11 +912,13 @@
       </div>
       <div class="user-info">
         <div class="user-avatar" id="user-avatar">JD</div>
-        <div>
+        <div style="flex:1;">
           <div class="user-name" id="user-name">Loading...</div>
           <div class="user-email" id="user-email">...</div>
+          <div id="user-loyalty-badges" class="loyalty-badges" style="display:none;"></div>
         </div>
       </div>
+      <div id="preferred-provider-display" class="preferred-provider-info" style="display:none;"></div>
       <div id="switch-portal-container" style="display:none;background:var(--bg-elevated);border:1px solid var(--accent-gold);border-radius:var(--radius-md);padding:12px;margin-bottom:12px;">
         <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">Switch Portal</div>
         <button id="switch-portal-btn" class="btn" onclick="switchToProvider()" style="width:100%;padding:12px 16px;font-size:0.9rem;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);color:#0a0a0f;font-weight:600;border:none;">
@@ -5006,6 +5016,28 @@
             <div class="form-group">
               <label class="form-label">Claim Number</label>
               <input type="text" class="form-input" id="p-claim-number" placeholder="Claim #">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section" id="private-job-section" style="display: none;">
+          <div class="form-section-title">🔒 Private Job Request</div>
+          <div class="private-job-container" style="background:var(--accent-gold-soft);border:1px solid var(--accent-gold);border-radius:var(--radius-md);padding:16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+              <div>
+                <div style="font-weight:600;color:var(--text-primary);margin-bottom:4px;">Send directly to <span id="preferred-provider-name">your preferred provider</span></div>
+                <div style="font-size:0.85rem;color:var(--text-secondary);">Private jobs skip the bidding process. Only your preferred provider will see this request.</div>
+              </div>
+              <label class="toggle-switch" style="flex-shrink:0;">
+                <input type="checkbox" id="p-private-job" onchange="handlePrivateJobToggle()">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div id="private-job-info" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid rgba(201, 162, 39, 0.3);">
+              <div style="display:flex;align-items:center;gap:8px;color:var(--accent-gold);">
+                <span style="font-size:1.2rem;">⚡</span>
+                <span style="font-size:0.9rem;">Provider can accept immediately without competitive bidding</span>
+              </div>
             </div>
           </div>
         </div>

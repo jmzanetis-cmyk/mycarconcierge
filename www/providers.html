@@ -104,6 +104,33 @@
       transform: scale(1.05);
     }
 
+    /* Member Loyalty Badges */
+    .member-badges { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 8px; }
+    .member-badge { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 100px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.02em; }
+    .member-badge.vip { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: #1a1a2e; box-shadow: 0 2px 6px rgba(201, 162, 39, 0.3); }
+    .member-badge.trusted { background: var(--accent-teal-soft); color: var(--accent-teal); border: 1px solid rgba(34, 211, 238, 0.35); }
+    .member-badge.loyal { background: var(--accent-bronze-soft); color: var(--accent-bronze); border: 1px solid rgba(205, 127, 50, 0.4); }
+
+    /* Loyalty Network Referral Badges */
+    .referral-type-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 100px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; }
+    .referral-type-badge.loyal-customer { background: linear-gradient(135deg, rgba(201, 162, 39, 0.25), rgba(201, 162, 39, 0.15)); color: var(--accent-gold); border: 1px solid rgba(201, 162, 39, 0.4); }
+    .referral-type-badge.new-member { background: var(--accent-blue-soft); color: var(--accent-blue); border: 1px solid rgba(56, 189, 248, 0.35); }
+    .referral-type-badge.provider { background: var(--accent-green-soft); color: var(--accent-green); border: 1px solid rgba(52, 211, 153, 0.35); }
+    .loyalty-referral-item { display: flex; align-items: center; gap: 16px; padding: 16px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 12px; transition: all 0.2s ease; }
+    .loyalty-referral-item:hover { border-color: var(--border-medium); background: rgba(30, 38, 48, 0.95); }
+    .loyalty-referral-avatar { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 600; flex-shrink: 0; }
+    .loyalty-referral-avatar.loyal-customer { background: linear-gradient(135deg, var(--accent-gold), #e8bc5a); color: #1a1a2e; }
+    .loyalty-referral-avatar.new-member { background: linear-gradient(135deg, var(--accent-blue), #6bb8f8); color: #fff; }
+    .loyalty-referral-avatar.provider { background: linear-gradient(135deg, var(--accent-green), #6be8b7); color: #fff; }
+    .loyalty-referral-info { flex: 1; min-width: 0; }
+    .loyalty-referral-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 4px; }
+    .loyalty-referral-date { font-size: 0.8rem; color: var(--text-muted); }
+    .loyalty-qr-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 16px; }
+    .loyalty-qr-stat { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--bg-input); border-radius: var(--radius-md); }
+    .loyalty-qr-stat-icon { font-size: 1.2rem; }
+    .loyalty-qr-stat-value { font-size: 1.2rem; font-weight: 700; }
+    .loyalty-qr-stat-label { font-size: 0.75rem; color: var(--text-muted); }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { min-height: 100vh; font-family: 'Outfit', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); display: flex; }
 
@@ -778,6 +805,7 @@
     
     <div class="nav-label">Earn More</div>
     <div class="nav-item" data-section="refer-providers">🤝 Refer Providers</div>
+    <div class="nav-item" data-section="loyalty-network">👥 Loyalty Network <span class="nav-badge" id="loyalty-count" style="display:none;background:var(--accent-gold);">0</span></div>
     <div class="sidebar-footer">
       <div id="realtime-status" style="padding:8px 12px;margin-bottom:8px;font-size:0.75rem;display:flex;align-items:center;gap:6px;color:var(--text-muted);">
         <span id="realtime-dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent-orange);"></span>
@@ -2492,6 +2520,85 @@
           </div>
         </div>
 
+        <!-- Referral Codes Section - 3 Distinct QR Codes -->
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header">
+            <h2 class="card-title">🎫 Referral Codes</h2>
+            <button onclick="loadReferralCodes()" class="btn btn-secondary btn-sm">🔄 Refresh</button>
+          </div>
+          <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:20px;text-align:center;">
+            Share these unique QR codes to grow your network and earn rewards
+          </p>
+          <div id="referral-codes-loading" style="text-align:center;padding:24px;display:none;">
+            <div style="color:var(--text-muted);">Loading referral codes...</div>
+          </div>
+          <div id="referral-codes-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;">
+            
+            <!-- Loyal Customer QR Code (Gold) -->
+            <div class="referral-qr-card" style="background:linear-gradient(145deg,rgba(201,162,39,0.08),rgba(201,162,39,0.03));border:2px solid rgba(201,162,39,0.4);border-radius:var(--radius-lg);padding:20px;text-align:center;">
+              <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px;">
+                <span style="font-size:1.5rem;">👑</span>
+                <h3 style="font-size:1rem;font-weight:600;color:var(--accent-gold);">Loyal Customer</h3>
+              </div>
+              <div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;">
+                <div>✓ Skip identity verification</div>
+                <div>✓ No 2% platform fee</div>
+                <div>✓ Auto-linked to you</div>
+              </div>
+              <div style="display:inline-block;background:#fff;padding:12px;border-radius:var(--radius-md);border:3px solid var(--accent-gold);margin-bottom:12px;">
+                <canvas id="loyal-customer-qr" style="display:block;"></canvas>
+              </div>
+              <div id="loyal-customer-code" style="font-family:monospace;font-size:0.85rem;color:var(--accent-gold);margin-bottom:12px;font-weight:600;">---</div>
+              <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+                <button onclick="downloadReferralQR('loyal-customer')" class="btn btn-secondary btn-sm">📥 Download</button>
+                <button onclick="copyReferralLink('loyal-customer')" class="btn btn-gold btn-sm">📋 Copy Link</button>
+              </div>
+            </div>
+
+            <!-- New Member QR Code (Blue) -->
+            <div class="referral-qr-card" style="background:linear-gradient(145deg,rgba(56,189,248,0.08),rgba(56,189,248,0.03));border:2px solid rgba(56,189,248,0.4);border-radius:var(--radius-lg);padding:20px;text-align:center;">
+              <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px;">
+                <span style="font-size:1.5rem;">🌟</span>
+                <h3 style="font-size:1rem;font-weight:600;color:var(--accent-blue);">New Member</h3>
+              </div>
+              <div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;">
+                <div>✓ Standard signup flow</div>
+                <div>✓ Referral bonus credits</div>
+                <div>✓ Track your referrals</div>
+              </div>
+              <div style="display:inline-block;background:#fff;padding:12px;border-radius:var(--radius-md);border:3px solid var(--accent-blue);margin-bottom:12px;">
+                <canvas id="new-member-qr" style="display:block;"></canvas>
+              </div>
+              <div id="new-member-code" style="font-family:monospace;font-size:0.85rem;color:var(--accent-blue);margin-bottom:12px;font-weight:600;">---</div>
+              <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+                <button onclick="downloadReferralQR('new-member')" class="btn btn-secondary btn-sm">📥 Download</button>
+                <button onclick="copyReferralLink('new-member')" class="btn btn-primary btn-sm">📋 Copy Link</button>
+              </div>
+            </div>
+
+            <!-- Refer Provider QR Code (Green) -->
+            <div class="referral-qr-card" style="background:linear-gradient(145deg,rgba(52,211,153,0.08),rgba(52,211,153,0.03));border:2px solid rgba(52,211,153,0.4);border-radius:var(--radius-lg);padding:20px;text-align:center;">
+              <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px;">
+                <span style="font-size:1.5rem;">🔧</span>
+                <h3 style="font-size:1rem;font-weight:600;color:var(--accent-green);">Refer Provider</h3>
+              </div>
+              <div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;">
+                <div>✓ Provider application</div>
+                <div>✓ Earn commission</div>
+                <div>✓ Build your network</div>
+              </div>
+              <div style="display:inline-block;background:#fff;padding:12px;border-radius:var(--radius-md);border:3px solid var(--accent-green);margin-bottom:12px;">
+                <canvas id="refer-provider-qr" style="display:block;"></canvas>
+              </div>
+              <div id="refer-provider-code" style="font-family:monospace;font-size:0.85rem;color:var(--accent-green);margin-bottom:12px;font-weight:600;">---</div>
+              <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+                <button onclick="downloadReferralQR('refer-provider')" class="btn btn-secondary btn-sm">📥 Download</button>
+                <button onclick="copyReferralLink('refer-provider')" class="btn btn-success btn-sm">📋 Copy Link</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="card" style="margin-bottom:24px;">
           <div class="card-header">
             <h2 class="card-title">💡 How It Works</h2>
@@ -2520,6 +2627,87 @@
             View detailed earnings, payout history, and more on your full Founder Dashboard
           </p>
           <a href="founder-dashboard.html" class="btn btn-primary">📊 Open Founder Dashboard</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Loyalty Network Section -->
+    <section id="loyalty-network" class="section">
+      <div class="page-header">
+        <h1 class="page-title">👥 Loyalty Network</h1>
+        <p class="page-subtitle">Track your referred members and providers in your network.</p>
+      </div>
+
+      <div id="loyalty-loading" style="text-align:center;padding:48px;">
+        <div style="width:40px;height:40px;border:3px solid var(--border-subtle);border-top-color:var(--accent-gold);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px;"></div>
+        <p style="color:var(--text-muted);">Loading your loyalty network...</p>
+      </div>
+
+      <div id="loyalty-content" style="display:none;">
+        <div class="stats-grid" style="margin-bottom:24px;">
+          <div class="stat-card" style="border-left:3px solid var(--accent-gold);">
+            <div class="stat-icon gold">👑</div>
+            <div class="stat-value" id="loyalty-loyal-customers">0</div>
+            <div class="stat-label">Loyal Customers</div>
+          </div>
+          <div class="stat-card" style="border-left:3px solid var(--accent-blue);">
+            <div class="stat-icon blue">🌟</div>
+            <div class="stat-value" id="loyalty-new-members">0</div>
+            <div class="stat-label">New Members</div>
+          </div>
+          <div class="stat-card" style="border-left:3px solid var(--accent-green);">
+            <div class="stat-icon green">🔧</div>
+            <div class="stat-value" id="loyalty-providers">0</div>
+            <div class="stat-label">Referred Providers</div>
+          </div>
+          <div class="stat-card" style="border:2px solid var(--accent-gold);">
+            <div class="stat-icon gold">📊</div>
+            <div class="stat-value" id="loyalty-total">0</div>
+            <div class="stat-label">Total Network</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header">
+            <h2 class="card-title">📱 QR Code Usage</h2>
+            <button onclick="loadLoyaltyNetwork()" class="btn btn-secondary btn-sm">🔄 Refresh</button>
+          </div>
+          <div class="loyalty-qr-stats" id="loyalty-qr-usage">
+            <div class="loyalty-qr-stat">
+              <span class="loyalty-qr-stat-icon">👑</span>
+              <div>
+                <div class="loyalty-qr-stat-value" id="qr-loyal-uses">0</div>
+                <div class="loyalty-qr-stat-label">Loyal Customer Uses</div>
+              </div>
+            </div>
+            <div class="loyalty-qr-stat">
+              <span class="loyalty-qr-stat-icon">🌟</span>
+              <div>
+                <div class="loyalty-qr-stat-value" id="qr-member-uses">0</div>
+                <div class="loyalty-qr-stat-label">New Member Uses</div>
+              </div>
+            </div>
+            <div class="loyalty-qr-stat">
+              <span class="loyalty-qr-stat-icon">🔧</span>
+              <div>
+                <div class="loyalty-qr-stat-value" id="qr-provider-uses">0</div>
+                <div class="loyalty-qr-stat-label">Provider Uses</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">🕐 Recent Referrals</h2>
+          </div>
+          <div id="loyalty-referrals-list">
+            <div class="empty-state" style="padding:32px;text-align:center;">
+              <div style="font-size:2rem;margin-bottom:12px;">👥</div>
+              <p style="color:var(--text-muted);">No referrals yet. Share your QR codes to grow your network!</p>
+              <button onclick="showSection('refer-providers')" class="btn btn-primary" style="margin-top:16px;">🔗 Get Your QR Codes</button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -4859,6 +5047,7 @@
                 <span>Total</span>
                 <span id="pos-summary-total">$0.00</span>
               </div>
+              <div id="pos-vip-badge" style="display:none;margin:12px 0;"></div>
               <div class="pos-summary-row" id="pos-summary-auth-row">
                 <span>Authorization</span>
                 <span class="pos-authorized-badge" id="pos-summary-auth">✓ Authorized by <span id="pos-auth-signer">-</span></span>
