@@ -544,27 +544,13 @@
     
     let providerReferralData = null;
 
-    // DEBUG: Show Supabase URL on page load
-    window.addEventListener('load', () => {
-      const debugDiv = document.createElement('div');
-      debugDiv.id = 'debug-panel';
-      debugDiv.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1a1a2e;border-top:2px solid #4a7cff;padding:16px;font-family:monospace;font-size:12px;color:#fff;max-height:200px;overflow-y:auto;z-index:9999;';
-      debugDiv.innerHTML = '<strong>DEBUG PANEL</strong><br>Supabase URL: ' + (typeof supabaseClient !== 'undefined' ? supabaseClient.supabaseUrl : 'NOT LOADED');
-      document.body.appendChild(debugDiv);
-    });
-
     function debugLog(msg) {
-      const panel = document.getElementById('debug-panel');
-      if (panel) {
-        panel.innerHTML += '<br>' + new Date().toLocaleTimeString() + ': ' + msg;
-        panel.scrollTop = panel.scrollHeight;
-      }
+      console.log('[Signup]', msg);
     }
 
     function showMessage(text, type = 'info') {
       messageEl.textContent = text;
       messageEl.className = `signup-message show ${type}`;
-      debugLog('MESSAGE: ' + text + ' (' + type + ')');
     }
 
     function setLoading(loading) {
