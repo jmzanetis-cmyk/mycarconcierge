@@ -474,6 +474,15 @@
           <p class="form-hint">Have a referral code from a Member Founder? Enter it here to connect.</p>
         </div>
 
+        <div class="sms-consent-container" style="margin: 20px 0; padding: 15px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-input);">
+          <label style="display: flex; align-items: flex-start; cursor: pointer; gap: 10px;">
+            <input type="checkbox" id="sms-consent" name="sms_consent" required style="margin-top: 4px; min-width: 18px; min-height: 18px;">
+            <span style="font-size: 14px; line-height: 1.5; color: var(--text-secondary);">
+              <strong style="color: var(--text-primary);">SMS Communications Consent:</strong> I agree to receive text messages from My Car Concierge at the mobile number I provided. Messages may include service request updates, provider bid notifications, appointment confirmations, account alerts, and promotional offers. Message frequency varies. Message and data rates may apply. Reply STOP to opt out at any time. Reply HELP for help. View our <a href="/sms-consent.html" target="_blank" style="color: var(--accent-blue);">SMS Policy</a>.
+            </span>
+          </label>
+        </div>
+
         <button type="submit" class="btn btn-primary" id="submit-btn" data-i18n="auth.createAccount">
           Create Account
         </button>
@@ -615,6 +624,7 @@
       const phone = document.getElementById('phone').value.trim();
       const password = document.getElementById('password').value;
       const passwordConfirm = document.getElementById('password-confirm').value;
+      const smsConsent = document.getElementById('sms-consent').checked;
 
       debugLog('Form submitted - Email: ' + email);
 
@@ -659,7 +669,9 @@
             email: email,
             role: 'member',
             full_name: name,
-            phone: phone || null
+            phone: phone || null,
+            sms_consent: smsConsent,
+            sms_consent_date: smsConsent ? new Date().toISOString() : null
           });
           
           if (profileError) {

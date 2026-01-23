@@ -642,6 +642,10 @@
           }
         }
 
+        // Get SMS consent value
+        const smsConsentEl = document.getElementById('sms-consent');
+        const smsConsent = smsConsentEl ? smsConsentEl.checked : false;
+        
         // Update profile - approve as provider with free trial bids
         await supabaseClient.from('profiles').update({
           full_name: document.getElementById('contact-name').value.trim(),
@@ -654,7 +658,9 @@
           free_trial_bids: 3, // Give 3 free bids to start
           bid_credits: 0,
           total_bids_purchased: 0,
-          total_bids_used: 0
+          total_bids_used: 0,
+          sms_consent: smsConsent,
+          sms_consent_date: smsConsent ? new Date().toISOString() : null
         }).eq('id', userId);
 
         // Track provider-to-provider referral if one was used

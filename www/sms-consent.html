@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SMS Communications Policy – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="SMS Communications Policy for My Car Concierge marketplace platform." />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-teal: #22d3ee;
+      --accent-teal-soft: rgba(34, 211, 238, 0.12);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-xl: 32px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(34, 211, 238, 0.05), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(34, 211, 238, 0.03), transparent 60%);
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    .container {
+      position: relative;
+      z-index: 2;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    header {
+      padding: 24px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    header .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      text-decoration: none;
+    }
+
+    .brand-icon {
+      height: 120px;
+      width: auto;
+      border-radius: var(--radius-md);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    nav a {
+      padding: 10px 18px;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s ease;
+    }
+
+    nav a:hover {
+      color: var(--text-primary);
+      background: var(--bg-elevated);
+    }
+
+    nav .btn-login {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .sms-content {
+      padding: 60px 0 100px;
+    }
+
+    .sms-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .sms-header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .sms-header h1 .highlight {
+      background: linear-gradient(135deg, var(--accent-gold) 0%, #f0c76d 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .last-updated {
+      display: inline-block;
+      padding: 8px 16px;
+      background: var(--accent-teal-soft);
+      border: 1px solid rgba(34, 211, 238, 0.2);
+      border-radius: 100px;
+      font-size: 0.85rem;
+      color: var(--accent-teal);
+    }
+
+    .sms-body {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 48px;
+    }
+
+    .intro-box {
+      background: var(--accent-gold-soft);
+      border: 1px solid rgba(212, 168, 85, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 40px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .intro-box .icon {
+      font-size: 2rem;
+      flex-shrink: 0;
+    }
+
+    .intro-box p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.7;
+      margin: 0;
+    }
+
+    .sms-section {
+      margin-bottom: 40px;
+    }
+
+    .sms-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .sms-section h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .sms-section h2 .section-icon {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      background: var(--accent-teal-soft);
+      border-radius: 50%;
+      text-align: center;
+      line-height: 32px;
+      font-size: 1rem;
+      margin-right: 12px;
+    }
+
+    .sms-section p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.75;
+      margin-bottom: 16px;
+    }
+
+    .sms-section p:last-child {
+      margin-bottom: 0;
+    }
+
+    .sms-section ul {
+      list-style: none;
+      padding: 0;
+      margin: 16px 0;
+    }
+
+    .sms-section li {
+      padding: 10px 0;
+      padding-left: 28px;
+      position: relative;
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .sms-section li:last-child {
+      border-bottom: none;
+    }
+
+    .sms-section li::before {
+      content: '•';
+      position: absolute;
+      left: 8px;
+      color: var(--accent-gold);
+      font-weight: bold;
+    }
+
+    .sms-section strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .message-types {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .message-type-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      transition: all 0.2s ease;
+    }
+
+    .message-type-card:hover {
+      border-color: var(--accent-teal);
+      transform: translateY(-2px);
+    }
+
+    .message-type-card .icon {
+      font-size: 1.5rem;
+      margin-bottom: 12px;
+    }
+
+    .message-type-card h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .message-type-card p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .highlight-box {
+      background: var(--accent-teal-soft);
+      border: 1px solid rgba(34, 211, 238, 0.3);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    .highlight-box p {
+      color: var(--accent-teal);
+      font-weight: 500;
+      margin: 0;
+    }
+
+    .opt-out-methods {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .opt-out-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 24px;
+    }
+
+    .opt-out-card .method-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background: var(--accent-gold-soft);
+      border-radius: 50%;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent-gold);
+      margin-bottom: 12px;
+    }
+
+    .opt-out-card h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .opt-out-card p {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    .opt-out-card code {
+      display: inline-block;
+      background: rgba(201, 162, 39, 0.15);
+      color: var(--accent-gold);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-weight: 600;
+    }
+
+    .contact-info {
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-top: 16px;
+    }
+
+    .contact-info p {
+      margin-bottom: 8px;
+    }
+
+    .contact-info a {
+      color: var(--accent-teal);
+      text-decoration: none;
+    }
+
+    .contact-info a:hover {
+      text-decoration: underline;
+    }
+
+    .privacy-link-box {
+      background: var(--accent-gold-soft);
+      border: 1px solid rgba(212, 168, 85, 0.3);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .privacy-link-box .icon {
+      font-size: 1.5rem;
+    }
+
+    .privacy-link-box p {
+      margin: 0;
+      flex: 1;
+    }
+
+    .privacy-link-box a {
+      color: var(--accent-gold);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .privacy-link-box a:hover {
+      text-decoration: underline;
+    }
+
+    footer {
+      border-top: 1px solid var(--border-subtle);
+      padding: 48px 0;
+    }
+
+    footer .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 24px;
+      max-width: 1200px;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .footer-brand .brand-icon {
+      width: 60px;
+      height: 60px;
+      font-size: 16px;
+    }
+
+    .footer-brand span {
+      font-family: 'Playfair Display', serif;
+      font-weight: 500;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 32px;
+    }
+
+    .footer-links a {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--text-primary);
+    }
+
+    .footer-copy {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 768px) {
+      header .container {
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      nav {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .sms-body {
+        padding: 32px 24px;
+      }
+
+      .sms-section h2 {
+        font-size: 1.2rem;
+      }
+
+      .intro-box {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .message-types {
+        grid-template-columns: 1fr;
+      }
+
+      .opt-out-methods {
+        grid-template-columns: 1fr;
+      }
+
+      footer .container {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .footer-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+  <div class="noise"></div>
+
+  <header>
+    <div class="container">
+      <a href="index.html" class="brand">
+        <img src="logo.png" alt="My Car Concierge" class="brand-icon">
+      </a>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="login.html" class="btn-login">Log In</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="sms-content">
+    <div class="container">
+      <div class="sms-header">
+        <h1>SMS Communications <span class="highlight">Policy</span></h1>
+        <div class="last-updated">Last Updated: January 23, 2026</div>
+      </div>
+
+      <div class="sms-body">
+        <div class="intro-box">
+          <div class="icon">📱</div>
+          <p>My Car Concierge ("MCC") uses SMS text messaging to keep you informed about your automotive service requests, account activity, and important updates. By providing your phone number and opting in to SMS communications, you agree to receive text messages from us as described in this policy.</p>
+        </div>
+
+        <div class="sms-section">
+          <h2><span class="section-icon">💬</span>What Messages Will You Receive?</h2>
+          <p>When you opt in to SMS communications, you may receive the following types of messages:</p>
+          
+          <div class="message-types">
+            <div class="message-type-card">
+              <div class="icon">🔧</div>
+              <h4>Service Updates</h4>
+              <p>Status updates on your active service requests and job progress</p>
+            </div>
+            <div class="message-type-card">
+              <div class="icon">💰</div>
+              <h4>Bid Notifications</h4>
+              <p>Alerts when providers submit bids on your service requests</p>
+            </div>
+            <div class="message-type-card">
+              <div class="icon">📅</div>
+              <h4>Appointment Reminders</h4>
+              <p>Reminders for upcoming scheduled service appointments</p>
+            </div>
+            <div class="message-type-card">
+              <div class="icon">🔔</div>
+              <h4>Account Alerts</h4>
+              <p>Security notifications, verification codes, and account updates</p>
+            </div>
+            <div class="message-type-card">
+              <div class="icon">🎁</div>
+              <h4>Promotional Offers</h4>
+              <p>Special deals, discounts, and exclusive member offers (optional)</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="sms-section">
+          <h2><span class="section-icon">📊</span>Message Frequency</h2>
+          <p>Message frequency varies based on your activity on the My Car Concierge platform. You may receive up to <strong>10 messages per week</strong> during active service periods.</p>
+          <p>If you have multiple active service requests or are engaging frequently with providers, you may receive more messages. During periods of inactivity, you will receive fewer or no messages.</p>
+        </div>
+
+        <div class="sms-section">
+          <h2><span class="section-icon">💳</span>Costs and Data Rates</h2>
+          <div class="highlight-box">
+            <p>Message and data rates may apply based on your mobile carrier plan. My Car Concierge does not charge for SMS messages.</p>
+          </div>
+          <p>Standard messaging rates from your wireless carrier may apply. Check with your mobile service provider for details about your text messaging plan. My Car Concierge is not responsible for any charges incurred from your carrier.</p>
+        </div>
+
+        <div class="sms-section">
+          <h2><span class="section-icon">🛑</span>How to Opt Out</h2>
+          <p>You can stop receiving SMS messages from My Car Concierge at any time using any of the following methods:</p>
+          
+          <div class="opt-out-methods">
+            <div class="opt-out-card">
+              <div class="method-number">1</div>
+              <h4>Reply STOP</h4>
+              <p>Reply <code>STOP</code> to any SMS message you receive from us. You will receive a confirmation message and no further texts will be sent.</p>
+            </div>
+            <div class="opt-out-card">
+              <div class="method-number">2</div>
+              <h4>Update Account Settings</h4>
+              <p>Log in to your My Car Concierge account and navigate to your notification preferences to manage SMS settings.</p>
+            </div>
+            <div class="opt-out-card">
+              <div class="method-number">3</div>
+              <h4>Contact Support</h4>
+              <p>Email us at <a href="mailto:support@mycarconciergellc.com">support@mycarconciergellc.com</a> and request to be removed from SMS communications.</p>
+            </div>
+          </div>
+          
+          <p>Please note that opting out of SMS messages will not affect other communications from My Car Concierge, such as emails or in-app notifications. You may also continue to receive transactional messages related to your account security (such as 2FA verification codes) even after opting out of promotional messages.</p>
+        </div>
+
+        <div class="sms-section">
+          <h2><span class="section-icon">❓</span>Need Help?</h2>
+          <p>If you need assistance with SMS communications or have questions about this policy:</p>
+          <ul>
+            <li><strong>Reply HELP:</strong> Reply <code>HELP</code> to any SMS message for immediate assistance information</li>
+            <li><strong>Contact Support:</strong> Email us at <a href="mailto:support@mycarconciergellc.com">support@mycarconciergellc.com</a></li>
+            <li><strong>Call Us:</strong> Our support team is available to assist you during business hours</li>
+          </ul>
+          
+          <div class="contact-info">
+            <p><strong>My Car Concierge Support</strong></p>
+            <p>Email: <a href="mailto:support@mycarconciergellc.com">support@mycarconciergellc.com</a></p>
+            <p>Website: <a href="https://mycarconcierge.com">mycarconcierge.com</a></p>
+          </div>
+        </div>
+
+        <div class="sms-section">
+          <h2><span class="section-icon">🔒</span>Your Privacy</h2>
+          <p>We take your privacy seriously. Your phone number and SMS communication preferences are protected:</p>
+          <ul>
+            <li><strong>No Third-Party Sharing:</strong> Your phone number will never be sold or shared with third parties for marketing purposes</li>
+            <li><strong>Secure Transmission:</strong> All SMS messages are sent through secure, encrypted channels</li>
+            <li><strong>Limited Use:</strong> We only use your phone number for the purposes described in this policy</li>
+            <li><strong>Data Protection:</strong> Your information is protected in accordance with our Privacy Policy</li>
+          </ul>
+          
+          <div class="privacy-link-box">
+            <div class="icon">📋</div>
+            <p>For complete details on how we collect, use, and protect your personal information, please review our <a href="privacy.html">Privacy Policy</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script src="/footer.js"></script>
+</body>
+</html>
