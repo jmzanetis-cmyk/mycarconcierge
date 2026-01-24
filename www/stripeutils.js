@@ -379,6 +379,126 @@ function mockCancelPayment(paymentIntentId) {
   };
 }
 
+/**
+ * Mobile Wallet Payment Functions
+ * Apple Pay and Google Pay integration for Capacitor apps
+ */
+
+async function payWithMobileWallet(amount, description, options = {}) {
+  const isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
+  const isIOS = isNative && Capacitor.getPlatform() === 'ios';
+  const isAndroid = isNative && Capacitor.getPlatform() === 'android';
+
+  if (!isNative) {
+    return { 
+      available: false, 
+      error: 'Mobile wallet payments are only available in the native app' 
+    };
+  }
+
+  if (typeof MobilePay === 'undefined') {
+    return { 
+      available: false, 
+      error: 'Mobile payment module not loaded' 
+    };
+  }
+
+  if (isIOS) {
+    const applePayAvailable = await MobilePay.isApplePayAvailable();
+    if (applePayAvailable) {
+      const result = await MobilePay.requestApplePay(amount, description);
+      if (result.success) {
+        return {
+          available: true,
+          success: true,
+          paymentMethodId: result.paymentMethodId,
+          type: 'apple_pay'
+        };
+      }
+      return { available: true, success: false, error: result.error };
+    }
+  }
+
+  if (isAndroid) {
+    const googlePayAvailable = await MobilePay.isGooglePayAvailable();
+    if (googlePayAvailable) {
+      const result = await MobilePay.requestGooglePay(amount, description);
+      if (result.success) {
+        return {
+          available: true,
+          success: true,
+          paymentMethodId: result.paymentMethodId,
+          type: 'google_pay'
+        };
+      }
+      return { available: true, success: false, error: result.error };
+    }
+  }
+
+  return { 
+    available: false, 
+    error: 'No mobile wallet available on this device' 
+  };
+}
+
+async function isMobileWalletAvailable() {
+  const isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
+  
+  if (!isNative || typeof MobilePay === 'undefined') {
+    return { available: false, applePay: false, googlePay: false };
+  }
+
+  const isIOS = Capacitor.getPlatform() === 'ios';
+  const isAndroid = Capacitor.getPlatform() === 'android';
+
+  const applePay = isIOS ? await MobilePay.isApplePayAvailable() : false;
+  const googlePay = isAndroid ? await MobilePay.isGooglePayAvailable() : false;
+
+  return {
+    available: applePay || googlePay,
+    applePay,
+    googlePay,
+    platform: isIOS ? 'ios' : isAndroid ? 'android' : 'web'
+  };
+}
+
+async function createMobileWalletPaymentIntent(amount, description, packageId, bidId) {
+  const walletStatus = await isMobileWalletAvailable();
+  
+  if (!walletStatus.available) {
+    return { available: false };
+  }
+
+  const result = await payWithMobileWallet(amount, description);
+  
+  if (result.success && result.paymentMethodId) {
+    const response = await fetch('/api/escrow/create-with-payment-method', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        package_id: packageId,
+        bid_id: bidId,
+        payment_method_id: result.paymentMethodId,
+        wallet_type: result.type
+      })
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to create payment');
+    }
+    
+    return {
+      available: true,
+      success: true,
+      paymentIntent: data.paymentIntent,
+      type: result.type
+    };
+  }
+
+  return result;
+}
+
 // Export for use in other files
 window.StripeUtils = {
   initStripe,
@@ -396,6 +516,10 @@ window.StripeUtils = {
   MCC_FEE_PERCENT,
   // Bid pack purchases
   createBidPackCheckout,
+  // Mobile wallet payments
+  payWithMobileWallet,
+  isMobileWalletAvailable,
+  createMobileWalletPaymentIntent,
   // Mock functions for development
   mock: {
     createPayment: mockCreatePayment,

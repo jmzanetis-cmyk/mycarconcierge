@@ -2,6 +2,11 @@
     const messageEl = document.getElementById('message');
     const loginBtn = document.getElementById('login-btn');
     
+    // Biometric state
+    let pendingBiometricUser = null;
+    let pendingBiometricSession = null;
+    let currentBiometryType = 'unknown';
+    
     // Check URL parameters for 2FA required redirect
     function getUrlParams() {
       const params = new URLSearchParams(window.location.search);
@@ -12,6 +17,8 @@
     }
 
     window.addEventListener('load', async () => {
+      await initBiometricUI();
+      
       const user = await getCurrentUser();
       const urlParams = getUrlParams();
       
@@ -22,8 +29,175 @@
         } else {
           await handleUserRedirect(user);
         }
+      } else {
+        // No user logged in - check if biometric login should be prompted
+        await checkBiometricAutoPrompt();
       }
     });
+    
+    async function initBiometricUI() {
+      if (typeof BiometricAuth === 'undefined') {
+        return;
+      }
+      
+      const availability = await BiometricAuth.isAvailable();
+      const biometricSection = document.getElementById('biometric-login-section');
+      
+      if (availability.available && BiometricAuth.isBiometricEnabled()) {
+        currentBiometryType = availability.biometryType;
+        const typeName = BiometricAuth.getBiometryTypeName(availability.biometryType);
+        
+        const iconEl = document.getElementById('biometric-btn-icon');
+        const textEl = document.getElementById('biometric-btn-text');
+        
+        if (availability.biometryType === 'faceId' || availability.biometryType === 'face') {
+          iconEl.textContent = '😊';
+        } else if (availability.biometryType === 'touchId' || availability.biometryType === 'fingerprint') {
+          iconEl.textContent = '👆';
+        }
+        
+        textEl.textContent = `Sign in with ${typeName}`;
+        biometricSection.classList.add('show');
+      } else {
+        biometricSection.classList.remove('show');
+      }
+    }
+    
+    async function checkBiometricAutoPrompt() {
+      if (typeof BiometricAuth === 'undefined') {
+        return;
+      }
+      
+      const shouldPrompt = await BiometricAuth.shouldPromptBiometric();
+      
+      if (shouldPrompt) {
+        await triggerBiometricLogin();
+      }
+    }
+    
+    async function triggerBiometricLogin() {
+      if (typeof BiometricAuth === 'undefined') {
+        showMessage('Biometric authentication not available', 'error');
+        return;
+      }
+      
+      const biometricBtn = document.getElementById('biometric-login-btn');
+      biometricBtn.disabled = true;
+      biometricBtn.innerHTML = '<span class="spinner"></span>Authenticating...';
+      
+      try {
+        const result = await BiometricAuth.performBiometricLogin(supabaseClient);
+        
+        if (result.success && result.user) {
+          showMessage('Signed in successfully!', 'success');
+          await new Promise(resolve => setTimeout(resolve, 300));
+          await handleUserRedirect(result.user);
+        } else {
+          showMessage(result.error || 'Biometric authentication failed', 'error');
+          await initBiometricUI();
+        }
+      } catch (error) {
+        console.error('Biometric login error:', error);
+        showMessage('Biometric authentication failed. Please try password login.', 'error');
+        await initBiometricUI();
+      }
+      
+      biometricBtn.disabled = false;
+      const availability = await BiometricAuth.isAvailable();
+      const typeName = BiometricAuth.getBiometryTypeName(availability.biometryType);
+      biometricBtn.innerHTML = `<span class="biometric-btn-icon" id="biometric-btn-icon">🔐</span><span>Sign in with ${typeName}</span>`;
+    }
+    
+    async function checkBiometricEnrollmentOffer(user, session) {
+      if (typeof BiometricAuth === 'undefined') {
+        return false;
+      }
+      
+      if (BiometricAuth.isBiometricEnabled()) {
+        return false;
+      }
+      
+      const availability = await BiometricAuth.isAvailable();
+      
+      if (!availability.available) {
+        return false;
+      }
+      
+      const enrolledBefore = localStorage.getItem('mcc_biometric_declined');
+      if (enrolledBefore === 'true') {
+        return false;
+      }
+      
+      pendingBiometricUser = user;
+      pendingBiometricSession = session;
+      currentBiometryType = availability.biometryType;
+      
+      const typeName = BiometricAuth.getBiometryTypeName(availability.biometryType);
+      const iconEl = document.getElementById('biometric-enroll-icon');
+      const titleEl = document.getElementById('biometric-enroll-title');
+      const textEl = document.getElementById('biometric-enroll-text');
+      
+      if (availability.biometryType === 'faceId' || availability.biometryType === 'face') {
+        iconEl.textContent = '😊';
+        titleEl.textContent = `Enable ${typeName}`;
+        textEl.textContent = `Would you like to use ${typeName} for faster, secure sign-in next time?`;
+      } else if (availability.biometryType === 'touchId' || availability.biometryType === 'fingerprint') {
+        iconEl.textContent = '👆';
+        titleEl.textContent = `Enable ${typeName}`;
+        textEl.textContent = `Would you like to use ${typeName} for faster, secure sign-in next time?`;
+      }
+      
+      showScreen('biometric-enroll-screen');
+      return true;
+    }
+    
+    async function enableBiometric() {
+      if (!pendingBiometricUser || !pendingBiometricSession) {
+        showMessage('Session expired. Please sign in again.', 'error');
+        showScreen('login-form-container');
+        return;
+      }
+      
+      const enableBtn = document.getElementById('enable-biometric-btn');
+      enableBtn.disabled = true;
+      enableBtn.innerHTML = '<span class="spinner"></span>Setting up...';
+      
+      try {
+        const authResult = await BiometricAuth.authenticate('Verify your identity to enable biometric sign-in');
+        
+        if (authResult.success) {
+          await BiometricAuth.enrollBiometric(pendingBiometricUser.id, pendingBiometricSession.access_token);
+          showMessage('Biometric sign-in enabled!', 'success');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await handleUserRedirect(pendingBiometricUser);
+        } else {
+          showMessage(authResult.error || 'Could not verify biometric. Proceeding with regular login.', 'warning');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          await handleUserRedirect(pendingBiometricUser);
+        }
+      } catch (error) {
+        console.error('Biometric enrollment error:', error);
+        showMessage('Could not enable biometric sign-in. Proceeding with regular login.', 'warning');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await handleUserRedirect(pendingBiometricUser);
+      }
+      
+      pendingBiometricUser = null;
+      pendingBiometricSession = null;
+    }
+    
+    async function skipBiometricEnrollment() {
+      localStorage.setItem('mcc_biometric_declined', 'true');
+      
+      if (pendingBiometricUser) {
+        await handleUserRedirect(pendingBiometricUser);
+      } else {
+        showScreen('login-form-container');
+      }
+      
+      pendingBiometricUser = null;
+      pendingBiometricSession = null;
+    }
     
     // Handle redirect from protected pages requiring 2FA verification
     async function handle2faRequiredRedirect(user) {
@@ -110,6 +284,7 @@
       document.getElementById('pending-screen').style.display = 'none';
       document.getElementById('portal-selection-screen').style.display = 'none';
       document.getElementById('twofa-screen').style.display = 'none';
+      document.getElementById('biometric-enroll-screen').style.display = 'none';
       document.getElementById(screenId).style.display = 'block';
     }
 
@@ -216,8 +391,12 @@
 
     async function logout() {
       localStorage.removeItem('mcc_portal');
+      if (typeof BiometricAuth !== 'undefined') {
+        await BiometricAuth.disableBiometric();
+      }
       await supabaseClient.auth.signOut();
       showScreen('login-form-container');
+      await initBiometricUI();
     }
 
     // 2FA State
@@ -386,7 +565,11 @@
         if (result.success && result.verified) {
           show2faMessage('Verification successful!', 'success');
           await new Promise(resolve => setTimeout(resolve, 500));
-          await handleUserRedirect(pending2faUser);
+          const { data: { session: currentSession } } = await supabaseClient.auth.getSession();
+          const offered = await checkBiometricEnrollmentOffer(pending2faUser, currentSession);
+          if (!offered) {
+            await handleUserRedirect(pending2faUser);
+          }
         } else {
           document.querySelectorAll('.code-input').forEach(input => {
             input.classList.add('error');
@@ -456,7 +639,10 @@
           // If recently verified (within 1 hour), skip 2FA
           if (result.recently_verified) {
             await logLoginActivityClient(session.access_token);
-            await handleUserRedirect(user);
+            const offered = await checkBiometricEnrollmentOffer(user, session);
+            if (!offered) {
+              await handleUserRedirect(user);
+            }
             return;
           }
           
@@ -489,7 +675,10 @@
         } else {
           // No 2FA enabled, log login activity directly
           await logLoginActivityClient(session.access_token);
-          await handleUserRedirect(user);
+          const offered = await checkBiometricEnrollmentOffer(user, session);
+          if (!offered) {
+            await handleUserRedirect(user);
+          }
         }
       } catch (error) {
         console.error('2FA check error:', error);

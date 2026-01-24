@@ -49,21 +49,6 @@
       --radius-xl: 24px;
     }
 
-    [data-theme="light"] {
-      --bg-deep: #ffffff;
-      --bg-card: rgba(250, 250, 252, 0.98);
-      --bg-elevated: rgba(255, 255, 255, 1);
-      --bg-input: #f0f2f5;
-      --text-primary: #0d1117;
-      --text-secondary: #2d3748;
-      --text-muted: #5a6272;
-      --border-subtle: rgba(0, 0, 0, 0.1);
-      --border-medium: rgba(0, 0, 0, 0.18);
-      --accent-gold: #b8860b;
-      --accent-gold-soft: rgba(184, 134, 11, 0.15);
-      --accent-teal: #0891b2;
-      --accent-blue: #0284c7;
-    }
 
     html.theme-transition,
     html.theme-transition *,
@@ -324,6 +309,113 @@
     }
     .twofa-back a:hover { color: var(--accent-blue); }
 
+    /* Biometric Auth Styles */
+    .biometric-section {
+      display: none;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .biometric-section.show { display: block; }
+    
+    .biometric-prompt {
+      text-align: center;
+      padding: 20px;
+      background: var(--bg-input);
+      border-radius: var(--radius-lg);
+      margin-bottom: 16px;
+    }
+    .biometric-icon { font-size: 48px; margin-bottom: 12px; }
+    .biometric-title { font-weight: 600; font-size: 1rem; margin-bottom: 8px; }
+    .biometric-text { color: var(--text-secondary); font-size: 0.88rem; }
+    
+    .btn-biometric {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 24px;
+      background: var(--bg-input);
+      border: 2px solid var(--border-medium);
+      border-radius: var(--radius-lg);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-biometric:hover {
+      border-color: var(--accent-gold);
+      background: var(--accent-gold-soft);
+    }
+    .btn-biometric:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-biometric .biometric-btn-icon { font-size: 1.4rem; }
+
+    .biometric-toggle-row {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      background: var(--bg-input);
+      border-radius: var(--radius-md);
+      margin-top: 16px;
+    }
+    .biometric-toggle-row.show { display: flex; }
+    .biometric-toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.92rem;
+      color: var(--text-secondary);
+    }
+    .biometric-toggle-label .toggle-icon { font-size: 1.3rem; }
+    
+    .toggle-switch {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      background: var(--border-medium);
+      border-radius: 13px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .toggle-switch.active { background: var(--accent-green); }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.2s ease;
+    }
+    .toggle-switch.active::after { transform: translateX(22px); }
+
+    /* Biometric Enrollment Modal */
+    .biometric-enroll-screen { text-align: center; padding: 20px 0; }
+    .biometric-enroll-icon { font-size: 56px; margin-bottom: 20px; }
+    .biometric-enroll-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 12px; }
+    .biometric-enroll-text { color: var(--text-secondary); font-size: 0.92rem; line-height: 1.6; margin-bottom: 24px; }
+    .biometric-enroll-actions { display: flex; flex-direction: column; gap: 12px; }
+    .btn-secondary {
+      width: 100%;
+      padding: 14px 24px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-lg);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-secondary:hover { border-color: var(--text-primary); color: var(--text-primary); }
+
     @media (max-width: 480px) {
       .login-card { padding: 32px 24px; }
       .signup-links { flex-direction: column; }
@@ -364,6 +456,14 @@
         </form>
 
         <div class="login-message" id="message"></div>
+
+        <!-- Biometric Login Button (shown when enabled) -->
+        <div id="biometric-login-section" class="biometric-section">
+          <button type="button" class="btn-biometric" id="biometric-login-btn" onclick="triggerBiometricLogin()">
+            <span class="biometric-btn-icon" id="biometric-btn-icon">🔐</span>
+            <span id="biometric-btn-text">Sign in with Biometrics</span>
+          </button>
+        </div>
 
         <div class="divider" data-i18n="common.or">or</div>
 
@@ -427,6 +527,26 @@
         </div>
       </div>
 
+      <!-- Biometric Enrollment Screen -->
+      <div id="biometric-enroll-screen" style="display:none;">
+        <div class="biometric-enroll-screen">
+          <div class="biometric-enroll-icon" id="biometric-enroll-icon">🔐</div>
+          <h2 class="biometric-enroll-title" id="biometric-enroll-title">Enable Quick Sign In</h2>
+          <p class="biometric-enroll-text" id="biometric-enroll-text">
+            Would you like to use Face ID / Fingerprint for faster, secure sign-in next time?
+          </p>
+          
+          <div class="biometric-enroll-actions">
+            <button class="btn btn-primary" id="enable-biometric-btn" onclick="enableBiometric()">
+              Enable Biometric Sign In
+            </button>
+            <button class="btn-secondary" onclick="skipBiometricEnrollment()">
+              Not Now
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- 2FA Verification Screen -->
       <div id="twofa-screen" style="display:none;">
         <div class="twofa-screen">
@@ -475,6 +595,7 @@
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
   <script src="/mcc-config.js"></script>
+  <script src="/biometric-auth.js"></script>
   <script src="login.js"></script>
   <script src="/footer.js"></script>
   <script src="/pwa-init.js"></script>

@@ -1197,6 +1197,10 @@
       if (id === 'pos-analytics') {
         loadPosAnalytics();
       }
+      // Load analytics dashboard when section is shown
+      if (id === 'analytics') {
+        loadAnalytics();
+      }
     }
 
     async function loadOpenPackages() {
@@ -4725,6 +4729,49 @@
       
       if (!confirm(`Purchase ${pack.name} pack?\n\n${pack.bid_count} bids${pack.bonus_bids > 0 ? ` + ${pack.bonus_bids} bonus` : ''} = ${totalBids} total bids\nPrice: $${pack.price.toFixed(2)}\n\nYou'll be redirected to complete payment.`)) {
         return;
+      }
+
+      // Check for mobile wallet availability (Apple Pay / Google Pay)
+      const walletStatus = typeof isMobileWalletAvailable === 'function' ? await isMobileWalletAvailable() : { available: false };
+      
+      if (walletStatus.available) {
+        try {
+          const description = `${pack.name} - ${totalBids} Bid Credits`;
+          const walletResult = await payWithMobileWallet(pack.price, description);
+          
+          if (walletResult.success && walletResult.paymentMethodId) {
+            showToast('Processing payment...', 'success');
+            
+            const session = await supabaseClient.auth.getSession();
+            const response = await fetch('/api/create-bid-checkout-mobile', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.data.session?.access_token}`
+              },
+              body: JSON.stringify({
+                packId: pack.id,
+                providerId: currentUser.id,
+                paymentMethodId: walletResult.paymentMethodId,
+                walletType: walletResult.type
+              })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+              showToast(`🎉 ${totalBids} bid credits added to your account!`, 'success');
+              await loadSubscription();
+              return;
+            } else {
+              throw new Error(data.error || 'Payment failed');
+            }
+          } else if (walletResult.error && walletResult.error !== 'Payment cancelled') {
+            console.log('Mobile wallet payment failed, falling back to Stripe Checkout');
+          }
+        } catch (err) {
+          console.error('Mobile wallet error:', err);
+          showToast('Mobile payment failed. Redirecting to standard checkout...', 'error');
+        }
       }
 
       // Production: Use Stripe Checkout
@@ -11627,4 +11674,383 @@
         outputArray[i] = rawData.charCodeAt(i);
       }
       return outputArray;
+    }
+
+    // ========== ANALYTICS DASHBOARD ==========
+    let analyticsEarningsChart = null;
+    let analyticsBidChart = null;
+    let analyticsServicesChart = null;
+    let analyticsRatingTrendChart = null;
+    let analyticsLoaded = false;
+
+    async function loadAnalytics() {
+      if (analyticsLoaded) return;
+      analyticsLoaded = true;
+      
+      try {
+        await Promise.all([
+          loadAnalyticsBidStats(),
+          loadAnalyticsEarnings(),
+          loadAnalyticsServices(),
+          loadAnalyticsCustomerInsights()
+        ]);
+      } catch (err) {
+        console.error('Error loading analytics:', err);
+        analyticsLoaded = false;
+      }
+    }
+
+    async function loadAnalyticsBidStats() {
+      try {
+        const { data: bids } = await supabaseClient
+          .from('bids')
+          .select('id, status, amount, created_at')
+          .eq('provider_id', currentUser.id);
+        
+        if (!bids || bids.length === 0) {
+          document.getElementById('analytics-bid-success-rate').textContent = '0%';
+          renderEmptyBidChart();
+          return;
+        }
+        
+        const totalBids = bids.length;
+        const acceptedBids = bids.filter(b => b.status === 'accepted').length;
+        const rejectedBids = bids.filter(b => b.status === 'rejected' || b.status === 'expired').length;
+        const pendingBids = bids.filter(b => b.status === 'pending').length;
+        const successRate = totalBids > 0 ? Math.round((acceptedBids / totalBids) * 100) : 0;
+        
+        document.getElementById('analytics-bid-success-rate').textContent = successRate + '%';
+        
+        renderBidPieChart(acceptedBids, rejectedBids, pendingBids);
+      } catch (err) {
+        console.error('Error loading bid stats:', err);
+      }
+    }
+
+    async function loadAnalyticsEarnings() {
+      try {
+        const { data: payments } = await supabaseClient
+          .from('payments')
+          .select('*, maintenance_packages(category, title)')
+          .eq('provider_id', currentUser.id)
+          .order('created_at', { ascending: true });
+        
+        if (!payments || payments.length === 0) {
+          document.getElementById('analytics-total-earnings').textContent = '$0';
+          document.getElementById('analytics-avg-job-value').textContent = '$0';
+          document.getElementById('analytics-jobs-completed').textContent = '0';
+          renderEmptyEarningsLineChart();
+          return;
+        }
+        
+        const totalEarnings = payments.reduce((sum, p) => sum + (p.amount_provider || 0), 0);
+        const avgJobValue = payments.length > 0 ? totalEarnings / payments.length : 0;
+        
+        document.getElementById('analytics-total-earnings').textContent = '$' + totalEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('analytics-avg-job-value').textContent = '$' + avgJobValue.toFixed(2);
+        document.getElementById('analytics-jobs-completed').textContent = payments.length;
+        
+        const monthlyData = {};
+        const now = new Date();
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const key = d.toLocaleString('default', { month: 'short', year: '2-digit' });
+          monthlyData[key] = 0;
+        }
+        
+        payments.forEach(p => {
+          const month = new Date(p.created_at).toLocaleString('default', { month: 'short', year: '2-digit' });
+          if (monthlyData.hasOwnProperty(month)) {
+            monthlyData[month] += (p.amount_provider || 0);
+          }
+        });
+        
+        renderEarningsLineChart(Object.keys(monthlyData), Object.values(monthlyData));
+      } catch (err) {
+        console.error('Error loading analytics earnings:', err);
+      }
+    }
+
+    async function loadAnalyticsServices() {
+      try {
+        const { data: payments } = await supabaseClient
+          .from('payments')
+          .select('amount_provider, maintenance_packages(category)')
+          .eq('provider_id', currentUser.id);
+        
+        if (!payments || payments.length === 0) {
+          renderEmptyServicesChart();
+          return;
+        }
+        
+        const categories = {};
+        payments.forEach(p => {
+          const cat = p.maintenance_packages?.category || 'Other';
+          if (!categories[cat]) categories[cat] = 0;
+          categories[cat] += (p.amount_provider || 0);
+        });
+        
+        const sorted = Object.entries(categories)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5);
+        
+        if (sorted.length === 0) {
+          renderEmptyServicesChart();
+          return;
+        }
+        
+        renderServicesBarChart(
+          sorted.map(s => formatCategory(s[0])),
+          sorted.map(s => s[1])
+        );
+      } catch (err) {
+        console.error('Error loading analytics services:', err);
+      }
+    }
+
+    async function loadAnalyticsCustomerInsights() {
+      try {
+        const [paymentsResult, reviewsResult] = await Promise.all([
+          supabaseClient
+            .from('payments')
+            .select('member_id')
+            .eq('provider_id', currentUser.id),
+          supabaseClient
+            .from('reviews')
+            .select('rating, created_at')
+            .eq('provider_id', currentUser.id)
+            .order('created_at', { ascending: true })
+        ]);
+        
+        const payments = paymentsResult.data || [];
+        const reviews = reviewsResult.data || [];
+        
+        if (payments.length > 0) {
+          const memberIds = payments.map(p => p.member_id).filter(Boolean);
+          const uniqueMembers = new Set(memberIds);
+          const repeatCustomers = memberIds.length - uniqueMembers.size;
+          const repeatRate = memberIds.length > 0 ? Math.round((repeatCustomers / memberIds.length) * 100) : 0;
+          document.getElementById('analytics-repeat-customer-rate').textContent = repeatRate + '%';
+        } else {
+          document.getElementById('analytics-repeat-customer-rate').textContent = '0%';
+        }
+        
+        if (reviews.length > 0) {
+          const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+          document.getElementById('analytics-avg-rating').textContent = avgRating.toFixed(1) + ' ⭐';
+          
+          const monthlyRatings = {};
+          reviews.forEach(r => {
+            const month = new Date(r.created_at).toLocaleString('default', { month: 'short' });
+            if (!monthlyRatings[month]) monthlyRatings[month] = [];
+            monthlyRatings[month].push(r.rating);
+          });
+          
+          const labels = Object.keys(monthlyRatings).slice(-6);
+          const avgRatings = labels.map(l => {
+            const ratings = monthlyRatings[l];
+            return ratings.reduce((a, b) => a + b, 0) / ratings.length;
+          });
+          
+          renderRatingTrendChart(labels, avgRatings);
+        } else {
+          document.getElementById('analytics-avg-rating').textContent = '--';
+        }
+      } catch (err) {
+        console.error('Error loading customer insights:', err);
+      }
+    }
+
+    function renderEarningsLineChart(labels, data) {
+      const ctx = document.getElementById('analytics-earnings-line-chart');
+      if (!ctx) return;
+      
+      if (analyticsEarningsChart) {
+        analyticsEarningsChart.destroy();
+      }
+      
+      analyticsEarningsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Earnings',
+            data,
+            borderColor: '#c9a227',
+            backgroundColor: 'rgba(201, 162, 39, 0.15)',
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: '#c9a227',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { 
+                color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#6b7280',
+                callback: value => '$' + value
+              },
+              grid: { color: 'rgba(160, 168, 184, 0.15)' }
+            },
+            x: {
+              ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#6b7280' },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    function renderEmptyEarningsLineChart() {
+      const container = document.getElementById('analytics-earnings-chart-container');
+      if (container) {
+        container.innerHTML = '<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">📈</div><p>No earnings data yet. Complete jobs to see your earnings trend!</p></div>';
+      }
+    }
+
+    function renderBidPieChart(accepted, rejected, pending) {
+      const ctx = document.getElementById('analytics-bid-pie-chart');
+      if (!ctx) return;
+      
+      if (analyticsBidChart) {
+        analyticsBidChart.destroy();
+      }
+      
+      analyticsBidChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Won', 'Lost', 'Pending'],
+          datasets: [{
+            data: [accepted, rejected, pending],
+            backgroundColor: ['#34d399', '#f87171', '#fb923c'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || '#a0a8b8' }
+            }
+          }
+        }
+      });
+    }
+
+    function renderEmptyBidChart() {
+      const container = document.getElementById('analytics-bid-chart-container');
+      if (container) {
+        container.innerHTML = '<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">🎯</div><p>No bids submitted yet.</p></div>';
+      }
+    }
+
+    function renderServicesBarChart(labels, data) {
+      const ctx = document.getElementById('analytics-services-bar-chart');
+      if (!ctx) return;
+      
+      if (analyticsServicesChart) {
+        analyticsServicesChart.destroy();
+      }
+      
+      analyticsServicesChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Revenue',
+            data,
+            backgroundColor: ['#c9a227', '#38bdf8', '#34d399', '#a78bfa', '#fb923c'],
+            borderWidth: 0,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              ticks: { 
+                color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#6b7280',
+                callback: value => '$' + value
+              },
+              grid: { color: 'rgba(160, 168, 184, 0.15)' }
+            },
+            y: {
+              ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#6b7280' },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    function renderEmptyServicesChart() {
+      const container = document.getElementById('analytics-services-chart-container');
+      if (container) {
+        container.innerHTML = '<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">🏆</div><p>Complete jobs to see your top services.</p></div>';
+      }
+    }
+
+    function renderRatingTrendChart(labels, data) {
+      const ctx = document.getElementById('analytics-rating-trend-chart');
+      if (!ctx) return;
+      
+      if (analyticsRatingTrendChart) {
+        analyticsRatingTrendChart.destroy();
+      }
+      
+      analyticsRatingTrendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Rating',
+            data,
+            borderColor: '#22d3ee',
+            backgroundColor: 'rgba(34, 211, 238, 0.15)',
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: '#22d3ee',
+            pointRadius: 3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: {
+              min: 0,
+              max: 5,
+              ticks: { 
+                stepSize: 1,
+                color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#6b7280'
+              },
+              grid: { color: 'rgba(160, 168, 184, 0.15)' }
+            },
+            x: {
+              ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#6b7280' },
+              grid: { display: false }
+            }
+          }
+        }
+      });
     }

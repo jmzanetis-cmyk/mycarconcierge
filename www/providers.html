@@ -69,43 +69,18 @@
       --radius-xl: 24px;
     }
 
-    /* Light Theme */
-    [data-theme="light"] {
-      /* Crisp, clean backgrounds */
-      --bg-deep: #ffffff;
-      --bg-card: rgba(250, 250, 252, 0.98);
-      --bg-elevated: rgba(255, 255, 255, 1);
-      --bg-input: #f0f2f5;
-      /* Bold, readable text */
-      --text-primary: #0d1117;
-      --text-secondary: #2d3748;
-      --text-muted: #5a6272;
-      /* Stronger borders for definition */
-      --border-subtle: rgba(0, 0, 0, 0.1);
-      --border-medium: rgba(0, 0, 0, 0.18);
-      --border-focus: rgba(201, 162, 39, 0.6);
-      /* Richer accents for light mode */
-      --accent-gold: #b8860b;
-      --accent-gold-soft: rgba(184, 134, 11, 0.15);
-      --accent-bronze: #a0522d;
-      --accent-bronze-soft: rgba(160, 82, 45, 0.12);
-      --accent-teal: #0891b2;
-      --accent-teal-soft: rgba(8, 145, 178, 0.12);
-      --accent-blue: #0284c7;
-      --accent-blue-soft: rgba(2, 132, 199, 0.12);
-    }
 
-    /* Light mode sidebar - sleek light panel */
+    /* Light mode sidebar - warm light panel */
     [data-theme="light"] .sidebar {
-      background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
-      border-right: 1px solid rgba(0, 0, 0, 0.08);
+      background: linear-gradient(180deg, #faf8f5 0%, #fdfcfa 100%);
+      border-right: 1px solid rgba(139, 119, 101, 0.12);
     }
     [data-theme="light"] .sidebar-footer {
-      background: linear-gradient(180deg, transparent, rgba(248, 249, 250, 0.9));
+      background: linear-gradient(180deg, transparent, rgba(255, 253, 250, 0.9));
     }
     [data-theme="light"] .user-info {
-      background: linear-gradient(135deg, rgba(240, 242, 245, 0.9), rgba(255, 255, 255, 0.95));
-      border: 1px solid rgba(0, 0, 0, 0.06);
+      background: linear-gradient(135deg, rgba(247, 244, 240, 0.9), rgba(255, 253, 250, 0.95));
+      border: 1px solid rgba(139, 119, 101, 0.08);
     }
     [data-theme="light"] .nav-item:hover {
       background: rgba(184, 134, 11, 0.08);
@@ -117,17 +92,17 @@
       border-color: rgba(184, 134, 11, 0.25);
     }
 
-    /* Light mode cards with subtle shadows */
+    /* Light mode cards with subtle warm shadows */
     [data-theme="light"] .card,
     [data-theme="light"] .stat-card,
     [data-theme="light"] .vehicle-card {
-      background: #ffffff;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-      border: 1px solid rgba(0, 0, 0, 0.06);
+      background: #fdfcfa;
+      box-shadow: 0 2px 8px rgba(139, 119, 101, 0.06), 0 1px 2px rgba(139, 119, 101, 0.04);
+      border: 1px solid rgba(139, 119, 101, 0.08);
     }
     [data-theme="light"] .stat-card:hover,
     [data-theme="light"] .vehicle-card:hover {
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 8px 24px rgba(139, 119, 101, 0.08);
     }
 
     /* Theme transition */
@@ -886,6 +861,7 @@
     <div class="nav-item" data-section="earnings-analytics">📊 Earnings Analytics</div>
     <div class="nav-item" data-section="reviews">⭐ My Reviews</div>
     <div class="nav-item" data-section="performance">📈 Performance</div>
+    <div class="nav-item" data-section="analytics">📊 Analytics</div>
     <div class="nav-item" data-section="messages">💬 Messages</div>
     <div class="nav-item" data-section="notifications">🔔 Notifications <span class="nav-badge" id="notif-count" style="display:none;background:var(--accent-red);">0</span></div>
     
@@ -1543,6 +1519,98 @@
           <div><span style="color:#cd7f32;">⬥ Bronze:</span> 0-49 score</div>
         </div>
       </div>
+    </section>
+
+    <!-- Analytics Section -->
+    <section id="analytics" class="section">
+      <div class="page-header">
+        <h1 class="page-title">📊 Analytics Dashboard</h1>
+        <p class="page-subtitle">Track your business performance with detailed insights.</p>
+      </div>
+
+      <div class="stats-grid" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-icon" style="color:var(--accent-gold);">💰</div>
+          <div class="stat-value" id="analytics-total-earnings">$0</div>
+          <div class="stat-label">Total Earnings</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="color:var(--accent-green);">🎯</div>
+          <div class="stat-value" id="analytics-bid-success-rate">0%</div>
+          <div class="stat-label">Bid Success Rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="color:var(--accent-blue);">📊</div>
+          <div class="stat-value" id="analytics-avg-job-value">$0</div>
+          <div class="stat-label">Average Job Value</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="color:var(--accent-teal);">✅</div>
+          <div class="stat-value" id="analytics-jobs-completed">0</div>
+          <div class="stat-label">Jobs Completed</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;margin-bottom:24px;" class="analytics-charts-row">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">📈 Earnings Trend (Last 6 Months)</h2>
+          </div>
+          <div id="analytics-earnings-chart-container" style="height:280px;position:relative;">
+            <canvas id="analytics-earnings-line-chart"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">🎯 Bid Performance</h2>
+          </div>
+          <div id="analytics-bid-chart-container" style="height:280px;position:relative;">
+            <canvas id="analytics-bid-pie-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;" class="analytics-bottom-row">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">🏆 Top Services by Revenue</h2>
+          </div>
+          <div id="analytics-services-chart-container" style="height:260px;position:relative;">
+            <canvas id="analytics-services-bar-chart"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">👥 Customer Insights</h2>
+          </div>
+          <div style="padding:16px 0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);margin-bottom:12px;">
+              <div>
+                <div style="font-size:0.85rem;color:var(--text-muted);">Repeat Customer Rate</div>
+                <div style="font-size:1.5rem;font-weight:700;color:var(--accent-gold);" id="analytics-repeat-customer-rate">0%</div>
+              </div>
+              <div style="font-size:2rem;">🔄</div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);margin-bottom:12px;">
+              <div>
+                <div style="font-size:0.85rem;color:var(--text-muted);">Average Rating</div>
+                <div style="font-size:1.5rem;font-weight:700;color:var(--accent-teal);" id="analytics-avg-rating">--</div>
+              </div>
+              <div style="font-size:2rem;">⭐</div>
+            </div>
+            <div id="analytics-rating-trend-container" style="height:120px;position:relative;">
+              <canvas id="analytics-rating-trend-chart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style>
+        @media (max-width: 900px) {
+          .analytics-charts-row { grid-template-columns: 1fr !important; }
+          .analytics-bottom-row { grid-template-columns: 1fr !important; }
+        }
+      </style>
     </section>
 
     <section id="messages" class="section">
@@ -5694,6 +5762,8 @@
   <script src="mcc-config.js?v=20260122"></script>
   <script src="tos-modal.js?v=20260122"></script>
   <script src="emailService.js?v=20260122"></script>
+  <script src="mobile-pay.js?v=20260124"></script>
+  <script src="stripeutils.js?v=20260124"></script>
   <script src="providers-core.js?v=20260122"></script>
   <script src="/pwa-init.js?v=20260122"></script>
   <script src="/chat-widget-base.js?v=20260122"></script>
