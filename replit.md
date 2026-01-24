@@ -45,6 +45,9 @@ Key features include:
 - **Escrow Payment System (Stripe Connect)**: Secure marketplace payments using manual capture. Funds are held when member confirms card, then captured and transferred to provider (minus 10% platform fee) when job is marked complete. Features server-side amount validation, status state machine enforcement, idempotent operations, and server-side atomic updates for payment release.
 - **Provider Stripe Connect Onboarding**: Providers can connect their Stripe account to receive payments directly. Includes onboarding flow, status verification, and payout management.
 - **Member Payment Confirmation UI**: Members see payment status badges on packages (Awaiting Payment, Payment Authorized, Payment Held, Payment Complete) and can confirm job completion to release funds.
+- **Provider Analytics Dashboard**: Comprehensive analytics for providers including earnings trends, bid success rates, average job value, top services by revenue, and customer insights with Chart.js visualizations.
+- **Biometric Login (Capacitor)**: Face ID / fingerprint authentication for native mobile apps with graceful web fallback.
+- **Mobile Wallet Payments**: Apple Pay and Google Pay integration for native apps (requires Capacitor Stripe plugin and merchant ID configuration).
 
 ## Performance Optimizations
 - **Lazy-Loaded JS Modules**: Member and provider dashboards split into feature modules loaded on-demand, reducing initial load from ~500KB to ~25KB.
