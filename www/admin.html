@@ -368,22 +368,44 @@
     .mobile-logout-btn:active { transform: scale(0.95); }
     .mobile-header-right { display: flex; align-items: center; gap: 8px; }
     .mobile-theme-toggle {
-      width: 40px;
-      height: 40px;
+      height: 36px;
+      padding: 0 10px;
       display: flex;
       align-items: center;
-      justify-content: center;
+      gap: 4px;
       background: var(--bg-elevated);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
       cursor: pointer;
-      font-size: 18px;
+      font-size: 16px;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
       transition: all 0.2s ease;
     }
     .mobile-theme-toggle:hover { background: var(--accent-gold-soft); border-color: var(--accent-gold); }
     .mobile-theme-toggle:active { transform: scale(0.95); }
+    .mobile-theme-toggle .theme-label-dark,
+    .mobile-theme-toggle .theme-label-light { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+    [data-theme="dark"] .mobile-theme-toggle .theme-label-light,
+    [data-theme="dark"] .mobile-theme-toggle .theme-icon-light { display: none; }
+    [data-theme="light"] .mobile-theme-toggle .theme-label-dark,
+    [data-theme="light"] .mobile-theme-toggle .theme-icon-dark { display: none; }
+    .mobile-merch-btn {
+      height: 36px;
+      padding: 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--text-primary);
+      text-decoration: none;
+      touch-action: manipulation;
+    }
+    .mobile-merch-btn:hover { background: var(--accent-gold-soft); border-color: var(--accent-gold); }
     .sidebar-overlay {
       display: none;
       position: fixed;
@@ -404,9 +426,12 @@
       <span class="mobile-header-title">Admin Portal</span>
     </div>
     <div class="mobile-header-right">
+      <button class="mobile-merch-btn" onclick="navigateToSection('merch-manager')" title="Merch Manager">🛍️</button>
       <button class="mobile-theme-toggle" onclick="toggleTheme()" title="Toggle theme">
         <span class="theme-icon-dark">☀️</span>
         <span class="theme-icon-light">🌙</span>
+        <span class="theme-label-dark">Light</span>
+        <span class="theme-label-light">Dark</span>
       </button>
       <button class="mobile-logout-btn" onclick="logout()">Log Out</button>
     </div>
