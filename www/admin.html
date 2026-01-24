@@ -61,21 +61,21 @@
     }
 
 
-    /* Light mode sidebar - warm light panel */
+    /* Light mode sidebar - warm sandstone panel */
     [data-theme="light"] .sidebar {
-      background: linear-gradient(180deg, #faf8f5 0%, #fdfcfa 100%);
-      border-right: 1px solid rgba(139, 119, 101, 0.12);
+      background: linear-gradient(180deg, #f5f2ed 0%, #f8f4ef 100%);
+      border-right: 1px solid rgba(120, 110, 95, 0.15);
     }
     [data-theme="light"] .sidebar-footer {
-      background: linear-gradient(180deg, transparent, rgba(255, 253, 250, 0.9));
+      background: linear-gradient(180deg, transparent, rgba(252, 249, 244, 0.95));
     }
     [data-theme="light"] .user-info {
-      background: linear-gradient(135deg, rgba(247, 244, 240, 0.9), rgba(255, 253, 250, 0.95));
-      border: 1px solid rgba(139, 119, 101, 0.08);
+      background: linear-gradient(135deg, rgba(248, 244, 238, 0.95), rgba(252, 249, 244, 0.98));
+      border: 1px solid rgba(120, 110, 95, 0.12);
     }
     [data-theme="light"] .nav-item:hover {
-      background: rgba(184, 134, 11, 0.08);
-      border-color: rgba(184, 134, 11, 0.15);
+      background: rgba(120, 110, 95, 0.08);
+      border-color: rgba(120, 110, 95, 0.18);
     }
     [data-theme="light"] .nav-item.active {
       background: linear-gradient(135deg, rgba(184, 134, 11, 0.12), rgba(184, 134, 11, 0.06));
@@ -83,17 +83,17 @@
       border-color: rgba(184, 134, 11, 0.25);
     }
 
-    /* Light mode cards with subtle warm shadows */
+    /* Light mode cards with warm sandstone shadows */
     [data-theme="light"] .card,
     [data-theme="light"] .stat-card,
     [data-theme="light"] .vehicle-card {
-      background: #fdfcfa;
-      box-shadow: 0 2px 8px rgba(139, 119, 101, 0.06), 0 1px 2px rgba(139, 119, 101, 0.04);
-      border: 1px solid rgba(139, 119, 101, 0.08);
+      background: rgba(248, 244, 238, 0.98);
+      box-shadow: 0 2px 8px rgba(120, 110, 95, 0.08), 0 1px 2px rgba(120, 110, 95, 0.05);
+      border: 1px solid rgba(120, 110, 95, 0.12);
     }
     [data-theme="light"] .stat-card:hover,
     [data-theme="light"] .vehicle-card:hover {
-      box-shadow: 0 8px 24px rgba(139, 119, 101, 0.08);
+      box-shadow: 0 8px 24px rgba(120, 110, 95, 0.12);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -366,6 +366,24 @@
       -webkit-tap-highlight-color: transparent;
     }
     .mobile-logout-btn:active { transform: scale(0.95); }
+    .mobile-header-right { display: flex; align-items: center; gap: 8px; }
+    .mobile-theme-toggle {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: 18px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: all 0.2s ease;
+    }
+    .mobile-theme-toggle:hover { background: var(--accent-gold-soft); border-color: var(--accent-gold); }
+    .mobile-theme-toggle:active { transform: scale(0.95); }
     .sidebar-overlay {
       display: none;
       position: fixed;
@@ -385,7 +403,13 @@
       <button class="hamburger-btn" onclick="toggleSidebar()">☰</button>
       <span class="mobile-header-title">Admin Portal</span>
     </div>
-    <button class="mobile-logout-btn" onclick="logout()">Log Out</button>
+    <div class="mobile-header-right">
+      <button class="mobile-theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <span class="theme-icon-dark">☀️</span>
+        <span class="theme-icon-light">🌙</span>
+      </button>
+      <button class="mobile-logout-btn" onclick="logout()">Log Out</button>
+    </div>
   </header>
   
   <!-- Sidebar Overlay (for mobile) -->
@@ -442,6 +466,14 @@
   </aside>
 
   <main class="main">
+    <!-- Desktop Header with Theme Toggle -->
+    <div class="desktop-header">
+      <button class="header-theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <span class="theme-icon-sun">☀️</span>
+        <span class="theme-icon-moon">🌙</span>
+      </button>
+    </div>
+
     <!-- Dashboard Section -->
     <section id="dashboard" class="section active">
       <div class="page-header">

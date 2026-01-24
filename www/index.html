@@ -58,15 +58,15 @@
     }
 
     [data-theme="light"] {
-      --bg-deep: #ffffff;
-      --bg-card: rgba(250, 250, 252, 0.98);
-      --bg-elevated: rgba(255, 255, 255, 1);
-      --bg-input: #f0f2f5;
-      --text-primary: #0d1117;
-      --text-secondary: #2d3748;
-      --text-muted: #5a6272;
-      --border-subtle: rgba(0, 0, 0, 0.1);
-      --border-medium: rgba(0, 0, 0, 0.18);
+      --bg-deep: #f5f2ed;
+      --bg-card: rgba(248, 244, 238, 0.98);
+      --bg-elevated: rgba(252, 249, 244, 1);
+      --bg-input: #ebe7e0;
+      --text-primary: #1c1915;
+      --text-secondary: #3a352e;
+      --text-muted: #6d665c;
+      --border-subtle: rgba(120, 110, 95, 0.15);
+      --border-medium: rgba(120, 110, 95, 0.25);
       --accent-gold: #b8860b;
       --accent-gold-soft: rgba(184, 134, 11, 0.15);
       --accent-teal: #0891b2;
@@ -1020,9 +1020,6 @@
   <script src="/i18n.js"></script>
 </head>
 <body>
-  <button class="theme-toggle-mini" onclick="toggleTheme()" title="Toggle theme" style="position: fixed; top: 20px; right: 20px; z-index: 1000; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 50%; width: 44px; height: 44px; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
-    <span class="theme-icon">🔦</span>
-  </button>
   <div class="ambient-bg"></div>
   <div class="noise"></div>
 
@@ -1037,6 +1034,10 @@
         <a href="/marketing/about.html">About</a>
         <a href="#features" data-i18n="nav.features">Features</a>
         <div id="language-switcher"></div>
+        <button class="header-theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark theme">
+          <span class="theme-icon-sun">☀️</span>
+          <span class="theme-icon-moon">🌙</span>
+        </button>
       </nav>
       <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Menu">
         <span></span>
@@ -1054,6 +1055,10 @@
       <a href="/marketing/about.html" onclick="closeMobileMenu()">About</a>
       <a href="#features" onclick="closeMobileMenu()" data-i18n="nav.features">Features</a>
       <div class="mobile-lang-switcher" id="mobile-language-switcher"></div>
+      <button class="header-theme-toggle" onclick="toggleTheme(); closeMobileMenu();" title="Toggle theme" aria-label="Toggle light/dark theme" style="margin-top: 12px;">
+        <span class="theme-icon-sun">☀️</span>
+        <span class="theme-icon-moon">🌙</span>
+      </button>
     </nav>
   </div>
 
@@ -1364,15 +1369,11 @@
       const newTheme = current === 'dark' ? 'light' : 'dark';
       html.setAttribute('data-theme', newTheme);
       localStorage.setItem('theme', newTheme);
-      const icon = document.querySelector('.theme-icon');
-      if (icon) icon.textContent = newTheme === 'dark' ? '🔦' : '🌙';
       const metaTheme = document.querySelector('meta[name="theme-color"]');
-      if (metaTheme) metaTheme.content = newTheme === 'dark' ? '#12161c' : '#ffffff';
+      if (metaTheme) metaTheme.content = newTheme === 'dark' ? '#12161c' : '#f5f2ed';
       setTimeout(() => html.classList.remove('theme-transition'), 300);
     }
     document.addEventListener('DOMContentLoaded', async () => {
-      const icon = document.querySelector('.theme-icon');
-      if (icon) icon.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '🔦' : '🌙';
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
       I18n.createLanguageSwitcher('mobile-language-switcher');

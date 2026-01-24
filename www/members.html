@@ -73,21 +73,21 @@
     }
 
 
-    /* Light mode sidebar - warm light panel */
+    /* Light mode sidebar - warm sandstone panel */
     [data-theme="light"] .sidebar {
-      background: linear-gradient(180deg, #faf8f5 0%, #fdfcfa 100%);
-      border-right: 1px solid rgba(139, 119, 101, 0.12);
+      background: linear-gradient(180deg, #f5f2ed 0%, #f8f4ef 100%);
+      border-right: 1px solid rgba(120, 110, 95, 0.15);
     }
     [data-theme="light"] .sidebar-footer {
-      background: linear-gradient(180deg, transparent, rgba(255, 253, 250, 0.9));
+      background: linear-gradient(180deg, transparent, rgba(252, 249, 244, 0.95));
     }
     [data-theme="light"] .user-info {
-      background: linear-gradient(135deg, rgba(247, 244, 240, 0.9), rgba(255, 253, 250, 0.95));
-      border: 1px solid rgba(139, 119, 101, 0.08);
+      background: linear-gradient(135deg, rgba(248, 244, 238, 0.95), rgba(252, 249, 244, 0.98));
+      border: 1px solid rgba(120, 110, 95, 0.12);
     }
     [data-theme="light"] .nav-item:hover {
-      background: rgba(184, 134, 11, 0.08);
-      border-color: rgba(184, 134, 11, 0.15);
+      background: rgba(120, 110, 95, 0.08);
+      border-color: rgba(120, 110, 95, 0.18);
     }
     [data-theme="light"] .nav-item.active {
       background: linear-gradient(135deg, rgba(184, 134, 11, 0.12), rgba(184, 134, 11, 0.06));
@@ -95,17 +95,17 @@
       border-color: rgba(184, 134, 11, 0.25);
     }
 
-    /* Light mode cards with subtle warm shadows */
+    /* Light mode cards with warm sandstone shadows */
     [data-theme="light"] .card,
     [data-theme="light"] .stat-card,
     [data-theme="light"] .vehicle-card {
-      background: #fdfcfa;
-      box-shadow: 0 2px 8px rgba(139, 119, 101, 0.06), 0 1px 2px rgba(139, 119, 101, 0.04);
-      border: 1px solid rgba(139, 119, 101, 0.08);
+      background: rgba(248, 244, 238, 0.98);
+      box-shadow: 0 2px 8px rgba(120, 110, 95, 0.08), 0 1px 2px rgba(120, 110, 95, 0.05);
+      border: 1px solid rgba(120, 110, 95, 0.12);
     }
     [data-theme="light"] .stat-card:hover,
     [data-theme="light"] .vehicle-card:hover {
-      box-shadow: 0 8px 24px rgba(139, 119, 101, 0.08);
+      box-shadow: 0 8px 24px rgba(120, 110, 95, 0.12);
     }
 
     /* Theme transition */
@@ -620,6 +620,8 @@
       .sidebar.open { transform: translateX(0); box-shadow: 8px 0 40px rgba(0,0,0,0.6); }
       .main { margin-left: 0; padding: 24px 16px 120px; min-height: 100vh; overflow: visible; }
       .mobile-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+      .mobile-header > span { flex: 1; }
+      .mobile-header .header-theme-toggle { margin-left: auto; }
       .mobile-menu-btn { display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); cursor: pointer; font-size: 1.2rem; }
       .form-row, .form-row.three, .parts-tiers { grid-template-columns: 1fr; }
       .bidding-window-options { grid-template-columns: repeat(3, 1fr); }
@@ -994,11 +996,6 @@
         </button>
         <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;text-align:center;">You have dual access</div>
       </div>
-      <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle light/dark mode">
-        <span class="theme-icon-dark">🔦</span>
-        <span class="theme-icon-light">🌙</span>
-        <span class="theme-label">Lights</span>
-      </button>
       <button class="btn btn-secondary" onclick="logout()" style="width:100%;padding:14px 20px;font-size:0.95rem;">🚪 Log Out</button>
       <div class="sidebar-disclaimer" style="margin-top:12px;padding:10px 12px;background:rgba(148,148,168,0.06);border-radius:8px;border:1px solid rgba(148,148,168,0.08);">
         <p style="font-size:0.68rem;color:var(--text-muted);line-height:1.5;margin:0;">
@@ -1013,6 +1010,18 @@
     <div class="mobile-header">
       <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
       <span style="font-weight: 600;">My Car Concierge</span>
+      <button class="header-theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark theme">
+        <span class="theme-icon-sun">☀️</span>
+        <span class="theme-icon-moon">🌙</span>
+      </button>
+    </div>
+
+    <!-- Desktop Header with Theme Toggle -->
+    <div class="desktop-header">
+      <button class="header-theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <span class="theme-icon-sun">☀️</span>
+        <span class="theme-icon-moon">🌙</span>
+      </button>
     </div>
 
     <!-- Active Emergency Banner -->
