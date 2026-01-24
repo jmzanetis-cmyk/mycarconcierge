@@ -19926,6 +19926,25 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  // Apple Pay domain verification file
+  if (req.method === 'GET' && req.url === '/.well-known/apple-developer-merchantid-domain-association') {
+    const verificationFile = './.well-known/apple-developer-merchantid-domain-association';
+    fs.readFile(verificationFile, (err, content) => {
+      if (err) {
+        console.log(`[${requestId}] Apple Pay verification file not found`);
+        res.writeHead(404);
+        res.end('Not found');
+      } else {
+        res.writeHead(200, { 
+          'Content-Type': 'text/plain',
+          'Cache-Control': 'public, max-age=86400'
+        });
+        res.end(content);
+      }
+    });
+    return;
+  }
+  
   // URL redirects for cleaner URLs
   const urlRedirects = {
     '/founder-member': '/member-founder.html',
