@@ -6726,6 +6726,66 @@
     </div>
   </div>
 
+  <!-- Release Payment Confirmation Modal -->
+  <div class="modal-backdrop" id="release-payment-modal">
+    <div class="modal" style="max-width:520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">✓ Confirm Job Complete</h3>
+        <button class="modal-close" onclick="closeModal('release-payment-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="text-align:center;margin-bottom:24px;">
+          <div style="font-size:3rem;margin-bottom:12px;">💰</div>
+          <h4 style="margin-bottom:8px;">Release Payment to Provider</h4>
+          <p style="color:var(--text-secondary);font-size:0.95rem;">You are about to confirm that the service is complete and release payment.</p>
+        </div>
+        
+        <div style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;">
+          <div id="release-payment-details">
+            <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+              <span style="color:var(--text-secondary);">Service</span>
+              <span id="release-payment-service" style="font-weight:600;"></span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+              <span style="color:var(--text-secondary);">Provider</span>
+              <span id="release-payment-provider" style="font-weight:500;"></span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding-top:12px;border-top:1px solid var(--border-subtle);">
+              <span style="color:var(--text-secondary);font-weight:600;">Amount to Release</span>
+              <span id="release-payment-amount" style="font-size:1.3rem;font-weight:700;color:var(--accent-gold);"></span>
+            </div>
+          </div>
+        </div>
+        
+        <div style="background:var(--accent-blue-soft);border:1px solid rgba(56,189,248,0.3);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;">
+            <span style="font-size:1.2rem;">ℹ️</span>
+            <div style="font-size:0.9rem;color:var(--text-secondary);line-height:1.6;">
+              <strong style="color:var(--accent-blue);">What happens next:</strong><br>
+              • The held payment will be released to the service provider<br>
+              • This action cannot be undone<br>
+              • You'll be asked to leave a review for the provider
+            </div>
+          </div>
+        </div>
+        
+        <label style="display:flex;align-items:flex-start;gap:12px;padding:16px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);cursor:pointer;margin-bottom:20px;">
+          <input type="checkbox" id="release-payment-confirm-checkbox" style="margin-top:3px;width:20px;height:20px;accent-color:var(--accent-green);">
+          <span style="color:var(--text-secondary);font-size:0.9rem;line-height:1.5;">
+            I confirm that I have received my vehicle and the service has been completed satisfactorily. I understand this will release the payment to the provider and cannot be undone.
+          </span>
+        </label>
+        
+        <div style="display:flex;gap:12px;">
+          <button class="btn btn-secondary" onclick="closeModal('release-payment-modal')" style="flex:1;">Cancel</button>
+          <button class="btn btn-success" id="release-payment-btn" onclick="confirmReleasePayment()" style="flex:1;" disabled>
+            ✓ Release Payment
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
@@ -6734,7 +6794,9 @@
   <script src="mcc-config.js?v=20260122"></script>
   <script src="tos-modal.js?v=20260122"></script>
   <script src="emailService.js?v=20260122"></script>
+  <script src="stripeutils.js?v=20260124"></script>
   <script src="members-core.js?v=20260122"></script>
+  <script src="members-packages.js?v=20260124"></script>
   <script src="/pwa-init.js?v=20260122"></script>
   <script src="/chat-widget-base.js?v=20260122"></script>
   <script src="/ai-chat.js?v=20260122"></script>

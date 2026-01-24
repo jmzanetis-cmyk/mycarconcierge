@@ -1087,6 +1087,11 @@
         });
       }
       
+      // Load payment statuses for escrow display
+      if (typeof loadPackagePaymentStatuses === 'function') {
+        await loadPackagePaymentStatuses();
+      }
+      
       renderPackages();
       renderRecentActivity();
     }

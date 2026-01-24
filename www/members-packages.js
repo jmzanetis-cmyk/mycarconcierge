@@ -301,6 +301,55 @@
     }
 
 
+    let packagePaymentStatuses = {};
+
+    async function loadPackagePaymentStatuses() {
+      if (!packages.length) return;
+      
+      const packageIds = packages.filter(p => ['accepted', 'in_progress', 'completed'].includes(p.status)).map(p => p.id);
+      if (!packageIds.length) return;
+      
+      try {
+        const { data: payments } = await supabaseClient.from('payments')
+          .select('package_id, status, escrow_payment_intent_id, escrow_captured, amount_total')
+          .in('package_id', packageIds);
+        
+        packagePaymentStatuses = {};
+        if (payments) {
+          payments.forEach(p => {
+            packagePaymentStatuses[p.package_id] = p;
+          });
+        }
+      } catch (e) {
+        console.log('Could not load payment statuses:', e);
+      }
+    }
+
+    function getPaymentStatusBadge(pkg) {
+      const payment = packagePaymentStatuses[pkg.id];
+      
+      if (!payment) {
+        if (pkg.status === 'accepted' || pkg.status === 'in_progress') {
+          return `<span class="payment-status-badge awaiting" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-orange-soft);color:var(--accent-orange);border:1px solid rgba(251,146,60,0.3);">💳 Awaiting Payment</span>`;
+        }
+        return '';
+      }
+      
+      if (payment.escrow_captured === true || payment.status === 'released' || payment.status === 'completed') {
+        return `<span class="payment-status-badge complete" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-green-soft);color:var(--accent-green);border:1px solid rgba(52,211,153,0.3);">✓ Payment Complete</span>`;
+      }
+      
+      if (payment.escrow_payment_intent_id && payment.escrow_captured === false) {
+        return `<span class="payment-status-badge held" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-blue-soft);color:var(--accent-blue);border:1px solid rgba(56,189,248,0.3);">🔒 Payment Held</span>`;
+      }
+      
+      if (payment.status === 'held' || payment.status === 'authorized') {
+        return `<span class="payment-status-badge authorized" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-teal-soft);color:var(--accent-teal);border:1px solid rgba(34,211,238,0.3);">🔐 Payment Authorized</span>`;
+      }
+      
+      return `<span class="payment-status-badge awaiting" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-orange-soft);color:var(--accent-orange);border:1px solid rgba(251,146,60,0.3);">💳 Awaiting Payment</span>`;
+    }
+
     function renderPackages() {
       const list = document.getElementById('packages-list');
       let filtered = packages;
@@ -323,6 +372,9 @@
         const displayStatus = isExpired ? 'expired' : p.status;
         const statusClass = displayStatus === 'open' ? 'open' : displayStatus === 'completed' ? 'completed' : displayStatus === 'expired' ? 'expired' : ['pending', 'accepted'].includes(displayStatus) ? 'pending' : 'accepted';
         
+        // Payment status badge for active/completed packages
+        const paymentBadge = getPaymentStatusBadge(p);
+        
         // Countdown timer for open packages
         let countdownHtml = '';
         if (p.status === 'open' && p.bidding_deadline) {
@@ -344,6 +396,15 @@
         // Extend deadline button for open (non-expired) packages
         const extendButton = (p.status === 'open' && !isExpired) ? `<button class="btn btn-ghost btn-sm" onclick="extendDeadline('${p.id}')" title="Add more time">⏱️+</button>` : '';
         
+        // Confirm job complete button for completed work with unreleased payment
+        let confirmCompleteButton = '';
+        const payment = packagePaymentStatuses[p.id];
+        if ((p.status === 'in_progress' || p.status === 'completed') && payment && 
+            (payment.status === 'held' || payment.status === 'authorized') && 
+            !payment.escrow_captured) {
+          confirmCompleteButton = `<button class="btn btn-success btn-sm" onclick="openReleasePaymentModal('${p.id}')">✓ Confirm Complete</button>`;
+        }
+        
         return `
           <div class="package-card">
             <div class="package-header">
@@ -353,6 +414,7 @@
               </div>
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
                 <span class="package-status ${statusClass}">${displayStatus}</span>
+                ${paymentBadge}
                 ${countdownHtml}
                 ${exclusiveHtml}
               </div>
@@ -368,6 +430,7 @@
               <span class="bid-count">${isExpired ? 'Bidding ended' : (p.bid_count > 0 ? `💬 ${p.bid_count} bid${p.bid_count === 1 ? '' : 's'} received` : 'No bids yet')}</span>
               <div style="display:flex;gap:8px;">
                 ${extendButton}
+                ${confirmCompleteButton}
                 ${repostButton}
                 <button class="btn btn-secondary btn-sm" onclick="viewPackage('${p.id}')">Open →</button>
               </div>
@@ -1393,7 +1456,7 @@
               </div>
               <p style="color:var(--text-secondary);margin-bottom:16px;">Once you receive your vehicle and verify the work is complete, confirm below to release payment to the provider.</p>
               <div style="display:flex;gap:12px;">
-                <button class="btn btn-primary" onclick="confirmCompletion('${packageId}')">✓ Confirm Complete & Release Payment</button>
+                <button class="btn btn-primary" onclick="openReleasePaymentModal('${packageId}')">✓ Confirm Complete & Release Payment</button>
                 <button class="btn btn-danger btn-sm" onclick="openDispute('${packageId}')">⚠️ Open Dispute</button>
               </div>
             ` : ''}
@@ -1631,7 +1694,7 @@
               </p>
               
               ${showReleaseButton ? `
-                <button class="btn btn-success" onclick="confirmJobAndReleasePayment('${pkg.id}')" style="width:100%;">
+                <button class="btn btn-success" onclick="openReleasePaymentModal('${pkg.id}')" style="width:100%;">
                   ✓ Confirm Complete & Release Payment
                 </button>
               ` : ''}
@@ -1920,6 +1983,133 @@
       } catch (err) {
         console.error('Error confirming completion:', err);
         showToast('Error completing job. Please try again.', 'error');
+      }
+    }
+
+    // ========== RELEASE PAYMENT MODAL ==========
+    let currentReleasePackageId = null;
+    let currentReleasePackageData = null;
+    let currentReleaseBidData = null;
+
+    async function openReleasePaymentModal(packageId) {
+      currentReleasePackageId = packageId;
+      
+      const pkg = packages.find(p => p.id === packageId);
+      if (!pkg) {
+        showToast('Package not found', 'error');
+        return;
+      }
+      currentReleasePackageData = pkg;
+
+      // Get the accepted bid info
+      const { data: bid } = await supabaseClient.from('bids')
+        .select('*, profiles:provider_id(provider_alias, business_name, full_name)')
+        .eq('package_id', packageId)
+        .eq('status', 'accepted')
+        .single();
+      
+      currentReleaseBidData = bid;
+
+      // Get payment info
+      const payment = packagePaymentStatuses[packageId];
+      const amount = payment?.amount_total || bid?.price || 0;
+
+      // Populate modal
+      document.getElementById('release-payment-service').textContent = pkg.title || 'Service Package';
+      document.getElementById('release-payment-provider').textContent = 
+        bid?.profiles?.provider_alias || bid?.profiles?.business_name || `Provider #${bid?.provider_id?.slice(0,4).toUpperCase()}` || 'Provider';
+      document.getElementById('release-payment-amount').textContent = `$${amount.toFixed(2)}`;
+
+      // Reset checkbox
+      const checkbox = document.getElementById('release-payment-confirm-checkbox');
+      checkbox.checked = false;
+      document.getElementById('release-payment-btn').disabled = true;
+
+      // Add checkbox change handler
+      checkbox.onchange = function() {
+        document.getElementById('release-payment-btn').disabled = !this.checked;
+      };
+
+      // Open modal
+      openModal('release-payment-modal');
+    }
+
+    async function confirmReleasePayment() {
+      const checkbox = document.getElementById('release-payment-confirm-checkbox');
+      if (!checkbox.checked) {
+        showToast('Please confirm by checking the box', 'error');
+        return;
+      }
+
+      if (!currentReleasePackageId) {
+        showToast('Package not found', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('release-payment-btn');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span style="opacity:0.7;">Releasing payment...</span>';
+
+      try {
+        // Server handles ALL updates atomically (security fix: no client-side DB updates)
+        // releaseEscrowPayment calls /api/escrow/release/:packageId which:
+        // - Captures Stripe payment
+        // - Updates maintenance_packages status to 'completed'
+        // - Updates payments status to 'released'
+        // - Creates service_history record
+        let releaseResult = null;
+        if (typeof releaseEscrowPayment === 'function') {
+          releaseResult = await releaseEscrowPayment(currentReleasePackageId);
+        }
+
+        // Record commission if applicable (non-critical, can remain client-side)
+        if (currentUser?.id) {
+          try {
+            await supabaseClient.rpc('record_platform_fee_commission', {
+              p_member_id: currentUser.id,
+              p_platform_fee: 0,
+              p_package_id: currentReleasePackageId
+            });
+          } catch (commErr) {
+            console.log('Commission tracking (non-critical):', commErr);
+          }
+        }
+
+        closeModal('release-payment-modal');
+        closeModal('view-package-modal');
+        showToast('Payment released! Thank you for using My Car Concierge.', 'success');
+        
+        await loadPackages();
+        if (typeof loadServiceHistory === 'function') {
+          await loadServiceHistory();
+        }
+
+        // Open review modal using data from release result or cached data
+        const pkg = currentReleasePackageData;
+        const bid = currentReleaseBidData;
+        const reviewProviderId = releaseResult?.provider_id || bid?.provider_id;
+        
+        setTimeout(() => {
+          openReviewModal(
+            currentReleasePackageId,
+            reviewProviderId,
+            bid?.profiles?.business_name || bid?.profiles?.full_name,
+            pkg?.title,
+            bid?.price
+          );
+        }, 500);
+
+        // Reset state
+        currentReleasePackageId = null;
+        currentReleasePackageData = null;
+        currentReleaseBidData = null;
+
+      } catch (err) {
+        console.error('Error releasing payment:', err);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        showToast('Failed to release payment: ' + (err.message || 'Please try again.'), 'error');
       }
     }
 

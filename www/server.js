@@ -8179,6 +8179,318 @@ async function handleProviderConnectStatus(req, res, requestId) {
   }
 }
 
+// ========== PROVIDER STRIPE CONNECT NEW ENDPOINTS ==========
+
+async function handleProviderStripeConnectOnboard(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  
+  req.on('end', async () => {
+    try {
+      let parsed = {};
+      try {
+        if (body.trim()) {
+          parsed = JSON.parse(body);
+        }
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        return;
+      }
+
+      const providerId = parsed.provider_id || user.id;
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, business_name, stripe_account_id, role, is_also_provider')
+        .eq('id', providerId)
+        .single();
+
+      if (profileError || !profile) {
+        console.log(`[${requestId}] Provider profile not found: ${providerId}`);
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Provider profile not found' }));
+        return;
+      }
+
+      if (profile.role !== 'provider' && !profile.is_also_provider) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Provider access required' }));
+        return;
+      }
+
+      const stripe = await getStripeClient();
+      const domain = process.env.REPLIT_DOMAINS?.split(',')[0] || 'localhost:5000';
+      const protocol = domain.includes('localhost') ? 'http' : 'https';
+      
+      let accountId = profile.stripe_account_id;
+
+      if (!accountId) {
+        const account = await stripe.accounts.create({
+          type: 'express',
+          email: profile.email,
+          metadata: {
+            provider_id: profile.id,
+            business_name: profile.business_name || profile.full_name
+          },
+          capabilities: {
+            card_payments: { requested: true },
+            transfers: { requested: true }
+          }
+        });
+
+        accountId = account.id;
+        
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            stripe_account_id: accountId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', profile.id);
+
+        if (updateError) {
+          console.error(`[${requestId}] Failed to save Stripe account ID:`, updateError);
+        }
+        
+        console.log(`[${requestId}] Created Stripe Connect Express account ${accountId} for provider ${profile.id}`);
+      }
+
+      const accountLink = await stripe.accountLinks.create({
+        account: accountId,
+        refresh_url: `${protocol}://${domain}/providers.html?stripe_connect=refresh`,
+        return_url: `${protocol}://${domain}/providers.html?stripe_connect=complete`,
+        type: 'account_onboarding'
+      });
+
+      console.log(`[${requestId}] Created onboarding link for provider ${profile.id}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        url: accountLink.url,
+        account_id: accountId
+      }));
+      
+    } catch (error) {
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: safeMsg }));
+    }
+  });
+}
+
+async function handleProviderStripeConnectComplete(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  
+  req.on('end', async () => {
+    try {
+      let parsed = {};
+      try {
+        if (body.trim()) {
+          parsed = JSON.parse(body);
+        }
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        return;
+      }
+
+      const providerId = parsed.provider_id || user.id;
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, stripe_account_id, role, is_also_provider')
+        .eq('id', providerId)
+        .single();
+
+      if (profileError || !profile) {
+        console.log(`[${requestId}] Provider profile not found: ${providerId}`);
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Provider profile not found' }));
+        return;
+      }
+
+      if (profile.role !== 'provider' && !profile.is_also_provider) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Provider access required' }));
+        return;
+      }
+
+      if (!profile.stripe_account_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'No Stripe Connect account found for this provider' }));
+        return;
+      }
+
+      const stripe = await getStripeClient();
+      const account = await stripe.accounts.retrieve(profile.stripe_account_id);
+
+      const transfersEnabled = account.capabilities?.transfers === 'active';
+      const detailsSubmitted = account.details_submitted;
+      const chargesEnabled = account.charges_enabled;
+      const payoutsEnabled = account.payouts_enabled;
+
+      const onboardingComplete = detailsSubmitted && transfersEnabled && chargesEnabled;
+
+      console.log(`[${requestId}] Verified Stripe Connect status for provider ${providerId}: transfers_enabled=${transfersEnabled}, details_submitted=${detailsSubmitted}`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: true,
+        transfers_enabled: transfersEnabled,
+        details_submitted: detailsSubmitted,
+        charges_enabled: chargesEnabled,
+        payouts_enabled: payoutsEnabled,
+        onboarding_complete: onboardingComplete
+      }));
+      
+    } catch (error) {
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: safeMsg }));
+    }
+  });
+}
+
+async function handleProviderStripeConnectStatusById(req, res, requestId, providerId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(providerId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid provider_id format' }));
+    return;
+  }
+  
+  // Security: Verify the authenticated user is requesting their own status
+  if (providerId !== user.id) {
+    console.log(`[${requestId}] IDOR attempt: User ${user.id} tried to access provider ${providerId} status`);
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Forbidden: You can only access your own Stripe Connect status' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, stripe_account_id, role, is_also_provider')
+      .eq('id', providerId)
+      .single();
+
+    if (profileError || !profile) {
+      console.log(`[${requestId}] Provider profile not found: ${providerId}`);
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Provider not found' }));
+      return;
+    }
+
+    if (profile.role !== 'provider' && !profile.is_also_provider) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Provider access required' }));
+      return;
+    }
+
+    if (!profile.stripe_account_id) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        status: 'not_connected',
+        account_id: null,
+        details_submitted: false,
+        charges_enabled: false,
+        payouts_enabled: false,
+        transfers_enabled: false
+      }));
+      return;
+    }
+
+    const stripe = await getStripeClient();
+    const account = await stripe.accounts.retrieve(profile.stripe_account_id);
+
+    const transfersEnabled = account.capabilities?.transfers === 'active';
+    const chargesEnabled = account.charges_enabled;
+    const payoutsEnabled = account.payouts_enabled;
+    const detailsSubmitted = account.details_submitted;
+
+    let status;
+    if (detailsSubmitted && chargesEnabled && transfersEnabled) {
+      status = 'connected';
+    } else if (profile.stripe_account_id) {
+      status = 'incomplete';
+    } else {
+      status = 'not_connected';
+    }
+
+    console.log(`[${requestId}] Retrieved Stripe Connect status for provider ${providerId}: ${status}`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      status: status,
+      account_id: profile.stripe_account_id,
+      details_submitted: detailsSubmitted,
+      charges_enabled: chargesEnabled,
+      payouts_enabled: payoutsEnabled,
+      transfers_enabled: transfersEnabled,
+      business_type: account.business_type,
+      country: account.country
+    }));
+    
+  } catch (error) {
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
 async function handleAdminProcessFounderPayout(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -8804,14 +9116,42 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
     // Capture the payment (this moves money and triggers transfer if configured)
     const capturedPayment = await stripe.paymentIntents.capture(pkg.escrow_payment_intent_id);
     
-    // Update package status
+    // Fetch package details for service history
+    const { data: fullPkg } = await supabase
+      .from('maintenance_packages')
+      .select('id, title, service_type, category, vehicle_id')
+      .eq('id', packageId)
+      .single();
+    
+    // Fetch bid details
+    const { data: bid } = await supabase
+      .from('bids')
+      .select('provider_id, price, profiles(provider_alias, business_name, full_name)')
+      .eq('id', pkg.accepted_bid_id)
+      .single();
+    
+    // Fetch vehicle mileage for service history
+    let vehicleMileage = null;
+    if (fullPkg?.vehicle_id) {
+      const { data: vehicle } = await supabase
+        .from('vehicles')
+        .select('mileage')
+        .eq('id', fullPkg.vehicle_id)
+        .single();
+      vehicleMileage = vehicle?.mileage;
+    }
+    
+    const now = new Date().toISOString();
+    
+    // Update package status to completed (server handles all updates atomically)
     await supabase
       .from('maintenance_packages')
       .update({
-        status: 'payment_released',
+        status: 'completed',
         escrow_captured: true,
-        work_completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        member_confirmed_at: now,
+        work_completed_at: now,
+        updated_at: now
       })
       .eq('id', packageId);
     
@@ -8820,18 +9160,34 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
       .from('payments')
       .update({
         status: 'released',
-        released_at: new Date().toISOString()
+        escrow_captured: true,
+        released_at: now
       })
       .eq('package_id', packageId)
       .eq('status', 'held');
     
-    // Notify provider
-    const { data: bid } = await supabase
-      .from('bids')
-      .select('provider_id')
-      .eq('id', pkg.accepted_bid_id)
-      .single();
+    // Create service history record
+    if (fullPkg?.vehicle_id) {
+      const providerName = bid?.profiles?.provider_alias || 
+                          bid?.profiles?.business_name || 
+                          bid?.profiles?.full_name || 
+                          `Provider #${bid?.provider_id?.slice(0,4).toUpperCase()}`;
+      
+      await supabase.from('service_history').insert({
+        vehicle_id: fullPkg.vehicle_id,
+        package_id: packageId,
+        provider_id: bid?.provider_id,
+        service_date: now.split('T')[0],
+        service_type: fullPkg.service_type,
+        service_category: fullPkg.category,
+        description: fullPkg.title,
+        mileage_at_service: vehicleMileage,
+        total_cost: bid?.price,
+        provider_name: providerName
+      });
+    }
     
+    // Notify provider
     if (bid?.provider_id) {
       await supabase.from('notifications').insert({
         user_id: bid.provider_id,
@@ -8848,9 +9204,11 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       success: true,
-      status: 'payment_released',
+      status: 'completed',
       capturedAmount: capturedPayment.amount / 100,
-      message: 'Payment has been released to the service provider'
+      message: 'Payment has been released to the service provider',
+      provider_id: bid?.provider_id,
+      service_history_created: !!fullPkg?.vehicle_id
     }));
     
   } catch (error) {
@@ -18609,6 +18967,23 @@ const server = http.createServer((req, res) => {
   
   if (req.method === 'GET' && req.url === '/api/provider/connect-status') {
     handleProviderConnectStatus(req, res, requestId);
+    return;
+  }
+  
+  // Provider Stripe Connect - New Endpoints
+  if (req.method === 'POST' && req.url === '/api/provider/stripe-connect/onboard') {
+    handleProviderStripeConnectOnboard(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/provider/stripe-connect/complete') {
+    handleProviderStripeConnectComplete(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/provider/stripe-connect/status/')) {
+    const providerId = req.url.split('/api/provider/stripe-connect/status/')[1]?.split('?')[0];
+    handleProviderStripeConnectStatusById(req, res, requestId, providerId);
     return;
   }
   
