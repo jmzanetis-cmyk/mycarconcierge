@@ -7,6 +7,8 @@ My Car Concierge (MCC) is an automotive service marketplace PWA with broad nativ
 - **Automotive Theme**: Warmer dark slate backgrounds (#12161c) with bronze/copper gold accents and coolant teal highlights
 - Premium, luxury garage-inspired aesthetic with metallic gradients on buttons and cards
 - Less harsh dark mode with improved contrast and depth
+- **Light Mode**: Professional warm cream/sandstone palette (#f5f2ed, #ebe7e0, rgba(120,110,95)) for luxury dealership showroom feel
+- **Theme Toggle**: Compact sun/moon icon button in header/navbar for easy access on both desktop and mobile
 
 ## System Architecture
 The application uses a modern web stack with vanilla HTML, CSS, and JavaScript. JavaScript modules are lazy-loaded. Supabase provides the backend (PostgreSQL, authentication, storage). The system is multi-platform, utilizing PWA features for web, Capacitor for mobile, and Electron for desktop applications.
