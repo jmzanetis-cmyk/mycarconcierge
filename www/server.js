@@ -384,9 +384,25 @@ async function handleSignAgreement(req, res, requestId) {
     return;
   }
   
+  const MAX_SIGNATURE_SIZE = 500000;
+  const VALID_AGREEMENT_TYPES = ['founding_partner', 'member_founder', 'provider'];
+  const VALID_SIGNATURE_TYPES = ['draw', 'type'];
+  
   try {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let bodySize = 0;
+    
+    req.on('data', chunk => { 
+      bodySize += chunk.length;
+      if (bodySize > MAX_SIGNATURE_SIZE + 10000) {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Request too large' }));
+        req.destroy();
+        return;
+      }
+      body += chunk; 
+    });
+    
     req.on('end', async () => {
       try {
         const data = JSON.parse(body);
@@ -394,20 +410,56 @@ async function handleSignAgreement(req, res, requestId) {
         
         if (!agreement_type || !full_name || !signature_data) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Missing required fields' }));
+          res.end(JSON.stringify({ error: 'Missing required fields: agreement_type, full_name, and signature are required' }));
+          return;
+        }
+        
+        if (!VALID_AGREEMENT_TYPES.includes(agreement_type)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid agreement type' }));
+          return;
+        }
+        
+        if (signature_type && !VALID_SIGNATURE_TYPES.includes(signature_type)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid signature type' }));
+          return;
+        }
+        
+        if (signature_data.length > MAX_SIGNATURE_SIZE) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Signature data too large' }));
+          return;
+        }
+        
+        if (full_name.length > 255 || (business_name && business_name.length > 255)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Name fields too long' }));
+          return;
+        }
+        
+        if (ein_last4 && !/^\d{4}$/.test(ein_last4)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'EIN last 4 must be exactly 4 digits' }));
+          return;
+        }
+        
+        if (acknowledgments && (!Array.isArray(acknowledgments) || acknowledgments.length > 20)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid acknowledgments format' }));
           return;
         }
         
         const ip_address = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
                            req.headers['x-real-ip'] || 
                            req.socket.remoteAddress || 'unknown';
-        const user_agent = req.headers['user-agent'] || 'unknown';
+        const user_agent = (req.headers['user-agent'] || 'unknown').substring(0, 500);
         
         const insertData = {
           user_id: user_id || null,
           agreement_type,
-          full_name,
-          business_name: business_name || null,
+          full_name: full_name.trim(),
+          business_name: business_name ? business_name.trim() : null,
           signature_data,
           ein_last4: ein_last4 || null,
           signed_at: new Date().toISOString(),
@@ -463,6 +515,35 @@ async function handleGetSignedAgreements(req, res, requestId, userId) {
   }
   
   try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Authentication required' }));
+      return;
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    const isAdmin = profile?.role === 'admin';
+    if (user.id !== userId && !isAdmin) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Access denied' }));
+      return;
+    }
+    
     const { data, error } = await supabase
       .from('signed_agreements')
       .select('id, agreement_type, full_name, signed_at, created_at')
@@ -496,9 +577,37 @@ async function handleAdminGetAllAgreements(req, res, requestId) {
   }
   
   try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Authentication required' }));
+      return;
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Admin access required' }));
+      return;
+    }
+    
     const url = new URL(req.url, `http://${req.headers.host}`);
     const page = parseInt(url.searchParams.get('page') || '1');
-    const limit = parseInt(url.searchParams.get('limit') || '25');
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '25'), 100);
     const agreementType = url.searchParams.get('type');
     const search = url.searchParams.get('search');
     

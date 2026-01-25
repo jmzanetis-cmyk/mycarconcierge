@@ -58,7 +58,27 @@ const AgreementForm = (function() {
       updateSignatureData();
     });
     
+    const themeObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'data-theme') {
+          const newIsDarkMode = document.documentElement.getAttribute('data-theme') !== 'light';
+          updateCanvasColors(canvas, newIsDarkMode);
+        }
+      });
+    });
+    
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme']
+    });
+    
     return { canvas, getSignatureData };
+  }
+  
+  function updateCanvasColors(canvas, isDarkMode) {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = isDarkMode ? '#d4a855' : '#1e3a5f';
   }
   
   function initCanvas(canvas, isDarkMode) {
