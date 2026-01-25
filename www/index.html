@@ -337,7 +337,7 @@
     }
     
     [data-theme="light"] .trust-text {
-      color: #1e3a5f;
+      color: var(--text-primary);
     }
     
 
@@ -358,7 +358,7 @@
 
     .btn-primary {
       background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
-      color: #0a0a0f;
+      color: #0a0a0f; /* Intentionally hardcoded: dark text on gold for contrast */
       box-shadow: 0 2px 12px rgba(201, 162, 39, 0.3);
     }
 
@@ -381,7 +381,7 @@
     /* Light mode buttons - deeper gold for higher contrast (23% more clicks) */
     [data-theme="light"] .btn-primary {
       background: linear-gradient(135deg, #b8942d, #d4a63a);
-      color: #ffffff;
+      color: #ffffff; /* Intentionally hardcoded: white text on gold for contrast */
       box-shadow: 0 3px 14px rgba(184, 148, 45, 0.35);
       font-weight: 600;
     }
@@ -391,14 +391,14 @@
     }
     [data-theme="light"] .btn-secondary {
       background: #ffffff;
-      color: #1e3a5f;
-      border: 2px solid #1e3a5f;
+      color: var(--accent-blue);
+      border: 2px solid var(--accent-blue);
       font-weight: 500;
     }
     [data-theme="light"] .btn-secondary:hover {
-      background: #1e3a5f;
-      color: #ffffff;
-      border-color: #1e3a5f;
+      background: var(--accent-blue);
+      color: #ffffff; /* Intentionally hardcoded: white text on dark background for contrast */
+      border-color: var(--accent-blue);
     }
 
     .btn svg {
@@ -486,7 +486,7 @@
     }
 
     .hero-login-error {
-      color: #ff6b6b;
+      color: var(--accent-red);
       font-size: 0.85rem;
       margin-top: 12px;
       text-align: center;
@@ -666,7 +666,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #4ac88c;
+      color: var(--accent-green);
       font-size: 11px;
     }
 
@@ -710,7 +710,7 @@
       justify-content: center;
       margin: 0 auto 20px;
       font-weight: 600;
-      color: #0a0a0f;
+      color: #0a0a0f; /* Intentionally hardcoded: dark text on gold for contrast */
       font-size: 1.1rem;
     }
 
@@ -1029,7 +1029,7 @@
     .mobile-nav .btn-login {
       margin-top: 16px;
       background: linear-gradient(135deg, var(--accent-gold), #c49a4a);
-      color: #0a0a0f;
+      color: #0a0a0f; /* Intentionally hardcoded: dark text on gold for contrast */
       padding: 14px 40px;
       border-radius: 100px;
       font-weight: 600;

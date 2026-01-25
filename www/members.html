@@ -196,7 +196,7 @@
     .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 10px; cursor: pointer; font-size: 0.88rem; color: var(--text-secondary); transition: all 0.2s ease; margin-bottom: 2px; border: 1px solid transparent; font-weight: 450; }
     .nav-item:hover { background: rgba(74, 124, 255, 0.08); color: var(--text-primary); border-color: rgba(74, 124, 255, 0.12); }
     .nav-item.active { background: linear-gradient(135deg, rgba(74, 124, 255, 0.15), rgba(74, 124, 255, 0.08)); color: var(--accent-blue); border-color: rgba(74, 124, 255, 0.25); font-weight: 500; }
-    .nav-badge { margin-left: auto; background: var(--accent-gold); color: #0a0a0f; font-size: 0.7rem; font-weight: 600; padding: 3px 8px; border-radius: 100px; min-width: 22px; text-align: center; }
+    .nav-badge { margin-left: auto; background: var(--accent-gold); color: var(--bg-deep); font-size: 0.7rem; font-weight: 600; padding: 3px 8px; border-radius: 100px; min-width: 22px; text-align: center; }
     .sidebar-footer { margin-top: auto; padding: 16px; border-top: 1px solid rgba(148, 148, 168, 0.08); background: linear-gradient(180deg, transparent, rgba(18, 18, 28, 0.5)); }
     .user-info { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: linear-gradient(135deg, rgba(28, 28, 42, 0.6), rgba(18, 18, 28, 0.8)); margin-bottom: 12px; border: 1px solid rgba(148, 148, 168, 0.08); }
     .user-avatar { width: 38px; height: 38px; background: linear-gradient(135deg, var(--accent-blue), #6b9fff); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; box-shadow: 0 2px 8px rgba(74, 124, 255, 0.25); }
@@ -206,7 +206,7 @@
     /* Loyalty Badges */
     .loyalty-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .loyalty-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 100px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; }
-    .loyalty-badge.vip { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: #1a1a2e; box-shadow: 0 2px 8px rgba(201, 162, 39, 0.35); border: 1px solid rgba(232, 188, 90, 0.5); }
+    .loyalty-badge.vip { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: var(--bg-deep); box-shadow: 0 2px 8px rgba(201, 162, 39, 0.35); border: 1px solid rgba(232, 188, 90, 0.5); }
     .loyalty-badge.trusted { background: var(--accent-teal-soft); color: var(--accent-teal); border: 1px solid rgba(34, 211, 238, 0.4); }
     .loyalty-badge.loyal { background: var(--accent-bronze-soft); color: var(--accent-bronze); border: 1px solid rgba(205, 127, 50, 0.4); }
     .preferred-provider-info { margin-top: 8px; padding: 8px 12px; background: var(--accent-gold-soft); border-radius: var(--radius-sm); border: 1px solid rgba(201, 162, 39, 0.3); font-size: 0.75rem; color: var(--accent-gold); }
@@ -244,7 +244,7 @@
     .onboarding-step:hover { border-color: var(--accent-gold); background: rgba(201, 162, 39, 0.05); }
     .onboarding-step.completed { opacity: 0.6; }
     .onboarding-step.completed .step-check { background: var(--accent-green); color: #fff; }
-    .step-check { width: 32px; height: 32px; border-radius: 50%; background: var(--accent-gold); color: #0a0a0f; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; flex-shrink: 0; }
+    .step-check { width: 32px; height: 32px; border-radius: 50%; background: var(--accent-gold); color: var(--bg-deep); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; flex-shrink: 0; }
     .step-content { flex: 1; }
     .step-name { display: block; font-weight: 600; margin-bottom: 2px; }
     .step-desc { display: block; font-size: 0.85rem; color: var(--text-secondary); }
@@ -263,7 +263,7 @@
     .btn-ghost { background: transparent; color: var(--text-secondary); padding: 8px 12px; }
     .btn-sm { padding: 6px 12px; font-size: 0.82rem; }
     .btn-success { background: linear-gradient(135deg, var(--accent-green), #4ade80); box-shadow: 0 2px 12px rgba(52, 211, 153, 0.3); color: #022c22; }
-    .btn-gold { background: linear-gradient(135deg, var(--accent-gold), #e6b84a); color: #12161c; box-shadow: 0 2px 12px rgba(201, 162, 39, 0.3); }
+    .btn-gold { background: linear-gradient(135deg, var(--accent-gold), #e6b84a); color: var(--bg-deep); box-shadow: 0 2px 12px rgba(201, 162, 39, 0.3); }
     .btn-danger { background: rgba(239, 95, 95, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 95, 95, 0.3); }
 
     /* Export Dropdown */
@@ -662,7 +662,7 @@
     /* Shop Section Styles */
     .shop-filter-btn { background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-subtle); transition: all 0.2s ease; }
     .shop-filter-btn:hover { border-color: var(--accent-gold); color: var(--text-primary); }
-    .shop-filter-btn.active { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; border-color: var(--accent-gold); }
+    .shop-filter-btn.active { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: var(--bg-deep); border-color: var(--accent-gold); }
     .product-card:hover { border-color: var(--accent-gold); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
     
     /* Product Image Lazy Loading */
@@ -688,7 +688,7 @@
     .emergency-step:last-child::before { display: none; }
     .emergency-step-dot { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; border: 2px solid var(--border-subtle); background: var(--bg-input); }
     .emergency-step.completed .emergency-step-dot { background: var(--accent-green); border-color: var(--accent-green); color: #fff; }
-    .emergency-step.current .emergency-step-dot { background: var(--accent-orange); border-color: var(--accent-orange); color: #0a0a0f; animation: pulse 2s infinite; }
+    .emergency-step.current .emergency-step-dot { background: var(--accent-orange); border-color: var(--accent-orange); color: var(--bg-deep); animation: pulse 2s infinite; }
     .emergency-step.pending .emergency-step-dot { opacity: 0.5; }
     .emergency-step-info { flex: 1; padding-top: 4px; }
     .emergency-step-label { font-weight: 500; font-size: 0.9rem; margin-bottom: 2px; }
@@ -713,7 +713,7 @@
     .inspection-overall-badge { padding: 6px 16px; border-radius: 100px; font-weight: 600; font-size: 0.85rem; }
     .inspection-overall-badge.excellent { background: var(--accent-green); color: #fff; }
     .inspection-overall-badge.good { background: #22c55e; color: #fff; }
-    .inspection-overall-badge.fair { background: #f59e0b; color: #000; }
+    .inspection-overall-badge.fair { background: #f59e0b; color: var(--bg-deep); }
     .inspection-overall-badge.needs_attention { background: #f97316; color: #fff; }
     .inspection-counts { display: flex; gap: 12px; margin-bottom: 16px; }
     .inspection-count-item { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: 500; }
@@ -745,7 +745,7 @@
     .fleet-table tr:hover td { background: var(--bg-elevated); }
     .fleet-table tbody tr:last-child td { border-bottom: none; }
     .fleet-role-badge { padding: 4px 12px; border-radius: 100px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
-    .fleet-role-badge.owner { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; }
+    .fleet-role-badge.owner { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: var(--bg-deep); }
     .fleet-role-badge.manager { background: var(--accent-blue-soft); color: var(--accent-blue); }
     .fleet-role-badge.driver { background: var(--accent-green-soft); color: var(--accent-green); }
     .fleet-role-badge.viewer { background: var(--bg-elevated); color: var(--text-muted); }
@@ -780,7 +780,7 @@
     .batch-actions { display: flex; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
     .wizard-steps { display: flex; gap: 4px; margin-bottom: 32px; }
     .wizard-step { flex: 1; padding: 12px 8px; text-align: center; background: var(--bg-input); border-radius: var(--radius-sm); font-size: 0.85rem; color: var(--text-muted); position: relative; transition: all 0.2s; }
-    .wizard-step.active { background: var(--accent-gold); color: #0a0a0f; font-weight: 600; }
+    .wizard-step.active { background: var(--accent-gold); color: var(--bg-deep); font-weight: 600; }
     .wizard-step.completed { background: var(--accent-green-soft); color: var(--accent-green); }
     .wizard-step-num { font-weight: 700; margin-right: 6px; }
     .fleet-business-badge { padding: 4px 12px; border-radius: 100px; font-size: 0.75rem; font-weight: 600; background: linear-gradient(135deg, rgba(212,168,85,0.2), rgba(212,168,85,0.1)); color: var(--accent-gold); }
@@ -790,7 +790,7 @@
     /* Document Expiration Badges */
     .expiration-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 100px; font-size: 0.72rem; font-weight: 500; margin-left: 8px; }
     .expiration-badge.valid { background: var(--accent-green-soft); color: var(--accent-green); }
-    .expiration-badge.expiring-soon { background: var(--accent-orange); color: #0a0a0f; animation: pulse 2s infinite; }
+    .expiration-badge.expiring-soon { background: var(--accent-orange); color: var(--bg-deep); animation: pulse 2s infinite; }
     .expiration-badge.expired { background: var(--accent-red); color: #fff; }
     .expiration-warning { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: rgba(239, 95, 95, 0.1); border: 1px solid rgba(239, 95, 95, 0.3); border-radius: var(--radius-md); margin-bottom: 16px; font-size: 0.9rem; color: var(--accent-red); }
     .expiration-warning.warning { background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.3); color: var(--accent-orange); }
@@ -802,7 +802,7 @@
     .toggle-slider { position: relative; width: 44px; height: 24px; background: var(--bg-elevated); border: 1px solid var(--border-medium); border-radius: 100px; transition: all 0.3s ease; flex-shrink: 0; }
     .toggle-slider::before { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: var(--text-muted); border-radius: 50%; transition: all 0.3s ease; }
     .toggle-switch input:checked + .toggle-slider { background: linear-gradient(135deg, var(--accent-gold), #c49a45); border-color: var(--accent-gold); }
-    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); background: #0a0a0f; }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); background: var(--bg-deep); }
     .toggle-switch input:focus + .toggle-slider { box-shadow: 0 0 0 3px rgba(212, 168, 85, 0.2); }
     .notif-pref-group { transition: border-color 0.2s ease; }
     .notif-pref-group:hover { border-color: var(--border-medium); }
@@ -844,7 +844,7 @@
     .learn-glossary-alphabet { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
     .learn-glossary-letter { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.15s ease; }
     .learn-glossary-letter:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
-    .learn-glossary-letter.active { background: var(--accent-gold); color: #0a0a0f; border-color: var(--accent-gold); }
+    .learn-glossary-letter.active { background: var(--accent-gold); color: var(--bg-deep); border-color: var(--accent-gold); }
     .learn-glossary-letter.disabled { opacity: 0.3; cursor: default; pointer-events: none; }
     .learn-glossary-list { display: grid; gap: 12px; }
     .learn-glossary-item { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px 20px; transition: all 0.2s ease; }
@@ -1008,7 +1008,7 @@
       <div id="preferred-provider-display" class="preferred-provider-info" style="display:none;"></div>
       <div id="switch-portal-container" style="display:none;background:var(--bg-elevated);border:1px solid var(--accent-gold);border-radius:var(--radius-md);padding:12px;margin-bottom:12px;">
         <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">Switch Portal</div>
-        <button id="switch-portal-btn" class="btn" onclick="switchToProvider()" style="width:100%;padding:12px 16px;font-size:0.9rem;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);color:#0a0a0f;font-weight:600;border:none;">
+        <button id="switch-portal-btn" class="btn" onclick="switchToProvider()" style="width:100%;padding:12px 16px;font-size:0.9rem;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);color:var(--bg-deep);font-weight:600;border:none;">
           🔧 Provider Portal
         </button>
         <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;text-align:center;">You have dual access</div>
@@ -1866,7 +1866,7 @@
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border-subtle);">
             <span style="font-size:24px;">🛒</span>
             <h3 style="font-size:1.1rem;font-weight:600;">Your Cart</h3>
-            <span class="nav-badge" id="cart-item-count" style="margin-left:auto;background:var(--accent-gold);color:#0a0a0f;">0</span>
+            <span class="nav-badge" id="cart-item-count" style="margin-left:auto;background:var(--accent-gold);color:var(--bg-deep);">0</span>
           </div>
 
           <div id="cart-items-list" style="max-height:300px;overflow-y:auto;margin-bottom:16px;">
@@ -2746,7 +2746,7 @@
           }
           #settings-theme-toggle:checked + .toggle-slider::after {
             left: 27px;
-            background: #0a0a0f;
+            background: var(--bg-deep);
           }
         </style>
         <script>

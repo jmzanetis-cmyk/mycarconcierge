@@ -1855,11 +1855,12 @@
         const isSuspended = p.suspension_reason || stats.suspended;
         const isSelected = selectedProviders.has(p.id);
         
+        // Intentional contrast: dark text (#0a0a0f) on gold FOUNDING badge for readability
         return `
           <tr style="${isSelected ? 'background:var(--accent-blue-soft);' : ''}">
             <td><input type="checkbox" class="provider-checkbox" data-id="${p.id}" ${isSelected ? 'checked' : ''} onchange="toggleProviderSelection('${p.id}')"></td>
             <td>
-              <div><strong>${p.business_name || p.full_name || 'Unnamed'}</strong>${p.is_founding_provider ? ' <span style="background:linear-gradient(135deg,#d4a855,#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;margin-left:8px;">🌟 FOUNDING</span>' : ''}</div>
+              <div><strong>${p.business_name || p.full_name || 'Unnamed'}</strong>${p.is_founding_provider ? ' <span style="background:linear-gradient(135deg,var(--accent-gold),#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;margin-left:8px;">🌟 FOUNDING</span>' : ''}</div>
               <div style="font-size:0.8rem;color:var(--text-muted);">${p.email || ''}</div>
             </td>
             <td>
@@ -4435,11 +4436,12 @@
       
       if (statuses.length === 0) return '<span style="color:var(--text-muted);">None</span>';
       
+      // Intentional contrast: dark text (#0a0a0f) on gold/light backgrounds for readability
       return statuses.map(s => {
         if (s === 'Member Founder') {
-          return `<span style="background:linear-gradient(135deg,#4a7cff,#6b9fff);color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;margin-right:4px;">🌟 ${s}</span>`;
+          return `<span style="background:linear-gradient(135deg,var(--accent-blue),#6b9fff);color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;margin-right:4px;">🌟 ${s}</span>`;
         }
-        return `<span style="background:linear-gradient(135deg,#d4a855,#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;">🌟 ${s}</span>`;
+        return `<span style="background:linear-gradient(135deg,var(--accent-gold),#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;">🌟 ${s}</span>`;
       }).join(' ');
     }
 

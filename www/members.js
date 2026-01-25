@@ -6401,7 +6401,7 @@
                     
                     ${isVerified || specialties.length > 0 ? `
                       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-                        ${isVerified ? `<span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg, var(--accent-gold), #c49a45);color:#0a0a0f;padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;">✓ Concierge Verified</span>` : ''}
+                        ${isVerified ? `<span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg, var(--accent-gold), #c49a45);color:var(--bg-deep);padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;">✓ Concierge Verified</span>` : ''}
                         ${specialties.map(s => `<span style="display:inline-block;background:var(--bg-input);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:3px 10px;border-radius:100px;font-size:0.75rem;">${s}</span>`).join('')}
                       </div>
                     ` : ''}
@@ -10665,7 +10665,7 @@
           const roleLabels = { owner: 'Owner', adult: 'Adult', driver: 'Driver', viewer: 'Viewer', member: 'Member' };
           pendingBanner.innerHTML = allMemberships.map(inv => `
             <div class="card" style="background:linear-gradient(135deg, rgba(212,168,85,0.08), rgba(212,168,85,0.03));border:2px solid rgba(212,168,85,0.3);margin-bottom:12px;position:relative;">
-              <div style="position:absolute;top:-8px;left:16px;background:var(--accent-gold);color:#0a0a0f;padding:2px 10px;border-radius:100px;font-size:0.7rem;font-weight:700;">📨 INVITATION</div>
+              <div style="position:absolute;top:-8px;left:16px;background:var(--accent-gold);color:var(--bg-deep);padding:2px 10px;border-radius:100px;font-size:0.7rem;font-weight:700;">📨 INVITATION</div>
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;padding-top:8px;">
                 <div style="flex:1;min-width:200px;">
                   <div style="font-size:1.1rem;font-weight:600;margin-bottom:6px;">${inv.household?.name || 'Household'}</div>
@@ -10786,9 +10786,9 @@
         const isCurrentUserOwner = currentUser && owner.id === currentUser.id;
         membersHtml += `
           <div style="background:var(--bg-elevated);border:2px solid var(--accent-gold);border-radius:var(--radius-lg);padding:20px;position:relative;">
-            <div style="position:absolute;top:-8px;right:16px;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);color:#0a0a0f;padding:2px 10px;border-radius:100px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">👑 Owner</div>
+            <div style="position:absolute;top:-8px;right:16px;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);color:var(--bg-deep);padding:2px 10px;border-radius:100px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">👑 Owner</div>
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-              <div style="width:52px;height:52px;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);border:3px solid rgba(212,168,85,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#0a0a0f;box-shadow:0 4px 12px rgba(212,168,85,0.3);">
+              <div style="width:52px;height:52px;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);border:3px solid rgba(212,168,85,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--bg-deep);box-shadow:0 4px 12px rgba(212,168,85,0.3);">
                 ${initial}
               </div>
               <div style="flex:1;">
