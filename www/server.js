@@ -259,6 +259,40 @@ setInterval(cleanupExpiredRateLimits, 60000);
 
 // ========== END RATE LIMITING ==========
 
+// ========== REQUEST BODY PARSER ==========
+// Consistent body size limit for Printful API endpoints (slightly larger for bulk operations)
+const PRINTFUL_MAX_BODY_SIZE = 500000; // 500KB for bulk product creation with design data
+
+function getRequestBody(req, maxSize = PRINTFUL_MAX_BODY_SIZE) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    let rejected = false;
+    
+    req.on('data', chunk => {
+      if (rejected) return;
+      body += chunk.toString();
+      if (body.length > maxSize) {
+        rejected = true;
+        reject(new Error('Request body too large'));
+      }
+    });
+    
+    req.on('end', () => {
+      if (rejected) return;
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (e) {
+        reject(new Error('Invalid JSON in request body'));
+      }
+    });
+    
+    req.on('error', (err) => {
+      if (!rejected) reject(err);
+    });
+  });
+}
+// ========== END REQUEST BODY PARSER ==========
+
 // ========== LOGIN ACTIVITY LOGGING ==========
 
 function parseUserAgent(userAgent) {

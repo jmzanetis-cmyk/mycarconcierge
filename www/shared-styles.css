@@ -61,24 +61,35 @@
    Light Theme Override
    ========================================================================== */
 [data-theme="light"] {
-  --bg-deep: #f5f2ed;
-  --bg-card: rgba(248, 244, 238, 0.98);
-  --bg-elevated: rgba(252, 249, 244, 1);
-  --bg-input: #ebe7e0;
-  --text-primary: #1c1915;
-  --text-secondary: #3a352e;
-  --text-muted: #6d665c;
-  --border-subtle: rgba(120, 110, 95, 0.15);
-  --border-medium: rgba(120, 110, 95, 0.25);
-  --border-focus: rgba(201, 162, 39, 0.6);
-  --accent-gold: #b8860b;
-  --accent-gold-soft: rgba(184, 134, 11, 0.15);
-  --accent-bronze: #a0522d;
-  --accent-bronze-soft: rgba(160, 82, 45, 0.12);
+  /* Cool professional background palette - subtle blue-gray tones */
+  --bg-deep: #f0f4f8;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  --bg-elevated: rgba(248, 251, 255, 1);
+  --bg-input: #e8eef4;
+  
+  /* Refined text colors with blue undertones */
+  --text-primary: #1a2332;
+  --text-secondary: #3d4f66;
+  --text-muted: #6b7c93;
+  
+  /* Cool blue-tinted borders */
+  --border-subtle: rgba(70, 100, 140, 0.12);
+  --border-medium: rgba(70, 100, 140, 0.22);
+  --border-focus: rgba(37, 99, 235, 0.5);
+  
+  /* Professional business accent colors */
+  --accent-gold: #0066cc;
+  --accent-gold-soft: rgba(0, 102, 204, 0.1);
+  --accent-bronze: #059669;
+  --accent-bronze-soft: rgba(5, 150, 105, 0.1);
   --accent-teal: #0891b2;
   --accent-teal-soft: rgba(8, 145, 178, 0.12);
-  --accent-blue: #0284c7;
-  --accent-blue-soft: rgba(2, 132, 199, 0.12);
+  --accent-blue: #2563eb;
+  --accent-blue-soft: rgba(37, 99, 235, 0.1);
+  
+  /* Additional business-friendly accents */
+  --accent-green: #10b981;
+  --accent-green-soft: rgba(16, 185, 129, 0.1);
 }
 
 /* ==========================================================================
@@ -238,9 +249,9 @@ body {
 }
 
 [data-theme="light"] .card {
-  background: #fdfcfa;
-  box-shadow: 0 2px 8px rgba(139, 119, 101, 0.06), 0 1px 2px rgba(139, 119, 101, 0.04);
-  border: 1px solid rgba(139, 119, 101, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 2px 12px rgba(70, 100, 140, 0.08), 0 1px 3px rgba(70, 100, 140, 0.06);
+  border: 1px solid rgba(70, 100, 140, 0.1);
 }
 
 /* ==========================================================================
@@ -683,13 +694,13 @@ body {
 }
 
 [data-theme="light"] .stat-card {
-  background: #fdfcfa;
-  box-shadow: 0 2px 8px rgba(139, 119, 101, 0.06), 0 1px 2px rgba(139, 119, 101, 0.04);
-  border: 1px solid rgba(139, 119, 101, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 2px 12px rgba(70, 100, 140, 0.08), 0 1px 3px rgba(70, 100, 140, 0.06);
+  border: 1px solid rgba(70, 100, 140, 0.1);
 }
 
 [data-theme="light"] .stat-card:hover {
-  box-shadow: 0 8px 24px rgba(139, 119, 101, 0.1);
+  box-shadow: 0 8px 28px rgba(37, 99, 235, 0.12);
 }
 
 /* ==========================================================================
