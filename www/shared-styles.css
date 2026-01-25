@@ -61,35 +61,35 @@
    Light Theme Override
    ========================================================================== */
 [data-theme="light"] {
-  /* Cool professional background palette - subtle blue-gray tones */
-  --bg-deep: #f0f4f8;
-  --bg-card: rgba(255, 255, 255, 0.95);
-  --bg-elevated: rgba(248, 251, 255, 1);
-  --bg-input: #e8eef4;
+  /* Distinctive cool blue-gray background palette */
+  --bg-deep: #dae5f0;
+  --bg-card: #e8f1f8;
+  --bg-elevated: #f0f6fb;
+  --bg-input: #cdd9e5;
   
-  /* Refined text colors with blue undertones */
-  --text-primary: #1a2332;
-  --text-secondary: #3d4f66;
-  --text-muted: #6b7c93;
+  /* Strong text colors for contrast */
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #475569;
   
-  /* Cool blue-tinted borders */
-  --border-subtle: rgba(70, 100, 140, 0.12);
-  --border-medium: rgba(70, 100, 140, 0.22);
-  --border-focus: rgba(37, 99, 235, 0.5);
+  /* Visible blue-tinted borders */
+  --border-subtle: rgba(59, 130, 246, 0.2);
+  --border-medium: rgba(59, 130, 246, 0.35);
+  --border-focus: rgba(37, 99, 235, 0.6);
   
   /* Professional business accent colors */
   --accent-gold: #0066cc;
-  --accent-gold-soft: rgba(0, 102, 204, 0.1);
+  --accent-gold-soft: rgba(0, 102, 204, 0.15);
   --accent-bronze: #059669;
-  --accent-bronze-soft: rgba(5, 150, 105, 0.1);
+  --accent-bronze-soft: rgba(5, 150, 105, 0.15);
   --accent-teal: #0891b2;
-  --accent-teal-soft: rgba(8, 145, 178, 0.12);
+  --accent-teal-soft: rgba(8, 145, 178, 0.18);
   --accent-blue: #2563eb;
-  --accent-blue-soft: rgba(37, 99, 235, 0.1);
+  --accent-blue-soft: rgba(37, 99, 235, 0.15);
   
   /* Additional business-friendly accents */
   --accent-green: #10b981;
-  --accent-green-soft: rgba(16, 185, 129, 0.1);
+  --accent-green-soft: rgba(16, 185, 129, 0.15);
 }
 
 /* ==========================================================================
