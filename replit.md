@@ -51,6 +51,16 @@ Key features include:
 - **Biometric Login (Capacitor)**: Face ID / fingerprint authentication for native mobile apps with graceful web fallback.
 - **Mobile Wallet Payments**: Apple Pay and Google Pay integration for native apps (requires Capacitor Stripe plugin and merchant ID configuration).
 
+## UX Optimizations (Consumer Psychology)
+- **Homepage Hero**: Outcome-focused headline, single dominant CTA, reduced cognitive load
+- **Trust Strip**: 3 visual trust badges (Vetted Providers, Escrow Protection, Verified Registration) using shield iconography
+- **Social Proof Section**: Provider count, response time, satisfaction rating displayed prominently
+- **Signup Progress Indicator**: 2-step visual progress bar for member signup reducing perceived complexity
+- **Password Reassurance**: Microcopy near password field to reduce security anxiety
+- **Dashboard Onboarding Checklist**: 3-step checklist for new users (Add Vehicle, Create Package, Verify Registration) with progress tracking and auto-hide on completion
+- **Mobile Touch Targets**: All buttons have 48px minimum height for proper touch targets
+- **Responsive Typography**: Hero headline and CTAs scale appropriately on mobile devices
+
 ## Performance Optimizations
 - **Lazy-Loaded JS Modules**: Member and provider dashboards split into feature modules loaded on-demand, reducing initial load from ~500KB to ~25KB.
 - **Preconnect Hints**: Early connection establishment for external APIs (Supabase, Stripe, CDN) to reduce latency.
