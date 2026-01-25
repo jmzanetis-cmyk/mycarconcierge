@@ -236,6 +236,23 @@
     .card { background: linear-gradient(145deg, var(--bg-card), rgba(20, 26, 36, 0.95)); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.03); }
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .card-title { font-size: 1.1rem; font-weight: 600; }
+    
+    /* Onboarding Checklist */
+    .onboarding-card { background: linear-gradient(145deg, rgba(201, 162, 39, 0.08), rgba(26, 32, 42, 0.95)); border: 1px solid rgba(201, 162, 39, 0.2); }
+    .onboarding-steps { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+    .onboarding-step { display: flex; align-items: center; gap: 16px; padding: 16px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; }
+    .onboarding-step:hover { border-color: var(--accent-gold); background: rgba(201, 162, 39, 0.05); }
+    .onboarding-step.completed { opacity: 0.6; }
+    .onboarding-step.completed .step-check { background: var(--accent-green); color: #fff; }
+    .step-check { width: 32px; height: 32px; border-radius: 50%; background: var(--accent-gold); color: #0a0a0f; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; flex-shrink: 0; }
+    .step-content { flex: 1; }
+    .step-name { display: block; font-weight: 600; margin-bottom: 2px; }
+    .step-desc { display: block; font-size: 0.85rem; color: var(--text-secondary); }
+    .step-arrow { color: var(--text-muted); font-size: 1.2rem; }
+    .onboarding-progress { display: flex; align-items: center; gap: 12px; }
+    .progress-bar { flex: 1; height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-gold), var(--accent-green)); border-radius: 3px; transition: width 0.3s ease; }
+    .progress-text { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; }
 
     /* Buttons */
     .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-family: inherit; font-size: 0.88rem; font-weight: 500; border: none; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; text-decoration: none; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
@@ -1050,6 +1067,47 @@
         <button class="btn btn-secondary" onclick="openPackageModal()" style="padding: 12px 24px; font-weight: 600; border-radius: 100px; border: 2px solid var(--accent-gold); background: transparent; color: var(--accent-gold);">
           <span data-i18n="member.newMaintenancePackage">+ New Service Request</span>
         </button>
+      </div>
+      
+      <!-- Onboarding Checklist - Shows for new users -->
+      <div id="onboarding-checklist" class="card onboarding-card" style="margin-bottom: 32px; display: none;">
+        <div class="card-header">
+          <h2 class="card-title">🚀 Get Started</h2>
+          <button class="btn btn-ghost" onclick="dismissOnboarding()" title="Dismiss">✕</button>
+        </div>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">Complete these steps to get the most out of My Car Concierge</p>
+        <div class="onboarding-steps">
+          <div class="onboarding-step" id="step-add-vehicle" onclick="openVehicleModal()">
+            <span class="step-check">1</span>
+            <div class="step-content">
+              <span class="step-name">Add your first vehicle</span>
+              <span class="step-desc">Register a vehicle to start requesting services</span>
+            </div>
+            <span class="step-arrow">→</span>
+          </div>
+          <div class="onboarding-step" id="step-verify-vehicle" onclick="showSection('vehicles')">
+            <span class="step-check">2</span>
+            <div class="step-content">
+              <span class="step-name">Verify ownership</span>
+              <span class="step-desc">Upload registration for priority service</span>
+            </div>
+            <span class="step-arrow">→</span>
+          </div>
+          <div class="onboarding-step" id="step-create-request" onclick="openPackageModal()">
+            <span class="step-check">3</span>
+            <div class="step-content">
+              <span class="step-name">Create a service request</span>
+              <span class="step-desc">Post your needs and receive competitive bids</span>
+            </div>
+            <span class="step-arrow">→</span>
+          </div>
+        </div>
+        <div class="onboarding-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" id="onboarding-progress-fill" style="width: 0%;"></div>
+          </div>
+          <span class="progress-text" id="onboarding-progress-text">0 of 3 complete</span>
+        </div>
       </div>
 
       <div class="stats-grid" style="margin-bottom: 40px;">
@@ -6812,11 +6870,85 @@
       }
     }
     
+    // Onboarding checklist functions
+    function checkOnboardingStatus() {
+      const dismissed = localStorage.getItem('mcc_onboarding_dismissed');
+      if (dismissed) return;
+      
+      const vehicleCount = parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
+      const packageCount = parseInt(document.getElementById('stat-packages')?.textContent || '0');
+      
+      // Show onboarding if user has less than 1 vehicle or 1 package
+      if (vehicleCount < 1 || packageCount < 1) {
+        const checklist = document.getElementById('onboarding-checklist');
+        if (checklist) checklist.style.display = 'block';
+        updateOnboardingProgress();
+      }
+    }
+    
+    function updateOnboardingProgress() {
+      const vehicleCount = parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
+      const packageCount = parseInt(document.getElementById('stat-packages')?.textContent || '0');
+      
+      let completed = 0;
+      
+      // Step 1: Add vehicle
+      const step1 = document.getElementById('step-add-vehicle');
+      if (vehicleCount > 0 && step1) {
+        step1.classList.add('completed');
+        step1.querySelector('.step-check').textContent = '✓';
+        completed++;
+      }
+      
+      // Step 2: Verify vehicle (check if any vehicle is verified - simplified check)
+      // For now, mark as pending - would need API call to check verification status
+      
+      // Step 3: Create request
+      const step3 = document.getElementById('step-create-request');
+      if (packageCount > 0 && step3) {
+        step3.classList.add('completed');
+        step3.querySelector('.step-check').textContent = '✓';
+        completed++;
+      }
+      
+      // Update progress bar
+      const progressFill = document.getElementById('onboarding-progress-fill');
+      const progressText = document.getElementById('onboarding-progress-text');
+      if (progressFill) progressFill.style.width = `${(completed / 3) * 100}%`;
+      if (progressText) progressText.textContent = `${completed} of 3 complete`;
+      
+      // Auto-hide if all complete
+      if (completed >= 2) {
+        setTimeout(() => {
+          const checklist = document.getElementById('onboarding-checklist');
+          if (checklist) checklist.style.display = 'none';
+        }, 2000);
+      }
+    }
+    
+    function dismissOnboarding() {
+      localStorage.setItem('mcc_onboarding_dismissed', 'true');
+      const checklist = document.getElementById('onboarding-checklist');
+      if (checklist) checklist.style.display = 'none';
+    }
+    
+    // Check onboarding after stats are loaded
+    const statsObserver = new MutationObserver(() => {
+      checkOnboardingStatus();
+    });
+    const vehicleStat = document.getElementById('stat-vehicles');
+    if (vehicleStat) {
+      statsObserver.observe(vehicleStat, { childList: true, characterData: true, subtree: true });
+    }
+    
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
       
       helpdeskInstance = new HelpdeskWidget({ mode: 'driver', position: 'bottom-right' });
+      
+      // Initial onboarding check after a short delay for stats to load
+      setTimeout(checkOnboardingStatus, 1500);
     });
   </script>
 </body>

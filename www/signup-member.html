@@ -203,6 +203,73 @@
       color: var(--text-muted);
       margin-top: 6px;
     }
+    
+    /* Progress indicator */
+    .progress-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 28px;
+      padding: 0 20px;
+    }
+    
+    .progress-step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .step-number {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--border-subtle);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    
+    .progress-step.active .step-number {
+      background: var(--accent-gold);
+      color: #0a0a0f;
+    }
+    
+    .step-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    
+    .progress-step.active .step-label {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+    
+    .progress-line {
+      flex: 1;
+      height: 2px;
+      background: var(--border-subtle);
+      margin: 0 12px;
+      max-width: 60px;
+    }
+    
+    /* Reassurance microcopy */
+    .reassurance {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+    
+    .reassurance-icon {
+      color: var(--accent-green);
+    }
 
     .btn {
       width: 100%;
@@ -420,6 +487,18 @@
           <span>Track service history & maintenance</span>
         </div>
       </div>
+      
+      <div class="progress-indicator">
+        <div class="progress-step active">
+          <span class="step-number">1</span>
+          <span class="step-label">Create Account</span>
+        </div>
+        <div class="progress-line"></div>
+        <div class="progress-step">
+          <span class="step-number">2</span>
+          <span class="step-label">Verify Email</span>
+        </div>
+      </div>
 
       <form id="signup-form">
         <div class="form-group">
@@ -495,6 +574,10 @@
           </div>
         </div>
         <p class="form-hint">Password must be at least 6 characters.</p>
+        <div class="reassurance">
+          <span class="reassurance-icon">🔒</span>
+          <span>Your password is encrypted and never shared</span>
+        </div>
 
         <div class="form-group">
           <label class="form-label" for="referral-code">Referral Code (optional)</label>
