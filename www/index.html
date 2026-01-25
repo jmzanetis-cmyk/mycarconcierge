@@ -58,19 +58,19 @@
     }
 
     [data-theme="light"] {
-      --bg-deep: #f5f2ed;
-      --bg-card: rgba(248, 244, 238, 0.98);
-      --bg-elevated: rgba(252, 249, 244, 1);
-      --bg-input: #ebe7e0;
-      --text-primary: #1c1915;
-      --text-secondary: #3a352e;
-      --text-muted: #6d665c;
-      --border-subtle: rgba(120, 110, 95, 0.15);
-      --border-medium: rgba(120, 110, 95, 0.25);
-      --accent-gold: #b8860b;
-      --accent-gold-soft: rgba(184, 134, 11, 0.15);
-      --accent-teal: #0891b2;
-      --accent-blue: #0284c7;
+      --bg-deep: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-input: #f1f5f9;
+      --text-primary: #1e293b;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --border-subtle: rgba(30, 58, 95, 0.12);
+      --border-medium: rgba(30, 58, 95, 0.2);
+      --accent-gold: #c9a962;
+      --accent-gold-soft: rgba(201, 169, 98, 0.15);
+      --accent-teal: #0d7377;
+      --accent-blue: #1e3a5f;
     }
 
     html.theme-transition,
@@ -109,6 +109,14 @@
         radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
         radial-gradient(ellipse 60% 60% at 80% 80%, rgba(74, 124, 255, 0.05), transparent 50%),
         radial-gradient(ellipse 100% 100% at 50% 100%, rgba(74, 124, 255, 0.03), transparent 60%);
+    }
+    
+    /* Light mode ambient - subtle navy/gold tints */
+    [data-theme="light"] .ambient-bg {
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(201, 169, 98, 0.08), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(30, 58, 95, 0.04), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(30, 58, 95, 0.02), transparent 60%);
     }
 
     /* Subtle noise texture */
@@ -262,6 +270,14 @@
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
+    
+    /* Light mode highlight - warm gold on white */
+    [data-theme="light"] .hero h1 .highlight {
+      background: linear-gradient(135deg, #c9a962 0%, #d4b87a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
 
     .hero-subtitle {
       max-width: 580px;
@@ -315,6 +331,25 @@
     .btn-secondary:hover {
       background: rgba(38, 38, 52, 0.9);
       border-color: var(--accent-blue);
+    }
+    
+    /* Light mode buttons - navy blue for trust, gold for warmth */
+    [data-theme="light"] .btn-primary {
+      background: linear-gradient(135deg, #c9a962, #d4b87a);
+      color: #1e3a5f;
+      box-shadow: 0 2px 12px rgba(201, 169, 98, 0.3);
+    }
+    [data-theme="light"] .btn-primary:hover {
+      box-shadow: 0 4px 16px rgba(201, 169, 98, 0.4);
+    }
+    [data-theme="light"] .btn-secondary {
+      background: #ffffff;
+      color: #1e3a5f;
+      border: 1px solid rgba(30, 58, 95, 0.2);
+    }
+    [data-theme="light"] .btn-secondary:hover {
+      background: #f8fafc;
+      border-color: rgba(30, 58, 95, 0.35);
     }
 
     .btn svg {
@@ -536,6 +571,23 @@
       color: var(--text-secondary);
       font-size: 0.92rem;
       line-height: 1.65;
+    }
+    
+    /* Light mode feature cards - clean white with navy accents */
+    [data-theme="light"] .feature-card {
+      background: #ffffff;
+      box-shadow: 0 2px 12px rgba(30, 58, 95, 0.06), 0 1px 3px rgba(30, 58, 95, 0.04);
+      border: 1px solid rgba(30, 58, 95, 0.08);
+    }
+    [data-theme="light"] .feature-card:hover {
+      box-shadow: 0 8px 28px rgba(30, 58, 95, 0.1);
+      border-color: rgba(30, 58, 95, 0.15);
+    }
+    [data-theme="light"] .feature-icon {
+      background: rgba(30, 58, 95, 0.08);
+    }
+    [data-theme="light"] .feature-card:nth-child(2) .feature-icon {
+      background: rgba(201, 169, 98, 0.15);
     }
 
     .feature-list {
