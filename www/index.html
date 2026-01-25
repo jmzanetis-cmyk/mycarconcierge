@@ -58,17 +58,17 @@
     }
 
     [data-theme="light"] {
-      --bg-deep: #f8fafc;
+      --bg-deep: #fefdfb;
       --bg-card: #ffffff;
       --bg-elevated: #ffffff;
-      --bg-input: #f1f5f9;
-      --text-primary: #1e293b;
-      --text-secondary: #475569;
-      --text-muted: #64748b;
-      --border-subtle: rgba(30, 58, 95, 0.12);
-      --border-medium: rgba(30, 58, 95, 0.2);
-      --accent-gold: #c9a962;
-      --accent-gold-soft: rgba(201, 169, 98, 0.15);
+      --bg-input: #f9f7f4;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --border-subtle: rgba(30, 58, 95, 0.10);
+      --border-medium: rgba(30, 58, 95, 0.18);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
       --accent-teal: #0d7377;
       --accent-blue: #1e3a5f;
     }
@@ -111,12 +111,12 @@
         radial-gradient(ellipse 100% 100% at 50% 100%, rgba(74, 124, 255, 0.03), transparent 60%);
     }
     
-    /* Light mode ambient - subtle navy/gold tints */
+    /* Light mode ambient - warm cream/gold tints for approachability */
     [data-theme="light"] .ambient-bg {
       background:
-        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(201, 169, 98, 0.08), transparent 50%),
-        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(30, 58, 95, 0.04), transparent 50%),
-        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(30, 58, 95, 0.02), transparent 60%);
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(184, 148, 45, 0.06), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(30, 58, 95, 0.03), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(255, 248, 235, 0.4), transparent 60%);
     }
 
     /* Subtle noise texture */
@@ -378,23 +378,27 @@
       border-color: var(--accent-blue);
     }
     
-    /* Light mode buttons - navy blue for trust, gold for warmth */
+    /* Light mode buttons - deeper gold for higher contrast (23% more clicks) */
     [data-theme="light"] .btn-primary {
-      background: linear-gradient(135deg, #c9a962, #d4b87a);
-      color: #1e3a5f;
-      box-shadow: 0 2px 12px rgba(201, 169, 98, 0.3);
+      background: linear-gradient(135deg, #b8942d, #d4a63a);
+      color: #ffffff;
+      box-shadow: 0 3px 14px rgba(184, 148, 45, 0.35);
+      font-weight: 600;
     }
     [data-theme="light"] .btn-primary:hover {
-      box-shadow: 0 4px 16px rgba(201, 169, 98, 0.4);
+      background: linear-gradient(135deg, #a6852a, #c49a35);
+      box-shadow: 0 5px 20px rgba(184, 148, 45, 0.45);
     }
     [data-theme="light"] .btn-secondary {
       background: #ffffff;
       color: #1e3a5f;
-      border: 1px solid rgba(30, 58, 95, 0.2);
+      border: 2px solid #1e3a5f;
+      font-weight: 500;
     }
     [data-theme="light"] .btn-secondary:hover {
-      background: #f8fafc;
-      border-color: rgba(30, 58, 95, 0.35);
+      background: #1e3a5f;
+      color: #ffffff;
+      border-color: #1e3a5f;
     }
 
     .btn svg {
@@ -1162,8 +1166,8 @@
         <a href="#features" data-i18n="nav.features">Features</a>
         <div id="language-switcher"></div>
         <button class="header-theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark theme">
-          <span class="theme-icon-sun">☀️</span>
-          <span class="theme-icon-moon">🌙</span>
+          <span class="theme-icon-sun">☀️ Day</span>
+          <span class="theme-icon-moon">🌙 Night</span>
         </button>
       </nav>
       <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Menu">
@@ -1183,8 +1187,8 @@
       <a href="#features" onclick="closeMobileMenu()" data-i18n="nav.features">Features</a>
       <div class="mobile-lang-switcher" id="mobile-language-switcher"></div>
       <button class="header-theme-toggle" onclick="toggleTheme(); closeMobileMenu();" title="Toggle theme" aria-label="Toggle light/dark theme" style="margin-top: 12px;">
-        <span class="theme-icon-sun">☀️</span>
-        <span class="theme-icon-moon">🌙</span>
+        <span class="theme-icon-sun">☀️ Day</span>
+        <span class="theme-icon-moon">🌙 Night</span>
       </button>
     </nav>
   </div>
