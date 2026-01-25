@@ -29,6 +29,7 @@
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
+    "@capacitor-community/stripe": "^7.2.2",
     "@capacitor/android": "^7.4.4",
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",

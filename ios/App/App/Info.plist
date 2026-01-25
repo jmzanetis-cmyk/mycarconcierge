@@ -62,5 +62,15 @@
                         </dict>
                 </dict>
         </dict>
+        <key>ApplePay</key>
+        <dict>
+                <key>PKPaymentNetworks</key>
+                <array>
+                        <string>visa</string>
+                        <string>masterCard</string>
+                        <string>amex</string>
+                        <string>discover</string>
+                </array>
+        </dict>
 </dict>
 </plist>
