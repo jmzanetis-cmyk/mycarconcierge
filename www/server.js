@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 const vision = require('@google-cloud/vision');
@@ -17,6 +18,39 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const anthropicClient = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
 });
+
+const geminiClient = process.env.GEMINI_API_KEY 
+  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  : null;
+
+async function generateAIContent(prompt, options = {}) {
+  const { maxTokens = 1024, preferredProvider = 'gemini' } = options;
+  const providers = preferredProvider === 'gemini' 
+    ? ['gemini', 'anthropic'] 
+    : ['anthropic', 'gemini'];
+  
+  for (const provider of providers) {
+    try {
+      if (provider === 'gemini' && geminiClient) {
+        const model = geminiClient.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        return { text: response.text(), provider: 'gemini' };
+      } else if (provider === 'anthropic' && process.env.ANTHROPIC_API_KEY) {
+        const message = await anthropicClient.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: maxTokens,
+          messages: [{ role: 'user', content: prompt }]
+        });
+        return { text: message.content[0]?.text || '', provider: 'anthropic' };
+      }
+    } catch (error) {
+      console.error(`AI provider ${provider} failed:`, error.message);
+      continue;
+    }
+  }
+  throw new Error('All AI providers failed');
+}
 
 const helpdeskConversations = new Map();
 
@@ -7431,15 +7465,9 @@ async function handleDreamCarRunSearch(req, res, requestId, searchId) {
     // Build search criteria description for AI
     const criteriaDescription = buildSearchCriteriaDescription(search);
     
-    // Use Anthropic to generate intelligent search queries
+    // Use AI (Gemini preferred, Anthropic fallback) to generate intelligent search queries
     let aiResponse = null;
-    try {
-      const message = await anthropicClient.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        messages: [{
-          role: 'user',
-          content: `Based on the following car search criteria, generate 3 mock car listings that would match these preferences. Return a JSON array of car listings.
+    const searchPrompt = `Based on the following car search criteria, generate 3 mock car listings that would match these preferences. Return a JSON array of car listings.
 
 Search Criteria:
 ${criteriaDescription}
@@ -7461,11 +7489,11 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     "listing_url": "https://example.com/listing/123",
     "photos": ["https://example.com/photo1.jpg"]
   }
-]`
-        }]
-      });
-      
-      const responseText = message.content[0]?.text || '[]';
+]`;
+    try {
+      const aiResult = await generateAIContent(searchPrompt, { maxTokens: 1024, preferredProvider: 'gemini' });
+      const responseText = aiResult.text || '[]';
+      console.log(`[${requestId}] Dream Car search using ${aiResult.provider}`);
       // Try to parse the JSON response
       try {
         aiResponse = JSON.parse(responseText);
@@ -7477,7 +7505,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
         }
       }
     } catch (aiError) {
-      console.error(`[${requestId}] Anthropic API error:`, aiError.message);
+      console.error(`[${requestId}] AI API error:`, aiError.message);
       // Continue with fallback mock data
     }
     
@@ -7715,15 +7743,9 @@ async function handleDreamCarScheduledSearch(req, res, requestId) {
         // Build search criteria description for AI
         const criteriaDescription = buildSearchCriteriaDescription(search);
         
-        // Use Anthropic to generate intelligent search queries
+        // Use AI (Gemini preferred, Anthropic fallback) to generate intelligent search queries
         let aiResponse = null;
-        try {
-          const message = await anthropicClient.messages.create({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1024,
-            messages: [{
-              role: 'user',
-              content: `Based on the following car search criteria, generate 3 mock car listings that would match these preferences. Return a JSON array of car listings.
+        const scheduledSearchPrompt = `Based on the following car search criteria, generate 3 mock car listings that would match these preferences. Return a JSON array of car listings.
 
 Search Criteria:
 ${criteriaDescription}
@@ -7745,11 +7767,11 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     "listing_url": "https://example.com/listing/123",
     "photos": ["https://example.com/photo1.jpg"]
   }
-]`
-            }]
-          });
-          
-          const responseText = message.content[0]?.text || '[]';
+]`;
+        try {
+          const aiResult = await generateAIContent(scheduledSearchPrompt, { maxTokens: 1024, preferredProvider: 'gemini' });
+          const responseText = aiResult.text || '[]';
+          console.log(`[${requestId}] Scheduled search ${search.id} using ${aiResult.provider}`);
           try {
             aiResponse = JSON.parse(responseText);
           } catch (parseErr) {

@@ -35,6 +35,7 @@
     "@capacitor/core": "^7.4.4",
     "@capacitor/ios": "^7.4.4",
     "@google-cloud/vision": "^5.3.4",
+    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.45.0",
     "netlify-cli": "^23.12.3",
     "openai": "^4.50.0",

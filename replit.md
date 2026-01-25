@@ -79,6 +79,7 @@ Key features include:
 - **Twilio**: SMS for 2FA and notifications.
 - **Netlify**: PWA deployment.
 - **OpenAI**: Integrated for the helpdesk widget.
-- **Anthropic**: AI search for Dream Car Finder.
+- **Anthropic**: AI fallback for Dream Car Finder.
+- **Google Gemini**: Primary AI provider for Dream Car Finder (uses user's own API key, with Anthropic as fallback).
 - **Resend**: Email delivery.
 - **Google Cloud Vision**: OCR for document verification.
