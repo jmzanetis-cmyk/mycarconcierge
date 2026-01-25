@@ -413,19 +413,29 @@ async function generateAgreementPDF(agreementData) {
       doc.text(`Agreement ID: ${agreementData.id}`);
       doc.moveDown(1);
       
-      if (agreementData.acknowledgments && Array.isArray(agreementData.acknowledgments)) {
-        doc.fontSize(12).font('Helvetica-Bold').text('Acknowledgments');
-        doc.moveDown(0.5);
-        doc.font('Helvetica').fontSize(10);
-        const ackList = typeof agreementData.acknowledgments === 'string' 
-          ? JSON.parse(agreementData.acknowledgments) 
-          : agreementData.acknowledgments;
-        ackList.forEach((ack, i) => {
-          if (ack === true || ack === 'true') {
-            doc.text(`✓ Acknowledgment ${i + 1}: Accepted`);
+      if (agreementData.acknowledgments) {
+        let ackList = [];
+        try {
+          if (typeof agreementData.acknowledgments === 'string') {
+            ackList = JSON.parse(agreementData.acknowledgments);
+          } else if (Array.isArray(agreementData.acknowledgments)) {
+            ackList = agreementData.acknowledgments;
           }
-        });
-        doc.moveDown(1);
+        } catch (e) {
+          console.error('Error parsing acknowledgments:', e);
+        }
+        
+        if (ackList.length > 0) {
+          doc.fontSize(12).font('Helvetica-Bold').text('Acknowledgments');
+          doc.moveDown(0.5);
+          doc.font('Helvetica').fontSize(10);
+          ackList.forEach((ack, i) => {
+            if (ack === true || ack === 'true') {
+              doc.text(`✓ Acknowledgment ${i + 1}: Accepted`);
+            }
+          });
+          doc.moveDown(1);
+        }
       }
       
       doc.fontSize(12).font('Helvetica-Bold').text('Digital Signature');
@@ -464,11 +474,16 @@ async function generateAgreementPDF(agreementData) {
   });
 }
 
-async function uploadPDFToStorage(pdfBuffer, agreementId, agreementType) {
+async function uploadPDFToStorage(supabaseClient, pdfBuffer, agreementId, agreementType) {
+  if (!supabaseClient) {
+    console.error('No Supabase client provided for PDF upload');
+    return null;
+  }
+  
   try {
     const fileName = `agreements/${agreementType}/${agreementId}.pdf`;
     
-    const { data, error } = await supabase.storage
+    const { data, error } = await supabaseClient.storage
       .from('documents')
       .upload(fileName, pdfBuffer, {
         contentType: 'application/pdf',
@@ -476,30 +491,25 @@ async function uploadPDFToStorage(pdfBuffer, agreementId, agreementType) {
       });
     
     if (error) {
-      const { data: createData, error: createError } = await supabase.storage.createBucket('documents', {
-        public: false,
+      await supabaseClient.storage.createBucket('documents', {
+        public: true,
         fileSizeLimit: 10485760
       });
       
-      if (!createError || createError.message?.includes('already exists')) {
-        const { data: retryData, error: retryError } = await supabase.storage
-          .from('documents')
-          .upload(fileName, pdfBuffer, {
-            contentType: 'application/pdf',
-            upsert: true
-          });
-        
-        if (retryError) {
-          console.error('Error uploading PDF after bucket creation:', retryError);
-          return null;
-        }
-      } else {
-        console.error('Error creating bucket:', createError);
+      const { data: retryData, error: retryError } = await supabaseClient.storage
+        .from('documents')
+        .upload(fileName, pdfBuffer, {
+          contentType: 'application/pdf',
+          upsert: true
+        });
+      
+      if (retryError) {
+        console.error('Error uploading PDF after bucket creation:', retryError);
         return null;
       }
     }
     
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = supabaseClient.storage
       .from('documents')
       .getPublicUrl(fileName);
     
@@ -635,6 +645,13 @@ async function handleSignAgreement(req, res, requestId) {
     
     req.on('end', async () => {
       try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Service temporarily unavailable' }));
+          return;
+        }
+        
         const data = JSON.parse(body);
         const { agreement_type, full_name, business_name, ein_last4, effective_date, signature_data, signature_type, acknowledgments, user_id } = data;
         
@@ -722,6 +739,12 @@ async function handleSignAgreement(req, res, requestId) {
         }));
         
         (async () => {
+          const supabaseClient = getSupabaseClient();
+          if (!supabaseClient) {
+            console.error(`[${requestId}] No Supabase client for post-processing`);
+            return;
+          }
+          
           try {
             const agreementDataForPDF = {
               id: result.id,
@@ -737,12 +760,12 @@ async function handleSignAgreement(req, res, requestId) {
             const pdfBuffer = await generateAgreementPDF(agreementDataForPDF);
             console.log(`[${requestId}] PDF generated for agreement ${result.id}`);
             
-            const pdfUrl = await uploadPDFToStorage(pdfBuffer, result.id, agreement_type);
+            const pdfUrl = await uploadPDFToStorage(supabaseClient, pdfBuffer, result.id, agreement_type);
             console.log(`[${requestId}] PDF uploaded: ${pdfUrl || 'failed'}`);
             
             let emailSent = false;
             if (user_id) {
-              const { data: profile } = await supabase
+              const { data: profile } = await supabaseClient
                 .from('profiles')
                 .select('email')
                 .eq('id', user_id)
@@ -753,7 +776,7 @@ async function handleSignAgreement(req, res, requestId) {
               }
             }
             
-            await supabase
+            await supabaseClient
               .from('signed_agreements')
               .update({ 
                 pdf_url: pdfUrl || null,
