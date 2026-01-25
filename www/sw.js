@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcc-cache-v45';
+const CACHE_NAME = 'mcc-cache-v46';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -41,6 +41,7 @@ const STATIC_ASSETS = [
   '/locales/el.json',
   '/locales/zh.json',
   '/locales/hi.json',
+  '/locales/ar.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png'
 ];
