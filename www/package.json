@@ -36,6 +36,8 @@
     "@supabase/supabase-js": "^2.45.0",
     "netlify-cli": "^23.12.3",
     "openai": "^4.50.0",
+    "pdfkit": "^0.17.2",
+    "resend": "^6.8.0",
     "stripe": "^15.0.0"
   },
   "devDependencies": {

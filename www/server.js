@@ -9,6 +9,10 @@ const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 const vision = require('@google-cloud/vision');
 const sharp = require('sharp');
+const PDFDocument = require('pdfkit');
+const { Resend } = require('resend');
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 const anthropicClient = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
@@ -374,6 +378,232 @@ async function logLoginActivity(userId, req, isSuccessful = true, failureReason 
   }
 }
 
+const AGREEMENT_TITLES = {
+  founding_partner: 'Founding Partner Agreement',
+  member_founder: 'Member Founder Agreement',
+  provider: 'Provider Agreement'
+};
+
+async function generateAgreementPDF(agreementData) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
+      const chunks = [];
+      
+      doc.on('data', chunk => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+      
+      doc.fontSize(20).font('Helvetica-Bold').text('My Car Concierge', { align: 'center' });
+      doc.moveDown(0.5);
+      doc.fontSize(16).text(AGREEMENT_TITLES[agreementData.agreement_type] || 'Agreement', { align: 'center' });
+      doc.moveDown(1);
+      
+      doc.moveTo(50, doc.y).lineTo(562, doc.y).stroke();
+      doc.moveDown(1);
+      
+      doc.fontSize(12).font('Helvetica-Bold').text('Signatory Information');
+      doc.moveDown(0.5);
+      doc.font('Helvetica').fontSize(11);
+      doc.text(`Full Name: ${agreementData.full_name}`);
+      if (agreementData.business_name) {
+        doc.text(`Business Name: ${agreementData.business_name}`);
+      }
+      doc.text(`Date Signed: ${new Date(agreementData.signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`);
+      doc.text(`Agreement ID: ${agreementData.id}`);
+      doc.moveDown(1);
+      
+      if (agreementData.acknowledgments && Array.isArray(agreementData.acknowledgments)) {
+        doc.fontSize(12).font('Helvetica-Bold').text('Acknowledgments');
+        doc.moveDown(0.5);
+        doc.font('Helvetica').fontSize(10);
+        const ackList = typeof agreementData.acknowledgments === 'string' 
+          ? JSON.parse(agreementData.acknowledgments) 
+          : agreementData.acknowledgments;
+        ackList.forEach((ack, i) => {
+          if (ack === true || ack === 'true') {
+            doc.text(`✓ Acknowledgment ${i + 1}: Accepted`);
+          }
+        });
+        doc.moveDown(1);
+      }
+      
+      doc.fontSize(12).font('Helvetica-Bold').text('Digital Signature');
+      doc.moveDown(0.5);
+      
+      if (agreementData.signature_data && agreementData.signature_data.startsWith('data:image')) {
+        try {
+          const base64Data = agreementData.signature_data.split(',')[1];
+          const imgBuffer = Buffer.from(base64Data, 'base64');
+          doc.image(imgBuffer, { fit: [300, 100], align: 'left' });
+        } catch (imgErr) {
+          console.error('Error embedding signature image:', imgErr);
+          doc.font('Helvetica-Oblique').fontSize(14).text(agreementData.full_name);
+        }
+      } else {
+        doc.font('Helvetica-Oblique').fontSize(14).text(agreementData.full_name);
+      }
+      
+      doc.moveDown(2);
+      doc.moveTo(50, doc.y).lineTo(250, doc.y).stroke();
+      doc.moveDown(0.3);
+      doc.font('Helvetica').fontSize(9).text('Electronic Signature');
+      
+      doc.moveDown(2);
+      doc.fontSize(8).fillColor('#666666').text(
+        'This document was electronically signed through My Car Concierge. ' +
+        'The electronic signature above is legally binding under the ESIGN Act and UETA. ' +
+        `IP Address: ${agreementData.ip_address || 'Not recorded'}`,
+        { align: 'center' }
+      );
+      
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+async function uploadPDFToStorage(pdfBuffer, agreementId, agreementType) {
+  try {
+    const fileName = `agreements/${agreementType}/${agreementId}.pdf`;
+    
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .upload(fileName, pdfBuffer, {
+        contentType: 'application/pdf',
+        upsert: true
+      });
+    
+    if (error) {
+      const { data: createData, error: createError } = await supabase.storage.createBucket('documents', {
+        public: false,
+        fileSizeLimit: 10485760
+      });
+      
+      if (!createError || createError.message?.includes('already exists')) {
+        const { data: retryData, error: retryError } = await supabase.storage
+          .from('documents')
+          .upload(fileName, pdfBuffer, {
+            contentType: 'application/pdf',
+            upsert: true
+          });
+        
+        if (retryError) {
+          console.error('Error uploading PDF after bucket creation:', retryError);
+          return null;
+        }
+      } else {
+        console.error('Error creating bucket:', createError);
+        return null;
+      }
+    }
+    
+    const { data: urlData } = supabase.storage
+      .from('documents')
+      .getPublicUrl(fileName);
+    
+    return urlData?.publicUrl || fileName;
+  } catch (err) {
+    console.error('Exception uploading PDF:', err);
+    return null;
+  }
+}
+
+async function sendAgreementConfirmationEmail(userEmail, agreementData, pdfUrl) {
+  if (!resend) {
+    console.log('[EMAIL] Resend not configured, skipping email');
+    return false;
+  }
+  
+  try {
+    const agreementTitle = AGREEMENT_TITLES[agreementData.agreement_type] || 'Agreement';
+    
+    const { data, error } = await resend.emails.send({
+      from: 'My Car Concierge <noreply@mycarconcierge.com>',
+      to: userEmail,
+      subject: `Your ${agreementTitle} Has Been Signed`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #12161c; font-family: 'Helvetica Neue', Arial, sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #12161c; padding: 40px 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #1a1f28; border-radius: 16px; overflow: hidden;">
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #d4a855, #b8942d); padding: 30px; text-align: center;">
+                      <h1 style="margin: 0; color: #12161c; font-size: 28px; font-weight: 700;">My Car Concierge</h1>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 40px;">
+                      <h2 style="margin: 0 0 20px; color: #f4f4f6; font-size: 22px;">Agreement Signed Successfully</h2>
+                      <p style="margin: 0 0 20px; color: #a0a5b0; font-size: 16px; line-height: 1.6;">
+                        Thank you, <strong style="color: #d4a855;">${agreementData.full_name}</strong>. Your ${agreementTitle} has been successfully signed and recorded.
+                      </p>
+                      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #242a35; border-radius: 8px; margin: 20px 0;">
+                        <tr>
+                          <td style="padding: 20px;">
+                            <p style="margin: 0 0 10px; color: #a0a5b0; font-size: 14px;">
+                              <strong style="color: #f4f4f6;">Agreement Type:</strong> ${agreementTitle}
+                            </p>
+                            <p style="margin: 0 0 10px; color: #a0a5b0; font-size: 14px;">
+                              <strong style="color: #f4f4f6;">Signed On:</strong> ${new Date(agreementData.signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                            </p>
+                            <p style="margin: 0; color: #a0a5b0; font-size: 14px;">
+                              <strong style="color: #f4f4f6;">Reference ID:</strong> ${agreementData.id}
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                      <p style="margin: 20px 0; color: #a0a5b0; font-size: 14px; line-height: 1.6;">
+                        A copy of your signed agreement is stored securely in your account. You can access it anytime from your dashboard.
+                      </p>
+                      <table cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                        <tr>
+                          <td style="background: linear-gradient(135deg, #d4a855, #b8942d); border-radius: 8px;">
+                            <a href="https://www.mycarconcierge.com/members.html" style="display: inline-block; padding: 14px 32px; color: #12161c; text-decoration: none; font-weight: 600; font-size: 16px;">
+                              Go to Dashboard
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="background-color: #0d1016; padding: 20px; text-align: center;">
+                      <p style="margin: 0; color: #6b7280; font-size: 12px;">
+                        © ${new Date().getFullYear()} My Car Concierge. All rights reserved.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `
+    });
+    
+    if (error) {
+      console.error('[EMAIL] Error sending confirmation:', error);
+      return false;
+    }
+    
+    console.log('[EMAIL] Agreement confirmation sent to:', userEmail);
+    return true;
+  } catch (err) {
+    console.error('[EMAIL] Exception sending email:', err);
+    return false;
+  }
+}
+
 async function handleSignAgreement(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -490,6 +720,52 @@ async function handleSignAgreement(req, res, requestId) {
           id: result.id,
           message: 'Agreement signed successfully'
         }));
+        
+        (async () => {
+          try {
+            const agreementDataForPDF = {
+              id: result.id,
+              agreement_type,
+              full_name: full_name.trim(),
+              business_name: business_name ? business_name.trim() : null,
+              signature_data,
+              signed_at: insertData.signed_at,
+              ip_address,
+              acknowledgments: acknowledgments || []
+            };
+            
+            const pdfBuffer = await generateAgreementPDF(agreementDataForPDF);
+            console.log(`[${requestId}] PDF generated for agreement ${result.id}`);
+            
+            const pdfUrl = await uploadPDFToStorage(pdfBuffer, result.id, agreement_type);
+            console.log(`[${requestId}] PDF uploaded: ${pdfUrl || 'failed'}`);
+            
+            let emailSent = false;
+            if (user_id) {
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('email')
+                .eq('id', user_id)
+                .single();
+              
+              if (profile?.email) {
+                emailSent = await sendAgreementConfirmationEmail(profile.email, agreementDataForPDF, pdfUrl);
+              }
+            }
+            
+            await supabase
+              .from('signed_agreements')
+              .update({ 
+                pdf_url: pdfUrl || null,
+                email_sent: emailSent 
+              })
+              .eq('id', result.id);
+            
+            console.log(`[${requestId}] Agreement ${result.id} updated: pdf_url=${!!pdfUrl}, email_sent=${emailSent}`);
+          } catch (postProcessError) {
+            console.error(`[${requestId}] Post-processing error:`, postProcessError);
+          }
+        })();
         
       } catch (parseError) {
         console.error(`[${requestId}] Parse error:`, parseError);
