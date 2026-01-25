@@ -890,7 +890,7 @@
   <script src="/agreement-form.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      const savedTheme = localStorage.getItem('mcc-theme') || 'dark';
+      const savedTheme = localStorage.getItem('theme') || 'dark';
       document.documentElement.setAttribute('data-theme', savedTheme);
       updateThemeIcons(savedTheme);
 
@@ -900,7 +900,7 @@
           const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
           const newTheme = currentTheme === 'light' ? 'dark' : 'light';
           document.documentElement.setAttribute('data-theme', newTheme);
-          localStorage.setItem('mcc-theme', newTheme);
+          localStorage.setItem('theme', newTheme);
           updateThemeIcons(newTheme);
         });
       }
