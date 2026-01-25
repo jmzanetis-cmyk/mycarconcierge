@@ -3839,10 +3839,36 @@ function generateRequestId() {
 }
 
 function setSecurityHeaders(res, isApiRoute = false) {
+  // Core security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-XSS-Protection', '1; mode=block');
-  if (isApiRoute) {
-    res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Frame-Options', isApiRoute ? 'DENY' : 'SAMEORIGIN');
+  
+  // HSTS - enforce HTTPS (1 year, include subdomains)
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  
+  // Referrer Policy - prevent information leakage
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  // Permissions Policy - restrict browser features
+  res.setHeader('Permissions-Policy', 'geolocation=(self), camera=(), microphone=(), payment=(self)');
+  
+  // Content Security Policy - prevent XSS and injection attacks
+  if (!isApiRoute) {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+      "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:",
+      "img-src 'self' data: blob: https: http:",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.printful.com https://api.anthropic.com https://generativelanguage.googleapis.com https://*.replit.dev https://*.repl.co",
+      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "upgrade-insecure-requests"
+    ].join('; ');
+    res.setHeader('Content-Security-Policy', csp);
   }
 }
 
@@ -10394,6 +10420,15 @@ async function handleCheckrWebhook(req, res, requestId) {
     
     try {
       const event = JSON.parse(rawBody);
+      
+      // Basic validation - ensure required fields exist
+      if (!event || !event.type) {
+        console.warn(`[${requestId}] Invalid Checkr webhook: missing type`);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid webhook payload' }));
+        return;
+      }
+      
       const eventId = event.id;
       const eventType = event.type;
       const eventData = event.data?.object || {};
@@ -12100,7 +12135,9 @@ async function handleCloverSync(req, res, requestId, providerId) {
         try {
           const parsed = JSON.parse(body);
           merchantId = parsed.merchantId;
-        } catch (e) {}
+        } catch (e) {
+          // Body is not valid JSON, merchantId stays null (optional parameter)
+        }
       }
 
       const supabase = getSupabaseClient();
@@ -12255,8 +12292,17 @@ async function handleCloverWebhook(req, res, requestId) {
 
     try {
       const event = JSON.parse(rawBody);
-      const eventId = event.eventId || event.id || crypto.randomBytes(16).toString('hex');
+      
+      // Basic validation - ensure it's a valid Clover event
       const eventType = event.type || event.eventType;
+      if (!event || !eventType) {
+        console.warn(`[${requestId}] Invalid Clover webhook: missing event type`);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid webhook payload' }));
+        return;
+      }
+      
+      const eventId = event.eventId || event.id || crypto.randomBytes(16).toString('hex');
       const merchantId = event.merchants?.[0]?.id || event.merchantId;
       const objectId = event.objectId || event.data?.id;
 
@@ -12731,7 +12777,9 @@ async function handleSquareSync(req, res, requestId, providerId) {
         try {
           const parsed = JSON.parse(body);
           locationId = parsed.locationId;
-        } catch (e) {}
+        } catch (e) {
+          // Body is not valid JSON, locationId stays null (optional parameter)
+        }
       }
 
       const supabase = getSupabaseClient();
@@ -12890,6 +12938,15 @@ async function handleSquareWebhook(req, res, requestId) {
 
     try {
       const event = JSON.parse(rawBody);
+      
+      // Basic validation - ensure it's a valid Square event
+      if (!event || !event.type) {
+        console.warn(`[${requestId}] Invalid Square webhook: missing type`);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid webhook payload' }));
+        return;
+      }
+      
       const eventId = event.event_id || crypto.randomBytes(16).toString('hex');
       const eventType = event.type;
       const merchantId = event.merchant_id;
@@ -19484,6 +19541,7 @@ const server = http.createServer((req, res) => {
   const allowedOrigins = [
     'https://www.mycarconcierge.com',
     'https://mycarconcierge.com',
+    'https://pay.mycarconcierge.com',
     'capacitor://localhost',
     'ionic://localhost',
     'http://localhost',
@@ -19492,11 +19550,24 @@ const server = http.createServer((req, res) => {
   ];
   
   const origin = req.headers.origin;
-  if (origin && (allowedOrigins.includes(origin) || origin.startsWith('file://') || origin.startsWith('capacitor://'))) {
+  const isAllowedOrigin = origin && (
+    allowedOrigins.includes(origin) || 
+    origin.startsWith('file://') || 
+    origin.startsWith('capacitor://') ||
+    origin.endsWith('.replit.dev') ||
+    origin.endsWith('.repl.co') ||
+    origin.endsWith('.replit.app')
+  );
+  
+  if (isAllowedOrigin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
   } else if (!origin) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // Same-origin requests (no Origin header) - allow for server-side requests
+    res.setHeader('Access-Control-Allow-Origin', 'https://www.mycarconcierge.com');
   }
+  // Note: Unknown origins are not given CORS headers (blocked by browser)
+  
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Max-Age', '86400');

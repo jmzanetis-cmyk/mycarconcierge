@@ -1,3 +1,11 @@
+    // ========== SECURITY HELPERS ==========
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = String(text);
+      return div.innerHTML;
+    }
+    
     // ========== STATE ==========
     let currentUser = null;
     let applications = [];
@@ -1367,7 +1375,7 @@
       }
 
       tbody.innerHTML = filtered.map(u => {
-        const displayName = u.business_name || u.full_name || 'Unnamed';
+        const displayName = escapeHtml(u.business_name || u.full_name || 'Unnamed');
         const roleLabel = u.role === 'member' ? 'Member' : u.role === 'provider' ? 'Provider' : 'Admin';
         const roleColor = u.role === 'member' ? 'var(--accent-blue)' : u.role === 'provider' ? 'var(--accent-gold)' : 'var(--accent-green)';
         
@@ -1380,9 +1388,9 @@
           <tr>
             <td>
               <div><strong>${displayName}</strong></div>
-              ${u.business_name && u.full_name ? `<div style="font-size:0.8rem;color:var(--text-muted);">${u.full_name}</div>` : ''}
+              ${u.business_name && u.full_name ? `<div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(u.full_name)}</div>` : ''}
             </td>
-            <td style="font-size:0.9rem;">${u.email || 'N/A'}</td>
+            <td style="font-size:0.9rem;">${escapeHtml(u.email) || 'N/A'}</td>
             <td>
               <span style="padding:4px 10px;border-radius:100px;font-size:0.8rem;background:${roleColor}22;color:${roleColor};">${roleLabel}</span>
             </td>
@@ -1818,12 +1826,12 @@
 
       tbody.innerHTML = filtered.map(app => `
         <tr>
-          <td><strong>${app.business_name}</strong><br><span style="color:var(--text-muted);font-size:0.82rem;">${app.contact_name}</span></td>
-          <td>${app.business_type || 'N/A'}</td>
-          <td>${app.city || ''}, ${app.state || ''}</td>
+          <td><strong>${escapeHtml(app.business_name)}</strong><br><span style="color:var(--text-muted);font-size:0.82rem;">${escapeHtml(app.contact_name)}</span></td>
+          <td>${escapeHtml(app.business_type) || 'N/A'}</td>
+          <td>${escapeHtml(app.city) || ''}, ${escapeHtml(app.state) || ''}</td>
           <td>${new Date(app.created_at).toLocaleDateString()}</td>
-          <td><span class="status-badge ${app.status}">${app.status}</span></td>
-          <td><button class="btn btn-secondary btn-sm" onclick="viewApplication('${app.id}')">Review</button></td>
+          <td><span class="status-badge ${escapeHtml(app.status)}">${escapeHtml(app.status)}</span></td>
+          <td><button class="btn btn-secondary btn-sm" onclick="viewApplication('${escapeHtml(app.id)}')">Review</button></td>
         </tr>
       `).join('');
     }
@@ -2204,13 +2212,13 @@
 
       tbody.innerHTML = filtered.map(d => `
         <tr>
-          <td>${d.maintenance_packages?.title || 'Package'}</td>
-          <td>${d.filed_by_profile?.full_name || 'User'} (${d.filed_by_role})</td>
-          <td>${d.reason}</td>
+          <td>${escapeHtml(d.maintenance_packages?.title) || 'Package'}</td>
+          <td>${escapeHtml(d.filed_by_profile?.full_name) || 'User'} (${escapeHtml(d.filed_by_role)})</td>
+          <td>${escapeHtml(d.reason)}</td>
           <td>$${(d.payments?.amount_total || 0).toFixed(2)}</td>
           <td>${new Date(d.created_at).toLocaleDateString()}</td>
-          <td><span class="status-badge ${d.status === 'open' ? 'open' : d.status.includes('resolved') ? 'resolved' : 'pending'}">${d.status}</span></td>
-          <td><button class="btn btn-secondary btn-sm" onclick="viewDispute('${d.id}')">Review</button></td>
+          <td><span class="status-badge ${d.status === 'open' ? 'open' : d.status.includes('resolved') ? 'resolved' : 'pending'}">${escapeHtml(d.status)}</span></td>
+          <td><button class="btn btn-secondary btn-sm" onclick="viewDispute('${escapeHtml(d.id)}')">Review</button></td>
         </tr>
       `).join('');
     }
@@ -2226,9 +2234,9 @@
 
       tbody.innerHTML = filtered.map(t => `
         <tr>
-          <td>${t.subject}</td>
-          <td>${t.user?.full_name || t.user?.email || 'User'}</td>
-          <td>${t.category || 'General'}</td>
+          <td>${escapeHtml(t.subject)}</td>
+          <td>${escapeHtml(t.user?.full_name || t.user?.email) || 'User'}</td>
+          <td>${escapeHtml(t.category) || 'General'}</td>
           <td><span class="status-badge ${t.priority === 'urgent' ? 'rejected' : t.priority === 'high' ? 'pending' : 'approved'}">${t.priority || 'normal'}</span></td>
           <td>${new Date(t.created_at).toLocaleDateString()}</td>
           <td><span class="status-badge ${t.status === 'open' ? 'open' : t.status === 'resolved' ? 'resolved' : 'pending'}">${t.status}</span></td>
