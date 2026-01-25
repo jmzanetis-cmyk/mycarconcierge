@@ -5,7 +5,8 @@ const I18n = (function() {
     fr: { name: 'French', nativeName: 'Français', dir: 'ltr' },
     el: { name: 'Greek', nativeName: 'Ελληνικά', dir: 'ltr' },
     zh: { name: 'Chinese', nativeName: '中文', dir: 'ltr' },
-    hi: { name: 'Hindi', nativeName: 'हिन्दी', dir: 'ltr' }
+    hi: { name: 'Hindi', nativeName: 'हिन्दी', dir: 'ltr' },
+    ar: { name: 'Arabic', nativeName: 'العربية', dir: 'rtl' }
   };
 
   const DEFAULT_LANGUAGE = 'en';
@@ -123,6 +124,11 @@ const I18n = (function() {
     currentLanguage = lang;
     translations = await loadTranslations(lang);
     saveLanguage(lang);
+    
+    const langInfo = SUPPORTED_LANGUAGES[lang];
+    document.documentElement.dir = langInfo.dir || 'ltr';
+    document.documentElement.lang = lang;
+    
     translatePage();
     isLoaded = true;
 
