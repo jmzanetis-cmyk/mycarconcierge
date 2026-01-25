@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/shared-styles.css">
   <style>
     body {
-      font-family: 'Georgia', serif;
+      font-family: 'Outfit', sans-serif;
       line-height: 1.8;
       padding: 40px;
       max-width: 900px;
@@ -276,7 +276,7 @@
         'I agree not to conduct off-platform transactions with MCC customers'
       ];
       
-      AgreementForm.init({
+      AgreementForm.createAgreementForm({
         containerId: 'provider-signature-section',
         agreementType: 'founding_provider_chris_agrapidis',
         fields: ['ein_last4'],
@@ -316,6 +316,11 @@
               <p style="color: var(--text-secondary); margin-bottom: 5px;">Welcome to the Founding Provider Partner program, Chris!</p>
               <p style="color: var(--text-secondary); font-size: 14px;">Reference ID: ${result.id}</p>
               <p style="color: var(--text-secondary); font-size: 14px;">A confirmation email and PDF copy will be sent shortly.</p>
+              <p style="color: var(--accent-primary); font-size: 14px; margin-top: 15px;">Your Founding Provider account is being created...</p>
+              <a href="/signup-provider.html?founding_provider=true&name=Chris%20Agrapidis&agreement_id=${result.id}" 
+                 style="display: inline-block; margin-top: 20px; padding: 12px 24px; background: linear-gradient(135deg, #d4a855, #b8942d); color: #12161c; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                Complete Account Setup
+              </a>
             </div>
           `;
         }

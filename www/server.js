@@ -381,7 +381,8 @@ async function logLoginActivity(userId, req, isSuccessful = true, failureReason 
 const AGREEMENT_TITLES = {
   founding_partner: 'Founding Partner Agreement',
   member_founder: 'Member Founder Agreement',
-  provider: 'Provider Agreement'
+  provider: 'Provider Agreement',
+  founding_provider_chris_agrapidis: 'Founding Provider Partner Agreement - Chris Agrapidis'
 };
 
 async function generateAgreementPDF(agreementData) {
@@ -625,7 +626,7 @@ async function handleSignAgreement(req, res, requestId) {
   }
   
   const MAX_SIGNATURE_SIZE = 500000;
-  const VALID_AGREEMENT_TYPES = ['founding_partner', 'member_founder', 'provider'];
+  const VALID_AGREEMENT_TYPES = ['founding_partner', 'member_founder', 'provider', 'founding_provider_chris_agrapidis'];
   const VALID_SIGNATURE_TYPES = ['draw', 'type'];
   
   try {
