@@ -462,6 +462,7 @@
     <div class="nav-item" data-section="members">👥 Members</div>
     <div class="nav-item" data-section="user-roles">🔄 User Roles</div>
     <div class="nav-item" data-section="user-management">👥 User Management</div>
+    <div class="nav-item" data-section="agreements">📝 Agreements</div>
 
     <div class="nav-label">Commerce</div>
     <div class="nav-item" data-section="merch-manager">🛍️ Merch Manager</div>
@@ -1894,6 +1895,50 @@
       </div>
     </div>
 
+    <!-- Signed Agreements Section -->
+    <section id="agreements" class="section">
+      <div class="page-header">
+        <button class="back-to-dashboard" onclick="navigateToSection('dashboard')">← Dashboard</button>
+        <h1 class="page-title">📝 Signed Agreements</h1>
+        <p class="page-subtitle">View all signed agreements from founding partners, member founders, and providers</p>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+          <div style="flex:1;min-width:200px;">
+            <input type="text" class="form-input" id="agreement-search" placeholder="Search by name or business..." oninput="searchAgreements()">
+          </div>
+          <div>
+            <select class="form-select" id="agreement-type-filter" onchange="filterAgreementsApi()" style="min-width:180px;">
+              <option value="all">All Types</option>
+              <option value="founding_partner">Founding Partner</option>
+              <option value="member_founder">Member Founder</option>
+              <option value="provider">Provider</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Type</th>
+              <th>Full Name</th>
+              <th>Business Name</th>
+              <th>Signed Date</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="agreements-table">
+            <tr><td colspan="6" class="empty-state">No agreements</td></tr>
+          </tbody>
+        </table>
+        <div id="agreements-pagination"></div>
+      </div>
+    </section>
+
     <!-- Settings Section -->
     <section id="settings" class="section">
       <div class="page-header">
@@ -2028,6 +2073,21 @@
         <button class="btn btn-secondary" onclick="closeModal('verification-modal')">Close</button>
         <button class="btn btn-danger" onclick="rejectVerification()">Reject</button>
         <button class="btn btn-success" onclick="approveVerification()">Approve</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agreement Details Modal -->
+  <div class="modal-backdrop" id="agreement-modal">
+    <div class="modal" style="max-width:800px;">
+      <div class="modal-header">
+        <h3 class="modal-title">📝 Agreement Details</h3>
+        <button class="modal-close" onclick="closeModal('agreement-modal')">×</button>
+      </div>
+      <div class="modal-body" id="agreement-modal-body" style="max-height:70vh;">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('agreement-modal')">Close</button>
       </div>
     </div>
   </div>

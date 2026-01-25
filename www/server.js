@@ -374,6 +374,173 @@ async function logLoginActivity(userId, req, isSuccessful = true, failureReason 
   }
 }
 
+async function handleSignAgreement(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  try {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const { agreement_type, full_name, business_name, ein_last4, effective_date, signature_data, signature_type, acknowledgments, user_id } = data;
+        
+        if (!agreement_type || !full_name || !signature_data) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing required fields' }));
+          return;
+        }
+        
+        const ip_address = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                           req.headers['x-real-ip'] || 
+                           req.socket.remoteAddress || 'unknown';
+        const user_agent = req.headers['user-agent'] || 'unknown';
+        
+        const insertData = {
+          user_id: user_id || null,
+          agreement_type,
+          full_name,
+          business_name: business_name || null,
+          signature_data,
+          ein_last4: ein_last4 || null,
+          signed_at: new Date().toISOString(),
+          ip_address,
+          user_agent,
+          acknowledgments: JSON.stringify(acknowledgments || []),
+          email_sent: false
+        };
+        
+        const { data: result, error } = await supabase
+          .from('signed_agreements')
+          .insert(insertData)
+          .select('id')
+          .single();
+        
+        if (error) {
+          console.error(`[${requestId}] Error saving agreement:`, error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to save agreement' }));
+          return;
+        }
+        
+        console.log(`[${requestId}] Agreement signed: ${agreement_type} by ${full_name}, ID: ${result.id}`);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: true, 
+          id: result.id,
+          message: 'Agreement signed successfully'
+        }));
+        
+      } catch (parseError) {
+        console.error(`[${requestId}] Parse error:`, parseError);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid request body' }));
+      }
+    });
+  } catch (err) {
+    console.error(`[${requestId}] Agreement signing error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  }
+}
+
+async function handleGetSignedAgreements(req, res, requestId, userId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('signed_agreements')
+      .select('id, agreement_type, full_name, signed_at, created_at')
+      .eq('user_id', userId)
+      .order('signed_at', { ascending: false });
+    
+    if (error) {
+      console.error(`[${requestId}] Error fetching agreements:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch agreements' }));
+      return;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, agreements: data || [] }));
+  } catch (err) {
+    console.error(`[${requestId}] Get agreements error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  }
+}
+
+async function handleAdminGetAllAgreements(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const page = parseInt(url.searchParams.get('page') || '1');
+    const limit = parseInt(url.searchParams.get('limit') || '25');
+    const agreementType = url.searchParams.get('type');
+    const search = url.searchParams.get('search');
+    
+    let query = supabase
+      .from('signed_agreements')
+      .select('*', { count: 'exact' })
+      .order('signed_at', { ascending: false })
+      .range((page - 1) * limit, page * limit - 1);
+    
+    if (agreementType) {
+      query = query.eq('agreement_type', agreementType);
+    }
+    
+    if (search) {
+      query = query.or(`full_name.ilike.%${search}%,business_name.ilike.%${search}%`);
+    }
+    
+    const { data, error, count } = await query;
+    
+    if (error) {
+      console.error(`[${requestId}] Error fetching all agreements:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch agreements' }));
+      return;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      agreements: data || [],
+      total: count || 0,
+      page,
+      limit,
+      totalPages: Math.ceil((count || 0) / limit)
+    }));
+  } catch (err) {
+    console.error(`[${requestId}] Admin get agreements error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  }
+}
+
 async function handleLogLoginActivity(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -18940,6 +19107,25 @@ const server = http.createServer((req, res) => {
     const rateLimit = applyRateLimit(req, res, 'apiAuth');
     if (!rateLimit.allowed) return;
     handleNotifyUrgentUpdate(req, res, requestId);
+    return;
+  }
+  
+  // Agreement signing API routes
+  if (req.method === 'POST' && req.url === '/api/agreements/sign') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleSignAgreement(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/agreements/user/')) {
+    const userId = req.url.split('/api/agreements/user/')[1]?.split('?')[0];
+    handleGetSignedAgreements(req, res, requestId, userId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/agreements')) {
+    handleAdminGetAllAgreements(req, res, requestId);
     return;
   }
   

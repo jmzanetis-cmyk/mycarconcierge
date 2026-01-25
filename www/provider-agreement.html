@@ -16,11 +16,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
   <style>
     :root {
       --bg-deep: #0a0a0f;
       --bg-card: rgba(18, 18, 28, 0.85);
       --bg-elevated: rgba(28, 28, 42, 0.9);
+      --bg-input: rgba(30, 38, 48, 0.9);
       --text-primary: #f4f4f6;
       --text-secondary: #9898a8;
       --text-muted: #6b6b7a;
@@ -34,6 +36,37 @@
       --radius-md: 14px;
       --radius-lg: 22px;
       --radius-xl: 32px;
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #fefdfb;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-input: #f9f7f4;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+      --accent-blue: #1e3a5f;
+      --accent-blue-soft: rgba(30, 58, 95, 0.1);
+      --border-subtle: rgba(30, 58, 95, 0.10);
+      --border-medium: rgba(30, 58, 95, 0.18);
+    }
+
+    [data-theme="light"] .ambient-bg {
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(184, 148, 45, 0.08), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(30, 58, 95, 0.06), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(30, 58, 95, 0.04), transparent 60%);
+    }
+
+    [data-theme="light"] .noise {
+      opacity: 0.015;
+    }
+
+    [data-theme="light"] header {
+      background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
     }
 
     * {
@@ -409,6 +442,99 @@
       color: var(--text-muted);
     }
 
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-gold);
+      text-decoration: none;
+      font-weight: 500;
+      padding: 10px 16px;
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      transition: all 0.2s ease;
+    }
+
+    .back-link:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-gold);
+    }
+
+    .theme-toggle {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      cursor: pointer;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-gold);
+    }
+
+    .print-btn {
+      padding: 10px 20px;
+      background: linear-gradient(135deg, var(--accent-blue), #5eb8f7);
+      color: #fff;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: var(--radius-md);
+      font-family: 'Outfit', sans-serif;
+      transition: all 0.2s ease;
+    }
+
+    .print-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(74, 124, 255, 0.4);
+    }
+
+    .agreement-form-section {
+      margin-top: 60px;
+      padding-top: 40px;
+      border-top: 2px solid var(--border-subtle);
+    }
+
+    .agreement-form-section h2 {
+      text-align: center;
+      margin-bottom: 30px;
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem;
+      font-weight: 500;
+    }
+
+    #agreement-form-container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    @media print {
+      .no-print { display: none !important; }
+      #agreement-form-container { display: none !important; }
+      .ambient-bg, .noise { display: none !important; }
+      body { background: #fff; color: #222; }
+      .agreement-body { background: #fff; border: 1px solid #ccc; }
+      .agreement-section p, .agreement-section li { color: #333; }
+      .agreement-section h2 { color: #222; }
+      .disclaimer-box, .highlight-box, .info-box, .warning-box { 
+        -webkit-print-color-adjust: exact; 
+        print-color-adjust: exact; 
+      }
+    }
+
     @media (max-width: 768px) {
       header .container {
         flex-direction: column;
@@ -451,8 +577,31 @@
         <img src="logo.png" alt="My Car Concierge" class="brand-icon">
       </a>
       <nav>
-        <a href="index.html">Home</a>
-        <a href="login.html" class="btn-login">Log In</a>
+        <a href="providers.html" class="back-link no-print">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          Back to Portal
+        </a>
+        <div class="nav-actions no-print">
+          <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <svg class="moon-icon" style="display:none;" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
+          <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+        </div>
       </nav>
     </div>
   </header>
@@ -712,6 +861,11 @@
           </div>
           <p style="margin-top: 20px;">By registering as a Provider on the MCC platform, you acknowledge that you have read this Agreement in its entirety, understand its terms, and agree to be bound by it.</p>
         </div>
+
+        <div class="agreement-form-section no-print">
+          <h2>Sign This Agreement</h2>
+          <div id="agreement-form-container"></div>
+        </div>
       </div>
     </div>
   </main>
@@ -732,5 +886,58 @@
       </div>
     </div>
   </footer>
+
+  <script src="/agreement-form.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const savedTheme = localStorage.getItem('mcc-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      updateThemeIcons(savedTheme);
+
+      const themeToggle = document.getElementById('themeToggle');
+      if (themeToggle) {
+        themeToggle.addEventListener('click', function() {
+          const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+          const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          localStorage.setItem('mcc-theme', newTheme);
+          updateThemeIcons(newTheme);
+        });
+      }
+
+      function updateThemeIcons(theme) {
+        const sunIcon = document.querySelector('.sun-icon');
+        const moonIcon = document.querySelector('.moon-icon');
+        if (sunIcon && moonIcon) {
+          if (theme === 'light') {
+            sunIcon.style.display = 'none';
+            moonIcon.style.display = 'block';
+          } else {
+            sunIcon.style.display = 'block';
+            moonIcon.style.display = 'none';
+          }
+        }
+      }
+
+      if (typeof AgreementForm !== 'undefined') {
+        AgreementForm.createAgreementForm({
+          containerId: 'agreement-form-container',
+          agreementType: 'provider',
+          fields: ['full_name', 'business_name', 'ein_last4'],
+          acknowledgments: [
+            'I have read and understood all terms of this Agreement',
+            'I agree to maintain appropriate licenses and insurance',
+            'I am an independent contractor and not an employee',
+            'I agree to comply with all applicable laws and regulations',
+            'I understand the platform fee structure and payment terms'
+          ],
+          onSubmit: function(formData) {
+            console.log('Provider Agreement submitted:', formData);
+            alert('Thank you for signing the Provider Agreement. Your agreement has been recorded.');
+          }
+        });
+      }
+    });
+  </script>
 </body>
 </html>

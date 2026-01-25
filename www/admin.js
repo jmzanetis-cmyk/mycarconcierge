@@ -23,7 +23,8 @@
     const paginationState = {
       providers: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
       members: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
-      packages: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' }
+      packages: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
+      agreements: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' }
     };
     
     // Debounce helper for search functions
@@ -79,6 +80,7 @@
       'user-roles': false,
       'user-management': false,
       'merch-manager': false,
+      agreements: false,
       settings: false
     };
 
@@ -101,6 +103,7 @@
       'user-roles': async () => { await loadUserRoles(); },
       'user-management': async () => { await loadUserManagement(); },
       'merch-manager': async () => { await loadDesignLibrary(); await loadMerchPreferences(); },
+      agreements: async () => { await loadAgreements(); },
       settings: async () => { await load2faGlobalStatus(); }
     };
 
@@ -1117,6 +1120,197 @@
       paginationState.members.page = 1;
       loadMembers(1);
     }
+
+    // ========== SIGNED AGREEMENTS MANAGEMENT ==========
+    let agreements = [];
+    let currentAgreement = null;
+
+    async function loadAgreements(page = 1) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return;
+      
+      const state = paginationState.agreements;
+      state.page = page;
+      
+      const params = new URLSearchParams({
+        page: state.page,
+        limit: state.limit
+      });
+      
+      if (state.search) {
+        params.append('search', state.search);
+      }
+      if (state.filter && state.filter !== 'all') {
+        params.append('type', state.filter);
+      }
+      
+      try {
+        const response = await fetch(`/api/admin/agreements?${params}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          agreements = result.agreements || [];
+          state.total = result.total;
+          state.totalPages = result.totalPages;
+          renderAgreements();
+        } else {
+          console.error('Failed to load agreements:', result.error);
+          agreements = [];
+          renderAgreements();
+        }
+      } catch (err) {
+        console.error('Error loading agreements:', err);
+        agreements = [];
+        renderAgreements();
+      }
+    }
+    
+    function changeAgreementsPage(delta) {
+      const state = paginationState.agreements;
+      const newPage = state.page + delta;
+      if (newPage >= 1 && newPage <= state.totalPages) {
+        loadAgreements(newPage);
+      }
+    }
+    window.changeAgreementsPage = changeAgreementsPage;
+    
+    function searchAgreements() {
+      debounceSearch('agreements', () => {
+        const searchInput = document.getElementById('agreement-search');
+        paginationState.agreements.search = searchInput?.value || '';
+        paginationState.agreements.page = 1;
+        loadAgreements(1);
+      });
+    }
+    window.searchAgreements = searchAgreements;
+    
+    function filterAgreementsApi() {
+      const typeFilter = document.getElementById('agreement-type-filter')?.value || 'all';
+      paginationState.agreements.filter = typeFilter;
+      paginationState.agreements.page = 1;
+      loadAgreements(1);
+    }
+    window.filterAgreementsApi = filterAgreementsApi;
+
+    function formatAgreementType(type) {
+      const types = {
+        'founding_partner': 'Founding Partner',
+        'member_founder': 'Member Founder',
+        'provider': 'Provider'
+      };
+      return types[type] || type || 'Unknown';
+    }
+
+    function getAgreementTypeBadgeClass(type) {
+      const classes = {
+        'founding_partner': 'background:var(--accent-gold-soft);color:var(--accent-gold);',
+        'member_founder': 'background:var(--accent-blue-soft);color:var(--accent-blue);',
+        'provider': 'background:var(--accent-green-soft);color:var(--accent-green);'
+      };
+      return classes[type] || 'background:var(--bg-elevated);color:var(--text-muted);';
+    }
+
+    function renderAgreements() {
+      const tbody = document.getElementById('agreements-table');
+      if (!agreements.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No agreements found</td></tr>';
+        const paginationContainer = document.getElementById('agreements-pagination');
+        if (paginationContainer) {
+          paginationContainer.innerHTML = renderPaginationControls(paginationState.agreements, 'changeAgreementsPage');
+        }
+        return;
+      }
+
+      tbody.innerHTML = agreements.map(a => `
+        <tr>
+          <td style="font-family:monospace;font-size:0.8rem;color:var(--text-muted);">${a.id?.substring(0, 8) || 'N/A'}...</td>
+          <td><span style="padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:500;${getAgreementTypeBadgeClass(a.agreement_type)}">${formatAgreementType(a.agreement_type)}</span></td>
+          <td>${a.full_name || 'N/A'}</td>
+          <td>${a.business_name || '-'}</td>
+          <td>${a.signed_at ? new Date(a.signed_at).toLocaleDateString() : 'N/A'}</td>
+          <td><button class="btn btn-secondary btn-sm" onclick="viewAgreement('${a.id}')">View</button></td>
+        </tr>
+      `).join('');
+      
+      const paginationContainer = document.getElementById('agreements-pagination');
+      if (paginationContainer) {
+        paginationContainer.innerHTML = renderPaginationControls(paginationState.agreements, 'changeAgreementsPage');
+      }
+    }
+
+    function viewAgreement(agreementId) {
+      currentAgreement = agreements.find(a => a.id === agreementId);
+      if (!currentAgreement) return;
+
+      const a = currentAgreement;
+      const signedDate = a.signed_at ? new Date(a.signed_at).toLocaleString() : 'N/A';
+      const effectiveDate = a.effective_date ? new Date(a.effective_date).toLocaleDateString() : 'N/A';
+      
+      let acknowledgmentsHtml = '';
+      if (a.acknowledgments && typeof a.acknowledgments === 'object') {
+        const ackList = Object.entries(a.acknowledgments)
+          .filter(([key, value]) => value === true)
+          .map(([key]) => `<li style="margin:4px 0;">${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</li>`)
+          .join('');
+        if (ackList) {
+          acknowledgmentsHtml = `
+            <div class="form-section">
+              <div class="form-section-title">Acknowledgments</div>
+              <ul style="margin-left:20px;color:var(--text-secondary);font-size:0.9rem;">
+                ${ackList}
+              </ul>
+            </div>
+          `;
+        }
+      }
+
+      let signatureHtml = '';
+      if (a.signature_data) {
+        if (a.signature_type === 'drawn') {
+          signatureHtml = `
+            <div class="form-section">
+              <div class="form-section-title">Signature</div>
+              <div style="background:white;padding:16px;border-radius:var(--radius-md);border:1px solid var(--border-subtle);display:inline-block;">
+                <img src="${a.signature_data}" alt="Signature" style="max-width:100%;max-height:150px;">
+              </div>
+            </div>
+          `;
+        } else if (a.signature_type === 'typed') {
+          signatureHtml = `
+            <div class="form-section">
+              <div class="form-section-title">Typed Signature</div>
+              <div style="font-family:'Brush Script MT', cursive;font-size:2rem;color:var(--text-primary);padding:16px;background:var(--bg-input);border-radius:var(--radius-md);">
+                ${a.signature_data}
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      document.getElementById('agreement-modal-body').innerHTML = `
+        <div class="form-section">
+          <div class="form-section-title">Agreement Information</div>
+          <div class="detail-grid">
+            <span class="detail-label">Agreement ID:</span><span class="detail-value" style="font-family:monospace;">${a.id}</span>
+            <span class="detail-label">Type:</span><span class="detail-value"><span style="padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:500;${getAgreementTypeBadgeClass(a.agreement_type)}">${formatAgreementType(a.agreement_type)}</span></span>
+            <span class="detail-label">Full Name:</span><span class="detail-value">${a.full_name || 'N/A'}</span>
+            <span class="detail-label">Business Name:</span><span class="detail-value">${a.business_name || '-'}</span>
+            ${a.ein_last4 ? `<span class="detail-label">EIN (last 4):</span><span class="detail-value">****${a.ein_last4}</span>` : ''}
+            <span class="detail-label">Effective Date:</span><span class="detail-value">${effectiveDate}</span>
+            <span class="detail-label">Signed At:</span><span class="detail-value">${signedDate}</span>
+            ${a.user_id ? `<span class="detail-label">User ID:</span><span class="detail-value" style="font-family:monospace;font-size:0.85rem;">${a.user_id}</span>` : ''}
+          </div>
+        </div>
+
+        ${acknowledgmentsHtml}
+        ${signatureHtml}
+      `;
+
+      document.getElementById('agreement-modal').classList.add('active');
+    }
+    window.viewAgreement = viewAgreement;
 
     // ========== USER ROLES MANAGEMENT ==========
     let allUsersForRoles = [];

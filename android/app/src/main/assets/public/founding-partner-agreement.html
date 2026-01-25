@@ -4,12 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Founding Partner Agreement - My Car Concierge</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Georgia', serif;
-      background: #fff;
-      color: #222;
       line-height: 1.8;
       padding: 40px;
       max-width: 900px;
@@ -21,10 +20,11 @@
       margin-bottom: 10px;
       text-transform: uppercase;
       letter-spacing: 2px;
+      color: var(--text-primary);
     }
     .subtitle {
       text-align: center;
-      color: #666;
+      color: var(--text-secondary);
       margin-bottom: 40px;
     }
     .partner-badge {
@@ -37,7 +37,7 @@
       color: white;
       padding: 8px 24px;
       border-radius: 30px;
-      font-family: sans-serif;
+      font-family: 'Outfit', sans-serif;
       font-weight: bold;
       font-size: 14px;
     }
@@ -46,20 +46,24 @@
       margin: 30px 0 15px;
       text-transform: uppercase;
       letter-spacing: 1px;
-      border-bottom: 1px solid #ddd;
+      border-bottom: 1px solid var(--border-subtle);
       padding-bottom: 8px;
+      color: var(--text-primary);
     }
-    p { margin-bottom: 15px; text-align: justify; }
+    p { margin-bottom: 15px; text-align: justify; color: var(--text-primary); }
     .section { margin-bottom: 30px; }
     .indent { margin-left: 30px; }
-    ol, ul { margin-left: 40px; margin-bottom: 15px; }
+    ol, ul { margin-left: 40px; margin-bottom: 15px; color: var(--text-primary); }
     li { margin-bottom: 10px; }
     .highlight-box {
-      background: linear-gradient(135deg, #f8f4ff, #f0e8ff);
+      background: var(--accent-bronze-soft);
       border-left: 4px solid #9b59b6;
       padding: 20px;
       margin: 20px 0;
       border-radius: 0 8px 8px 0;
+    }
+    [data-theme="light"] .highlight-box {
+      background: linear-gradient(135deg, #f8f4ff, #f0e8ff);
     }
     .commission-table {
       width: 100%;
@@ -67,75 +71,157 @@
       margin: 20px 0;
     }
     .commission-table th, .commission-table td {
-      border: 1px solid #ddd;
+      border: 1px solid var(--border-subtle);
       padding: 12px;
       text-align: left;
+      color: var(--text-primary);
     }
     .commission-table th {
       background: #9b59b6;
       color: white;
     }
     .commission-table tr:nth-child(even) {
-      background: #f9f9f9;
+      background: var(--bg-input);
     }
-    .signature-block {
-      margin-top: 60px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 60px;
+    .commission-table tr.highlight-row {
+      background: var(--accent-bronze-soft);
     }
-    .signature-party h3 {
-      font-size: 14px;
-      margin-bottom: 20px;
-      text-transform: uppercase;
-    }
-    .signature-line {
-      border-bottom: 1px solid #000;
-      height: 40px;
-      margin-bottom: 5px;
-    }
-    .signature-label {
-      font-size: 12px;
-      color: #666;
-      margin-bottom: 20px;
+    [data-theme="light"] .commission-table tr.highlight-row {
+      background: linear-gradient(135deg, #f8f4ff, #f0e8ff);
     }
     .effective-date {
       text-align: center;
       font-weight: bold;
       margin: 40px 0;
       padding: 20px;
-      background: linear-gradient(135deg, #f8f4ff, #f0e8ff);
+      background: var(--accent-bronze-soft);
       border: 2px solid #9b59b6;
+      color: var(--text-primary);
+    }
+    [data-theme="light"] .effective-date {
+      background: linear-gradient(135deg, #f8f4ff, #f0e8ff);
     }
     @media print {
-      body { padding: 20px; }
-      .no-print { display: none; }
+      body { padding: 20px; background: #fff; color: #222; }
+      .no-print { display: none !important; }
+      #agreement-form-container { display: none !important; }
+      .highlight-box, .effective-date { background: #f8f4ff !important; }
+      p, li, h1, h2, td, th { color: #222 !important; }
     }
-    .print-btn {
+    .nav-buttons {
       position: fixed;
       top: 20px;
-      right: 20px;
-      padding: 12px 24px;
-      background: #9b59b6;
-      color: #fff;
-      border: none;
-      font-weight: bold;
-      cursor: pointer;
-      border-radius: 4px;
+      left: 0;
+      right: 0;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      z-index: 100;
     }
     .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-gold);
+      text-decoration: none;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 500;
+      padding: 10px 16px;
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      transition: all 0.2s ease;
+    }
+    .back-link:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-gold);
+    }
+    .print-btn {
+      padding: 10px 20px;
+      background: linear-gradient(135deg, #9b59b6, #8e44ad);
+      color: #fff;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: var(--radius-md);
+      font-family: 'Outfit', sans-serif;
+      transition: all 0.2s ease;
+    }
+    .print-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(155, 89, 182, 0.4);
+    }
+    .theme-toggle {
       position: fixed;
       top: 20px;
-      left: 20px;
-      color: #9b59b6;
-      text-decoration: none;
-      font-family: sans-serif;
+      right: 180px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      cursor: pointer;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .theme-toggle:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-gold);
+    }
+    .agreement-form-section {
+      margin-top: 60px;
+      padding-top: 40px;
+      border-top: 2px solid var(--border-subtle);
+    }
+    .agreement-form-section h2 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    #agreement-form-container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    strong { color: var(--text-primary); }
+    .footer-note {
+      text-align: center;
+      margin-top: 60px;
+      color: var(--text-muted);
+      font-size: 12px;
     }
   </style>
 </head>
 <body>
-  <a href="/providers.html" class="back-link no-print">← Back to Portal</a>
-  <button class="print-btn no-print" onclick="window.print()">Print / Save PDF</button>
+  <div class="nav-buttons no-print">
+    <a href="/providers.html" class="back-link">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+      Back to Portal
+    </a>
+    <div style="display: flex; gap: 12px;">
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="moon-icon" style="display:none;" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+      <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+    </div>
+  </div>
+
+  <div style="height: 60px;"></div>
 
   <div class="partner-badge">
     <span>FOUNDING PARTNER AGREEMENT</span>
@@ -211,7 +297,7 @@
         <th>Value</th>
         <th>Description</th>
       </tr>
-      <tr style="background: linear-gradient(135deg, #f8f4ff, #f0e8ff);">
+      <tr class="highlight-row">
         <td><strong>Unlimited Bid Packs</strong></td>
         <td><strong>1 YEAR FREE</strong></td>
         <td>Unlimited bid credits for the first 12 months; 50% off after</td>
@@ -386,38 +472,81 @@
     </ol>
   </div>
 
-  <div class="signature-block">
-    <div class="signature-party">
-      <h3>Company</h3>
-      <p><strong>My Car Concierge LLC</strong></p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Signature</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Printed Name</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Title</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Date</p>
-    </div>
-    <div class="signature-party">
-      <h3>Founding Partner</h3>
-      <div class="signature-line"></div>
-      <p class="signature-label">Signature</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Printed Name</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Business Name</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Date</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">EIN or SSN (last 4 digits for 1099)</p>
-    </div>
+  <div class="agreement-form-section">
+    <h2>Sign This Agreement</h2>
+    <div id="agreement-form-container"></div>
   </div>
 
-  <p style="text-align:center;margin-top:60px;color:#888;font-size:12px;">
+  <p class="footer-note">
     This document is a template and should be reviewed by a qualified attorney before use.<br>
     © 2025 My Car Concierge LLC. All rights reserved.
   </p>
+
+  <script src="/i18n.js"></script>
+  <script src="/agreement-form.js"></script>
   <script src="/footer.js"></script>
+  <script>
+    (function() {
+      function getPreferredTheme() {
+        const saved = localStorage.getItem('mcc_theme');
+        if (saved) return saved;
+        return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+
+      function setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('mcc_theme', theme);
+        updateThemeIcon(theme);
+      }
+
+      function updateThemeIcon(theme) {
+        const sunIcon = document.querySelector('.sun-icon');
+        const moonIcon = document.querySelector('.moon-icon');
+        if (sunIcon && moonIcon) {
+          if (theme === 'light') {
+            sunIcon.style.display = 'none';
+            moonIcon.style.display = 'block';
+          } else {
+            sunIcon.style.display = 'block';
+            moonIcon.style.display = 'none';
+          }
+        }
+      }
+
+      setTheme(getPreferredTheme());
+
+      document.getElementById('themeToggle').addEventListener('click', function() {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        document.documentElement.classList.add('theme-transition');
+        setTheme(newTheme);
+        setTimeout(() => {
+          document.documentElement.classList.remove('theme-transition');
+        }, 300);
+      });
+
+      window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function(e) {
+        if (!localStorage.getItem('mcc_theme')) {
+          setTheme(e.matches ? 'light' : 'dark');
+        }
+      });
+    })();
+
+    document.addEventListener('DOMContentLoaded', function() {
+      AgreementForm.createAgreementForm({
+        containerId: 'agreement-form-container',
+        agreementType: 'founding_partner',
+        fields: ['full_name', 'business_name', 'ein_last4'],
+        acknowledgments: [
+          'I have had the opportunity to consult with an attorney',
+          'I voluntarily enter into this Agreement',
+          'I am an independent contractor and not an employee',
+          'I am responsible for my own taxes and insurance',
+          'I currently hold both Founding Provider and Founding Member status',
+          'I understand that commission rates may revert if either status is lost'
+        ]
+      });
+    });
+  </script>
 </body>
 </html>

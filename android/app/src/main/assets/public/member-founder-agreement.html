@@ -4,12 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Member Founder Independent Contractor Agreement - My Car Concierge</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Georgia', serif;
-      background: #fff;
-      color: #222;
       line-height: 1.8;
       padding: 40px;
       max-width: 900px;
@@ -21,81 +20,182 @@
       margin-bottom: 10px;
       text-transform: uppercase;
       letter-spacing: 2px;
+      color: var(--text-primary);
     }
     .subtitle {
       text-align: center;
-      color: #666;
+      color: var(--text-secondary);
       margin-bottom: 40px;
+    }
+    .member-badge {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .member-badge span {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
+      color: #12161c;
+      padding: 8px 24px;
+      border-radius: 30px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: bold;
+      font-size: 14px;
     }
     h2 {
       font-size: 16px;
       margin: 30px 0 15px;
       text-transform: uppercase;
       letter-spacing: 1px;
-      border-bottom: 1px solid #ddd;
+      border-bottom: 1px solid var(--border-subtle);
       padding-bottom: 8px;
+      color: var(--text-primary);
     }
-    p { margin-bottom: 15px; text-align: justify; }
+    p { margin-bottom: 15px; text-align: justify; color: var(--text-primary); }
     .section { margin-bottom: 30px; }
     .indent { margin-left: 30px; }
-    ol, ul { margin-left: 40px; margin-bottom: 15px; }
+    ol, ul { margin-left: 40px; margin-bottom: 15px; color: var(--text-primary); }
     li { margin-bottom: 10px; }
-    .signature-block {
-      margin-top: 60px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 60px;
-    }
-    .signature-party h3 {
-      font-size: 14px;
-      margin-bottom: 20px;
-      text-transform: uppercase;
-    }
-    .signature-line {
-      border-bottom: 1px solid #000;
-      height: 40px;
-      margin-bottom: 5px;
-    }
-    .signature-label {
-      font-size: 12px;
-      color: #666;
-      margin-bottom: 20px;
+    .highlight-box {
+      background: var(--accent-gold-soft);
+      border-left: 4px solid var(--accent-gold);
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 0 8px 8px 0;
     }
     .effective-date {
       text-align: center;
       font-weight: bold;
       margin: 40px 0;
       padding: 20px;
-      background: #f5f5f5;
+      background: var(--accent-gold-soft);
+      border: 2px solid var(--accent-gold);
+      color: var(--text-primary);
     }
     @media print {
-      body { padding: 20px; }
-      .no-print { display: none; }
+      body { padding: 20px; background: #fff; color: #222; }
+      .no-print { display: none !important; }
+      #agreement-form-container { display: none !important; }
+      .highlight-box, .effective-date { background: #f5f5f5 !important; }
+      p, li, h1, h2, td, th { color: #222 !important; }
     }
-    .print-btn {
+    .nav-buttons {
       position: fixed;
       top: 20px;
-      right: 20px;
-      padding: 12px 24px;
-      background: #C9A227;
-      color: #000;
-      border: none;
-      font-weight: bold;
-      cursor: pointer;
+      left: 0;
+      right: 0;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      z-index: 100;
     }
     .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-gold);
+      text-decoration: none;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 500;
+      padding: 10px 16px;
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      transition: all 0.2s ease;
+    }
+    .back-link:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-gold);
+    }
+    .print-btn {
+      padding: 10px 20px;
+      background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
+      color: #12161c;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: var(--radius-md);
+      font-family: 'Outfit', sans-serif;
+      transition: all 0.2s ease;
+    }
+    .print-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(201, 162, 39, 0.4);
+    }
+    .theme-toggle {
       position: fixed;
       top: 20px;
-      left: 20px;
-      color: #C9A227;
-      text-decoration: none;
-      font-family: sans-serif;
+      right: 180px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      cursor: pointer;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .theme-toggle:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-gold);
+    }
+    .agreement-form-section {
+      margin-top: 60px;
+      padding-top: 40px;
+      border-top: 2px solid var(--border-subtle);
+    }
+    .agreement-form-section h2 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    #agreement-form-container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    strong { color: var(--text-primary); }
+    .footer-note {
+      text-align: center;
+      margin-top: 60px;
+      color: var(--text-muted);
+      font-size: 12px;
     }
   </style>
 </head>
 <body>
-  <a href="/member-founder.html" class="back-link no-print">← Back to Application</a>
-  <button class="print-btn no-print" onclick="window.print()">Print / Save PDF</button>
+  <div class="nav-buttons no-print">
+    <a href="/members.html" class="back-link">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+      Back to Portal
+    </a>
+    <div style="display: flex; gap: 12px;">
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="moon-icon" style="display:none;" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+      <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+    </div>
+  </div>
+
+  <div style="height: 60px;"></div>
+
+  <div class="member-badge">
+    <span>MEMBER FOUNDER AGREEMENT</span>
+  </div>
 
   <h1>Member Founder Independent Contractor Agreement</h1>
   <p class="subtitle">My Car Concierge Brand Ambassador Program</p>
@@ -263,35 +363,68 @@
     </ol>
   </div>
 
-  <div class="signature-block">
-    <div class="signature-party">
-      <h3>Company</h3>
-      <p><strong>My Car Concierge LLC</strong></p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Signature</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Printed Name</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Title</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Date</p>
-    </div>
-    <div class="signature-party">
-      <h3>Contractor</h3>
-      <div class="signature-line"></div>
-      <p class="signature-label">Signature</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Printed Name</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Date</p>
-      <div class="signature-line"></div>
-      <p class="signature-label">Social Security Number (last 4 digits for 1099)</p>
-    </div>
+  <div class="agreement-form-section no-print">
+    <h2>Sign This Agreement</h2>
+    <div id="agreement-form-container"></div>
   </div>
 
-  <p style="text-align:center;margin-top:60px;color:#888;font-size:12px;">
+  <p class="footer-note">
     This document is a template and should be reviewed by a qualified attorney before use.<br>
     © 2025 My Car Concierge LLC. All rights reserved.
   </p>
+
+  <script src="/i18n.js"></script>
+  <script src="/agreement-form.js"></script>
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('mcc_theme');
+      if (savedTheme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+      
+      function updateThemeIcons() {
+        const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+        const sunIcon = document.querySelector('.sun-icon');
+        const moonIcon = document.querySelector('.moon-icon');
+        if (sunIcon && moonIcon) {
+          sunIcon.style.display = isLight ? 'none' : 'block';
+          moonIcon.style.display = isLight ? 'block' : 'none';
+        }
+      }
+      
+      updateThemeIcons();
+      
+      const themeToggle = document.getElementById('themeToggle');
+      if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+          const current = document.documentElement.getAttribute('data-theme');
+          const newTheme = current === 'light' ? 'dark' : 'light';
+          document.documentElement.classList.add('theme-transition');
+          document.documentElement.setAttribute('data-theme', newTheme);
+          localStorage.setItem('mcc_theme', newTheme);
+          updateThemeIcons();
+          setTimeout(() => {
+            document.documentElement.classList.remove('theme-transition');
+          }, 300);
+        });
+      }
+      
+      if (typeof AgreementForm !== 'undefined') {
+        AgreementForm.createAgreementForm({
+          containerId: 'agreement-form-container',
+          agreementType: 'member_founder',
+          fields: ['full_name', 'ein_last4'],
+          acknowledgments: [
+            'I have had the opportunity to consult with an attorney',
+            'I voluntarily enter into this Agreement',
+            'I am an independent contractor and not an employee',
+            'I am responsible for my own taxes and insurance'
+          ]
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
