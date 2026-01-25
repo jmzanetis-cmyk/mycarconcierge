@@ -1155,6 +1155,7 @@ async function handlePrintfulCatalog(req, res, requestId) {
   }
   
   try {
+    console.log(`[Printful] Fetching catalog...`);
     const products = [];
     
     for (const category of PRINTFUL_POPULAR_CATEGORIES) {
@@ -1164,6 +1165,11 @@ async function handlePrintfulCatalog(req, res, requestId) {
           'Content-Type': 'application/json'
         }
       });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[Printful] Catalog API Error ${response.status} for category ${category.name}: ${errorText}`);
+      }
       
       if (response.ok) {
         const data = await response.json();
@@ -1205,6 +1211,7 @@ async function handlePrintfulCatalogProduct(req, res, requestId, productId) {
   }
   
   try {
+    console.log(`[Printful] Fetching catalog product ${productId}...`);
     const response = await fetch(`${PRINTFUL_API_URL}/products/${productId}`, {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -1213,7 +1220,11 @@ async function handlePrintfulCatalogProduct(req, res, requestId, productId) {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch product: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`[Printful] API Error ${response.status}: ${errorText}`);
+      res.writeHead(response.status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: `Printful API error: ${response.status}`, details: errorText }));
+      return;
     }
     
     const data = await response.json();
@@ -1501,6 +1512,7 @@ async function handleGetPrintfulStoreProducts(req, res, requestId) {
   }
   
   try {
+    console.log(`[Printful] Fetching store products...`);
     const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -1509,7 +1521,11 @@ async function handleGetPrintfulStoreProducts(req, res, requestId) {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch store products: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`[Printful] Store products API Error ${response.status}: ${errorText}`);
+      res.writeHead(response.status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: `Printful API error: ${response.status}`, details: errorText }));
+      return;
     }
     
     const data = await response.json();
