@@ -1201,6 +1201,10 @@
       if (id === 'analytics') {
         loadAnalytics();
       }
+      // Load bid credits/subscription when credits section is shown
+      if (id === 'credits') {
+        loadSubscription();
+      }
     }
 
     async function loadOpenPackages() {
