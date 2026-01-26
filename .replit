@@ -33,7 +33,7 @@ expertMode = true
 [deployment]
 deploymentTarget = "autoscale"
 run = ["bash", "-c", "cd www && node server.js"]
-build = ["npm", "install"]
+build = ["bash", "-c", "npm install && ls -la www/*.pdf www/*.html | head -20"]
 
 [objectStorage]
 defaultBucketID = "replit-objstore-970c9ce6-a451-4b77-b216-7f5cdd6ab7c7"
