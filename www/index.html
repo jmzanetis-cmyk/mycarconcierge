@@ -621,6 +621,18 @@
       font-size: 0.92rem;
       line-height: 1.65;
     }
+
+    .feature-tagline {
+      color: var(--accent-gold);
+      font-weight: 500;
+      font-size: 0.95rem;
+      margin-bottom: 16px;
+      font-style: italic;
+    }
+
+    [data-theme="light"] .feature-tagline {
+      color: var(--accent-blue);
+    }
     
     /* Light mode feature cards - clean white with navy accents */
     [data-theme="light"] .feature-card {
@@ -1213,14 +1225,13 @@
   <main>
     <section class="hero">
       <div class="container">
-        <div class="hero-badge" data-i18n="landing.heroBadge">💕 It's like a dating app for your car</div>
+        <div class="hero-badge" data-i18n="landing.heroBadge">Your complete car ownership platform</div>
         <h1>
-          <span class="highlight" data-i18n="landing.heroHeadline1">Your car deserves better.</span><br>
-          <span data-i18n="landing.heroHeadline2">Let's find the one.</span>
+          <span class="highlight" data-i18n="landing.heroHeadline1">One app.</span> <span data-i18n="landing.heroHeadline2">Every car need.</span><br>
+          <span data-i18n="landing.heroHeadline3">Zero hassle.</span>
         </h1>
         <p class="hero-subtitle" data-i18n="landing.heroSubtitle">
-          We match car owners with trusted service providers who actually care. 
-          Post what you need, get bids from vetted pros, and swipe right on quality service.
+          Find trusted service. Track maintenance. Learn about your car. Shop for your next one—all in one place.
         </p>
         <div class="hero-actions">
           <a href="signup-member.html" class="btn btn-primary btn-lg" data-i18n="landing.getStartedFree">
@@ -1272,36 +1283,55 @@
     <section class="features" id="features">
       <div class="container">
         <div class="features-header">
-          <span class="section-label" data-i18n="landing.whyChooseUs">The Perfect Match</span>
-          <h2 data-i18n="landing.featuresTitle">Built for lasting relationships</h2>
+          <span class="section-label" data-i18n="landing.whyChooseUs">4 Pillars of Car Ownership</span>
+          <h2 data-i18n="landing.featuresTitle">Everything you need. Nothing you don't.</h2>
         </div>
         <div class="features-grid">
           <div class="feature-card">
-            <div class="feature-icon">👤</div>
-            <h3 data-i18n="landing.forMembers">For Members</h3>
-            <p data-i18n="landing.forMembersDesc">
-              Manage all your vehicles in one place. Create service requests with 
-              clear expectations and let providers compete for your business.
-            </p>
+            <div class="feature-icon">🔧</div>
+            <h3 data-i18n="landing.pillar1Title">Find Service</h3>
+            <p class="feature-tagline" data-i18n="landing.pillar1Tagline">Providers compete. You choose.</p>
             <ul class="feature-list">
-              <li><span class="check">✓</span> <span data-i18n="landing.forMembersList1">Central hub for all your vehicles</span></li>
-              <li><span class="check">✓</span> <span data-i18n="landing.forMembersList2">Photo documentation & notes</span></li>
-              <li><span class="check">✓</span> <span data-i18n="landing.forMembersList3">Compare bids from vetted shops</span></li>
-              <li><span class="check">✓</span> <span data-i18n="landing.forMembersList4">Pickup & delivery options</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar1Feature1">Vetted service providers bid on your job</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar1Feature2">You select parts, they bid on labor</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar1Feature3">Escrow protection holds funds until job is complete</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar1Feature4">Schedule appointments, track vehicle transfers</span></li>
             </ul>
           </div>
           <div class="feature-card">
-            <div class="feature-icon">🔧</div>
-            <h3 data-i18n="landing.forProviders">For Providers</h3>
-            <p data-i18n="landing.forProvidersDesc">
-              Join a vetted network of automotive professionals. Receive well-documented 
-              requests and build lasting relationships with quality clients.
-            </p>
+            <div class="feature-icon">🚗</div>
+            <h3 data-i18n="landing.pillar2Title">Manage Your Vehicles</h3>
+            <p class="feature-tagline" data-i18n="landing.pillar2Tagline">Everything about your car, in one place.</p>
             <ul class="feature-list">
-              <li><span class="check">✓</span> <span data-i18n="landing.forProvidersList1">Clear, detailed job requests</span></li>
-              <li><span class="check">✓</span> <span data-i18n="landing.forProvidersList2">Submit competitive bids</span></li>
-              <li><span class="check">✓</span> <span data-i18n="landing.forProvidersList3">Build recurring clientele</span></li>
-              <li><span class="check">✓</span> <span data-i18n="landing.forProvidersList4">Grow your reputation</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar2Feature1">Add unlimited vehicles with photos and notes</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar2Feature2">Automated maintenance reminders</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar2Feature3">NHTSA recall alerts</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar2Feature4">Fuel cost tracking and MPG analysis</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar2Feature5">Insurance card storage with expiration alerts</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar2Feature6">Export service history as PDF or CSV</span></li>
+            </ul>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🎓</div>
+            <h3 data-i18n="landing.pillar3Title">Learn About Cars</h3>
+            <p class="feature-tagline" data-i18n="landing.pillar3Tagline">Finally understand your vehicle.</p>
+            <ul class="feature-list">
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar3Feature1">Car Care Academy with AI-powered chat</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar3Feature2">Maintenance 101, repairs, warning signs</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar3Feature3">Saving tips and guides</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar3Feature4">Searchable automotive glossary</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar3Feature5">Plain English explanations—no jargon</span></li>
+            </ul>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🔍</div>
+            <h3 data-i18n="landing.pillar4Title">Shop Smarter</h3>
+            <p class="feature-tagline" data-i18n="landing.pillar4Tagline">Find your next car with AI.</p>
+            <ul class="feature-list">
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar4Feature1">Dream Car Finder: AI-powered automated search</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar4Feature2">My Next Car: track prospects, VIN lookup, compare</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar4Feature3">Custom criteria (make, model, features, colors)</span></li>
+              <li><span class="check">✓</span> <span data-i18n="landing.pillar4Feature4">Get notified when matches appear</span></li>
             </ul>
           </div>
         </div>
@@ -1311,24 +1341,24 @@
     <section class="how-it-works" id="how-it-works">
       <div class="container">
         <div class="how-it-works-header">
-          <span class="section-label" data-i18n="landing.simpleProcess">Three Steps to True Love</span>
-          <h2 data-i18n="landing.howItWorksTitle">How the matchmaking works</h2>
+          <span class="section-label" data-i18n="landing.simpleProcess">How It Works</span>
+          <h2 data-i18n="landing.howItWorksTitle">3 simple steps to better car care</h2>
         </div>
         <div class="steps">
           <div class="step">
             <div class="step-number">1</div>
-            <h3 data-i18n="landing.step1Title">Add Your Vehicles</h3>
-            <p data-i18n="landing.step1Desc">Enter details, upload photos, and keep everything organized in your garage.</p>
+            <h3 data-i18n="landing.step1Title">Tell us what you need</h3>
+            <p data-i18n="landing.step1Desc">Describe your service request with photos so providers understand the job.</p>
           </div>
           <div class="step">
             <div class="step-number">2</div>
-            <h3 data-i18n="landing.step2Title">Create a Request</h3>
-            <p data-i18n="landing.step2Desc">Describe what you need—maintenance, repairs, detailing, or body work.</p>
+            <h3 data-i18n="landing.step2Title">Compare bids</h3>
+            <p data-i18n="landing.step2Desc">Vetted providers compete for your business with transparent pricing.</p>
           </div>
           <div class="step">
             <div class="step-number">3</div>
-            <h3 data-i18n="landing.step3Title">Compare & Choose</h3>
-            <p data-i18n="landing.step3Desc">Review bids from vetted providers and pick the best fit for your needs.</p>
+            <h3 data-i18n="landing.step3Title">Choose with confidence</h3>
+            <p data-i18n="landing.step3Desc">Select the best fit and pay securely through escrow protection.</p>
           </div>
         </div>
       </div>
@@ -1337,13 +1367,13 @@
     <section class="cta-section">
       <div class="container">
         <div class="cta-box">
-          <h2 data-i18n="landing.ctaTitle">Ready to find "the one" for your car?</h2>
+          <h2 data-i18n="landing.ctaTitle">Ready to take control of your car care?</h2>
           <p data-i18n="landing.ctaSubtitle">
-            Join thousands of car owners who found their perfect service match. No awkward first dates—just great care for your ride.
+            Join car owners who manage everything—service, maintenance, learning, and shopping—in one place.
           </p>
           <div class="cta-buttons">
             <a href="signup-member.html" class="btn btn-primary" data-i18n="landing.getStartedFree">Get Started Free</a>
-            <a href="#" class="btn btn-secondary" onclick="document.getElementById('hero-email').focus(); window.scrollTo({top:0,behavior:'smooth'}); return false;" data-i18n="common.signIn">Sign In</a>
+            <a href="how-it-works.html" class="btn btn-secondary" data-i18n="common.learnMore">Learn More</a>
           </div>
         </div>
       </div>
