@@ -281,11 +281,21 @@
 
     .hero-subtitle {
       max-width: 580px;
-      margin: 0 auto 40px;
+      margin: 0 auto 20px;
       font-size: 1.1rem;
       color: var(--text-secondary);
       line-height: 1.7;
       animation: fadeInUp 0.6s ease 0.2s both;
+    }
+    
+    .hero-nudge {
+      max-width: 520px;
+      margin: 0 auto 40px;
+      font-size: 0.95rem;
+      color: var(--text-muted, #888);
+      font-style: italic;
+      line-height: 1.6;
+      animation: fadeInUp 0.6s ease 0.3s both;
     }
 
     .hero-actions {
@@ -1233,6 +1243,7 @@
         <p class="hero-subtitle" data-i18n="landing.heroSubtitle">
           Find trusted service. Track maintenance. Learn about your car. Shop for your next one—all in one place.
         </p>
+        <p class="hero-nudge" data-i18n="landing.heroNudge">That noise. That light. That thing you've been putting off. We make it easy to finally get it done.</p>
         <div class="hero-actions">
           <a href="signup-member.html" class="btn btn-primary btn-lg" data-i18n="landing.getStartedFree">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1257,6 +1268,10 @@
           <div class="trust-badge">
             <span class="trust-icon">📋</span>
             <span class="trust-text" data-i18n="landing.trustVerifiedRegistration">Verified Registration</span>
+          </div>
+          <div class="trust-badge">
+            <span class="trust-icon">💰</span>
+            <span class="trust-text" data-i18n="landing.trustNoBillShock">No Bill Shock</span>
           </div>
         </div>
         
