@@ -4314,27 +4314,33 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
           });
         }
       } else {
-        // Check for existing member referral code
-        const { data: existingReferral } = await supabase
-          .from('referrals')
+        // Check for existing member founder referral code
+        const { data: existingFounder } = await supabase
+          .from('member_founder_profiles')
           .select('referral_code')
-          .eq('referrer_id', userId)
-          .is('referred_id', null)
-          .limit(1);
+          .eq('user_id', userId)
+          .single();
         
-        if (existingReferral?.length > 0) {
-          referralCode = existingReferral[0].referral_code;
+        if (existingFounder?.referral_code) {
+          referralCode = existingFounder.referral_code;
         } else {
-          // Generate new member referral code
+          // Generate new member founder referral code (MF prefix)
           const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-          referralCode = 'MCC';
-          for (let i = 0; i < 6; i++) {
-            referralCode += chars.charAt(Math.floor(Math.random() * chars.length));
-          }
-          await supabase.from('referrals').insert({
-            referrer_id: userId,
+          const baseCode = Array.from({length: 6}, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+          referralCode = 'MF' + baseCode;
+          
+          // Create member founder profile with the referral code
+          await supabase.from('member_founder_profiles').insert({
+            user_id: userId,
+            full_name: userName,
+            email: userEmail,
             referral_code: referralCode,
-            status: 'pending'
+            status: 'active',
+            total_provider_referrals: 0,
+            total_member_referrals: 0,
+            total_commissions_earned: 0,
+            total_commissions_paid: 0,
+            pending_balance: 0
           });
         }
       }
@@ -4342,10 +4348,8 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
       console.log('Could not generate referral code for welcome email:', refErr.message);
     }
     
-    // Create QR code URL - for providers, links to provider signup; for members, links to member signup
-    const signupUrl = isProvider 
-      ? `${baseUrl}/signup-provider.html?ref=${referralCode || ''}`
-      : `${baseUrl}/signup-member.html?ref=${referralCode || ''}`;
+    // Create QR code URL - both members and providers link to provider signup for founder referrals
+    const signupUrl = `${baseUrl}/signup-provider.html?ref=${referralCode || ''}`;
     const qrCodeUrl = referralCode 
       ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(signupUrl)}&bgcolor=fefdfb&color=1e3a5f`
       : null;
@@ -4354,15 +4358,16 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
       ? 'Welcome to My Car Concierge - Provider Account Activated!'
       : 'Welcome to My Car Concierge!';
     
-    // Referral QR section HTML (shared between both templates)
+    // Referral QR section HTML (shared between both templates) - both earn 50% commission on provider referrals
+    const founderType = isProvider ? 'Provider Founder' : 'Member Founder';
     const referralSection = referralCode && qrCodeUrl ? `
               <!-- Referral Section -->
               <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px;">
                 <tr>
                   <td style="padding: 24px; background-color: #1e3a5f; border-radius: 8px; text-align: center;">
-                    <h3 style="margin: 0 0 12px 0; font-size: 18px; color: #ffffff; font-weight: 600;">${isProvider ? 'Earn 50% Lifetime Commissions!' : 'Share & Earn Rewards'}</h3>
+                    <h3 style="margin: 0 0 12px 0; font-size: 18px; color: #ffffff; font-weight: 600;">Become a ${founderType}!</h3>
                     <p style="margin: 0 0 16px 0; font-size: 14px; color: #e2e8f0; line-height: 1.5;">
-                      ${isProvider ? 'Refer other service providers and earn 50% of every bid pack they purchase—forever!' : 'Invite friends to join and you both get $10 in service credits!'}
+                      Refer service providers and earn <strong style="color: #b8942d;">50% of every bid pack</strong> they purchase—forever!
                     </p>
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
