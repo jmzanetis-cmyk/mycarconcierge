@@ -62,7 +62,7 @@ async function loadOpenPackages() {
 // ========== LOAD MY BIDS ==========
 async function loadMyBids() {
   try {
-    const { data, error } = await supabaseClient.from('bids').select('*, maintenance_packages(title, status, member_id, vehicles(year, make, model))').eq('provider_id', currentUser.id).order('created_at', { ascending: false });
+    const { data, error } = await supabaseClient.from('bids').select('*, maintenance_packages!bids_package_id_fkey(title, status, member_id, vehicles(year, make, model))').eq('provider_id', currentUser.id).order('created_at', { ascending: false });
     if (error) {
       console.error('Error loading bids:', error);
       myBids = [];

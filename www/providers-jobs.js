@@ -560,7 +560,7 @@ async function loadDestinationTasks() {
   try {
     const { data } = await supabaseClient
       .from('bids')
-      .select('*, maintenance_packages(*, vehicles(year, make, model), destination_services(*))')
+      .select('*, maintenance_packages!bids_package_id_fkey(*, vehicles(year, make, model), destination_services(*))')
       .eq('provider_id', currentUser.id)
       .eq('status', 'accepted')
       .order('created_at', { ascending: false });

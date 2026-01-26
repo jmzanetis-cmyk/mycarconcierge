@@ -352,7 +352,7 @@ async function notifyBidReceived(packageId, bidAmount, providerId) {
 async function notifyBidAccepted(bidId, packageId) {
   const { data: bid } = await supabaseClient
     .from('bids')
-    .select('provider_id, price, maintenance_packages(title)')
+    .select('provider_id, price, maintenance_packages!bids_package_id_fkey(title)')
     .eq('id', bidId)
     .single();
   
