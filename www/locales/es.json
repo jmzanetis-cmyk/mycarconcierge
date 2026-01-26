@@ -368,26 +368,26 @@
     "refundPending": "Reembolso Pendiente",
     "refundProcessed": "Reembolso Procesado"
   },
-  "bidPacks": {
-    "title": "Paquetes de Créditos",
-    "subtitle": "Compra créditos para enviar propuestas",
+  "serviceCredits": {
+    "title": "Paquetes de Créditos de Servicio",
+    "subtitle": "Compra créditos para ganar oportunidades de servicio automotriz",
     "starter": "Inicial",
     "pro": "Pro",
     "business": "Negocio",
     "enterprise": "Empresa",
-    "bids": "ofertas",
+    "credits": "créditos",
     "bonus": "bonus",
-    "perBid": "por oferta",
+    "perCredit": "por crédito",
     "bestValue": "Mejor Valor",
     "mostPopular": "Más Popular",
     "buyNow": "Comprar Ahora",
     "currentCredits": "Créditos Actuales",
-    "competitiveNotice": "Licitación Competitiva",
-    "competitiveNoticeDesc": "Cada oferta que haces compite con otros proveedores calificados. Los miembros eligen según tu precio, calificaciones y reseñas—así que precios competitivos y un excelente servicio te ayudan a ganar más trabajos.",
+    "competitiveNotice": "Mercado Competitivo",
+    "competitiveNoticeDesc": "Cada propuesta que envías compite con otros proveedores calificados. Los miembros eligen según tu precio, calificaciones y reseñas—así que precios competitivos y un excelente servicio te ayudan a ganar más clientes.",
     "nonRefundableNotice": "No Reembolsable",
-    "nonRefundableNoticeDesc": "Todos los créditos de oferta no son reembolsables. Ganes o pierdas un trabajo, los créditos de oferta utilizados no se devuelven. Haz ofertas sabiamente en trabajos que estés seguro de ganar.",
+    "nonRefundableNoticeDesc": "Todos los créditos de servicio no son reembolsables. Ganes o pierdas un trabajo, los créditos utilizados no se devuelven. Envía propuestas para trabajos que estés seguro de ganar.",
     "importantNotice": "Importante: Comprende Antes de Comprar",
-    "bidTerms": "Al comprar créditos de oferta, reconoces que las ofertas no son reembolsables y que ganar trabajos no está garantizado. Tu éxito depende de precios competitivos, calificaciones de calidad y reseñas de clientes."
+    "creditTerms": "Al comprar créditos de servicio, reconoces que los créditos no son reembolsables y que ganar trabajos no está garantizado. Tu éxito depende de precios competitivos, calificaciones de calidad y reseñas de clientes."
   },
   "notifications": {
     "title": "Notificaciones",

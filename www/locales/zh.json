@@ -368,26 +368,26 @@
     "refundPending": "退款处理中",
     "refundProcessed": "退款已处理"
   },
-  "bidPacks": {
-    "title": "报价积分包",
-    "subtitle": "购买积分以提交报价",
+  "serviceCredits": {
+    "title": "服务积分包",
+    "subtitle": "购买积分以赢得汽车服务机会",
     "starter": "入门版",
     "pro": "专业版",
     "business": "商业版",
     "enterprise": "企业版",
-    "bids": "次报价",
+    "credits": "积分",
     "bonus": "赠送",
-    "perBid": "每次",
+    "perCredit": "每积分",
     "bestValue": "最超值",
     "mostPopular": "最受欢迎",
     "buyNow": "立即购买",
     "currentCredits": "当前积分",
-    "competitiveNotice": "竞争性报价",
-    "competitiveNoticeDesc": "您提交的每个报价都与其他合格服务商竞争。会员根据您的价格、评分和评价进行选择——因此有竞争力的定价和优质服务能帮助您赢得更多工作。",
+    "competitiveNotice": "竞争性市场",
+    "competitiveNoticeDesc": "您提交的每个提案都与其他合格服务商竞争。会员根据您的价格、评分和评价进行选择——因此有竞争力的定价和优质服务能帮助您赢得更多客户。",
     "nonRefundableNotice": "不可退款",
-    "nonRefundableNoticeDesc": "所有报价积分均不可退款。无论您是否赢得工作，使用的报价积分都不会退还。请明智地对您有信心赢得的工作进行报价。",
+    "nonRefundableNoticeDesc": "所有服务积分均不可退款。无论您是否赢得工作，使用的积分都不会退还。请对您有信心赢得的工作提交提案。",
     "importantNotice": "重要提示：购买前请了解",
-    "bidTerms": "购买报价积分即表示您确认报价不可退款，且赢得工作不受保证。您的成功取决于有竞争力的定价、优质评分和客户评价。"
+    "creditTerms": "购买服务积分即表示您确认积分不可退款，且赢得工作不受保证。您的成功取决于有竞争力的定价、优质评分和客户评价。"
   },
   "notifications": {
     "title": "通知",

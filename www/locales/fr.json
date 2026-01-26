@@ -368,26 +368,26 @@
     "refundPending": "Remboursement en Attente",
     "refundProcessed": "Remboursement Traité"
   },
-  "bidPacks": {
-    "title": "Packs de Crédits",
-    "subtitle": "Achetez des crédits pour soumettre des propositions",
+  "serviceCredits": {
+    "title": "Packs de Crédits de Service",
+    "subtitle": "Achetez des crédits pour remporter des opportunités de service automobile",
     "starter": "Débutant",
     "pro": "Pro",
     "business": "Business",
     "enterprise": "Entreprise",
-    "bids": "offres",
+    "credits": "crédits",
     "bonus": "bonus",
-    "perBid": "par offre",
+    "perCredit": "par crédit",
     "bestValue": "Meilleur Rapport",
     "mostPopular": "Le Plus Populaire",
     "buyNow": "Acheter",
     "currentCredits": "Crédits Actuels",
-    "competitiveNotice": "Enchères Compétitives",
-    "competitiveNoticeDesc": "Chaque offre que vous soumettez est en concurrence avec d'autres prestataires qualifiés. Les membres choisissent en fonction de votre prix, notes et avis—donc des tarifs compétitifs et un excellent service vous aident à remporter plus de contrats.",
+    "competitiveNotice": "Marché Compétitif",
+    "competitiveNoticeDesc": "Chaque proposition que vous soumettez est en concurrence avec d'autres prestataires qualifiés. Les membres choisissent en fonction de votre prix, notes et avis—donc des tarifs compétitifs et un excellent service vous aident à remporter plus de clients.",
     "nonRefundableNotice": "Non Remboursable",
-    "nonRefundableNoticeDesc": "Tous les crédits d'offre sont non remboursables. Que vous remportiez ou perdiez un contrat, les crédits d'offre utilisés ne sont pas retournés. Enchérissez judicieusement sur les contrats que vous êtes sûr de pouvoir remporter.",
+    "nonRefundableNoticeDesc": "Tous les crédits de service sont non remboursables. Que vous remportiez ou perdiez un contrat, les crédits utilisés ne sont pas retournés. Soumettez des propositions pour des contrats que vous êtes sûr de pouvoir remporter.",
     "importantNotice": "Important : Comprenez Avant d'Acheter",
-    "bidTerms": "En achetant des crédits d'offre, vous reconnaissez que les offres ne sont pas remboursables et que remporter des contrats n'est pas garanti. Votre succès dépend de tarifs compétitifs, de notes de qualité et d'avis clients."
+    "creditTerms": "En achetant des crédits de service, vous reconnaissez que les crédits ne sont pas remboursables et que remporter des contrats n'est pas garanti. Votre succès dépend de tarifs compétitifs, de notes de qualité et d'avis clients."
   },
   "notifications": {
     "title": "Notifications",
