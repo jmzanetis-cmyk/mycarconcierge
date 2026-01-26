@@ -314,10 +314,17 @@
       
       // Send welcome email if not already sent (fire and forget - don't block redirect)
       if (!profile.welcome_email_sent) {
-        fetch('/api/email/welcome', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        }).catch(() => {}); // Silent fail - don't block user
+        supabaseClient.auth.getSession().then(({ data }) => {
+          if (data?.session?.access_token) {
+            fetch('/api/email/welcome', {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${data.session.access_token}`
+              }
+            }).catch(() => {});
+          }
+        }).catch(() => {});
       }
 
       const isMember = profile.role === 'member' || profile.role === 'admin' || profile.is_also_member;

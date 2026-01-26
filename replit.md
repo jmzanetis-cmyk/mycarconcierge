@@ -36,7 +36,8 @@ Key features include:
 - **Merch Manager (Admin Tool)**: Admin interface for creating and managing Printful products, including catalog browsing, design library, and product creation.
 - **Automated Maintenance Reminders**: Tracks vehicle maintenance schedules and sends reminders.
 - **Provider Push Notifications**: Providers receive push notifications for opportunities, appointments, and messages.
-- **Branded Email Templates**: Professional HTML email templates matching the app's dark theme.
+- **Branded Email Templates**: Professional HTML email templates matching the app's light theme for transactional emails.
+- **Automated Welcome Emails**: Personalized welcome emails sent to new members and providers on first login after email verification. Uses light theme (navy #1e3a5f, gold #b8942d, off-white #fefdfb) with role-specific content and quick-start guides.
 - **Provider Loyalty Referral System**: Comprehensive program with three QR code types (Loyal Customer, New Member, Provider referral), exclusive bidding windows, and private job options.
 - **Referral Program**: Member referral system with credits for both referrer and new members.
 - **Vehicle Recall Alerts**: Weekly checks against the NHTSA database for safety recalls.
