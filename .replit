@@ -45,4 +45,4 @@ GLOBAL_2FA_ENABLED = "false"
 
 [nix]
 channel = "stable-25_05"
-packages = ["glib", "nss", "nspr", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXrandr", "xorg.libxcb", "cups", "libdrm", "at-spi2-core", "pango", "alsa-lib", "mesa", "chromium"]
+packages = ["glib", "nss", "nspr", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXrandr", "xorg.libxcb", "cups", "libdrm", "at-spi2-core", "pango", "alsa-lib", "mesa", "chromium", "libxkbcommon", "xorg.libX11", "xorg.libXext", "xorg.libXfixes", "at-spi2-atk"]
