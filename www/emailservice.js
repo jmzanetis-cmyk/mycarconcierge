@@ -212,33 +212,317 @@ const EmailTemplates = {
   
   welcome_member: {
     subject: 'Welcome to My Car Concierge!',
+    useCustomWrapper: true,
     template: `
-      <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #d4a855; font-size: 28px; margin: 0 0 8px 0;">Welcome to My Car Concierge, {{name}}!</h1>
-        <p style="color: #9ca3af; font-size: 16px; margin: 0;">You've joined the smarter way to maintain your vehicles</p>
-      </div>
-      
-      <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44;">
-        <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 20px 0;">🚀 Get Started in 4 Easy Steps</h2>
-        <ol style="padding-left: 20px; margin: 0; color: #e5e7eb;">
-          <li style="margin-bottom: 16px; padding-left: 8px;"><strong style="color: #d4a855;">Add your vehicle</strong> to your Digital Garage</li>
-          <li style="margin-bottom: 16px; padding-left: 8px;"><strong style="color: #d4a855;">Create a maintenance package</strong> describing what you need</li>
-          <li style="margin-bottom: 16px; padding-left: 8px;"><strong style="color: #d4a855;">Receive anonymous bids</strong> from vetted providers</li>
-          <li style="padding-left: 8px;"><strong style="color: #d4a855;">Accept the best bid</strong> and schedule your service</li>
-        </ol>
-      </div>
-      
-      <div class="card" style="background: linear-gradient(135deg, #4a7cff 0%, #3d6ce0 100%); border: none; margin-top: 20px;">
-        <p style="color: #ffffff; font-size: 16px; margin: 0; text-align: center;">
-          🔒 Your payment is held in escrow until you confirm the work is complete
-        </p>
-      </div>
-      
-      <div style="text-align: center; margin-top: 32px;">
-        <a href="{{dashboard_url}}" class="button-primary" style="display: inline-block; background: linear-gradient(135deg, #d4a855 0%, #b8942d 100%); color: #0a0a0f !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; font-weight: 700; font-size: 16px;">Go to Dashboard</a>
-      </div>
-      
-      <p style="text-align: center; color: #9ca3af; font-size: 14px; margin-top: 24px;">Questions? Reply to this email or visit our help center.</p>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to My Car Concierge</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #fefdfb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fefdfb; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px;">
+          
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding-bottom: 30px;">
+              <span style="font-family: Georgia, serif; font-size: 26px; color: #1e3a5f;">
+                My Car <span style="color: #b8942d;">Concierge</span>
+              </span>
+            </td>
+          </tr>
+          
+          <!-- Main Content Box -->
+          <tr>
+            <td style="background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-top: 4px solid #b8942d;">
+              
+              <!-- Headline -->
+              <h1 style="margin: 0 0 16px 0; font-size: 28px; font-weight: 600; color: #1e3a5f; text-align: center; line-height: 1.3;">
+                Welcome to My Car Concierge, {{name}}!
+              </h1>
+              
+              <p style="margin: 0 0 30px 0; font-size: 16px; line-height: 1.7; color: #4a5568; text-align: center;">
+                Thank you for joining! We're thrilled to have you as a new member. Below are some quick links to help you get started.
+              </p>
+              
+              <!-- Quick Links Section -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
+                
+                <!-- Add Your Vehicle -->
+                <tr>
+                  <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px; margin-bottom: 12px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td width="50" valign="top">
+                          <span style="font-size: 28px;">🚗</span>
+                        </td>
+                        <td>
+                          <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Add Your Vehicle</h3>
+                          <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">
+                            Start by adding your vehicle to your Digital Garage. Track maintenance, store documents, and get personalized service recommendations.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr><td style="height: 12px;"></td></tr>
+                
+                <!-- Get Service Quotes -->
+                <tr>
+                  <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td width="50" valign="top">
+                          <span style="font-size: 28px;">💰</span>
+                        </td>
+                        <td>
+                          <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Get Competitive Bids</h3>
+                          <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">
+                            Need a service? Create a maintenance package and receive anonymous bids from vetted providers who compete for your business.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr><td style="height: 12px;"></td></tr>
+                
+                <!-- Car Care Academy -->
+                <tr>
+                  <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td width="50" valign="top">
+                          <span style="font-size: 28px;">📚</span>
+                        </td>
+                        <td>
+                          <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Learn at Car Care Academy</h3>
+                          <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">
+                            Become a smarter car owner with our educational resources covering maintenance tips, buying guides, and money-saving advice.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr><td style="height: 12px;"></td></tr>
+                
+                <!-- Safe Payments -->
+                <tr>
+                  <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td width="50" valign="top">
+                          <span style="font-size: 28px;">🔒</span>
+                        </td>
+                        <td>
+                          <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Pay with Confidence</h3>
+                          <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">
+                            Your payment is held in escrow until you confirm the work is complete. No surprises, no hassle—just peace of mind.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding: 20px 0;">
+                    <a href="{{dashboard_url}}" 
+                       style="display: inline-block; padding: 16px 48px; background-color: #b8942d; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px;">
+                      Go to My Dashboard
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 30px 0; text-align: center;">
+              <p style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280;">
+                Questions? Reply to this email or visit <a href="{{help_url}}" style="color: #1e3a5f; text-decoration: none;">our help center</a>
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                © {{current_year}} My Car Concierge · <a href="{{unsubscribe_url}}" style="color: #9ca3af; text-decoration: none;">Unsubscribe</a>
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `
+  },
+
+  welcome_provider: {
+    subject: 'Welcome to My Car Concierge - Provider Account Activated!',
+    useCustomWrapper: true,
+    template: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome Provider - My Car Concierge</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #fefdfb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fefdfb; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px;">
+          
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding-bottom: 30px;">
+              <span style="font-family: Georgia, serif; font-size: 26px; color: #1e3a5f;">
+                My Car <span style="color: #b8942d;">Concierge</span>
+              </span>
+            </td>
+          </tr>
+          
+          <!-- Main Content Box -->
+          <tr>
+            <td style="background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-top: 4px solid #b8942d;">
+              
+              <!-- Headline -->
+              <h1 style="margin: 0 0 16px 0; font-size: 28px; font-weight: 600; color: #1e3a5f; text-align: center; line-height: 1.3;">
+                Welcome to My Car Concierge, {{name}}!
+              </h1>
+              
+              <p style="margin: 0 0 30px 0; font-size: 16px; line-height: 1.7; color: #4a5568; text-align: center;">
+                Your provider account is ready! Here's how to start winning new customers and growing your business.
+              </p>
+              
+              <!-- Quick Links Section -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
+                
+                <!-- Complete Your Profile -->
+                <tr>
+                  <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td width="50" valign="top">
+                          <span style="font-size: 28px;">👤</span>
+                        </td>
+                        <td>
+                          <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Complete Your Profile</h3>
+                          <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">
+                            Add your business details, service areas, specialties, and upload photos. Complete profiles get 3x more opportunities.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr><td style="height: 12px;"></td></tr>
+                
+                <!-- Connect Stripe -->
+                <tr>
+                  <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td width="50" valign="top">
+                          <span style="font-size: 28px;">💳</span>
+                        </td>
+                        <td>
+                          <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Connect Your Payment Account</h3>
+                          <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">
+                            Link your Stripe account to receive payments directly. Funds are released as soon as customers confirm job completion.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr><td style="height: 12px;"></td></tr>
+                
+                <!-- Start Bidding -->
+                <tr>
+                  <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td width="50" valign="top">
+                          <span style="font-size: 28px;">🔨</span>
+                        </td>
+                        <td>
+                          <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Browse & Bid on Jobs</h3>
+                          <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">
+                            View available maintenance packages in your area and submit competitive bids. Win customers by offering great prices and service.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr><td style="height: 12px;"></td></tr>
+                
+                <!-- Build Reputation -->
+                <tr>
+                  <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td width="50" valign="top">
+                          <span style="font-size: 28px;">⭐</span>
+                        </td>
+                        <td>
+                          <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Build Your Reputation</h3>
+                          <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">
+                            Deliver excellent service and earn positive reviews. Higher ratings mean more visibility and winning more bids.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding: 20px 0;">
+                    <a href="{{dashboard_url}}" 
+                       style="display: inline-block; padding: 16px 48px; background-color: #b8942d; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px;">
+                      Go to Provider Dashboard
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 30px 0; text-align: center;">
+              <p style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280;">
+                Questions? Reply to this email or visit <a href="{{help_url}}" style="color: #1e3a5f; text-decoration: none;">our help center</a>
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                © {{current_year}} My Car Concierge · <a href="{{unsubscribe_url}}" style="color: #9ca3af; text-decoration: none;">Unsubscribe</a>
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
     `
   },
 
