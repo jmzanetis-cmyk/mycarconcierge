@@ -248,7 +248,6 @@ async function initializeProviderDashboard(user) {
     loadModule('bids').then(() => {
       if (typeof loadOpenPackages === 'function') loadOpenPackages();
       if (typeof loadMyBids === 'function') loadMyBids();
-      if (typeof loadServiceCredits === 'function') loadServiceCredits();
     }),
     loadEarnings(),
     loadMyReviews(),
@@ -257,6 +256,11 @@ async function initializeProviderDashboard(user) {
     loadPosIntegrationStatus(),
     loadPerformance()
   ]);
+  
+  // Load service credits after profile is loaded (needs providerProfile)
+  if (typeof loadServiceCredits === 'function') {
+    loadServiceCredits();
+  }
   
   updateStats();
   setupNav();
