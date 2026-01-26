@@ -231,7 +231,12 @@
 
     async function loadCloverStatus() {
       try {
-        const response = await fetch(`/api/clover/status/${currentUser.id}`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/clover/status/${currentUser.id}`, { headers });
         const data = await response.json();
         
         cloverConnectionStatus = data;
@@ -244,7 +249,12 @@
 
     async function loadSquareStatus() {
       try {
-        const response = await fetch(`/api/pos/connections/${currentUser.id}`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/pos/connections/${currentUser.id}`, { headers });
         const data = await response.json();
         
         const squareConnection = data.connections?.find(c => c.pos_provider === 'square');
@@ -350,9 +360,13 @@
         connectBtn.disabled = true;
         connectBtn.innerHTML = '<span class="clover-sync-spinner"></span> Connecting...';
 
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const response = await fetch('/api/clover/connect', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify({ provider_id: currentUser.id })
         });
         
@@ -386,9 +400,13 @@
         disconnectBtn.disabled = true;
         disconnectBtn.innerHTML = '<span class="clover-sync-spinner"></span> Disconnecting...';
 
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const response = await fetch('/api/clover/disconnect', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify({ provider_id: currentUser.id })
         });
         
@@ -416,9 +434,13 @@
         syncBtn.disabled = true;
         syncBtn.innerHTML = '<span class="clover-sync-spinner"></span> Syncing...';
 
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const response = await fetch(`/api/clover/sync/${currentUser.id}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          }
         });
         
         const data = await response.json();
@@ -443,7 +465,12 @@
 
     async function loadCloverTransactions() {
       try {
-        const response = await fetch(`/api/clover/transactions/${currentUser.id}?limit=100`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/clover/transactions/${currentUser.id}?limit=100`, { headers });
         const data = await response.json();
         
         const txCount = data.transactions?.length || data.total_count || 0;
@@ -470,9 +497,13 @@
         connectBtn.disabled = true;
         connectBtn.innerHTML = '<span class="pos-sync-spinner"></span> Connecting...';
 
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const response = await fetch('/api/square/connect', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify({ provider_id: currentUser.id })
         });
         
@@ -506,9 +537,13 @@
         disconnectBtn.disabled = true;
         disconnectBtn.innerHTML = '<span class="pos-sync-spinner"></span> Disconnecting...';
 
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const response = await fetch('/api/square/disconnect', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify({ provider_id: currentUser.id })
         });
         
@@ -537,9 +572,13 @@
         syncBtn.disabled = true;
         syncBtn.innerHTML = '<span class="pos-sync-spinner"></span> Syncing...';
 
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const response = await fetch(`/api/square/sync/${currentUser.id}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          }
         });
         
         const data = await response.json();
@@ -565,7 +604,12 @@
     // ========== ALL POS TRANSACTIONS ==========
     async function loadAllPosTransactions() {
       try {
-        const response = await fetch(`/api/pos/transactions/${currentUser.id}?limit=10`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/pos/transactions/${currentUser.id}?limit=10`, { headers });
         const data = await response.json();
         
         const tbody = document.getElementById('all-pos-transactions-body');
@@ -5248,7 +5292,12 @@
       if (!container) return;
 
       try {
-        const response = await fetch(`/api/background-check-status?provider_id=${currentUser.id}`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/background-check-status?provider_id=${currentUser.id}`, { headers });
         if (!response.ok) {
           throw new Error('Failed to fetch background check status');
         }
@@ -7869,7 +7918,12 @@
         const period = document.getElementById('revenue-period-filter').value;
         const range = document.getElementById('revenue-range-filter').value;
         
-        const response = await fetch(`/api/providers/${currentUser.id}/analytics/revenue?period=${period}&range=${range}`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/providers/${currentUser.id}/analytics/revenue?period=${period}&range=${range}`, { headers });
         if (!response.ok) throw new Error('Failed to fetch revenue data');
         
         const data = await response.json();
@@ -7955,7 +8009,12 @@
       loadingEl.style.display = 'block';
       
       try {
-        const response = await fetch(`/api/providers/${currentUser.id}/analytics/services`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/providers/${currentUser.id}/analytics/services`, { headers });
         if (!response.ok) throw new Error('Failed to fetch services data');
         
         const data = await response.json();
@@ -8016,7 +8075,12 @@
       loadingEl.style.display = 'block';
       
       try {
-        const response = await fetch(`/api/providers/${currentUser.id}/analytics/busy-hours`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/providers/${currentUser.id}/analytics/busy-hours`, { headers });
         if (!response.ok) throw new Error('Failed to fetch busy hours data');
         
         const data = await response.json();
@@ -8083,7 +8147,12 @@
       loadingEl.style.display = 'block';
       
       try {
-        const response = await fetch(`/api/provider/${currentUser.id}/analytics`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/provider/${currentUser.id}/analytics`, { headers });
         if (!response.ok) throw new Error('Failed to fetch retention data');
         
         const data = await response.json();
@@ -8152,7 +8221,12 @@
       loadingEl.style.display = 'block';
       
       try {
-        const response = await fetch(`/api/providers/${currentUser.id}/analytics/ratings`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/providers/${currentUser.id}/analytics/ratings`, { headers });
         if (!response.ok) throw new Error('Failed to fetch ratings data');
         
         const data = await response.json();
@@ -8252,7 +8326,12 @@
       emptyEl.style.display = 'none';
       
       try {
-        const response = await fetch(`/api/provider/${currentUser.id}/analytics`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/provider/${currentUser.id}/analytics`, { headers });
         if (!response.ok) throw new Error('Failed to fetch analytics');
         
         const data = await response.json();
@@ -9030,9 +9109,13 @@
       try {
         await closePosQrScanner();
         
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const res = await fetch(`/api/pos/session/${posState.sessionId}/qr-lookup`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify({ qrToken })
         });
         
@@ -9304,9 +9387,13 @@
       btn.disabled = true;
       btn.innerHTML = '<span class="pos-spinner"></span> Sending...';
       try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const resp = await fetch(`/api/pos/session/${posState.sessionId}/resend-otp`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          }
         });
         const data = await resp.json();
         if (data.otp) {
@@ -9711,9 +9798,13 @@
       }
       
       try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const resp = await fetch(`/api/pos/session/${posState.sessionId}/member-lookup`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify({ phone })
         });
         const data = await resp.json();
@@ -9781,9 +9872,13 @@
       posSetLoading('pos-verify-btn', true);
       
       try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const resp = await fetch(`/api/pos/session/${posState.sessionId}/verify-otp`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify({
             otp,
             name: posState.customerName,
@@ -9816,7 +9911,12 @@
     
     async function posCheckMarketplaceJobs() {
       try {
-        const resp = await fetch(`/api/pos/session/${posState.sessionId}/marketplace-jobs`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const resp = await fetch(`/api/pos/session/${posState.sessionId}/marketplace-jobs`, { headers });
         const data = await resp.json();
         if (!resp.ok) return [];
         return data.jobs || [];
@@ -9867,9 +9967,13 @@
       loadingEl.style.display = 'block';
       
       try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const resp = await fetch(`/api/pos/session/${posState.sessionId}/link-marketplace`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify({ bidId, packageId })
         });
         const data = await resp.json();
@@ -10058,9 +10162,13 @@
       posSetLoading('pos-vehicle-btn', true);
       
       try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const resp = await fetch(`/api/pos/session/${posState.sessionId}/vehicle`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify({
             vehicle_id: posState.selectedVehicleId,
             new_vehicle: posState.isNewVehicle ? posState.newVehicle : null
@@ -10113,9 +10221,13 @@
       posSetLoading('pos-service-btn', true);
       
       try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const resp = await fetch(`/api/pos/session/${posState.sessionId}/service`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify({
             category,
             description,
@@ -10219,9 +10331,13 @@
         const vehicle = posState.vehicles.find(v => v.id === posState.selectedVehicleId) || posState.newVehicle;
         const vehicleStr = vehicle ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() : 'N/A';
         
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const resp = await fetch(`/api/pos/session/${posState.sessionId}/authorize`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify({
             signature_data: signatureData,
             signer_name: signerName,
@@ -10254,9 +10370,13 @@
       }
       
       try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const resp = await fetch(`/api/pos/session/${posState.sessionId}/checkout`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          }
         });
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || 'Checkout failed');
@@ -10627,7 +10747,12 @@
       if (!container || !currentUser) return;
       
       try {
-        const response = await fetch(`/api/checkin/queue/${currentUser.id}`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/checkin/queue/${currentUser.id}`, { headers });
         const result = await response.json();
         
         if (!response.ok) {
@@ -10712,7 +10837,11 @@
     
     async function callQueueCustomer(queueId) {
       try {
-        const response = await fetch(`/api/checkin/queue/${queueId}/call`, { method: 'POST' });
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const response = await fetch(`/api/checkin/queue/${queueId}/call`, { 
+          method: 'POST',
+          headers: session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}
+        });
         const result = await response.json();
         
         if (!response.ok) throw new Error(result.error || 'Failed to call customer');
@@ -10727,7 +10856,11 @@
     
     async function completeQueueCustomer(queueId) {
       try {
-        const response = await fetch(`/api/checkin/queue/${queueId}/complete`, { method: 'POST' });
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const response = await fetch(`/api/checkin/queue/${queueId}/complete`, { 
+          method: 'POST',
+          headers: session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}
+        });
         const result = await response.json();
         
         if (!response.ok) throw new Error(result.error || 'Failed to complete');
@@ -10744,7 +10877,11 @@
       if (!confirm('Remove this customer from the queue?')) return;
       
       try {
-        const response = await fetch(`/api/checkin/queue/${queueId}`, { method: 'DELETE' });
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const response = await fetch(`/api/checkin/queue/${queueId}`, { 
+          method: 'DELETE',
+          headers: session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}
+        });
         const result = await response.json();
         
         if (!response.ok) throw new Error(result.error || 'Failed to cancel');
@@ -11683,7 +11820,12 @@
       if (!bidOpportunities) return;
       
       try {
-        const response = await fetch(`/api/provider/${currentUser.id}/notification-preferences`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` } 
+          : {};
+        
+        const response = await fetch(`/api/provider/${currentUser.id}/notification-preferences`, { headers });
         const data = await response.json();
         const prefs = data.preferences || {};
         
@@ -11712,9 +11854,13 @@
       };
       
       try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
         await fetch(`/api/provider/${currentUser.id}/notification-preferences`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify(preferences)
         });
       } catch (error) {

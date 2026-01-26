@@ -268,9 +268,14 @@ async function loadPosAnalytics() {
 
 async function loadPosTransactionSummary() {
   try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const headers = session?.access_token 
+      ? { 'Authorization': `Bearer ${session.access_token}` } 
+      : {};
+    
     const [cloverRes, squareRes] = await Promise.all([
-      fetch(`/api/clover/transactions/${currentUser.id}?limit=1000`).then(r => r.json()).catch(() => ({ transactions: [] })),
-      fetch(`/api/square/transactions/${currentUser.id}?limit=1000`).then(r => r.json()).catch(() => ({ transactions: [] }))
+      fetch(`/api/clover/transactions/${currentUser.id}?limit=1000`, { headers }).then(r => r.json()).catch(() => ({ transactions: [] })),
+      fetch(`/api/square/transactions/${currentUser.id}?limit=1000`, { headers }).then(r => r.json()).catch(() => ({ transactions: [] }))
     ]);
     
     const cloverTx = cloverRes.transactions || [];
@@ -307,7 +312,12 @@ async function loadPosTransactionSummary() {
 
 async function loadPosRevenueChart() {
   try {
-    const response = await fetch(`/api/pos/transactions/${currentUser.id}?limit=500`);
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const headers = session?.access_token 
+      ? { 'Authorization': `Bearer ${session.access_token}` } 
+      : {};
+    
+    const response = await fetch(`/api/pos/transactions/${currentUser.id}?limit=500`, { headers });
     const data = await response.json();
     
     if (!data.transactions || data.transactions.length === 0) {
@@ -378,7 +388,12 @@ async function loadPosRevenueChart() {
 
 async function loadAllPosTransactions() {
   try {
-    const response = await fetch(`/api/pos/transactions/${currentUser.id}?limit=50`);
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const headers = session?.access_token 
+      ? { 'Authorization': `Bearer ${session.access_token}` } 
+      : {};
+    
+    const response = await fetch(`/api/pos/transactions/${currentUser.id}?limit=50`, { headers });
     const data = await response.json();
     
     const tbody = document.getElementById('all-pos-transactions-body');

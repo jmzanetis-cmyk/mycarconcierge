@@ -436,7 +436,11 @@ async function loadPosIntegrationStatus() {
 
 async function loadCloverStatus() {
   try {
-    const response = await fetch(`/api/clover/status/${currentUser.id}`);
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const headers = session?.access_token 
+      ? { 'Authorization': `Bearer ${session.access_token}` } 
+      : {};
+    const response = await fetch(`/api/clover/status/${currentUser.id}`, { headers });
     const data = await response.json();
     cloverConnectionStatus = data;
     updateCloverUI(data);
@@ -448,7 +452,11 @@ async function loadCloverStatus() {
 
 async function loadSquareStatus() {
   try {
-    const response = await fetch(`/api/pos/connections/${currentUser.id}`);
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const headers = session?.access_token 
+      ? { 'Authorization': `Bearer ${session.access_token}` } 
+      : {};
+    const response = await fetch(`/api/pos/connections/${currentUser.id}`, { headers });
     const data = await response.json();
     
     const squareConnection = data.connections?.find(c => c.pos_provider === 'square');
