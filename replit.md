@@ -37,7 +37,8 @@ Key features include:
 - **Automated Maintenance Reminders**: Tracks vehicle maintenance schedules and sends reminders.
 - **Provider Push Notifications**: Providers receive push notifications for opportunities, appointments, and messages.
 - **Branded Email Templates**: Professional HTML email templates matching the app's light theme for transactional emails.
-- **Automated Welcome Emails**: Personalized welcome emails sent to new members and providers on first login after email verification. Uses light theme (navy #1e3a5f, gold #b8942d, off-white #fefdfb) with role-specific content and quick-start guides.
+- **Automated Welcome Emails**: Personalized welcome emails sent to new members and providers on first login after email verification. Uses light theme (navy #1e3a5f, gold #b8942d, off-white #fefdfb) with role-specific content, quick-start guides, logo, and unique QR referral codes.
+- **Provider Referral Commission System**: Providers receive a unique PR-prefixed referral code in their welcome email. When scanned, the QR code links to provider signup. Referred providers are tracked via `founder_referrals` table. When referred providers purchase bid packs, the referrer automatically earns 50% lifetime commission, recorded in `founder_commissions` table via `record_bid_pack_commission` RPC.
 - **Provider Loyalty Referral System**: Comprehensive program with three QR code types (Loyal Customer, New Member, Provider referral), exclusive bidding windows, and private job options.
 - **Referral Program**: Member referral system with credits for both referrer and new members.
 - **Vehicle Recall Alerts**: Weekly checks against the NHTSA database for safety recalls.

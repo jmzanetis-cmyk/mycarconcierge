@@ -4291,27 +4291,26 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
     let referralCode = null;
     try {
       if (isProvider) {
-        // Check for existing provider referral code
+        // Check for existing provider referral code (type: provider - for referring new providers)
         const { data: existingCode } = await supabase
           .from('provider_referral_codes')
           .select('code')
           .eq('provider_id', userId)
-          .eq('type', 'new_member')
+          .eq('code_type', 'provider')
           .single();
         
         if (existingCode?.code) {
           referralCode = existingCode.code;
         } else {
-          // Generate new provider referral code
+          // Generate new provider referral code for referring other providers
           const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-          referralCode = 'PRV';
-          for (let i = 0; i < 6; i++) {
-            referralCode += chars.charAt(Math.floor(Math.random() * chars.length));
-          }
+          const baseCode = Array.from({length: 6}, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+          referralCode = 'PR' + baseCode;
           await supabase.from('provider_referral_codes').insert({
             provider_id: userId,
             code: referralCode,
-            type: 'new_member'
+            code_type: 'provider',
+            uses_count: 0
           });
         }
       } else {
@@ -4343,9 +4342,9 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
       console.log('Could not generate referral code for welcome email:', refErr.message);
     }
     
-    // Create QR code URL - for members, links to member signup; for providers, links to member signup with their ref
+    // Create QR code URL - for providers, links to provider signup; for members, links to member signup
     const signupUrl = isProvider 
-      ? `${baseUrl}/signup-member.html?provider_ref=${referralCode || ''}`
+      ? `${baseUrl}/signup-provider.html?ref=${referralCode || ''}`
       : `${baseUrl}/signup-member.html?ref=${referralCode || ''}`;
     const qrCodeUrl = referralCode 
       ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(signupUrl)}&bgcolor=fefdfb&color=1e3a5f`
@@ -4361,9 +4360,9 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
               <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px;">
                 <tr>
                   <td style="padding: 24px; background-color: #1e3a5f; border-radius: 8px; text-align: center;">
-                    <h3 style="margin: 0 0 12px 0; font-size: 18px; color: #ffffff; font-weight: 600;">Share & Earn Rewards</h3>
+                    <h3 style="margin: 0 0 12px 0; font-size: 18px; color: #ffffff; font-weight: 600;">${isProvider ? 'Earn 50% Lifetime Commissions!' : 'Share & Earn Rewards'}</h3>
                     <p style="margin: 0 0 16px 0; font-size: 14px; color: #e2e8f0; line-height: 1.5;">
-                      ${isProvider ? 'Refer new members to My Car Concierge and grow your customer base!' : 'Invite friends to join and you both get $10 in service credits!'}
+                      ${isProvider ? 'Refer other service providers and earn 50% of every bid pack they purchase—forever!' : 'Invite friends to join and you both get $10 in service credits!'}
                     </p>
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
