@@ -595,15 +595,27 @@ function renderEarnings() {
 // ========== REVIEWS ==========
 async function loadMyReviews() {
   try {
-    const { data } = await supabaseClient
+    const { data, error } = await supabaseClient
       .from('reviews')
       .select('*, maintenance_packages(title), profiles!reviews_member_id_fkey(full_name)')
       .eq('provider_id', currentUser.id)
       .order('created_at', { ascending: false });
-    myReviews = data || [];
+    if (error) {
+      // Silently handle table not found (404) or other expected errors
+      if (error.code === 'PGRST116' || error.code === '42P01') {
+        console.log('Reviews table not available');
+      } else {
+        console.log('loadMyReviews error:', error.message);
+      }
+      myReviews = [];
+    } else {
+      myReviews = data || [];
+    }
     renderReviews();
   } catch (err) {
     console.log('loadMyReviews error:', err);
+    myReviews = [];
+    renderReviews();
   }
 }
 
@@ -695,12 +707,20 @@ function populateProfileForm(profile) {
 // ========== SUBSCRIPTION ==========
 async function loadSubscription() {
   try {
-    const { data } = await supabaseClient
+    const { data, error } = await supabaseClient
       .from('subscriptions')
       .select('*')
       .eq('provider_id', currentUser.id)
       .eq('status', 'active')
       .single();
+    
+    if (error) {
+      // Silently handle table not found (404) or no rows found
+      if (error.code === 'PGRST116' || error.code === '42P01' || error.code === 'PGRST200') {
+        console.log('Subscriptions not available');
+      }
+      return;
+    }
     
     if (data) {
       const statusEl = document.getElementById('subscription-status');
