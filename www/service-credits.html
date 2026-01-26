@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bid Packs - My Car Concierge</title>
-  <meta name="description" content="Purchase bid credits to compete for automotive service jobs on My Car Concierge.">
+  <title>Service Credits - My Car Concierge</title>
+  <meta name="description" content="Purchase service credits to win automotive service opportunities on My Car Concierge.">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -309,42 +309,42 @@
     <a href="/">
       <img src="logo.png" alt="My Car Concierge" class="logo">
     </a>
-    <h1>Provider <span>Bid Packs</span></h1>
-    <p>Purchase bid credits to compete for automotive service jobs. The more you buy, the more you save.</p>
+    <h1>Provider <span>Service Credits</span></h1>
+    <p>Purchase service credits to win automotive service opportunities. The more you buy, the more you save.</p>
   </div>
 
   <div class="container">
     <a href="/provider-pilot.html" class="back-link">← Back to Provider Program</a>
 
     <div id="packs-grid" class="packs-grid">
-      <div class="loading">Loading bid packs...</div>
+      <div class="loading">Loading service credits...</div>
     </div>
 
     <div class="info-section">
-      <h2>How Bidding Works</h2>
+      <h2>How Service Credits Work</h2>
       <div class="info-grid">
         <div class="info-item">
-          <h3>You Choose Your Jobs</h3>
-          <p>Browse available service requests and only bid on jobs that fit your shop's capabilities and schedule. You're never obligated to bid.</p>
+          <h3>You Choose Your Opportunities</h3>
+          <p>Browse available service requests and only respond to opportunities that fit your shop's capabilities and schedule. You're never obligated to respond.</p>
         </div>
         <div class="info-item">
-          <h3>One Credit Per Bid</h3>
-          <p>Each bid you submit uses one credit from your pack. If you win the job, you get paid. If not, you've invested in visibility.</p>
+          <h3>One Credit Per Response</h3>
+          <p>Each response you submit uses one credit from your pack. Win the customer, get paid. Every response builds your visibility.</p>
         </div>
         <div class="info-item">
-          <h3>Escrow Protection</h3>
-          <p>When a member accepts your bid, funds are held in escrow. Complete the work, get confirmation, and receive guaranteed payment.</p>
+          <h3>Secure Payment Protection</h3>
+          <p>When a customer accepts your proposal, funds are held securely. Complete the work, get confirmation, and receive guaranteed payment.</p>
         </div>
         <div class="info-item">
           <h3>Build Your Reputation</h3>
-          <p>Every completed job earns you a rating. High ratings mean better visibility and more wins on future bids.</p>
+          <p>Every completed job earns you a rating. High ratings mean better visibility and more customers for your business.</p>
         </div>
       </div>
     </div>
 
     <div class="cta-section">
       <h2>Ready to Grow Your Business?</h2>
-      <p>Join My Car Concierge as a provider and start winning new customers without advertising costs.</p>
+      <p>Join My Car Concierge as a provider and start connecting with new customers without advertising costs.</p>
       <a href="/signup-provider.html" class="cta-btn">Become a Provider</a>
     </div>
   </div>
@@ -352,11 +352,11 @@
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
   <script>
-    async function loadBidPacks() {
+    async function loadServiceCredits() {
       const container = document.getElementById('packs-grid');
       
       try {
-        const { data: bidPacks, error } = await supabaseClient
+        const { data: creditPacks, error } = await supabaseClient
           .from('bid_packs')
           .select('*')
           .eq('is_active', true)
@@ -364,18 +364,18 @@
 
         if (error) throw error;
 
-        if (!bidPacks || bidPacks.length === 0) {
-          container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No bid packs available at this time.</p>';
+        if (!creditPacks || creditPacks.length === 0) {
+          container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No service credit packs available at this time.</p>';
           return;
         }
 
-        const basePerBid = 10.00;
+        const basePerCredit = 10.00;
         
         const renderPackCard = (pack) => {
-          const totalBids = pack.bid_count + (pack.bonus_bids || 0);
-          const effectivePriceNum = pack.price / totalBids;
+          const totalCredits = pack.bid_count + (pack.bonus_bids || 0);
+          const effectivePriceNum = pack.price / totalCredits;
           const effectivePrice = effectivePriceNum.toFixed(2);
-          const savingsPercent = Math.max(0, Math.round((1 - (effectivePriceNum / basePerBid)) * 100));
+          const savingsPercent = Math.max(0, Math.round((1 - (effectivePriceNum / basePerCredit)) * 100));
           const hasBadge = pack.badge_text || pack.is_popular;
           const badgeText = pack.badge_text || (pack.is_popular ? 'POPULAR' : '');
           
@@ -388,12 +388,12 @@
               
               <div class="pack-bids">
                 <span class="pack-bids-count">${pack.bid_count.toLocaleString()}</span>
-                <span class="pack-bids-label"> bids</span>
+                <span class="pack-bids-label"> credits</span>
                 ${pack.bonus_bids > 0 ? `<div class="pack-bonus">+${pack.bonus_bids} FREE bonus!</div>` : ''}
               </div>
 
               <div class="pack-price">$${pack.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-              <div class="pack-per-bid">$${effectivePrice} per bid</div>
+              <div class="pack-per-bid">$${effectivePrice} per credit</div>
               ${savingsPercent > 0 ? `<div style="color:var(--accent-green);font-size:0.85rem;font-weight:500;margin-bottom:8px;">Save ${savingsPercent}%</div>` : ''}
 
               <a href="/signup-provider.html" class="pack-btn ${hasBadge ? 'primary' : ''}">
@@ -403,8 +403,8 @@
           `;
         };
         
-        const topPacks = bidPacks.slice(0, 6);
-        const morePacks = bidPacks.slice(6);
+        const topPacks = creditPacks.slice(0, 6);
+        const morePacks = creditPacks.slice(6);
         
         let html = topPacks.map(renderPackCard).join('');
         
@@ -425,8 +425,8 @@
         container.innerHTML = html;
 
       } catch (err) {
-        console.error('Error loading bid packs:', err);
-        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">Unable to load bid packs. Please try again later.</p>';
+        console.error('Error loading service credits:', err);
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">Unable to load service credits. Please try again later.</p>';
       }
     }
     
@@ -446,7 +446,7 @@
       const checkClient = setInterval(() => {
         if (typeof supabaseClient !== 'undefined' && supabaseClient) {
           clearInterval(checkClient);
-          loadBidPacks();
+          loadServiceCredits();
         }
       }, 100);
       
@@ -454,7 +454,7 @@
       setTimeout(() => {
         clearInterval(checkClient);
         if (typeof supabaseClient === 'undefined' || !supabaseClient) {
-          document.getElementById('packs-grid').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">Unable to load bid packs. Please try again later.</p>';
+          document.getElementById('packs-grid').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">Unable to load service credits. Please try again later.</p>';
         }
       }, 5000);
     });

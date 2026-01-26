@@ -946,7 +946,7 @@ const EmailTemplates = {
       <div class="card" style="background: #1a1a2e; border: 1px solid #4a7cff; margin-top: 20px;">
         <h3 style="color: #4a7cff; font-size: 16px; margin: 0 0 12px 0;">💰 What This Means For You</h3>
         <ul style="padding-left: 20px; margin: 0; color: #e5e7eb;">
-          <li style="margin-bottom: 8px;">You'll earn <strong style="color: #4ade80;">50% commission</strong> on every bid pack this provider purchases</li>
+          <li style="margin-bottom: 8px;">You'll earn <strong style="color: #4ade80;">50% commission</strong> on every service credit pack this provider purchases</li>
           <li style="margin-bottom: 8px;">Commission is automatically credited to your account</li>
           <li>This is a <strong style="color: #d4a855;">lifetime commission</strong> - earn on all their future purchases!</li>
         </ul>
@@ -1029,7 +1029,7 @@ const EmailTemplates = {
         <div style="background: rgba(0,0,0,0.2); border-radius: 8px; padding: 16px;">
           <p style="color: #ffffff; font-weight: 600; margin: 0 0 12px 0;">New Commission Rates:</p>
           <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <span style="color: rgba(255,255,255,0.8);">Bid Pack Commission:</span>
+            <span style="color: rgba(255,255,255,0.8);">Service Credit Commission:</span>
             <span style="color: #ffffff; font-weight: bold;">{{new_bid_pack_rate}}%</span>
           </div>
           <div style="display: flex; justify-content: space-between;">
@@ -1081,7 +1081,7 @@ const EmailTemplates = {
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #4ade80; margin-top: 20px;">
         <h3 style="color: #4ade80; font-size: 18px; margin: 0 0 12px 0;">💰 How You Earn</h3>
-        <p style="color: #e5e7eb; font-size: 14px; margin: 0;">You earn <strong style="color: #4ade80;">50% commission</strong> on all bid pack purchases from providers you refer. This is a <strong style="color: #d4a855;">lifetime commission</strong> — you'll continue earning on every bid pack they purchase, forever!</p>
+        <p style="color: #e5e7eb; font-size: 14px; margin: 0;">You earn <strong style="color: #4ade80;">50% commission</strong> on all service credit purchases from providers you refer. This is a <strong style="color: #d4a855;">lifetime commission</strong> — you'll continue earning on every service credit pack they purchase, forever!</p>
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44; margin-top: 20px;">
@@ -1101,7 +1101,7 @@ const EmailTemplates = {
           <li style="margin-bottom: 12px;"><strong>Visit your dashboard</strong> to view your referral tools and stats</li>
           <li style="margin-bottom: 12px;"><strong>Set up your payout method</strong> to receive your commission payments</li>
           <li style="margin-bottom: 12px;"><strong>Start sharing</strong> your referral code with auto service providers</li>
-          <li><strong>Track your earnings</strong> as providers sign up and purchase bid packs</li>
+          <li><strong>Track your earnings</strong> as providers sign up and purchase service credits</li>
         </ol>
       </div>
       
@@ -1627,7 +1627,7 @@ async function sendMaintenanceReminderEmail(memberEmail, memberName, vehicleData
 async function sendFounderCommissionEarnedEmail(founderEmail, founderName, commissionData) {
   return queueEmail(founderEmail, founderName, 'founder_commission_earned', {
     founder_name: founderName,
-    commission_type: commissionData.type === 'bid_pack' ? 'Bid Pack Purchase' : 'Platform Fee',
+    commission_type: commissionData.type === 'bid_pack' ? 'Service Credit Purchase' : 'Platform Fee',
     original_amount: parseFloat(commissionData.original_amount).toFixed(2),
     commission_amount: parseFloat(commissionData.commission_amount).toFixed(2),
     commission_rate: (parseFloat(commissionData.commission_rate) * 100).toFixed(0),

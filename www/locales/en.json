@@ -259,7 +259,7 @@
     "myBids": "My Bids",
     "activeJobs": "Active Jobs",
     "completedJobs": "Completed Jobs",
-    "bidCredits": "Bid Credits",
+    "serviceCredits": "Service Credits",
     "buyCredits": "Buy Credits",
     "submitBid": "Submit Bid",
     "bidAmount": "Your Bid Amount",
@@ -382,26 +382,26 @@
     "refundPending": "Refund Pending",
     "refundProcessed": "Refund Processed"
   },
-  "bidPacks": {
-    "title": "Bid Credit Packs",
-    "subtitle": "Purchase bid credits to submit proposals",
+  "serviceCredits": {
+    "title": "Service Credit Packs",
+    "subtitle": "Purchase credits to win automotive service opportunities",
     "starter": "Starter",
     "pro": "Pro",
     "business": "Business",
     "enterprise": "Enterprise",
-    "bids": "bids",
+    "credits": "credits",
     "bonus": "bonus",
-    "perBid": "per bid",
+    "perCredit": "per credit",
     "bestValue": "Best Value",
     "mostPopular": "Most Popular",
     "buyNow": "Buy Now",
     "currentCredits": "Current Credits",
-    "competitiveNotice": "Competitive Bidding",
-    "competitiveNoticeDesc": "Each bid you place competes with other qualified providers. Members choose based on your price, ratings, and reviews—so competitive pricing and great service help you win more jobs.",
+    "competitiveNotice": "Competitive Marketplace",
+    "competitiveNoticeDesc": "Each proposal you submit competes with other qualified providers. Members choose based on your price, ratings, and reviews—so competitive pricing and great service help you win more customers.",
     "nonRefundableNotice": "Non-Refundable",
-    "nonRefundableNoticeDesc": "All bid credits are non-refundable. Whether you win or lose a job, bid credits used are not returned. Bid wisely on jobs you're confident you can win.",
+    "nonRefundableNoticeDesc": "All service credits are non-refundable. Whether you win or lose a job, credits used are not returned. Submit proposals for jobs you're confident you can win.",
     "importantNotice": "Important: Understand Before You Buy",
-    "bidTerms": "By purchasing bid credits, you acknowledge that bids are non-refundable and that winning jobs is not guaranteed. Your success depends on competitive pricing, quality ratings, and customer reviews."
+    "creditTerms": "By purchasing service credits, you acknowledge that credits are non-refundable and that winning jobs is not guaranteed. Your success depends on competitive pricing, quality ratings, and customer reviews."
   },
   "notifications": {
     "title": "Notifications",
@@ -466,7 +466,7 @@
     "applyNow": "Apply Now",
     "heroBadge": "Brand Ambassador Program",
     "heroTitle": "Become a Member Founder",
-    "heroSubtitle": "Help grow My Car Concierge in your area and earn commissions on every service and bid pack purchase. Be our local voice and build income that grows with the platform.",
+    "heroSubtitle": "Help grow My Car Concierge in your area and earn commissions on every service and credit purchase. Be our local voice and build income that grows with the platform.",
     "heroUrgency": "We're onboarding founding ambassadors now. The earlier you start, the more you earn as the platform grows in your area.",
     "heroCta": "Apply to Become a Founder",
     "scrollEarnCommission": "Earn Commission",
@@ -483,27 +483,27 @@
       "step2Title": "Connect Members & Providers",
       "step2Desc": "Help onboard new members who need car services and recruit quality providers to join the platform in your area.",
       "step3Title": "Earn Commissions",
-      "step3Desc": "Receive a percentage of bid pack purchases and service fees from members and providers you refer. Passive income that grows."
+      "step3Desc": "Receive a percentage of service credit purchases and service fees from members and providers you refer. Passive income that grows."
     },
     "commission": {
       "label": "Earning Potential",
       "title": "Your Commission Structure",
       "providerTitle": "Provider Referrals",
       "providerRate": "50%",
-      "providerDesc": "Earn 50% of every bid credit pack purchased by providers you refer. The more they buy, the more you earn.",
+      "providerDesc": "Earn 50% of every service credit pack purchased by providers you refer. The more they buy, the more you earn.",
       "lifetimeTitle": "Lifetime Earnings",
       "lifetimeRate": "∞",
-      "lifetimeDesc": "Your referral link is permanent. Earn commissions on every bid pack purchase your providers make, forever."
+      "lifetimeDesc": "Your referral link is permanent. Earn commissions on every service credit purchase your providers make, forever."
     },
     "earnings": {
       "label": "Real Earning Potential",
       "title": "What Could You Earn?",
       "partTimeTitle": "Part-Time Founder",
-      "partTimeItem1": "<strong>Refer 5 providers</strong> who each buy $150/month in bid credits",
+      "partTimeItem1": "<strong>Refer 5 providers</strong> who each buy $150/month in service credits",
       "partTimeItem2": "Your cut: 5 × $150 × 50% = <span class=\"highlight\">$375/month</span>",
       "partTimeItem3": "Passive income that grows with your network",
       "activeTitle": "Active Founder",
-      "activeItem1": "<strong>Refer 15 providers</strong> who each buy $200/month in bid credits",
+      "activeItem1": "<strong>Refer 15 providers</strong> who each buy $200/month in service credits",
       "activeItem2": "Your cut: 15 × $200 × 50% = <span class=\"highlight\">$1,500/month</span>",
       "activeItem3": "Build a network that pays you for years",
       "note": "*Earnings vary based on your effort and local market activity."

@@ -7957,7 +7957,7 @@ async function handleBidCheckout(req, res, requestId) {
       
       if (!pack) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid bid pack' }));
+        res.end(JSON.stringify({ error: 'Invalid service credit pack' }));
         return;
       }
 
@@ -10163,8 +10163,8 @@ async function handleFounderApprovedEmail(req, res, requestId) {
         </div>
         
         <h3>💰 How You Earn</h3>
-        <p>You earn <strong>50% commission</strong> on all bid pack purchases from providers you refer.</p>
-        <p>This is a <strong>lifetime commission</strong> — you'll continue earning on every bid pack they purchase, forever!</p>
+        <p>You earn <strong>50% commission</strong> on all service credit purchases from providers you refer.</p>
+        <p>This is a <strong>lifetime commission</strong> — you'll continue earning on every service credit pack they purchase, forever!</p>
         
         <h3>📱 Your Personal QR Code</h3>
         <p>We've generated a unique QR code for you that makes sharing easy. Providers can simply scan it to sign up with your referral code already applied.</p>
@@ -10180,7 +10180,7 @@ async function handleFounderApprovedEmail(req, res, requestId) {
           <li><strong>Visit your dashboard</strong> to view your referral tools and stats</li>
           <li><strong>Set up your payout method</strong> to receive your commission payments</li>
           <li><strong>Start sharing</strong> your referral code with auto service providers</li>
-          <li><strong>Track your earnings</strong> as providers sign up and purchase bid packs</li>
+          <li><strong>Track your earnings</strong> as providers sign up and purchase service credits</li>
         </ol>
         
         <p style="text-align: center;">

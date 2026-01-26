@@ -4576,7 +4576,7 @@
 
     async function loadSubscription() {
       try {
-        // Load available bid packs
+        // Load available service credit packs
         const { data: packs } = await supabaseClient
           .from('bid_packs')
           .select('*')
@@ -4584,7 +4584,7 @@
           .order('price', { ascending: true });
         
         bidPacks = packs || [];
-        renderBidPacks();
+        renderServiceCredits();
 
         // Update balance display
         renderCreditBalance();
@@ -4603,7 +4603,7 @@
         updateCreditsBadge();
 
       } catch (err) {
-        console.error('Error loading bid credits:', err);
+        console.error('Error loading service credits:', err);
       }
     }
 
@@ -4634,25 +4634,25 @@
       }
     }
 
-    function renderBidPacks() {
+    function renderServiceCredits() {
       const container = document.getElementById('bid-packs-grid');
       
       if (!bidPacks.length) {
-        container.innerHTML = '<p style="color:var(--text-muted);">No bid packs available.</p>';
+        container.innerHTML = '<p style="color:var(--text-muted);">No service credit packs available.</p>';
         return;
       }
 
       // Sort by price descending (high to low) for anchoring effect
       const sortedPacks = [...bidPacks].sort((a, b) => b.price - a.price);
       
-      // Calculate base price per bid (Jumper Cables = $10/bid)
-      const basePerBid = 10.00;
+      // Calculate base price per credit (base = $10/credit)
+      const basePerCredit = 10.00;
       
       const renderPackCard = (pack) => {
-        const totalBids = pack.bid_count + (pack.bonus_bids || 0);
-        const effectivePriceNum = pack.price / totalBids;
+        const totalCredits = pack.bid_count + (pack.bonus_bids || 0);
+        const effectivePriceNum = pack.price / totalCredits;
         const effectivePrice = effectivePriceNum.toFixed(2);
-        const savingsPercent = Math.max(0, Math.round((1 - (effectivePriceNum / basePerBid)) * 100));
+        const savingsPercent = Math.max(0, Math.round((1 - (effectivePriceNum / basePerCredit)) * 100));
         const hasBadge = pack.badge_text || pack.is_popular;
         const badgeText = pack.badge_text || (pack.is_popular ? 'POPULAR' : '');
         
@@ -4665,12 +4665,12 @@
             
             <div style="margin:16px 0;">
               <span style="font-size:2rem;font-weight:700;">${pack.bid_count.toLocaleString()}</span>
-              <span style="color:var(--text-muted);"> bids</span>
+              <span style="color:var(--text-muted);"> credits</span>
               ${pack.bonus_bids > 0 ? `<div style="color:var(--accent-green);font-size:0.9rem;font-weight:500;">+${pack.bonus_bids} FREE bonus!</div>` : ''}
             </div>
 
             <div style="font-size:1.5rem;font-weight:600;color:var(--accent-gold);margin-bottom:4px;">$${pack.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-            <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">$${effectivePrice} per bid</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">$${effectivePrice} per credit</div>
             ${savingsPercent > 0 ? `<div style="font-size:0.85rem;color:var(--accent-green);font-weight:500;margin-bottom:12px;">Save ${savingsPercent}%</div>` : '<div style="margin-bottom:12px;"></div>'}
 
             <button class="btn ${hasBadge ? 'btn-primary' : 'btn-secondary'}" style="width:100%;" onclick="purchaseBidPack('${pack.id}')">
@@ -4736,7 +4736,7 @@
             ${purchases.map(p => `
               <tr style="border-bottom:1px solid var(--border-subtle);">
                 <td style="padding:12px 8px;">${new Date(p.created_at).toLocaleDateString()}</td>
-                <td style="padding:12px 8px;">${p.bid_packs?.name || 'Bid Pack'}</td>
+                <td style="padding:12px 8px;">${p.bid_packs?.name || 'Credit Pack'}</td>
                 <td style="padding:12px 8px;">
                   ${p.bids_purchased}${p.bonus_bids > 0 ? ` <span style="color:var(--accent-green);">+${p.bonus_bids}</span>` : ''}
                 </td>
