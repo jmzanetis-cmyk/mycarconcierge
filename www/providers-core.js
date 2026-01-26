@@ -258,8 +258,11 @@ async function initializeProviderDashboard(user) {
   ]);
   
   // Load service credits after profile is loaded (needs providerProfile)
-  if (typeof loadServiceCredits === 'function') {
-    loadServiceCredits();
+  if (typeof window.loadServiceCredits === 'function') {
+    console.log('[Init] Loading service credits...');
+    window.loadServiceCredits();
+  } else {
+    console.warn('[Init] loadServiceCredits not available');
   }
   
   updateStats();

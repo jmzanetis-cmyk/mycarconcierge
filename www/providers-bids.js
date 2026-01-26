@@ -954,4 +954,9 @@ function updateCreditsBadge() {
   }
 }
 
+// Expose functions globally for cross-script access
+window.loadServiceCredits = loadServiceCredits;
+window.loadOpenPackages = loadOpenPackages;
+window.loadMyBids = loadMyBids;
+
 console.log('providers-bids.js loaded');
