@@ -17490,6 +17490,122 @@ function startLoginActivityCleanupScheduler() {
   console.log('[Scheduler] Scheduled: initial login cleanup in 5min, then every 24 hours');
 }
 
+async function handleAdminSendBulkWelcomeEmails(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+      return;
+    }
+    
+    console.log(`[${requestId}] Admin triggered bulk welcome email send`);
+    
+    // Get all accounts that haven't received welcome emails
+    const { data: accounts, error: fetchError } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, role')
+      .or('welcome_email_sent.is.null,welcome_email_sent.eq.false')
+      .not('email', 'is', null)
+      .order('created_at', { ascending: true });
+    
+    if (fetchError) {
+      console.error(`[${requestId}] Error fetching accounts:`, fetchError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch accounts' }));
+      return;
+    }
+    
+    console.log(`[${requestId}] Found ${accounts?.length || 0} accounts to send welcome emails`);
+    
+    let sent = 0;
+    let errors = 0;
+    let skipped = 0;
+    const results = [];
+    
+    for (const account of (accounts || [])) {
+      try {
+        // Skip admin accounts
+        if (account.role === 'admin') {
+          skipped++;
+          continue;
+        }
+        
+        const result = await sendWelcomeEmail(
+          account.id,
+          account.email,
+          account.full_name,
+          account.role
+        );
+        
+        if (result.sent) {
+          sent++;
+          results.push({ email: account.email, status: 'sent' });
+        } else if (result.reason === 'already_sent') {
+          skipped++;
+          results.push({ email: account.email, status: 'already_sent' });
+        } else {
+          errors++;
+          results.push({ email: account.email, status: 'error', reason: result.reason });
+        }
+        
+        // Small delay between emails to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+      } catch (err) {
+        console.error(`[${requestId}] Error sending to ${account.email}:`, err.message);
+        errors++;
+        results.push({ email: account.email, status: 'error', reason: err.message });
+      }
+    }
+    
+    console.log(`[${requestId}] Bulk welcome emails complete: ${sent} sent, ${skipped} skipped, ${errors} errors`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      total: accounts?.length || 0,
+      sent,
+      skipped,
+      errors,
+      results
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Admin bulk welcome emails error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Failed to send bulk welcome emails' }));
+  }
+}
+
 async function handleAdminTriggerAppointmentReminders(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -20797,6 +20913,11 @@ const server = http.createServer((req, res) => {
   
   if (req.method === 'POST' && req.url === '/api/admin/trigger-appointment-reminders') {
     handleAdminTriggerAppointmentReminders(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/admin/send-bulk-welcome-emails') {
+    handleAdminSendBulkWelcomeEmails(req, res, requestId);
     return;
   }
   
