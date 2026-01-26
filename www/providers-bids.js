@@ -756,4 +756,202 @@ async function fetchDestinationServiceDetails(packageId) {
   }
 }
 
+// ========== SERVICE CREDITS ==========
+let bidPacks = [];
+
+async function loadServiceCredits() {
+  try {
+    const { data: packs, error: packsError } = await supabaseClient
+      .from('bid_packs')
+      .select('*')
+      .eq('is_active', true)
+      .order('price', { ascending: true });
+    
+    if (packsError) {
+      console.error('Error fetching service credits:', packsError);
+      const container = document.getElementById('bid-packs-grid');
+      if (container) {
+        container.innerHTML = `<p style="color:var(--accent-red);">Error loading service credits: ${packsError.message}</p>`;
+      }
+      return;
+    }
+    
+    bidPacks = packs || [];
+    renderServiceCredits();
+    renderCreditBalance();
+
+    const { data: purchases } = await supabaseClient
+      .from('bid_credit_purchases')
+      .select('*, bid_packs(name)')
+      .eq('provider_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    renderPurchaseHistory(purchases || []);
+    updateCreditsBadge();
+
+  } catch (err) {
+    console.error('Error loading service credits:', err);
+    const container = document.getElementById('bid-packs-grid');
+    if (container) {
+      container.innerHTML = `<p style="color:var(--accent-red);">Error loading service credits. Please refresh.</p>`;
+    }
+  }
+}
+
+function renderCreditBalance() {
+  const credits = providerProfile?.bid_credits || 0;
+  const freeBids = providerProfile?.free_trial_bids || 0;
+  const totalPurchased = providerProfile?.total_bids_purchased || 0;
+  const totalUsed = providerProfile?.total_bids_used || 0;
+  const totalAvailable = credits + freeBids;
+
+  const creditsBalance = document.getElementById('credits-balance');
+  const browseCreditsCount = document.getElementById('browse-credits-count');
+  const freeRemaining = document.getElementById('free-bids-remaining');
+  const totalPurchasedEl = document.getElementById('total-purchased');
+  const totalUsedEl = document.getElementById('total-used');
+
+  if (creditsBalance) creditsBalance.textContent = totalAvailable;
+  if (browseCreditsCount) browseCreditsCount.textContent = totalAvailable;
+  if (freeRemaining) freeRemaining.textContent = freeBids;
+  if (totalPurchasedEl) totalPurchasedEl.textContent = totalPurchased;
+  if (totalUsedEl) totalUsedEl.textContent = totalUsed;
+
+  const lowWarning = document.getElementById('low-credits-warning');
+  const noWarning = document.getElementById('no-credits-warning');
+  
+  if (lowWarning) lowWarning.style.display = 'none';
+  if (noWarning) noWarning.style.display = 'none';
+
+  if (totalAvailable === 0) {
+    if (noWarning) noWarning.style.display = 'block';
+  } else if (totalAvailable <= 3) {
+    if (lowWarning) lowWarning.style.display = 'block';
+  }
+}
+
+function renderServiceCredits() {
+  const container = document.getElementById('bid-packs-grid');
+  if (!container) return;
+  
+  if (!bidPacks.length) {
+    container.innerHTML = '<p style="color:var(--text-muted);">No service credit packs available.</p>';
+    return;
+  }
+
+  const sortedPacks = [...bidPacks].sort((a, b) => b.price - a.price);
+  const basePerCredit = 10.00;
+  
+  const renderPackCard = (pack) => {
+    const totalCredits = pack.bid_count + (pack.bonus_bids || 0);
+    const effectivePriceNum = pack.price / totalCredits;
+    const effectivePrice = effectivePriceNum.toFixed(2);
+    const savingsPercent = Math.max(0, Math.round((1 - (effectivePriceNum / basePerCredit)) * 100));
+    const hasBadge = pack.badge_text || pack.is_popular;
+    const badgeText = pack.badge_text || (pack.is_popular ? 'POPULAR' : '');
+    
+    return `
+      <div style="background:var(--bg-elevated);border:2px solid ${hasBadge ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:var(--radius-lg);padding:20px;position:relative;text-align:center;">
+        ${badgeText ? `<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-gold);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">${badgeText}</div>` : ''}
+        <div style="font-size:2.5rem;margin-bottom:8px;">🎟️</div>
+        <h3 style="font-size:1.2rem;font-weight:600;margin-bottom:4px;">${pack.name}</h3>
+        <div style="margin:16px 0;">
+          <span style="font-size:2rem;font-weight:700;">${pack.bid_count.toLocaleString()}</span>
+          <span style="color:var(--text-muted);"> credits</span>
+          ${pack.bonus_bids > 0 ? `<div style="color:var(--accent-green);font-size:0.9rem;font-weight:500;">+${pack.bonus_bids} FREE bonus!</div>` : ''}
+        </div>
+        <div style="font-size:1.5rem;font-weight:600;color:var(--accent-gold);margin-bottom:4px;">$${pack.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+        <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">$${effectivePrice} per credit</div>
+        ${savingsPercent > 0 ? `<div style="font-size:0.85rem;color:var(--accent-green);font-weight:500;margin-bottom:12px;">Save ${savingsPercent}%</div>` : '<div style="margin-bottom:12px;"></div>'}
+        <button class="btn ${hasBadge ? 'btn-primary' : 'btn-secondary'}" style="width:100%;" onclick="purchaseBidPack('${pack.id}')">Buy Now</button>
+      </div>
+    `;
+  };
+  
+  const topPacks = sortedPacks.slice(0, 6);
+  const morePacks = sortedPacks.slice(6);
+  
+  let html = topPacks.map(renderPackCard).join('');
+  
+  if (morePacks.length > 0) {
+    html += `
+      <div id="more-packs-section" style="grid-column: 1 / -1;">
+        <button id="toggle-more-packs" onclick="toggleMorePacks()" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-secondary);cursor:pointer;font-size:0.95rem;display:flex;align-items:center;justify-content:center;gap:8px;">
+          <span>View ${morePacks.length} more packs</span>
+          <span id="more-packs-arrow" style="transition:transform 0.2s;">▼</span>
+        </button>
+        <div id="more-packs-grid" style="display:none;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:16px;">
+          ${morePacks.map(renderPackCard).join('')}
+        </div>
+      </div>
+    `;
+  }
+  
+  container.innerHTML = html;
+}
+
+window.toggleMorePacks = function() {
+  const grid = document.getElementById('more-packs-grid');
+  const arrow = document.getElementById('more-packs-arrow');
+  const btn = document.getElementById('toggle-more-packs');
+  if (!grid || !arrow || !btn) return;
+  const isHidden = grid.style.display === 'none';
+  
+  grid.style.display = isHidden ? 'grid' : 'none';
+  arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+  btn.querySelector('span:first-child').textContent = isHidden ? 'Show fewer packs' : `View ${document.querySelectorAll('#more-packs-grid > div').length} more packs`;
+};
+
+function renderPurchaseHistory(purchases) {
+  const container = document.getElementById('purchase-history');
+  if (!container) return;
+  
+  if (!purchases.length) {
+    container.innerHTML = '<p style="color:var(--text-muted);">No purchases yet.</p>';
+    return;
+  }
+
+  container.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border-subtle);">
+          <th style="text-align:left;padding:12px 8px;font-weight:500;color:var(--text-muted);font-size:0.85rem;">Date</th>
+          <th style="text-align:left;padding:12px 8px;font-weight:500;color:var(--text-muted);font-size:0.85rem;">Pack</th>
+          <th style="text-align:left;padding:12px 8px;font-weight:500;color:var(--text-muted);font-size:0.85rem;">Credits</th>
+          <th style="text-align:right;padding:12px 8px;font-weight:500;color:var(--text-muted);font-size:0.85rem;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${purchases.map(p => `
+          <tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:12px 8px;">${new Date(p.created_at).toLocaleDateString()}</td>
+            <td style="padding:12px 8px;">${p.bid_packs?.name || 'Credit Pack'}</td>
+            <td style="padding:12px 8px;">${p.bids_purchased}${p.bonus_bids > 0 ? ` <span style="color:var(--accent-green);">+${p.bonus_bids}</span>` : ''}</td>
+            <td style="padding:12px 8px;text-align:right;">$${p.amount_paid.toFixed(2)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function updateCreditsBadge() {
+  const badge = document.getElementById('sub-badge');
+  if (!badge) return;
+  const totalCredits = (providerProfile?.bid_credits || 0) + (providerProfile?.free_trial_bids || 0);
+  
+  if (totalCredits > 0) {
+    badge.textContent = totalCredits;
+    badge.style.display = 'inline';
+    badge.style.background = 'var(--accent-gold)';
+    badge.style.color = '#0a0a0f';
+  } else {
+    badge.textContent = '0';
+    badge.style.display = 'inline';
+    badge.style.background = 'var(--accent-red)';
+    badge.style.color = 'white';
+  }
+}
+
 console.log('providers-bids.js loaded');

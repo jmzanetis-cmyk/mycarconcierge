@@ -257,6 +257,11 @@ async function initializeProviderDashboard(user) {
     loadPerformance()
   ]);
   
+  // Load service credits after provider profile is loaded
+  if (typeof loadServiceCredits === 'function') {
+    loadServiceCredits();
+  }
+  
   updateStats();
   setupNav();
   
