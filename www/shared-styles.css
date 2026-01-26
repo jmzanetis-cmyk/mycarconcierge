@@ -910,10 +910,10 @@ body {
   transition: transform 0.3s ease;
 }
 
-[data-theme="dark"] .header-theme-toggle .theme-icon-sun { display: none; }
-[data-theme="dark"] .header-theme-toggle .theme-icon-moon { display: inline; }
-[data-theme="light"] .header-theme-toggle .theme-icon-sun { display: inline; }
-[data-theme="light"] .header-theme-toggle .theme-icon-moon { display: none; }
+[data-theme="dark"] .header-theme-toggle .theme-icon-sun { display: inline; }
+[data-theme="dark"] .header-theme-toggle .theme-icon-moon { display: none; }
+[data-theme="light"] .header-theme-toggle .theme-icon-sun { display: none; }
+[data-theme="light"] .header-theme-toggle .theme-icon-moon { display: inline; }
 
 /* Desktop Header - Theme Toggle for main content area */
 .desktop-header {

@@ -6873,7 +6873,8 @@ const mimeTypes = {
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
-  '.eot': 'application/vnd.ms-fontobject'
+  '.eot': 'application/vnd.ms-fontobject',
+  '.pdf': 'application/pdf'
 };
 
 const COMPRESSIBLE_TYPES = [
