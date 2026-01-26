@@ -72,5 +72,17 @@
                         <string>discover</string>
                 </array>
         </dict>
+        <key>NSCameraUsageDescription</key>
+        <string>My Car Concierge needs camera access to take photos of your vehicle registration, insurance cards, and service documents for verification.</string>
+        <key>NSPhotoLibraryUsageDescription</key>
+        <string>My Car Concierge needs photo library access to upload images of your vehicle registration, insurance cards, and service documents.</string>
+        <key>NSPhotoLibraryAddUsageDescription</key>
+        <string>My Car Concierge needs permission to save photos to your library.</string>
+        <key>NSLocationWhenInUseUsageDescription</key>
+        <string>My Car Concierge uses your location to find nearby service providers and enable temporary location sharing during vehicle service.</string>
+        <key>NSFaceIDUsageDescription</key>
+        <string>My Car Concierge uses Face ID for quick and secure login to your account.</string>
+        <key>ITSAppUsesNonExemptEncryption</key>
+        <false/>
 </dict>
 </plist>
