@@ -4577,11 +4577,20 @@
     async function loadSubscription() {
       try {
         // Load available service credit packs
-        const { data: packs } = await supabaseClient
+        const { data: packs, error: packsError } = await supabaseClient
           .from('bid_packs')
           .select('*')
           .eq('is_active', true)
           .order('price', { ascending: true });
+        
+        if (packsError) {
+          console.error('Error fetching service credits:', packsError);
+          const container = document.getElementById('bid-packs-grid');
+          if (container) {
+            container.innerHTML = `<p style="color:var(--accent-red);">Error loading service credits: ${packsError.message}</p>`;
+          }
+          return;
+        }
         
         bidPacks = packs || [];
         renderServiceCredits();
