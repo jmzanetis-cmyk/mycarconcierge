@@ -32,12 +32,27 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS free_trial_bids INTEGER DEFAULT 3;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS total_bids_purchased INTEGER DEFAULT 0;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS total_bids_used INTEGER DEFAULT 0;
 
--- Insert bid pack options
+-- Insert bid pack options (automotive-themed with volume discounts)
 INSERT INTO bid_packs (name, bid_count, bonus_bids, price, is_active, is_popular) VALUES
-  ('Starter', 5, 0, 9.99, true, false),
-  ('Standard', 15, 2, 24.99, true, true),
-  ('Professional', 30, 5, 44.99, true, false),
-  ('Enterprise', 75, 15, 99.99, true, false);
+  ('Jumper Cables', 1, 0, 10.00, true, false),
+  ('Dipstick', 50, 0, 200.00, true, false),
+  ('Spark Plug', 70, 0, 250.00, true, false),
+  ('Turbo', 95, 0, 300.00, true, false),
+  ('V8', 140, 0, 400.00, true, true),
+  ('Muscle Car', 195, 0, 500.00, true, false),
+  ('Supercharger', 270, 0, 625.00, true, false),
+  ('Racing Team', 385, 0, 800.00, true, true),
+  ('Pit Crew', 535, 0, 1000.00, true, false),
+  ('Speedway', 745, 0, 1250.00, true, false),
+  ('Grand Prix', 990, 0, 1500.00, true, false),
+  ('Formula One', 1470, 0, 2000.00, true, true),
+  ('Le Mans', 2050, 0, 2500.00, true, false),
+  ('Daytona', 2725, 0, 3000.00, true, false),
+  ('Indy 500', 4040, 0, 4000.00, true, false),
+  ('Monaco', 5620, 0, 5000.00, true, false),
+  ('Autobahn', 7800, 0, 6250.00, true, false),
+  ('Nürburgring', 10400, 0, 7500.00, true, false),
+  ('Championship', 15400, 0, 10000.00, true, false);
 
 -- Enable RLS
 ALTER TABLE bid_packs ENABLE ROW LEVEL SECURITY;

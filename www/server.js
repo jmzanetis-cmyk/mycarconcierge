@@ -4038,26 +4038,27 @@ async function getStripeClient() {
   return stripeClient;
 }
 
-const BID_PACKS = {
-  'dipstick': { name: 'Dipstick', bids: 50, bonus: 0, price: 20000 },
-  'spark-plug': { name: 'Spark Plug', bids: 70, bonus: 0, price: 25000 },
-  'turbo': { name: 'Turbo', bids: 95, bonus: 0, price: 30000 },
-  'v8': { name: 'V8', bids: 140, bonus: 0, price: 40000 },
-  'muscle-car': { name: 'Muscle Car', bids: 195, bonus: 0, price: 50000 },
-  'supercharger': { name: 'Supercharger', bids: 270, bonus: 0, price: 62500 },
-  'racing-team': { name: 'Racing Team', bids: 385, bonus: 0, price: 80000 },
-  'pit-crew': { name: 'Pit Crew', bids: 535, bonus: 0, price: 100000 },
-  'speedway': { name: 'Speedway', bids: 745, bonus: 0, price: 125000 },
-  'grand-prix': { name: 'Grand Prix', bids: 990, bonus: 0, price: 150000 },
-  'formula-one': { name: 'Formula One', bids: 1470, bonus: 0, price: 200000 },
-  'le-mans': { name: 'Le Mans', bids: 2050, bonus: 0, price: 250000 },
-  'daytona': { name: 'Daytona', bids: 2725, bonus: 0, price: 300000 },
-  'indy-500': { name: 'Indy 500', bids: 4040, bonus: 0, price: 400000 },
-  'monaco': { name: 'Monaco', bids: 5620, bonus: 0, price: 500000 },
-  'autobahn': { name: 'Autobahn', bids: 7800, bonus: 0, price: 625000 },
-  'nurburgring': { name: 'Nürburgring', bids: 10400, bonus: 0, price: 750000 },
-  'championship': { name: 'Championship', bids: 15400, bonus: 0, price: 1000000 }
-};
+async function getBidPackById(packId) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  
+  const { data: pack, error } = await supabase
+    .from('bid_packs')
+    .select('*')
+    .eq('id', packId)
+    .eq('is_active', true)
+    .single();
+  
+  if (error || !pack) return null;
+  
+  return {
+    id: pack.id,
+    name: pack.name,
+    bids: pack.bid_count,
+    bonus: pack.bonus_bids || 0,
+    price: Math.round(pack.price * 100)
+  };
+}
 
 async function checkNotificationPreference(userId, channel, type) {
   if (!userId) return true;
@@ -7935,8 +7936,7 @@ async function handleBidCheckout(req, res, requestId) {
         packId: { 
           required: true, 
           type: 'string', 
-          maxLength: 20,
-          enum: Object.keys(BID_PACKS)
+          uuid: true
         },
         providerId: { 
           required: true, 
@@ -7953,7 +7953,13 @@ async function handleBidCheckout(req, res, requestId) {
       }
 
       const { packId, providerId } = parsed;
-      const pack = BID_PACKS[packId];
+      const pack = await getBidPackById(packId);
+      
+      if (!pack) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid bid pack' }));
+        return;
+      }
 
       const stripe = await getStripeClient();
       const domain = process.env.REPLIT_DOMAINS?.split(',')[0] || 'localhost:5000';
