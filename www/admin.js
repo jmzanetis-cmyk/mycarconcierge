@@ -2823,6 +2823,62 @@
       }
     }
 
+    async function sendBulkWelcomeEmails() {
+      const btn = document.getElementById('send-welcome-emails-btn');
+      const statusMsg = document.getElementById('welcome-email-status');
+      
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      
+      try {
+        const session = await supabaseClient.auth.getSession();
+        if (!session?.data?.session?.access_token) {
+          showToast('Authentication required', 'error');
+          btn.disabled = false;
+          btn.textContent = originalText;
+          return;
+        }
+        
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = 'var(--bg-input)';
+        statusMsg.style.color = 'var(--text-secondary)';
+        statusMsg.textContent = 'Sending welcome emails... This may take a few minutes.';
+        
+        const response = await fetch('/api/admin/send-bulk-welcome-emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.data.session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          showToast(`Welcome emails sent! ${data.sent} sent, ${data.skipped} skipped, ${data.errors} errors`, 'success');
+          statusMsg.style.background = 'var(--accent-green-soft)';
+          statusMsg.style.color = 'var(--accent-green)';
+          statusMsg.textContent = `Complete! ${data.sent} emails sent, ${data.skipped} already sent/skipped, ${data.errors} errors. Total accounts: ${data.total}`;
+        } else {
+          showToast(data.error || 'Failed to send welcome emails', 'error');
+          statusMsg.style.background = 'var(--accent-red-soft)';
+          statusMsg.style.color = 'var(--accent-red)';
+          statusMsg.textContent = data.error || 'Failed to send welcome emails';
+        }
+      } catch (err) {
+        console.error('Failed to send bulk welcome emails:', err);
+        showToast('Failed to send welcome emails', 'error');
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = 'var(--accent-red-soft)';
+        statusMsg.style.color = 'var(--accent-red)';
+        statusMsg.textContent = 'Error: ' + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
+
     // ========== PILOT APPLICATIONS ==========
     let pilotApplications = [];
     let currentPilotFilter = 'pending';

@@ -1967,6 +1967,24 @@
           <div id="2fa-status-message" style="display:none;padding:12px 16px;border-radius:var(--radius-md);font-size:0.9rem;"></div>
         </div>
       </div>
+
+      <div class="card" style="margin-top:20px;">
+        <div class="card-header">
+          <h2 class="card-title">Email Settings</h2>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);">
+            <div>
+              <div style="font-weight:600;margin-bottom:4px;">Send Welcome Emails</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary);">Send welcome emails with Founder referral QR codes to all existing members and providers who haven't received one yet.</div>
+            </div>
+            <button class="btn btn-primary" id="send-welcome-emails-btn" onclick="sendBulkWelcomeEmails()" style="flex-shrink:0;margin-left:20px;">
+              Send Welcome Emails
+            </button>
+          </div>
+          <div id="welcome-email-status" style="display:none;padding:12px 16px;border-radius:var(--radius-md);font-size:0.9rem;"></div>
+        </div>
+      </div>
     </section>
     
     <div style="text-align:center;padding:40px 20px 20px;font-size:0.8rem;color:var(--text-muted);">
