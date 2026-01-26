@@ -4285,10 +4285,98 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
     const dashboardUrl = isProvider ? `${baseUrl}/providers.html` : `${baseUrl}/members.html`;
     const helpUrl = `${baseUrl}/help.html`;
     const unsubscribeUrl = `${baseUrl}/settings.html#notifications`;
+    const logoUrl = `${baseUrl}/logo.png`;
+    
+    // Generate or fetch referral code for the user
+    let referralCode = null;
+    try {
+      if (isProvider) {
+        // Check for existing provider referral code
+        const { data: existingCode } = await supabase
+          .from('provider_referral_codes')
+          .select('code')
+          .eq('provider_id', userId)
+          .eq('type', 'new_member')
+          .single();
+        
+        if (existingCode?.code) {
+          referralCode = existingCode.code;
+        } else {
+          // Generate new provider referral code
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+          referralCode = 'PRV';
+          for (let i = 0; i < 6; i++) {
+            referralCode += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+          await supabase.from('provider_referral_codes').insert({
+            provider_id: userId,
+            code: referralCode,
+            type: 'new_member'
+          });
+        }
+      } else {
+        // Check for existing member referral code
+        const { data: existingReferral } = await supabase
+          .from('referrals')
+          .select('referral_code')
+          .eq('referrer_id', userId)
+          .is('referred_id', null)
+          .limit(1);
+        
+        if (existingReferral?.length > 0) {
+          referralCode = existingReferral[0].referral_code;
+        } else {
+          // Generate new member referral code
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+          referralCode = 'MCC';
+          for (let i = 0; i < 6; i++) {
+            referralCode += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+          await supabase.from('referrals').insert({
+            referrer_id: userId,
+            referral_code: referralCode,
+            status: 'pending'
+          });
+        }
+      }
+    } catch (refErr) {
+      console.log('Could not generate referral code for welcome email:', refErr.message);
+    }
+    
+    // Create QR code URL - for members, links to member signup; for providers, links to member signup with their ref
+    const signupUrl = isProvider 
+      ? `${baseUrl}/signup-member.html?provider_ref=${referralCode || ''}`
+      : `${baseUrl}/signup-member.html?ref=${referralCode || ''}`;
+    const qrCodeUrl = referralCode 
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(signupUrl)}&bgcolor=fefdfb&color=1e3a5f`
+      : null;
     
     const subject = isProvider 
       ? 'Welcome to My Car Concierge - Provider Account Activated!'
       : 'Welcome to My Car Concierge!';
+    
+    // Referral QR section HTML (shared between both templates)
+    const referralSection = referralCode && qrCodeUrl ? `
+              <!-- Referral Section -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px;">
+                <tr>
+                  <td style="padding: 24px; background-color: #1e3a5f; border-radius: 8px; text-align: center;">
+                    <h3 style="margin: 0 0 12px 0; font-size: 18px; color: #ffffff; font-weight: 600;">Share & Earn Rewards</h3>
+                    <p style="margin: 0 0 16px 0; font-size: 14px; color: #e2e8f0; line-height: 1.5;">
+                      ${isProvider ? 'Refer new members to My Car Concierge and grow your customer base!' : 'Invite friends to join and you both get $10 in service credits!'}
+                    </p>
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td align="center">
+                          <img src="${qrCodeUrl}" alt="Your Referral QR Code" width="120" height="120" style="border-radius: 8px; background: #ffffff; padding: 8px;">
+                        </td>
+                      </tr>
+                    </table>
+                    <p style="margin: 16px 0 0 0; font-size: 20px; font-weight: 700; color: #b8942d; letter-spacing: 3px;">${referralCode}</p>
+                    <p style="margin: 8px 0 0 0; font-size: 12px; color: #94a3b8;">Your unique referral code</p>
+                  </td>
+                </tr>
+              </table>` : '';
     
     const emailHtml = isProvider ? `
 <!DOCTYPE html>
@@ -4305,6 +4393,7 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
         <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px;">
           <tr>
             <td align="center" style="padding-bottom: 30px;">
+              <img src="${logoUrl}" alt="My Car Concierge" width="80" height="80" style="display: block; margin-bottom: 12px;">
               <span style="font-family: Georgia, serif; font-size: 26px; color: #1e3a5f;">
                 My Car <span style="color: #b8942d;">Concierge</span>
               </span>
@@ -4382,6 +4471,7 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
                   </td>
                 </tr>
               </table>
+              ${referralSection}
             </td>
           </tr>
           <tr>
@@ -4410,6 +4500,7 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
         <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px;">
           <tr>
             <td align="center" style="padding-bottom: 30px;">
+              <img src="${logoUrl}" alt="My Car Concierge" width="80" height="80" style="display: block; margin-bottom: 12px;">
               <span style="font-family: Georgia, serif; font-size: 26px; color: #1e3a5f;">
                 My Car <span style="color: #b8942d;">Concierge</span>
               </span>
@@ -4487,6 +4578,7 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
                   </td>
                 </tr>
               </table>
+              ${referralSection}
             </td>
           </tr>
           <tr>
