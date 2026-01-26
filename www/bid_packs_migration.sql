@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS bid_packs (
   price DECIMAL(10,2) NOT NULL,
   is_active BOOLEAN DEFAULT true,
   is_popular BOOLEAN DEFAULT false,
+  badge_text VARCHAR(20),
   stripe_price_id VARCHAR(255),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -33,26 +34,27 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS total_bids_purchased INTEGER DEFAU
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS total_bids_used INTEGER DEFAULT 0;
 
 -- Insert bid pack options (automotive-themed with volume discounts)
-INSERT INTO bid_packs (name, bid_count, bonus_bids, price, is_active, is_popular) VALUES
-  ('Jumper Cables', 1, 0, 10.00, true, false),
-  ('Dipstick', 50, 0, 200.00, true, false),
-  ('Spark Plug', 70, 0, 250.00, true, false),
-  ('Turbo', 95, 0, 300.00, true, false),
-  ('V8', 140, 0, 400.00, true, true),
-  ('Muscle Car', 195, 0, 500.00, true, false),
-  ('Supercharger', 270, 0, 625.00, true, false),
-  ('Racing Team', 385, 0, 800.00, true, true),
-  ('Pit Crew', 535, 0, 1000.00, true, false),
-  ('Speedway', 745, 0, 1250.00, true, false),
-  ('Grand Prix', 990, 0, 1500.00, true, false),
-  ('Formula One', 1470, 0, 2000.00, true, true),
-  ('Le Mans', 2050, 0, 2500.00, true, false),
-  ('Daytona', 2725, 0, 3000.00, true, false),
-  ('Indy 500', 4040, 0, 4000.00, true, false),
-  ('Monaco', 5620, 0, 5000.00, true, false),
-  ('Autobahn', 7800, 0, 6250.00, true, false),
-  ('Nürburgring', 10400, 0, 7500.00, true, false),
-  ('Championship', 15400, 0, 10000.00, true, false);
+-- Badge strategy: Racing Team=POPULAR, Formula One=MOST POPULAR, Championship=BEST VALUE
+INSERT INTO bid_packs (name, bid_count, bonus_bids, price, is_active, is_popular, badge_text) VALUES
+  ('Jumper Cables', 1, 0, 10.00, true, false, NULL),
+  ('Dipstick', 50, 0, 200.00, true, false, NULL),
+  ('Spark Plug', 70, 0, 250.00, true, false, NULL),
+  ('Turbo', 95, 0, 300.00, true, false, NULL),
+  ('V8', 140, 0, 400.00, true, false, NULL),
+  ('Muscle Car', 195, 0, 500.00, true, false, NULL),
+  ('Supercharger', 270, 0, 625.00, true, false, NULL),
+  ('Racing Team', 385, 0, 800.00, true, true, 'POPULAR'),
+  ('Pit Crew', 535, 0, 1000.00, true, false, NULL),
+  ('Speedway', 745, 0, 1250.00, true, false, NULL),
+  ('Grand Prix', 990, 0, 1500.00, true, false, NULL),
+  ('Formula One', 1470, 0, 2000.00, true, true, 'MOST POPULAR'),
+  ('Le Mans', 2050, 0, 2500.00, true, false, NULL),
+  ('Daytona', 2725, 0, 3000.00, true, false, NULL),
+  ('Indy 500', 4040, 0, 4000.00, true, false, NULL),
+  ('Monaco', 5620, 0, 5000.00, true, false, NULL),
+  ('Autobahn', 7800, 0, 6250.00, true, false, NULL),
+  ('Nürburgring', 10400, 0, 7500.00, true, false, NULL),
+  ('Championship', 15400, 0, 10000.00, true, true, 'BEST VALUE');
 
 -- Enable RLS
 ALTER TABLE bid_packs ENABLE ROW LEVEL SECURITY;

@@ -4642,33 +4642,77 @@
         return;
       }
 
-      container.innerHTML = bidPacks.map(pack => {
+      // Sort by price descending (high to low) for anchoring effect
+      const sortedPacks = [...bidPacks].sort((a, b) => b.price - a.price);
+      
+      // Calculate base price per bid (Jumper Cables = $10/bid)
+      const basePerBid = 10.00;
+      
+      const renderPackCard = (pack) => {
         const totalBids = pack.bid_count + (pack.bonus_bids || 0);
-        const effectivePrice = (pack.price / totalBids).toFixed(2);
+        const effectivePriceNum = pack.price / totalBids;
+        const effectivePrice = effectivePriceNum.toFixed(2);
+        const savingsPercent = Math.max(0, Math.round((1 - (effectivePriceNum / basePerBid)) * 100));
+        const hasBadge = pack.badge_text || pack.is_popular;
+        const badgeText = pack.badge_text || (pack.is_popular ? 'POPULAR' : '');
         
         return `
-          <div style="background:var(--bg-elevated);border:2px solid ${pack.is_popular ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:var(--radius-lg);padding:20px;position:relative;text-align:center;">
-            ${pack.is_popular ? '<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-gold);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">BEST VALUE</div>' : ''}
+          <div style="background:var(--bg-elevated);border:2px solid ${hasBadge ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:var(--radius-lg);padding:20px;position:relative;text-align:center;">
+            ${badgeText ? `<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-gold);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">${badgeText}</div>` : ''}
             
             <div style="font-size:2.5rem;margin-bottom:8px;">🎟️</div>
             <h3 style="font-size:1.2rem;font-weight:600;margin-bottom:4px;">${pack.name}</h3>
             
             <div style="margin:16px 0;">
-              <span style="font-size:2rem;font-weight:700;">${pack.bid_count}</span>
+              <span style="font-size:2rem;font-weight:700;">${pack.bid_count.toLocaleString()}</span>
               <span style="color:var(--text-muted);"> bids</span>
               ${pack.bonus_bids > 0 ? `<div style="color:var(--accent-green);font-size:0.9rem;font-weight:500;">+${pack.bonus_bids} FREE bonus!</div>` : ''}
             </div>
 
-            <div style="font-size:1.5rem;font-weight:600;color:var(--accent-gold);margin-bottom:4px;">$${pack.price.toFixed(2)}</div>
-            <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:16px;">$${effectivePrice} per bid</div>
+            <div style="font-size:1.5rem;font-weight:600;color:var(--accent-gold);margin-bottom:4px;">$${pack.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">$${effectivePrice} per bid</div>
+            ${savingsPercent > 0 ? `<div style="font-size:0.85rem;color:var(--accent-green);font-weight:500;margin-bottom:12px;">Save ${savingsPercent}%</div>` : '<div style="margin-bottom:12px;"></div>'}
 
-            <button class="btn ${pack.is_popular ? 'btn-primary' : 'btn-secondary'}" style="width:100%;" onclick="purchaseBidPack('${pack.id}')">
+            <button class="btn ${hasBadge ? 'btn-primary' : 'btn-secondary'}" style="width:100%;" onclick="purchaseBidPack('${pack.id}')">
               Buy Now
             </button>
           </div>
         `;
-      }).join('');
+      };
+      
+      // Show top 6 packs, rest in expandable section
+      const topPacks = sortedPacks.slice(0, 6);
+      const morePacks = sortedPacks.slice(6);
+      
+      let html = topPacks.map(renderPackCard).join('');
+      
+      if (morePacks.length > 0) {
+        html += `
+          <div id="more-packs-section" style="grid-column: 1 / -1;">
+            <button id="toggle-more-packs" onclick="toggleMorePacks()" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-secondary);cursor:pointer;font-size:0.95rem;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>View ${morePacks.length} more packs</span>
+              <span id="more-packs-arrow" style="transition:transform 0.2s;">▼</span>
+            </button>
+            <div id="more-packs-grid" style="display:none;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:16px;">
+              ${morePacks.map(renderPackCard).join('')}
+            </div>
+          </div>
+        `;
+      }
+      
+      container.innerHTML = html;
     }
+    
+    window.toggleMorePacks = function() {
+      const grid = document.getElementById('more-packs-grid');
+      const arrow = document.getElementById('more-packs-arrow');
+      const btn = document.getElementById('toggle-more-packs');
+      const isHidden = grid.style.display === 'none';
+      
+      grid.style.display = isHidden ? 'grid' : 'none';
+      arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+      btn.querySelector('span:first-child').textContent = isHidden ? 'Show fewer packs' : `View ${document.querySelectorAll('#more-packs-grid > div').length} more packs`;
+    };
 
     function renderPurchaseHistory(purchases) {
       const container = document.getElementById('purchase-history');

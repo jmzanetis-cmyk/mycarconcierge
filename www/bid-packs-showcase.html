@@ -360,7 +360,7 @@
           .from('bid_packs')
           .select('*')
           .eq('is_active', true)
-          .order('price', { ascending: true });
+          .order('price', { ascending: false });
 
         if (error) throw error;
 
@@ -369,37 +369,76 @@
           return;
         }
 
-        container.innerHTML = bidPacks.map(pack => {
+        const basePerBid = 10.00;
+        
+        const renderPackCard = (pack) => {
           const totalBids = pack.bid_count + (pack.bonus_bids || 0);
-          const effectivePrice = (pack.price / totalBids).toFixed(2);
+          const effectivePriceNum = pack.price / totalBids;
+          const effectivePrice = effectivePriceNum.toFixed(2);
+          const savingsPercent = Math.max(0, Math.round((1 - (effectivePriceNum / basePerBid)) * 100));
+          const hasBadge = pack.badge_text || pack.is_popular;
+          const badgeText = pack.badge_text || (pack.is_popular ? 'POPULAR' : '');
           
           return `
-            <div class="pack-card ${pack.is_popular ? 'featured' : ''}">
-              ${pack.is_popular ? '<div class="pack-badge">BEST VALUE</div>' : ''}
+            <div class="pack-card ${hasBadge ? 'featured' : ''}">
+              ${badgeText ? `<div class="pack-badge">${badgeText}</div>` : ''}
               
               <div class="pack-icon">🎟️</div>
               <h3 class="pack-name">${pack.name}</h3>
               
               <div class="pack-bids">
-                <span class="pack-bids-count">${pack.bid_count}</span>
+                <span class="pack-bids-count">${pack.bid_count.toLocaleString()}</span>
                 <span class="pack-bids-label"> bids</span>
                 ${pack.bonus_bids > 0 ? `<div class="pack-bonus">+${pack.bonus_bids} FREE bonus!</div>` : ''}
               </div>
 
-              <div class="pack-price">$${pack.price.toFixed(2)}</div>
+              <div class="pack-price">$${pack.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
               <div class="pack-per-bid">$${effectivePrice} per bid</div>
+              ${savingsPercent > 0 ? `<div style="color:var(--accent-green);font-size:0.85rem;font-weight:500;margin-bottom:8px;">Save ${savingsPercent}%</div>` : ''}
 
-              <a href="/signup-provider.html" class="pack-btn ${pack.is_popular ? 'primary' : ''}">
+              <a href="/signup-provider.html" class="pack-btn ${hasBadge ? 'primary' : ''}">
                 Get Started
               </a>
             </div>
           `;
-        }).join('');
+        };
+        
+        const topPacks = bidPacks.slice(0, 6);
+        const morePacks = bidPacks.slice(6);
+        
+        let html = topPacks.map(renderPackCard).join('');
+        
+        if (morePacks.length > 0) {
+          html += `
+            <div style="grid-column: 1 / -1;">
+              <button id="toggle-more-packs" onclick="toggleMorePacks()" style="width:100%;padding:12px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-secondary);cursor:pointer;font-size:0.95rem;display:flex;align-items:center;justify-content:center;gap:8px;">
+                <span>View ${morePacks.length} more packs</span>
+                <span id="more-packs-arrow" style="transition:transform 0.2s;">▼</span>
+              </button>
+              <div id="more-packs-grid" class="packs-grid" style="display:none;margin-top:16px;">
+                ${morePacks.map(renderPackCard).join('')}
+              </div>
+            </div>
+          `;
+        }
+        
+        container.innerHTML = html;
 
       } catch (err) {
         console.error('Error loading bid packs:', err);
         container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">Unable to load bid packs. Please try again later.</p>';
       }
+    }
+    
+    function toggleMorePacks() {
+      const grid = document.getElementById('more-packs-grid');
+      const arrow = document.getElementById('more-packs-arrow');
+      const btn = document.getElementById('toggle-more-packs');
+      const isHidden = grid.style.display === 'none';
+      
+      grid.style.display = isHidden ? 'grid' : 'none';
+      arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+      btn.querySelector('span:first-child').textContent = isHidden ? 'Show fewer packs' : `View ${document.querySelectorAll('#more-packs-grid .pack-card').length} more packs`;
     }
 
     document.addEventListener('DOMContentLoaded', function() {
