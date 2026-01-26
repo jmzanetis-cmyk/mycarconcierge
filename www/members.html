@@ -89,6 +89,18 @@
       background: rgba(30, 58, 95, 0.06);
       border-color: rgba(30, 58, 95, 0.15);
     }
+    /* Light mode mobile sidebar overlay */
+    [data-theme="light"] .sidebar-overlay {
+      background: rgba(0, 0, 0, 0.3);
+    }
+    @media (max-width: 900px) {
+      [data-theme="light"] .sidebar {
+        background: linear-gradient(180deg, #ffffff 0%, #fefdfb 100%);
+      }
+      [data-theme="light"] .sidebar-footer {
+        background: rgba(255, 255, 255, 0.95);
+      }
+    }
     [data-theme="light"] .nav-item.active {
       background: linear-gradient(135deg, rgba(184, 148, 45, 0.15), rgba(184, 148, 45, 0.08));
       color: #1e3a5f;

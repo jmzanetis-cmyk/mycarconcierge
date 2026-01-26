@@ -43,6 +43,20 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Outfit', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); height: 100vh; display: flex; overflow: hidden; }
 
+    /* Light mode sidebar */
+    [data-theme="light"] .sidebar {
+      background: linear-gradient(180deg, #ffffff 0%, #fefdfb 100%);
+      border-right: 1px solid rgba(30, 58, 95, 0.1);
+    }
+    [data-theme="light"] .nav-item:hover {
+      background: rgba(30, 58, 95, 0.06);
+    }
+    @media (max-width: 768px) {
+      [data-theme="light"] .sidebar {
+        background: linear-gradient(180deg, #ffffff 0%, #fefdfb 100%);
+      }
+    }
+
     /* Layout */
     .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 260px; background: var(--bg-card); border-right: 1px solid var(--border-subtle); display: flex; flex-direction: column; z-index: 100; }
     .main { flex: 1; margin-left: 260px; padding: 32px 40px; height: 100%; overflow-y: auto; }
