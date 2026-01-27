@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Car Concierge - Investor Business Plan</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy: #1e3a5f;
+            --gold: #b8942d;
+            --gold-light: #d4af37;
+            --dark-slate: #12161c;
+            --off-white: #fefdfb;
+            --gray-100: #f8f9fa;
+            --gray-200: #e9ecef;
+            --gray-600: #6c757d;
+            --gray-800: #343a40;
+            --teal: #20c997;
+            --success: #28a745;
+            --danger: #dc3545;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1.6;
+            color: var(--gray-800);
+            background: var(--off-white);
+        }
+        
+        .page {
+            max-width: 8.5in;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        @media print {
+            .page {
+                box-shadow: none;
+                max-width: 100%;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+        
+        /* Cover Page */
+        .cover {
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--navy) 0%, var(--dark-slate) 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 3rem;
+            position: relative;
+        }
+        
+        .cover::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="%23b8942d" stroke-width="0.5" opacity="0.1"/></svg>') center/cover;
+            opacity: 0.3;
+        }
+        
+        .cover-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .logo-placeholder {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, var(--gold), var(--gold-light));
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            margin: 0 auto 2rem;
+            box-shadow: 0 10px 40px rgba(184, 148, 45, 0.3);
+        }
+        
+        .cover h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            letter-spacing: -1px;
+        }
+        
+        .cover .tagline {
+            font-size: 1.5rem;
+            color: var(--gold);
+            font-weight: 500;
+            margin-bottom: 2rem;
+        }
+        
+        .cover .headline {
+            font-size: 2rem;
+            font-weight: 300;
+            opacity: 0.9;
+            margin-bottom: 3rem;
+            max-width: 600px;
+        }
+        
+        .cover-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .cover-footer {
+            position: absolute;
+            bottom: 2rem;
+            font-size: 0.85rem;
+            opacity: 0.6;
+        }
+        
+        /* Section Pages */
+        .section {
+            padding: 4rem 3rem;
+            min-height: auto;
+        }
+        
+        .section-header {
+            border-bottom: 3px solid var(--gold);
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .section-header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--navy);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .section-header .section-number {
+            display: inline-block;
+            background: var(--gold);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 40px;
+            font-weight: 700;
+            margin-right: 1rem;
+        }
+        
+        h3 {
+            font-size: 1.4rem;
+            color: var(--navy);
+            margin: 2rem 0 1rem;
+            font-weight: 600;
+        }
+        
+        h4 {
+            font-size: 1.1rem;
+            color: var(--gray-800);
+            margin: 1.5rem 0 0.75rem;
+            font-weight: 600;
+        }
+        
+        p {
+            margin-bottom: 1rem;
+            color: var(--gray-800);
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, var(--navy), var(--dark-slate));
+            color: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--gold);
+            display: block;
+        }
+        
+        .stat-card .label {
+            font-size: 0.85rem;
+            opacity: 0.9;
+            margin-top: 0.5rem;
+        }
+        
+        .stat-card .source {
+            font-size: 0.7rem;
+            opacity: 0.6;
+            margin-top: 0.25rem;
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.9rem;
+        }
+        
+        th {
+            background: var(--navy);
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 0.875rem 1rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        tr:nth-child(even) {
+            background: var(--gray-100);
+        }
+        
+        tr:hover {
+            background: rgba(184, 148, 45, 0.1);
+        }
+        
+        /* Highlight Boxes */
+        .highlight-box {
+            background: linear-gradient(135deg, var(--gold), var(--gold-light));
+            color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin: 2rem 0;
+        }
+        
+        .highlight-box h3 {
+            color: white;
+            margin-top: 0;
+        }
+        
+        .info-box {
+            background: var(--gray-100);
+            border-left: 4px solid var(--navy);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid var(--gold);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        /* Process Flow */
+        .process-flow {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 2rem 0;
+            flex-wrap: wrap;
+        }
+        
+        .process-step {
+            text-align: center;
+            flex: 1;
+            min-width: 120px;
+            padding: 1rem;
+        }
+        
+        .process-step .icon {
+            width: 60px;
+            height: 60px;
+            background: var(--navy);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin: 0 auto 0.75rem;
+        }
+        
+        .process-step .title {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .process-arrow {
+            color: var(--gold);
+            font-size: 1.5rem;
+        }
+        
+        /* Two Column Layout */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 1.5rem 0;
+        }
+        
+        .col {
+            background: var(--gray-100);
+            padding: 1.5rem;
+            border-radius: 12px;
+        }
+        
+        .col h4 {
+            margin-top: 0;
+            color: var(--navy);
+        }
+        
+        /* Lists */
+        ul {
+            margin: 1rem 0 1rem 1.5rem;
+        }
+        
+        li {
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Code Block (for process) */
+        .code-block {
+            background: var(--dark-slate);
+            color: #e9ecef;
+            padding: 1.5rem;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.85rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+        }
+        
+        .code-block .arrow {
+            color: var(--gold);
+        }
+        
+        .code-block .highlight {
+            color: var(--teal);
+        }
+        
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .badge-gold {
+            background: var(--gold);
+            color: white;
+        }
+        
+        .badge-navy {
+            background: var(--navy);
+            color: white;
+        }
+        
+        .badge-success {
+            background: var(--success);
+            color: white;
+        }
+        
+        /* Financial Chart Placeholder */
+        .chart-container {
+            background: var(--gray-100);
+            border: 2px dashed var(--gray-200);
+            padding: 3rem;
+            text-align: center;
+            border-radius: 12px;
+            margin: 1.5rem 0;
+        }
+        
+        /* Feature Grid */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        
+        .feature-item {
+            background: white;
+            border: 1px solid var(--gray-200);
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+        
+        .feature-item .check {
+            color: var(--success);
+            margin-right: 0.5rem;
+        }
+        
+        /* CTA Section */
+        .cta-section {
+            background: linear-gradient(135deg, var(--navy), var(--dark-slate));
+            color: white;
+            padding: 3rem;
+            border-radius: 16px;
+            text-align: center;
+            margin: 2rem 0;
+        }
+        
+        .cta-section h3 {
+            color: white;
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .cta-section .amount {
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: var(--gold);
+        }
+        
+        /* Use of Funds */
+        .funds-bar {
+            display: flex;
+            height: 40px;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+        
+        .funds-segment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .funds-segment.engineering { background: var(--navy); width: 40%; }
+        .funds-segment.marketing { background: var(--gold); width: 30%; }
+        .funds-segment.operations { background: var(--teal); width: 20%; }
+        .funds-segment.legal { background: var(--gray-600); width: 10%; }
+        
+        .funds-legend {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .funds-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+        
+        .funds-legend-item .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        /* Print Button */
+        .print-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--gold);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(184, 148, 45, 0.4);
+            z-index: 1000;
+        }
+        
+        .print-btn:hover {
+            background: var(--gold-light);
+            transform: translateY(-2px);
+        }
+        
+        /* Competitive Matrix */
+        .matrix-table th:first-child,
+        .matrix-table td:first-child {
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .matrix-table td {
+            text-align: center;
+        }
+        
+        .matrix-check {
+            color: var(--success);
+            font-size: 1.2rem;
+        }
+        
+        .matrix-x {
+            color: var(--gray-600);
+            font-size: 1.2rem;
+        }
+        
+        /* Footer */
+        .page-footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--gray-600);
+            font-size: 0.8rem;
+            border-top: 1px solid var(--gray-200);
+        }
+    </style>
+</head>
+<body>
+    <button class="print-btn no-print" onclick="window.print()">Save as PDF</button>
+    
+    <div class="page">
+        <!-- Cover Page -->
+        <div class="cover">
+            <div class="cover-content">
+                <div class="logo-placeholder">MCC</div>
+                <h1>MY CAR CONCIERGE</h1>
+                <p class="tagline">The Complete Car Ownership Platform</p>
+                <p class="headline">One app. Every car need. Zero hassle.</p>
+                <span class="cover-badge">Confidential Investment Memorandum</span>
+            </div>
+            <div class="cover-footer">January 2026</div>
+        </div>
+
+        <!-- Executive Summary -->
+        <div class="section page-break">
+            <div class="section-header">
+                <span class="section-number">1</span>
+                <h2>Executive Summary</h2>
+            </div>
+            
+            <p><strong>My Car Concierge (MCC)</strong> is transforming the $443 billion automotive aftermarket by connecting vehicle owners with vetted service providers through a transparent, competitive bidding marketplace.</p>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="value">$443B</span>
+                    <div class="label">Market Size 2025</div>
+                    <div class="source">Straits Research</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value">12.8yr</span>
+                    <div class="label">Avg Vehicle Age</div>
+                    <div class="source">S&P Global Mobility</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value">245M+</span>
+                    <div class="label">Out-of-Warranty Vehicles</div>
+                    <div class="source">KPMG Q2 2025</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value">&lt;5%</span>
+                    <div class="label">Digital Penetration</div>
+                    <div class="source">McKinsey 2024</div>
+                </div>
+            </div>
+            
+            <div class="highlight-box">
+                <h3>The Ask</h3>
+                <p style="margin:0;"><strong>Raising $500,000</strong> seed round to achieve 500 providers, 5,000 members, and $500K ARR within 12 months.</p>
+            </div>
+
+            <h3>Use of Funds</h3>
+            <div class="funds-bar">
+                <div class="funds-segment engineering">40%</div>
+                <div class="funds-segment marketing">30%</div>
+                <div class="funds-segment operations">20%</div>
+                <div class="funds-segment legal">10%</div>
+            </div>
+            <div class="funds-legend">
+                <div class="funds-legend-item"><span class="dot" style="background: var(--navy)"></span> Engineering $200K</div>
+                <div class="funds-legend-item"><span class="dot" style="background: var(--gold)"></span> Marketing $150K</div>
+                <div class="funds-legend-item"><span class="dot" style="background: var(--teal)"></span> Operations $100K</div>
+                <div class="funds-legend-item"><span class="dot" style="background: var(--gray-600)"></span> Legal $50K</div>
+            </div>
+        </div>
+
+        <!-- The Problem -->
+        <div class="section page-break">
+            <div class="section-header">
+                <span class="section-number">2</span>
+                <h2>The Problem</h2>
+            </div>
+            
+            <h3>A $443B Industry Running on Phone Calls</h3>
+            <p>The automotive aftermarket is one of the largest consumer markets in America—yet it operates like it's 1995.</p>
+            
+            <div class="code-block">
+                <span class="arrow">Call Shop A</span> <span class="highlight">"We'll call you back with a quote"</span><br>
+                <span class="arrow">Call Shop B</span> <span class="highlight">"Bring it in, we'll take a look"</span><br>
+                <span class="arrow">Call Shop C</span> <span class="highlight">Voicemail...</span><br>
+                <span class="arrow">Call Shop D</span> <span class="highlight">"$800... or maybe $1,200"</span><br>
+                <span style="color: #dc3545;">Give up</span> <span class="highlight">Overpay at the first shop that answers</span>
+            </div>
+            
+            <div class="warning-box">
+                <strong>76% of consumers don't trust auto mechanics</strong> — AAA Consumer Survey
+            </div>
+            
+            <h3>Why This Pain Persists</h3>
+            <table>
+                <tr><th>Problem</th><th>Impact</th></tr>
+                <tr><td>Information asymmetry</td><td>Shops know more than customers</td></tr>
+                <tr><td>No price discovery</td><td>Calling for quotes is exhausting</td></tr>
+                <tr><td>Quality uncertainty</td><td>Hard to verify skills before hiring</td></tr>
+                <tr><td>Payment risk</td><td>No protection if work is subpar</td></tr>
+            </table>
+
+            <h3>Market Timing: Why Now?</h3>
+            <div class="two-col">
+                <div class="col">
+                    <h4>Aging Vehicle Fleet</h4>
+                    <ul>
+                        <li>Average vehicle age: <strong>12.8 years</strong> (record high)</li>
+                        <li>Up 2 months YoY for 2nd consecutive year</li>
+                        <li><strong>119M vehicles</strong> in "sweet spot" (4-11 years old)</li>
+                    </ul>
+                </div>
+                <div class="col">
+                    <h4>Extended Ownership</h4>
+                    <ul>
+                        <li>High new car prices keeping owners longer</li>
+                        <li>27% of trade-ins are "underwater"</li>
+                        <li>New vehicle sales down from 17.3M to 15.2M</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Market Opportunity -->
+        <div class="section page-break">
+            <div class="section-header">
+                <span class="section-number">3</span>
+                <h2>Market Opportunity</h2>
+            </div>
+            
+            <h3>Total Addressable Market</h3>
+            <table>
+                <tr><th>Year</th><th>Market Size</th><th>Growth</th></tr>
+                <tr><td>2024</td><td>$430B</td><td>—</td></tr>
+                <tr><td>2025</td><td>$443B</td><td>+3.0%</td></tr>
+                <tr><td>2032</td><td>$566B</td><td>3.6% CAGR</td></tr>
+            </table>
+            
+            <h3>US Market Breakdown</h3>
+            <table>
+                <tr><th>Segment</th><th>Size</th></tr>
+                <tr><td>Total Aftermarket</td><td>$435B (2025)</td></tr>
+                <tr><td>Repair & Maintenance Services</td><td>$120B</td></tr>
+                <tr><td>Collision Repair</td><td>$50B</td></tr>
+                <tr><td><strong>Our Target (Independent Services)</strong></td><td><strong>$75B</strong></td></tr>
+            </table>
+            
+            <h3>Serviceable Addressable Market</h3>
+            <p><strong>Initial Focus:</strong> Top 25 US metro areas</p>
+            <table>
+                <tr><th>Segment</th><th>Vehicles</th><th>Spend/Year</th><th>SAM</th></tr>
+                <tr><td>Individual owners</td><td>45M</td><td>$1,200</td><td>$54B</td></tr>
+                <tr><td>Families (2+ vehicles)</td><td>15M</td><td>$2,400</td><td>$36B</td></tr>
+                <tr><td>Small fleets (&lt;10 vehicles)</td><td>2M</td><td>$8,000</td><td>$16B</td></tr>
+                <tr><td><strong>Total SAM</strong></td><td></td><td></td><td><strong>$106B</strong></td></tr>
+            </table>
+            
+            <div class="highlight-box">
+                <h3>Serviceable Obtainable Market (5-Year)</h3>
+                <p style="margin:0;font-size:1.5rem;">Capturing <strong>0.5% of SAM</strong> = <strong>$500M+ GMV opportunity</strong></p>
+            </div>
+        </div>
+
+        <!-- Our Solution -->
+        <div class="section page-break">
+            <div class="section-header">
+                <span class="section-number">4</span>
+                <h2>Our Solution</h2>
+            </div>
+            
+            <p><strong>My Car Concierge</strong> is the complete car ownership platform—not just a service marketplace, but an ecosystem that manages every aspect of vehicle ownership.</p>
+            
+            <h3>Core Platform Pillars</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="value" style="font-size:1.5rem;">Find Service</span>
+                    <div class="label">Post jobs, receive bids, escrow payments</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value" style="font-size:1.5rem;">Manage Vehicles</span>
+                    <div class="label">Garage, maintenance, documents</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value" style="font-size:1.5rem;">Learn</span>
+                    <div class="label">Car Care Academy, AI helpdesk</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value" style="font-size:1.5rem;">Shop Smarter</span>
+                    <div class="label">Dream Car Finder, My Next Car</div>
+                </div>
+            </div>
+            
+            <h3>How It Works</h3>
+            <div class="process-flow">
+                <div class="process-step">
+                    <div class="icon">1</div>
+                    <div class="title">Member Posts Job</div>
+                </div>
+                <div class="process-arrow">&#8594;</div>
+                <div class="process-step">
+                    <div class="icon">2</div>
+                    <div class="title">Providers Bid</div>
+                </div>
+                <div class="process-arrow">&#8594;</div>
+                <div class="process-step">
+                    <div class="icon">3</div>
+                    <div class="title">Member Selects</div>
+                </div>
+                <div class="process-arrow">&#8594;</div>
+                <div class="process-step">
+                    <div class="icon">4</div>
+                    <div class="title">Payment in Escrow</div>
+                </div>
+                <div class="process-arrow">&#8594;</div>
+                <div class="process-step">
+                    <div class="icon">5</div>
+                    <div class="title">Job Complete</div>
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <strong>Trust Layer:</strong> Payment held in escrow until member confirms job completion. Provider receives payment minus 2% platform fee.
+            </div>
+            
+            <h3>Technology Differentiators</h3>
+            <table>
+                <tr><th>Feature</th><th>Benefit</th></tr>
+                <tr><td>PWA + Native Apps</td><td>Works everywhere (iOS, Android, Web, Desktop)</td></tr>
+                <tr><td>Escrow Payments</td><td>Trust without meeting first</td></tr>
+                <tr><td>AI Integration</td><td>Helpdesk, car search, diagnostics</td></tr>
+                <tr><td>OCR Verification</td><td>Instant document verification</td></tr>
+                <tr><td>2FA Security</td><td>Bank-level account protection</td></tr>
+            </table>
+        </div>
+
+        <!-- Traction -->
+        <div class="section page-break">
+            <div class="section-header">
+                <span class="section-number">5</span>
+                <h2>Traction & Validation</h2>
+            </div>
+            
+            <h3>Platform Status</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="value">40+</span>
+                    <div class="label">Features Built</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value">100+</span>
+                    <div class="label">Database Tables</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value">212</span>
+                    <div class="label">Security Policies</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value" style="font-size:1.3rem;">Production Ready</span>
+                    <div class="label">Status</div>
+                </div>
+            </div>
+            
+            <h3>Completed Features</h3>
+            <div class="two-col">
+                <div class="col">
+                    <h4>Member Features</h4>
+                    <div class="feature-grid" style="grid-template-columns: 1fr;">
+                        <div class="feature-item"><span class="check">&#10003;</span> Vehicle garage with VIN decoding</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> Service package creation</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> Bid comparison interface</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> Escrow payment flow</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> Maintenance reminders</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> NHTSA recall alerts</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> Dream Car Finder (AI)</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> 7-language support</div>
+                    </div>
+                </div>
+                <div class="col">
+                    <h4>Provider Features</h4>
+                    <div class="feature-grid" style="grid-template-columns: 1fr;">
+                        <div class="feature-item"><span class="check">&#10003;</span> Bid submission system</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> Team management</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> Analytics dashboard</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> Stripe Connect payouts</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> Loyalty referral program</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> Push notifications</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> Performance tracking</div>
+                        <div class="feature-item"><span class="check">&#10003;</span> Background checks</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="highlight-box">
+                <h3>Viral Growth Built-In</h3>
+                <p style="margin:0;">Every user becomes a "founder" who can refer new providers and earn <strong>50% lifetime commission</strong> on all bid pack purchases. Creates natural network effects and drastically reduces CAC.</p>
+            </div>
+        </div>
+
+        <!-- Business Model -->
+        <div class="section page-break">
+            <div class="section-header">
+                <span class="section-number">6</span>
+                <h2>Business Model</h2>
+            </div>
+            
+            <h3>Revenue Streams</h3>
+            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+                <div class="stat-card">
+                    <span class="value">80%</span>
+                    <div class="label">Service Credits</div>
+                    <div class="source">Bid pack purchases</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value">15%</span>
+                    <div class="label">Transaction Fees</div>
+                    <div class="source">2% on escrow jobs</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value">5%</span>
+                    <div class="label">Merchandise</div>
+                    <div class="source">Branded products</div>
+                </div>
+            </div>
+            
+            <h3>Bid Pack Pricing (Selected Tiers)</h3>
+            <table>
+                <tr><th>Pack Name</th><th>Credits</th><th>Price</th><th>$/Credit</th><th>Discount</th></tr>
+                <tr><td>Jumper Cables</td><td>1</td><td>$10</td><td>$10.00</td><td>—</td></tr>
+                <tr><td>Dipstick</td><td>50</td><td>$200</td><td>$4.00</td><td>60%</td></tr>
+                <tr><td>Muscle Car</td><td>195</td><td>$500</td><td>$2.56</td><td>74%</td></tr>
+                <tr><td>Pit Crew</td><td>535</td><td>$1,000</td><td>$1.87</td><td>81%</td></tr>
+                <tr><td>Championship</td><td>15,400</td><td>$10,000</td><td>$0.65</td><td>94%</td></tr>
+            </table>
+            
+            <h3>Unit Economics</h3>
+            <table>
+                <tr><th>Metric</th><th>Value</th></tr>
+                <tr><td>Average Bid Pack Purchase</td><td>$500</td></tr>
+                <tr><td>Provider Replenishment Rate</td><td>Quarterly</td></tr>
+                <tr><td>Annual Provider Revenue</td><td>$2,000+</td></tr>
+                <tr><td>Average Transaction Value</td><td>$350</td></tr>
+                <tr><td>Transaction Fee Revenue</td><td>$7/transaction</td></tr>
+                <tr><td>Gross Margin</td><td>85%+ (software)</td></tr>
+            </table>
+        </div>
+
+        <!-- Competitive Landscape -->
+        <div class="section page-break">
+            <div class="section-header">
+                <span class="section-number">7</span>
+                <h2>Competitive Landscape</h2>
+            </div>
+            
+            <h3>Competitive Matrix</h3>
+            <table class="matrix-table">
+                <tr>
+                    <th>Competitor</th>
+                    <th>Services</th>
+                    <th>Vehicles</th>
+                    <th>Documents</th>
+                    <th>Shopping</th>
+                    <th>Recalls</th>
+                    <th>Escrow</th>
+                </tr>
+                <tr>
+                    <td>RepairPal</td>
+                    <td><span class="matrix-check">&#10003;</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                </tr>
+                <tr>
+                    <td>Openbay</td>
+                    <td><span class="matrix-check">&#10003;</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                </tr>
+                <tr>
+                    <td>CarFax</td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-check">&#10003;</span></td>
+                    <td><span class="matrix-check">&#10003;</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                </tr>
+                <tr>
+                    <td>Yelp/Thumbtack</td>
+                    <td><span class="matrix-check">&#10003;</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="matrix-x">—</span></td>
+                </tr>
+                <tr style="background: rgba(184, 148, 45, 0.2);">
+                    <td><strong>My Car Concierge</strong></td>
+                    <td><span class="matrix-check">&#10003;</span></td>
+                    <td><span class="matrix-check">&#10003;</span></td>
+                    <td><span class="matrix-check">&#10003;</span></td>
+                    <td><span class="matrix-check">&#10003;</span></td>
+                    <td><span class="matrix-check">&#10003;</span></td>
+                    <td><span class="matrix-check">&#10003;</span></td>
+                </tr>
+            </table>
+            
+            <h3>Our Competitive Advantages</h3>
+            <div class="two-col">
+                <div class="col">
+                    <h4>1. Two-Sided Network Effects</h4>
+                    <p>More providers means better pricing, which attracts more members, which attracts more providers. Winner-take-most dynamics.</p>
+                </div>
+                <div class="col">
+                    <h4>2. Escrow Payment Protection</h4>
+                    <p>Unlike Yelp/Thumbtack, we hold funds until completion. Creates trust layer that enables transactions.</p>
+                </div>
+            </div>
+            <div class="two-col">
+                <div class="col">
+                    <h4>3. Complete Vehicle Ecosystem</h4>
+                    <p>Competitors focus on ONE thing. We own the entire vehicle ownership relationship.</p>
+                </div>
+                <div class="col">
+                    <h4>4. Viral Referral Economics</h4>
+                    <p>50% lifetime commission creates army of recruiters. Drastically reduces CAC.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Financial Projections -->
+        <div class="section page-break">
+            <div class="section-header">
+                <span class="section-number">8</span>
+                <h2>Financial Projections</h2>
+            </div>
+            
+            <h3>Year 1 Quarterly Breakdown</h3>
+            <table>
+                <tr><th>Quarter</th><th>Providers</th><th>Members</th><th>Bid Pack Rev</th><th>Transaction Rev</th><th>Total</th></tr>
+                <tr><td>Q1</td><td>50</td><td>500</td><td>$25,000</td><td>$2,500</td><td>$27,500</td></tr>
+                <tr><td>Q2</td><td>150</td><td>1,500</td><td>$75,000</td><td>$10,000</td><td>$85,000</td></tr>
+                <tr><td>Q3</td><td>300</td><td>3,000</td><td>$125,000</td><td>$25,000</td><td>$150,000</td></tr>
+                <tr><td>Q4</td><td>500</td><td>5,000</td><td>$175,000</td><td>$50,000</td><td>$225,000</td></tr>
+                <tr style="background: rgba(184, 148, 45, 0.2);"><td><strong>Year 1</strong></td><td><strong>500</strong></td><td><strong>5,000</strong></td><td><strong>$400,000</strong></td><td><strong>$87,500</strong></td><td><strong>$487,500</strong></td></tr>
+            </table>
+            
+            <h3>3-Year Projection</h3>
+            <table>
+                <tr><th>Year</th><th>Providers</th><th>Members</th><th>Revenue</th><th>EBITDA</th><th>Margin</th></tr>
+                <tr><td>Year 1</td><td>500</td><td>5,000</td><td>$500K</td><td>($100K)</td><td>(20%)</td></tr>
+                <tr><td>Year 2</td><td>2,000</td><td>25,000</td><td>$2.5M</td><td>$325K</td><td>13%</td></tr>
+                <tr><td>Year 3</td><td>5,000</td><td>100,000</td><td>$8M</td><td>$2.8M</td><td>35%</td></tr>
+            </table>
+            
+            <h3>Key Assumptions</h3>
+            <table>
+                <tr><th>Assumption</th><th>Value</th><th>Rationale</th></tr>
+                <tr><td>Avg. bid pack purchase</td><td>$500</td><td>Mid-tier packs most popular</td></tr>
+                <tr><td>Provider replenishment</td><td>Quarterly</td><td>Based on 50-100 bids/month usage</td></tr>
+                <tr><td>Escrow adoption</td><td>30% of jobs</td><td>Conservative; grows as trust builds</td></tr>
+                <tr><td>Provider churn</td><td>15%/year</td><td>Low due to lead quality</td></tr>
+                <tr><td>Member acquisition cost</td><td>$15</td><td>Referral program reduces paid</td></tr>
+                <tr><td>Gross margin</td><td>85%</td><td>Pure software; no inventory</td></tr>
+            </table>
+        </div>
+
+        <!-- The Ask -->
+        <div class="section page-break">
+            <div class="section-header">
+                <span class="section-number">9</span>
+                <h2>The Ask</h2>
+            </div>
+            
+            <div class="cta-section">
+                <h3>Seed Round</h3>
+                <div class="amount">$500,000</div>
+                <p style="opacity: 0.8; margin-top: 1rem;">SAFE or Convertible Note | $3M Cap | 20% Discount</p>
+            </div>
+            
+            <h3>Use of Funds</h3>
+            <table>
+                <tr><th>Category</th><th>Amount</th><th>Focus</th></tr>
+                <tr><td>Engineering</td><td>$200,000</td><td>Mobile app polish, API scaling, integrations</td></tr>
+                <tr><td>Marketing</td><td>$150,000</td><td>Provider acquisition, brand awareness, content</td></tr>
+                <tr><td>Operations</td><td>$100,000</td><td>Customer success, provider vetting</td></tr>
+                <tr><td>Legal/Compliance</td><td>$50,000</td><td>Multi-state expansion, contracts</td></tr>
+            </table>
+            
+            <h3>12-Month Milestones</h3>
+            <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr);">
+                <div class="stat-card">
+                    <span class="value">500</span>
+                    <div class="label">Active Providers</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value">5,000</span>
+                    <div class="label">Active Members</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value">$500K</span>
+                    <div class="label">ARR</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value">10</span>
+                    <div class="label">Metro Markets</div>
+                </div>
+                <div class="stat-card">
+                    <span class="value" style="font-size: 1.2rem;">iOS + Android</span>
+                    <div class="label">Mobile Apps</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Why Invest Now -->
+        <div class="section page-break">
+            <div class="section-header">
+                <span class="section-number">10</span>
+                <h2>Why Invest Now</h2>
+            </div>
+            
+            <div class="two-col">
+                <div class="col" style="background: linear-gradient(135deg, var(--navy), var(--dark-slate)); color: white;">
+                    <h4 style="color: var(--gold);">1. Market Timing is Perfect</h4>
+                    <p style="color: white;">Vehicle fleet at record age (12.8 years). Consumers demanding digital-first experiences. &lt;5% of aftermarket digitized. First mover captures network effects.</p>
+                </div>
+                <div class="col" style="background: linear-gradient(135deg, var(--navy), var(--dark-slate)); color: white;">
+                    <h4 style="color: var(--gold);">2. Platform is Built</h4>
+                    <p style="color: white;">40+ features complete. Enterprise-grade infrastructure. Production-ready today. Not a concept—a working product.</p>
+                </div>
+            </div>
+            <div class="two-col">
+                <div class="col" style="background: linear-gradient(135deg, var(--navy), var(--dark-slate)); color: white;">
+                    <h4 style="color: var(--gold);">3. Business Model is Proven</h4>
+                    <p style="color: white;">Marketplace economics understood. Bid pack model validated (volume pricing). Clear path to profitability.</p>
+                </div>
+                <div class="col" style="background: linear-gradient(135deg, var(--navy), var(--dark-slate)); color: white;">
+                    <h4 style="color: var(--gold);">4. Viral Growth Built-In</h4>
+                    <p style="color: white;">50% lifetime referral commissions. Every user becomes recruiter. Network effects create moat.</p>
+                </div>
+            </div>
+            
+            <div class="highlight-box" style="text-align: center; margin-top: 2rem;">
+                <h3 style="font-size: 1.5rem;">5. Recession-Resistant Market</h3>
+                <p style="margin: 0; font-size: 1.1rem;">Vehicle repairs are non-discretionary. Aging fleet ensures sustained demand.<br>Investors favor essential services.</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="page-footer">
+            <p><strong>My Car Concierge</strong> | Confidential Investment Memorandum | January 2026</p>
+            <p>This document is confidential and intended for potential investors only.</p>
+        </div>
+    </div>
+</body>
+</html>
