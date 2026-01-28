@@ -21266,6 +21266,14 @@ const server = http.createServer((req, res) => {
     filePath = './index.html';
   }
   
+  // Serve rideshare calculator from www/rideshare folder
+  if (filePath.startsWith('./rideshare')) {
+    const rideshareUrl = filePath.replace('./rideshare', './rideshare');
+    if (filePath === './rideshare' || filePath === './rideshare/') {
+      filePath = './rideshare/index.html';
+    }
+  }
+  
   if (filePath.includes('?')) {
     filePath = filePath.split('?')[0];
   }

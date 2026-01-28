@@ -977,6 +977,7 @@
     <div class="nav-item" data-section="shop" style="background:linear-gradient(135deg, rgba(212,168,85,0.1), rgba(74,124,255,0.05));border:1px solid rgba(212,168,85,0.2);"><span style="color:var(--accent-gold);">🛍️ Shop</span></div>
     <div class="nav-item" data-section="order-history"><span>📦 Order History</span></div>
     <div class="nav-item" data-section="cost-estimator"><span>💰 Cost Estimator</span></div>
+    <div class="nav-item" onclick="window.open('/rideshare/', '_blank')" style="background:linear-gradient(135deg, rgba(74,200,140,0.1), rgba(74,124,255,0.05));border:1px solid rgba(74,200,140,0.2);cursor:pointer;"><span style="color:var(--accent-green);">🚕 Rideshare Calculator</span></div>
     <div class="nav-item" data-section="upsells"><span data-i18n="member.additionalWork">⚠️ Additional Work</span> <span class="nav-badge" id="upsell-count" style="display:none;background:var(--accent-orange);">0</span></div>
     <div class="nav-item" data-section="messages"><span data-i18n="nav.messages">💬 Messages</span> <span class="nav-badge" id="message-count" style="display:none;">0</span></div>
     <div class="nav-item" data-section="history"><span data-i18n="member.serviceHistory">📜 Service History</span></div>
@@ -1152,6 +1153,21 @@
           <div class="stat-icon blue">🔧</div>
           <div class="stat-value" id="stat-providers">0</div>
           <div class="stat-label">Providers</div>
+        </div>
+      </div>
+
+      <!-- Rideshare Calculator Promo Card -->
+      <div class="card" style="background: linear-gradient(135deg, rgba(74,200,140,0.1), rgba(74,124,255,0.08)); border: 1px solid rgba(74,200,140,0.3); margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+          <div style="font-size: 48px;">🚕</div>
+          <div style="flex: 1; min-width: 200px;">
+            <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 8px; color: var(--text-primary);">Rideshare Profit Calculator</h3>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px;">Are you really making money driving for Uber, Lyft, or DoorDash?</p>
+            <p style="color: var(--text-muted); font-size: 0.85rem;">Calculate your true earnings after ALL hidden costs - depreciation, fuel, maintenance, and insurance.</p>
+          </div>
+          <button onclick="window.open('/rideshare/', '_blank')" class="btn" style="padding: 14px 28px; font-weight: 600; border-radius: 100px; background: linear-gradient(135deg, var(--accent-green), #3cb371); color: white; border: none; cursor: pointer; white-space: nowrap;">
+            Calculate Now
+          </button>
         </div>
       </div>
 
