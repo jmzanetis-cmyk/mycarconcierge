@@ -9,23 +9,27 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Start application"
+args = "Rideshare Calculator"
 
 [[workflows.workflow]]
-name = "Start application"
+name = "Rideshare Calculator"
 author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd rideshare-calculator && npm install && npm run dev"
+waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd www && node server.js"
-waitForPort = 5000
-
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 5001
+externalPort = 3000
 
 [agent]
 expertMode = true
