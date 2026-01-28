@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Car Concierge - Investor Business Plan</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
         :root {
             --navy: #1e3a5f;
             --gold: #b8942d;
@@ -28,10 +29,12 @@
         }
         
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.6;
-            color: var(--gray-800);
-            background: var(--off-white);
+            color: #343a40;
+            background: #fefdfb;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
         }
         
         .page {
@@ -42,6 +45,13 @@
         }
         
         @media print {
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            body {
+                background: white;
+            }
             .page {
                 box-shadow: none;
                 max-width: 100%;
@@ -50,14 +60,18 @@
                 page-break-before: always;
             }
             .no-print {
-                display: none;
+                display: none !important;
+            }
+            .stat-card, .highlight-box, .cta-section, .col.dark {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
             }
         }
         
         /* Cover Page */
         .cover {
             min-height: 100vh;
-            background: linear-gradient(135deg, var(--navy) 0%, var(--dark-slate) 100%);
+            background: linear-gradient(135deg, #1e3a5f 0%, #12161c 100%);
             color: white;
             display: flex;
             flex-direction: column;
@@ -68,17 +82,6 @@
             position: relative;
         }
         
-        .cover::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="%23b8942d" stroke-width="0.5" opacity="0.1"/></svg>') center/cover;
-            opacity: 0.3;
-        }
-        
         .cover-content {
             position: relative;
             z-index: 1;
@@ -87,35 +90,36 @@
         .logo-placeholder {
             width: 120px;
             height: 120px;
-            background: linear-gradient(135deg, var(--gold), var(--gold-light));
+            background: linear-gradient(135deg, #b8942d, #d4af37);
             border-radius: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 3rem;
+            font-size: 2.5rem;
+            font-weight: 800;
             margin: 0 auto 2rem;
             box-shadow: 0 10px 40px rgba(184, 148, 45, 0.3);
         }
         
         .cover h1 {
-            font-size: 3.5rem;
+            font-size: 3rem;
             font-weight: 800;
             margin-bottom: 0.5rem;
             letter-spacing: -1px;
         }
         
         .cover .tagline {
-            font-size: 1.5rem;
-            color: var(--gold);
+            font-size: 1.4rem;
+            color: #b8942d;
             font-weight: 500;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
         }
         
         .cover .headline {
-            font-size: 2rem;
+            font-size: 1.75rem;
             font-weight: 300;
             opacity: 0.9;
-            margin-bottom: 3rem;
+            margin-bottom: 2.5rem;
             max-width: 600px;
         }
         
@@ -125,7 +129,7 @@
             border: 1px solid rgba(255,255,255,0.2);
             padding: 0.75rem 1.5rem;
             border-radius: 50px;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             text-transform: uppercase;
             letter-spacing: 2px;
         }
@@ -139,148 +143,149 @@
         
         /* Section Pages */
         .section {
-            padding: 4rem 3rem;
+            padding: 3rem;
             min-height: auto;
         }
         
         .section-header {
-            border-bottom: 3px solid var(--gold);
+            border-bottom: 3px solid #b8942d;
             padding-bottom: 1rem;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
         }
         
         .section-header h2 {
-            font-size: 2rem;
+            font-size: 1.75rem;
             font-weight: 700;
-            color: var(--navy);
+            color: #1e3a5f;
             text-transform: uppercase;
             letter-spacing: 1px;
+            display: inline;
         }
         
-        .section-header .section-number {
+        .section-number {
             display: inline-block;
-            background: var(--gold);
+            background: #b8942d;
             color: white;
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             text-align: center;
-            line-height: 40px;
+            line-height: 36px;
             font-weight: 700;
-            margin-right: 1rem;
+            margin-right: 0.75rem;
+            font-size: 1rem;
         }
         
         h3 {
-            font-size: 1.4rem;
-            color: var(--navy);
-            margin: 2rem 0 1rem;
-            font-weight: 600;
-        }
-        
-        h4 {
-            font-size: 1.1rem;
-            color: var(--gray-800);
+            font-size: 1.25rem;
+            color: #1e3a5f;
             margin: 1.5rem 0 0.75rem;
             font-weight: 600;
         }
         
+        h4 {
+            font-size: 1rem;
+            color: #343a40;
+            margin: 1rem 0 0.5rem;
+            font-weight: 600;
+        }
+        
         p {
-            margin-bottom: 1rem;
-            color: var(--gray-800);
+            margin-bottom: 0.75rem;
+            color: #343a40;
         }
         
         /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 1.5rem;
-            margin: 2rem 0;
+            gap: 1rem;
+            margin: 1.5rem 0;
         }
         
         .stat-card {
-            background: linear-gradient(135deg, var(--navy), var(--dark-slate));
+            background: linear-gradient(135deg, #1e3a5f, #12161c);
             color: white;
-            padding: 1.5rem;
-            border-radius: 12px;
+            padding: 1.25rem 1rem;
+            border-radius: 10px;
             text-align: center;
         }
         
         .stat-card .value {
-            font-size: 2rem;
+            font-size: 1.75rem;
             font-weight: 800;
-            color: var(--gold);
+            color: #b8942d;
             display: block;
+            line-height: 1.2;
         }
         
         .stat-card .label {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             opacity: 0.9;
-            margin-top: 0.5rem;
+            margin-top: 0.35rem;
         }
         
         .stat-card .source {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             opacity: 0.6;
-            margin-top: 0.25rem;
+            margin-top: 0.2rem;
         }
         
         /* Tables */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 1.5rem 0;
-            font-size: 0.9rem;
+            margin: 1rem 0;
+            font-size: 0.85rem;
         }
         
         th {
-            background: var(--navy);
+            background: #1e3a5f;
             color: white;
-            padding: 1rem;
+            padding: 0.75rem;
             text-align: left;
             font-weight: 600;
         }
         
         td {
-            padding: 0.875rem 1rem;
-            border-bottom: 1px solid var(--gray-200);
+            padding: 0.65rem 0.75rem;
+            border-bottom: 1px solid #e9ecef;
         }
         
         tr:nth-child(even) {
-            background: var(--gray-100);
-        }
-        
-        tr:hover {
-            background: rgba(184, 148, 45, 0.1);
+            background: #f8f9fa;
         }
         
         /* Highlight Boxes */
         .highlight-box {
-            background: linear-gradient(135deg, var(--gold), var(--gold-light));
+            background: linear-gradient(135deg, #b8942d, #d4af37);
             color: white;
-            padding: 2rem;
-            border-radius: 12px;
-            margin: 2rem 0;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1.5rem 0;
         }
         
         .highlight-box h3 {
             color: white;
             margin-top: 0;
+            margin-bottom: 0.5rem;
         }
         
         .info-box {
-            background: var(--gray-100);
-            border-left: 4px solid var(--navy);
-            padding: 1.5rem;
-            margin: 1.5rem 0;
-            border-radius: 0 8px 8px 0;
+            background: #f8f9fa;
+            border-left: 4px solid #1e3a5f;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 6px 6px 0;
         }
         
         .warning-box {
             background: #fff3cd;
-            border-left: 4px solid var(--gold);
-            padding: 1.5rem;
-            margin: 1.5rem 0;
-            border-radius: 0 8px 8px 0;
+            border-left: 4px solid #b8942d;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 6px 6px 0;
+            font-size: 0.95rem;
         }
         
         /* Process Flow */
@@ -288,173 +293,139 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin: 2rem 0;
-            flex-wrap: wrap;
+            margin: 1.5rem 0;
+            background: #f8f9fa;
+            padding: 1.5rem 1rem;
+            border-radius: 10px;
         }
         
         .process-step {
             text-align: center;
             flex: 1;
-            min-width: 120px;
-            padding: 1rem;
         }
         
-        .process-step .icon {
-            width: 60px;
-            height: 60px;
-            background: var(--navy);
+        .process-step .step-num {
+            width: 45px;
+            height: 45px;
+            background: #1e3a5f;
             color: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
-            margin: 0 auto 0.75rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 0 auto 0.5rem;
         }
         
         .process-step .title {
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
+            color: #343a40;
         }
         
         .process-arrow {
-            color: var(--gold);
+            color: #b8942d;
             font-size: 1.5rem;
+            font-weight: bold;
         }
         
         /* Two Column Layout */
         .two-col {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            margin: 1.5rem 0;
+            gap: 1.5rem;
+            margin: 1rem 0;
         }
         
         .col {
-            background: var(--gray-100);
-            padding: 1.5rem;
-            border-radius: 12px;
+            background: #f8f9fa;
+            padding: 1.25rem;
+            border-radius: 10px;
         }
         
         .col h4 {
             margin-top: 0;
-            color: var(--navy);
+            color: #1e3a5f;
+        }
+        
+        .col.dark {
+            background: linear-gradient(135deg, #1e3a5f, #12161c);
+            color: white;
+        }
+        
+        .col.dark h4 {
+            color: #b8942d;
+        }
+        
+        .col.dark p {
+            color: white;
         }
         
         /* Lists */
         ul {
-            margin: 1rem 0 1rem 1.5rem;
+            margin: 0.5rem 0 0.5rem 1.25rem;
         }
         
         li {
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.35rem;
+            font-size: 0.9rem;
         }
         
         /* Code Block (for process) */
         .code-block {
-            background: var(--dark-slate);
+            background: #12161c;
             color: #e9ecef;
-            padding: 1.5rem;
+            padding: 1.25rem;
             border-radius: 8px;
-            font-family: 'Monaco', 'Consolas', monospace;
-            font-size: 0.85rem;
-            margin: 1.5rem 0;
-            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.8rem;
+            margin: 1rem 0;
+            line-height: 1.8;
         }
         
-        .code-block .arrow {
-            color: var(--gold);
+        .code-block .step {
+            color: #b8942d;
+            font-weight: bold;
         }
         
-        .code-block .highlight {
-            color: var(--teal);
+        .code-block .response {
+            color: #20c997;
         }
         
-        /* Badges */
-        .badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 50px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-        
-        .badge-gold {
-            background: var(--gold);
-            color: white;
-        }
-        
-        .badge-navy {
-            background: var(--navy);
-            color: white;
-        }
-        
-        .badge-success {
-            background: var(--success);
-            color: white;
-        }
-        
-        /* Financial Chart Placeholder */
-        .chart-container {
-            background: var(--gray-100);
-            border: 2px dashed var(--gray-200);
-            padding: 3rem;
-            text-align: center;
-            border-radius: 12px;
-            margin: 1.5rem 0;
-        }
-        
-        /* Feature Grid */
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            margin: 1.5rem 0;
-        }
-        
-        .feature-item {
-            background: white;
-            border: 1px solid var(--gray-200);
-            padding: 1rem;
-            border-radius: 8px;
-            font-size: 0.85rem;
-        }
-        
-        .feature-item .check {
-            color: var(--success);
-            margin-right: 0.5rem;
+        .code-block .fail {
+            color: #dc3545;
         }
         
         /* CTA Section */
         .cta-section {
-            background: linear-gradient(135deg, var(--navy), var(--dark-slate));
+            background: linear-gradient(135deg, #1e3a5f, #12161c);
             color: white;
-            padding: 3rem;
-            border-radius: 16px;
+            padding: 2.5rem;
+            border-radius: 12px;
             text-align: center;
-            margin: 2rem 0;
+            margin: 1.5rem 0;
         }
         
         .cta-section h3 {
             color: white;
-            font-size: 2rem;
-            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            margin-bottom: 0.75rem;
         }
         
         .cta-section .amount {
-            font-size: 3.5rem;
+            font-size: 3rem;
             font-weight: 800;
-            color: var(--gold);
+            color: #b8942d;
         }
         
         /* Use of Funds */
         .funds-bar {
             display: flex;
-            height: 40px;
-            border-radius: 8px;
+            height: 35px;
+            border-radius: 6px;
             overflow: hidden;
-            margin: 1rem 0;
+            margin: 0.75rem 0;
         }
         
         .funds-segment {
@@ -462,42 +433,48 @@
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             font-weight: 600;
         }
         
-        .funds-segment.engineering { background: var(--navy); width: 40%; }
-        .funds-segment.marketing { background: var(--gold); width: 30%; }
-        .funds-segment.operations { background: var(--teal); width: 20%; }
-        .funds-segment.legal { background: var(--gray-600); width: 10%; }
+        .funds-segment.engineering { background: #1e3a5f; width: 40%; }
+        .funds-segment.marketing { background: #b8942d; width: 30%; }
+        .funds-segment.operations { background: #20c997; width: 20%; }
+        .funds-segment.legal { background: #6c757d; width: 10%; }
         
         .funds-legend {
             display: flex;
             justify-content: center;
-            gap: 2rem;
-            margin-top: 1rem;
+            gap: 1.5rem;
+            margin-top: 0.75rem;
             flex-wrap: wrap;
         }
         
         .funds-legend-item {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            font-size: 0.85rem;
+            gap: 0.4rem;
+            font-size: 0.8rem;
         }
         
         .funds-legend-item .dot {
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
+            display: inline-block;
         }
+        
+        .dot-navy { background: #1e3a5f; }
+        .dot-gold { background: #b8942d; }
+        .dot-teal { background: #20c997; }
+        .dot-gray { background: #6c757d; }
         
         /* Print Button */
         .print-btn {
             position: fixed;
             bottom: 2rem;
             right: 2rem;
-            background: var(--gold);
+            background: #b8942d;
             color: white;
             border: none;
             padding: 1rem 2rem;
@@ -510,8 +487,7 @@
         }
         
         .print-btn:hover {
-            background: var(--gold-light);
-            transform: translateY(-2px);
+            background: #d4af37;
         }
         
         /* Competitive Matrix */
@@ -525,23 +501,114 @@
             text-align: center;
         }
         
-        .matrix-check {
-            color: var(--success);
-            font-size: 1.2rem;
+        .check {
+            color: #28a745;
+            font-weight: bold;
+            font-size: 1.1rem;
         }
         
-        .matrix-x {
-            color: var(--gray-600);
-            font-size: 1.2rem;
+        .x-mark {
+            color: #adb5bd;
+            font-size: 1rem;
+        }
+        
+        .mcc-row {
+            background: rgba(184, 148, 45, 0.15) !important;
+        }
+        
+        /* Feature Grid */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.5rem;
+            margin: 0.75rem 0;
+        }
+        
+        .feature-item {
+            background: white;
+            border: 1px solid #e9ecef;
+            padding: 0.6rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .feature-item .check-icon {
+            color: #28a745;
+            margin-right: 0.5rem;
+            font-weight: bold;
         }
         
         /* Footer */
         .page-footer {
             text-align: center;
-            padding: 2rem;
-            color: var(--gray-600);
-            font-size: 0.8rem;
-            border-top: 1px solid var(--gray-200);
+            padding: 1.5rem;
+            color: #6c757d;
+            font-size: 0.75rem;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        /* Revenue Streams Cards */
+        .revenue-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .revenue-card {
+            background: linear-gradient(135deg, #1e3a5f, #12161c);
+            color: white;
+            padding: 1.25rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .revenue-card .percent {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #b8942d;
+        }
+        
+        .revenue-card .name {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-top: 0.25rem;
+        }
+        
+        .revenue-card .desc {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin-top: 0.25rem;
+        }
+        
+        /* Milestones Grid */
+        .milestones-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.75rem;
+            margin: 1rem 0;
+        }
+        
+        .milestone-card {
+            background: linear-gradient(135deg, #1e3a5f, #12161c);
+            color: white;
+            padding: 1rem 0.5rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .milestone-card .value {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #b8942d;
+        }
+        
+        .milestone-card .label {
+            font-size: 0.7rem;
+            opacity: 0.9;
+            margin-top: 0.25rem;
         }
     </style>
 </head>
@@ -577,9 +644,9 @@
                     <div class="source">Straits Research</div>
                 </div>
                 <div class="stat-card">
-                    <span class="value">12.8yr</span>
+                    <span class="value">12.8 yr</span>
                     <div class="label">Avg Vehicle Age</div>
-                    <div class="source">S&P Global Mobility</div>
+                    <div class="source">S&amp;P Global Mobility</div>
                 </div>
                 <div class="stat-card">
                     <span class="value">245M+</span>
@@ -606,10 +673,10 @@
                 <div class="funds-segment legal">10%</div>
             </div>
             <div class="funds-legend">
-                <div class="funds-legend-item"><span class="dot" style="background: var(--navy)"></span> Engineering $200K</div>
-                <div class="funds-legend-item"><span class="dot" style="background: var(--gold)"></span> Marketing $150K</div>
-                <div class="funds-legend-item"><span class="dot" style="background: var(--teal)"></span> Operations $100K</div>
-                <div class="funds-legend-item"><span class="dot" style="background: var(--gray-600)"></span> Legal $50K</div>
+                <div class="funds-legend-item"><span class="dot dot-navy"></span> Engineering $200K</div>
+                <div class="funds-legend-item"><span class="dot dot-gold"></span> Marketing $150K</div>
+                <div class="funds-legend-item"><span class="dot dot-teal"></span> Operations $100K</div>
+                <div class="funds-legend-item"><span class="dot dot-gray"></span> Legal $50K</div>
             </div>
         </div>
 
@@ -621,18 +688,18 @@
             </div>
             
             <h3>A $443B Industry Running on Phone Calls</h3>
-            <p>The automotive aftermarket is one of the largest consumer markets in America—yet it operates like it's 1995.</p>
+            <p>The automotive aftermarket is one of the largest consumer markets in America - yet it operates like it's 1995.</p>
             
             <div class="code-block">
-                <span class="arrow">Call Shop A</span> <span class="highlight">"We'll call you back with a quote"</span><br>
-                <span class="arrow">Call Shop B</span> <span class="highlight">"Bring it in, we'll take a look"</span><br>
-                <span class="arrow">Call Shop C</span> <span class="highlight">Voicemail...</span><br>
-                <span class="arrow">Call Shop D</span> <span class="highlight">"$800... or maybe $1,200"</span><br>
-                <span style="color: #dc3545;">Give up</span> <span class="highlight">Overpay at the first shop that answers</span>
+                <span class="step">Call Shop A</span> <span class="response">"We'll call you back with a quote"</span><br>
+                <span class="step">Call Shop B</span> <span class="response">"Bring it in, we'll take a look"</span><br>
+                <span class="step">Call Shop C</span> <span class="response">Voicemail...</span><br>
+                <span class="step">Call Shop D</span> <span class="response">"$800... or maybe $1,200"</span><br>
+                <span class="fail">Give up</span> <span class="response">Overpay at the first shop that answers</span>
             </div>
             
             <div class="warning-box">
-                <strong>76% of consumers don't trust auto mechanics</strong> — AAA Consumer Survey
+                <strong>76% of consumers don't trust auto mechanics</strong> - AAA Consumer Survey
             </div>
             
             <h3>Why This Pain Persists</h3>
@@ -675,7 +742,7 @@
             <h3>Total Addressable Market</h3>
             <table>
                 <tr><th>Year</th><th>Market Size</th><th>Growth</th></tr>
-                <tr><td>2024</td><td>$430B</td><td>—</td></tr>
+                <tr><td>2024</td><td>$430B</td><td>-</td></tr>
                 <tr><td>2025</td><td>$443B</td><td>+3.0%</td></tr>
                 <tr><td>2032</td><td>$566B</td><td>3.6% CAGR</td></tr>
             </table>
@@ -684,7 +751,7 @@
             <table>
                 <tr><th>Segment</th><th>Size</th></tr>
                 <tr><td>Total Aftermarket</td><td>$435B (2025)</td></tr>
-                <tr><td>Repair & Maintenance Services</td><td>$120B</td></tr>
+                <tr><td>Repair &amp; Maintenance Services</td><td>$120B</td></tr>
                 <tr><td>Collision Repair</td><td>$50B</td></tr>
                 <tr><td><strong>Our Target (Independent Services)</strong></td><td><strong>$75B</strong></td></tr>
             </table>
@@ -701,7 +768,7 @@
             
             <div class="highlight-box">
                 <h3>Serviceable Obtainable Market (5-Year)</h3>
-                <p style="margin:0;font-size:1.5rem;">Capturing <strong>0.5% of SAM</strong> = <strong>$500M+ GMV opportunity</strong></p>
+                <p style="margin:0;font-size:1.25rem;">Capturing <strong>0.5% of SAM</strong> = <strong>$500M+ GMV opportunity</strong></p>
             </div>
         </div>
 
@@ -712,24 +779,24 @@
                 <h2>Our Solution</h2>
             </div>
             
-            <p><strong>My Car Concierge</strong> is the complete car ownership platform—not just a service marketplace, but an ecosystem that manages every aspect of vehicle ownership.</p>
+            <p><strong>My Car Concierge</strong> is the complete car ownership platform - not just a service marketplace, but an ecosystem that manages every aspect of vehicle ownership.</p>
             
             <h3>Core Platform Pillars</h3>
             <div class="stats-grid">
                 <div class="stat-card">
-                    <span class="value" style="font-size:1.5rem;">Find Service</span>
+                    <span class="value" style="font-size:1.25rem;">Find Service</span>
                     <div class="label">Post jobs, receive bids, escrow payments</div>
                 </div>
                 <div class="stat-card">
-                    <span class="value" style="font-size:1.5rem;">Manage Vehicles</span>
+                    <span class="value" style="font-size:1.25rem;">Manage Vehicles</span>
                     <div class="label">Garage, maintenance, documents</div>
                 </div>
                 <div class="stat-card">
-                    <span class="value" style="font-size:1.5rem;">Learn</span>
+                    <span class="value" style="font-size:1.25rem;">Learn</span>
                     <div class="label">Car Care Academy, AI helpdesk</div>
                 </div>
                 <div class="stat-card">
-                    <span class="value" style="font-size:1.5rem;">Shop Smarter</span>
+                    <span class="value" style="font-size:1.25rem;">Shop Smarter</span>
                     <div class="label">Dream Car Finder, My Next Car</div>
                 </div>
             </div>
@@ -737,27 +804,27 @@
             <h3>How It Works</h3>
             <div class="process-flow">
                 <div class="process-step">
-                    <div class="icon">1</div>
+                    <div class="step-num">1</div>
                     <div class="title">Member Posts Job</div>
                 </div>
-                <div class="process-arrow">&#8594;</div>
+                <div class="process-arrow">&rarr;</div>
                 <div class="process-step">
-                    <div class="icon">2</div>
+                    <div class="step-num">2</div>
                     <div class="title">Providers Bid</div>
                 </div>
-                <div class="process-arrow">&#8594;</div>
+                <div class="process-arrow">&rarr;</div>
                 <div class="process-step">
-                    <div class="icon">3</div>
+                    <div class="step-num">3</div>
                     <div class="title">Member Selects</div>
                 </div>
-                <div class="process-arrow">&#8594;</div>
+                <div class="process-arrow">&rarr;</div>
                 <div class="process-step">
-                    <div class="icon">4</div>
-                    <div class="title">Payment in Escrow</div>
+                    <div class="step-num">4</div>
+                    <div class="title">Payment Held</div>
                 </div>
-                <div class="process-arrow">&#8594;</div>
+                <div class="process-arrow">&rarr;</div>
                 <div class="process-step">
-                    <div class="icon">5</div>
+                    <div class="step-num">5</div>
                     <div class="title">Job Complete</div>
                 </div>
             </div>
@@ -781,7 +848,7 @@
         <div class="section page-break">
             <div class="section-header">
                 <span class="section-number">5</span>
-                <h2>Traction & Validation</h2>
+                <h2>Traction &amp; Validation</h2>
             </div>
             
             <h3>Platform Status</h3>
@@ -799,7 +866,7 @@
                     <div class="label">Security Policies</div>
                 </div>
                 <div class="stat-card">
-                    <span class="value" style="font-size:1.3rem;">Production Ready</span>
+                    <span class="value" style="font-size:1.1rem;">Production Ready</span>
                     <div class="label">Status</div>
                 </div>
             </div>
@@ -808,28 +875,28 @@
             <div class="two-col">
                 <div class="col">
                     <h4>Member Features</h4>
-                    <div class="feature-grid" style="grid-template-columns: 1fr;">
-                        <div class="feature-item"><span class="check">&#10003;</span> Vehicle garage with VIN decoding</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> Service package creation</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> Bid comparison interface</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> Escrow payment flow</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> Maintenance reminders</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> NHTSA recall alerts</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> Dream Car Finder (AI)</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> 7-language support</div>
+                    <div class="feature-grid">
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Vehicle garage with VIN decoding</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Service package creation</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Bid comparison interface</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Escrow payment flow</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Maintenance reminders</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> NHTSA recall alerts</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Dream Car Finder (AI)</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> 7-language support</div>
                     </div>
                 </div>
                 <div class="col">
                     <h4>Provider Features</h4>
-                    <div class="feature-grid" style="grid-template-columns: 1fr;">
-                        <div class="feature-item"><span class="check">&#10003;</span> Bid submission system</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> Team management</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> Analytics dashboard</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> Stripe Connect payouts</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> Loyalty referral program</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> Push notifications</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> Performance tracking</div>
-                        <div class="feature-item"><span class="check">&#10003;</span> Background checks</div>
+                    <div class="feature-grid">
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Bid submission system</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Team management</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Analytics dashboard</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Stripe Connect payouts</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Loyalty referral program</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Push notifications</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Performance tracking</div>
+                        <div class="feature-item"><span class="check-icon">&#10004;</span> Background checks</div>
                     </div>
                 </div>
             </div>
@@ -848,28 +915,28 @@
             </div>
             
             <h3>Revenue Streams</h3>
-            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
-                <div class="stat-card">
-                    <span class="value">80%</span>
-                    <div class="label">Service Credits</div>
-                    <div class="source">Bid pack purchases</div>
+            <div class="revenue-grid">
+                <div class="revenue-card">
+                    <div class="percent">80%</div>
+                    <div class="name">Service Credits</div>
+                    <div class="desc">Bid pack purchases</div>
                 </div>
-                <div class="stat-card">
-                    <span class="value">15%</span>
-                    <div class="label">Transaction Fees</div>
-                    <div class="source">2% on escrow jobs</div>
+                <div class="revenue-card">
+                    <div class="percent">15%</div>
+                    <div class="name">Transaction Fees</div>
+                    <div class="desc">2% on escrow jobs</div>
                 </div>
-                <div class="stat-card">
-                    <span class="value">5%</span>
-                    <div class="label">Merchandise</div>
-                    <div class="source">Branded products</div>
+                <div class="revenue-card">
+                    <div class="percent">5%</div>
+                    <div class="name">Merchandise</div>
+                    <div class="desc">Branded products</div>
                 </div>
             </div>
             
             <h3>Bid Pack Pricing (Selected Tiers)</h3>
             <table>
                 <tr><th>Pack Name</th><th>Credits</th><th>Price</th><th>$/Credit</th><th>Discount</th></tr>
-                <tr><td>Jumper Cables</td><td>1</td><td>$10</td><td>$10.00</td><td>—</td></tr>
+                <tr><td>Jumper Cables</td><td>1</td><td>$10</td><td>$10.00</td><td>-</td></tr>
                 <tr><td>Dipstick</td><td>50</td><td>$200</td><td>$4.00</td><td>60%</td></tr>
                 <tr><td>Muscle Car</td><td>195</td><td>$500</td><td>$2.56</td><td>74%</td></tr>
                 <tr><td>Pit Crew</td><td>535</td><td>$1,000</td><td>$1.87</td><td>81%</td></tr>
@@ -908,48 +975,48 @@
                 </tr>
                 <tr>
                     <td>RepairPal</td>
-                    <td><span class="matrix-check">&#10003;</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="check">&#10004;</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
                 </tr>
                 <tr>
                     <td>Openbay</td>
-                    <td><span class="matrix-check">&#10003;</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="check">&#10004;</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
                 </tr>
                 <tr>
                     <td>CarFax</td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-check">&#10003;</span></td>
-                    <td><span class="matrix-check">&#10003;</span></td>
-                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="check">&#10004;</span></td>
+                    <td><span class="check">&#10004;</span></td>
+                    <td><span class="x-mark">-</span></td>
                 </tr>
                 <tr>
                     <td>Yelp/Thumbtack</td>
-                    <td><span class="matrix-check">&#10003;</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
-                    <td><span class="matrix-x">—</span></td>
+                    <td><span class="check">&#10004;</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
+                    <td><span class="x-mark">-</span></td>
                 </tr>
-                <tr style="background: rgba(184, 148, 45, 0.2);">
+                <tr class="mcc-row">
                     <td><strong>My Car Concierge</strong></td>
-                    <td><span class="matrix-check">&#10003;</span></td>
-                    <td><span class="matrix-check">&#10003;</span></td>
-                    <td><span class="matrix-check">&#10003;</span></td>
-                    <td><span class="matrix-check">&#10003;</span></td>
-                    <td><span class="matrix-check">&#10003;</span></td>
-                    <td><span class="matrix-check">&#10003;</span></td>
+                    <td><span class="check">&#10004;</span></td>
+                    <td><span class="check">&#10004;</span></td>
+                    <td><span class="check">&#10004;</span></td>
+                    <td><span class="check">&#10004;</span></td>
+                    <td><span class="check">&#10004;</span></td>
+                    <td><span class="check">&#10004;</span></td>
                 </tr>
             </table>
             
@@ -990,7 +1057,7 @@
                 <tr><td>Q2</td><td>150</td><td>1,500</td><td>$75,000</td><td>$10,000</td><td>$85,000</td></tr>
                 <tr><td>Q3</td><td>300</td><td>3,000</td><td>$125,000</td><td>$25,000</td><td>$150,000</td></tr>
                 <tr><td>Q4</td><td>500</td><td>5,000</td><td>$175,000</td><td>$50,000</td><td>$225,000</td></tr>
-                <tr style="background: rgba(184, 148, 45, 0.2);"><td><strong>Year 1</strong></td><td><strong>500</strong></td><td><strong>5,000</strong></td><td><strong>$400,000</strong></td><td><strong>$87,500</strong></td><td><strong>$487,500</strong></td></tr>
+                <tr class="mcc-row"><td><strong>Year 1</strong></td><td><strong>500</strong></td><td><strong>5,000</strong></td><td><strong>$400,000</strong></td><td><strong>$87,500</strong></td><td><strong>$487,500</strong></td></tr>
             </table>
             
             <h3>3-Year Projection</h3>
@@ -1023,7 +1090,7 @@
             <div class="cta-section">
                 <h3>Seed Round</h3>
                 <div class="amount">$500,000</div>
-                <p style="opacity: 0.8; margin-top: 1rem;">SAFE or Convertible Note | $3M Cap | 20% Discount</p>
+                <p style="opacity: 0.8; margin-top: 0.75rem;">SAFE or Convertible Note | $3M Cap | 20% Discount</p>
             </div>
             
             <h3>Use of Funds</h3>
@@ -1036,25 +1103,25 @@
             </table>
             
             <h3>12-Month Milestones</h3>
-            <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr);">
-                <div class="stat-card">
-                    <span class="value">500</span>
+            <div class="milestones-grid">
+                <div class="milestone-card">
+                    <div class="value">500</div>
                     <div class="label">Active Providers</div>
                 </div>
-                <div class="stat-card">
-                    <span class="value">5,000</span>
+                <div class="milestone-card">
+                    <div class="value">5,000</div>
                     <div class="label">Active Members</div>
                 </div>
-                <div class="stat-card">
-                    <span class="value">$500K</span>
+                <div class="milestone-card">
+                    <div class="value">$500K</div>
                     <div class="label">ARR</div>
                 </div>
-                <div class="stat-card">
-                    <span class="value">10</span>
+                <div class="milestone-card">
+                    <div class="value">10</div>
                     <div class="label">Metro Markets</div>
                 </div>
-                <div class="stat-card">
-                    <span class="value" style="font-size: 1.2rem;">iOS + Android</span>
+                <div class="milestone-card">
+                    <div class="value" style="font-size: 1rem;">iOS + Android</div>
                     <div class="label">Mobile Apps</div>
                 </div>
             </div>
@@ -1068,29 +1135,29 @@
             </div>
             
             <div class="two-col">
-                <div class="col" style="background: linear-gradient(135deg, var(--navy), var(--dark-slate)); color: white;">
-                    <h4 style="color: var(--gold);">1. Market Timing is Perfect</h4>
-                    <p style="color: white;">Vehicle fleet at record age (12.8 years). Consumers demanding digital-first experiences. &lt;5% of aftermarket digitized. First mover captures network effects.</p>
+                <div class="col dark">
+                    <h4>1. Market Timing is Perfect</h4>
+                    <p>Vehicle fleet at record age (12.8 years). Consumers demanding digital-first experiences. Less than 5% of aftermarket digitized. First mover captures network effects.</p>
                 </div>
-                <div class="col" style="background: linear-gradient(135deg, var(--navy), var(--dark-slate)); color: white;">
-                    <h4 style="color: var(--gold);">2. Platform is Built</h4>
-                    <p style="color: white;">40+ features complete. Enterprise-grade infrastructure. Production-ready today. Not a concept—a working product.</p>
+                <div class="col dark">
+                    <h4>2. Platform is Built</h4>
+                    <p>40+ features complete. Enterprise-grade infrastructure. Production-ready today. Not a concept - a working product.</p>
                 </div>
             </div>
             <div class="two-col">
-                <div class="col" style="background: linear-gradient(135deg, var(--navy), var(--dark-slate)); color: white;">
-                    <h4 style="color: var(--gold);">3. Business Model is Proven</h4>
-                    <p style="color: white;">Marketplace economics understood. Bid pack model validated (volume pricing). Clear path to profitability.</p>
+                <div class="col dark">
+                    <h4>3. Business Model is Proven</h4>
+                    <p>Marketplace economics understood. Bid pack model validated (volume pricing). Clear path to profitability.</p>
                 </div>
-                <div class="col" style="background: linear-gradient(135deg, var(--navy), var(--dark-slate)); color: white;">
-                    <h4 style="color: var(--gold);">4. Viral Growth Built-In</h4>
-                    <p style="color: white;">50% lifetime referral commissions. Every user becomes recruiter. Network effects create moat.</p>
+                <div class="col dark">
+                    <h4>4. Viral Growth Built-In</h4>
+                    <p>50% lifetime referral commissions. Every user becomes recruiter. Network effects create moat.</p>
                 </div>
             </div>
             
-            <div class="highlight-box" style="text-align: center; margin-top: 2rem;">
-                <h3 style="font-size: 1.5rem;">5. Recession-Resistant Market</h3>
-                <p style="margin: 0; font-size: 1.1rem;">Vehicle repairs are non-discretionary. Aging fleet ensures sustained demand.<br>Investors favor essential services.</p>
+            <div class="highlight-box" style="text-align: center; margin-top: 1.5rem;">
+                <h3 style="font-size: 1.25rem;">5. Recession-Resistant Market</h3>
+                <p style="margin: 0; font-size: 1rem;">Vehicle repairs are non-discretionary. Aging fleet ensures sustained demand.<br>Investors favor essential services.</p>
             </div>
         </div>
 
