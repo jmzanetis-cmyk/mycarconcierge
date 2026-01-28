@@ -107,7 +107,8 @@
     ::-webkit-scrollbar-corner { background: transparent; }
     * { scrollbar-width: thin; scrollbar-color: rgba(148, 148, 168, 0.3) transparent; }
 
-    .sidebar { width: 260px; background: var(--bg-card); border-right: 1px solid var(--border-subtle); padding: 24px 16px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; }
+    .sidebar { width: 260px; background: var(--bg-card); border-right: 1px solid var(--border-subtle); padding: 24px 16px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow: hidden; }
+    .sidebar-nav { flex: 1; overflow-y: auto; margin-right: -8px; padding-right: 8px; }
     .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 24px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 24px; text-decoration: none; }
     .sidebar-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; transition: all 0.3s ease; }
     .sidebar-brand:hover img { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
@@ -413,7 +414,6 @@
       .modal-body { padding: 20px; max-height: 70vh; }
     }
   </style>
-  <script src="/i18n.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -436,44 +436,45 @@
     <a href="index.html" class="sidebar-brand">
       <img src="logo.png" alt="My Car Concierge">
     </a>
-    <div id="language-switcher" style="padding:0 12px 16px;"></div>
 
-    <div class="nav-label">Overview</div>
-    <div class="nav-item active" data-section="dashboard">📊 Dashboard</div>
-    <div class="nav-item" data-section="analytics">📈 Analytics</div>
+    <div class="sidebar-nav">
+      <div class="nav-label">Overview</div>
+      <div class="nav-item active" data-section="dashboard">📊 Dashboard</div>
+      <div class="nav-item" data-section="analytics">📈 Analytics</div>
 
-    <div class="nav-label">Provider Management</div>
-    <div class="nav-item" data-section="applications">📋 Applications <span class="nav-badge orange" id="app-count">0</span></div>
-    <div class="nav-item" data-section="providers">✓ Active Providers</div>
-    <div class="nav-item" data-section="violations">🚩 Violation Reports <span class="nav-badge red" id="violation-count">0</span></div>
-    <div class="nav-item" data-section="car-reviews">📝 CAR Reviews <span class="nav-badge orange" id="car-count">0</span></div>
+      <div class="nav-label">Provider Management</div>
+      <div class="nav-item" data-section="applications">📋 Applications <span class="nav-badge orange" id="app-count">0</span></div>
+      <div class="nav-item" data-section="providers">✓ Active Providers</div>
+      <div class="nav-item" data-section="violations">🚩 Violation Reports <span class="nav-badge red" id="violation-count">0</span></div>
+      <div class="nav-item" data-section="car-reviews">📝 CAR Reviews <span class="nav-badge orange" id="car-count">0</span></div>
 
-    <div class="nav-label">Founder Management</div>
-    <div class="nav-item" data-section="pilot-applications">🌟 Provider Founders <span class="nav-badge orange" id="pilot-count">0</span></div>
-    <div class="nav-item" data-section="member-founders">👥 Member Founders <span class="nav-badge orange" id="member-founder-count">0</span></div>
-    <div class="nav-item" data-section="commission-payouts">💰 Commission Payouts <span class="nav-badge green" id="payout-count">0</span></div>
+      <div class="nav-label">Founder Management</div>
+      <div class="nav-item" data-section="pilot-applications">🌟 Provider Founders <span class="nav-badge orange" id="pilot-count">0</span></div>
+      <div class="nav-item" data-section="member-founders">👥 Member Founders <span class="nav-badge orange" id="member-founder-count">0</span></div>
+      <div class="nav-item" data-section="commission-payouts">💰 Commission Payouts <span class="nav-badge green" id="payout-count">0</span></div>
 
-    <div class="nav-label">Operations</div>
-    <div class="nav-item" data-section="packages">📦 All Packages</div>
-    <div class="nav-item" data-section="payments">💳 Payments</div>
-    <div class="nav-item" data-section="disputes">⚠️ Disputes <span class="nav-badge red" id="dispute-count">0</span></div>
-    <div class="nav-item" data-section="registration-verifications">🔍 Registration Reviews <span class="nav-badge orange" id="registration-count">0</span></div>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item" data-section="packages">📦 All Packages</div>
+      <div class="nav-item" data-section="payments">💳 Payments</div>
+      <div class="nav-item" data-section="disputes">⚠️ Disputes <span class="nav-badge red" id="dispute-count">0</span></div>
+      <div class="nav-item" data-section="registration-verifications">🔍 Registration Reviews <span class="nav-badge orange" id="registration-count">0</span></div>
 
-    <div class="nav-label">Support</div>
-    <div class="nav-item" data-section="tickets">🎫 Help Desk <span class="nav-badge green" id="ticket-count">0</span></div>
-    <div class="nav-item" data-section="members">👥 Members</div>
-    <div class="nav-item" data-section="user-roles">🔄 User Roles</div>
-    <div class="nav-item" data-section="user-management">👥 User Management</div>
-    <div class="nav-item" data-section="agreements">📝 Agreements</div>
+      <div class="nav-label">Support</div>
+      <div class="nav-item" data-section="tickets">🎫 Help Desk <span class="nav-badge green" id="ticket-count">0</span></div>
+      <div class="nav-item" data-section="members">👥 Members</div>
+      <div class="nav-item" data-section="user-roles">🔄 User Roles</div>
+      <div class="nav-item" data-section="user-management">👥 User Management</div>
+      <div class="nav-item" data-section="agreements">📝 Agreements</div>
 
-    <div class="nav-label">Commerce</div>
-    <div class="nav-item" data-section="merch-manager">🛍️ Merch Manager</div>
-    
-    <div class="nav-label">Resources</div>
-    <div class="nav-item" data-section="documents">📄 Documents &amp; Resources</div>
-    
-    <div class="nav-label">System</div>
-    <div class="nav-item" data-section="settings">⚙️ Settings</div>
+      <div class="nav-label">Commerce</div>
+      <div class="nav-item" data-section="merch-manager">🛍️ Merch Manager</div>
+      
+      <div class="nav-label">Resources</div>
+      <div class="nav-item" data-section="documents">📄 Documents &amp; Resources</div>
+      
+      <div class="nav-label">System</div>
+      <div class="nav-item" data-section="settings">⚙️ Settings</div>
+    </div>
 
     <div class="sidebar-footer">
       <button class="btn btn-secondary" onclick="window.location.href='members.html'" style="width:100%;margin-bottom:8px;padding:12px 16px;">🏠 Member Portal</button>
@@ -2385,10 +2386,6 @@
       setTimeout(() => html.classList.remove('theme-transition'), 300);
     }
 
-    document.addEventListener('DOMContentLoaded', async () => {
-      await I18n.init();
-      I18n.createLanguageSwitcher('language-switcher');
-    });
   </script>
 </body>
 </html>
