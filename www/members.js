@@ -5217,6 +5217,7 @@
         document.body.classList.add('sidebar-open');
       } else {
         overlay.style.display = 'none';
+        document.querySelector('.mobile-close').style.display = 'none';
         document.body.classList.remove('sidebar-open');
       }
     }
