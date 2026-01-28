@@ -8,15 +8,20 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
-      --gold: #c9a227;
-      --gold-light: #d9b855;
-      --dark: #12161c;
-      --dark-lighter: #1a2028;
-      --dark-card: #1e242c;
-      --cream: #f5f5f7;
-      --text-muted: #a0a8b8;
-      --accent-green: #10b981;
+      --gold: #b8942d;
+      --gold-light: #d4af37;
+      --navy: #1e3a5f;
+      --off-white: #fefdfb;
+      --white: #ffffff;
+      --text-primary: #1e3a5f;
+      --text-body: #343a40;
+      --text-muted: #6c757d;
+      --accent-green: #28a745;
+      --accent-teal: #20c997;
       --accent-blue: #38bdf8;
+      --border-light: #e9ecef;
+      --shadow-sm: 0 2px 4px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
     }
     @page { size: A4 portrait; margin: 0; }
     @media print {
@@ -25,128 +30,135 @@
       .slide { page-break-after: always; page-break-inside: avoid; }
       .slide:last-child { page-break-after: auto; }
     }
-    body { font-family: 'DM Sans', sans-serif; background: #0a0d10; color: var(--cream); }
+    body { font-family: 'DM Sans', sans-serif; background: #f0f0f0; color: var(--text-body); }
     .print-controls {
-      background: var(--dark); padding: 20px; text-align: center;
+      background: var(--white); padding: 20px; text-align: center;
       border-bottom: 2px solid var(--gold);
       position: sticky; top: 0; z-index: 100;
+      box-shadow: var(--shadow-md);
     }
-    .print-controls h2 { color: var(--gold); margin-bottom: 10px; font-family: 'Playfair Display', serif; }
+    .print-controls h2 { color: var(--navy); margin-bottom: 10px; font-family: 'Playfair Display', serif; }
     .print-controls p { color: var(--text-muted); margin-bottom: 15px; }
     .print-btn {
-      background: linear-gradient(135deg, var(--gold) 0%, #b8962e 100%);
-      color: var(--dark); border: none; padding: 12px 30px;
+      background: linear-gradient(135deg, var(--gold) 0%, #a6832a 100%);
+      color: var(--white); border: none; padding: 12px 30px;
       font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; margin: 0 10px;
       transition: transform 0.2s, box-shadow 0.2s;
     }
     .print-btn:hover {
       transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(201, 162, 39, 0.3);
+      box-shadow: 0 8px 25px rgba(184, 148, 45, 0.3);
     }
     .slide {
       width: 210mm; height: 297mm; margin: 0 auto 20px;
-      background: var(--dark);
+      background: var(--off-white);
       padding: 10mm; position: relative; overflow: hidden;
+      box-shadow: var(--shadow-md);
     }
     .slide-header {
       text-align: center; margin-bottom: 4mm; padding-bottom: 3mm;
       border-bottom: 2px solid var(--gold);
     }
     .logo { width: 25mm; margin-bottom: 2mm; border-radius: 3mm; }
-    .slide-title { font-family: 'Playfair Display', serif; font-size: 20pt; color: var(--cream); margin-bottom: 1mm; }
+    .slide-title { font-family: 'Playfair Display', serif; font-size: 20pt; color: var(--navy); margin-bottom: 1mm; }
     .slide-subtitle { font-size: 9pt; color: var(--text-muted); }
     .slide-number { position: absolute; bottom: 10mm; right: 10mm; font-size: 8pt; color: var(--text-muted); }
-    .footer-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 5mm; background: linear-gradient(90deg, var(--gold) 0%, #b8962e 100%); }
+    .footer-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 5mm; background: linear-gradient(90deg, var(--gold) 0%, #a6832a 100%); }
     .content-box {
-      background: var(--dark-card);
-      border: 1px solid rgba(201, 162, 39, 0.2); border-radius: 3mm; padding: 3mm; margin-bottom: 2mm;
+      background: var(--white);
+      border: 1px solid var(--border-light); border-radius: 3mm; padding: 3mm; margin-bottom: 2mm;
+      box-shadow: var(--shadow-sm);
     }
     .content-box.highlight {
-      background: linear-gradient(135deg, rgba(201, 162, 39, 0.15) 0%, rgba(201, 162, 39, 0.05) 100%);
+      background: rgba(184, 148, 45, 0.1);
       border-color: var(--gold);
     }
     .content-box.blue {
-      background: linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(56, 189, 248, 0.03) 100%);
+      background: rgba(56, 189, 248, 0.08);
       border-color: var(--accent-blue);
     }
     .content-box.green {
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.03) 100%);
+      background: rgba(40, 167, 69, 0.08);
       border-color: var(--accent-green);
     }
-    .box-title { font-family: 'Playfair Display', serif; font-size: 11pt; color: var(--cream); margin-bottom: 1mm; }
+    .box-title { font-family: 'Playfair Display', serif; font-size: 11pt; color: var(--navy); margin-bottom: 1mm; }
     .box-title.gold { color: var(--gold); }
-    .box-text { font-size: 8pt; color: var(--text-muted); line-height: 1.4; }
+    .box-text { font-size: 8pt; color: var(--text-body); line-height: 1.4; }
     .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; }
     .feature-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2mm; }
     .feature-grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 2mm; }
     .feature-item {
-      background: var(--dark-card);
-      border: 1px solid rgba(201, 162, 39, 0.15); border-radius: 2mm; padding: 2mm;
+      background: var(--white);
+      border: 1px solid var(--border-light); border-radius: 2mm; padding: 2mm;
+      box-shadow: var(--shadow-sm);
     }
     .feature-icon { font-size: 14pt; margin-bottom: 1mm; }
-    .feature-title { font-weight: 600; font-size: 8pt; color: var(--cream); margin-bottom: 0.5mm; }
+    .feature-title { font-weight: 600; font-size: 8pt; color: var(--navy); margin-bottom: 0.5mm; }
     .feature-desc { font-size: 7pt; color: var(--text-muted); line-height: 1.3; }
     .bullet-list { list-style: none; padding: 0; }
     .bullet-list li {
-      font-size: 8pt; color: var(--text-muted); margin: 1mm 0; padding-left: 3mm;
+      font-size: 8pt; color: var(--text-body); margin: 1mm 0; padding-left: 3mm;
       position: relative; line-height: 1.3;
     }
     .bullet-list li::before { content: "✓"; position: absolute; left: 0; color: var(--accent-green); font-weight: bold; font-size: 7pt; }
     .step-list { counter-reset: step; list-style: none; padding: 0; }
     .step-list li {
-      font-size: 8pt; color: var(--text-muted); margin: 2mm 0; padding-left: 7mm;
+      font-size: 8pt; color: var(--text-body); margin: 2mm 0; padding-left: 7mm;
       position: relative; line-height: 1.3;
     }
     .step-list li::before {
       counter-increment: step; content: counter(step);
       position: absolute; left: 0; width: 4mm; height: 4mm;
-      background: linear-gradient(135deg, var(--gold) 0%, #b8962e 100%);
-      color: var(--dark); border-radius: 50%; display: flex; align-items: center;
+      background: linear-gradient(135deg, var(--gold) 0%, #a6832a 100%);
+      color: var(--white); border-radius: 50%; display: flex; align-items: center;
       justify-content: center; font-weight: 700; font-size: 7pt;
     }
     .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3mm; margin: 2mm 0; }
     .stat-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; margin: 2mm 0; }
     .stat-box {
       text-align: center;
-      background: var(--dark-card);
+      background: var(--white);
       border: 2px solid var(--gold); border-radius: 3mm; padding: 3mm;
+      box-shadow: var(--shadow-sm);
     }
     .stat-value { font-family: 'Playfair Display', serif; font-size: 18pt; color: var(--gold); font-weight: 700; }
     .stat-label { font-size: 7pt; color: var(--text-muted); margin-top: 1mm; }
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; }
     .section-title {
-      font-family: 'Playfair Display', serif; font-size: 11pt; color: var(--cream);
+      font-family: 'Playfair Display', serif; font-size: 11pt; color: var(--navy);
       margin: 3mm 0 1mm; padding-bottom: 1mm; border-bottom: 1px solid var(--gold);
     }
     .callout {
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0.04) 100%);
+      background: rgba(40, 167, 69, 0.1);
       border: 1px solid var(--accent-green); border-radius: 2mm; padding: 2mm; margin: 2mm 0;
     }
     .callout .title { color: var(--accent-green); font-weight: 600; font-size: 9pt; margin-bottom: 0.5mm; }
-    .callout .text { font-size: 7pt; color: var(--text-muted); }
+    .callout .text { font-size: 7pt; color: var(--text-body); }
     .hero-text {
-      font-family: 'Playfair Display', serif; font-size: 28pt; color: var(--cream);
+      font-family: 'Playfair Display', serif; font-size: 28pt; color: var(--navy);
       text-align: center; margin: 10mm 0 5mm; line-height: 1.2;
     }
     .hero-text em { font-style: italic; color: var(--gold); }
     .hero-sub { font-size: 11pt; color: var(--text-muted); text-align: center; margin-bottom: 8mm; }
     .cta-box {
-      background: linear-gradient(135deg, var(--gold) 0%, #b8962e 100%);
-      color: var(--dark); text-align: center; padding: 5mm; border-radius: 3mm; margin-top: 3mm;
+      background: linear-gradient(135deg, var(--gold) 0%, #a6832a 100%);
+      color: var(--white); text-align: center; padding: 5mm; border-radius: 3mm; margin-top: 3mm;
     }
     .cta-title { font-family: 'Playfair Display', serif; font-size: 14pt; font-weight: 700; margin-bottom: 1mm; }
     .cta-text { font-size: 9pt; }
     .platform-badges { display: flex; justify-content: center; gap: 3mm; margin: 3mm 0; }
     .badge {
-      background: var(--dark-card); border: 1px solid var(--gold);
+      background: var(--white); border: 1px solid var(--gold);
       border-radius: 1.5mm; padding: 1mm 2mm; font-size: 7pt; color: var(--gold);
+      box-shadow: var(--shadow-sm);
     }
     .icon-flow {
       display: flex; justify-content: space-between; align-items: center;
       margin: 3mm 0; padding: 3mm;
-      background: var(--dark-card);
-      border: 1px solid rgba(201, 162, 39, 0.2);
+      background: var(--white);
+      border: 1px solid var(--border-light);
       border-radius: 2mm;
+      box-shadow: var(--shadow-sm);
     }
     .icon-step { text-align: center; flex: 1; }
     .icon-step .icon { font-size: 16pt; margin-bottom: 0.5mm; }
@@ -156,42 +168,47 @@
       display: flex; align-items: center; gap: 2mm; margin-bottom: 2mm;
     }
     .toc-num {
-      width: 6mm; height: 6mm; background: linear-gradient(135deg, var(--gold) 0%, #b8962e 100%);
+      width: 6mm; height: 6mm; background: linear-gradient(135deg, var(--gold) 0%, #a6832a 100%);
       border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      color: var(--dark); font-weight: 700; font-size: 7pt; flex-shrink: 0;
+      color: var(--white); font-weight: 700; font-size: 7pt; flex-shrink: 0;
     }
     .tag {
-      display: inline-block; background: linear-gradient(135deg, var(--gold) 0%, #b8962e 100%);
-      color: var(--dark); font-size: 5pt; padding: 0.5mm 1.5mm; border-radius: 1mm; font-weight: 700;
+      display: inline-block; background: linear-gradient(135deg, var(--gold) 0%, #a6832a 100%);
+      color: var(--white); font-size: 5pt; padding: 0.5mm 1.5mm; border-radius: 1mm; font-weight: 700;
     }
     .tag-green {
-      display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      display: inline-block; background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
       color: #fff; font-size: 5pt; padding: 0.5mm 1.5mm; border-radius: 1mm; font-weight: 700;
     }
     .big-commission {
       text-align: center; padding: 6mm;
-      background: linear-gradient(135deg, rgba(201, 162, 39, 0.2) 0%, rgba(201, 162, 39, 0.05) 100%);
+      background: rgba(184, 148, 45, 0.1);
       border: 2px solid var(--gold); border-radius: 4mm; margin: 3mm 0;
     }
     .big-commission .rate { font-family: 'Playfair Display', serif; font-size: 48pt; color: var(--gold); font-weight: 700; }
-    .big-commission .label { font-size: 12pt; color: var(--cream); margin-top: 1mm; }
+    .big-commission .label { font-size: 12pt; color: var(--navy); margin-top: 1mm; }
     .big-commission .desc { font-size: 9pt; color: var(--text-muted); margin-top: 2mm; }
     .earnings-table { width: 100%; border-collapse: collapse; margin: 2mm 0; }
     .earnings-table th {
-      background: rgba(201, 162, 39, 0.2); padding: 2mm;
+      background: rgba(184, 148, 45, 0.15); padding: 2mm;
       text-align: left; color: var(--gold); font-size: 7pt; text-transform: uppercase;
     }
-    .earnings-table td { padding: 2mm; border-bottom: 1px solid rgba(255,255,255,0.1); color: var(--cream); font-size: 8pt; }
+    .earnings-table td { padding: 2mm; border-bottom: 1px solid var(--border-light); color: var(--text-body); font-size: 8pt; }
     .earnings-table .highlight { color: var(--gold); font-weight: 700; font-size: 10pt; }
     .profile-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2mm; }
     .profile-card {
-      background: var(--dark-card);
-      border: 1px solid rgba(201, 162, 39, 0.15); border-radius: 2mm; padding: 2mm;
+      background: var(--white);
+      border: 1px solid var(--border-light); border-radius: 2mm; padding: 2mm;
       text-align: center;
+      box-shadow: var(--shadow-sm);
     }
     .profile-icon { font-size: 16pt; margin-bottom: 1mm; }
-    .profile-title { font-weight: 600; font-size: 7pt; color: var(--cream); margin-bottom: 0.5mm; }
+    .profile-title { font-weight: 600; font-size: 7pt; color: var(--navy); margin-bottom: 0.5mm; }
     .profile-desc { font-size: 6pt; color: var(--text-muted); line-height: 1.2; }
+    .scale-box {
+      text-align: center; padding: 2mm; background: #f8f9fa; border-radius: 2mm;
+      border: 1px solid var(--border-light);
+    }
   </style>
 </head>
 <body>
@@ -267,7 +284,7 @@
         <div class="stat-label">Commission Rate</div>
       </div>
       <div class="stat-box">
-        <div class="stat-value">∞</div>
+        <div class="stat-value">&infin;</div>
         <div class="stat-label">Lifetime Earnings</div>
       </div>
     </div>
@@ -292,22 +309,22 @@
     <div class="section-title">How The Platform Works</div>
     <div class="icon-flow">
       <div class="icon-step"><div class="icon">📝</div><div class="label">Member Posts<br>Service Request</div></div>
-      <div class="arrow">→</div>
+      <div class="arrow">&rarr;</div>
       <div class="icon-step"><div class="icon">🔔</div><div class="label">Providers Get<br>Notified</div></div>
-      <div class="arrow">→</div>
+      <div class="arrow">&rarr;</div>
       <div class="icon-step"><div class="icon">💰</div><div class="label">Providers Submit<br>Competitive Bids</div></div>
-      <div class="arrow">→</div>
+      <div class="arrow">&rarr;</div>
       <div class="icon-step"><div class="icon">✅</div><div class="label">Member Picks<br>Best Offer</div></div>
     </div>
 
     <div class="section-title">Your Role as a Founder</div>
     <div class="icon-flow">
       <div class="icon-step"><div class="icon">📣</div><div class="label">Spread the<br>Word</div></div>
-      <div class="arrow">→</div>
+      <div class="arrow">&rarr;</div>
       <div class="icon-step"><div class="icon">🤝</div><div class="label">Refer Quality<br>Providers</div></div>
-      <div class="arrow">→</div>
+      <div class="arrow">&rarr;</div>
       <div class="icon-step"><div class="icon">💳</div><div class="label">Providers Buy<br>Bid Credits</div></div>
-      <div class="arrow">→</div>
+      <div class="arrow">&rarr;</div>
       <div class="icon-step"><div class="icon">💰</div><div class="label">You Earn<br>50% Commission</div></div>
     </div>
 
@@ -397,6 +414,11 @@
         <div class="feature-title">Service History</div>
         <div class="feature-desc">Complete digital record of all services performed. Never lose a receipt again.</div>
       </div>
+      <div class="feature-item">
+        <div class="feature-icon">💵</div>
+        <div class="feature-title">Rideshare Profit Calculator</div>
+        <div class="feature-desc">Gig workers calculate true earnings after costs. Compare 10+ platforms. Targets 59M+ drivers &ndash; powerful new member acquisition channel.</div>
+      </div>
     </div>
 
     <div class="content-box highlight" style="margin-top: 2mm;">
@@ -428,7 +450,7 @@
         <div class="stat-label">Provider Referral Commission</div>
       </div>
       <div class="stat-box">
-        <div class="stat-value">∞</div>
+        <div class="stat-value">&infin;</div>
         <div class="stat-label">Lifetime Earnings</div>
       </div>
     </div>
@@ -512,19 +534,19 @@
     <div class="content-box highlight" style="margin-top: 3mm;">
       <div class="box-title gold">Scaling Your Income</div>
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm; margin-top: 2mm;">
-        <div style="text-align: center; padding: 2mm; background: var(--dark); border-radius: 2mm;">
+        <div class="scale-box">
           <div style="font-size: 9pt; color: var(--text-muted);">10 Providers</div>
           <div style="font-size: 14pt; color: var(--gold); font-weight: 700;">$750/mo</div>
         </div>
-        <div style="text-align: center; padding: 2mm; background: var(--dark); border-radius: 2mm;">
+        <div class="scale-box">
           <div style="font-size: 9pt; color: var(--text-muted);">25 Providers</div>
           <div style="font-size: 14pt; color: var(--gold); font-weight: 700;">$2,500/mo</div>
         </div>
-        <div style="text-align: center; padding: 2mm; background: var(--dark); border-radius: 2mm;">
+        <div class="scale-box">
           <div style="font-size: 9pt; color: var(--text-muted);">50 Providers</div>
           <div style="font-size: 14pt; color: var(--gold); font-weight: 700;">$5,000/mo</div>
         </div>
-        <div style="text-align: center; padding: 2mm; background: var(--dark); border-radius: 2mm;">
+        <div class="scale-box">
           <div style="font-size: 9pt; color: var(--text-muted);">100 Providers</div>
           <div style="font-size: 14pt; color: var(--gold); font-weight: 700;">$10,000/mo</div>
         </div>
@@ -651,13 +673,13 @@
     <div class="section-title">How to Get Started</div>
     <div class="icon-flow">
       <div class="icon-step"><div class="icon">📝</div><div class="label">Apply<br>Online</div></div>
-      <div class="arrow">→</div>
+      <div class="arrow">&rarr;</div>
       <div class="icon-step"><div class="icon">✅</div><div class="label">Get<br>Approved</div></div>
-      <div class="arrow">→</div>
+      <div class="arrow">&rarr;</div>
       <div class="icon-step"><div class="icon">📦</div><div class="label">Receive<br>Marketing Kit</div></div>
-      <div class="arrow">→</div>
+      <div class="arrow">&rarr;</div>
       <div class="icon-step"><div class="icon">📣</div><div class="label">Start<br>Referring</div></div>
-      <div class="arrow">→</div>
+      <div class="arrow">&rarr;</div>
       <div class="icon-step"><div class="icon">💰</div><div class="label">Earn<br>Commissions</div></div>
     </div>
 

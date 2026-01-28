@@ -38,7 +38,7 @@
     }
     .partner-badge span {
       display: inline-block;
-      background: linear-gradient(135deg, #9b59b6, #8e44ad);
+      background: linear-gradient(135deg, #b8942d, #d4a855);
       color: white;
       padding: 8px 24px;
       border-radius: 30px;
@@ -106,7 +106,7 @@
       padding: 20px;
       border: 1px solid var(--border-subtle);
       border-radius: 12px;
-      background: var(--bg-secondary);
+      background: var(--bg-card);
     }
     .signature-block h4 {
       margin: 0 0 15px;
@@ -265,8 +265,8 @@
   <script src="/agreement-form.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      const savedTheme = localStorage.getItem('theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', savedTheme === 'light' ? 'light' : 'dark');
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      document.documentElement.setAttribute('data-theme', savedTheme === 'dark' ? 'dark' : 'light');
       
       const acknowledgments = [
         'I have read and understand all terms of this Founding Provider Partner Agreement',
