@@ -530,7 +530,10 @@
       "accessValue": "VIP Support",
       "growthTitle": "Growth Bonuses",
       "growthDesc": "Hit milestones and unlock bonus payouts. The more you grow the platform, the more you earn.",
-      "growthValue": "Tiered Rewards"
+      "growthValue": "Tiered Rewards",
+      "toolsTitle": "Platform Tools & Calculators",
+      "toolsDesc": "Leverage innovative platform features like our Rideshare Profit Calculator to attract gig economy drivers. Help referrals maximize earnings while building your network.",
+      "toolsValue": "New Channel"
     },
     "rightForYou": {
       "label": "Perfect Fit",
@@ -544,7 +547,9 @@
       "networkerTitle": "Natural Networkers",
       "networkerDesc": "People who enjoy connecting others and building community relationships.",
       "sideHustleTitle": "Side Hustle Seekers",
-      "sideHustleDesc": "Looking for flexible income that grows over time without a fixed schedule."
+      "sideHustleDesc": "Looking for flexible income that grows over time without a fixed schedule.",
+      "gigTitle": "Gig Economy Drivers",
+      "gigDesc": "Rideshare, delivery, and freelance workers seeking earnings optimization. Attract them with our Rideshare Profit Calculator and maximize your network growth."
     },
     "faq": {
       "label": "Common Questions",
@@ -622,7 +627,7 @@
       "successMessage": "Thank you for applying to become a Member Founder.",
       "successFollowup": "We'll review your application and send you the Independent Contractor Agreement to sign within 48-72 hours."
     },
-    "footer": "© 2025 My Car Concierge. Privacy · Terms"
+    "footer": "&copy; 2026 My Car Concierge. Privacy &middot; Terms"
   },
   "founderDashboard": {
     "title": "Founder Dashboard",
