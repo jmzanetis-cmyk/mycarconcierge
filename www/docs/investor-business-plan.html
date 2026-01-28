@@ -87,18 +87,13 @@
             z-index: 1;
         }
         
-        .logo-placeholder {
-            width: 120px;
-            height: 120px;
-            background: linear-gradient(135deg, #b8942d, #d4af37);
-            border-radius: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2.5rem;
-            font-weight: 800;
+        .logo-img {
+            width: 140px;
+            height: 140px;
+            border-radius: 16px;
+            object-fit: contain;
             margin: 0 auto 2rem;
-            box-shadow: 0 10px 40px rgba(184, 148, 45, 0.3);
+            display: block;
         }
         
         .cover h1 {
@@ -619,7 +614,7 @@
         <!-- Cover Page -->
         <div class="cover">
             <div class="cover-content">
-                <div class="logo-placeholder">MCC</div>
+                <img src="../logo.png" alt="My Car Concierge" class="logo-img">
                 <h1>MY CAR CONCIERGE</h1>
                 <p class="tagline">The Complete Car Ownership Platform</p>
                 <p class="headline">One app. Every car need. Zero hassle.</p>
