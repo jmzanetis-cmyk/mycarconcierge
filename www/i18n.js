@@ -91,13 +91,22 @@ const I18n = (function() {
       element.setAttribute(attrTarget, translated);
     } else {
       const svg = element.querySelector('svg');
+      const containsHtml = /<[a-z][\s\S]*>/i.test(translated);
       if (svg) {
         const svgClone = svg.cloneNode(true);
-        element.textContent = translated;
+        if (containsHtml) {
+          element.innerHTML = translated;
+        } else {
+          element.textContent = translated;
+        }
         element.insertBefore(svgClone, element.firstChild);
         element.insertBefore(document.createTextNode(' '), svgClone.nextSibling);
       } else {
-        element.textContent = translated;
+        if (containsHtml) {
+          element.innerHTML = translated;
+        } else {
+          element.textContent = translated;
+        }
       }
     }
   }
