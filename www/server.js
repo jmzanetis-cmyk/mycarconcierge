@@ -17733,6 +17733,202 @@ function startLoginActivityCleanupScheduler() {
   console.log('[Scheduler] Scheduled: initial login cleanup in 5min, then every 24 hours');
 }
 
+// ==============================================
+// DREAM CAR FINDER EMAIL DIGEST REPORTS
+// ==============================================
+
+async function sendDreamCarDigestEmails() {
+  const now = new Date();
+  console.log('[DreamCarDigest] Starting email digest check...');
+  
+  try {
+    const { data: searches, error } = await supabaseAdmin
+      .from('dream_car_searches')
+      .select(`
+        id, 
+        user_id, 
+        search_name,
+        email_report_frequency,
+        last_email_report_at
+      `)
+      .eq('is_active', true)
+      .eq('notify_email', true)
+      .neq('email_report_frequency', 'none')
+      .not('email_report_frequency', 'is', null);
+    
+    if (error) {
+      console.error('[DreamCarDigest] Error fetching searches:', error);
+      return { sent: 0, errors: 0 };
+    }
+    
+    if (!searches || searches.length === 0) {
+      console.log('[DreamCarDigest] No active searches requiring digest emails');
+      return { sent: 0, errors: 0 };
+    }
+    
+    let sent = 0, errors = 0;
+    
+    for (const search of searches) {
+      try {
+        const shouldSend = shouldSendDigestNow(search.email_report_frequency, search.last_email_report_at, now);
+        if (!shouldSend) continue;
+        
+        const sinceDate = search.last_email_report_at ? new Date(search.last_email_report_at) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        
+        const { data: matches, error: matchError } = await supabaseAdmin
+          .from('dream_car_matches')
+          .select('*')
+          .eq('search_id', search.id)
+          .gte('found_at', sinceDate.toISOString())
+          .eq('is_dismissed', false)
+          .order('match_score', { ascending: false });
+        
+        if (matchError || !matches || matches.length === 0) continue;
+        
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('email, first_name')
+          .eq('id', search.user_id)
+          .single();
+        
+        if (!profile?.email) continue;
+        
+        const emailHtml = generateDreamCarDigestHtml(search, matches, sinceDate, now);
+        const emailSubject = `Dream Car Finder: ${matches.length} New Match${matches.length === 1 ? '' : 'es'} for "${search.search_name || 'Your Search'}"`;
+        
+        const result = await sendEmailNotification(
+          profile.email,
+          profile.first_name || 'Car Enthusiast',
+          emailSubject,
+          emailHtml,
+          search.user_id,
+          'dream_car'
+        );
+        
+        if (result.sent) {
+          await supabaseAdmin
+            .from('dream_car_searches')
+            .update({ last_email_report_at: now.toISOString() })
+            .eq('id', search.id);
+          sent++;
+          console.log(`[DreamCarDigest] Sent digest to ${profile.email} with ${matches.length} matches`);
+        }
+      } catch (searchError) {
+        console.error(`[DreamCarDigest] Error processing search ${search.id}:`, searchError.message);
+        errors++;
+      }
+    }
+    
+    console.log(`[DreamCarDigest] Complete: sent=${sent}, errors=${errors}`);
+    return { sent, errors };
+  } catch (error) {
+    console.error('[DreamCarDigest] Error:', error);
+    return { sent: 0, errors: 1 };
+  }
+}
+
+function shouldSendDigestNow(frequency, lastSent, now) {
+  if (!lastSent) return true;
+  
+  const last = new Date(lastSent);
+  const hoursDiff = (now - last) / (1000 * 60 * 60);
+  const daysDiff = hoursDiff / 24;
+  
+  switch (frequency) {
+    case 'daily': return daysDiff >= 1;
+    case 'weekly': return daysDiff >= 7;
+    case 'monthly': return daysDiff >= 30;
+    case 'quarterly': return daysDiff >= 90;
+    case 'yearly': return daysDiff >= 365;
+    default: return false;
+  }
+}
+
+function generateDreamCarDigestHtml(search, matches, sinceDate, now) {
+  const frequencyLabel = {
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+    quarterly: 'Quarterly',
+    yearly: 'Yearly'
+  }[search.email_report_frequency] || 'Periodic';
+  
+  const dateRange = `${sinceDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  
+  let matchListHtml = matches.slice(0, 10).map((match, i) => `
+    <div style="background: ${i % 2 === 0 ? '#f8f9fa' : '#fff'}; padding: 16px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e9ecef;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <strong style="color: #1e3a5f; font-size: 1.1em;">${match.year} ${match.make} ${match.model}${match.trim ? ` ${match.trim}` : ''}</strong>
+        <span style="background: ${match.match_score >= 90 ? '#28a745' : match.match_score >= 70 ? '#b8942d' : '#6c757d'}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: 600;">${match.match_score}% Match</span>
+      </div>
+      <div style="color: #495057; font-size: 0.95em;">
+        <span style="margin-right: 16px;">💰 <strong>$${match.price ? Number(match.price).toLocaleString() : 'N/A'}</strong></span>
+        <span style="margin-right: 16px;">🛣️ ${match.mileage ? Number(match.mileage).toLocaleString() + ' mi' : 'N/A'}</span>
+        ${match.exterior_color ? `<span>🎨 ${match.exterior_color}</span>` : ''}
+      </div>
+      ${match.location ? `<div style="color: #6c757d; font-size: 0.85em; margin-top: 6px;">📍 ${match.location}</div>` : ''}
+    </div>
+  `).join('');
+  
+  if (matches.length > 10) {
+    matchListHtml += `<p style="color: #6c757d; text-align: center; font-style: italic;">...and ${matches.length - 10} more matches. View all in your dashboard.</p>`;
+  }
+  
+  return `
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h2 style="color: #1e3a5f; margin: 0 0 8px 0;">${frequencyLabel} Dream Car Report</h2>
+      <p style="color: #6c757d; margin: 0; font-size: 0.9em;">Search: "${search.search_name || 'Your Search'}" | ${dateRange}</p>
+    </div>
+    
+    <div class="alert-box" style="text-align: center;">
+      <div style="font-size: 2em; margin-bottom: 8px;">🚗</div>
+      <div style="font-size: 1.5em; font-weight: bold; color: #1e3a5f;">${matches.length} New Match${matches.length === 1 ? '' : 'es'} Found!</div>
+      <p style="color: #495057; margin: 8px 0 0 0;">We found vehicles matching your dream car criteria.</p>
+    </div>
+    
+    <h3 style="color: #1e3a5f; margin: 24px 0 16px;">Top Matches</h3>
+    ${matchListHtml}
+    
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="https://mycarconcierge.io" class="button" style="background: linear-gradient(135deg, #b8942d 0%, #a68428 100%); color: #ffffff !important;">View All Matches in Dashboard</a>
+    </div>
+    
+    <p style="color: #6c757d; font-size: 0.85em; text-align: center;">
+      You're receiving this ${frequencyLabel.toLowerCase()} digest because you set up Dream Car Finder alerts. 
+      <a href="https://mycarconcierge.io" style="color: #b8942d;">Manage your search settings</a>
+    </p>
+  `;
+}
+
+function startDreamCarDigestScheduler() {
+  const ONE_HOUR = 60 * 60 * 1000;
+  const INITIAL_DELAY = 10 * 60 * 1000; // 10 minutes after startup
+  
+  console.log('[Scheduler] Dream Car Finder digest email scheduler is ENABLED');
+  
+  setTimeout(async () => {
+    console.log('[Scheduler] Running initial Dream Car digest check...');
+    try {
+      const result = await sendDreamCarDigestEmails();
+      console.log(`[Scheduler] Initial Dream Car digest check complete: ${result.sent} emails sent`);
+    } catch (error) {
+      console.error('[Scheduler] Initial Dream Car digest check failed:', error.message);
+    }
+  }, INITIAL_DELAY);
+  
+  setInterval(async () => {
+    console.log('[Scheduler] Running hourly Dream Car digest check...');
+    try {
+      const result = await sendDreamCarDigestEmails();
+      console.log(`[Scheduler] Hourly Dream Car digest check complete: ${result.sent} emails sent`);
+    } catch (error) {
+      console.error('[Scheduler] Hourly Dream Car digest check failed:', error.message);
+    }
+  }, ONE_HOUR);
+  
+  console.log('[Scheduler] Scheduled: initial Dream Car digest check in 10min, then every hour');
+}
+
 async function handleAdminSendBulkWelcomeEmails(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -21594,4 +21790,5 @@ server.listen(PORT, '0.0.0.0', () => {
   startWeeklyRecallCheckScheduler();
   startAppointmentReminderScheduler();
   startLoginActivityCleanupScheduler();
+  startDreamCarDigestScheduler();
 });

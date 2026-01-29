@@ -150,3 +150,11 @@ CREATE TRIGGER trigger_dream_car_searches_updated_at
 
 -- Add preferred_trims column for existing databases (run if upgrading)
 -- ALTER TABLE dream_car_searches ADD COLUMN IF NOT EXISTS preferred_trims JSONB DEFAULT '[]'::jsonb;
+
+-- Add email_report_frequency column for digest emails (run if upgrading)
+-- Email report frequencies: none, daily, weekly, monthly, quarterly, yearly
+-- ALTER TABLE dream_car_searches ADD COLUMN IF NOT EXISTS email_report_frequency VARCHAR(20) DEFAULT 'daily';
+-- ALTER TABLE dream_car_searches ADD COLUMN IF NOT EXISTS last_email_report_at TIMESTAMPTZ;
+
+-- Index for email report scheduling
+-- CREATE INDEX IF NOT EXISTS idx_dream_car_searches_email_report ON dream_car_searches(email_report_frequency, last_email_report_at) WHERE is_active = true AND email_report_frequency != 'none';
