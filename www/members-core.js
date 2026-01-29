@@ -587,6 +587,176 @@
       }
     });
 
+    // ========== NOTIFICATIONS (Core) ==========
+    let notifications = [];
+
+    async function loadNotifications() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('notifications')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) {
+          console.log('Notifications table may not exist:', error);
+          return;
+        }
+
+        notifications = data || [];
+        renderNotifications();
+        updateNotificationBadge();
+      } catch (err) {
+        console.log('loadNotifications error:', err);
+      }
+    }
+
+    function updateNotificationBadge() {
+      const unreadCount = notifications.filter(n => !n.read).length;
+      const badge = document.getElementById('notif-count');
+      if (badge) {
+        if (unreadCount > 0) {
+          badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+          badge.style.display = 'inline';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    }
+
+    function renderNotifications() {
+      const container = document.getElementById('notifications-list');
+      if (!container) return;
+      
+      if (!notifications.length) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔔</div><p>No notifications yet.</p></div>';
+        return;
+      }
+
+      const notifIcons = {
+        'bid_received': '💰',
+        'bid_accepted': '✅',
+        'work_started': '🔧',
+        'work_completed': '✓',
+        'message_received': '💬',
+        'payment_released': '💳',
+        'upsell_request': '⚠️',
+        'reminder': '🔔',
+        'default': '📢'
+      };
+
+      container.innerHTML = notifications.map(n => {
+        const icon = notifIcons[n.type] || notifIcons['default'];
+        const timeAgo = formatTimeAgo(n.created_at);
+        const unreadClass = n.read ? '' : 'unread';
+        return `
+          <div class="notification-item ${unreadClass}" data-id="${n.id}" onclick="markNotificationRead('${n.id}')">
+            <div class="notification-icon">${icon}</div>
+            <div class="notification-content">
+              <div class="notification-title">${escapeHtml(n.title || '')}</div>
+              <div class="notification-message">${escapeHtml(n.message || '')}</div>
+              <div class="notification-time">${timeAgo}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function markNotificationRead(notifId) {
+      await supabaseClient.from('notifications').update({ read: true }).eq('id', notifId);
+      const notif = notifications.find(n => n.id === notifId);
+      if (notif) notif.read = true;
+      renderNotifications();
+      updateNotificationBadge();
+    }
+
+    // ========== SMS OPTIONS TOGGLE ==========
+    function toggleSmsOptions() {
+      const checkbox = document.getElementById('sms-enabled');
+      const optionsDiv = document.getElementById('sms-options');
+      if (checkbox && optionsDiv) {
+        optionsDiv.style.display = checkbox.checked ? 'block' : 'none';
+      }
+    }
+
+    // ========== RENDER VEHICLES (Core) ==========
+    function renderVehicles() {
+      const grid = document.getElementById('vehicles-grid');
+      if (!grid) return;
+      
+      if (!vehicles.length) {
+        grid.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🚗</div>
+            <p>No vehicles added yet.</p>
+            <button class="btn btn-primary" onclick="openAddVehicleModal()">Add Your First Vehicle</button>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = vehicles.map(v => {
+        const displayName = v.nickname || `${v.year} ${v.make} ${v.model}`;
+        const trimInfo = v.trim_version ? `<span class="vehicle-trim">${escapeHtml(v.trim_version)}</span>` : '';
+        return `
+          <div class="vehicle-card" data-id="${v.id}">
+            <div class="vehicle-card-header">
+              <h3>${escapeHtml(displayName)}</h3>
+              ${trimInfo}
+            </div>
+            <div class="vehicle-card-body">
+              <p><strong>Year:</strong> ${v.year}</p>
+              <p><strong>Make:</strong> ${escapeHtml(v.make)}</p>
+              <p><strong>Model:</strong> ${escapeHtml(v.model)}</p>
+              ${v.vin ? `<p><strong>VIN:</strong> ${escapeHtml(v.vin)}</p>` : ''}
+              ${v.license_plate ? `<p><strong>Plate:</strong> ${escapeHtml(v.license_plate)}</p>` : ''}
+              ${v.mileage ? `<p><strong>Mileage:</strong> ${v.mileage.toLocaleString()}</p>` : ''}
+            </div>
+            <div class="vehicle-card-actions">
+              <button class="btn btn-sm btn-secondary" onclick="editVehicle('${v.id}')">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteVehicle('${v.id}')">Delete</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ========== RENDER SERVICE HISTORY (Core) ==========
+    function renderServiceHistory() {
+      const container = document.getElementById('history-list');
+      if (!container) return;
+      
+      const filterVehicle = document.getElementById('history-vehicle-filter')?.value || 'all';
+      let filtered = serviceHistory || [];
+      
+      if (filterVehicle !== 'all') {
+        filtered = filtered.filter(h => h.vehicle_id === filterVehicle);
+      }
+      
+      if (!filtered.length) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📜</div><p>No service history yet.</p></div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(h => {
+        const vehicleName = h.vehicles ? `${h.vehicles.year} ${h.vehicles.make} ${h.vehicles.model}` : 'Unknown Vehicle';
+        const date = new Date(h.service_date).toLocaleDateString();
+        return `
+          <div class="history-item">
+            <div class="history-icon">🔧</div>
+            <div class="history-content">
+              <div class="history-title">${escapeHtml(h.service_type || 'Service')}</div>
+              <div class="history-vehicle">${escapeHtml(vehicleName)}</div>
+              <div class="history-date">${date}</div>
+              ${h.notes ? `<div class="history-notes">${escapeHtml(h.notes)}</div>` : ''}
+            </div>
+            ${h.cost ? `<div class="history-cost">$${h.cost.toFixed(2)}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
     async function loadProfile() {
       const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', currentUser.id).single();
       

@@ -3857,11 +3857,11 @@ function setSecurityHeaders(res, isApiRoute = false) {
   if (!isApiRoute) {
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
       "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:",
       "img-src 'self' data: blob: https: http:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.printful.com https://api.anthropic.com https://generativelanguage.googleapis.com https://*.replit.dev https://*.repl.co",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.printful.com https://api.anthropic.com https://generativelanguage.googleapis.com https://*.replit.dev https://*.repl.co https://cdnjs.cloudflare.com",
       "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
       "object-src 'none'",
       "base-uri 'self'",
