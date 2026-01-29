@@ -253,6 +253,8 @@
       "saveCar": "Save",
       "dismiss": "Dismiss",
       "emailReportFrequency": "Email Digest Frequency",
+      "notificationFrequency": "Notification Frequency",
+      "freqTwiceDaily": "2x per day",
       "mileageRange": "Mileage Range",
       "notificationEmail": "Notification Email",
       "notificationPhone": "Notification Phone"
