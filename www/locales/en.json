@@ -254,6 +254,7 @@
       "dismiss": "Dismiss",
       "emailReportFrequency": "Email Digest Frequency",
       "notificationFrequency": "Notification Frequency",
+      "freqOneTime": "One-time only",
       "freqTwiceDaily": "2x per day",
       "mileageRange": "Mileage Range",
       "notificationEmail": "Notification Email",
