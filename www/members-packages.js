@@ -1250,7 +1250,7 @@
         const providerIds = bids.map(b => b.provider_id);
         const { data: applications } = await supabaseClient
           .from('provider_applications')
-          .select('user_id, business_name, years_in_business, services_offered, brand_specializations, license_verified, insurance_verified, certifications_verified')
+          .select('user_id, business_name, years_in_business, services_offered, brand_specializations, license_verified, insurance_verified, certifications_verified, background_verified')
           .in('user_id', providerIds)
           .eq('status', 'approved');
         applications?.forEach(app => providerApplications[app.user_id] = app);
@@ -1290,6 +1290,7 @@
                 const brands = appData.brand_specializations || [];
                 const specialties = [...services.slice(0, 2), ...brands.slice(0, 1)].slice(0, 3);
                 const bidPrice = bid.price || 0;
+                const isBackgroundVerified = appData.background_verified === true;
                 
                 // Performance data
                 const tier = perf?.tier || 'bronze';
@@ -1306,9 +1307,10 @@
                       <div style="display:flex;gap:12px;align-items:flex-start;">
                         <div style="width:48px;height:48px;background:var(--accent-gold-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🔧</div>
                         <div>
-                          <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+                          <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap;">
                             <h4 style="margin:0;font-size:1rem;">${providerName}</h4>
                             ${perf ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:${tierColors[tier]}20;color:${tierColors[tier]};border:1px solid ${tierColors[tier]}40;">${tierIcon} ${tier.charAt(0).toUpperCase() + tier.slice(1)}</span>` : ''}
+                            ${isBackgroundVerified ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);" title="This provider has voluntarily completed background verification for added trust">🛡️ Background Verified</span>` : ''}
                           </div>
                           <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:2px;">
                             ${businessName && businessName !== providerName ? `${businessName}` : ''}
