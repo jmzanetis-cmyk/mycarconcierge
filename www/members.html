@@ -1505,37 +1505,74 @@
 
             <div class="form-group" style="margin-top: 16px;">
               <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 12px; display: block;" data-i18n="member.aiSearch.bodyStyles">Body Styles</label>
-              <div style="display: flex; flex-wrap: wrap; gap: 12px;">
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                  <input type="checkbox" name="ai-body-style" value="Sedan"> Sedan
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                  <input type="checkbox" name="ai-body-style" value="SUV"> SUV
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                  <input type="checkbox" name="ai-body-style" value="Crossover"> Crossover
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                  <input type="checkbox" name="ai-body-style" value="Coupe"> Coupe
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                  <input type="checkbox" name="ai-body-style" value="Truck"> Truck
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                  <input type="checkbox" name="ai-body-style" value="Van"> Van
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                  <input type="checkbox" name="ai-body-style" value="Convertible"> Convertible
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                  <input type="checkbox" name="ai-body-style" value="Hatchback"> Hatchback
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                  <input type="checkbox" name="ai-body-style" value="Hot Hatch"> Hot Hatch
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                  <input type="checkbox" name="ai-body-style" value="Wagon"> Wagon
-                </label>
+              
+              <div style="margin-bottom: 12px;">
+                <span style="font-size: 0.75rem; font-weight: 600; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.5px;">Sedans & Coupes</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Sedan"> Sedan</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Coupe"> Coupe</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Sports Car"> Sports Car</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Muscle Car"> Muscle Car</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Supercar"> Supercar</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Luxury Sedan"> Luxury Sedan</label>
+                </div>
+              </div>
+
+              <div style="margin-bottom: 12px;">
+                <span style="font-size: 0.75rem; font-weight: 600; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.5px;">Hatchbacks & Wagons</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Hatchback"> Hatchback</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Hot Hatch"> Hot Hatch</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Wagon"> Wagon</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Liftback"> Liftback</label>
+                </div>
+              </div>
+
+              <div style="margin-bottom: 12px;">
+                <span style="font-size: 0.75rem; font-weight: 600; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.5px;">SUVs & Crossovers</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="SUV"> SUV</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Crossover"> Crossover</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Compact SUV"> Compact SUV</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Midsize SUV"> Midsize SUV</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Full-Size SUV"> Full-Size SUV</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="SUV Coupe"> SUV Coupe</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Off-Road SUV"> Off-Road SUV</label>
+                </div>
+              </div>
+
+              <div style="margin-bottom: 12px;">
+                <span style="font-size: 0.75rem; font-weight: 600; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.5px;">Trucks</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Pickup Truck"> Pickup Truck</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Compact Truck"> Compact Truck</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Midsize Truck"> Midsize Truck</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Full-Size Truck"> Full-Size Truck</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Heavy Duty Truck"> Heavy Duty Truck</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Crew Cab"> Crew Cab</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Extended Cab"> Extended Cab</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Regular Cab"> Regular Cab</label>
+                </div>
+              </div>
+
+              <div style="margin-bottom: 12px;">
+                <span style="font-size: 0.75rem; font-weight: 600; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.5px;">Vans & Family</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Minivan"> Minivan</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Passenger Van"> Passenger Van</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Cargo Van"> Cargo Van</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Camper Van"> Camper Van</label>
+                </div>
+              </div>
+
+              <div style="margin-bottom: 12px;">
+                <span style="font-size: 0.75rem; font-weight: 600; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.5px;">Convertibles & Open-Top</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Convertible"> Convertible</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Roadster"> Roadster</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Targa"> Targa</label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-body-style" value="Cabriolet"> Cabriolet</label>
+                </div>
               </div>
             </div>
 
