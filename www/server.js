@@ -17800,9 +17800,7 @@ async function sendDreamCarDigestEmails() {
           profile.email,
           profile.first_name || 'Car Enthusiast',
           emailSubject,
-          emailHtml,
-          search.user_id,
-          'dream_car'
+          emailHtml
         );
         
         if (result.sent) {
