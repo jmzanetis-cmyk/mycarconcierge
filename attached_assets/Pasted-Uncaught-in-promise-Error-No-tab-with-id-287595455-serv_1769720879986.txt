@@ -1,0 +1,31 @@
+Uncaught (in promise) Error: No tab with id: 287595455.
+serviceWorker.js:1  Uncaught (in promise) Error: No tab with id: 287595455.
+Unchecked runtime.lastError: No tab with id: 287595455.
+members.html:1  Loading the script 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js' violates the following Content Security Policy directive: "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked.
+96Tracking Prevention blocked access to storage for <URL>.
+emailService.js?v=20260122:3 Email service loaded
+i18n.js:72  Translation missing for key: member.aiSearch.emailReportFrequency
+t @ i18n.js:72
+pwa-init.js?v=20260122:6 ServiceWorker registered: https://www.mycarconcierge.com/
+members.html:1  <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">
+members.html:1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+members-core.js?v=20260122:441  Page initialization error: ReferenceError: loadNotifications is not defined
+    at initializeDashboard (members-core.js?v=20260122:459:9)
+    at members-core.js?v=20260122:439:15
+(anonymous) @ members-core.js?v=20260122:441
+members-core.js?v=20260122:637  Uncaught (in promise) ReferenceError: toggleSmsOptions is not defined
+    at loadProfile (members-core.js?v=20260122:637:7)
+members-core.js?v=20260122:1495  Uncaught (in promise) ReferenceError: renderServiceHistory is not defined
+    at loadServiceHistory (members-core.js?v=20260122:1495:7)
+members-core.js?v=20260122:761  loadVehicles error: ReferenceError: renderVehicles is not defined
+    at loadVehicles (members-core.js?v=20260122:755:9)
+loadVehicles @ members-core.js?v=20260122:761
+members-core.js?v=20260122:763  Uncaught (in promise) ReferenceError: renderVehicles is not defined
+    at loadVehicles (members-core.js?v=20260122:763:9)
+9The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+[NEW] Explain Console errors by using Copilot in Edge: click
+         
+         to explain an error. 
+        Learn more
+        Don't show again
+Connecting to 'https://cdn.jsdelivr.net/npm/chart.umd.min.js.map' violates the following Content Security Policy directive: "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.printful.com https://api.anthropic.com https://generativelanguage.googleapis.com https://*.replit.dev https://*.repl.co". The request has been blocked.
