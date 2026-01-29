@@ -960,39 +960,39 @@
     <div id="language-switcher" style="padding:0 12px 16px;"></div>
 
     <div class="nav-label" data-i18n="member.navDashboard">Dashboard</div>
-    <div class="nav-item active" data-section="overview"><span data-i18n="member.overview">📊 Overview</span></div>
+    <div class="nav-item active" data-section="overview" onclick="showSection('overview')"><span data-i18n="member.overview">📊 Overview</span></div>
     
     <div class="nav-label" data-i18n="member.navDigitalGarage">Digital Garage</div>
-    <div class="nav-item" data-section="vehicles"><span data-i18n="member.myVehicles">🚗 My Vehicles</span></div>
-    <div class="nav-item" data-section="my-next-car"><span>🚘 My Next Car</span> <span class="nav-badge" id="prospect-count" style="display:none;">0</span></div>
-    <div class="nav-item" data-section="dream-car-finder"><span>✨ Dream Car Finder</span> <span class="nav-badge" id="dream-car-count" style="display:none;">0</span></div>
-    <div class="nav-item" data-section="maintenance-schedule"><span>🔧 Maintenance Schedule</span> <span class="nav-badge" id="maintenance-due-count" style="display:none;background:var(--accent-orange);">0</span></div>
-    <div class="nav-item" data-section="learn"><span>🎓 My Car Concierge Academy</span></div>
-    <div class="nav-item" data-section="household"><span>👨‍👩‍👧‍👦 Household</span> <span class="nav-badge" id="household-count" style="display:none;">0</span></div>
-    <div class="nav-item" data-section="fleet"><span>🏢 Fleet</span> <span class="nav-badge" id="fleet-count" style="display:none;">0</span></div>
-    <div class="nav-item" data-section="reminders"><span data-i18n="member.reminders">🔔 Reminders</span> <span class="nav-badge" id="reminder-count" style="display:none;">0</span></div>
-    <div class="nav-item" data-section="referrals"><span>🎁 Refer a Friend</span> <span class="nav-badge" id="referral-credits-badge" style="display:none;background:var(--accent-green);">$0</span></div>
+    <div class="nav-item" data-section="vehicles" onclick="showSection('vehicles')"><span data-i18n="member.myVehicles">🚗 My Vehicles</span></div>
+    <div class="nav-item" data-section="my-next-car" onclick="showSection('my-next-car')"><span>🚘 My Next Car</span> <span class="nav-badge" id="prospect-count" style="display:none;">0</span></div>
+    <div class="nav-item" data-section="dream-car-finder" onclick="showSection('dream-car-finder')"><span>✨ Dream Car Finder</span> <span class="nav-badge" id="dream-car-count" style="display:none;">0</span></div>
+    <div class="nav-item" data-section="maintenance-schedule" onclick="showSection('maintenance-schedule')"><span>🔧 Maintenance Schedule</span> <span class="nav-badge" id="maintenance-due-count" style="display:none;background:var(--accent-orange);">0</span></div>
+    <div class="nav-item" data-section="learn" onclick="showSection('learn')"><span>🎓 My Car Concierge Academy</span></div>
+    <div class="nav-item" data-section="household" onclick="showSection('household')"><span>👨‍👩‍👧‍👦 Household</span> <span class="nav-badge" id="household-count" style="display:none;">0</span></div>
+    <div class="nav-item" data-section="fleet" onclick="showSection('fleet')"><span>🏢 Fleet</span> <span class="nav-badge" id="fleet-count" style="display:none;">0</span></div>
+    <div class="nav-item" data-section="reminders" onclick="showSection('reminders')"><span data-i18n="member.reminders">🔔 Reminders</span> <span class="nav-badge" id="reminder-count" style="display:none;">0</span></div>
+    <div class="nav-item" data-section="referrals" onclick="showSection('referrals')"><span>🎁 Refer a Friend</span> <span class="nav-badge" id="referral-credits-badge" style="display:none;background:var(--accent-green);">$0</span></div>
     
     <div class="nav-label" data-i18n="member.navServices">Services</div>
-    <div class="nav-item" data-section="packages"><span data-i18n="member.maintenancePackages">📦 Maintenance Packages</span></div>
-    <div class="nav-item" data-section="shop"><span>🛍️ Shop</span></div>
-    <div class="nav-item" data-section="order-history"><span>📦 Order History</span></div>
-    <div class="nav-item" data-section="cost-estimator"><span>💰 Cost Estimator</span></div>
+    <div class="nav-item" data-section="packages" onclick="showSection('packages')"><span data-i18n="member.maintenancePackages">📦 Maintenance Packages</span></div>
+    <div class="nav-item" data-section="shop" onclick="showSection('shop')"><span>🛍️ Shop</span></div>
+    <div class="nav-item" data-section="order-history" onclick="showSection('order-history')"><span>📦 Order History</span></div>
+    <div class="nav-item" data-section="cost-estimator" onclick="showSection('cost-estimator')"><span>💰 Cost Estimator</span></div>
     <div class="nav-item" onclick="window.open('/rideshare.html#calculator', '_blank')" style="cursor:pointer;"><span>🚕 Rideshare Calculator</span></div>
-    <div class="nav-item" data-section="upsells"><span data-i18n="member.additionalWork">⚠️ Additional Work</span> <span class="nav-badge" id="upsell-count" style="display:none;background:var(--accent-orange);">0</span></div>
-    <div class="nav-item" data-section="messages"><span data-i18n="nav.messages">💬 Messages</span> <span class="nav-badge" id="message-count" style="display:none;">0</span></div>
-    <div class="nav-item" data-section="history"><span data-i18n="member.serviceHistory">📜 Service History</span></div>
-    <div class="nav-item" data-section="spending-analytics"><span>📊 Spending Analytics</span></div>
-    <div class="nav-item" data-section="fuel-tracker"><span>⛽ Fuel Tracker</span></div>
-    <div class="nav-item" data-section="insurance"><span>📋 Insurance</span></div>
-    <div class="nav-item" data-section="emergency"><span>🆘 Emergency Roadside</span></div>
-    <div class="nav-item" data-section="destination-services"><span>🚗 Destination Services</span> <span class="nav-badge" id="destination-count" style="display:none;background:var(--accent-blue);">0</span></div>
+    <div class="nav-item" data-section="upsells" onclick="showSection('upsells')"><span data-i18n="member.additionalWork">⚠️ Additional Work</span> <span class="nav-badge" id="upsell-count" style="display:none;background:var(--accent-orange);">0</span></div>
+    <div class="nav-item" data-section="messages" onclick="showSection('messages')"><span data-i18n="nav.messages">💬 Messages</span> <span class="nav-badge" id="message-count" style="display:none;">0</span></div>
+    <div class="nav-item" data-section="history" onclick="showSection('history')"><span data-i18n="member.serviceHistory">📜 Service History</span></div>
+    <div class="nav-item" data-section="spending-analytics" onclick="showSection('spending-analytics')"><span>📊 Spending Analytics</span></div>
+    <div class="nav-item" data-section="fuel-tracker" onclick="showSection('fuel-tracker')"><span>⛽ Fuel Tracker</span></div>
+    <div class="nav-item" data-section="insurance" onclick="showSection('insurance')"><span>📋 Insurance</span></div>
+    <div class="nav-item" data-section="emergency" onclick="showSection('emergency')"><span>🆘 Emergency Roadside</span></div>
+    <div class="nav-item" data-section="destination-services" onclick="showSection('destination-services')"><span>🚗 Destination Services</span> <span class="nav-badge" id="destination-count" style="display:none;background:var(--accent-blue);">0</span></div>
 
     <div class="nav-label" data-i18n="member.navSupport">Support</div>
     <div class="nav-item" onclick="openSupport()"><span data-i18n="member.helpSupport">🎫 Help & Support</span></div>
-    <div class="nav-item" data-section="notifications"><span data-i18n="nav.notifications">🔔 Notifications</span> <span class="nav-badge" id="notif-count" style="display:none;background:var(--accent-red);">0</span></div>
-    <div class="nav-item" data-section="settings"><span data-i18n="nav.settings">⚙️ Settings</span></div>
-    <div class="nav-item" data-section="qr-checkin"><span>📱 My Check-In QR</span></div>
+    <div class="nav-item" data-section="notifications" onclick="showSection('notifications')"><span data-i18n="nav.notifications">🔔 Notifications</span> <span class="nav-badge" id="notif-count" style="display:none;background:var(--accent-red);">0</span></div>
+    <div class="nav-item" data-section="settings" onclick="showSection('settings')"><span data-i18n="nav.settings">⚙️ Settings</span></div>
+    <div class="nav-item" data-section="qr-checkin" onclick="showSection('qr-checkin')"><span>📱 My Check-In QR</span></div>
 
     <!-- Founder Access (only visible to approved founders) -->
     <div id="founder-nav" style="display:none;">
