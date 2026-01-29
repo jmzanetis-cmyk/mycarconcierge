@@ -200,8 +200,8 @@
     .sidebar { width: 260px; background: linear-gradient(180deg, rgba(18, 18, 28, 0.98) 0%, rgba(12, 12, 20, 0.99) 100%); border-right: 1px solid var(--border-subtle); padding: 20px 12px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; backdrop-filter: blur(20px); scrollbar-width: none; -ms-overflow-style: none; }
     .sidebar::-webkit-scrollbar { display: none; }
     .sidebar-brand { display: flex; align-items: center; justify-content: center; padding: 8px 12px 20px; border-bottom: 1px solid rgba(148, 148, 168, 0.08); margin-bottom: 20px; text-decoration: none; }
-    .sidebar-brand-icon { height: 72px; width: auto; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: drop-shadow(0 2px 12px rgba(74, 124, 255, 0.2)); transition: all 0.3s ease; }
-    .sidebar-brand:hover .sidebar-brand-icon { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
+    .sidebar-brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: brightness(1.1) contrast(1.05) drop-shadow(0 4px 16px rgba(212, 168, 85, 0.35)); transition: all 0.3s ease; }
+    .sidebar-brand:hover .sidebar-brand-icon { filter: brightness(1.15) contrast(1.1) drop-shadow(0 8px 32px rgba(212, 168, 85, 0.6)); transform: scale(1.03); }
     .sidebar-brand-text { font-family: 'Playfair Display', serif; font-weight: 500; color: var(--text-primary); font-size: 1.05rem; }
     .nav-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); padding: 16px 14px 8px; margin-bottom: 4px; font-weight: 600; opacity: 0.7; }
     .nav-label:first-of-type { margin-top: 0; padding-top: 0; }
@@ -965,6 +965,7 @@
     <div class="nav-label" data-i18n="member.navDigitalGarage">Digital Garage</div>
     <div class="nav-item" data-section="vehicles"><span data-i18n="member.myVehicles">🚗 My Vehicles</span></div>
     <div class="nav-item" data-section="my-next-car" style="background:linear-gradient(135deg, rgba(74,200,140,0.1), rgba(74,124,255,0.05));border:1px solid rgba(74,200,140,0.2);"><span style="color:var(--accent-green);">🚘 My Next Car</span> <span class="nav-badge" id="prospect-count" style="display:none;">0</span></div>
+    <div class="nav-item" data-section="dream-car-finder" style="background:linear-gradient(135deg, rgba(212,168,85,0.1), rgba(74,200,140,0.05));border:1px solid rgba(212,168,85,0.2);"><span style="color:var(--accent-gold);">✨ Dream Car Finder</span> <span class="nav-badge" id="dream-car-count" style="display:none;">0</span></div>
     <div class="nav-item" data-section="maintenance-schedule"><span>🔧 Maintenance Schedule</span> <span class="nav-badge" id="maintenance-due-count" style="display:none;background:var(--accent-orange);">0</span></div>
     <div class="nav-item" data-section="learn"><span>🎓 My Car Concierge Academy</span></div>
     <div class="nav-item" data-section="household"><span>👨‍👩‍👧‍👦 Household</span> <span class="nav-badge" id="household-count" style="display:none;">0</span></div>
@@ -1868,6 +1869,43 @@
         </div>
       </div>
     </div>
+
+    <!-- Dream Car Finder Section -->
+    <section id="dream-car-finder" class="section">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;">
+        <div>
+          <h1 class="page-title">✨ Dream Car Finder</h1>
+          <p class="page-subtitle">AI-powered searches to find your perfect vehicle. Set your criteria and we'll notify you when matches are found.</p>
+        </div>
+        <button class="btn btn-primary" onclick="openAISearchModal()">+ Create AI Search</button>
+      </div>
+
+      <div class="card" style="margin-bottom: 24px;">
+        <h3 style="margin-bottom: 16px;">🔍 Your Active Searches</h3>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Set up criteria for your dream car and our AI will continuously search for matching listings.</p>
+        <div id="dream-car-searches-list">
+          <div class="empty-state" style="padding: 40px 20px;">
+            <div class="empty-state-icon">🚗</div>
+            <p style="margin-bottom: 16px;">No AI searches configured yet.</p>
+            <button class="btn btn-primary" onclick="openAISearchModal()">Create Your First Search</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3>🎯 Recent Matches</h3>
+          <span class="nav-badge" id="dream-matches-badge" style="display: none;">0</span>
+        </div>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Vehicles that match your search criteria. Review and save the ones you like!</p>
+        <div id="dream-car-matches-list">
+          <div class="empty-state" style="padding: 40px 20px;">
+            <div class="empty-state-icon">📭</div>
+            <p>No matches yet. Create a search to start finding vehicles!</p>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Reminders Section -->
     <section id="reminders" class="section">

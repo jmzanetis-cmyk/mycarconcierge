@@ -2276,6 +2276,7 @@
         case 'referrals':
         case 'login-activity':
         case 'my-next-car':
+        case 'dream-car-finder':
         case 'learn':
         case 'messages':
         case 'reminders':
@@ -2343,6 +2344,9 @@
       }
       if (sectionId === 'learn' && typeof renderLearnHub === 'function') {
         renderLearnHub();
+      }
+      if (sectionId === 'dream-car-finder' && typeof loadDreamCarFinderSection === 'function') {
+        loadDreamCarFinderSection();
       }
     }
 

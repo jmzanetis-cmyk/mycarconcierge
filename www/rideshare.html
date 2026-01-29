@@ -425,6 +425,143 @@
       </div>
     </div>
 
+    <!-- Profit Calculator Section -->
+    <div class="services-section" id="calculator" style="margin-bottom: 80px;">
+      <div class="section-title">
+        <h2>💰 Rideshare Profit Calculator</h2>
+        <p>Calculate your TRUE earnings after ALL vehicle costs</p>
+      </div>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 32px;">
+        <div>
+          <h3 style="color: var(--accent-gold); margin-bottom: 20px; font-family: 'Playfair Display', serif;">Weekly Earnings</h3>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;">💵 Gross Weekly Earnings ($)</label>
+            <input type="number" id="calc-gross-weekly" value="1000" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;">🛣️ Miles Driven Per Week</label>
+            <input type="number" id="calc-miles-weekly" value="500" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;">⏰ Hours Worked Per Week</label>
+            <input type="number" id="calc-hours-weekly" value="40" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <h3 style="color: var(--accent-gold); margin: 24px 0 20px; font-family: 'Playfair Display', serif;">Vehicle Costs</h3>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;">⛽ Fuel Cost Per Gallon ($)</label>
+            <input type="number" id="calc-fuel-cost" value="3.50" step="0.01" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;">📊 Your Vehicle's MPG</label>
+            <input type="number" id="calc-mpg" value="30" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;">🔧 Monthly Maintenance Budget ($)</label>
+            <input type="number" id="calc-maintenance" value="150" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;">🛡️ Monthly Insurance ($)</label>
+            <input type="number" id="calc-insurance" value="200" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;">📉 Monthly Depreciation ($)</label>
+            <input type="number" id="calc-depreciation" value="200" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <small style="color: var(--text-muted); font-size: 0.75rem;">Tip: Divide your car's value by 60-100 for monthly estimate</small>
+          </div>
+          
+          <button onclick="calculateProfit()" class="btn btn-primary" style="width: 100%; margin-top: 16px;">Calculate My True Profit</button>
+        </div>
+        
+        <div id="calc-results" style="background: var(--bg-elevated); border-radius: var(--radius-lg); padding: 32px; border: 1px solid var(--border-medium);">
+          <h3 style="color: var(--accent-gold); margin-bottom: 24px; font-family: 'Playfair Display', serif; text-align: center;">📊 Your Results</h3>
+          
+          <div style="text-align: center; padding: 24px 0; border-bottom: 1px solid var(--border-subtle);">
+            <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">TRUE Weekly Profit</div>
+            <div id="result-weekly-profit" style="font-size: 2.5rem; font-weight: 700; color: var(--accent-green);">$--</div>
+          </div>
+          
+          <div style="text-align: center; padding: 24px 0; border-bottom: 1px solid var(--border-subtle);">
+            <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">TRUE Hourly Rate</div>
+            <div id="result-hourly-rate" style="font-size: 2rem; font-weight: 600; color: var(--accent-blue);">$--/hr</div>
+          </div>
+          
+          <div style="text-align: center; padding: 24px 0; border-bottom: 1px solid var(--border-subtle);">
+            <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">Projected Annual Profit</div>
+            <div id="result-annual-profit" style="font-size: 1.8rem; font-weight: 600; color: var(--text-primary);">$--</div>
+          </div>
+          
+          <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-subtle);">
+            <h4 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">Weekly Cost Breakdown</h4>
+            <div style="display: grid; gap: 12px;">
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">⛽ Fuel</span><span id="cost-fuel" style="color: var(--accent-red);">$--</span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">🔧 Maintenance</span><span id="cost-maintenance" style="color: var(--accent-orange);">$--</span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">🛡️ Insurance</span><span id="cost-insurance" style="color: var(--accent-orange);">$--</span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);">📉 Depreciation</span><span id="cost-depreciation" style="color: var(--accent-orange);">$--</span></div>
+              <div style="display: flex; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--border-subtle); font-weight: 600;"><span>Total Weekly Costs</span><span id="cost-total" style="color: var(--accent-red);">$--</span></div>
+            </div>
+          </div>
+          
+          <div id="calc-warning" style="display: none; margin-top: 24px; padding: 16px; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: var(--radius-md);">
+            <p style="color: var(--accent-red); font-size: 0.9rem; margin: 0;">⚠️ Warning: Your costs may be higher than your earnings. Consider driving more miles per hour or reducing expenses.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      function calculateProfit() {
+        const grossWeekly = parseFloat(document.getElementById('calc-gross-weekly').value) || 0;
+        const milesWeekly = parseFloat(document.getElementById('calc-miles-weekly').value) || 0;
+        const hoursWeekly = parseFloat(document.getElementById('calc-hours-weekly').value) || 1;
+        const fuelCost = parseFloat(document.getElementById('calc-fuel-cost').value) || 0;
+        const mpg = parseFloat(document.getElementById('calc-mpg').value) || 25;
+        const maintenanceMonthly = parseFloat(document.getElementById('calc-maintenance').value) || 0;
+        const insuranceMonthly = parseFloat(document.getElementById('calc-insurance').value) || 0;
+        const depreciationMonthly = parseFloat(document.getElementById('calc-depreciation').value) || 0;
+        
+        const gallonsUsed = milesWeekly / mpg;
+        const weeklyFuel = gallonsUsed * fuelCost;
+        const weeklyMaintenance = maintenanceMonthly / 4.33;
+        const weeklyInsurance = insuranceMonthly / 4.33;
+        const weeklyDepreciation = depreciationMonthly / 4.33;
+        
+        const totalWeeklyCosts = weeklyFuel + weeklyMaintenance + weeklyInsurance + weeklyDepreciation;
+        const weeklyProfit = grossWeekly - totalWeeklyCosts;
+        const hourlyRate = weeklyProfit / hoursWeekly;
+        const annualProfit = weeklyProfit * 52;
+        
+        document.getElementById('result-weekly-profit').textContent = '$' + weeklyProfit.toFixed(0);
+        document.getElementById('result-weekly-profit').style.color = weeklyProfit >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+        document.getElementById('result-hourly-rate').textContent = '$' + hourlyRate.toFixed(2) + '/hr';
+        document.getElementById('result-hourly-rate').style.color = hourlyRate >= 15 ? 'var(--accent-blue)' : 'var(--accent-orange)';
+        document.getElementById('result-annual-profit').textContent = '$' + annualProfit.toLocaleString(undefined, {maximumFractionDigits: 0});
+        
+        document.getElementById('cost-fuel').textContent = '-$' + weeklyFuel.toFixed(0);
+        document.getElementById('cost-maintenance').textContent = '-$' + weeklyMaintenance.toFixed(0);
+        document.getElementById('cost-insurance').textContent = '-$' + weeklyInsurance.toFixed(0);
+        document.getElementById('cost-depreciation').textContent = '-$' + weeklyDepreciation.toFixed(0);
+        document.getElementById('cost-total').textContent = '-$' + totalWeeklyCosts.toFixed(0);
+        
+        document.getElementById('calc-warning').style.display = weeklyProfit < 0 ? 'block' : 'none';
+      }
+      
+      document.querySelectorAll('#calculator input').forEach(input => {
+        input.addEventListener('input', calculateProfit);
+      });
+      
+      window.addEventListener('load', calculateProfit);
+    </script>
+
     <div class="services-section">
       <div class="section-title">
         <h2>Services Rideshare Drivers Need Most</h2>
