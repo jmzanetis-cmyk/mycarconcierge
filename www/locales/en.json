@@ -251,7 +251,11 @@
       "matchScore": "Match Score",
       "viewListing": "View Listing",
       "saveCar": "Save",
-      "dismiss": "Dismiss"
+      "dismiss": "Dismiss",
+      "emailReportFrequency": "Email Digest Frequency",
+      "mileageRange": "Mileage Range",
+      "notificationEmail": "Notification Email",
+      "notificationPhone": "Notification Phone"
     }
   },
   "provider": {

@@ -7441,7 +7441,9 @@ async function handleDreamCarCreateSearch(req, res, requestId) {
         max_year: parsed.max_year || null,
         preferred_makes: parsed.preferred_makes || [],
         preferred_models: parsed.preferred_models || [],
+        preferred_trims: parsed.preferred_trims || [],
         body_styles: parsed.body_styles || [],
+        min_mileage: parsed.min_mileage || null,
         max_mileage: parsed.max_mileage || null,
         min_price: parsed.min_price || null,
         max_price: parsed.max_price || null,
@@ -7453,8 +7455,11 @@ async function handleDreamCarCreateSearch(req, res, requestId) {
         must_have_features: parsed.must_have_features || [],
         is_active: parsed.is_active !== false,
         search_frequency: parsed.search_frequency || 'daily',
+        email_report_frequency: parsed.email_report_frequency || 'daily',
         notify_sms: parsed.notify_sms || false,
-        notify_email: parsed.notify_email !== false
+        notify_email: parsed.notify_email !== false,
+        notification_email: parsed.notification_email || null,
+        notification_phone: parsed.notification_phone || null
       };
       
       const { data: search, error } = await supabase
@@ -7592,9 +7597,10 @@ async function handleDreamCarUpdateSearch(req, res, requestId, searchId) {
       // Build update object with only allowed fields
       const allowedFields = [
         'search_name', 'min_year', 'max_year', 'preferred_makes', 'preferred_models',
-        'body_styles', 'max_mileage', 'min_price', 'max_price', 'max_distance_miles',
-        'zip_code', 'fuel_types', 'transmission_preference', 'exterior_colors',
-        'must_have_features', 'is_active', 'search_frequency', 'notify_sms', 'notify_email'
+        'preferred_trims', 'body_styles', 'min_mileage', 'max_mileage', 'min_price', 'max_price', 
+        'max_distance_miles', 'zip_code', 'fuel_types', 'transmission_preference', 'exterior_colors',
+        'must_have_features', 'is_active', 'search_frequency', 'email_report_frequency',
+        'notify_sms', 'notify_email', 'notification_email', 'notification_phone'
       ];
       
       const updateData = {};

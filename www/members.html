@@ -1477,21 +1477,116 @@
               <div class="form-group">
                 <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.priceRange">Price Range ($)</label>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                  <input type="number" id="ai-search-min-price" placeholder="Min" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <select id="ai-search-min-price" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                    <option value="">No Min</option>
+                    <option value="1000">$1,000</option>
+                    <option value="2000">$2,000</option>
+                    <option value="3000">$3,000</option>
+                    <option value="4000">$4,000</option>
+                    <option value="5000">$5,000</option>
+                    <option value="7500">$7,500</option>
+                    <option value="10000">$10,000</option>
+                    <option value="15000">$15,000</option>
+                    <option value="20000">$20,000</option>
+                    <option value="25000">$25,000</option>
+                    <option value="30000">$30,000</option>
+                    <option value="40000">$40,000</option>
+                    <option value="50000">$50,000</option>
+                    <option value="60000">$60,000</option>
+                    <option value="75000">$75,000</option>
+                    <option value="100000">$100,000</option>
+                    <option value="150000">$150,000</option>
+                    <option value="200000">$200,000+</option>
+                  </select>
                   <span style="color: var(--text-muted);">to</span>
-                  <input type="number" id="ai-search-max-price" placeholder="Max" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <select id="ai-search-max-price" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                    <option value="">No Max</option>
+                    <option value="5000">$5,000</option>
+                    <option value="10000">$10,000</option>
+                    <option value="15000">$15,000</option>
+                    <option value="20000">$20,000</option>
+                    <option value="25000">$25,000</option>
+                    <option value="30000">$30,000</option>
+                    <option value="40000">$40,000</option>
+                    <option value="50000">$50,000</option>
+                    <option value="60000">$60,000</option>
+                    <option value="75000">$75,000</option>
+                    <option value="100000">$100,000</option>
+                    <option value="150000">$150,000</option>
+                    <option value="200000">$200,000</option>
+                    <option value="250000">$250,000+</option>
+                  </select>
                 </div>
               </div>
 
               <div class="form-group">
-                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.maxMileage">Max Mileage</label>
-                <input type="number" id="ai-search-max-mileage" placeholder="e.g. 50000" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.mileageRange">Mileage Range</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <select id="ai-search-min-mileage" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                    <option value="">No Min</option>
+                    <option value="0">0</option>
+                    <option value="10000">10,000</option>
+                    <option value="20000">20,000</option>
+                    <option value="30000">30,000</option>
+                    <option value="40000">40,000</option>
+                    <option value="50000">50,000</option>
+                    <option value="75000">75,000</option>
+                    <option value="100000">100,000</option>
+                  </select>
+                  <span style="color: var(--text-muted);">to</span>
+                  <select id="ai-search-max-mileage" style="flex: 1; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                    <option value="">No Max</option>
+                    <option value="10000">10,000</option>
+                    <option value="20000">20,000</option>
+                    <option value="30000">30,000</option>
+                    <option value="40000">40,000</option>
+                    <option value="50000">50,000</option>
+                    <option value="75000">75,000</option>
+                    <option value="100000">100,000</option>
+                    <option value="125000">125,000</option>
+                    <option value="150000">150,000</option>
+                    <option value="200000">200,000+</option>
+                  </select>
+                </div>
               </div>
             </div>
 
             <div class="form-group" style="margin-top: 16px;">
-              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.preferredMakes">Preferred Makes (comma separated)</label>
-              <input type="text" id="ai-search-makes" placeholder="e.g. Toyota, Honda, BMW, Mercedes" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.preferredMakes">Preferred Makes</label>
+              <div id="ai-search-makes" style="display: flex; flex-wrap: wrap; gap: 8px; max-height: 200px; overflow-y: auto; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Acura"> Acura</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Audi"> Audi</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="BMW"> BMW</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Buick"> Buick</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Cadillac"> Cadillac</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Chevrolet"> Chevrolet</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Chrysler"> Chrysler</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Dodge"> Dodge</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Ford"> Ford</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Genesis"> Genesis</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="GMC"> GMC</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Honda"> Honda</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Hyundai"> Hyundai</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Infiniti"> Infiniti</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Jaguar"> Jaguar</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Jeep"> Jeep</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Kia"> Kia</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Land Rover"> Land Rover</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Lexus"> Lexus</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Lincoln"> Lincoln</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Mazda"> Mazda</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Mercedes-Benz"> Mercedes-Benz</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Mini"> Mini</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Mitsubishi"> Mitsubishi</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Nissan"> Nissan</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Porsche"> Porsche</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Ram"> Ram</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Subaru"> Subaru</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Tesla"> Tesla</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Toyota"> Toyota</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Volkswagen"> Volkswagen</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); white-space: nowrap;"><input type="checkbox" name="ai-make" value="Volvo"> Volvo</label>
+              </div>
             </div>
 
             <div class="form-group" style="margin-top: 16px;">
@@ -1606,19 +1701,61 @@
                 <input type="text" id="ai-search-zip" placeholder="e.g. 90210" maxlength="10" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
               </div>
               <div class="form-group">
-                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.searchRadius">Search Radius (miles)</label>
-                <input type="number" id="ai-search-radius" placeholder="e.g. 50" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.searchRadius">Search Radius</label>
+                <select id="ai-search-radius" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                  <option value="10">10 miles</option>
+                  <option value="25">25 miles</option>
+                  <option value="50" selected>50 miles</option>
+                  <option value="75">75 miles</option>
+                  <option value="100">100 miles</option>
+                  <option value="150">150 miles</option>
+                  <option value="200">200 miles</option>
+                  <option value="250">250 miles</option>
+                  <option value="500">500 miles</option>
+                  <option value="">Nationwide</option>
+                </select>
               </div>
             </div>
 
             <div class="form-group" style="margin-top: 16px;">
-              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.exteriorColors">Exterior Colors (optional, comma separated)</label>
-              <input type="text" id="ai-search-colors" placeholder="e.g. Black, White, Silver" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.exteriorColors">Exterior Colors (optional)</label>
+              <div id="ai-search-colors" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="Black"> ⬛ Black</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="White"> ⬜ White</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="Silver"> 🔘 Silver</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="Gray"> 🩶 Gray</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="Red"> 🔴 Red</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="Blue"> 🔵 Blue</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="Green"> 🟢 Green</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="Brown/Tan"> 🟤 Brown/Tan</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="Gold"> 🟡 Gold</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="Orange"> 🟠 Orange</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="Yellow"> 🟡 Yellow</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="Purple"> 🟣 Purple</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-color" value="Other"> Other</label>
+              </div>
             </div>
 
             <div class="form-group" style="margin-top: 16px;">
-              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.mustHaveFeatures">Must-Have Features (comma separated)</label>
-              <input type="text" id="ai-search-features" placeholder="e.g. Leather seats, Sunroof, Navigation" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+              <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 8px; display: block;" data-i18n="member.aiSearch.mustHaveFeatures">Must-Have Features</label>
+              <div id="ai-search-features" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Leather Seats"> Leather Seats</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Sunroof/Moonroof"> Sunroof/Moonroof</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Navigation"> Navigation</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Backup Camera"> Backup Camera</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Bluetooth"> Bluetooth</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Apple CarPlay"> Apple CarPlay</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Android Auto"> Android Auto</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Heated Seats"> Heated Seats</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Cooled Seats"> Cooled Seats</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Remote Start"> Remote Start</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Keyless Entry"> Keyless Entry</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Third Row Seating"> Third Row Seating</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="AWD/4WD"> AWD/4WD</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Tow Package"> Tow Package</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Premium Audio"> Premium Audio</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"><input type="checkbox" name="ai-feature" value="Adaptive Cruise Control"> Adaptive Cruise Control</label>
+              </div>
             </div>
 
             <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);" data-i18n="member.aiSearch.notifications">Notifications & Settings</h4>
@@ -1628,13 +1765,19 @@
                 <label style="font-size: 0.88rem; font-weight: 500; margin-bottom: 12px; display: block;" data-i18n="member.aiSearch.notifyVia">Notify me via</label>
                 <div style="display: flex; flex-direction: column; gap: 10px;">
                   <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                    <input type="checkbox" id="ai-search-notify-email" checked> 
+                    <input type="checkbox" id="ai-search-notify-email" checked onchange="toggleAISearchEmailInput()"> 
                     <span data-i18n="member.aiSearch.emailNotify">Email notifications</span>
                   </label>
+                  <div id="ai-search-email-field" style="margin-left: 24px; margin-top: 4px;">
+                    <input type="email" id="ai-search-email" placeholder="Email address" style="width: 100%; padding: 10px 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 0.88rem;">
+                  </div>
                   <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                    <input type="checkbox" id="ai-search-notify-sms"> 
+                    <input type="checkbox" id="ai-search-notify-sms" onchange="toggleAISearchSmsInput()"> 
                     <span data-i18n="member.aiSearch.smsNotify">SMS notifications</span>
                   </label>
+                  <div id="ai-search-sms-field" style="margin-left: 24px; margin-top: 4px; display: none;">
+                    <input type="tel" id="ai-search-phone" placeholder="Phone number (e.g. +1 555-123-4567)" style="width: 100%; padding: 10px 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 0.88rem;">
+                  </div>
                 </div>
               </div>
 
