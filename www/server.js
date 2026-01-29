@@ -10661,6 +10661,97 @@ async function handleFounderApprovedEmail(req, res, requestId) {
   });
 }
 
+// ========== BACKGROUND VERIFICATION BADGE LOGIC ==========
+
+async function recalculateBackgroundVerified(supabase, providerId) {
+  try {
+    const { data: teamMembers, error: teamError } = await supabase
+      .from('provider_team_members')
+      .select('id, user_id, role, status')
+      .eq('provider_id', providerId)
+      .eq('status', 'active')
+      .neq('role', 'owner');
+
+    if (teamError) {
+      console.error(`[recalculateBackgroundVerified] Failed to get team members for provider ${providerId}:`, teamError);
+      return { success: false, error: teamError.message };
+    }
+
+    const nonOwnerEmployees = teamMembers || [];
+    
+    if (nonOwnerEmployees.length === 0) {
+      await supabase
+        .from('provider_applications')
+        .update({ 
+          background_verified: false,
+          background_verified_at: null
+        })
+        .eq('user_id', providerId);
+      
+      return { 
+        success: true, 
+        badgeEarned: false, 
+        reason: 'No non-owner employees',
+        totalEmployees: 0,
+        verifiedEmployees: 0
+      };
+    }
+
+    const employeeUserIds = nonOwnerEmployees.map(e => e.user_id);
+
+    const { data: backgroundChecks, error: checksError } = await supabase
+      .from('provider_background_checks')
+      .select('id, employee_id, status, subject_type')
+      .eq('provider_id', providerId)
+      .eq('subject_type', 'employee')
+      .in('employee_id', employeeUserIds);
+
+    if (checksError) {
+      console.error(`[recalculateBackgroundVerified] Failed to get background checks for provider ${providerId}:`, checksError);
+      return { success: false, error: checksError.message };
+    }
+
+    const clearedStatuses = ['clear', 'eligible'];
+    const clearedChecksByEmployee = new Map();
+    
+    for (const check of (backgroundChecks || [])) {
+      if (clearedStatuses.includes(check.status)) {
+        clearedChecksByEmployee.set(check.employee_id, check);
+      }
+    }
+
+    const verifiedCount = clearedChecksByEmployee.size;
+    const totalEmployees = nonOwnerEmployees.length;
+    const allVerified = verifiedCount === totalEmployees;
+
+    const updateData = {
+      background_verified: allVerified,
+      background_verified_at: allVerified ? new Date().toISOString() : null
+    };
+
+    await supabase
+      .from('provider_applications')
+      .update(updateData)
+      .eq('user_id', providerId);
+
+    console.log(`[recalculateBackgroundVerified] Provider ${providerId}: ${verifiedCount}/${totalEmployees} employees verified, badge=${allVerified}`);
+
+    return {
+      success: true,
+      badgeEarned: allVerified,
+      totalEmployees,
+      verifiedEmployees: verifiedCount,
+      pendingEmployeeIds: nonOwnerEmployees
+        .filter(e => !clearedChecksByEmployee.has(e.user_id))
+        .map(e => e.user_id)
+    };
+
+  } catch (error) {
+    console.error(`[recalculateBackgroundVerified] Error for provider ${providerId}:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
 // ========== CHECKR BACKGROUND CHECK API ==========
 
 const CHECKR_API_URL = process.env.CHECKR_ENVIRONMENT === 'production' 
@@ -11021,6 +11112,11 @@ async function handleCheckrWebhook(req, res, requestId) {
                 .eq('id', updated.provider_id);
             }
           }
+          
+          // Recalculate background verification badge status
+          if (updated.provider_id) {
+            await recalculateBackgroundVerified(supabase, updated.provider_id);
+          }
         }
 
         // Mark webhook as processed
@@ -11085,7 +11181,147 @@ async function handleCheckrStatus(req, res, requestId, providerId) {
   }
 }
 
+async function handleProviderVerificationStatus(req, res, requestId, providerId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    if (!isValidUUID(providerId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid provider ID format' }));
+      return;
+    }
+
+    // Authorization: Any team member can view their team's verification status
+    const authorized = await isTeamMember(supabase, providerId, user.id);
+    if (!authorized) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden: You do not have access to this provider\'s verification status' }));
+      return;
+    }
+
+    const { data: teamMembers, error: teamError } = await supabase
+      .from('provider_team_members')
+      .select('id, user_id, role, status')
+      .eq('provider_id', providerId)
+      .eq('status', 'active')
+      .neq('role', 'owner');
+
+    if (teamError) {
+      throw teamError;
+    }
+
+    const nonOwnerEmployees = teamMembers || [];
+    
+    if (nonOwnerEmployees.length === 0) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        badgeEarned: false,
+        totalEmployees: 0,
+        verifiedEmployees: 0,
+        pendingEmployees: [],
+        isVoluntary: true,
+        message: 'Add team members to start earning the verification badge'
+      }));
+      return;
+    }
+
+    const employeeUserIds = nonOwnerEmployees.map(e => e.user_id);
+
+    const [checksResult, profilesResult] = await Promise.all([
+      supabase
+        .from('provider_background_checks')
+        .select('id, employee_id, status, subject_type')
+        .eq('provider_id', providerId)
+        .eq('subject_type', 'employee')
+        .in('employee_id', employeeUserIds),
+      supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', employeeUserIds)
+    ]);
+
+    if (checksResult.error) throw checksResult.error;
+    if (profilesResult.error) throw profilesResult.error;
+
+    const clearedStatuses = ['clear', 'eligible'];
+    const clearedChecksByEmployee = new Map();
+    
+    for (const check of (checksResult.data || [])) {
+      if (clearedStatuses.includes(check.status)) {
+        clearedChecksByEmployee.set(check.employee_id, check);
+      }
+    }
+
+    const profilesMap = new Map();
+    for (const profile of (profilesResult.data || [])) {
+      profilesMap.set(profile.id, profile);
+    }
+
+    const pendingEmployees = nonOwnerEmployees
+      .filter(e => !clearedChecksByEmployee.has(e.user_id))
+      .map(e => {
+        const profile = profilesMap.get(e.user_id);
+        return {
+          id: e.user_id,
+          name: profile?.full_name || profile?.email || 'Team Member',
+          role: e.role
+        };
+      });
+
+    const verifiedCount = clearedChecksByEmployee.size;
+    const totalEmployees = nonOwnerEmployees.length;
+    const badgeEarned = verifiedCount === totalEmployees && totalEmployees > 0;
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      badgeEarned,
+      totalEmployees,
+      verifiedEmployees: verifiedCount,
+      pendingEmployees,
+      isVoluntary: true
+    }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Provider verification status error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to fetch verification status' }));
+  }
+}
+
 // ==================== PROVIDER TEAM MANAGEMENT API ====================
+
+// Authorization helper: Check if user is any team member (owner, admin, or staff)
+async function isTeamMember(supabaseAdmin, providerId, userId) {
+  // Owner is always a member
+  if (providerId === userId) return true;
+  
+  const { data } = await supabaseAdmin
+    .from('provider_team_members')
+    .select('role')
+    .eq('provider_id', providerId)
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .single();
+  
+  return !!data;
+}
 
 // Authorization helper: Check if user is team admin (owner or admin role)
 async function isTeamAdmin(supabaseAdmin, providerId, userId) {
@@ -11587,6 +11823,10 @@ async function handleRemoveTeamMember(req, res, requestId, providerId, memberId)
     }
 
     console.log(`[${requestId}] Removed team member ${memberId} from provider ${providerId}`);
+    
+    // Recalculate background verification badge status
+    await recalculateBackgroundVerified(supabase, providerId);
+    
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true }));
 
@@ -11823,6 +12063,9 @@ async function handleAcceptInvitation(req, res, requestId, token) {
       .eq('id', user.id);
 
     console.log(`[${requestId}] User ${user.id} accepted invitation and joined provider ${result.provider_id} as ${result.role}`);
+
+    // Recalculate background verification badge status (new employee added)
+    await recalculateBackgroundVerified(supabase, result.provider_id);
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -20295,6 +20538,12 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url.startsWith('/api/checkr/status/')) {
     const providerId = req.url.split('/api/checkr/status/')[1]?.split('?')[0];
     handleCheckrStatus(req, res, requestId, providerId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/provider-verification-status/')) {
+    const providerId = req.url.split('/api/provider-verification-status/')[1]?.split('?')[0];
+    handleProviderVerificationStatus(req, res, requestId, providerId);
     return;
   }
   

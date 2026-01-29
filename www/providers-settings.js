@@ -384,6 +384,94 @@ async function submitBackgroundCheck() {
   }
 }
 
+// ========== VERIFICATION BADGE STATUS ==========
+async function loadVerificationBadgeStatus() {
+  const container = document.getElementById('verification-badge-container');
+  if (!container) return;
+
+  try {
+    // Use team_provider_id for team members, otherwise use own ID (for provider owners)
+    const effectiveProviderId = providerProfile?.team_provider_id || currentUser.id;
+    const token = await supabaseClient.auth.getSession().then(s => s.data?.session?.access_token);
+    const response = await fetch(`/api/provider-verification-status/${effectiveProviderId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch verification status');
+    const data = await response.json();
+
+    const badgeIcon = data.badgeEarned ? '✅' : '🔓';
+    const badgeColor = data.badgeEarned ? 'var(--accent-green)' : 'var(--text-muted)';
+    const statusText = data.badgeEarned 
+      ? 'All employees verified! Badge earned.' 
+      : data.totalEmployees === 0 
+        ? 'Add team members to start earning the badge.'
+        : `${data.verifiedEmployees} of ${data.totalEmployees} employees verified`;
+
+    let pendingHtml = '';
+    if (data.pendingEmployees && data.pendingEmployees.length > 0) {
+      pendingHtml = `
+        <div style="margin-top:16px;">
+          <div style="font-weight:600;margin-bottom:8px;color:var(--text-primary);">⏳ Employees Needing Verification:</div>
+          ${data.pendingEmployees.map(emp => `
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-input);border-radius:var(--radius-sm);margin-bottom:6px;">
+              <span style="color:var(--accent-orange);">○</span>
+              <span>${emp.name}</span>
+              <span style="color:var(--text-muted);font-size:0.85rem;">(${emp.role})</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    container.innerHTML = `
+      <div style="background:linear-gradient(135deg, var(--bg-elevated), var(--bg-input));border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">
+          <div style="font-size:2.5rem;">${badgeIcon}</div>
+          <div>
+            <div style="font-weight:700;font-size:1.1rem;color:${badgeColor};">
+              ${data.badgeEarned ? 'Team Verified Badge' : 'Earn Your Team Verified Badge'}
+            </div>
+            <div style="font-size:0.9rem;color:var(--text-secondary);margin-top:2px;">
+              ${statusText}
+            </div>
+          </div>
+        </div>
+        
+        ${data.totalEmployees > 0 ? `
+          <div style="margin-top:16px;">
+            <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">
+              <span>Progress</span>
+              <span>${data.verifiedEmployees}/${data.totalEmployees}</span>
+            </div>
+            <div style="background:var(--bg-input);border-radius:var(--radius-full);height:8px;overflow:hidden;">
+              <div style="background:linear-gradient(90deg, var(--accent-green), #4ade80);height:100%;width:${data.totalEmployees > 0 ? (data.verifiedEmployees / data.totalEmployees * 100) : 0}%;transition:width 0.3s ease;"></div>
+            </div>
+          </div>
+        ` : ''}
+        
+        ${pendingHtml}
+        
+        <div style="margin-top:20px;padding:12px;background:rgba(234,179,8,0.1);border-radius:var(--radius-md);border-left:3px solid var(--accent-gold);">
+          <div style="display:flex;align-items:flex-start;gap:10px;">
+            <span style="font-size:1.1rem;">💡</span>
+            <div style="font-size:0.85rem;color:var(--text-secondary);">
+              <strong>This is voluntary.</strong> Earning the Team Verified badge shows potential customers that all your team members have passed background checks. This can help build trust and may increase your job opportunities.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    console.error('Error loading verification badge status:', err);
+    container.innerHTML = `
+      <div style="text-align:center;padding:20px;color:var(--text-muted);">
+        <p>Unable to load verification status</p>
+      </div>
+    `;
+  }
+}
+
 // ========== NOTIFICATIONS ==========
 let notifications = [];
 

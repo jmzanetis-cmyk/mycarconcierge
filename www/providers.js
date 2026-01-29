@@ -1224,6 +1224,11 @@
         loadTeamMembers();
         loadBackgroundCheckStatus();
       }
+      // Load background checks section data
+      if (id === 'background-checks') {
+        loadBackgroundCheckStatus();
+        loadVerificationBadgeStatus();
+      }
       // Load team management data when team-section is shown
       if (id === 'team-section') {
         loadTeamManagementData();
