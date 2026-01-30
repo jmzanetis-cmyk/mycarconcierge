@@ -1929,6 +1929,20 @@
         }
         
         if (paymentIntent.status === 'requires_capture' || paymentIntent.status === 'succeeded') {
+          const confirmResponse = await fetch(`/api/additional-work/${workId}/confirm-authorization`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+            }
+          });
+          
+          const confirmData = await confirmResponse.json();
+          
+          if (!confirmResponse.ok) {
+            throw new Error(confirmData.error || 'Failed to confirm authorization');
+          }
+          
           closeModal('approve-additional-work-modal');
           showToast('Additional work approved! Payment authorized.', 'success');
           

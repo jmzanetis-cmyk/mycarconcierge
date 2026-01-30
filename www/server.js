@@ -10282,10 +10282,29 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
           if (addIntent.status === 'requires_capture') {
             await stripe.paymentIntents.capture(work.payment_intent_id);
             additionalWorkTotal += parseFloat(work.estimated_cost);
+            
+            await supabase
+              .from('additional_work_requests')
+              .update({
+                status: 'captured',
+                captured_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', work.id);
+            
             console.log(`[${requestId}] Captured additional work payment ${work.payment_intent_id} for $${work.estimated_cost}`);
           }
         } catch (addErr) {
           console.error(`[${requestId}] Failed to capture additional work payment ${work.payment_intent_id}:`, addErr.message);
+          
+          await supabase
+            .from('additional_work_requests')
+            .update({
+              status: 'capture_failed',
+              capture_error: addErr.message.substring(0, 500),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', work.id);
         }
       }
     }
@@ -10888,29 +10907,20 @@ async function handleApproveAdditionalWork(req, res, requestId, requestIdParam) 
     const { error: updateError } = await supabase
       .from('additional_work_requests')
       .update({
-        status: 'approved',
+        status: 'authorization_pending',
         payment_intent_id: paymentIntent.id,
-        approved_at: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
       .eq('id', requestIdParam);
     
     if (updateError) {
       console.error(`[${requestId}] Error updating additional work request:`, updateError);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to approve request' }));
+      res.end(JSON.stringify({ error: 'Failed to initiate authorization' }));
       return;
     }
     
-    await supabase.from('notifications').insert({
-      user_id: workRequest.provider_id,
-      type: 'additional_work_approved',
-      title: 'Additional Work Approved! ✅',
-      message: `Your additional work request for $${workRequest.estimated_cost.toFixed(2)} has been approved.`,
-      entity_type: 'additional_work_request',
-      entity_id: requestIdParam
-    });
-    
-    console.log(`[${requestId}] Additional work request ${requestIdParam} approved`);
+    console.log(`[${requestId}] Additional work request ${requestIdParam} authorization pending, awaiting payment confirmation`);
     
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -11036,6 +11046,123 @@ async function handleDeclineAdditionalWork(req, res, requestId, requestIdParam) 
   }
 }
 
+async function handleConfirmAdditionalWorkAuthorization(req, res, requestId, requestIdParam) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(requestIdParam)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid request ID' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: workRequest, error: reqError } = await supabase
+      .from('additional_work_requests')
+      .select('id, package_id, provider_id, estimated_cost, status, payment_intent_id')
+      .eq('id', requestIdParam)
+      .single();
+    
+    if (reqError || !workRequest) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Additional work request not found' }));
+      return;
+    }
+    
+    if (workRequest.status !== 'authorization_pending') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Cannot confirm authorization for request in ${workRequest.status} status` }));
+      return;
+    }
+    
+    if (!workRequest.payment_intent_id) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No payment intent found for this request' }));
+      return;
+    }
+    
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('id, member_id')
+      .eq('id', workRequest.package_id)
+      .single();
+    
+    if (pkgError || !pkg || pkg.member_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized to confirm this request' }));
+      return;
+    }
+    
+    const stripe = await getStripeClient();
+    if (!stripe) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Payment system not configured' }));
+      return;
+    }
+    
+    const paymentIntent = await stripe.paymentIntents.retrieve(workRequest.payment_intent_id);
+    
+    if (paymentIntent.status !== 'requires_capture') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        error: `Payment authorization not confirmed. Status: ${paymentIntent.status}`,
+        payment_status: paymentIntent.status
+      }));
+      return;
+    }
+    
+    const { error: updateError } = await supabase
+      .from('additional_work_requests')
+      .update({
+        status: 'approved',
+        approved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', requestIdParam);
+    
+    if (updateError) {
+      console.error(`[${requestId}] Error confirming additional work authorization:`, updateError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to confirm authorization' }));
+      return;
+    }
+    
+    await supabase.from('notifications').insert({
+      user_id: workRequest.provider_id,
+      type: 'additional_work_approved',
+      title: 'Additional Work Approved! ✅',
+      message: `Your additional work request for $${workRequest.estimated_cost.toFixed(2)} has been approved and payment authorized.`,
+      entity_type: 'additional_work_request',
+      entity_id: requestIdParam
+    });
+    
+    console.log(`[${requestId}] Additional work request ${requestIdParam} authorization confirmed, status now approved`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true,
+      status: 'approved',
+      message: 'Authorization confirmed and additional work approved'
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Confirm additional work authorization error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
 // ========== PROVIDER DISCOUNTS API ==========
 
 async function handleDiscountOffer(req, res, requestId) {
@@ -11123,13 +11250,27 @@ async function handleDiscountOffer(req, res, requestId) {
       
       const { data: bid, error: bidError } = await supabase
         .from('bids')
-        .select('id, provider_id')
+        .select('id, provider_id, price')
         .eq('id', pkg.accepted_bid_id)
         .single();
       
       if (bidError || !bid || bid.provider_id !== user.id) {
         res.writeHead(403, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Only the accepted provider can offer discounts' }));
+        return;
+      }
+      
+      const originalAmount = parseFloat(bid.price) || 0;
+      let effectiveDiscount = discountAmountNum;
+      
+      if (discount_type === 'percentage') {
+        effectiveDiscount = originalAmount * (discountAmountNum / 100);
+      }
+      
+      const maxDiscount = originalAmount * 0.95;
+      if (effectiveDiscount > maxDiscount) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Discount cannot exceed 95% of the original amount' }));
         return;
       }
       
@@ -22099,6 +22240,12 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url.match(/^\/api\/additional-work\/[^/]+\/decline$/)) {
     const requestIdParam = req.url.split('/api/additional-work/')[1]?.split('/')[0];
     handleDeclineAdditionalWork(req, res, requestId, requestIdParam);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/additional-work\/[^/]+\/confirm-authorization$/)) {
+    const requestIdParam = req.url.split('/api/additional-work/')[1]?.split('/')[0];
+    handleConfirmAdditionalWorkAuthorization(req, res, requestId, requestIdParam);
     return;
   }
   

@@ -9,13 +9,34 @@ CREATE TABLE IF NOT EXISTS additional_work_requests (
   description TEXT NOT NULL,
   photos TEXT[],
   estimated_cost DECIMAL(10,2) NOT NULL,
-  status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'declined', 'cancelled')),
+  status VARCHAR(30) DEFAULT 'pending' CHECK (status IN ('pending', 'authorization_pending', 'approved', 'declined', 'cancelled', 'captured', 'capture_failed')),
   member_response_note TEXT,
   payment_intent_id VARCHAR(255),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   responded_at TIMESTAMPTZ,
+  approved_at TIMESTAMPTZ,
+  captured_at TIMESTAMPTZ,
+  capture_error TEXT,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration for existing tables: Add new columns and update status constraint
+-- Run these if the table already exists
+ALTER TABLE additional_work_requests 
+  DROP CONSTRAINT IF EXISTS additional_work_requests_status_check;
+
+ALTER TABLE additional_work_requests 
+  ADD CONSTRAINT additional_work_requests_status_check 
+  CHECK (status IN ('pending', 'authorization_pending', 'approved', 'declined', 'cancelled', 'captured', 'capture_failed'));
+
+ALTER TABLE additional_work_requests 
+  ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+
+ALTER TABLE additional_work_requests 
+  ADD COLUMN IF NOT EXISTS captured_at TIMESTAMPTZ;
+
+ALTER TABLE additional_work_requests 
+  ADD COLUMN IF NOT EXISTS capture_error TEXT;
 
 -- Create provider_discounts table
 CREATE TABLE IF NOT EXISTS provider_discounts (
