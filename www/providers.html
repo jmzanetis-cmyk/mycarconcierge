@@ -5807,6 +5807,102 @@
     </div>
   </div>
 
+  <!-- Additional Work Request Modal -->
+  <div class="modal-backdrop" id="additional-work-modal">
+    <div class="modal" style="max-width:500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔧 Request Additional Work</h3>
+        <button class="modal-close" onclick="closeModal('additional-work-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert" style="background:var(--accent-orange-soft);border:1px solid rgba(245,158,11,0.3);color:var(--accent-orange);margin-bottom:20px;padding:16px;border-radius:var(--radius-md);">
+          📋 Request approval for additional work discovered during the job. The member will be notified and can approve or decline.
+        </div>
+        <input type="hidden" id="additional-work-package-id">
+        <div class="form-group">
+          <label class="form-label">Description of Additional Work *</label>
+          <textarea class="form-textarea" id="additional-work-description" placeholder="Describe the additional work needed and why it's required..." rows="4"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estimated Cost ($) *</label>
+          <input type="number" class="form-input" id="additional-work-cost" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Photos (Optional)</label>
+          <input type="file" class="form-input" id="additional-work-photos" accept="image/*" multiple style="padding:8px;">
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Upload photos showing the issue that requires additional work</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('additional-work-modal')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitAdditionalWorkRequest()">Submit Request</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Discount Offer Modal -->
+  <div class="modal-backdrop" id="discount-modal">
+    <div class="modal" style="max-width:500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">💰 Offer Discount</h3>
+        <button class="modal-close" onclick="closeModal('discount-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert" style="background:var(--accent-green-soft);border:1px solid rgba(46,204,113,0.3);color:var(--accent-green);margin-bottom:20px;padding:16px;border-radius:var(--radius-md);">
+          🎁 Offer a discount to the member as a goodwill gesture or for any issues encountered. They can accept or decline.
+        </div>
+        <input type="hidden" id="discount-package-id">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Discount Amount *</label>
+            <input type="number" class="form-input" id="discount-amount" placeholder="0" min="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Discount Type *</label>
+            <select class="form-select" id="discount-type">
+              <option value="fixed">Fixed Amount ($)</option>
+              <option value="percentage">Percentage (%)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reason (Optional)</label>
+          <textarea class="form-textarea" id="discount-reason" placeholder="Explain why you're offering this discount..." rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('discount-modal')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitDiscountOffer()">Offer Discount</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Additional Work Requests Modal -->
+  <div class="modal-backdrop" id="view-additional-work-modal">
+    <div class="modal" style="max-width:600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">📋 Additional Work Requests</h3>
+        <button class="modal-close" onclick="closeModal('view-additional-work-modal')">×</button>
+      </div>
+      <div class="modal-body" id="additional-work-list" style="max-height:400px;overflow-y:auto;">
+        <p style="color:var(--text-muted);text-align:center;">Loading...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Discounts Modal -->
+  <div class="modal-backdrop" id="view-discounts-modal">
+    <div class="modal" style="max-width:600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">💰 Discounts Offered</h3>
+        <button class="modal-close" onclick="closeModal('view-discounts-modal')">×</button>
+      </div>
+      <div class="modal-body" id="discounts-list" style="max-height:400px;overflow-y:auto;">
+        <p style="color:var(--text-muted);text-align:center;">Loading...</p>
+      </div>
+    </div>
+  </div>
+
   <script src="https://js.stripe.com/v3/"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js?v=20260122"></script>

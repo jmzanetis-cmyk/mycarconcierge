@@ -7088,6 +7088,59 @@
     </div>
   </div>
 
+  <!-- Approve Additional Work Modal -->
+  <div class="modal-backdrop" id="approve-additional-work-modal">
+    <div class="modal" style="max-width:520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">✓ Approve Additional Work</h3>
+        <button class="modal-close" onclick="closeModal('approve-additional-work-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="additional-work-id">
+        <input type="hidden" id="additional-work-package-id">
+        
+        <div style="text-align:center;margin-bottom:24px;">
+          <div style="font-size:3rem;margin-bottom:12px;">🔧</div>
+          <h4 style="margin-bottom:8px;">Authorize Additional Payment</h4>
+          <p style="color:var(--text-secondary);font-size:0.95rem;">
+            Enter your card details to authorize payment for the additional work.
+          </p>
+        </div>
+        
+        <div style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+            <span style="color:var(--text-secondary);">Additional Work</span>
+            <span id="additional-work-title" style="font-weight:600;"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding-top:12px;border-top:1px solid var(--border-subtle);">
+            <span style="color:var(--text-secondary);font-weight:600;">Amount to Authorize</span>
+            <span id="additional-work-amount" style="font-size:1.2rem;font-weight:700;color:var(--accent-gold);"></span>
+          </div>
+        </div>
+        
+        <div style="margin-bottom:20px;">
+          <label style="display:block;margin-bottom:8px;font-size:0.9rem;color:var(--text-secondary);">Card Details</label>
+          <div id="additional-work-card-element" style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px;min-height:44px;"></div>
+          <div id="additional-work-card-errors" style="color:var(--accent-red);font-size:0.85rem;margin-top:8px;"></div>
+        </div>
+        
+        <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:12px;margin-bottom:20px;">
+          <div style="display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:0.85rem;">
+            <span>🔒</span>
+            <span>Payment is secured and held in escrow. Funds are only captured when the full job is complete.</span>
+          </div>
+        </div>
+        
+        <div style="display:flex;gap:12px;">
+          <button class="btn btn-secondary" onclick="closeModal('approve-additional-work-modal')" style="flex:1;">Cancel</button>
+          <button class="btn btn-success" id="approve-additional-work-btn" onclick="confirmApproveAdditionalWork()" style="flex:1;">
+            ✓ Authorize Payment
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 

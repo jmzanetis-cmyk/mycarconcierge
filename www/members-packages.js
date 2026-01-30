@@ -1572,6 +1572,453 @@
     let currentEscrowPackageId = null;
     let currentEscrowBidId = null;
 
+    // ========== ADDITIONAL WORK REQUESTS & DISCOUNTS ==========
+    let packageAdditionalWork = {};
+    let packageDiscounts = {};
+    let currentAdditionalWorkId = null;
+    let currentAdditionalWorkAmount = null;
+    let additionalWorkCardElement = null;
+    let additionalWorkElements = null;
+
+    async function loadPackageAdditionalWork(packageId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const response = await fetch(`/api/additional-work/${packageId}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          packageAdditionalWork[packageId] = data || [];
+          return data || [];
+        }
+        return [];
+      } catch (err) {
+        console.log('Could not load additional work requests:', err);
+        return [];
+      }
+    }
+
+    async function loadPackageDiscounts(packageId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const response = await fetch(`/api/discounts/${packageId}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          packageDiscounts[packageId] = data || [];
+          return data || [];
+        }
+        return [];
+      } catch (err) {
+        console.log('Could not load discount offers:', err);
+        return [];
+      }
+    }
+
+    function renderAdditionalWorkSection(packageId, additionalWork, paymentStatus) {
+      if (!additionalWork || additionalWork.length === 0) return '';
+      
+      const pendingWork = additionalWork.filter(w => w.status === 'pending');
+      const approvedWork = additionalWork.filter(w => w.status === 'approved');
+      const declinedWork = additionalWork.filter(w => w.status === 'declined');
+      
+      if (pendingWork.length === 0 && approvedWork.length === 0) return '';
+      
+      let html = `
+        <div class="form-section" id="additional-work-section-${packageId}">
+          <div class="form-section-title">
+            🔧 Additional Work Requests
+            ${pendingWork.length > 0 ? `<span style="background:var(--accent-orange);color:white;padding:2px 8px;border-radius:10px;font-size:0.75rem;margin-left:8px;">${pendingWork.length} Pending</span>` : ''}
+          </div>
+      `;
+      
+      if (pendingWork.length > 0) {
+        html += `
+          <div style="background:var(--accent-orange-soft);border:1px solid rgba(251,146,60,0.3);border-radius:var(--radius-lg);padding:16px;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <span style="font-size:1.2rem;">⚠️</span>
+              <span style="font-weight:600;color:var(--accent-orange);">Provider has requested additional work</span>
+            </div>
+            <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px;">
+              Review and approve or decline these requests. Approved work requires an additional payment authorization.
+            </p>
+          </div>
+        `;
+        
+        pendingWork.forEach(work => {
+          html += `
+            <div class="card" style="margin-bottom:12px;border:2px solid var(--accent-orange);">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+                <div>
+                  <h4 style="margin:0 0 4px 0;">${work.title || 'Additional Work'}</h4>
+                  <span style="background:var(--accent-orange);color:white;padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;">PENDING APPROVAL</span>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:1.3rem;font-weight:700;color:var(--accent-gold);">$${(work.amount || 0).toFixed(2)}</div>
+                  <div style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.05));border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:2px 6px;border-radius:100px;font-size:0.65rem;font-weight:600;margin-top:4px;">✓ All-Inclusive</div>
+                </div>
+              </div>
+              
+              ${work.description ? `<p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9rem;">${work.description}</p>` : ''}
+              
+              ${work.photo_urls?.length ? `
+                <div style="display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;">
+                  ${work.photo_urls.map(url => `
+                    <img src="${url}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;" onclick="window.open('${url}','_blank')">
+                  `).join('')}
+                </div>
+              ` : ''}
+              
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button class="btn btn-success" onclick="openApproveAdditionalWorkModal('${work.id}', '${(work.title || 'Additional Work').replace(/'/g, "\\'")}', ${work.amount || 0}, '${packageId}')">
+                  ✓ Approve ($${(work.amount || 0).toFixed(2)})
+                </button>
+                <button class="btn btn-secondary" onclick="declineAdditionalWork('${work.id}', '${packageId}')">
+                  ✗ Decline
+                </button>
+              </div>
+            </div>
+          `;
+        });
+      }
+      
+      if (approvedWork.length > 0) {
+        html += `<div style="margin-top:16px;"><h5 style="color:var(--text-muted);margin-bottom:12px;">Approved Additional Work</h5>`;
+        approvedWork.forEach(work => {
+          html += `
+            <div style="background:var(--accent-green-soft);border:1px solid rgba(52,211,153,0.3);border-radius:var(--radius-md);padding:12px;margin-bottom:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <span style="font-weight:500;">${work.title || 'Additional Work'}</span>
+                  <span style="color:var(--accent-green);font-size:0.85rem;margin-left:8px;">✓ Approved</span>
+                </div>
+                <span style="font-weight:600;">$${(work.amount || 0).toFixed(2)}</span>
+              </div>
+            </div>
+          `;
+        });
+        html += `</div>`;
+      }
+      
+      html += `</div>`;
+      return html;
+    }
+
+    function renderDiscountsSection(packageId, discounts) {
+      if (!discounts || discounts.length === 0) return '';
+      
+      const pendingDiscounts = discounts.filter(d => d.status === 'pending');
+      const acceptedDiscounts = discounts.filter(d => d.status === 'accepted');
+      
+      if (pendingDiscounts.length === 0 && acceptedDiscounts.length === 0) return '';
+      
+      let html = `
+        <div class="form-section" id="discounts-section-${packageId}">
+          <div class="form-section-title">
+            🏷️ Discount Offers
+            ${pendingDiscounts.length > 0 ? `<span style="background:var(--accent-green);color:white;padding:2px 8px;border-radius:10px;font-size:0.75rem;margin-left:8px;">${pendingDiscounts.length} Available</span>` : ''}
+          </div>
+      `;
+      
+      if (pendingDiscounts.length > 0) {
+        pendingDiscounts.forEach(discount => {
+          const discountPercent = discount.discount_percent ? `${discount.discount_percent}%` : null;
+          const discountAmount = discount.discount_amount ? `$${discount.discount_amount.toFixed(2)}` : null;
+          const displayDiscount = discountPercent || discountAmount || 'Discount';
+          
+          html += `
+            <div class="card" style="margin-bottom:12px;border:2px solid var(--accent-green);background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(16,185,129,0.02));">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+                <div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <span style="font-size:1.5rem;">🎉</span>
+                    <h4 style="margin:0;">Discount Offer from Provider</h4>
+                  </div>
+                  <span style="background:var(--accent-green);color:white;padding:2px 10px;border-radius:10px;font-size:0.8rem;font-weight:600;">SAVE ${displayDiscount}</span>
+                </div>
+              </div>
+              
+              ${discount.reason ? `<p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9rem;">"${discount.reason}"</p>` : ''}
+              
+              <div style="background:var(--bg-card);border-radius:var(--radius-md);padding:12px;margin-bottom:16px;">
+                ${discount.original_amount ? `
+                  <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-bottom:6px;">
+                    <span style="color:var(--text-muted);">Original Amount</span>
+                    <span style="text-decoration:line-through;color:var(--text-muted);">$${discount.original_amount.toFixed(2)}</span>
+                  </div>
+                ` : ''}
+                ${discount.discount_amount ? `
+                  <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-bottom:6px;">
+                    <span style="color:var(--accent-green);">Discount</span>
+                    <span style="color:var(--accent-green);font-weight:600;">-$${discount.discount_amount.toFixed(2)}</span>
+                  </div>
+                ` : ''}
+                ${discount.new_amount ? `
+                  <div style="display:flex;justify-content:space-between;font-size:1rem;padding-top:8px;border-top:1px solid var(--border-subtle);">
+                    <span style="font-weight:600;">New Total</span>
+                    <span style="font-weight:700;color:var(--accent-green);font-size:1.1rem;">$${discount.new_amount.toFixed(2)}</span>
+                  </div>
+                ` : ''}
+              </div>
+              
+              <button class="btn btn-success" onclick="acceptDiscount('${discount.id}', '${packageId}')" style="width:100%;">
+                🎉 Accept Discount
+              </button>
+            </div>
+          `;
+        });
+      }
+      
+      if (acceptedDiscounts.length > 0) {
+        html += `<div style="margin-top:16px;">`;
+        acceptedDiscounts.forEach(discount => {
+          html += `
+            <div style="background:var(--accent-green-soft);border:1px solid rgba(52,211,153,0.3);border-radius:var(--radius-md);padding:12px;margin-bottom:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span>✓</span>
+                  <span style="font-weight:500;">Discount Applied</span>
+                </div>
+                <span style="color:var(--accent-green);font-weight:600;">
+                  ${discount.discount_amount ? `-$${discount.discount_amount.toFixed(2)}` : `${discount.discount_percent}% off`}
+                </span>
+              </div>
+            </div>
+          `;
+        });
+        html += `</div>`;
+      }
+      
+      html += `</div>`;
+      return html;
+    }
+
+    async function openApproveAdditionalWorkModal(workId, title, amount, packageId) {
+      currentAdditionalWorkId = workId;
+      currentAdditionalWorkAmount = amount;
+      currentEscrowPackageId = packageId;
+      
+      document.getElementById('additional-work-title').textContent = title;
+      document.getElementById('additional-work-amount').textContent = `$${amount.toFixed(2)}`;
+      document.getElementById('additional-work-id').value = workId;
+      document.getElementById('additional-work-package-id').value = packageId;
+      
+      document.getElementById('additional-work-card-errors').textContent = '';
+      
+      openModal('approve-additional-work-modal');
+      
+      setTimeout(() => {
+        mountAdditionalWorkCardElement();
+      }, 100);
+    }
+
+    async function mountAdditionalWorkCardElement() {
+      try {
+        const stripe = await initStripe();
+        if (!stripe) {
+          console.error('Stripe not initialized');
+          document.getElementById('additional-work-card-errors').textContent = 'Payment system unavailable. Please try again later.';
+          return;
+        }
+        
+        if (additionalWorkCardElement) {
+          additionalWorkCardElement.destroy();
+        }
+        
+        additionalWorkElements = stripe.elements({
+          appearance: {
+            theme: 'night',
+            variables: {
+              colorPrimary: '#c9a227',
+              colorBackground: 'rgba(30, 38, 48, 0.9)',
+              colorText: '#f5f5f7',
+              colorDanger: '#f87171',
+              fontFamily: 'Outfit, -apple-system, sans-serif',
+              borderRadius: '8px'
+            }
+          }
+        });
+        
+        additionalWorkCardElement = additionalWorkElements.create('card', {
+          style: {
+            base: {
+              color: '#f5f5f7',
+              fontFamily: 'Outfit, -apple-system, sans-serif',
+              fontSmoothing: 'antialiased',
+              fontSize: '16px',
+              '::placeholder': {
+                color: '#6b7280'
+              }
+            },
+            invalid: {
+              color: '#f87171',
+              iconColor: '#f87171'
+            }
+          }
+        });
+        
+        additionalWorkCardElement.mount('#additional-work-card-element');
+        
+        additionalWorkCardElement.on('change', (event) => {
+          const errorEl = document.getElementById('additional-work-card-errors');
+          if (errorEl) {
+            errorEl.textContent = event.error ? event.error.message : '';
+          }
+        });
+      } catch (err) {
+        console.error('Error mounting card element:', err);
+        document.getElementById('additional-work-card-errors').textContent = 'Failed to load payment form. Please refresh the page.';
+      }
+    }
+
+    async function confirmApproveAdditionalWork() {
+      const workId = document.getElementById('additional-work-id').value;
+      const packageId = document.getElementById('additional-work-package-id').value;
+      const btn = document.getElementById('approve-additional-work-btn');
+      const errorEl = document.getElementById('additional-work-card-errors');
+      
+      if (!additionalWorkCardElement) {
+        errorEl.textContent = 'Payment form not loaded. Please refresh the page.';
+        return;
+      }
+      
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;"><span class="spinner"></span> Processing...</span>';
+      errorEl.textContent = '';
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        
+        const response = await fetch(`/api/additional-work/${workId}/approve`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to approve additional work');
+        }
+        
+        if (!data.client_secret) {
+          throw new Error('Failed to create payment. Please try again.');
+        }
+        
+        const stripe = await initStripe();
+        const { error, paymentIntent } = await stripe.confirmCardPayment(data.client_secret, {
+          payment_method: {
+            card: additionalWorkCardElement,
+          }
+        });
+        
+        if (error) {
+          throw new Error(error.message);
+        }
+        
+        if (paymentIntent.status === 'requires_capture' || paymentIntent.status === 'succeeded') {
+          closeModal('approve-additional-work-modal');
+          showToast('Additional work approved! Payment authorized.', 'success');
+          
+          if (additionalWorkCardElement) {
+            additionalWorkCardElement.destroy();
+            additionalWorkCardElement = null;
+          }
+          
+          await loadPackages();
+          setTimeout(() => viewPackage(packageId), 300);
+        } else {
+          throw new Error('Payment authorization failed. Please try again.');
+        }
+        
+      } catch (err) {
+        console.error('Additional work approval error:', err);
+        errorEl.textContent = err.message || 'Failed to approve. Please try again.';
+        showToast(err.message || 'Failed to approve additional work.', 'error');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
+
+    async function declineAdditionalWork(workId, packageId) {
+      const note = prompt('Optional: Add a note explaining why you\'re declining this additional work:');
+      
+      if (!confirm('Are you sure you want to decline this additional work request?\n\nThe provider will be notified of your decision.')) {
+        return;
+      }
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        
+        const response = await fetch(`/api/additional-work/${workId}/decline`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          },
+          body: JSON.stringify({ note: note || null })
+        });
+        
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to decline additional work');
+        }
+        
+        showToast('Additional work declined. Provider has been notified.', 'success');
+        
+        await loadPackages();
+        setTimeout(() => viewPackage(packageId), 300);
+        
+      } catch (err) {
+        console.error('Error declining additional work:', err);
+        showToast(err.message || 'Failed to decline. Please try again.', 'error');
+      }
+    }
+
+    async function acceptDiscount(discountId, packageId) {
+      if (!confirm('Accept this discount offer?\n\nThis will reduce your final payment amount.')) {
+        return;
+      }
+      
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        
+        const response = await fetch(`/api/discount/${discountId}/accept`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+          }
+        });
+        
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to accept discount');
+        }
+        
+        showToast('Discount accepted! Your payment has been updated.', 'success');
+        
+        await loadPackages();
+        setTimeout(() => viewPackage(packageId), 300);
+        
+      } catch (err) {
+        console.error('Error accepting discount:', err);
+        showToast(err.message || 'Failed to accept discount. Please try again.', 'error');
+      }
+    }
+
     async function renderEscrowPaymentSection(pkg, bids) {
       if (!pkg) return '';
       
@@ -1601,6 +2048,22 @@
       
       // Determine payment status
       const paymentStatus = paymentData?.status || 'awaiting_payment';
+      
+      // Load additional work requests and discounts for packages with held payments
+      let additionalWorkHtml = '';
+      let discountsHtml = '';
+      if (paymentStatus === 'held' || paymentStatus === 'authorized' || pkg.status === 'in_progress') {
+        try {
+          const [additionalWork, discounts] = await Promise.all([
+            loadPackageAdditionalWork(pkg.id),
+            loadPackageDiscounts(pkg.id)
+          ]);
+          additionalWorkHtml = renderAdditionalWorkSection(pkg.id, additionalWork, paymentStatus);
+          discountsHtml = renderDiscountsSection(pkg.id, discounts);
+        } catch (e) {
+          console.log('Could not load additional work/discounts:', e);
+        }
+      }
       
       let statusBadge = '';
       let statusColor = '';
@@ -1702,6 +2165,8 @@
               ` : ''}
             </div>
           </div>
+          ${additionalWorkHtml}
+          ${discountsHtml}
         `;
       }
       

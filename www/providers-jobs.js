@@ -40,6 +40,16 @@ function renderActiveJobs() {
               : `<button class="btn btn-sm" style="background:var(--accent-blue);color:#fff;" onclick="startGpsTracking('${job.package_id}')">📍 Start GPS</button>`
             }
             <button class="btn btn-primary btn-sm" onclick="openCompleteJobModal('${job.package_id}')">✅ Complete</button>
+            <div class="dropdown" style="position:relative;">
+              <button class="btn btn-secondary btn-sm" onclick="toggleJobActionsMenu('${job.package_id}')">⋮ More</button>
+              <div class="dropdown-menu" id="job-actions-menu-${job.package_id}" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:50;min-width:180px;">
+                <button class="dropdown-item" style="display:block;width:100%;padding:10px 16px;text-align:left;background:none;border:none;cursor:pointer;color:var(--text-primary);font-size:0.9rem;" onclick="openAdditionalWorkModal('${job.package_id}');toggleJobActionsMenu('${job.package_id}')">🔧 Request Additional Work</button>
+                <button class="dropdown-item" style="display:block;width:100%;padding:10px 16px;text-align:left;background:none;border:none;cursor:pointer;color:var(--text-primary);font-size:0.9rem;" onclick="openDiscountModal('${job.package_id}');toggleJobActionsMenu('${job.package_id}')">💰 Offer Discount</button>
+                <hr style="margin:4px 0;border:none;border-top:1px solid var(--border-subtle);">
+                <button class="dropdown-item" style="display:block;width:100%;padding:10px 16px;text-align:left;background:none;border:none;cursor:pointer;color:var(--text-primary);font-size:0.9rem;" onclick="viewAdditionalWorkRequests('${job.package_id}');toggleJobActionsMenu('${job.package_id}')">📋 View Additional Work</button>
+                <button class="dropdown-item" style="display:block;width:100%;padding:10px 16px;text-align:left;background:none;border:none;cursor:pointer;color:var(--text-primary);font-size:0.9rem;" onclick="viewDiscountsOffered('${job.package_id}');toggleJobActionsMenu('${job.package_id}')">🎁 View Discounts</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -250,6 +260,261 @@ async function submitJobCompletion() {
   } catch (err) {
     console.error('Complete job error:', err);
     showToast(err.message || 'Failed to complete job', 'error');
+  }
+}
+
+// ========== ADDITIONAL WORK & DISCOUNTS ==========
+function toggleJobActionsMenu(packageId) {
+  const menu = document.getElementById(`job-actions-menu-${packageId}`);
+  if (!menu) return;
+  
+  document.querySelectorAll('.dropdown-menu').forEach(m => {
+    if (m.id !== `job-actions-menu-${packageId}`) {
+      m.style.display = 'none';
+    }
+  });
+  
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.dropdown')) {
+    document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+  }
+});
+
+function openAdditionalWorkModal(packageId) {
+  document.getElementById('additional-work-package-id').value = packageId;
+  document.getElementById('additional-work-description').value = '';
+  document.getElementById('additional-work-cost').value = '';
+  document.getElementById('additional-work-photos').value = '';
+  openModal('additional-work-modal');
+}
+
+async function submitAdditionalWorkRequest() {
+  const packageId = document.getElementById('additional-work-package-id')?.value;
+  const description = document.getElementById('additional-work-description')?.value?.trim();
+  const estimatedCost = parseFloat(document.getElementById('additional-work-cost')?.value) || 0;
+  const photosInput = document.getElementById('additional-work-photos');
+  
+  if (!packageId) {
+    showToast('Invalid package', 'error');
+    return;
+  }
+  
+  if (!description) {
+    showToast('Please enter a description', 'error');
+    return;
+  }
+  
+  if (estimatedCost <= 0) {
+    showToast('Please enter a valid estimated cost', 'error');
+    return;
+  }
+  
+  try {
+    const photos = [];
+    if (photosInput?.files?.length > 0) {
+      for (let i = 0; i < photosInput.files.length; i++) {
+        const file = photosInput.files[i];
+        const base64 = await fileToBase64(file);
+        photos.push(base64);
+      }
+    }
+    
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const response = await fetch('/api/additional-work/request', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        package_id: packageId,
+        description,
+        estimated_cost: estimatedCost,
+        photos
+      })
+    });
+    
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Failed to submit request');
+    
+    closeModal('additional-work-modal');
+    showToast('Additional work request submitted! The member will be notified.', 'success');
+    
+  } catch (err) {
+    console.error('Submit additional work error:', err);
+    showToast(err.message || 'Failed to submit request', 'error');
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+  });
+}
+
+function openDiscountModal(packageId) {
+  document.getElementById('discount-package-id').value = packageId;
+  document.getElementById('discount-amount').value = '';
+  document.getElementById('discount-type').value = 'fixed';
+  document.getElementById('discount-reason').value = '';
+  openModal('discount-modal');
+}
+
+async function submitDiscountOffer() {
+  const packageId = document.getElementById('discount-package-id')?.value;
+  const discountAmount = parseFloat(document.getElementById('discount-amount')?.value) || 0;
+  const discountType = document.getElementById('discount-type')?.value || 'fixed';
+  const reason = document.getElementById('discount-reason')?.value?.trim() || '';
+  
+  if (!packageId) {
+    showToast('Invalid package', 'error');
+    return;
+  }
+  
+  if (discountAmount <= 0) {
+    showToast('Please enter a valid discount amount', 'error');
+    return;
+  }
+  
+  if (discountType === 'percentage' && discountAmount > 100) {
+    showToast('Percentage discount cannot exceed 100%', 'error');
+    return;
+  }
+  
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const response = await fetch('/api/discount/offer', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        package_id: packageId,
+        discount_amount: discountAmount,
+        discount_type: discountType,
+        reason
+      })
+    });
+    
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Failed to offer discount');
+    
+    closeModal('discount-modal');
+    showToast('Discount offered! The member will be notified.', 'success');
+    
+  } catch (err) {
+    console.error('Submit discount error:', err);
+    showToast(err.message || 'Failed to offer discount', 'error');
+  }
+}
+
+async function viewAdditionalWorkRequests(packageId) {
+  const container = document.getElementById('additional-work-list');
+  if (!container) return;
+  
+  container.innerHTML = '<p style="color:var(--text-muted);text-align:center;">Loading...</p>';
+  openModal('view-additional-work-modal');
+  
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const response = await fetch(`/api/additional-work/${packageId}`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Failed to load requests');
+    
+    const requests = result.requests || result || [];
+    
+    if (!requests.length) {
+      container.innerHTML = '<div class="empty-state" style="padding:24px;"><div class="empty-state-icon">📋</div><p>No additional work requests for this job</p></div>';
+      return;
+    }
+    
+    const statusBadges = {
+      'pending': { bg: 'var(--accent-orange-soft)', color: 'var(--accent-orange)', label: 'Pending' },
+      'approved': { bg: 'var(--accent-green-soft)', color: 'var(--accent-green)', label: 'Approved' },
+      'declined': { bg: 'var(--accent-red-soft)', color: 'var(--accent-red)', label: 'Declined' }
+    };
+    
+    container.innerHTML = requests.map(req => {
+      const status = statusBadges[req.status] || statusBadges['pending'];
+      return `
+        <div style="padding:16px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;background:var(--bg-input);">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+            <span style="font-weight:600;">$${parseFloat(req.estimated_cost || 0).toFixed(2)}</span>
+            <span style="padding:4px 12px;border-radius:100px;font-size:0.8rem;background:${status.bg};color:${status.color};">${status.label}</span>
+          </div>
+          <p style="margin:0 0 8px 0;color:var(--text-secondary);font-size:0.9rem;">${req.description || 'No description'}</p>
+          <span style="font-size:0.8rem;color:var(--text-muted);">Requested ${formatTimeAgo(req.created_at)}</span>
+        </div>
+      `;
+    }).join('');
+    
+  } catch (err) {
+    console.error('Load additional work requests error:', err);
+    container.innerHTML = '<div class="empty-state" style="padding:24px;"><div class="empty-state-icon">⚠️</div><p>Failed to load requests</p></div>';
+  }
+}
+
+async function viewDiscountsOffered(packageId) {
+  const container = document.getElementById('discounts-list');
+  if (!container) return;
+  
+  container.innerHTML = '<p style="color:var(--text-muted);text-align:center;">Loading...</p>';
+  openModal('view-discounts-modal');
+  
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const response = await fetch(`/api/discounts/${packageId}`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Failed to load discounts');
+    
+    const discounts = result.discounts || result || [];
+    
+    if (!discounts.length) {
+      container.innerHTML = '<div class="empty-state" style="padding:24px;"><div class="empty-state-icon">💰</div><p>No discounts offered for this job</p></div>';
+      return;
+    }
+    
+    const statusBadges = {
+      'offered': { bg: 'var(--accent-blue-soft)', color: 'var(--accent-blue)', label: 'Offered' },
+      'accepted': { bg: 'var(--accent-green-soft)', color: 'var(--accent-green)', label: 'Accepted' },
+      'declined': { bg: 'var(--accent-red-soft)', color: 'var(--accent-red)', label: 'Declined' },
+      'applied': { bg: 'var(--accent-gold-soft)', color: 'var(--accent-gold)', label: 'Applied' }
+    };
+    
+    container.innerHTML = discounts.map(disc => {
+      const status = statusBadges[disc.status] || statusBadges['offered'];
+      const amountDisplay = disc.discount_type === 'percentage' 
+        ? `${disc.discount_amount}%` 
+        : `$${parseFloat(disc.discount_amount || 0).toFixed(2)}`;
+      
+      return `
+        <div style="padding:16px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;background:var(--bg-input);">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+            <span style="font-weight:600;color:var(--accent-green);">${amountDisplay} off</span>
+            <span style="padding:4px 12px;border-radius:100px;font-size:0.8rem;background:${status.bg};color:${status.color};">${status.label}</span>
+          </div>
+          ${disc.reason ? `<p style="margin:0 0 8px 0;color:var(--text-secondary);font-size:0.9rem;">${disc.reason}</p>` : ''}
+          <span style="font-size:0.8rem;color:var(--text-muted);">Offered ${formatTimeAgo(disc.created_at)}</span>
+        </div>
+      `;
+    }).join('');
+    
+  } catch (err) {
+    console.error('Load discounts error:', err);
+    container.innerHTML = '<div class="empty-state" style="padding:24px;"><div class="empty-state-icon">⚠️</div><p>Failed to load discounts</p></div>';
   }
 }
 
