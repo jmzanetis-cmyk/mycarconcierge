@@ -93,6 +93,7 @@
   },
   "auth": {
     "welcomeBack": "Bienvenido de Nuevo",
+    "signIn": "Iniciar Sesión",
     "signInSubtitle": "Inicia sesión para acceder a tu cuenta",
     "email": "Correo Electrónico",
     "emailPlaceholder": "tu@ejemplo.com",

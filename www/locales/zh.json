@@ -93,6 +93,7 @@
   },
   "auth": {
     "welcomeBack": "欢迎回来",
+    "signIn": "登录",
     "signInSubtitle": "登录以访问您的账户",
     "email": "电子邮箱",
     "emailPlaceholder": "you@example.com",

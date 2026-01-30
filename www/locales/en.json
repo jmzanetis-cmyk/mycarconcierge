@@ -109,6 +109,7 @@
   },
   "auth": {
     "welcomeBack": "Welcome Back",
+    "signIn": "Sign In",
     "signInSubtitle": "Sign in to access your account",
     "email": "Email Address",
     "emailPlaceholder": "you@example.com",

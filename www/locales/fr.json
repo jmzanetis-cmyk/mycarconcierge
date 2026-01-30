@@ -93,6 +93,7 @@
   },
   "auth": {
     "welcomeBack": "Bon Retour",
+    "signIn": "Se Connecter",
     "signInSubtitle": "Connectez-vous pour accéder à votre compte",
     "email": "Adresse E-mail",
     "emailPlaceholder": "vous@exemple.com",

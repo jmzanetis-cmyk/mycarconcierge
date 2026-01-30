@@ -94,6 +94,7 @@
   },
   "auth": {
     "welcomeBack": "مرحباً بعودتك",
+    "signIn": "تسجيل الدخول",
     "signInSubtitle": "سجل الدخول للوصول إلى حسابك",
     "email": "البريد الإلكتروني",
     "emailPlaceholder": "you@example.com",

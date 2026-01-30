@@ -93,6 +93,7 @@
   },
   "auth": {
     "welcomeBack": "वापस स्वागत है",
+    "signIn": "साइन इन करें",
     "signInSubtitle": "अपने खाते तक पहुंचने के लिए साइन इन करें",
     "email": "ईमेल पता",
     "emailPlaceholder": "you@example.com",

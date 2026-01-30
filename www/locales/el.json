@@ -93,6 +93,7 @@
   },
   "auth": {
     "welcomeBack": "Καλώς Ήρθατε Πίσω",
+    "signIn": "Σύνδεση",
     "signInSubtitle": "Συνδεθείτε για να αποκτήσετε πρόσβαση στον λογαριασμό σας",
     "email": "Διεύθυνση Email",
     "emailPlaceholder": "you@example.com",
