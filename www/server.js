@@ -10228,8 +10228,67 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
       return;
     }
     
-    // Capture the payment (this moves money and triggers transfer if configured)
-    const capturedPayment = await stripe.paymentIntents.capture(pkg.escrow_payment_intent_id);
+    // Check for accepted discounts
+    const { data: discounts } = await supabase
+      .from('provider_discounts')
+      .select('id, discount_amount, discount_type')
+      .eq('package_id', packageId)
+      .eq('status', 'accepted');
+    
+    // Calculate total discount
+    let totalDiscountCents = 0;
+    const originalAmountCents = paymentIntent.amount;
+    
+    if (discounts && discounts.length > 0) {
+      for (const discount of discounts) {
+        if (discount.discount_type === 'percentage') {
+          totalDiscountCents += Math.round(originalAmountCents * (parseFloat(discount.discount_amount) / 100));
+        } else {
+          totalDiscountCents += Math.round(parseFloat(discount.discount_amount) * 100);
+        }
+      }
+    }
+    
+    // Calculate final capture amount (cannot be less than $0.50)
+    const finalCaptureCents = Math.max(50, originalAmountCents - totalDiscountCents);
+    
+    // Capture the main payment (with discount applied if any)
+    const capturedPayment = await stripe.paymentIntents.capture(pkg.escrow_payment_intent_id, {
+      amount_to_capture: finalCaptureCents
+    });
+    
+    // Mark discounts as applied
+    if (discounts && discounts.length > 0) {
+      await supabase
+        .from('provider_discounts')
+        .update({ status: 'applied', updated_at: new Date().toISOString() })
+        .eq('package_id', packageId)
+        .eq('status', 'accepted');
+    }
+    
+    // Capture any approved additional work payment intents
+    const { data: additionalWork } = await supabase
+      .from('additional_work_requests')
+      .select('id, payment_intent_id, estimated_cost')
+      .eq('package_id', packageId)
+      .eq('status', 'approved')
+      .not('payment_intent_id', 'is', null);
+    
+    let additionalWorkTotal = 0;
+    if (additionalWork && additionalWork.length > 0) {
+      for (const work of additionalWork) {
+        try {
+          const addIntent = await stripe.paymentIntents.retrieve(work.payment_intent_id);
+          if (addIntent.status === 'requires_capture') {
+            await stripe.paymentIntents.capture(work.payment_intent_id);
+            additionalWorkTotal += parseFloat(work.estimated_cost);
+            console.log(`[${requestId}] Captured additional work payment ${work.payment_intent_id} for $${work.estimated_cost}`);
+          }
+        } catch (addErr) {
+          console.error(`[${requestId}] Failed to capture additional work payment ${work.payment_intent_id}:`, addErr.message);
+        }
+      }
+    }
     
     // Fetch package details for service history
     const { data: fullPkg } = await supabase
@@ -10281,6 +10340,10 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
       .eq('package_id', packageId)
       .eq('status', 'held');
     
+    // Calculate final total (original - discount + additional work)
+    const finalTotal = (finalCaptureCents / 100) + additionalWorkTotal;
+    const discountApplied = totalDiscountCents / 100;
+    
     // Create service history record
     if (fullPkg?.vehicle_id) {
       const providerName = bid?.profiles?.provider_alias || 
@@ -10297,30 +10360,41 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
         service_category: fullPkg.category,
         description: fullPkg.title,
         mileage_at_service: vehicleMileage,
-        total_cost: bid?.price,
+        total_cost: finalTotal,
         provider_name: providerName
       });
     }
     
     // Notify provider
     if (bid?.provider_id) {
+      let paymentMsg = `Payment of $${finalTotal.toFixed(2)} has been released for your completed service.`;
+      if (discountApplied > 0) {
+        paymentMsg += ` (Discount of $${discountApplied.toFixed(2)} applied)`;
+      }
+      if (additionalWorkTotal > 0) {
+        paymentMsg += ` (Includes $${additionalWorkTotal.toFixed(2)} for additional work)`;
+      }
+      
       await supabase.from('notifications').insert({
         user_id: bid.provider_id,
         type: 'payment_released',
         title: 'Payment Released! 💰',
-        message: `Payment of $${pkg.escrow_amount} has been released for your completed service.`,
+        message: paymentMsg,
         entity_type: 'package',
         entity_id: packageId
       });
     }
     
-    console.log(`[${requestId}] Escrow released for package ${packageId}, captured ${capturedPayment.id}`);
+    console.log(`[${requestId}] Escrow released for package ${packageId}, captured ${capturedPayment.id}, total: $${finalTotal.toFixed(2)}, discount: $${discountApplied.toFixed(2)}, additional: $${additionalWorkTotal.toFixed(2)}`);
     
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       success: true,
       status: 'completed',
-      capturedAmount: capturedPayment.amount / 100,
+      capturedAmount: finalCaptureCents / 100,
+      additionalWorkAmount: additionalWorkTotal,
+      discountApplied: discountApplied,
+      totalAmount: finalTotal,
       message: 'Payment has been released to the service provider',
       provider_id: bid?.provider_id,
       service_history_created: !!fullPkg?.vehicle_id
