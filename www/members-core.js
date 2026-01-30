@@ -55,6 +55,24 @@ document.addEventListener('DOMContentLoaded', () => {
   updateThemeIcon();
 });
 
+// ========== GLOBAL WINDOW ASSIGNMENTS ==========
+// Ensure functions are accessible from inline HTML event handlers
+// NOTE: These are assigned early so they're available before DOMContentLoaded fires
+window.toggleTheme = toggleTheme;
+window.toggleSmsOptions = typeof toggleSmsOptions !== 'undefined' ? toggleSmsOptions : function() { console.warn('toggleSmsOptions not yet defined'); };
+window.loadNotifications = typeof loadNotifications !== 'undefined' ? loadNotifications : function() { console.warn('loadNotifications not yet defined'); };
+window.renderVehicles = typeof renderVehicles !== 'undefined' ? renderVehicles : function() { console.warn('renderVehicles not yet defined'); };
+window.renderServiceHistory = typeof renderServiceHistory !== 'undefined' ? renderServiceHistory : function() { console.warn('renderServiceHistory not yet defined'); };
+window.toggleSidebar = typeof toggleSidebar !== 'undefined' ? toggleSidebar : function() { console.warn('toggleSidebar not yet defined'); };
+window.showSection = typeof showSection !== 'undefined' ? showSection : function() { console.warn('showSection not yet defined'); };
+window.openVehicleModal = typeof openVehicleModal !== 'undefined' ? openVehicleModal : function() { console.warn('openVehicleModal not yet defined'); };
+window.openPackageModal = typeof openPackageModal !== 'undefined' ? openPackageModal : function() { console.warn('openPackageModal not yet defined'); };
+window.escapeHtml = typeof escapeHtml !== 'undefined' ? escapeHtml : function(text) { return text || ''; };
+window.updateThemeIcon = updateThemeIcon;
+window.updateThemeToggleUI = updateThemeToggleUI;
+window.setThemeFromToggle = setThemeFromToggle;
+window.markNotificationRead = typeof markNotificationRead !== 'undefined' ? markNotificationRead : function() { console.warn('markNotificationRead not yet defined'); };
+
 // ========== STATE ==========
 let currentUser = null;
 let userProfile = null;
@@ -2787,8 +2805,8 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// ========== GLOBAL WINDOW ASSIGNMENTS ==========
-// Ensure functions are accessible from inline HTML event handlers
+// ========== FINAL WINDOW REASSIGNMENTS ==========
+// Now that all functions are defined, reassign from placeholders to actual implementations
 window.toggleTheme = toggleTheme;
 window.toggleSmsOptions = toggleSmsOptions;
 window.loadNotifications = loadNotifications;
