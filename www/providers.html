@@ -1102,7 +1102,15 @@
     </section>
 
     <section id="jobs" class="section">
-      <div class="page-header"><h1 class="page-title">Active Jobs</h1><p class="page-subtitle">Packages where your bid was accepted.</p></div>
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h1 class="page-title">Active Jobs</h1>
+          <p class="page-subtitle">Packages where your bid was accepted.</p>
+        </div>
+        <button class="btn btn-primary" onclick="openQrScannerModal()" style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:1.2rem;">📷</span> Scan Member Check-in
+        </button>
+      </div>
       <div id="active-jobs"><div class="empty-state"><div class="empty-state-icon">✓</div><p>No active jobs.</p></div></div>
     </section>
 
@@ -2492,6 +2500,63 @@
         </div>
       </div>
 
+      <!-- QR Check-in Settings -->
+      <div class="card" id="qr-checkin-settings-card">
+        <div class="card-header">
+          <h2 class="card-title">📱 Member QR Check-in</h2>
+        </div>
+        <p style="color:var(--text-secondary);margin-bottom:20px;font-size:0.9rem;">Allow members to check in at your location by scanning a QR code on arrival.</p>
+        
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:1.5rem;">📲</span>
+            <div>
+              <div style="font-weight:600;" id="qr-checkin-label">Enable Member QR Check-in</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);">Members can scan a QR code when they arrive for service</div>
+            </div>
+          </div>
+          <label class="toggle-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+            <input type="checkbox" id="qr-checkin-toggle" onchange="toggleQrCheckin(this.checked)">
+            <span class="toggle-slider" style="position:relative;width:50px;height:26px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:13px;transition:all 0.3s;display:inline-block;"></span>
+          </label>
+        </div>
+        <style>
+          #qr-checkin-toggle { display: none; }
+          #qr-checkin-toggle + .toggle-slider::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 18px;
+            height: 18px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            transition: all 0.3s;
+          }
+          #qr-checkin-toggle:checked + .toggle-slider {
+            background: var(--accent-gold);
+            border-color: var(--accent-gold);
+          }
+          #qr-checkin-toggle:checked + .toggle-slider::after {
+            left: 27px;
+            background: #0a0a0f;
+          }
+        </style>
+        
+        <div style="background:var(--accent-teal-soft);padding:16px;border-radius:var(--radius-md);margin-top:16px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;">
+            <span style="font-size:1.5rem;">💡</span>
+            <div>
+              <div style="font-weight:600;color:var(--accent-teal);margin-bottom:4px;">How it works</div>
+              <div style="font-size:0.9rem;color:var(--text-secondary);line-height:1.5;">
+                When enabled, a unique QR code will be generated for your location. Display this QR code in your shop. 
+                Members scan it when they arrive, and you'll receive an instant notification.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- POS Features Toggle -->
       <div class="card" style="margin-top:24px;">
         <div class="card-header">
@@ -3646,6 +3711,28 @@
         <div class="message-input-row">
           <input type="text" class="form-input" id="message-input" placeholder="Type your message...">
           <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Scanner Modal -->
+  <div class="modal-backdrop" id="qr-scanner-modal">
+    <div class="modal" style="max-width:500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">📷 Scan Member QR Code</h3>
+        <button class="modal-close" onclick="closeQrScannerModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;">Point your camera at the member's QR code to confirm their arrival for service.</p>
+        <div class="form-group" id="qr-camera-select-group" style="display:none;">
+          <label class="form-label">Select Camera</label>
+          <select class="form-select" id="qr-camera-select" onchange="switchQrCamera()"></select>
+        </div>
+        <div id="qr-reader" style="width:100%;border-radius:var(--radius-md);overflow:hidden;background:var(--bg-input);min-height:280px;"></div>
+        <div id="qr-scanner-status" style="margin-top:16px;padding:12px;border-radius:var(--radius-md);display:none;"></div>
+        <div style="margin-top:16px;display:flex;gap:12px;justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="closeQrScannerModal()">Cancel</button>
         </div>
       </div>
     </div>

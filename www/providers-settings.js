@@ -712,4 +712,52 @@ async function loadProviderReferrals() {
   }
 }
 
+// ========== QR CHECK-IN SETTINGS ==========
+async function loadQrCheckinSetting() {
+  const toggle = document.getElementById('qr-checkin-toggle');
+  if (!toggle) return;
+  
+  try {
+    if (providerProfile && typeof providerProfile.qr_checkin_enabled !== 'undefined') {
+      toggle.checked = providerProfile.qr_checkin_enabled === true;
+    }
+  } catch (err) {
+    console.error('Error loading QR check-in setting:', err);
+  }
+}
+
+async function toggleQrCheckin(enabled) {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      showToast('Please log in to update settings', 'error');
+      return;
+    }
+    
+    const response = await fetch('/api/provider/settings/qr-checkin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ enabled })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to update QR check-in setting');
+    }
+    
+    providerProfile.qr_checkin_enabled = enabled;
+    showToast(enabled ? 'QR Check-in enabled!' : 'QR Check-in disabled', 'success');
+    
+  } catch (err) {
+    console.error('Error updating QR check-in setting:', err);
+    showToast('Failed to update QR check-in setting', 'error');
+    const toggle = document.getElementById('qr-checkin-toggle');
+    if (toggle) toggle.checked = !enabled;
+  }
+}
+
 console.log('providers-settings.js loaded');

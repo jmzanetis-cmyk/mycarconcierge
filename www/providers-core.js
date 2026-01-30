@@ -702,6 +702,10 @@ function populateProfileForm(profile) {
     const el = document.getElementById(`profile-${f.replace('_', '-')}`);
     if (el) el.value = profile[f] || '';
   });
+  
+  if (typeof loadQrCheckinSetting === 'function') {
+    loadQrCheckinSetting();
+  }
 }
 
 // ========== SUBSCRIPTION ==========

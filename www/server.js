@@ -21481,6 +21481,408 @@ async function handleAdminStatsOrders(req, res, requestId) {
   }
 }
 
+// ========== QR CHECK-IN API HANDLERS ==========
+
+async function handleProviderQrCheckinSettings(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, role, is_also_provider')
+      .eq('id', user.id)
+      .single();
+    
+    if (profileError || !profile) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Profile not found' }));
+      return;
+    }
+    
+    if (profile.role !== 'provider' && !profile.is_also_provider) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Provider access required' }));
+      return;
+    }
+    
+    const body = await getRequestBody(req);
+    const { enabled } = body;
+    
+    if (typeof enabled !== 'boolean') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'enabled must be a boolean' }));
+      return;
+    }
+    
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ 
+        qr_checkin_enabled: enabled,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', user.id);
+    
+    if (updateError) {
+      console.error(`[${requestId}] Error updating QR check-in setting:`, updateError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to update setting' }));
+      return;
+    }
+    
+    console.log(`[${requestId}] Provider ${user.id} set qr_checkin_enabled to ${enabled}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, enabled }));
+    
+  } catch (error) {
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleGeneratePackageCheckinToken(req, res, requestId, packageId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(packageId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid package ID' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('id, member_id, status')
+      .eq('id', packageId)
+      .single();
+    
+    if (pkgError || !pkg) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package not found' }));
+      return;
+    }
+    
+    if (pkg.member_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'You do not own this package' }));
+      return;
+    }
+    
+    if (!['payment_held', 'in_progress'].includes(pkg.status)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package must be in payment_held or in_progress status' }));
+      return;
+    }
+    
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    
+    const { error: updateError } = await supabase
+      .from('maintenance_packages')
+      .update({
+        checkin_token: token,
+        checkin_token_expires_at: expiresAt,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', packageId);
+    
+    if (updateError) {
+      console.error(`[${requestId}] Error generating check-in token:`, updateError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to generate check-in token' }));
+      return;
+    }
+    
+    const qrUrl = `/checkin/${packageId}/${token}`;
+    
+    console.log(`[${requestId}] Generated check-in token for package ${packageId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true,
+      token, 
+      qrUrl, 
+      expiresAt 
+    }));
+    
+  } catch (error) {
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleGetPackageCheckinToken(req, res, requestId, packageId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(packageId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid package ID' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('id, member_id, checkin_token, checkin_token_expires_at')
+      .eq('id', packageId)
+      .single();
+    
+    if (pkgError || !pkg) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package not found' }));
+      return;
+    }
+    
+    if (pkg.member_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'You do not own this package' }));
+      return;
+    }
+    
+    if (!pkg.checkin_token || !pkg.checkin_token_expires_at) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ hasToken: false }));
+      return;
+    }
+    
+    const now = new Date();
+    const expiresAt = new Date(pkg.checkin_token_expires_at);
+    
+    if (expiresAt <= now) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ hasToken: false, expired: true }));
+      return;
+    }
+    
+    const qrUrl = `/checkin/${packageId}/${pkg.checkin_token}`;
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      hasToken: true,
+      token: pkg.checkin_token,
+      qrUrl,
+      expiresAt: pkg.checkin_token_expires_at
+    }));
+    
+  } catch (error) {
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleConfirmPackageArrival(req, res, requestId, packageId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(packageId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid package ID' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const body = await getRequestBody(req);
+    const { token } = body;
+    
+    if (!token || typeof token !== 'string') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Token is required' }));
+      return;
+    }
+    
+    const { data: providerProfile, error: providerError } = await supabase
+      .from('profiles')
+      .select('id, role, is_also_provider, qr_checkin_enabled, full_name, business_name')
+      .eq('id', user.id)
+      .single();
+    
+    if (providerError || !providerProfile) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Profile not found' }));
+      return;
+    }
+    
+    if (providerProfile.role !== 'provider' && !providerProfile.is_also_provider) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Provider access required' }));
+      return;
+    }
+    
+    if (!providerProfile.qr_checkin_enabled) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'QR check-in is not enabled for this provider' }));
+      return;
+    }
+    
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('id, member_id, status, title, checkin_token, checkin_token_expires_at, checked_in_at')
+      .eq('id', packageId)
+      .single();
+    
+    if (pkgError || !pkg) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package not found' }));
+      return;
+    }
+    
+    if (pkg.checked_in_at) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Member has already checked in for this package' }));
+      return;
+    }
+    
+    if (!pkg.checkin_token || pkg.checkin_token !== token) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid check-in token' }));
+      return;
+    }
+    
+    const now = new Date();
+    const expiresAt = new Date(pkg.checkin_token_expires_at);
+    
+    if (expiresAt <= now) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Check-in token has expired' }));
+      return;
+    }
+    
+    const { data: acceptedBid, error: bidError } = await supabase
+      .from('bids')
+      .select('id, provider_id')
+      .eq('package_id', packageId)
+      .eq('status', 'accepted')
+      .single();
+    
+    if (bidError || !acceptedBid) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No accepted bid found for this package' }));
+      return;
+    }
+    
+    if (acceptedBid.provider_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'You are not the provider for this package' }));
+      return;
+    }
+    
+    const { error: updateError } = await supabase
+      .from('maintenance_packages')
+      .update({
+        checked_in_at: now.toISOString(),
+        status: 'in_progress',
+        checkin_token: null,
+        checkin_token_expires_at: null,
+        updated_at: now.toISOString()
+      })
+      .eq('id', packageId);
+    
+    if (updateError) {
+      console.error(`[${requestId}] Error confirming arrival:`, updateError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to confirm arrival' }));
+      return;
+    }
+    
+    const providerName = providerProfile.business_name || providerProfile.full_name || 'Your provider';
+    await supabase.from('notifications').insert({
+      user_id: pkg.member_id,
+      type: 'checkin_confirmed',
+      title: 'Check-In Confirmed ✓',
+      message: `${providerName} has confirmed your arrival for "${pkg.title}". Service is now in progress.`,
+      entity_type: 'package',
+      entity_id: packageId
+    });
+    
+    console.log(`[${requestId}] Provider ${user.id} confirmed arrival for package ${packageId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true,
+      package: {
+        id: pkg.id,
+        title: pkg.title,
+        status: 'in_progress',
+        checked_in_at: now.toISOString()
+      }
+    }));
+    
+  } catch (error) {
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+// ========== END QR CHECK-IN API HANDLERS ==========
+
 const server = http.createServer((req, res) => {
   const requestId = generateRequestId();
   console.log(`[${requestId}] ${req.method} ${req.url}`);
@@ -22102,6 +22504,30 @@ const server = http.createServer((req, res) => {
   
   if (req.method === 'POST' && req.url === '/api/provider/push/unsubscribe') {
     handleProviderPushUnsubscribe(req, res, requestId);
+    return;
+  }
+  
+  // QR Check-In API Routes
+  if (req.method === 'POST' && req.url === '/api/provider/settings/qr-checkin') {
+    handleProviderQrCheckinSettings(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/package\/[^/]+\/generate-checkin-token$/)) {
+    const packageId = req.url.split('/api/package/')[1]?.split('/')[0];
+    handleGeneratePackageCheckinToken(req, res, requestId, packageId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/package\/[^/]+\/checkin-token$/)) {
+    const packageId = req.url.split('/api/package/')[1]?.split('/')[0];
+    handleGetPackageCheckinToken(req, res, requestId, packageId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/package\/[^/]+\/confirm-arrival$/)) {
+    const packageId = req.url.split('/api/package/')[1]?.split('/')[0];
+    handleConfirmPackageArrival(req, res, requestId, packageId);
     return;
   }
   

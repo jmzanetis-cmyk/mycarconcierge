@@ -1040,4 +1040,208 @@ async function updateFleetItemStatus(itemId, status) {
   }
 }
 
+// ========== QR SCANNER FOR MEMBER CHECK-IN ==========
+let html5QrCode = null;
+let qrScannerActive = false;
+
+function openQrScannerModal() {
+  openModal('qr-scanner-modal');
+  setTimeout(() => startQrScanner(), 300);
+}
+
+function closeQrScannerModal() {
+  stopQrScanner();
+  closeModal('qr-scanner-modal');
+  const statusEl = document.getElementById('qr-scanner-status');
+  if (statusEl) {
+    statusEl.style.display = 'none';
+    statusEl.innerHTML = '';
+  }
+}
+
+async function startQrScanner() {
+  const readerEl = document.getElementById('qr-reader');
+  const cameraSelectGroup = document.getElementById('qr-camera-select-group');
+  const cameraSelect = document.getElementById('qr-camera-select');
+  
+  if (!readerEl) return;
+  
+  if (typeof Html5Qrcode === 'undefined') {
+    showQrScannerStatus('QR scanner library not loaded. Please refresh the page.', 'error');
+    return;
+  }
+  
+  try {
+    const devices = await Html5Qrcode.getCameras();
+    
+    if (!devices || devices.length === 0) {
+      showQrScannerStatus('No cameras found. Please allow camera access.', 'error');
+      return;
+    }
+    
+    if (devices.length > 1 && cameraSelect && cameraSelectGroup) {
+      cameraSelectGroup.style.display = 'block';
+      cameraSelect.innerHTML = devices.map((d, i) => 
+        `<option value="${d.id}">${d.label || `Camera ${i + 1}`}</option>`
+      ).join('');
+    }
+    
+    html5QrCode = new Html5Qrcode("qr-reader");
+    qrScannerActive = true;
+    
+    const preferredCamera = devices.find(d => d.label?.toLowerCase().includes('back')) || devices[0];
+    
+    await html5QrCode.start(
+      preferredCamera.id,
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      onQrCodeScanned,
+      () => {}
+    );
+    
+    if (cameraSelect) cameraSelect.value = preferredCamera.id;
+    
+  } catch (err) {
+    console.error('QR Scanner start error:', err);
+    showQrScannerStatus('Failed to start camera. Please check permissions.', 'error');
+  }
+}
+
+async function stopQrScanner() {
+  if (html5QrCode && qrScannerActive) {
+    try {
+      await html5QrCode.stop();
+    } catch (err) {
+      console.log('QR Scanner stop:', err);
+    }
+    qrScannerActive = false;
+  }
+}
+
+async function switchQrCamera() {
+  const cameraSelect = document.getElementById('qr-camera-select');
+  if (!cameraSelect || !html5QrCode) return;
+  
+  const newCameraId = cameraSelect.value;
+  
+  try {
+    if (qrScannerActive) {
+      await html5QrCode.stop();
+    }
+    
+    await html5QrCode.start(
+      newCameraId,
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      onQrCodeScanned,
+      () => {}
+    );
+    qrScannerActive = true;
+  } catch (err) {
+    console.error('Camera switch error:', err);
+    showQrScannerStatus('Failed to switch camera.', 'error');
+  }
+}
+
+async function onQrCodeScanned(decodedText) {
+  if (!qrScannerActive) return;
+  
+  await stopQrScanner();
+  
+  showQrScannerStatus('Processing QR code...', 'info');
+  
+  const parsedData = parseCheckInQrCode(decodedText);
+  
+  if (!parsedData) {
+    showQrScannerStatus('Invalid QR code format. Please scan a valid member check-in code.', 'error');
+    setTimeout(() => startQrScanner(), 2000);
+    return;
+  }
+  
+  await confirmMemberArrival(parsedData.packageId, parsedData.token);
+}
+
+function parseCheckInQrCode(url) {
+  try {
+    if (url.includes('/check-in.html')) {
+      const urlObj = new URL(url, window.location.origin);
+      const packageId = urlObj.searchParams.get('package');
+      const token = urlObj.searchParams.get('token');
+      if (packageId && token) return { packageId, token };
+    }
+    
+    const directMatch = url.match(/\/checkin\/([^\/]+)\/([^\/\?]+)/);
+    if (directMatch) {
+      return { packageId: directMatch[1], token: directMatch[2] };
+    }
+    
+    const simpleMatch = url.match(/package=([^&]+).*token=([^&]+)/);
+    if (simpleMatch) {
+      return { packageId: simpleMatch[1], token: simpleMatch[2] };
+    }
+    
+    return null;
+  } catch (err) {
+    console.error('QR parse error:', err);
+    return null;
+  }
+}
+
+async function confirmMemberArrival(packageId, token) {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    const response = await fetch(`/api/package/${packageId}/confirm-arrival`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ token })
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to confirm arrival');
+    }
+    
+    closeQrScannerModal();
+    
+    const memberName = result.member?.full_name || result.member_name || 'Member';
+    const vehicleInfo = result.vehicle 
+      ? `${result.vehicle.year || ''} ${result.vehicle.make || ''} ${result.vehicle.model || ''}`.trim() 
+      : result.vehicle_info || '';
+    
+    let successMsg = `✅ Check-in confirmed for ${memberName}`;
+    if (vehicleInfo) successMsg += ` - ${vehicleInfo}`;
+    
+    showToast(successMsg, 'success');
+    
+    if (typeof loadMyBids === 'function') {
+      await loadMyBids();
+    }
+    if (typeof renderActiveJobs === 'function') {
+      renderActiveJobs();
+    }
+    
+  } catch (err) {
+    console.error('Confirm arrival error:', err);
+    showQrScannerStatus(err.message || 'Failed to confirm arrival. Please try again.', 'error');
+    setTimeout(() => startQrScanner(), 3000);
+  }
+}
+
+function showQrScannerStatus(message, type) {
+  const statusEl = document.getElementById('qr-scanner-status');
+  if (!statusEl) return;
+  
+  const styles = {
+    error: 'background:var(--accent-red-soft);color:var(--accent-red);border:1px solid rgba(248,113,113,0.3);',
+    success: 'background:var(--accent-green-soft);color:var(--accent-green);border:1px solid rgba(52,211,153,0.3);',
+    info: 'background:var(--accent-blue-soft);color:var(--accent-blue);border:1px solid rgba(56,189,248,0.3);'
+  };
+  
+  statusEl.style.cssText = `display:block;padding:12px;border-radius:var(--radius-md);${styles[type] || styles.info}`;
+  statusEl.innerHTML = message;
+}
+
 console.log('providers-jobs.js loaded');

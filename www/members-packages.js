@@ -1364,6 +1364,8 @@
 
         ${await renderEscrowPaymentSection(pkg, bids)}
 
+        ${await renderCheckinQRSection(pkg)}
+
         ${(pkg.status === 'accepted' || pkg.status === 'in_progress') ? `
           <div class="form-section" id="logistics-dashboard-${packageId}">
             <div class="form-section-title">🎉 Service Coordination Dashboard</div>
@@ -2272,6 +2274,231 @@
           })();
         </script>
       `;
+    }
+
+    // ========== QR CODE CHECK-IN SECTION ==========
+    async function renderCheckinQRSection(pkg) {
+      if (!pkg) return '';
+      
+      // Only show for packages with payment held and not yet checked in
+      const payment = packagePaymentStatuses[pkg.id];
+      const paymentHeld = payment && (payment.status === 'held' || payment.status === 'authorized') && !payment.escrow_captured;
+      const isInProgress = pkg.status === 'in_progress';
+      const isAccepted = pkg.status === 'accepted';
+      const isCheckedIn = !!pkg.checked_in_at;
+      
+      // Show QR section when payment is held OR package is in progress, and not yet checked in
+      if ((!paymentHeld && !isInProgress && !isAccepted) || isCheckedIn) {
+        return '';
+      }
+      
+      // If already checked in, show completed status
+      if (isCheckedIn) {
+        return `
+          <div class="form-section" id="checkin-qr-section-${pkg.id}">
+            <div class="form-section-title">📍 Provider Check-in</div>
+            <div style="background:var(--accent-green-soft);border:1px solid rgba(52,211,153,0.3);border-radius:var(--radius-lg);padding:20px;text-align:center;">
+              <span style="font-size:2rem;display:block;margin-bottom:12px;">✅</span>
+              <div style="font-weight:600;color:var(--accent-green);font-size:1.1rem;margin-bottom:8px;">Checked In</div>
+              <div style="color:var(--text-secondary);font-size:0.9rem;">
+                You checked in at ${new Date(pkg.checked_in_at).toLocaleString()}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      
+      return `
+        <div class="form-section" id="checkin-qr-section-${pkg.id}">
+          <div class="form-section-title">📱 Check-in at Provider Location</div>
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;">
+            <div id="checkin-qr-content-${pkg.id}">
+              <div style="text-align:center;padding:20px;">
+                <div class="spinner" style="margin:0 auto 12px;"></div>
+                <div style="color:var(--text-muted);font-size:0.9rem;">Loading check-in QR code...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <script>
+          (function() {
+            setTimeout(() => {
+              loadCheckinQRCode('${pkg.id}');
+            }, 100);
+          })();
+        </script>
+      `;
+    }
+
+    async function loadCheckinQRCode(packageId) {
+      const container = document.getElementById(`checkin-qr-content-${packageId}`);
+      if (!container) return;
+      
+      try {
+        // Check for existing token
+        const response = await fetch(`/api/package/${packageId}/checkin-token`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.token && data.expires_at && new Date(data.expires_at) > new Date()) {
+          // Valid token exists, show QR code
+          renderCheckinQRDisplay(packageId, data.token, data.expires_at);
+        } else {
+          // No valid token, show generate button
+          renderGenerateQRButton(packageId);
+        }
+      } catch (error) {
+        console.error('Error loading check-in token:', error);
+        renderGenerateQRButton(packageId);
+      }
+    }
+
+    function renderGenerateQRButton(packageId) {
+      const container = document.getElementById(`checkin-qr-content-${packageId}`);
+      if (!container) return;
+      
+      container.innerHTML = `
+        <div style="text-align:center;padding:20px;">
+          <div style="font-size:3rem;margin-bottom:16px;">📱</div>
+          <h4 style="margin-bottom:12px;font-size:1.1rem;">Ready to Check In?</h4>
+          <p style="color:var(--text-secondary);margin-bottom:20px;font-size:0.9rem;max-width:300px;margin-left:auto;margin-right:auto;">
+            Generate a QR code to show when you arrive at the service provider. This confirms your arrival and starts the service.
+          </p>
+          <button class="btn btn-primary" onclick="generateCheckinQRCode('${packageId}')" id="generate-qr-btn-${packageId}">
+            📱 Generate Check-in QR Code
+          </button>
+        </div>
+      `;
+    }
+
+    async function generateCheckinQRCode(packageId) {
+      const btn = document.getElementById(`generate-qr-btn-${packageId}`);
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;"><span class="spinner"></span> Generating...</span>';
+      }
+      
+      try {
+        const response = await fetch(`/api/package/${packageId}/generate-checkin-token`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to generate check-in token');
+        }
+        
+        const data = await response.json();
+        renderCheckinQRDisplay(packageId, data.token, data.expires_at);
+        showToast('QR code generated! Show this when you arrive.', 'success');
+      } catch (error) {
+        console.error('Error generating check-in token:', error);
+        showToast('Failed to generate QR code. Please try again.', 'error');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '📱 Generate Check-in QR Code';
+        }
+      }
+    }
+
+    function renderCheckinQRDisplay(packageId, token, expiresAt) {
+      const container = document.getElementById(`checkin-qr-content-${packageId}`);
+      if (!container) return;
+      
+      const baseUrl = window.location.origin;
+      const checkinUrl = `${baseUrl}/check-in.html?package=${packageId}&token=${token}`;
+      const expiryDate = new Date(expiresAt);
+      const timeRemaining = getCheckinTimeRemaining(expiresAt);
+      
+      container.innerHTML = `
+        <div style="text-align:center;">
+          <div style="background:white;padding:16px;border-radius:var(--radius-md);display:inline-block;margin-bottom:16px;">
+            <canvas id="checkin-qr-canvas-${packageId}" style="display:block;"></canvas>
+          </div>
+          <h4 style="margin-bottom:8px;font-size:1.1rem;">Show this QR Code on Arrival</h4>
+          <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:16px;max-width:280px;margin-left:auto;margin-right:auto;">
+            The provider will scan this code to confirm your vehicle drop-off and start the service.
+          </p>
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;">
+            <span style="color:var(--accent-orange);font-size:0.85rem;font-weight:500;">⏱️ Valid for ${timeRemaining}</span>
+          </div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:16px;">
+            Expires: ${expiryDate.toLocaleString()}
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="refreshCheckinQRCode('${packageId}')">
+            🔄 Generate New QR Code
+          </button>
+        </div>
+      `;
+      
+      // Generate QR code using the qrcode library
+      const canvas = document.getElementById(`checkin-qr-canvas-${packageId}`);
+      if (canvas && typeof QRCode !== 'undefined') {
+        QRCode.toCanvas(canvas, checkinUrl, {
+          width: 200,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          }
+        }, function(error) {
+          if (error) {
+            console.error('Error generating QR code:', error);
+            // Fallback to quickchart.io
+            container.querySelector('div').innerHTML = `
+              <img src="https://quickchart.io/qr?text=${encodeURIComponent(checkinUrl)}&size=200&margin=2" 
+                   alt="Check-in QR Code" 
+                   style="width:200px;height:200px;">
+            `;
+          }
+        });
+      } else {
+        // Fallback to quickchart.io if QRCode library not available
+        container.querySelector('div').innerHTML = `
+          <img src="https://quickchart.io/qr?text=${encodeURIComponent(checkinUrl)}&size=200&margin=2" 
+               alt="Check-in QR Code" 
+               style="width:200px;height:200px;border-radius:var(--radius-sm);">
+        `;
+      }
+    }
+
+    function getCheckinTimeRemaining(expiresAt) {
+      const now = new Date();
+      const expiry = new Date(expiresAt);
+      const diff = expiry - now;
+      
+      if (diff <= 0) return 'Expired';
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (hours > 24) {
+        const days = Math.floor(hours / 24);
+        return `${days} day${days > 1 ? 's' : ''}`;
+      }
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${minutes} minutes`;
+    }
+
+    async function refreshCheckinQRCode(packageId) {
+      const container = document.getElementById(`checkin-qr-content-${packageId}`);
+      if (container) {
+        container.innerHTML = `
+          <div style="text-align:center;padding:20px;">
+            <div class="spinner" style="margin:0 auto 12px;"></div>
+            <div style="color:var(--text-muted);font-size:0.9rem;">Generating new QR code...</div>
+          </div>
+        `;
+      }
+      await generateCheckinQRCode(packageId);
     }
 
     async function mountEscrowCardElement(packageId) {
