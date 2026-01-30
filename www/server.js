@@ -9920,8 +9920,8 @@ async function handleEscrowCreate(req, res, requestId) {
         return;
       }
       
-      // Calculate platform fee (10%)
-      const platformFeeCents = Math.round(amountCents * 0.10);
+      // Calculate platform fee (2%)
+      const platformFeeCents = Math.round(amountCents * 0.02);
       const providerAmountCents = amountCents - platformFeeCents;
       
       const stripe = await getStripeClient();
@@ -10090,7 +10090,7 @@ async function handleEscrowConfirm(req, res, requestId, packageId) {
     
     // Calculate fees
     const amount = parseFloat(pkg.escrow_amount);
-    const platformFee = amount * 0.10;
+    const platformFee = amount * 0.02;
     const providerAmount = amount - platformFee;
     
     // Check if payment record already exists (idempotency)
@@ -10526,6 +10526,746 @@ async function handleEscrowStatus(req, res, requestId, packageId) {
     
   } catch (error) {
     console.error(`[${requestId}] Escrow status error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+// ========== ADDITIONAL WORK REQUESTS API ==========
+
+async function handleAdditionalWorkRequest(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  
+  req.on('end', async () => {
+    try {
+      const { package_id, description, estimated_cost, photos } = JSON.parse(body);
+      
+      if (!package_id || !description || estimated_cost === undefined) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'package_id, description, and estimated_cost are required' }));
+        return;
+      }
+      
+      if (!isValidUUID(package_id)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid package_id format' }));
+        return;
+      }
+      
+      const estimatedCostNum = parseFloat(estimated_cost);
+      if (isNaN(estimatedCostNum) || estimatedCostNum < 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'estimated_cost must be a valid positive number' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: pkg, error: pkgError } = await supabase
+        .from('maintenance_packages')
+        .select('id, member_id, status, accepted_bid_id')
+        .eq('id', package_id)
+        .single();
+      
+      if (pkgError || !pkg) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package not found' }));
+        return;
+      }
+      
+      if (!['payment_held', 'in_progress'].includes(pkg.status)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Cannot request additional work for package in ${pkg.status} status` }));
+        return;
+      }
+      
+      if (!pkg.accepted_bid_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package has no accepted bid' }));
+        return;
+      }
+      
+      const { data: bid, error: bidError } = await supabase
+        .from('bids')
+        .select('id, provider_id')
+        .eq('id', pkg.accepted_bid_id)
+        .single();
+      
+      if (bidError || !bid || bid.provider_id !== user.id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Only the accepted provider can request additional work' }));
+        return;
+      }
+      
+      const { data: request, error: insertError } = await supabase
+        .from('additional_work_requests')
+        .insert({
+          package_id,
+          provider_id: user.id,
+          description: description.substring(0, 2000),
+          estimated_cost: estimatedCostNum,
+          photos: photos && Array.isArray(photos) ? photos.slice(0, 10) : null,
+          status: 'pending'
+        })
+        .select('id')
+        .single();
+      
+      if (insertError) {
+        console.error(`[${requestId}] Error creating additional work request:`, insertError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create additional work request' }));
+        return;
+      }
+      
+      await supabase.from('notifications').insert({
+        user_id: pkg.member_id,
+        type: 'additional_work_requested',
+        title: 'Additional Work Requested',
+        message: `Your provider has requested approval for additional work: $${estimatedCostNum.toFixed(2)}`,
+        entity_type: 'additional_work_request',
+        entity_id: request.id
+      });
+      
+      console.log(`[${requestId}] Additional work request created: ${request.id} for package ${package_id}`);
+      
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, id: request.id }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Additional work request error:`, error);
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: safeMsg }));
+    }
+  });
+}
+
+async function handleGetAdditionalWork(req, res, requestId, packageId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(packageId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid package ID' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('id, member_id, accepted_bid_id')
+      .eq('id', packageId)
+      .single();
+    
+    if (pkgError || !pkg) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package not found' }));
+      return;
+    }
+    
+    let hasAccess = pkg.member_id === user.id;
+    
+    if (!hasAccess && pkg.accepted_bid_id) {
+      const { data: bid } = await supabase
+        .from('bids')
+        .select('provider_id')
+        .eq('id', pkg.accepted_bid_id)
+        .single();
+      hasAccess = bid?.provider_id === user.id;
+    }
+    
+    if (!hasAccess) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized to view this package' }));
+      return;
+    }
+    
+    const { data: requests, error: fetchError } = await supabase
+      .from('additional_work_requests')
+      .select('*')
+      .eq('package_id', packageId)
+      .order('created_at', { ascending: false });
+    
+    if (fetchError) {
+      console.error(`[${requestId}] Error fetching additional work requests:`, fetchError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch additional work requests' }));
+      return;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, requests: requests || [] }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get additional work error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleApproveAdditionalWork(req, res, requestId, requestIdParam) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(requestIdParam)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid request ID' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: workRequest, error: reqError } = await supabase
+      .from('additional_work_requests')
+      .select('id, package_id, provider_id, estimated_cost, status')
+      .eq('id', requestIdParam)
+      .single();
+    
+    if (reqError || !workRequest) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Additional work request not found' }));
+      return;
+    }
+    
+    if (workRequest.status !== 'pending') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Request is already ${workRequest.status}` }));
+      return;
+    }
+    
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('id, member_id')
+      .eq('id', workRequest.package_id)
+      .single();
+    
+    if (pkgError || !pkg || pkg.member_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized to approve this request' }));
+      return;
+    }
+    
+    const amountCents = Math.round(workRequest.estimated_cost * 100);
+    if (amountCents < 50) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Amount must be at least $0.50' }));
+      return;
+    }
+    
+    const stripe = await getStripeClient();
+    if (!stripe) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Payment system not configured' }));
+      return;
+    }
+    
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: 'usd',
+      capture_method: 'manual',
+      metadata: {
+        type: 'additional_work',
+        additional_work_request_id: requestIdParam,
+        package_id: workRequest.package_id,
+        provider_id: workRequest.provider_id
+      }
+    });
+    
+    const { error: updateError } = await supabase
+      .from('additional_work_requests')
+      .update({
+        status: 'approved',
+        payment_intent_id: paymentIntent.id,
+        approved_at: new Date().toISOString()
+      })
+      .eq('id', requestIdParam);
+    
+    if (updateError) {
+      console.error(`[${requestId}] Error updating additional work request:`, updateError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to approve request' }));
+      return;
+    }
+    
+    await supabase.from('notifications').insert({
+      user_id: workRequest.provider_id,
+      type: 'additional_work_approved',
+      title: 'Additional Work Approved! ✅',
+      message: `Your additional work request for $${workRequest.estimated_cost.toFixed(2)} has been approved.`,
+      entity_type: 'additional_work_request',
+      entity_id: requestIdParam
+    });
+    
+    console.log(`[${requestId}] Additional work request ${requestIdParam} approved`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Approve additional work error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleDeclineAdditionalWork(req, res, requestId, requestIdParam) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(requestIdParam)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid request ID' }));
+    return;
+  }
+  
+  const contentType = req.headers['content-type'];
+  let memberResponseNote = null;
+  
+  if (contentType && contentType.includes('application/json')) {
+    let body = '';
+    await new Promise((resolve) => {
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', resolve);
+    });
+    try {
+      const parsed = JSON.parse(body);
+      memberResponseNote = parsed.member_response_note;
+    } catch (e) {}
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: workRequest, error: reqError } = await supabase
+      .from('additional_work_requests')
+      .select('id, package_id, provider_id, estimated_cost, status')
+      .eq('id', requestIdParam)
+      .single();
+    
+    if (reqError || !workRequest) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Additional work request not found' }));
+      return;
+    }
+    
+    if (workRequest.status !== 'pending') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Request is already ${workRequest.status}` }));
+      return;
+    }
+    
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('id, member_id')
+      .eq('id', workRequest.package_id)
+      .single();
+    
+    if (pkgError || !pkg || pkg.member_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized to decline this request' }));
+      return;
+    }
+    
+    const updateData = {
+      status: 'declined',
+      declined_at: new Date().toISOString()
+    };
+    
+    if (memberResponseNote && typeof memberResponseNote === 'string') {
+      updateData.member_response_note = memberResponseNote.substring(0, 1000);
+    }
+    
+    const { error: updateError } = await supabase
+      .from('additional_work_requests')
+      .update(updateData)
+      .eq('id', requestIdParam);
+    
+    if (updateError) {
+      console.error(`[${requestId}] Error declining additional work request:`, updateError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to decline request' }));
+      return;
+    }
+    
+    await supabase.from('notifications').insert({
+      user_id: workRequest.provider_id,
+      type: 'additional_work_declined',
+      title: 'Additional Work Request Declined',
+      message: `Your additional work request for $${workRequest.estimated_cost.toFixed(2)} was declined.${memberResponseNote ? ' Note: ' + memberResponseNote.substring(0, 100) : ''}`,
+      entity_type: 'additional_work_request',
+      entity_id: requestIdParam
+    });
+    
+    console.log(`[${requestId}] Additional work request ${requestIdParam} declined`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Decline additional work error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+// ========== PROVIDER DISCOUNTS API ==========
+
+async function handleDiscountOffer(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  
+  req.on('end', async () => {
+    try {
+      const { package_id, discount_amount, discount_type, reason } = JSON.parse(body);
+      
+      if (!package_id || discount_amount === undefined || !discount_type) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'package_id, discount_amount, and discount_type are required' }));
+        return;
+      }
+      
+      if (!isValidUUID(package_id)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid package_id format' }));
+        return;
+      }
+      
+      if (!['fixed', 'percentage'].includes(discount_type)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'discount_type must be "fixed" or "percentage"' }));
+        return;
+      }
+      
+      const discountAmountNum = parseFloat(discount_amount);
+      if (isNaN(discountAmountNum) || discountAmountNum <= 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'discount_amount must be a positive number' }));
+        return;
+      }
+      
+      if (discount_type === 'percentage' && discountAmountNum > 100) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Percentage discount cannot exceed 100%' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: pkg, error: pkgError } = await supabase
+        .from('maintenance_packages')
+        .select('id, member_id, status, accepted_bid_id')
+        .eq('id', package_id)
+        .single();
+      
+      if (pkgError || !pkg) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package not found' }));
+        return;
+      }
+      
+      if (!['payment_held', 'in_progress', 'accepted'].includes(pkg.status)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Cannot offer discount for package in ${pkg.status} status` }));
+        return;
+      }
+      
+      if (!pkg.accepted_bid_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package has no accepted bid' }));
+        return;
+      }
+      
+      const { data: bid, error: bidError } = await supabase
+        .from('bids')
+        .select('id, provider_id')
+        .eq('id', pkg.accepted_bid_id)
+        .single();
+      
+      if (bidError || !bid || bid.provider_id !== user.id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Only the accepted provider can offer discounts' }));
+        return;
+      }
+      
+      const { data: discount, error: insertError } = await supabase
+        .from('provider_discounts')
+        .insert({
+          package_id,
+          provider_id: user.id,
+          discount_amount: discountAmountNum,
+          discount_type,
+          reason: reason ? reason.substring(0, 500) : null,
+          status: 'pending'
+        })
+        .select('id')
+        .single();
+      
+      if (insertError) {
+        console.error(`[${requestId}] Error creating discount offer:`, insertError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create discount offer' }));
+        return;
+      }
+      
+      const discountDisplay = discount_type === 'percentage' 
+        ? `${discountAmountNum}%` 
+        : `$${discountAmountNum.toFixed(2)}`;
+      
+      await supabase.from('notifications').insert({
+        user_id: pkg.member_id,
+        type: 'discount_offered',
+        title: 'Discount Offered! 🎉',
+        message: `Your provider has offered you a ${discountDisplay} discount.`,
+        entity_type: 'provider_discount',
+        entity_id: discount.id
+      });
+      
+      console.log(`[${requestId}] Discount offer created: ${discount.id} for package ${package_id}`);
+      
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, id: discount.id }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Discount offer error:`, error);
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: safeMsg }));
+    }
+  });
+}
+
+async function handleGetDiscounts(req, res, requestId, packageId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(packageId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid package ID' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('id, member_id, accepted_bid_id')
+      .eq('id', packageId)
+      .single();
+    
+    if (pkgError || !pkg) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package not found' }));
+      return;
+    }
+    
+    let hasAccess = pkg.member_id === user.id;
+    
+    if (!hasAccess && pkg.accepted_bid_id) {
+      const { data: bid } = await supabase
+        .from('bids')
+        .select('provider_id')
+        .eq('id', pkg.accepted_bid_id)
+        .single();
+      hasAccess = bid?.provider_id === user.id;
+    }
+    
+    if (!hasAccess) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized to view this package' }));
+      return;
+    }
+    
+    const { data: discounts, error: fetchError } = await supabase
+      .from('provider_discounts')
+      .select('*')
+      .eq('package_id', packageId)
+      .order('created_at', { ascending: false });
+    
+    if (fetchError) {
+      console.error(`[${requestId}] Error fetching discounts:`, fetchError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch discounts' }));
+      return;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, discounts: discounts || [] }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get discounts error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleAcceptDiscount(req, res, requestId, discountId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(discountId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid discount ID' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: discount, error: discountError } = await supabase
+      .from('provider_discounts')
+      .select('id, package_id, provider_id, discount_amount, discount_type, status')
+      .eq('id', discountId)
+      .single();
+    
+    if (discountError || !discount) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Discount not found' }));
+      return;
+    }
+    
+    if (discount.status !== 'pending') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Discount is already ${discount.status}` }));
+      return;
+    }
+    
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('id, member_id')
+      .eq('id', discount.package_id)
+      .single();
+    
+    if (pkgError || !pkg || pkg.member_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized to accept this discount' }));
+      return;
+    }
+    
+    const { error: updateError } = await supabase
+      .from('provider_discounts')
+      .update({
+        status: 'accepted',
+        accepted_at: new Date().toISOString()
+      })
+      .eq('id', discountId);
+    
+    if (updateError) {
+      console.error(`[${requestId}] Error accepting discount:`, updateError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to accept discount' }));
+      return;
+    }
+    
+    const discountDisplay = discount.discount_type === 'percentage' 
+      ? `${discount.discount_amount}%` 
+      : `$${discount.discount_amount.toFixed(2)}`;
+    
+    await supabase.from('notifications').insert({
+      user_id: discount.provider_id,
+      type: 'discount_accepted',
+      title: 'Discount Accepted! ✅',
+      message: `The customer has accepted your ${discountDisplay} discount offer.`,
+      entity_type: 'provider_discount',
+      entity_id: discountId
+    });
+    
+    console.log(`[${requestId}] Discount ${discountId} accepted`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Accept discount error:`, error);
     const safeMsg = safeError(error, requestId);
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: safeMsg }));
@@ -15432,7 +16172,7 @@ async function handlePosCheckout(req, res, requestId, sessionId) {
         platformFeeExempt = memberProfile?.platform_fee_exempt === true;
       }
       
-      const platformFeeCents = platformFeeExempt ? 0 : Math.round(totalCents * 0.10);
+      const platformFeeCents = platformFeeExempt ? 0 : Math.round(totalCents * 0.02);
       
       const stripe = await getStripeClient();
       if (!stripe) {
@@ -15987,7 +16727,7 @@ async function handlePosLinkMarketplaceJob(req, res, requestId, sessionId) {
         platformFeeExempt = memberProfile?.platform_fee_exempt === true;
       }
       
-      const platformFeeCents = platformFeeExempt ? 0 : Math.round(priceCents * 0.10);
+      const platformFeeCents = platformFeeExempt ? 0 : Math.round(priceCents * 0.02);
       
       const stripe = await getStripeClient();
       if (!stripe) {
@@ -21261,6 +22001,48 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url.match(/^\/api\/escrow\/status\/[^/]+$/)) {
     const packageId = req.url.split('/api/escrow/status/')[1]?.split('?')[0];
     handleEscrowStatus(req, res, requestId, packageId);
+    return;
+  }
+  
+  // Additional Work Requests API Routes
+  if (req.method === 'POST' && req.url === '/api/additional-work/request') {
+    handleAdditionalWorkRequest(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/additional-work\/[^/]+$/)) {
+    const packageId = req.url.split('/api/additional-work/')[1]?.split('?')[0];
+    handleGetAdditionalWork(req, res, requestId, packageId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/additional-work\/[^/]+\/approve$/)) {
+    const requestIdParam = req.url.split('/api/additional-work/')[1]?.split('/')[0];
+    handleApproveAdditionalWork(req, res, requestId, requestIdParam);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/additional-work\/[^/]+\/decline$/)) {
+    const requestIdParam = req.url.split('/api/additional-work/')[1]?.split('/')[0];
+    handleDeclineAdditionalWork(req, res, requestId, requestIdParam);
+    return;
+  }
+  
+  // Provider Discounts API Routes
+  if (req.method === 'POST' && req.url === '/api/discount/offer') {
+    handleDiscountOffer(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/discounts\/[^/]+$/)) {
+    const packageId = req.url.split('/api/discounts/')[1]?.split('?')[0];
+    handleGetDiscounts(req, res, requestId, packageId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/discount\/[^/]+\/accept$/)) {
+    const discountId = req.url.split('/api/discount/')[1]?.split('/')[0];
+    handleAcceptDiscount(req, res, requestId, discountId);
     return;
   }
   
