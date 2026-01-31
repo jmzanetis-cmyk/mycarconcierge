@@ -1,0 +1,32 @@
+Hello Jordan,
+
+I noticed that your Toll-Free Verification (TFV) submission for My Car Concierge was rejected. Let me walk through what went wrong and how you can adjust your SMS consent so your next submission is stronger.
+
+Why it was rejected
+Insufficient and unclear SMS opt-in consent language
+The reviewers did not see clear, explicit permission for you to send SMS/text messages. Even though your use case (customer care, account notifications, delivery notifications, and promotions) is well described, the actual opt-in wording on your site and/or form did not fully meet compliance expectations.
+
+In plain language, the problem is that a user might not easily understand that:
+They are specifically agreeing to receive SMS/text messages (not just general contact), and
+What kinds of text messages they will get from you.
+How to fix the issues
+Make SMS consent explicit on your opt-in flow
+On your sign-up flow and on your SMS consent page, add clear wording that asks for permission to send SMS/text messages, not just to be contacted in general.
+Use direct language like: “I agree to receive text messages from My Car Concierge.”
+Keep SMS consent separate from acceptance of your Terms of Service and Privacy Policy (e.g., one checkbox for SMS texts, another for terms/policy). Avoid hiding SMS consent only inside a terms or policy document.
+Make sure the SMS consent text is easy to see (normal font size and color, not buried at the bottom of the page or lost in a long paragraph).
+Clearly describe the types of texts you will send
+Update the consent language so it lines up with your real use case: service request updates, provider bid notifications, appointment reminders, account alerts, and promotional offers.
+For example, you can say that users agree to receive: “service request updates, provider bid notifications, appointment reminders, account alerts, and promotional offers via text.”
+Align all pages with the same clear consent
+Make sure every place a user can opt in (your main site at https://www.mycarconcierge.com/, the signup form, and https://www.mycarconcierge.com/sms-consent.html) uses consistent, compliant SMS consent wording.
+Ensure the business name used in the consent text (“My Car Concierge”) clearly matches the branding of your website so users know exactly who is texting them.
+Keep visible, working links to your Privacy Policy and Terms & Conditions on the same page as the opt-in. Make sure your Privacy Policy does not say you sell phone numbers to third parties.
+What to prepare for the next submission
+Update your opt-in checkbox and nearby text to match the guidance above.
+Capture a clear screenshot of the full opt-in area (showing the checkbox, SMS consent language, and links to Terms/Privacy), or provide the updated live URL where the opt-in appears.
+Use those updated screenshots/URLs when you resubmit your Toll-Free Verification request.
+Here is an example of a web form opt-in that meets all the requirements, feel free to use it as a reference:
+Opt-in web-form
+
+Once you’ve made the changes, feel free to send me your updated opt-in URL or a screenshot—I’ll take one more look before you resubmit
