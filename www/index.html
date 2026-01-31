@@ -214,6 +214,29 @@
       background: var(--bg-elevated);
     }
 
+    nav a.founder-link {
+      color: var(--accent-gold);
+      font-weight: 600;
+      border: 1px solid var(--accent-gold);
+      background: transparent;
+    }
+
+    nav a.founder-link:hover {
+      background: var(--accent-gold);
+      color: var(--bg-deep);
+    }
+
+    .mobile-nav a.founder-link {
+      color: var(--accent-gold);
+      font-weight: 600;
+      border: 1px solid var(--accent-gold);
+    }
+
+    .mobile-nav a.founder-link:hover {
+      background: var(--accent-gold);
+      color: var(--bg-deep);
+    }
+
     nav .btn-login {
       background: var(--bg-elevated);
       color: var(--text-primary);
@@ -1399,6 +1422,7 @@
         <a href="/marketing/providers.html">For Providers</a>
         <a href="/marketing/about.html">About</a>
         <a href="#features" data-i18n="nav.features">Features</a>
+        <a href="#" onclick="openFounderModal(); return false;" class="founder-link">Meet the Founder</a>
         <div id="language-switcher"></div>
         <button class="header-theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark theme">
           <span class="theme-icon-sun">☀️ Day</span>
@@ -1420,6 +1444,7 @@
       <a href="/marketing/providers.html" onclick="closeMobileMenu()">For Providers</a>
       <a href="/marketing/about.html" onclick="closeMobileMenu()">About</a>
       <a href="#features" onclick="closeMobileMenu()" data-i18n="nav.features">Features</a>
+      <a href="#" onclick="openFounderModal(); closeMobileMenu(); return false;" class="founder-link">Meet the Founder</a>
       <div class="mobile-lang-switcher" id="mobile-language-switcher"></div>
       <button class="header-theme-toggle" onclick="toggleTheme(); closeMobileMenu();" title="Toggle theme" aria-label="Toggle light/dark theme" style="margin-top: 12px;">
         <span class="theme-icon-sun">☀️ Day</span>
