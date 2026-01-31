@@ -1,8 +1,9 @@
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      // Force update by unregistering first if old cache exists
-      const registration = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
+      // Force update with cache-busting timestamp
+      const swUrl = '/sw.js?v=' + Date.now();
+      const registration = await navigator.serviceWorker.register(swUrl, { updateViaCache: 'none' });
       console.log('ServiceWorker registered:', registration.scope);
       
       // Force immediate update check

@@ -23181,7 +23181,9 @@ const server = http.createServer((req, res) => {
             res.end('Page not found');
           } else {
             compressResponse(req, res, content, 'text/html', {
-              'Cache-Control': 'no-cache, no-store, must-revalidate'
+              'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+              'Pragma': 'no-cache',
+              'Expires': '0'
             });
           }
         });
@@ -23194,7 +23196,9 @@ const server = http.createServer((req, res) => {
       const additionalHeaders = {};
       
       if (contentType === 'text/html') {
-        additionalHeaders['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        additionalHeaders['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0';
+        additionalHeaders['Pragma'] = 'no-cache';
+        additionalHeaders['Expires'] = '0';
       } else if (filePath.includes('sw.js')) {
         additionalHeaders['Cache-Control'] = 'no-cache';
         additionalHeaders['Service-Worker-Allowed'] = '/';
