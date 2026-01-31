@@ -764,6 +764,149 @@
       color: var(--text-secondary);
     }
 
+    /* Founder's Message Section */
+    .founder-message {
+      padding: 100px 0;
+      background: var(--bg-subtle);
+    }
+
+    .founder-content {
+      display: flex;
+      gap: 48px;
+      align-items: flex-start;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .founder-image-wrapper {
+      flex-shrink: 0;
+      width: 280px;
+    }
+
+    .founder-image {
+      width: 100%;
+      border-radius: var(--radius-lg);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      border: 2px solid var(--border-subtle);
+    }
+
+    .founder-text {
+      flex: 1;
+    }
+
+    .founder-text .section-label {
+      display: inline-block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--accent-gold);
+      margin-bottom: 12px;
+    }
+
+    .founder-text h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.8rem, 3vw, 2.4rem);
+      font-weight: 500;
+      margin-bottom: 20px;
+      color: var(--text-primary);
+    }
+
+    .founder-text h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 28px 0 12px;
+      color: var(--accent-gold);
+    }
+
+    .founder-text p {
+      font-size: 1rem;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+
+    .founder-text p strong {
+      color: var(--text-primary);
+    }
+
+    .founder-features {
+      list-style: none;
+      padding: 0;
+      margin: 16px 0 24px;
+    }
+
+    .founder-features li {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .founder-features li::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: var(--accent-gold);
+      font-weight: bold;
+    }
+
+    .founder-features li strong {
+      color: var(--text-primary);
+    }
+
+    .founder-closing {
+      font-style: italic;
+      font-size: 1.1rem;
+      color: var(--text-primary) !important;
+      margin-top: 24px;
+    }
+
+    .founder-signature {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .founder-signature .signature-name {
+      display: block;
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem;
+      font-style: italic;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .founder-signature .signature-title {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--text-tertiary);
+      letter-spacing: 0.5px;
+    }
+
+    @media (max-width: 768px) {
+      .founder-content {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
+
+      .founder-image-wrapper {
+        width: 200px;
+        margin-bottom: 16px;
+      }
+
+      .founder-features {
+        text-align: left;
+      }
+
+      .founder-signature {
+        text-align: center;
+      }
+    }
+
     /* CTA Section */
     .cta-section {
       padding: 100px 0;
@@ -1375,6 +1518,51 @@
             <div class="step-number">3</div>
             <h3 data-i18n="landing.step3Title">Choose with confidence</h3>
             <p data-i18n="landing.step3Desc">Select the best fit and pay securely through escrow protection.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Founder's Message Section -->
+    <section class="founder-message" id="about">
+      <div class="container">
+        <div class="founder-content">
+          <div class="founder-image-wrapper">
+            <img src="images/founder-jordan.png" alt="Jordan's Uber Profile - 2321 Rides, 5.0 Rating, 6.5 Years" class="founder-image">
+          </div>
+          <div class="founder-text">
+            <span class="section-label">A Message from the Founder</span>
+            <h2>Hi, I'm Jordan.</h2>
+            <p><strong>My Car Concierge</strong> was built to give you back the time you'd spend shuttling your car around and waiting on repairs. There has to be a better way—so I built one.</p>
+            
+            <h3>What We've Created</h3>
+            <p>A level playing field where you post your automotive needs and service providers compete for your business through transparent bidding. You choose. You control.</p>
+            
+            <p>We've also built:</p>
+            <ul class="founder-features">
+              <li><strong>24/7 Emergency Response</strong> – Vetted providers respond almost immediately when you're stranded.</li>
+              <li><strong>Background-Checked Providers</strong> – Know who's test-driving your car or working in your driveway.</li>
+              <li><strong>Dream Car Finder</strong> – Expert help to find and acquire your dream vehicle.</li>
+              <li><strong>My Next Car</strong> – Get paired with the right dealership when circumstances require a new ride.</li>
+              <li><strong>Rideshare Profit Calculator</strong> – For rideshare drivers: real numbers on whether a trip or repair is worth your time.</li>
+              <li><strong>Car Care Academy</strong> – Learning hub for new drivers and car enthusiasts alike.</li>
+            </ul>
+            
+            <h3>Join as a Founding Member</h3>
+            <p>Refer your trusted local providers—mechanics, detailers, body shops, car washes—and earn <strong>50% of our platform fees</strong> from their jobs. Forever.</p>
+            <p>Member Founders (customers who refer providers) and Provider Founders (providers who refer providers) both get this lifetime benefit. No cap. No expiration.</p>
+            
+            <h3>Why This Matters</h3>
+            <p>Your time is worth protecting. My Car Concierge exists to give you the best service at the best price without the runaround—to make the customer right again.</p>
+            
+            <p>Thank you for trying this app, for trusting us, and for helping us build something that puts you first.</p>
+            
+            <p class="founder-closing">Let's do this together.</p>
+            
+            <div class="founder-signature">
+              <span class="signature-name">— Jordan</span>
+              <span class="signature-title">Founder & CEO, My Car Concierge</span>
+            </div>
           </div>
         </div>
       </div>
