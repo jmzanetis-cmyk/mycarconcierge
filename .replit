@@ -32,7 +32,7 @@ expertMode = true
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["bash", "-c", "cd www && node server.js"]
+run = ["node", "www/server.js"]
 build = ["bash", "-c", "cd www && npm install"]
 
 [objectStorage]
