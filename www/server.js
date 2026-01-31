@@ -18702,8 +18702,14 @@ async function sendDreamCarDigestEmails() {
   const now = new Date();
   console.log('[DreamCarDigest] Starting email digest check...');
   
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.log('[DreamCarDigest] Supabase not configured, skipping');
+    return { sent: 0, errors: 0 };
+  }
+  
   try {
-    const { data: searches, error } = await supabaseAdmin
+    const { data: searches, error } = await supabase
       .from('dream_car_searches')
       .select(`
         id, 
@@ -18736,7 +18742,7 @@ async function sendDreamCarDigestEmails() {
         
         const sinceDate = search.last_email_report_at ? new Date(search.last_email_report_at) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
         
-        const { data: matches, error: matchError } = await supabaseAdmin
+        const { data: matches, error: matchError } = await supabase
           .from('dream_car_matches')
           .select('*')
           .eq('search_id', search.id)
@@ -18746,7 +18752,7 @@ async function sendDreamCarDigestEmails() {
         
         if (matchError || !matches || matches.length === 0) continue;
         
-        const { data: profile } = await supabaseAdmin
+        const { data: profile } = await supabase
           .from('profiles')
           .select('email, first_name')
           .eq('id', search.user_id)
@@ -18765,7 +18771,7 @@ async function sendDreamCarDigestEmails() {
         );
         
         if (result.sent) {
-          await supabaseAdmin
+          await supabase
             .from('dream_car_searches')
             .update({ last_email_report_at: now.toISOString() })
             .eq('id', search.id);

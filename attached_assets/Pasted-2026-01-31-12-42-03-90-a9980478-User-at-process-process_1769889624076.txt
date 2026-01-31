@@ -1,0 +1,134 @@
+2026-01-31 12:42:03.90
+a9980478
+User
+at process.processTimers (node:internal/timers:519:7)
+2026-01-31 12:42:03.90
+a9980478
+User
+[DreamCarDigest] Error: ReferenceError: supabaseAdmin is not defined
+2026-01-31 12:42:03.90
+a9980478
+User
+at listOnTimeout (node:internal/timers:581:17)
+2026-01-31 12:42:03.90
+a9980478
+User
+at sendDreamCarDigestEmails (/home/runner/workspace/www/server.js:18706:39)
+2026-01-31 12:42:03.90
+a9980478
+User
+at Timeout._onTimeout (/home/runner/workspace/www/server.js:18881:28)
+2026-01-31 12:42:09.79
+a9980478
+User
+at checkVehicleRecalls (/home/runner/workspace/www/server.js:6907:13)
+2026-01-31 12:42:09.79
+a9980478
+User
+Scheduled recall check error for vehicle 8adcc664-7b46-434e-95e7-5d73c9e6621c: NHTSA API error: 400
+2026-01-31 12:42:09.79
+a9980478
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2026-01-31 12:42:09.79
+a9980478
+User
+Error checking recalls for vehicle 8adcc664-7b46-434e-95e7-5d73c9e6621c: Error: NHTSA API error: 400
+2026-01-31 12:42:09.79
+a9980478
+User
+at async Timeout._onTimeout (/home/runner/workspace/www/server.js:7255:28)
+2026-01-31 12:42:11.18
+a9980478
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2026-01-31 12:42:11.18
+a9980478
+User
+Scheduled recall check error for vehicle aaee4c42-0222-4720-a12c-0f58c002dc7e: NHTSA API error: 400
+2026-01-31 12:42:11.18
+a9980478
+User
+at checkVehicleRecalls (/home/runner/workspace/www/server.js:6907:13)
+2026-01-31 12:42:11.18
+a9980478
+User
+at async Timeout._onTimeout (/home/runner/workspace/www/server.js:7255:28)
+2026-01-31 12:42:11.18
+a9980478
+User
+Error checking recalls for vehicle aaee4c42-0222-4720-a12c-0f58c002dc7e: Error: NHTSA API error: 400
+2026-01-31 12:42:14.49
+a9980478
+User
+at async Timeout._onTimeout (/home/runner/workspace/www/server.js:7255:28)
+2026-01-31 12:42:14.49
+a9980478
+User
+Error checking recalls for vehicle a41b89a4-92b3-4ee6-88b6-1a8e295786ed: RangeError: Invalid time value
+2026-01-31 12:42:14.49
+a9980478
+User
+at checkVehicleRecalls (/home/runner/workspace/www/server.js:6925:95)
+2026-01-31 12:42:14.49
+a9980478
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2026-01-31 12:42:14.49
+a9980478
+User
+at Date.toISOString ()
+2026-01-31 12:42:14.99
+a9980478
+User
+Scheduled recall check error for vehicle a41b89a4-92b3-4ee6-88b6-1a8e295786ed: Invalid time value
+2026-01-31 13:23:51.78
+a9980478
+System
+command finished with error [node www/server.js]: signal: terminated
+2026-01-31 13:31:55.75
+a9980478
+User
+at Timeout._onTimeout (/home/runner/workspace/www/server.js:18871:28)
+2026-01-31 13:31:55.75
+a9980478
+User
+at sendDreamCarDigestEmails (/home/runner/workspace/www/server.js:18706:39)
+2026-01-31 13:31:55.75
+a9980478
+User
+at process.processTimers (node:internal/timers:519:7)
+2026-01-31 13:31:55.75
+a9980478
+User
+at listOnTimeout (node:internal/timers:581:17)
+2026-01-31 13:31:55.75
+a9980478
+User
+[DreamCarDigest] Error: ReferenceError: supabaseAdmin is not defined
+2026-01-31 14:11:25.32
+a9980478
+System
+command finished with error [node www/server.js]: signal: terminated
+2026-01-31 14:19:00.94
+24feb0e2
+User
+at Timeout._onTimeout (/home/runner/workspace/www/server.js:18871:28)
+2026-01-31 14:19:00.94
+24feb0e2
+User
+[DreamCarDigest] Error: ReferenceError: supabaseAdmin is not defined
+2026-01-31 14:19:00.94
+24feb0e2
+User
+at process.processTimers (node:internal/timers:519:7)
+2026-01-31 14:19:00.94
+24feb0e2
+User
+at listOnTimeout (node:internal/timers:581:17)
+2026-01-31 14:19:00.94
+24feb0e2
+User
+at sendDreamCarDigestEmails (/home/runner/workspace/www/server.js:18706:39)
+Wrap
+Colors
