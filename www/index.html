@@ -764,88 +764,139 @@
       color: var(--text-secondary);
     }
 
-    /* Founder's Message Section */
-    .founder-message {
-      padding: 100px 0;
-      background: var(--bg-subtle);
-    }
-
-    .founder-content {
+    /* Founder's Message Modal */
+    .founder-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
       display: flex;
-      gap: 48px;
-      align-items: flex-start;
-      max-width: 1000px;
-      margin: 0 auto;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+      padding: 20px;
     }
 
-    .founder-image-wrapper {
+    .founder-modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .founder-modal {
+      background: var(--bg-card);
+      border-radius: var(--radius-xl);
+      max-width: 800px;
+      max-height: 90vh;
+      overflow-y: auto;
+      position: relative;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .founder-modal-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 40px;
+      height: 40px;
+      border: none;
+      background: var(--bg-subtle);
+      border-radius: 50%;
+      font-size: 24px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, color 0.2s;
+      z-index: 10;
+    }
+
+    .founder-modal-close:hover {
+      background: var(--accent-gold);
+      color: var(--bg-deep);
+    }
+
+    .founder-modal-content {
+      display: flex;
+      gap: 32px;
+      padding: 40px;
+    }
+
+    .founder-modal-content .founder-image-wrapper {
       flex-shrink: 0;
-      width: 280px;
+      width: 220px;
     }
 
-    .founder-image {
+    .founder-modal-content .founder-image {
       width: 100%;
       border-radius: var(--radius-lg);
       box-shadow: 0 8px 32px rgba(0,0,0,0.2);
       border: 2px solid var(--border-subtle);
     }
 
-    .founder-text {
+    .founder-modal-content .founder-text {
       flex: 1;
     }
 
-    .founder-text .section-label {
+    .founder-modal-content .founder-text .section-label {
       display: inline-block;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       font-weight: 600;
       letter-spacing: 1.5px;
       text-transform: uppercase;
       color: var(--accent-gold);
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
 
-    .founder-text h2 {
+    .founder-modal-content .founder-text h2 {
       font-family: 'Playfair Display', serif;
-      font-size: clamp(1.8rem, 3vw, 2.4rem);
+      font-size: 1.8rem;
       font-weight: 500;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
       color: var(--text-primary);
     }
 
-    .founder-text h3 {
-      font-size: 1.1rem;
+    .founder-modal-content .founder-text h3 {
+      font-size: 1rem;
       font-weight: 600;
-      margin: 28px 0 12px;
+      margin: 20px 0 10px;
       color: var(--accent-gold);
     }
 
-    .founder-text p {
-      font-size: 1rem;
-      line-height: 1.7;
-      color: var(--text-secondary);
-      margin-bottom: 16px;
-    }
-
-    .founder-text p strong {
-      color: var(--text-primary);
-    }
-
-    .founder-features {
-      list-style: none;
-      padding: 0;
-      margin: 16px 0 24px;
-    }
-
-    .founder-features li {
+    .founder-modal-content .founder-text p {
       font-size: 0.95rem;
       line-height: 1.6;
       color: var(--text-secondary);
-      margin-bottom: 10px;
-      padding-left: 20px;
+      margin-bottom: 12px;
+    }
+
+    .founder-modal-content .founder-text p strong {
+      color: var(--text-primary);
+    }
+
+    .founder-modal-content .founder-features {
+      list-style: none;
+      padding: 0;
+      margin: 12px 0 20px;
+    }
+
+    .founder-modal-content .founder-features li {
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      padding-left: 18px;
       position: relative;
     }
 
-    .founder-features li::before {
+    .founder-modal-content .founder-features li::before {
       content: '•';
       position: absolute;
       left: 0;
@@ -853,56 +904,57 @@
       font-weight: bold;
     }
 
-    .founder-features li strong {
+    .founder-modal-content .founder-features li strong {
       color: var(--text-primary);
     }
 
-    .founder-closing {
+    .founder-modal-content .founder-closing {
       font-style: italic;
-      font-size: 1.1rem;
+      font-size: 1rem;
       color: var(--text-primary) !important;
-      margin-top: 24px;
+      margin-top: 20px;
     }
 
-    .founder-signature {
-      margin-top: 24px;
-      padding-top: 20px;
+    .founder-modal-content .founder-signature {
+      margin-top: 20px;
+      padding-top: 16px;
       border-top: 1px solid var(--border-subtle);
     }
 
-    .founder-signature .signature-name {
+    .founder-modal-content .founder-signature .signature-name {
       display: block;
       font-family: 'Playfair Display', serif;
-      font-size: 1.4rem;
+      font-size: 1.3rem;
       font-style: italic;
       color: var(--text-primary);
       margin-bottom: 4px;
     }
 
-    .founder-signature .signature-title {
+    .founder-modal-content .founder-signature .signature-title {
       display: block;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       color: var(--text-tertiary);
       letter-spacing: 0.5px;
     }
 
     @media (max-width: 768px) {
-      .founder-content {
+      .founder-modal-content {
         flex-direction: column;
         align-items: center;
         text-align: center;
+        padding: 30px 20px;
       }
 
-      .founder-image-wrapper {
-        width: 200px;
+      .founder-modal-content .founder-image-wrapper {
+        width: 160px;
         margin-bottom: 16px;
       }
 
-      .founder-features {
+      .founder-modal-content .founder-features {
         text-align: left;
       }
 
-      .founder-signature {
+      .founder-modal-content .founder-signature {
         text-align: center;
       }
     }
@@ -1523,51 +1575,6 @@
       </div>
     </section>
 
-    <!-- Founder's Message Section -->
-    <section class="founder-message" id="about">
-      <div class="container">
-        <div class="founder-content">
-          <div class="founder-image-wrapper">
-            <img src="images/founder-jordan.png" alt="Jordan's Uber Profile - 2321 Rides, 5.0 Rating, 6.5 Years" class="founder-image">
-          </div>
-          <div class="founder-text">
-            <span class="section-label">A Message from the Founder</span>
-            <h2>Hi, I'm Jordan.</h2>
-            <p><strong>My Car Concierge</strong> was built to give you back the time you'd spend shuttling your car around and waiting on repairs. There has to be a better way—so I built one.</p>
-            
-            <h3>What We've Created</h3>
-            <p>A level playing field where you post your automotive needs and service providers compete for your business through transparent bidding. You choose. You control.</p>
-            
-            <p>We've also built:</p>
-            <ul class="founder-features">
-              <li><strong>24/7 Emergency Response</strong> – Vetted providers respond almost immediately when you're stranded.</li>
-              <li><strong>Background-Checked Providers</strong> – Know who's test-driving your car or working in your driveway.</li>
-              <li><strong>Dream Car Finder</strong> – Expert help to find and acquire your dream vehicle.</li>
-              <li><strong>My Next Car</strong> – Get paired with the right dealership when circumstances require a new ride.</li>
-              <li><strong>Rideshare Profit Calculator</strong> – For rideshare drivers: real numbers on whether a trip or repair is worth your time.</li>
-              <li><strong>Car Care Academy</strong> – Learning hub for new drivers and car enthusiasts alike.</li>
-            </ul>
-            
-            <h3>Join as a Founding Member</h3>
-            <p>Refer your trusted local providers—mechanics, detailers, body shops, car washes—and earn <strong>50% of our platform fees</strong> from their jobs. Forever.</p>
-            <p>Member Founders (customers who refer providers) and Provider Founders (providers who refer providers) both get this lifetime benefit. No cap. No expiration.</p>
-            
-            <h3>Why This Matters</h3>
-            <p>Your time is worth protecting. My Car Concierge exists to give you the best service at the best price without the runaround—to make the customer right again.</p>
-            
-            <p>Thank you for trying this app, for trusting us, and for helping us build something that puts you first.</p>
-            
-            <p class="founder-closing">Let's do this together.</p>
-            
-            <div class="founder-signature">
-              <span class="signature-name">— Jordan</span>
-              <span class="signature-title">Founder & CEO, My Car Concierge</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <section class="cta-section">
       <div class="container">
         <div class="cta-box">
@@ -1593,6 +1600,7 @@
             <span class="toggle-icon" aria-hidden="true">&#9662;</span>
           </button>
           <div class="footer-section-content" id="footer-founder">
+            <a href="#" onclick="openFounderModal(); return false;">Meet the Founder</a>
             <a href="member-founder.html">Member Founder Program</a>
             <a href="provider-pilot.html">Founding Provider Program</a>
             <a href="member-founder-agreement.html">Member Founder Agreement</a>
@@ -1778,6 +1786,66 @@
       
       new HelpdeskWidget({ mode: 'driver', position: 'bottom-right' });
     });
+
+    // Founder Modal Functions
+    function openFounderModal() {
+      document.getElementById('founder-modal').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeFounderModal() {
+      document.getElementById('founder-modal').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+    // Close modal on escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeFounderModal();
+    });
   </script>
+
+  <!-- Founder's Message Modal -->
+  <div id="founder-modal" class="founder-modal-overlay" onclick="if(event.target === this) closeFounderModal();">
+    <div class="founder-modal">
+      <button class="founder-modal-close" onclick="closeFounderModal()" aria-label="Close">&times;</button>
+      <div class="founder-modal-content">
+        <div class="founder-image-wrapper">
+          <img src="images/founder-jordan.png" alt="Jordan's Uber Profile - 2321 Rides, 5.0 Rating, 6.5 Years" class="founder-image">
+        </div>
+        <div class="founder-text">
+          <span class="section-label">A Message from the Founder</span>
+          <h2>Hi, I'm Jordan.</h2>
+          <p><strong>My Car Concierge</strong> was built to give you back the time you'd spend shuttling your car around and waiting on repairs. There has to be a better way—so I built one.</p>
+          
+          <h3>What We've Created</h3>
+          <p>A level playing field where you post your automotive needs and service providers compete for your business through transparent bidding. You choose. You control.</p>
+          
+          <p>We've also built:</p>
+          <ul class="founder-features">
+            <li><strong>24/7 Emergency Response</strong> – Vetted providers respond almost immediately when you're stranded.</li>
+            <li><strong>Background-Checked Providers</strong> – Know who's test-driving your car or working in your driveway.</li>
+            <li><strong>Dream Car Finder</strong> – Expert help to find and acquire your dream vehicle.</li>
+            <li><strong>My Next Car</strong> – Get paired with the right dealership when circumstances require a new ride.</li>
+            <li><strong>Rideshare Profit Calculator</strong> – For rideshare drivers: real numbers on whether a trip or repair is worth your time.</li>
+            <li><strong>Car Care Academy</strong> – Learning hub for new drivers and car enthusiasts alike.</li>
+          </ul>
+          
+          <h3>Join as a Founding Member</h3>
+          <p>Refer your trusted local providers—mechanics, detailers, body shops, car washes—and earn <strong>50% of our platform fees</strong> from their jobs. Forever.</p>
+          <p>Member Founders (customers who refer providers) and Provider Founders (providers who refer providers) both get this lifetime benefit. No cap. No expiration.</p>
+          
+          <h3>Why This Matters</h3>
+          <p>Your time is worth protecting. My Car Concierge exists to give you the best service at the best price without the runaround—to make the customer right again.</p>
+          
+          <p>Thank you for trying this app, for trusting us, and for helping us build something that puts you first.</p>
+          
+          <p class="founder-closing">Let's do this together.</p>
+          
+          <div class="founder-signature">
+            <span class="signature-name">— Jordan</span>
+            <span class="signature-title">Founder & CEO, My Car Concierge</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
