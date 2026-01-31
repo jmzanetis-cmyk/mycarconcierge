@@ -67,6 +67,7 @@ Key features include:
 - **Signup Progress Indicator**: 2-step visual progress bar for member signup reducing perceived complexity
 - **Password Reassurance**: Microcopy near password field to reduce security anxiety
 - **Dashboard Onboarding Checklist**: 3-step checklist for new users (Add Vehicle, Create Package, Verify Registration) with progress tracking and auto-hide on completion
+- **Founder's Message Modal**: "Meet the Founder" link in footer triggers modal with Jordan's story, Uber profile screenshot (2321 rides, 5.0 rating), platform features, and 50% lifetime commission program for founding members
 - **Mobile Touch Targets**: All buttons have 48px minimum height for proper touch targets
 - **Responsive Typography**: Hero headline and CTAs scale appropriately on mobile devices
 
