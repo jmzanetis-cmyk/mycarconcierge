@@ -268,7 +268,7 @@ const I18n = (function() {
         visibility: hidden;
         transform: translateY(-10px);
         transition: all 0.2s ease;
-        z-index: 1000;
+        z-index: 50;
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
       }
       .lang-dropdown.show {
