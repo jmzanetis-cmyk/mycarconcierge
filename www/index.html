@@ -434,6 +434,25 @@
       border-color: var(--accent-blue);
     }
 
+    .btn-outline-gold {
+      background: transparent;
+      color: var(--accent-gold);
+      border: 2px solid var(--accent-gold);
+      font-weight: 600;
+    }
+    .btn-outline-gold:hover {
+      background: var(--accent-gold);
+      color: #1a1a2e;
+    }
+    [data-theme="light"] .btn-outline-gold {
+      color: #b8942d;
+      border-color: #b8942d;
+    }
+    [data-theme="light"] .btn-outline-gold:hover {
+      background: #b8942d;
+      color: #ffffff;
+    }
+
     .btn svg {
       width: 18px;
       height: 18px;
@@ -1472,6 +1491,9 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
             </svg>
             Get Started Free
+          </a>
+          <a href="#" onclick="openFounderModal(); return false;" class="btn btn-outline-gold">
+            Our Story
           </a>
           <a href="signup-provider.html" class="btn btn-secondary" data-i18n="landing.joinAsProvider">
             Join as a Provider
