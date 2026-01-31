@@ -33,7 +33,7 @@ expertMode = true
 [deployment]
 deploymentTarget = "autoscale"
 run = ["node", "www/server.js"]
-build = ["bash", "-c", "cd www && npm install"]
+build = ["bash", "-c", "cd www && rm -rf node_modules && npm install && echo BUILD_TIMESTAMP:$(date +%s)"]
 
 [objectStorage]
 defaultBucketID = "replit-objstore-970c9ce6-a451-4b77-b216-7f5cdd6ab7c7"
