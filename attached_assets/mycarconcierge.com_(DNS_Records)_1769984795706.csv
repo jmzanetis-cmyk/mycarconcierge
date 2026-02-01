@@ -1,9 +1,0 @@
-name,ttl,type,value
-"www.mycarconcierge.com","3600","NETLIFY","deft-capybara-078770.netlify.app"
-"mycarconcierge.com","3600","NETLIFY","deft-capybara-078770.netlify.app"
-"mycarconcierge.com","3600","TXT","MS=ms61140266"
-"mycarconcierge.com","3600","TXT","v=spf1 include:secureserver.net -all"
-"autodiscover.mycarconcierge.com","3600","CNAME","autodiscover.outlook.com"
-"email.mycarconcierge.com","3600","CNAME","email.secureserver.net"
-"mycarconcierge.com","3600","MX","mycarconcierge-com.mail.protection.outlook.com"
-"_dmarc.mycarconcierge.com","3600","TXT","v=DMARC1; p=none; rua=mailto:jordan@mycarconcierge.com"
