@@ -1,0 +1,49 @@
+;;
+;; Domain:     mycarconcierge.com.
+;; Exported:   2026-02-01 22:22:51
+;;
+;; This file is intended for use for informational and archival
+;; purposes ONLY and MUST be edited before use on a production
+;; DNS server.  In particular, you must:
+;;   -- update the SOA record with the correct authoritative name server
+;;   -- update the SOA record with the contact e-mail address information
+;;   -- update the NS record(s) with the authoritative name servers for this domain.
+;;
+;; For further information, please consult the BIND documentation
+;; located on the following website:
+;;
+;; http://www.isc.org/
+;;
+;; And RFC 1035:
+;;
+;; http://www.ietf.org/rfc/rfc1035.txt
+;;
+;; Please note that we do NOT offer technical support for any use
+;; of this zone data, the BIND name server, or any other third-party
+;; DNS software.
+;;
+;; Use at your own risk.
+;; SOA Record
+mycarconcierge.com	3600	IN	SOA	ali.ns.cloudflare.com. dns.cloudflare.com. 2052165117 10000 2400 604800 3600
+
+;; NS Records
+mycarconcierge.com.	86400	IN	NS	ali.ns.cloudflare.com.
+mycarconcierge.com.	86400	IN	NS	buck.ns.cloudflare.com.
+
+;; A Records
+mycarconcierge.com.	1	IN	A	34.111.179.208 ; cf_tags=cf-proxied:false
+www.mycarconcierge.com.	1	IN	A	34.111.179.208 ; cf_tags=cf-proxied:false
+
+;; CNAME Records
+autodiscover.mycarconcierge.com.	1	IN	CNAME	autodiscover.outlook.com. ; cf_tags=cf-proxied:false
+pay.mycarconcierge.com.	1	IN	CNAME	hosted-checkout.stripecdn.com. ; cf_tags=cf-proxied:false
+
+;; MX Records
+mycarconcierge.com.	1	IN	MX	0 mycarconcierge-com.mail.protection.outlook.com.
+
+;; TXT Records
+_acme-challenge.pay.mycarconcierge.com.	1	IN	TXT	"4DYkFlZdP4i5UmXW27HzvSiwRqhpWGHP0vUK2xZiHIg"
+_dmarc.mycarconcierge.com.	1	IN	TXT	"v=DMARC1; p=none; rua=mailto:jordang@mycarconcierge.com"
+mycarconcierge.com.	1	IN	TXT	"replit-verify=02d27e1f-6d6d-48b8-b938-06bb7cd16658"
+mycarconcierge.com.	1	IN	TXT	"v=spf1 include:secureserver.net -all"
+www.mycarconcierge.com.	1	IN	TXT	"replit-verify=02d27e1f-6d6d-48b8-b938-06bb7cd16658"
