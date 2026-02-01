@@ -21913,7 +21913,8 @@ const server = http.createServer((req, res) => {
     origin.startsWith('capacitor://') ||
     origin.endsWith('.replit.dev') ||
     origin.endsWith('.repl.co') ||
-    origin.endsWith('.replit.app')
+    origin.endsWith('.replit.app') ||
+    origin.endsWith('.netlify.app')
   );
   
   if (isAllowedOrigin) {
