@@ -1,2 +1,2 @@
 # SPA fallback - only catch routes that don't match files
-/*    /index.html   200!
+/*    /index.html   200
