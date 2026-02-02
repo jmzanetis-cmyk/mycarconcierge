@@ -141,7 +141,10 @@
     "resetPassword": "Reset Password",
     "resetPasswordSubtitle": "Enter your email to receive a reset link",
     "sendResetLink": "Send Reset Link",
-    "backToLogin": "Back to Login"
+    "backToLogin": "Back to Login",
+    "signInWithApple": "Sign in with Apple",
+    "continueWithApple": "Continue with Apple",
+    "orContinueWith": "or continue with"
   },
   "member": {
     "dashboard": "Member Dashboard",
