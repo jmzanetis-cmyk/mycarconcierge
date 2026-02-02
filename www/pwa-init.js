@@ -1,21 +1,23 @@
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      // Force update with cache-busting timestamp
-      const swUrl = '/sw.js?v=' + Date.now();
-      const registration = await navigator.serviceWorker.register(swUrl, { updateViaCache: 'none' });
+      // Register service worker (cache version is in sw.js itself)
+      const registration = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
       console.log('ServiceWorker registered:', registration.scope);
       
-      // Force immediate update check
+      // Check for updates periodically
       registration.update();
       
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // Auto-update without asking
-            newWorker.postMessage({ type: 'SKIP_WAITING' });
-            window.location.reload();
+            // Only reload once per session to prevent infinite loops
+            if (!sessionStorage.getItem('sw-updated')) {
+              sessionStorage.setItem('sw-updated', 'true');
+              newWorker.postMessage({ type: 'SKIP_WAITING' });
+              window.location.reload();
+            }
           }
         });
       });
@@ -24,9 +26,9 @@ if ('serviceWorker' in navigator) {
     }
   });
   
-  // Listen for controller change and reload
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    console.log('New service worker activated, reloading...');
+  // Clear the update flag when user manually navigates (not reload)
+  window.addEventListener('beforeunload', () => {
+    // Keep the flag during reload, clear on navigation
   });
 }
 
