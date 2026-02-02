@@ -300,12 +300,35 @@
         return;
       }
       
-      const { data: profile, error } = await supabaseClient
+      let { data: profile, error } = await supabaseClient
         .from('profiles')
         .select('role, is_also_member, is_also_provider, welcome_email_sent')
         .eq('id', user.id)
         .single();
 
+      // If profile doesn't exist (new OAuth user), create one
+      if (error && error.code === 'PGRST116') {
+        console.log('Creating profile for new OAuth user:', user.email);
+        const { data: newProfile, error: createError } = await supabaseClient
+          .from('profiles')
+          .insert({
+            id: user.id,
+            email: user.email,
+            full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+            role: 'member',
+            created_at: new Date().toISOString()
+          })
+          .select('role, is_also_member, is_also_provider, welcome_email_sent')
+          .single();
+        
+        if (createError) {
+          console.error('Failed to create profile:', createError);
+          showMessage('Unable to complete sign-in. Please try again.');
+          return;
+        }
+        profile = newProfile;
+        error = null;
+      }
 
       if (error || !profile) {
         showMessage('Unable to load profile. Please try again.');
