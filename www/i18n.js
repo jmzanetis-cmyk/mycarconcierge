@@ -311,11 +311,11 @@ const I18n = (function() {
         color: #4a7cff;
       }
       
-      /* Mobile dropdown opens upward with scroll */
+      /* Mobile dropdown opens upward */
       .mobile-lang-switcher .lang-dropdown {
         top: auto;
         bottom: calc(100% + 8px);
-        max-height: 300px;
+        max-height: 450px;
         overflow-y: auto;
       }
       .mobile-lang-switcher .lang-btn .chevron {
