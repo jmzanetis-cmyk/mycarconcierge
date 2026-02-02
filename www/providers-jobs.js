@@ -898,9 +898,15 @@ function getDestinationServiceLabel(type) {
 }
 
 // ========== FLEET SERVICES ==========
-let fleetBatches = [];
-let fleetJobQueue = [];
-let currentFleetBatch = null;
+if (typeof fleetBatches === 'undefined') {
+  var fleetBatches = [];
+}
+if (typeof fleetJobQueue === 'undefined') {
+  var fleetJobQueue = [];
+}
+if (typeof currentFleetBatch === 'undefined') {
+  var currentFleetBatch = null;
+}
 
 async function loadFleetBatches() {
   const container = document.getElementById('fleet-active-list');

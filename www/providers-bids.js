@@ -2,7 +2,9 @@
 // Open packages, bidding, bid calculator, filters
 
 // ========== SERVICE TYPE FILTER ==========
-let currentServiceTypeFilter = 'all';
+if (typeof currentServiceTypeFilter === 'undefined') {
+  var currentServiceTypeFilter = 'all';
+}
 
 function filterByServiceType(type) {
   currentServiceTypeFilter = type;
