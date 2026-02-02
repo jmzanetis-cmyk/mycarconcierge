@@ -210,7 +210,8 @@
         }
         
         // Check 2FA status and get phone
-        const response = await fetch('/api/2fa/status', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/2fa/status`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         const result = await response.json();
@@ -339,7 +340,8 @@
       if (!profile.welcome_email_sent) {
         supabaseClient.auth.getSession().then(({ data }) => {
           if (data?.session?.access_token) {
-            fetch('/api/email/welcome', {
+            const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+            fetch(`${apiBase}/api/email/welcome`, {
               method: 'POST',
               headers: { 
                 'Content-Type': 'application/json',
@@ -552,7 +554,8 @@
           return { success: false, error: 'Session expired. Please log in again.' };
         }
         
-        const response = await fetch('/api/2fa/send-code', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/2fa/send-code`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -589,7 +592,8 @@
           return;
         }
         
-        const response = await fetch('/api/2fa/verify-code', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/2fa/verify-code`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -666,7 +670,8 @@
           return;
         }
         
-        const response = await fetch('/api/2fa/status', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/2fa/status`, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`
           }
@@ -765,7 +770,8 @@
     
     async function logLoginActivityClient(accessToken, isSuccessful = true, failureReason = null) {
       try {
-        await fetch('/api/log-login-activity', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        await fetch(`${apiBase}/api/log-login-activity`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,

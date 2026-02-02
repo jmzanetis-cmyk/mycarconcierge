@@ -31,7 +31,8 @@ async function loadOpenPackages() {
       return;
     }
     
-    const response = await fetch('/api/provider/packages', {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const response = await fetch(`${apiBase}/api/provider/packages`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
     
@@ -501,7 +502,8 @@ async function submitBid() {
       }
       
       const { data: { session } } = await supabaseClient.auth.getSession();
-      const response = await fetch('/api/bids', {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const response = await fetch(`${apiBase}/api/bids`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

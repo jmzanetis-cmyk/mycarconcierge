@@ -101,7 +101,8 @@
 
     async function startCheckin() {
       try {
-        const response = await fetch('/api/checkin/start', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/checkin/start`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ providerId })

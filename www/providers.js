@@ -97,7 +97,8 @@
       }
       
       try {
-        const response = await fetch('/api/auth/check-access', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/auth/check-access`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         const result = await response.json();
@@ -361,7 +362,8 @@
         connectBtn.innerHTML = '<span class="clover-sync-spinner"></span> Connecting...';
 
         const { data: { session } } = await supabaseClient.auth.getSession();
-        const response = await fetch('/api/clover/connect', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/clover/connect`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',

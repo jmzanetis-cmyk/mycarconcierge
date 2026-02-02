@@ -415,7 +415,8 @@ async function checkAccessAuthorization() {
   }
   
   try {
-    const response = await fetch('/api/auth/check-access', {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const response = await fetch(`${apiBase}/api/auth/check-access`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
     const result = await response.json();
@@ -2834,7 +2835,8 @@ async function confirmDeleteAccount() {
       return;
     }
     
-    const response = await fetch('/api/account/delete', {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const response = await fetch(`${apiBase}/api/account/delete`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

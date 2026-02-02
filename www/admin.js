@@ -277,7 +277,8 @@
       }
       
       try {
-        const response = await fetch('/api/auth/check-access', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/auth/check-access`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         const result = await response.json();
@@ -803,11 +804,12 @@
 
     async function loadDashboardCharts() {
       try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
         const [overviewRes, revenueRes, usersRes, ordersRes] = await Promise.all([
-          fetch('/api/admin/stats/overview'),
-          fetch(`/api/admin/stats/revenue?period=${dashboardPeriod}`),
-          fetch(`/api/admin/stats/users?period=${dashboardPeriod}`),
-          fetch(`/api/admin/stats/orders?period=${dashboardPeriod}`)
+          fetch(`${apiBase}/api/admin/stats/overview`),
+          fetch(`${apiBase}/api/admin/stats/revenue?period=${dashboardPeriod}`),
+          fetch(`${apiBase}/api/admin/stats/users?period=${dashboardPeriod}`),
+          fetch(`${apiBase}/api/admin/stats/orders?period=${dashboardPeriod}`)
         ]);
 
         const [overview, revenue, users, orders] = await Promise.all([
@@ -2756,7 +2758,8 @@
         const session = await supabaseClient.auth.getSession();
         if (!session?.data?.session?.access_token) return;
         
-        const response = await fetch('/api/admin/2fa-global-status', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/2fa-global-status`, {
           headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
         });
         
@@ -2793,7 +2796,8 @@
           return;
         }
         
-        const response = await fetch('/api/admin/2fa-global-toggle', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/2fa-global-toggle`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.data.session.access_token}`,
@@ -2845,7 +2849,8 @@
         statusMsg.style.color = 'var(--text-secondary)';
         statusMsg.textContent = 'Sending welcome emails... This may take a few minutes.';
         
-        const response = await fetch('/api/admin/send-bulk-welcome-emails', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/send-bulk-welcome-emails`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.data.session.access_token}`,
@@ -3431,7 +3436,8 @@
         showToast(`${app.full_name} approved! Referral code: ${referralCode}`, 'success');
         
         try {
-          const emailResponse = await fetch('/api/email/founder-approved', {
+          const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+          const emailResponse = await fetch(`${apiBase}/api/email/founder-approved`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -3524,7 +3530,8 @@
       }
 
       try {
-        const response = await fetch('/api/email/founder-approved', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/email/founder-approved`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -3980,7 +3987,8 @@
       try {
         showToast('Processing Stripe transfer...', 'info');
         
-        const response = await fetch('/api/admin/process-founder-payout', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/process-founder-payout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -5624,7 +5632,8 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const response = await fetch('/api/admin/printful/catalog', { headers });
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/printful/catalog`, { headers });
         const data = await response.json();
         
         if (!data.success) {
@@ -5836,7 +5845,8 @@
         }
         
         const authHeaders = await getAdminAuthHeader();
-        const response = await fetch('/api/admin/printful/products', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/printful/products`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({
@@ -5908,7 +5918,8 @@
       
       try {
         const authHeaders = await getAdminAuthHeader();
-        const response = await fetch('/api/admin/printful/mockup', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/printful/mockup`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({
@@ -5959,7 +5970,8 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const response = await fetch('/api/admin/printful/store-products', { headers });
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/printful/store-products`, { headers });
         const data = await response.json();
         
         if (!data.success) {
@@ -6242,7 +6254,8 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const response = await fetch('/api/admin/printful/products/bulk', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/printful/products/bulk`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...headers },
           body: JSON.stringify({
@@ -6307,7 +6320,8 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const response = await fetch('/api/admin/designs', { headers });
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/designs`, { headers });
         const data = await response.json();
         
         if (!data.success) {
@@ -6375,7 +6389,8 @@
         const formData = new FormData();
         formData.append('file', file);
         
-        const response = await fetch('/api/admin/designs/upload', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/designs/upload`, {
           method: 'POST',
           headers: headers,
           body: formData

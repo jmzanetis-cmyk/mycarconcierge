@@ -2681,7 +2681,8 @@
         const result = await MobilePay.requestApplePay(amount, 'My Car Concierge - Escrow Payment');
         
         if (result.success && result.paymentMethodId) {
-          const response = await fetch('/api/escrow/create-with-payment-method', {
+          const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+          const response = await fetch(`${apiBase}/api/escrow/create-with-payment-method`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2739,7 +2740,8 @@
         const result = await MobilePay.requestGooglePay(amount, 'My Car Concierge - Escrow Payment');
         
         if (result.success && result.paymentMethodId) {
-          const response = await fetch('/api/escrow/create-with-payment-method', {
+          const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+          const response = await fetch(`${apiBase}/api/escrow/create-with-payment-method`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

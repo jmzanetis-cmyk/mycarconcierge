@@ -5,7 +5,8 @@
     
     async function fetchVehicleRecalls(vehicleId, refresh = false) {
       try {
-        const url = `/api/vehicle/${vehicleId}/recalls${refresh ? '?refresh=true' : ''}`;
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const url = `${apiBase}/api/vehicle/${vehicleId}/recalls${refresh ? '?refresh=true' : ''}`;
         const response = await fetch(url);
         const data = await response.json();
         
@@ -147,7 +148,8 @@
     
     async function acknowledgeRecall(recallId) {
       try {
-        const response = await fetch(`/api/recalls/${recallId}/acknowledge`, {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/recalls/${recallId}/acknowledge`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: currentUser?.id || null })
@@ -220,7 +222,8 @@
     
     async function verifyRegistration(registrationUrl, vehicleId) {
       try {
-        const response = await fetch('/api/registration/verify', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/registration/verify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -257,7 +260,8 @@
     
     async function checkRegistrationStatus(vehicleId) {
       try {
-        const response = await fetch(`/api/registration/verifications?vehicleId=${vehicleId}`);
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/registration/verifications?vehicleId=${vehicleId}`);
         const data = await response.json();
         
         if (data.success && data.verifications && data.verifications.length > 0) {

@@ -121,7 +121,8 @@ function stopGpsTracking() {
 async function sendLocationUpdate(packageId, position) {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    await fetch('/api/tracking/update', {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    await fetch(`${apiBase}/api/tracking/update`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -233,7 +234,8 @@ async function submitJobCompletion() {
   
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const response = await fetch('/api/jobs/complete', {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const response = await fetch(`${apiBase}/api/jobs/complete`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -323,7 +325,8 @@ async function submitAdditionalWorkRequest() {
     }
     
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const response = await fetch('/api/additional-work/request', {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const response = await fetch(`${apiBase}/api/additional-work/request`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -389,7 +392,8 @@ async function submitDiscountOffer() {
   
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const response = await fetch('/api/discount/offer', {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const response = await fetch(`${apiBase}/api/discount/offer`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',

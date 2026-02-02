@@ -278,7 +278,8 @@
     
     async function getVapidKey() {
       try {
-        const response = await fetch('/api/push/vapid-key');
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/push/vapid-key`);
         const data = await response.json();
         return data.publicKey;
       } catch (error) {
@@ -294,7 +295,8 @@
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session?.access_token) return;
         
-        await fetch('/api/push/subscribe', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        await fetch(`${apiBase}/api/push/subscribe`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -316,7 +318,8 @@
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session?.access_token) return;
         
-        await fetch('/api/push/unsubscribe', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        await fetch(`${apiBase}/api/push/unsubscribe`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -408,7 +411,8 @@
           return;
         }
         
-        const response = await fetch('/api/2fa/status', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/2fa/status`, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`
           }
@@ -494,7 +498,8 @@
           return;
         }
         
-        const response = await fetch('/api/2fa/send-code', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/2fa/send-code`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -609,8 +614,9 @@
           return;
         }
         
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
         // First verify the code
-        const verifyResponse = await fetch('/api/2fa/verify-code', {
+        const verifyResponse = await fetch(`${apiBase}/api/2fa/verify-code`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -630,7 +636,7 @@
         }
         
         // Then enable 2FA
-        const enableResponse = await fetch('/api/2fa/enable', {
+        const enableResponse = await fetch(`${apiBase}/api/2fa/enable`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -674,7 +680,8 @@
           return;
         }
         
-        const response = await fetch('/api/2fa/send-code', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/2fa/send-code`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -715,7 +722,8 @@
           return;
         }
         
-        const response = await fetch('/api/2fa/disable', {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/2fa/disable`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',

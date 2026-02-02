@@ -325,7 +325,8 @@ const AgreementForm = (function() {
         if (onSubmit) {
           await onSubmit(data);
         } else {
-          const response = await fetch('/api/agreements/sign', {
+          const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+          const response = await fetch(`${apiBase}/api/agreements/sign`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)

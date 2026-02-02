@@ -360,7 +360,8 @@ async function submitBackgroundCheck() {
   }
 
   try {
-    const response = await fetch('/api/initiate-background-check', {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const response = await fetch(`${apiBase}/api/initiate-background-check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -734,7 +735,8 @@ async function toggleQrCheckin(enabled) {
       return;
     }
     
-    const response = await fetch('/api/provider/settings/qr-checkin', {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const response = await fetch(`${apiBase}/api/provider/settings/qr-checkin`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
