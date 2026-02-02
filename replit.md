@@ -26,6 +26,8 @@ Key features include:
 - **Service Scheduling & Coordination**: Facilitates appointment scheduling, vehicle transfer tracking, and temporary location sharing.
 - **Provider Rating & Suspension System**: Automatically suspends underperforming providers; admins can lift suspensions.
 - **Two-Factor Authentication (2FA)**: SMS-based 2FA using Twilio, with server-side enforcement and rate limiting.
+- **Sign in with Apple**: OAuth authentication via Supabase for Apple ID users. Available on login and signup pages. New OAuth users automatically get a profile created. Requires Apple Developer configuration and Supabase provider setup.
+- **Self-Service Account Deletion**: Apple App Store compliant account deletion feature. Users can permanently delete their account from Settings > Danger Zone. Cascade deletes user data while anonymizing payment records for audit compliance. Confirmation email sent after deletion.
 - **Provider Team Management**: Allows providers to add team members with role-based access.
 - **My Next Car (Car Shopping Tool)**: Enables members to track and compare prospective vehicle purchases with VIN lookup and comparison features.
 - **Dream Car Finder (AI Search)**: AI-powered automated car search with customizable criteria (makes, models, trims/versions, body styles, fuel types, colors, features), notifications, and match scoring.
