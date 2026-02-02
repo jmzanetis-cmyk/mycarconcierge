@@ -311,12 +311,15 @@ const I18n = (function() {
         color: #4a7cff;
       }
       
-      /* Mobile dropdown opens downward with scroll */
+      /* Mobile dropdown opens upward with scroll */
       .mobile-lang-switcher .lang-dropdown {
-        top: calc(100% + 8px);
-        bottom: auto;
-        max-height: 280px;
+        top: auto;
+        bottom: calc(100% + 8px);
+        max-height: 300px;
         overflow-y: auto;
+      }
+      .mobile-lang-switcher .lang-btn .chevron {
+        transform: rotate(180deg);
       }
     `;
     document.head.appendChild(style);
