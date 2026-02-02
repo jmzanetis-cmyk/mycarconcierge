@@ -707,5 +707,21 @@
     "applyToBecomeFounder": "Apply to Become a Founder",
     "goToMemberPortal": "Go to Member Portal",
     "copied": "Copied!"
+  },
+  "founderMessage": {
+    "sectionLabel": "A Message from the Founder",
+    "quote": "\"...They should be bidding on me!\"",
+    "paragraph1": "That's the thought I kept having every time I searched for a mechanic, detailer, body shop, tire shop, mobile detailer, car wash, etc. Why am I chasing down quotes? Why am I hoping this one's honest? The customer should be in control. So I built My Car Concierge to make that happen.",
+    "paragraph2": "As a part-time rideshare driver, my car was my livelihood—which meant my car was serviced more often than the average driver. I saw firsthand the difference between providers who earned their customers' loyalty and those who left much to be desired.",
+    "paragraph3": "There had to be a better way. And thus, My Car Concierge was born.",
+    "howItWorksLabel": "Here's how it works:",
+    "howItWorksText": "You list what your car needs and how often, and vetted providers compete for your business by submitting bids. Providers purchase bid credits upfront—you never pay to post or receive quotes. All payments are processed securely through Stripe, with just a 2% platform fee. Simple, transparent, and always in your control.",
+    "paragraph4": "We offer the option for providers to go above and beyond for our members—offering loaner cars, pickup and delivery, or other conveniences so you have more time to do what matters to you.",
+    "timeValueLabel": "Your time is valuable.",
+    "timeValueText": "My Car Concierge exists to give you the best service at the best price—to make the customer right again.",
+    "closing": "Let's do this together.",
+    "signatureName": "— Jordan",
+    "signatureTitle": "Founder & CEO, My Car Concierge",
+    "imageAlt": "Jordan Zanetis - Uber Gold Driver with 2321 rides and 5.0 rating"
   }
 }

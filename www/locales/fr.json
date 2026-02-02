@@ -707,5 +707,21 @@
     "applyToBecomeFounder": "Postuler pour Devenir Fondateur",
     "goToMemberPortal": "Aller au Portail Membre",
     "copied": "Copié !"
+  },
+  "founderMessage": {
+    "sectionLabel": "Un Message du Fondateur",
+    "quote": "\"...C'est eux qui devraient enchérir sur moi !\"",
+    "paragraph1": "C'est la pensée que j'avais à chaque fois que je cherchais un mécanicien, un detailer, un carrossier, un vendeur de pneus, un lavage auto, etc. Pourquoi est-ce que je cours après les devis ? Pourquoi est-ce que j'espère que celui-ci soit honnête ? Le client devrait avoir le contrôle. Alors j'ai créé My Car Concierge pour que cela devienne réalité.",
+    "paragraph2": "En tant que chauffeur VTC à temps partiel, ma voiture était mon gagne-pain—ce qui signifiait que ma voiture était entretenue plus souvent que celle du conducteur moyen. J'ai vu de mes propres yeux la différence entre les prestataires qui méritaient la fidélité de leurs clients et ceux qui laissaient à désirer.",
+    "paragraph3": "Il devait y avoir une meilleure façon de faire. Et ainsi, My Car Concierge est né.",
+    "howItWorksLabel": "Voici comment ça marche :",
+    "howItWorksText": "Vous indiquez ce dont votre voiture a besoin et à quelle fréquence, et des prestataires vérifiés concourent pour votre affaire en soumettant des offres. Les prestataires achètent des crédits d'enchère à l'avance—vous ne payez jamais pour publier ou recevoir des devis. Tous les paiements sont traités en toute sécurité via Stripe, avec seulement 2% de frais de plateforme. Simple, transparent et toujours sous votre contrôle.",
+    "paragraph4": "Nous offrons aux prestataires la possibilité d'aller au-delà pour nos membres—en proposant des voitures de prêt, un service de récupération et livraison, ou d'autres commodités pour que vous ayez plus de temps pour ce qui compte vraiment pour vous.",
+    "timeValueLabel": "Votre temps est précieux.",
+    "timeValueText": "My Car Concierge existe pour vous offrir le meilleur service au meilleur prix—pour redonner raison au client.",
+    "closing": "Faisons-le ensemble.",
+    "signatureName": "— Jordan",
+    "signatureTitle": "Fondateur et PDG, My Car Concierge",
+    "imageAlt": "Jordan Zanetis - Chauffeur Uber Gold avec 2321 trajets et note de 5.0"
   }
 }

@@ -710,5 +710,21 @@
     "applyToBecomeFounder": "申请成为创始人",
     "goToMemberPortal": "前往会员门户",
     "copied": "已复制！"
+  },
+  "founderMessage": {
+    "sectionLabel": "创始人寄语",
+    "quote": "\"...他们应该来争取我的生意！\"",
+    "paragraph1": "每次我在寻找汽修师、美容店、钣金喷漆店、轮胎店、上门洗车服务时，我都会这样想。为什么我要四处奔波询价？为什么我还得祈祷这家店是诚实的？客户应该掌握主动权。所以我创建了 My Car Concierge 来实现这一点。",
+    "paragraph2": "作为一名兼职网约车司机，我的车就是我的生计——这意味着我的车比普通司机保养得更频繁。我亲眼见证了那些赢得客户忠诚的服务商和那些让人失望的服务商之间的差距。",
+    "paragraph3": "一定有更好的方法。于是，My Car Concierge 诞生了。",
+    "howItWorksLabel": "运作方式：",
+    "howItWorksText": "您列出您的车需要什么服务以及频率，经过审核的服务商通过提交报价来竞争您的业务。服务商预先购买报价积分——您永远不需要为发布或接收报价付费。所有支付通过 Stripe 安全处理，仅收取 2% 的平台费用。简单、透明，始终由您掌控。",
+    "paragraph4": "我们为服务商提供为会员提供超值服务的选择——提供代步车、上门取送车，或其他便利服务，让您有更多时间做对您重要的事情。",
+    "timeValueLabel": "您的时间很宝贵。",
+    "timeValueText": "My Car Concierge 的存在就是为了以最优价格为您提供最好的服务——让客户重新成为上帝。",
+    "closing": "让我们一起实现这个目标。",
+    "signatureName": "— Jordan",
+    "signatureTitle": "创始人兼 CEO，My Car Concierge",
+    "imageAlt": "Jordan Zanetis - Uber 金牌司机，完成 2321 次行程，评分 5.0"
   }
 }
