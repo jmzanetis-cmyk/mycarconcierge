@@ -407,6 +407,73 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('active');
 }
 
+// ========== DELETE ACCOUNT ==========
+function openDeleteAccountModal() {
+  const input = document.getElementById('delete-confirm-input');
+  const btn = document.getElementById('confirm-delete-btn');
+  if (input) input.value = '';
+  if (btn) btn.disabled = true;
+  
+  // Add input listener for DELETE confirmation
+  if (input) {
+    input.oninput = function() {
+      btn.disabled = this.value !== 'DELETE';
+    };
+  }
+  
+  openModal('delete-account-modal');
+}
+
+async function confirmDeleteAccount() {
+  const input = document.getElementById('delete-confirm-input');
+  if (!input || input.value !== 'DELETE') {
+    showToast('Please type DELETE to confirm', 'error');
+    return;
+  }
+  
+  const btn = document.getElementById('confirm-delete-btn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid white;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span> Deleting...';
+  
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      showToast('You must be logged in', 'error');
+      return;
+    }
+    
+    const response = await fetch('/api/account/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      }
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      // Sign out and redirect
+      await supabaseClient.auth.signOut();
+      showToast('Your account has been deleted. Redirecting...', 'success');
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000);
+    } else {
+      throw new Error(result.error || 'Failed to delete account');
+    }
+  } catch (error) {
+    console.error('Delete account error:', error);
+    showToast('Failed to delete account: ' + error.message, 'error');
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+window.openDeleteAccountModal = openDeleteAccountModal;
+window.confirmDeleteAccount = confirmDeleteAccount;
+
 // ========== STATS UPDATE ==========
 function updateStats() {
   document.getElementById('stat-open').textContent = openPackages.length;

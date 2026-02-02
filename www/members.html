@@ -3413,6 +3413,24 @@
         </div>
       </div>
 
+      <!-- Danger Zone - Delete Account -->
+      <div class="card" style="margin-top:24px;border:1px solid rgba(239,95,95,0.4);background:rgba(239,95,95,0.05);">
+        <div class="card-header">
+          <h2 class="card-title" style="color:var(--accent-red);">⚠️ Danger Zone</h2>
+        </div>
+        <div style="padding:4px 0;">
+          <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">
+            Permanently delete your account and all associated data. This action cannot be undone.
+          </p>
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <button class="btn" style="background:rgba(239,95,95,0.15);color:var(--accent-red);border:1px solid rgba(239,95,95,0.3);" onclick="openDeleteAccountModal()">
+              🗑️ Delete My Account
+            </button>
+            <span style="font-size:0.82rem;color:var(--text-muted);">This will remove all your vehicles, service history, and personal data.</span>
+          </div>
+        </div>
+      </div>
+
       <div style="margin-top:24px;">
         <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
       </div>
@@ -6963,6 +6981,38 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('fleet-settings-modal')">Cancel</button>
         <button class="btn btn-primary" onclick="saveFleetSettings()">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Account Modal -->
+  <div class="modal-backdrop" id="delete-account-modal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header" style="border-bottom-color:rgba(239,95,95,0.3);">
+        <h3 class="modal-title" style="color:var(--accent-red);">⚠️ Delete Account</h3>
+        <button class="modal-close" onclick="closeModal('delete-account-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="font-size:3rem;margin-bottom:12px;">🗑️</div>
+          <p style="color:var(--text-primary);font-weight:600;font-size:1.1rem;margin-bottom:8px;">Are you sure you want to delete your account?</p>
+          <p style="color:var(--text-secondary);font-size:0.9rem;line-height:1.6;">This action is permanent and cannot be undone. All your data will be deleted, including:</p>
+        </div>
+        <ul style="color:var(--text-secondary);font-size:0.9rem;line-height:1.8;margin:16px 0 20px 20px;">
+          <li>Your profile and personal information</li>
+          <li>All vehicles and maintenance history</li>
+          <li>Service packages and bidding history</li>
+          <li>Notifications and preferences</li>
+          <li>Fuel logs and insurance documents</li>
+        </ul>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Type DELETE to confirm</label>
+          <input type="text" class="form-input" id="delete-confirm-input" placeholder="DELETE" autocomplete="off" style="border-color:rgba(239,95,95,0.4);">
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top-color:rgba(239,95,95,0.3);">
+        <button class="btn btn-secondary" onclick="closeModal('delete-account-modal')">Cancel</button>
+        <button class="btn" id="confirm-delete-btn" style="background:var(--accent-red);color:white;" onclick="confirmDeleteAccount()" disabled>Delete My Account</button>
       </div>
     </div>
   </div>

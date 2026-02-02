@@ -1226,6 +1226,240 @@ async function handleReportSuspiciousLogin(req, res, requestId, activityId) {
 
 // ========== END LOGIN ACTIVITY LOGGING ==========
 
+// ========== ACCOUNT DELETION ==========
+async function handleDeleteAccount(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const userId = user.id;
+    const userEmail = user.email;
+    console.log(`[${requestId}] Account deletion requested for user ${userId} (${userEmail})`);
+    
+    // Get user profile to determine role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, full_name, business_name')
+      .eq('id', userId)
+      .single();
+    
+    const isProvider = profile?.role === 'provider' || profile?.role === 'pending_provider';
+    const displayName = profile?.business_name || profile?.full_name || userEmail;
+    
+    // Delete related data in order (respecting foreign key constraints)
+    // Note: Some tables have ON DELETE CASCADE, but we explicitly delete for clarity
+    
+    // 1. Delete notifications
+    await supabase.from('notifications').delete().eq('user_id', userId);
+    
+    // 2. Delete push subscriptions
+    await supabase.from('push_subscriptions').delete().eq('user_id', userId);
+    
+    // 3. Delete login activity
+    await supabase.from('login_activity').delete().eq('user_id', userId);
+    
+    // 4. Delete 2FA tokens
+    await supabase.from('two_factor_tokens').delete().eq('user_id', userId);
+    
+    // 5. Delete dream car criteria and matches
+    await supabase.from('dream_car_matches').delete().eq('member_id', userId);
+    await supabase.from('dream_car_criteria').delete().eq('member_id', userId);
+    
+    // 6. Delete fuel logs
+    await supabase.from('fuel_logs').delete().eq('member_id', userId);
+    
+    // 7. Delete insurance cards
+    await supabase.from('insurance_cards').delete().eq('member_id', userId);
+    
+    // 8. Delete prospective vehicles
+    await supabase.from('prospective_vehicles').delete().eq('member_id', userId);
+    
+    if (isProvider) {
+      // Provider-specific deletions
+      
+      // Delete provider team members
+      await supabase.from('provider_team_members').delete().eq('provider_id', userId);
+      
+      // Delete provider reviews
+      await supabase.from('provider_reviews').delete().eq('provider_id', userId);
+      
+      // Delete bids
+      await supabase.from('bids').delete().eq('provider_id', userId);
+      
+      // Delete provider stats
+      await supabase.from('provider_stats').delete().eq('provider_id', userId);
+      
+      // Delete provider applications
+      await supabase.from('provider_applications').delete().eq('user_id', userId);
+      
+      // Delete POS connections
+      await supabase.from('clover_connections').delete().eq('provider_id', userId);
+      await supabase.from('square_connections').delete().eq('provider_id', userId);
+      
+      // Delete provider referral codes
+      await supabase.from('provider_referral_codes').delete().eq('provider_id', userId);
+      
+      // Anonymize bid pack purchases (keep for audit/tax)
+      await supabase
+        .from('bid_pack_purchases')
+        .update({ provider_id: null, provider_email: 'deleted_account@deleted.com' })
+        .eq('provider_id', userId);
+    } else {
+      // Member-specific deletions
+      
+      // Delete member founder profile
+      await supabase.from('member_founder_profiles').delete().eq('member_id', userId);
+      
+      // Get member's vehicles
+      const { data: vehicles } = await supabase
+        .from('vehicles')
+        .select('id')
+        .eq('owner_id', userId);
+      
+      const vehicleIds = vehicles?.map(v => v.id) || [];
+      
+      if (vehicleIds.length > 0) {
+        // Delete service history for vehicles
+        await supabase.from('service_history').delete().in('vehicle_id', vehicleIds);
+        
+        // Delete maintenance reminders for vehicles
+        await supabase.from('maintenance_reminders').delete().in('vehicle_id', vehicleIds);
+        
+        // Delete recall alerts for vehicles
+        await supabase.from('recall_alerts').delete().in('vehicle_id', vehicleIds);
+      }
+      
+      // Delete vehicles
+      await supabase.from('vehicles').delete().eq('owner_id', userId);
+      
+      // Get member's packages
+      const { data: packages } = await supabase
+        .from('maintenance_packages')
+        .select('id')
+        .eq('member_id', userId);
+      
+      const packageIds = packages?.map(p => p.id) || [];
+      
+      if (packageIds.length > 0) {
+        // Delete bids on member's packages
+        await supabase.from('bids').delete().in('package_id', packageIds);
+        
+        // Delete additional work requests
+        await supabase.from('additional_work_requests').delete().in('package_id', packageIds);
+        
+        // Delete provider discounts
+        await supabase.from('provider_discounts').delete().in('package_id', packageIds);
+      }
+      
+      // Delete maintenance packages
+      await supabase.from('maintenance_packages').delete().eq('member_id', userId);
+      
+      // Anonymize payment history (keep for audit/tax)
+      await supabase
+        .from('escrow_payments')
+        .update({ member_id: null })
+        .eq('member_id', userId);
+      
+      // Delete merch orders or anonymize
+      await supabase
+        .from('merch_orders')
+        .update({ member_id: null, shipping_address: 'DELETED' })
+        .eq('member_id', userId);
+    }
+    
+    // Delete referral usages
+    await supabase.from('referral_code_usages').delete().eq('referred_user_id', userId);
+    
+    // Delete messages
+    await supabase.from('messages').delete().eq('sender_id', userId);
+    await supabase.from('messages').delete().eq('receiver_id', userId);
+    
+    // Delete signed agreements
+    await supabase.from('signed_agreements').delete().eq('user_id', userId);
+    
+    // Finally, delete the profile
+    await supabase.from('profiles').delete().eq('id', userId);
+    
+    // Delete the auth user using service role
+    const serviceSupabase = getServiceRoleSupabaseClient();
+    if (serviceSupabase) {
+      const { error: authDeleteError } = await serviceSupabase.auth.admin.deleteUser(userId);
+      if (authDeleteError) {
+        console.error(`[${requestId}] Error deleting auth user:`, authDeleteError);
+        // Continue anyway - profile data is already deleted
+      }
+    }
+    
+    // Send confirmation email
+    try {
+      const { sendEmail } = require('./emailService.js');
+      await sendEmail({
+        to: userEmail,
+        subject: 'Your My Car Concierge Account Has Been Deleted',
+        html: `
+          <div style="font-family: 'Outfit', -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #fefdfb;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <img src="https://mycarconcierge.com/icons/mcc-logo-full.png" alt="My Car Concierge" style="height: 50px;">
+            </div>
+            <h1 style="color: #1e3a5f; font-size: 24px; margin-bottom: 20px;">Account Deleted</h1>
+            <p style="color: #4b5563; line-height: 1.6;">Hello ${displayName},</p>
+            <p style="color: #4b5563; line-height: 1.6;">Your My Car Concierge account has been permanently deleted as requested. All your personal data has been removed from our systems.</p>
+            <p style="color: #4b5563; line-height: 1.6;">If you did not request this deletion, please contact us immediately at support@mycarconcierge.com.</p>
+            <p style="color: #4b5563; line-height: 1.6; margin-top: 30px;">Thank you for being part of My Car Concierge. We hope to see you again in the future.</p>
+            <p style="color: #4b5563; line-height: 1.6;">Best regards,<br>The My Car Concierge Team</p>
+          </div>
+        `
+      });
+      console.log(`[${requestId}] Account deletion confirmation email sent to ${userEmail}`);
+    } catch (emailError) {
+      console.error(`[${requestId}] Failed to send deletion confirmation email:`, emailError);
+      // Continue - deletion was successful even if email fails
+    }
+    
+    console.log(`[${requestId}] Account deletion completed for user ${userId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Account deleted successfully' }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Account deletion error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Failed to delete account. Please try again or contact support.' }));
+  }
+}
+
+// Helper to get service role client for admin operations
+function getServiceRoleSupabaseClient() {
+  const url = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return null;
+  
+  const { createClient } = require('@supabase/supabase-js');
+  return createClient(url, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+}
+// ========== END ACCOUNT DELETION ==========
+
 const CLOVER_SANDBOX_URL = 'https://apisandbox.dev.clover.com';
 const CLOVER_PROD_URL = 'https://api.clover.com';
 const CLOVER_SANDBOX_OAUTH = 'https://sandbox.dev.clover.com/oauth/v2/token';
@@ -21967,6 +22201,14 @@ const server = http.createServer((req, res) => {
     const rateLimit = applyRateLimit(req, res, 'apiAuth');
     if (!rateLimit.allowed) return;
     handleNotifyUrgentUpdate(req, res, requestId);
+    return;
+  }
+  
+  // Account deletion API route
+  if (req.method === 'POST' && req.url === '/api/account/delete') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleDeleteAccount(req, res, requestId);
     return;
   }
   
