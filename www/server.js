@@ -1319,10 +1319,20 @@ async function handleDeleteAccount(req, res, requestId) {
       // Delete provider referral codes
       await supabase.from('provider_referral_codes').delete().eq('provider_id', userId);
       
+      // Delete founder referrals and commissions
+      await supabase.from('founder_commissions').delete().eq('founder_id', userId);
+      await supabase.from('founder_referrals').delete().eq('referring_provider_id', userId);
+      
       // Anonymize bid pack purchases (keep for audit/tax)
       await supabase
         .from('bid_pack_purchases')
         .update({ provider_id: null, provider_email: 'deleted_account@deleted.com' })
+        .eq('provider_id', userId);
+      
+      // Anonymize escrow payments where provider was the recipient (keep for audit/tax)
+      await supabase
+        .from('escrow_payments')
+        .update({ provider_id: null })
         .eq('provider_id', userId);
     } else {
       // Member-specific deletions
