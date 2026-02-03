@@ -142,7 +142,7 @@
           }
           providerProfile = newProfile;
         } else if (profile.role !== 'provider' && !profile.is_also_provider) {
-          alert('Provider access required.');
+          showToast('This account does not have provider access. Please contact support.', 'error');
           return window.location.href = 'login.html';
         } else {
           providerProfile = profile;
@@ -10015,7 +10015,7 @@
         }
       } catch (err) {
         loadingEl.style.display = 'none';
-        alert('Error: ' + err.message);
+        showToast('Unable to process request. Please try again.', 'error');
         document.getElementById('pos-marketplace-choice').style.display = 'block';
       }
     }

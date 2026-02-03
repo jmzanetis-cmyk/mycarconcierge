@@ -271,7 +271,9 @@ const TosModal = {
         if (loading) {
           loading.style.display = 'none';
         }
-        alert('Failed to save your acceptance. Please try again.');
+        if (typeof showToast === 'function') {
+          showToast('Failed to save your acceptance. Please try again.', 'error');
+        }
         return false;
       }
 
@@ -286,7 +288,9 @@ const TosModal = {
       if (loading) {
         loading.style.display = 'none';
       }
-      alert('An error occurred. Please try again.');
+      if (typeof showToast === 'function') {
+        showToast('An error occurred. Please try again.', 'error');
+      }
       return false;
     }
   },

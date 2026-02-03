@@ -270,6 +270,18 @@
         if (password !== confirm) return showMessage('Passwords do not match.');
         if (password.length < 6) return showMessage('Password must be at least 6 characters.');
 
+        // Email format validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          return showMessage('Please enter a valid email address.');
+        }
+
+        // Phone format validation - at least 10 digits
+        const phoneDigits = phone.replace(/\D/g, '');
+        if (phoneDigits.length < 10) {
+          return showMessage('Please enter a valid phone number with at least 10 digits.');
+        }
+
         // Try to create account first
         showMessage('Setting up your account...', 'info');
         const { data, error } = await supabaseClient.auth.signUp({ email, password });
@@ -527,6 +539,10 @@
 
       showMessage('Submitting your application...', 'info');
 
+      // Disable submit button during submission
+      const submitBtn = document.getElementById('submit-btn');
+      if (submitBtn) submitBtn.disabled = true;
+
       try {
         // Generate provider alias
         const aliasNumber = Math.floor(1000 + Math.random() * 9000);
@@ -683,8 +699,35 @@
 
       } catch (err) {
         console.error('Signup error:', err);
-        // Show detailed error message for debugging
-        const errorMsg = err?.message || err?.error_description || JSON.stringify(err) || 'Unknown error';
-        showMessage('Error: ' + errorMsg);
+        
+        // Re-enable submit button on error
+        const submitBtn = document.getElementById('submit-btn');
+        if (submitBtn) submitBtn.disabled = false;
+        
+        // Map Supabase errors to user-friendly messages
+        let errorMsg = 'An error occurred. Please try again.';
+        
+        if (err?.message) {
+          const msg = err.message.toLowerCase();
+          if (msg.includes('duplicate key') || msg.includes('unique violation')) {
+            errorMsg = 'This email is already registered as a provider. Please use a different email or log in.';
+          } else if (msg.includes('business_license') || msg.includes('insurance')) {
+            errorMsg = 'Error uploading documents. Please check the file format and try again.';
+          } else if (msg.includes('storage') || msg.includes('upload')) {
+            errorMsg = 'Error uploading files. Please ensure your files are valid and try again.';
+          } else if (msg.includes('network') || msg.includes('connection')) {
+            errorMsg = 'Network error. Please check your connection and try again.';
+          } else if (msg.includes('timeout')) {
+            errorMsg = 'Request timed out. Please try again.';
+          } else if (msg.includes('invalid') || msg.includes('malformed')) {
+            errorMsg = 'Invalid data submitted. Please check your information and try again.';
+          } else {
+            errorMsg = 'Error: ' + err.message;
+          }
+        } else if (err?.error_description) {
+          errorMsg = 'Error: ' + err.error_description;
+        }
+        
+        showMessage(errorMsg);
       }
     }

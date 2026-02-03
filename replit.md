@@ -83,6 +83,13 @@ Key features include:
 - **Image Lazy Loading**: Offscreen images use native lazy loading for faster initial page loads.
 - **CSS Skeleton Loaders**: Smooth loading states for dashboard sections with animated skeleton placeholders.
 
+## Recent Changes (February 2026)
+- **QA Audit & Bug Fixes**: Comprehensive audit of member and provider signup flows identified 48 issues across critical, major, and minor categories. All critical and high-priority fixes completed:
+  - Provider signup: State field converted to dropdown with all 50 US states + DC, CSS class syntax fixed, ZIP code pattern validation added
+  - Provider signup JS: Email/phone format validation added, submit button disabled during submission, user-friendly error messages implemented
+  - Member signup: SMS consent made optional (not required for signup), ARIA accessibility attributes added to message container
+  - Error handling: Replaced all `alert()` calls with `showToast()` for consistent UX across members-vehicles.js, members.js, providers.js, providers-core.js, tos-modal.js, agreement-form.js
+
 ## External Dependencies
 - **Supabase**: Backend services (PostgreSQL, authentication, storage).
 - **Stripe**: Payment processing.

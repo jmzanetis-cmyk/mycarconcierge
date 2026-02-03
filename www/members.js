@@ -2321,11 +2321,11 @@
           renderRecallsList(recallData);
           renderVehicles();
         } else {
-          alert('Failed to acknowledge recall: ' + (data.error || 'Unknown error'));
+          showToast('Failed to acknowledge recall. Please try again.', 'error');
         }
       } catch (error) {
         console.error('Error acknowledging recall:', error);
-        alert('Error acknowledging recall');
+        showToast('Unable to acknowledge recall. Please try again later.', 'error');
       }
     }
     

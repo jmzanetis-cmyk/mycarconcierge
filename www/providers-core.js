@@ -212,7 +212,7 @@ window.addEventListener('load', async () => {
       }
       providerProfile = newProfile;
     } else if (profile.role !== 'provider' && !profile.is_also_provider) {
-      alert('Provider access required.');
+      showToast('This account does not have provider access. Please contact support to enable provider mode.', 'error');
       return window.location.href = 'login.html';
     } else {
       providerProfile = profile;
@@ -232,7 +232,7 @@ window.addEventListener('load', async () => {
     await initializeProviderDashboard(user);
   } catch (err) {
     console.error('Page initialization error:', err);
-    showToast('Error loading page. Check console for details.', 'error');
+    showToast('Unable to load your dashboard. Please refresh the page or try again later.', 'error');
   }
 });
 
@@ -467,7 +467,7 @@ async function confirmDeleteAccount() {
     }
   } catch (error) {
     console.error('Delete account error:', error);
-    showToast('Failed to delete account: ' + error.message, 'error');
+    showToast('Unable to delete your account. Please try again or contact support for assistance.', 'error');
     btn.disabled = false;
     btn.textContent = originalText;
   }

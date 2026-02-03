@@ -297,7 +297,9 @@ const AgreementForm = (function() {
       
       const signatureData = getSignatureData();
       if (!signatureData) {
-        alert('Please provide your signature by drawing or typing your name.');
+        if (typeof showToast === 'function') {
+          showToast('Please provide your signature by drawing or typing your name.', 'error');
+        }
         return;
       }
       
@@ -341,7 +343,9 @@ const AgreementForm = (function() {
         }
       } catch (error) {
         console.error('Error submitting agreement:', error);
-        alert('There was an error submitting your agreement. Please try again.');
+        if (typeof showToast === 'function') {
+          showToast('There was an error submitting your agreement. Please try again.', 'error');
+        }
         btn.disabled = false;
         btnText.style.display = 'inline';
         btnLoading.style.display = 'none';
