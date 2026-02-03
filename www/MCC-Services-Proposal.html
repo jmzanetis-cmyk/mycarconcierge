@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Car Concierge - Services Proposal</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 0.5in;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      background: #fefdfb;
+      color: #343a40;
+      line-height: 1.6;
+    }
+    
+    .print-controls {
+      background: #ffffff;
+      padding: 20px;
+      text-align: center;
+      border-bottom: 2px solid #b8942d;
+    }
+    
+    .print-controls h2 {
+      color: #b8942d;
+      margin-bottom: 10px;
+    }
+    
+    .print-controls p {
+      color: #888;
+      margin-bottom: 15px;
+      font-size: 0.9rem;
+    }
+    
+    .print-btn {
+      background: linear-gradient(135deg, #b8942d, #9a7a23);
+      color: #ffffff;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      margin: 0 10px;
+    }
+    
+    .print-btn:hover {
+      background: linear-gradient(135deg, #d4af37, #b8942d);
+    }
+    
+    .proposal-container {
+      max-width: 800px;
+      margin: 30px auto;
+      background: #ffffff;
+      padding: 50px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      padding-bottom: 30px;
+      border-bottom: 2px solid #f0ebe0;
+    }
+    
+    .logo {
+      width: 140px;
+      margin-bottom: 20px;
+    }
+    
+    .header h1 {
+      color: #1e3a5f;
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    
+    .header .subtitle {
+      color: #b8942d;
+      font-size: 1.1rem;
+      font-weight: 500;
+    }
+    
+    .header .date {
+      color: #888;
+      font-size: 0.9rem;
+      margin-top: 10px;
+    }
+    
+    .section {
+      margin-bottom: 35px;
+    }
+    
+    .section h2 {
+      color: #1e3a5f;
+      font-size: 1.4rem;
+      margin-bottom: 15px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #b8942d;
+      display: inline-block;
+    }
+    
+    .section p {
+      color: #555;
+      margin-bottom: 12px;
+    }
+    
+    .service-card {
+      background: linear-gradient(135deg, #fefdfb 0%, #fff9f0 100%);
+      border: 1px solid #e8dfc8;
+      border-left: 4px solid #b8942d;
+      border-radius: 8px;
+      padding: 25px;
+      margin-bottom: 20px;
+    }
+    
+    .service-card h3 {
+      color: #1e3a5f;
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .service-card h3 .icon {
+      font-size: 1.4rem;
+    }
+    
+    .service-card .price {
+      background: linear-gradient(135deg, #b8942d, #9a7a23);
+      color: #ffffff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      display: inline-block;
+      margin-bottom: 15px;
+    }
+    
+    .service-card ul {
+      list-style: none;
+      padding: 0;
+    }
+    
+    .service-card ul li {
+      padding: 8px 0;
+      padding-left: 25px;
+      position: relative;
+      color: #555;
+    }
+    
+    .service-card ul li::before {
+      content: "✓";
+      color: #b8942d;
+      font-weight: bold;
+      position: absolute;
+      left: 0;
+    }
+    
+    .pricing-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    
+    .pricing-table th {
+      background: #1e3a5f;
+      color: #ffffff;
+      padding: 14px 20px;
+      text-align: left;
+      font-weight: 600;
+    }
+    
+    .pricing-table td {
+      padding: 14px 20px;
+      border-bottom: 1px solid #e8dfc8;
+    }
+    
+    .pricing-table tr:nth-child(even) {
+      background: #fefdfb;
+    }
+    
+    .scaling-section {
+      background: linear-gradient(135deg, #1e3a5f 0%, #2a4a72 100%);
+      color: #ffffff;
+      padding: 30px;
+      border-radius: 12px;
+      margin: 30px 0;
+    }
+    
+    .scaling-section h3 {
+      color: #d4af37;
+      margin-bottom: 15px;
+      font-size: 1.3rem;
+    }
+    
+    .scaling-section p {
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 15px;
+    }
+    
+    .scaling-tiers {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      margin-top: 20px;
+    }
+    
+    .tier {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(212, 175, 55, 0.3);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .tier h4 {
+      color: #d4af37;
+      margin-bottom: 8px;
+      font-size: 1rem;
+    }
+    
+    .tier .tier-price {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    
+    .tier .tier-period {
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.7);
+    }
+    
+    .terms {
+      background: #f8f6f1;
+      border-radius: 8px;
+      padding: 25px;
+      margin: 30px 0;
+    }
+    
+    .terms h3 {
+      color: #1e3a5f;
+      margin-bottom: 15px;
+    }
+    
+    .terms ul {
+      list-style: disc;
+      padding-left: 20px;
+    }
+    
+    .terms li {
+      margin-bottom: 8px;
+      color: #555;
+    }
+    
+    .contact-section {
+      text-align: center;
+      margin-top: 40px;
+      padding-top: 30px;
+      border-top: 2px solid #f0ebe0;
+    }
+    
+    .contact-section h3 {
+      color: #1e3a5f;
+      margin-bottom: 15px;
+    }
+    
+    .contact-section p {
+      color: #555;
+      margin-bottom: 20px;
+    }
+    
+    .contact-info {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+    
+    .contact-item {
+      text-align: center;
+    }
+    
+    .contact-item .label {
+      color: #888;
+      font-size: 0.85rem;
+      margin-bottom: 5px;
+    }
+    
+    .contact-item .value {
+      color: #1e3a5f;
+      font-weight: 600;
+    }
+    
+    .signature-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      margin-top: 50px;
+      padding-top: 30px;
+    }
+    
+    .signature-box h4 {
+      color: #1e3a5f;
+      margin-bottom: 50px;
+      font-size: 0.95rem;
+    }
+    
+    .signature-line {
+      border-bottom: 1px solid #343a40;
+      margin-bottom: 8px;
+      height: 30px;
+    }
+    
+    .signature-label {
+      color: #888;
+      font-size: 0.8rem;
+    }
+    
+    @media print {
+      .print-controls {
+        display: none;
+      }
+      
+      .proposal-container {
+        margin: 0;
+        padding: 30px;
+        box-shadow: none;
+        border-radius: 0;
+      }
+      
+      .scaling-section {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+    
+    @media (max-width: 600px) {
+      .proposal-container {
+        margin: 15px;
+        padding: 25px;
+      }
+      
+      .scaling-tiers {
+        grid-template-columns: 1fr;
+      }
+      
+      .signature-section {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+      
+      .contact-info {
+        flex-direction: column;
+        gap: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-controls">
+    <h2>My Car Concierge - Services Proposal</h2>
+    <p>Review the proposal below. Print or save as PDF when ready.</p>
+    <button class="print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+    <button class="print-btn" onclick="window.history.back()" style="background: #6c757d;">← Back</button>
+  </div>
+  
+  <div class="proposal-container">
+    <div class="header">
+      <img src="logo.png" alt="My Car Concierge" class="logo">
+      <h1>Services Proposal</h1>
+      <div class="subtitle">Partnership Agreement for Growth</div>
+      <div class="date">Prepared: February 2026</div>
+    </div>
+    
+    <div class="section">
+      <h2>Executive Summary</h2>
+      <p>This proposal outlines a partnership arrangement for ongoing advertising, marketing, and technical support services for My Car Concierge (MCC). The structure is designed to align costs with business growth, keeping overhead low during the startup phase while scaling investment as revenue increases.</p>
+    </div>
+    
+    <div class="section">
+      <h2>Services Offered</h2>
+      
+      <div class="service-card">
+        <h3><span class="icon">📢</span> Advertising & Marketing</h3>
+        <div class="price">$200 Bi-Weekly</div>
+        <ul>
+          <li>Google Ads campaign setup and management</li>
+          <li>Social media advertising (Facebook, Instagram)</li>
+          <li>Ad creative development and A/B testing</li>
+          <li>Audience targeting and optimization</li>
+          <li>Performance reporting and analytics</li>
+          <li>App Store Optimization (ASO) recommendations</li>
+          <li>Brand awareness campaigns</li>
+        </ul>
+      </div>
+      
+      <div class="service-card">
+        <h3><span class="icon">🔧</span> Technical Services</h3>
+        <div class="price">Billed Per Hour (As Needed)</div>
+        <ul>
+          <li>Platform maintenance and bug fixes</li>
+          <li>Troubleshooting and issue resolution</li>
+          <li>API configuration and integrations</li>
+          <li>Performance optimization</li>
+          <li>Security updates and patches</li>
+          <li>Feature enhancements (quoted separately)</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>Pricing Summary</h2>
+      <table class="pricing-table">
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Rate</th>
+            <th>Billing Cycle</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Advertising & Marketing</td>
+            <td><strong>$200</strong></td>
+            <td>Bi-Weekly (every 2 weeks)</td>
+          </tr>
+          <tr>
+            <td>Technical Services</td>
+            <td><strong>Per Hour</strong></td>
+            <td>As Needed</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size: 0.9rem; color: #888; margin-top: 10px;">* Note: Ad spend budget (Google Ads, Facebook, etc.) is separate from the management fee and controlled by MCC.</p>
+    </div>
+    
+    <div class="scaling-section">
+      <h3>📈 Growth-Based Scaling</h3>
+      <p>As My Car Concierge grows and revenue increases, service rates will scale accordingly. This ensures alignment between service investment and business success.</p>
+      
+      <div class="scaling-tiers">
+        <div class="tier">
+          <h4>Launch Phase</h4>
+          <div class="tier-price">$200</div>
+          <div class="tier-period">bi-weekly</div>
+        </div>
+        <div class="tier">
+          <h4>Growth Phase</h4>
+          <div class="tier-price">$300</div>
+          <div class="tier-period">bi-weekly</div>
+        </div>
+        <div class="tier">
+          <h4>Scale Phase</h4>
+          <div class="tier-price">$400+</div>
+          <div class="tier-period">bi-weekly</div>
+        </div>
+      </div>
+      
+      <p style="margin-top: 20px; font-size: 0.9rem;">Scaling triggers to be mutually agreed upon based on revenue milestones, user growth, or funding events.</p>
+    </div>
+    
+    <div class="terms">
+      <h3>Terms & Conditions</h3>
+      <ul>
+        <li><strong>Communication:</strong> Direct communication with Jordan Zanetis for all work requests and updates</li>
+        <li><strong>Payment Schedule:</strong> Bi-weekly payments due on agreed dates</li>
+        <li><strong>Technical Work:</strong> Hours tracked and reported; invoiced at end of billing period</li>
+        <li><strong>Response Time:</strong> 24-48 hours for non-urgent requests; same-day for critical issues</li>
+        <li><strong>Reporting:</strong> Monthly performance reports for advertising campaigns</li>
+        <li><strong>Term:</strong> Month-to-month with 14 days notice for cancellation</li>
+        <li><strong>Ad Spend:</strong> Advertising budget controlled by MCC; management fee is separate</li>
+      </ul>
+    </div>
+    
+    <div class="contact-section">
+      <h3>Let's Build Something Great</h3>
+      <p>Ready to grow My Car Concierge? Let's discuss this proposal and get started.</p>
+      
+      <div class="contact-info">
+        <div class="contact-item">
+          <div class="label">Contact</div>
+          <div class="value">Jordan Zanetis</div>
+        </div>
+        <div class="contact-item">
+          <div class="label">Email</div>
+          <div class="value">jordan@mycarconcierge.com</div>
+        </div>
+        <div class="contact-item">
+          <div class="label">Website</div>
+          <div class="value">mycarconcierge.com</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="signature-section">
+      <div class="signature-box">
+        <h4>Service Provider</h4>
+        <div class="signature-line"></div>
+        <div class="signature-label">Signature</div>
+        <div class="signature-line" style="margin-top: 25px;"></div>
+        <div class="signature-label">Date</div>
+      </div>
+      <div class="signature-box">
+        <h4>My Car Concierge (Jordan Zanetis)</h4>
+        <div class="signature-line"></div>
+        <div class="signature-label">Signature</div>
+        <div class="signature-line" style="margin-top: 25px;"></div>
+        <div class="signature-label">Date</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
