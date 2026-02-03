@@ -92,7 +92,8 @@ const I18n = (function() {
       element.setAttribute(attrTarget, translated);
     } else {
       const svg = element.querySelector('svg');
-      const containsHtml = /<[a-z][\s\S]*>/i.test(translated);
+      const forceHtml = element.hasAttribute('data-i18n-html');
+      const containsHtml = forceHtml || /<[a-z][^>]*>/i.test(translated);
       if (svg) {
         const svgClone = svg.cloneNode(true);
         if (containsHtml) {
