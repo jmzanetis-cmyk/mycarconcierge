@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <script>
@@ -106,7 +107,7 @@
       margin-bottom: 40px;
       text-decoration: none;
     }
-    .brand-icon { height: 120px; width: auto; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; transition: all 0.3s ease; }
+    .brand-icon { height: 120px; width: auto; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25)); transition: all 0.3s ease; }
     .login-brand:hover .brand-icon { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
     .brand-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 1.3rem; color: var(--text-primary); }
 
@@ -468,16 +469,103 @@
       .login-card { padding: 32px 24px; }
       .signup-links { flex-direction: column; }
     }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
+
+    .login-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .login-tab {
+      flex: 1;
+      padding: 10px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: 100px;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+    .login-tab:hover {
+      border-color: var(--border-medium);
+      color: var(--text-primary);
+    }
+    .login-tab.active {
+      background: linear-gradient(135deg, var(--accent-blue), #6b9fff);
+      border-color: transparent;
+      color: white;
+      font-weight: 600;
+    }
+
+    .magic-link-sent {
+      text-align: center;
+      padding: 20px 0;
+    }
+    .magic-link-sent-icon {
+      font-size: 56px;
+      margin-bottom: 20px;
+      color: var(--accent-green);
+    }
+    .magic-link-sent-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem;
+      margin-bottom: 12px;
+    }
+    .magic-link-sent-text {
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .magic-link-sent-email {
+      color: var(--accent-gold);
+      font-weight: 500;
+    }
+    .magic-link-sent-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .magic-link-resend {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      margin-top: 16px;
+    }
+    .magic-link-resend a {
+      color: var(--accent-blue);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .magic-link-resend a:hover { text-decoration: underline; }
+    .magic-link-resend a.disabled {
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .magic-link-countdown {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 8px;
+    }
+
+    .trust-bar { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+    .trust-item { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-muted); }
+    .trust-item svg { color: var(--accent-gold); stroke: var(--accent-gold); flex-shrink: 0; }
   </style>
   <script src="/i18n.js"></script>
 </head>
 <body>
   <button class="theme-toggle-mini" onclick="toggleTheme()" title="Toggle theme" style="position: fixed; top: 20px; right: 20px; z-index: 1000; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 50%; width: 44px; height: 44px; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
-    <span class="theme-icon">🔦</span>
+    <span class="theme-icon"><span class="icon-inline" data-icon="sun"></span></span>
   </button>
   <div class="ambient-bg"></div>
 
-  <div class="login-container">
+  <div class="login-container" id="main-content">
     <a href="index.html" class="login-brand">
       <img src="logo.png" alt="My Car Concierge" class="brand-icon">
     </a>
@@ -491,6 +579,11 @@
           <p data-i18n="auth.signInSubtitle">Sign in to your account</p>
         </div>
 
+        <div class="login-tabs">
+          <button type="button" class="login-tab active" id="tab-password" onclick="switchLoginTab('password')">Password</button>
+          <button type="button" class="login-tab" id="tab-magic" onclick="switchLoginTab('magic')">Magic Link</button>
+        </div>
+
         <form id="login-form">
           <div class="form-group">
             <label class="form-label" data-i18n="auth.email">Email</label>
@@ -500,7 +593,9 @@
             <label class="form-label" data-i18n="auth.password">Password</label>
             <input type="password" class="form-input" id="password" placeholder="••••••••" data-i18n="auth.passwordPlaceholder" data-i18n-attr="placeholder" required autocomplete="current-password">
           </div>
+          <div style="text-align:right;margin:-4px 0 4px;"><a href="forgot-password.html" style="font-size:0.82rem;color:var(--text-muted);text-decoration:none;">Forgot password?</a></div>
           <button type="submit" class="btn btn-primary" id="login-btn" data-i18n="auth.signInButton">Sign In</button>
+          <button type="button" class="btn btn-primary" id="magic-link-btn" style="display:none;" onclick="sendMagicLink()">Send Magic Link</button>
         </form>
 
         <div class="login-message" id="message"></div>
@@ -521,7 +616,7 @@
         <!-- Biometric Login Button (shown when enabled) -->
         <div id="biometric-login-section" class="biometric-section">
           <button type="button" class="btn-biometric" id="biometric-login-btn" onclick="triggerBiometricLogin()">
-            <span class="biometric-btn-icon" id="biometric-btn-icon">🔐</span>
+            <span class="biometric-btn-icon" id="biometric-btn-icon"><span class="icon-inline" data-icon="lock"></span></span>
             <span id="biometric-btn-text">Sign in with Biometrics</span>
           </button>
         </div>
@@ -529,21 +624,46 @@
         <div class="divider" data-i18n="common.or">or</div>
 
         <div class="signup-links">
-          <a href="signup-member.html" class="signup-link">
-            <span class="signup-link-icon">🚗</span>
+          <a href="onboarding-member.html" class="signup-link">
+            <span class="signup-link-icon"><span class="icon-inline" data-icon="car"></span></span>
             <span data-i18n="auth.signUpMember">Sign up as Member</span>
           </a>
           <a href="signup-provider.html" class="signup-link">
-            <span class="signup-link-icon">🔧</span>
+            <span class="signup-link-icon"><span class="icon-inline" data-icon="wrench"></span></span>
             <span data-i18n="auth.signUpProvider">Apply as Provider</span>
           </a>
+        </div>
+
+        <div class="trust-bar">
+          <div class="trust-item"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg> Secure &amp; encrypted</div>
+          <div class="trust-item"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Join our founding community</div>
+          <div class="trust-item"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> No credit card required</div>
+        </div>
+      </div>
+
+      <div id="magic-link-sent" style="display:none;">
+        <div class="magic-link-sent">
+          <div class="magic-link-sent-icon"><span class="icon-inline" data-icon="email"></span></div>
+          <h2 class="magic-link-sent-title">Check Your Email!</h2>
+          <p class="magic-link-sent-text">
+            We sent a sign-in link to<br>
+            <span class="magic-link-sent-email" id="magic-link-email-display"></span>
+          </p>
+          <p class="magic-link-sent-text">Click the link in your email to sign in. It may take a moment to arrive.</p>
+          <div class="magic-link-resend">
+            <a id="magic-resend-link" onclick="resendMagicLink()">Resend magic link</a>
+          </div>
+          <div class="magic-link-countdown" id="magic-resend-countdown"></div>
+          <div class="magic-link-sent-actions">
+            <button class="btn-secondary" onclick="showMagicLinkForm()">← Back to sign in</button>
+          </div>
         </div>
       </div>
 
       <!-- Pending Provider Screen -->
       <div id="pending-screen" style="display:none;">
         <div class="pending-screen">
-          <div class="pending-icon">⏳</div>
+          <div class="pending-icon"><span class="icon-inline" data-icon="clock"></span></div>
           <h2 class="pending-title">Application Under Review</h2>
           <p class="pending-text">
             Thank you for applying to join My Car Concierge! Our team is reviewing your application and verifying your credentials.
@@ -564,7 +684,7 @@
           
           <div class="portal-options">
             <div class="portal-option" id="portal-member" onclick="selectPortal('member')">
-              <div class="portal-option-icon">🚗</div>
+              <div class="portal-option-icon"><span class="icon-inline" data-icon="car"></span></div>
               <div class="portal-option-content">
                 <div class="portal-option-name">Member Portal</div>
                 <div class="portal-option-desc">Manage your vehicles and service requests</div>
@@ -573,7 +693,7 @@
             </div>
             
             <div class="portal-option" id="portal-provider" onclick="selectPortal('provider')">
-              <div class="portal-option-icon">🔧</div>
+              <div class="portal-option-icon"><span class="icon-inline" data-icon="wrench"></span></div>
               <div class="portal-option-content">
                 <div class="portal-option-name">Provider Portal</div>
                 <div class="portal-option-desc">View jobs and submit bids</div>
@@ -591,7 +711,7 @@
       <!-- Biometric Enrollment Screen -->
       <div id="biometric-enroll-screen" style="display:none;">
         <div class="biometric-enroll-screen">
-          <div class="biometric-enroll-icon" id="biometric-enroll-icon">🔐</div>
+          <div class="biometric-enroll-icon" id="biometric-enroll-icon"><span class="icon-inline" data-icon="lock"></span></div>
           <h2 class="biometric-enroll-title" id="biometric-enroll-title">Enable Quick Sign In</h2>
           <p class="biometric-enroll-text" id="biometric-enroll-text">
             Would you like to use Face ID / Fingerprint for faster, secure sign-in next time?
@@ -611,7 +731,7 @@
       <!-- 2FA Verification Screen -->
       <div id="twofa-screen" style="display:none;">
         <div class="twofa-screen">
-          <div class="twofa-icon">🔐</div>
+          <div class="twofa-icon"><span class="icon-inline" data-icon="lock"></span></div>
           <h2 class="twofa-title">Two-Factor Authentication</h2>
           <p class="twofa-text">
             Enter the 6-digit code sent to your phone<br>
@@ -647,7 +767,10 @@
 
     <div class="login-footer">
       <a href="forgot-password.html" data-i18n="auth.forgotPassword">Forgot password?</a>
-      <div style="margin-top:20px;font-size:0.75rem;color:var(--text-muted);">
+      <div style="margin-top:12px;font-size:0.85rem;">
+        <a href="/contact.html" style="color:var(--accent-blue);text-decoration:none;">Need help? Contact us</a>
+      </div>
+      <div style="margin-top:16px;font-size:0.75rem;color:var(--text-muted);">
         © 2025 My Car Concierge. All rights reserved. - IMOR
       </div>
     </div>
@@ -671,17 +794,27 @@
       html.setAttribute('data-theme', newTheme);
       localStorage.setItem('theme', newTheme);
       const icon = document.querySelector('.theme-icon');
-      if (icon) icon.textContent = newTheme === 'dark' ? '🔦' : '🌙';
+      if (icon) icon.innerHTML = newTheme === 'dark' ? '<span class="icon-inline" data-icon="sun"></span>' : '<span class="icon-inline" data-icon="moon"></span>';
       const metaTheme = document.querySelector('meta[name="theme-color"]');
       if (metaTheme) metaTheme.content = newTheme === 'dark' ? '#12161c' : '#ffffff';
       setTimeout(() => html.classList.remove('theme-transition'), 300);
     }
     document.addEventListener('DOMContentLoaded', async () => {
       const icon = document.querySelector('.theme-icon');
-      if (icon) icon.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '🔦' : '🌙';
+      if (icon) icon.innerHTML = document.documentElement.getAttribute('data-theme') === 'dark' ? '<span class="icon-inline" data-icon="sun"></span>' : '<span class="icon-inline" data-icon="moon"></span>';
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
     });
   </script>
+  <script src="/utils.js"></script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
+  <script src="analytics-tracker.js" defer></script>
 </body>
 </html>

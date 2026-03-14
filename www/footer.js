@@ -7,7 +7,7 @@ function renderMCCFooter() {
         <div class="footer-section">
           <h4>For Vehicle Owners</h4>
           <ul>
-            <li><a href="/signup-member.html">Create an Account</a></li>
+            <li><a href="/onboarding-member.html">Create an Account</a></li>
             <li><a href="/login.html">Sign In</a></li>
             <li><a href="/how-it-works.html">How Bidding Works</a></li>
             <li><a href="/faq.html">FAQ</a></li>
@@ -37,7 +37,7 @@ function renderMCCFooter() {
         <div class="footer-section">
           <h4>Company</h4>
           <ul>
-            <li><a href="/about.html">Our Story</a></li>
+            <li><a href="/about.html">About</a></li>
             <li><a href="/contact.html">Contact Us</a></li>
           </ul>
         </div>

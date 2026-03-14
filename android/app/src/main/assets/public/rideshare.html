@@ -5,8 +5,9 @@
   <title>For Rideshare Drivers – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="My Car Concierge helps Uber, Lyft, and gig economy drivers save money on vehicle maintenance with competitive bidding from vetted providers." />
-  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -18,18 +19,22 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-deep: #0a0a0f;
-      --bg-card: rgba(18, 18, 28, 0.85);
-      --bg-elevated: rgba(28, 28, 42, 0.9);
-      --text-primary: #f4f4f6;
-      --text-secondary: #9898a8;
-      --text-muted: #6b6b7a;
-      --accent-gold: #d4a855;
-      --accent-gold-soft: rgba(212, 168, 85, 0.15);
-      --accent-blue: #4a7cff;
-      --accent-blue-soft: rgba(74, 124, 255, 0.12);
-      --border-subtle: rgba(148, 148, 168, 0.12);
-      --border-medium: rgba(148, 148, 168, 0.2);
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
+      --accent-green: #34d399;
+      --accent-red: #f87171;
+      --accent-orange: #fb923c;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
       --radius-sm: 8px;
       --radius-md: 14px;
       --radius-lg: 22px;
@@ -103,6 +108,14 @@
       height: 120px;
       width: auto;
       border-radius: var(--radius-md);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25));
+      transition: filter 0.3s ease;
+    }
+
+    .brand:hover .brand-icon {
+      filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.4));
     }
 
     nav {
@@ -190,9 +203,9 @@
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, var(--accent-gold) 0%, #c49a45 100%);
-      color: #0a0a0f;
-      box-shadow: 0 8px 32px rgba(212, 168, 85, 0.3);
+      background: linear-gradient(135deg, var(--accent-gold) 0%, #a8822e 100%);
+      color: #12161c;
+      box-shadow: 0 8px 32px rgba(201, 162, 39, 0.3);
     }
 
     .btn-primary:hover {
@@ -287,7 +300,7 @@
     }
 
     .services-list li::before {
-      content: '🚗';
+      content: '<span class="icon-inline" data-icon="car"></span>';
     }
 
     #resources {
@@ -353,7 +366,7 @@
     .tip-list li:last-child { border-bottom: none; }
 
     .tip-list li::before {
-      content: '💡';
+      content: '<span class="icon-inline" data-icon="lightbulb"></span>';
       position: absolute;
       left: 0;
       font-size: 1.25rem;
@@ -370,6 +383,8 @@
       nav { width: 100%; justify-content: center; }
       .services-section, #maintenance { padding: 32px 24px; }
     }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
 </head>
 <body>
@@ -392,34 +407,171 @@
 
   <main class="container">
     <div class="hero-section">
-      <span class="hero-badge">🚘 Built for Gig Drivers</span>
+      <span class="hero-badge"><span class="icon-inline" data-icon="car-front"></span> Built for Gig Drivers</span>
       <h1>Keep Your <span class="highlight">Rideshare Vehicle</span> Running Strong</h1>
       <p>As a rideshare or delivery driver, your vehicle is your livelihood. My Car Concierge helps you find quality maintenance at competitive prices—so you can maximize your earnings and minimize downtime.</p>
-      <a href="/signup-member.html" class="btn btn-primary">Join Free Today</a>
+      <a href="/onboarding-member.html" class="btn btn-primary">Join Free Today</a>
     </div>
 
     <div class="benefits-grid">
       <div class="benefit-card">
-        <div class="benefit-icon">💰</div>
+        <div class="benefit-icon"><span class="icon-inline" data-icon="dollar-sign"></span></div>
         <h3>Save on Every Service</h3>
         <p>Get multiple bids from verified providers and choose the best price. Most drivers save 20-40% compared to dealership prices.</p>
       </div>
       <div class="benefit-card">
-        <div class="benefit-icon">⏰</div>
+        <div class="benefit-icon"><span class="icon-inline" data-icon="clock"></span></div>
         <h3>Minimize Downtime</h3>
         <p>Find providers who can work around your driving schedule. Many offer evening, weekend, and mobile services.</p>
       </div>
       <div class="benefit-card">
-        <div class="benefit-icon">🛡️</div>
+        <div class="benefit-icon"><span class="icon-inline" data-icon="shield"></span></div>
         <h3>Vetted Providers</h3>
         <p>Every provider is background-checked and verified. Your vehicle is in good hands with our qualified professionals.</p>
       </div>
       <div class="benefit-card">
-        <div class="benefit-icon">📱</div>
+        <div class="benefit-icon"><span class="icon-inline" data-icon="smartphone"></span></div>
         <h3>Easy Mobile Access</h3>
         <p>Post service requests, review bids, and book appointments right from your phone between rides.</p>
       </div>
     </div>
+
+    <!-- Profit Calculator Section -->
+    <div class="services-section" id="calculator" style="margin-bottom: 80px;">
+      <div class="section-title">
+        <h2><span class="icon-inline" data-icon="dollar-sign"></span> Rideshare Profit Calculator</h2>
+        <p>Calculate your TRUE earnings after ALL vehicle costs</p>
+      </div>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 32px;">
+        <div>
+          <h3 style="color: var(--accent-gold); margin-bottom: 20px; font-family: 'Playfair Display', serif;">Weekly Earnings</h3>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="dollar-sign"></span> Gross Weekly Earnings ($)</label>
+            <input type="number" id="calc-gross-weekly" value="1000" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="car"></span> Miles Driven Per Week</label>
+            <input type="number" id="calc-miles-weekly" value="500" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="clock"></span> Hours Worked Per Week</label>
+            <input type="number" id="calc-hours-weekly" value="40" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <h3 style="color: var(--accent-gold); margin: 24px 0 20px; font-family: 'Playfair Display', serif;">Vehicle Costs</h3>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="fuel"></span> Fuel Cost Per Gallon ($)</label>
+            <input type="number" id="calc-fuel-cost" value="3.50" step="0.01" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="bar-chart"></span> Your Vehicle's MPG</label>
+            <input type="number" id="calc-mpg" value="30" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="wrench"></span> Monthly Maintenance Budget ($)</label>
+            <input type="number" id="calc-maintenance" value="150" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="shield"></span> Monthly Insurance ($)</label>
+            <input type="number" id="calc-insurance" value="200" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="trending-up"></span> Monthly Depreciation ($)</label>
+            <input type="number" id="calc-depreciation" value="200" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <small style="color: var(--text-muted); font-size: 0.75rem;">Tip: Divide your car's value by 60-100 for monthly estimate</small>
+          </div>
+          
+          <button onclick="calculateProfit()" class="btn btn-primary" style="width: 100%; margin-top: 16px;">Calculate My True Profit</button>
+        </div>
+        
+        <div id="calc-results" style="background: var(--bg-elevated); border-radius: var(--radius-lg); padding: 32px; border: 1px solid var(--border-medium);">
+          <h3 style="color: var(--accent-gold); margin-bottom: 24px; font-family: 'Playfair Display', serif; text-align: center;"><span class="icon-inline" data-icon="bar-chart"></span> Your Results</h3>
+          
+          <div style="text-align: center; padding: 24px 0; border-bottom: 1px solid var(--border-subtle);">
+            <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">TRUE Weekly Profit</div>
+            <div id="result-weekly-profit" style="font-size: 2.5rem; font-weight: 700; color: var(--accent-green);">$--</div>
+          </div>
+          
+          <div style="text-align: center; padding: 24px 0; border-bottom: 1px solid var(--border-subtle);">
+            <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">TRUE Hourly Rate</div>
+            <div id="result-hourly-rate" style="font-size: 2rem; font-weight: 600; color: var(--accent-blue);">$--/hr</div>
+          </div>
+          
+          <div style="text-align: center; padding: 24px 0; border-bottom: 1px solid var(--border-subtle);">
+            <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">Projected Annual Profit</div>
+            <div id="result-annual-profit" style="font-size: 1.8rem; font-weight: 600; color: var(--text-primary);">$--</div>
+          </div>
+          
+          <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-subtle);">
+            <h4 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">Weekly Cost Breakdown</h4>
+            <div style="display: grid; gap: 12px;">
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);"><span class="icon-inline" data-icon="fuel"></span> Fuel</span><span id="cost-fuel" style="color: var(--accent-red);">$--</span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);"><span class="icon-inline" data-icon="wrench"></span> Maintenance</span><span id="cost-maintenance" style="color: var(--accent-orange);">$--</span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);"><span class="icon-inline" data-icon="shield"></span> Insurance</span><span id="cost-insurance" style="color: var(--accent-orange);">$--</span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);"><span class="icon-inline" data-icon="trending-up"></span> Depreciation</span><span id="cost-depreciation" style="color: var(--accent-orange);">$--</span></div>
+              <div style="display: flex; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--border-subtle); font-weight: 600;"><span>Total Weekly Costs</span><span id="cost-total" style="color: var(--accent-red);">$--</span></div>
+            </div>
+          </div>
+          
+          <div id="calc-warning" style="display: none; margin-top: 24px; padding: 16px; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: var(--radius-md);">
+            <p style="color: var(--accent-red); font-size: 0.9rem; margin: 0;"><span class="icon-inline" data-icon="alert-triangle"></span> Warning: Your costs may be higher than your earnings. Consider driving more miles per hour or reducing expenses.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      function calculateProfit() {
+        const grossWeekly = parseFloat(document.getElementById('calc-gross-weekly').value) || 0;
+        const milesWeekly = parseFloat(document.getElementById('calc-miles-weekly').value) || 0;
+        const hoursWeekly = parseFloat(document.getElementById('calc-hours-weekly').value) || 1;
+        const fuelCost = parseFloat(document.getElementById('calc-fuel-cost').value) || 0;
+        const mpg = parseFloat(document.getElementById('calc-mpg').value) || 25;
+        const maintenanceMonthly = parseFloat(document.getElementById('calc-maintenance').value) || 0;
+        const insuranceMonthly = parseFloat(document.getElementById('calc-insurance').value) || 0;
+        const depreciationMonthly = parseFloat(document.getElementById('calc-depreciation').value) || 0;
+        
+        const gallonsUsed = milesWeekly / mpg;
+        const weeklyFuel = gallonsUsed * fuelCost;
+        const weeklyMaintenance = maintenanceMonthly / 4.33;
+        const weeklyInsurance = insuranceMonthly / 4.33;
+        const weeklyDepreciation = depreciationMonthly / 4.33;
+        
+        const totalWeeklyCosts = weeklyFuel + weeklyMaintenance + weeklyInsurance + weeklyDepreciation;
+        const weeklyProfit = grossWeekly - totalWeeklyCosts;
+        const hourlyRate = weeklyProfit / hoursWeekly;
+        const annualProfit = weeklyProfit * 52;
+        
+        document.getElementById('result-weekly-profit').textContent = '$' + weeklyProfit.toFixed(0);
+        document.getElementById('result-weekly-profit').style.color = weeklyProfit >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+        document.getElementById('result-hourly-rate').textContent = '$' + hourlyRate.toFixed(2) + '/hr';
+        document.getElementById('result-hourly-rate').style.color = hourlyRate >= 15 ? 'var(--accent-blue)' : 'var(--accent-orange)';
+        document.getElementById('result-annual-profit').textContent = '$' + annualProfit.toLocaleString(undefined, {maximumFractionDigits: 0});
+        
+        document.getElementById('cost-fuel').textContent = '-$' + weeklyFuel.toFixed(0);
+        document.getElementById('cost-maintenance').textContent = '-$' + weeklyMaintenance.toFixed(0);
+        document.getElementById('cost-insurance').textContent = '-$' + weeklyInsurance.toFixed(0);
+        document.getElementById('cost-depreciation').textContent = '-$' + weeklyDepreciation.toFixed(0);
+        document.getElementById('cost-total').textContent = '-$' + totalWeeklyCosts.toFixed(0);
+        
+        document.getElementById('calc-warning').style.display = weeklyProfit < 0 ? 'block' : 'none';
+      }
+      
+      document.querySelectorAll('#calculator input').forEach(input => {
+        input.addEventListener('input', calculateProfit);
+      });
+      
+      window.addEventListener('load', calculateProfit);
+    </script>
 
     <div class="services-section">
       <div class="section-title">
@@ -500,6 +652,22 @@
     </section>
   </main>
 
+  <script>
+    if (window.location.hash === '#calculator') {
+      var hero = document.querySelector('.hero-section');
+      if (hero) hero.style.display = 'none';
+      var signIn = document.querySelector('.btn-login');
+      if (signIn) signIn.style.display = 'none';
+    }
+  </script>
   <script src="/footer.js"></script>
+  <script src="/mcc-icons.js?v=20260212"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
 </body>
 </html>

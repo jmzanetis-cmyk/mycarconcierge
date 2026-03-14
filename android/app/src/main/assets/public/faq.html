@@ -5,8 +5,9 @@
   <title>FAQ – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Frequently asked questions about My Car Concierge marketplace for vehicle owners." />
-  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -18,18 +19,18 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-deep: #0a0a0f;
-      --bg-card: rgba(18, 18, 28, 0.85);
-      --bg-elevated: rgba(28, 28, 42, 0.9);
-      --text-primary: #f4f4f6;
-      --text-secondary: #9898a8;
-      --text-muted: #6b6b7a;
-      --accent-gold: #d4a855;
-      --accent-gold-soft: rgba(212, 168, 85, 0.15);
-      --accent-blue: #4a7cff;
-      --accent-blue-soft: rgba(74, 124, 255, 0.12);
-      --border-subtle: rgba(148, 148, 168, 0.12);
-      --border-medium: rgba(148, 148, 168, 0.2);
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
       --radius-sm: 8px;
       --radius-md: 14px;
       --radius-lg: 22px;
@@ -103,6 +104,14 @@
       height: 120px;
       width: auto;
       border-radius: var(--radius-md);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25));
+      transition: filter 0.3s ease;
+    }
+
+    .brand:hover .brand-icon {
+      filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.4));
     }
 
     nav {
@@ -227,7 +236,7 @@
     .cta-section {
       text-align: center;
       margin-top: 80px;
-      padding: 48px;
+      padding: 56px 48px;
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-xl);
@@ -235,22 +244,74 @@
 
     .cta-section h2 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.5rem;
+      font-size: 1.9rem;
       margin-bottom: 12px;
     }
 
     .cta-section p {
       color: var(--text-secondary);
+      margin-bottom: 32px;
+      font-size: 1.05rem;
+    }
+
+    .cta-buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
       margin-bottom: 24px;
     }
 
-    .cta-section a {
+    .cta-btn-primary {
+      display: inline-block;
+      padding: 14px 32px;
+      background: var(--accent-gold);
+      color: #0d0d0d;
+      font-weight: 700;
+      font-size: 1rem;
+      border-radius: 999px;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .cta-btn-primary:hover {
+      background: #e0b52e;
+      transform: translateY(-2px);
+      text-decoration: none;
+    }
+
+    .cta-btn-secondary {
+      display: inline-block;
+      padding: 14px 32px;
+      background: transparent;
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 1rem;
+      border-radius: 999px;
+      text-decoration: none;
+      border: 1px solid var(--border-subtle);
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .cta-btn-secondary:hover {
+      border-color: var(--accent-gold);
+      color: var(--accent-gold);
+      transform: translateY(-2px);
+      text-decoration: none;
+    }
+
+    .cta-contact-link {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .cta-contact-link a {
       color: var(--accent-blue);
       text-decoration: none;
       font-weight: 500;
     }
 
-    .cta-section a:hover { text-decoration: underline; }
+    .cta-contact-link a:hover { text-decoration: underline; }
 
     @media (max-width: 768px) {
       header .container { flex-direction: column; gap: 16px; }
@@ -273,6 +334,7 @@
         <a href="/">Home</a>
         <a href="/how-it-works.html">How It Works</a>
         <a href="/faq.html">FAQ</a>
+        <a href="/contact.html">Contact</a>
         <a href="/login.html" class="btn-login">Sign In</a>
       </nav>
     </div>
@@ -318,7 +380,8 @@
         </button>
         <div class="faq-answer">
           <div class="faq-answer-content">
-            <p>All providers on our platform go through a comprehensive verification process. This includes identity verification, background checks, license and insurance verification, and a review of their qualifications and experience.</p>
+            <p>All providers on our platform go through a comprehensive verification process. This includes identity verification, license and insurance verification, and a review of their qualifications and experience.</p>
+            <p>Providers can also voluntarily complete background checks for themselves and their employees through our Checkr integration. Look for the "Background Verified" badge to identify providers who have chosen this additional level of trust verification.</p>
             <p>Providers also build their reputation through customer reviews and ratings, so you can make informed decisions based on real feedback from other vehicle owners.</p>
           </div>
         </div>
@@ -369,9 +432,13 @@
     </div>
 
     <div class="cta-section">
-      <h2>Still have questions?</h2>
-      <p>Our support team is here to help you get started.</p>
-      <a href="/contact.html">Contact Us →</a>
+      <h2>Ready to take the wheel?</h2>
+      <p>Join thousands of vehicle owners getting better auto care — for free.</p>
+      <div class="cta-buttons">
+        <a href="/onboarding-member.html" class="cta-btn-primary">Get Started Free</a>
+        <a href="/onboarding-provider.html" class="cta-btn-secondary">Join as Provider</a>
+      </div>
+      <p class="cta-contact-link">Still have questions? <a href="/contact.html">Contact our support team →</a></p>
     </div>
   </main>
 
