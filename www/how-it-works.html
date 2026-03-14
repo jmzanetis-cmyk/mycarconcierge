@@ -7,6 +7,7 @@
   <meta name="description" content="Learn how My Car Concierge's bidding marketplace works. Post your service request, receive competitive bids, and choose the best provider." />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -103,6 +104,14 @@
       height: 120px;
       width: auto;
       border-radius: var(--radius-md);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25));
+      transition: filter 0.3s ease;
+    }
+
+    .brand:hover .brand-icon {
+      filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.4));
     }
 
     nav {
@@ -132,6 +141,16 @@
     }
 
     main { padding: 60px 0 100px; }
+
+    .section-rhythm {
+      padding: 48px 0;
+    }
+
+    @media (max-width: 768px) {
+      .section-rhythm {
+        padding: 32px 0;
+      }
+    }
 
     .page-header {
       text-align: center;
@@ -163,7 +182,7 @@
     .steps-container {
       display: flex;
       flex-direction: column;
-      gap: 40px;
+      gap: 48px;
     }
 
     .step-card {
@@ -225,17 +244,20 @@
     }
 
     .step-features li::before {
-      content: '✓';
+      content: '';
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23c9a227' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center;
+      vertical-align: middle;
       position: absolute;
       left: 0;
-      color: var(--accent-gold);
-      font-weight: bold;
     }
 
     .cta-section {
       text-align: center;
       margin-top: 80px;
-      padding: 60px;
+      padding: 60px 60px 64px;
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-xl);
@@ -299,6 +321,7 @@
         <a href="/">Home</a>
         <a href="/how-it-works.html">How It Works</a>
         <a href="/faq.html">FAQ</a>
+        <a href="/contact.html">Contact</a>
         <a href="/login.html" class="btn-login">Sign In</a>
       </nav>
     </div>
@@ -381,29 +404,36 @@
       </div>
     </div>
 
-    <div style="margin-top: 60px; padding: 40px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl);">
+    <div style="height:1px;background:linear-gradient(90deg,transparent,var(--border-subtle),transparent);margin:32px 0;"></div>
+
+    <div style="margin-top: 60px; padding: 48px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl);">
       <h2 style="font-family: 'Playfair Display', serif; font-size: 1.6rem; margin-bottom: 24px; color: var(--text-primary);">Beyond Service: Additional Platform Features</h2>
       <p style="color: var(--text-secondary); margin-bottom: 20px; line-height: 1.7;">My Car Concierge offers more than just service requests. Manage your automotive needs comprehensively with these additional tools:</p>
       <ul class="step-features" style="margin-bottom: 24px;">
         <li><strong>Vehicle Management</strong> – Track maintenance reminders, recalls, service history, and important documents all in one place</li>
-        <li><strong>Car Care Academy</strong> – Learn about your vehicle with educational resources to understand maintenance needs and care best practices</li>
+        <li><strong>Vehicle Maintenance</strong> – Learn about your vehicle with educational resources to understand maintenance needs and care best practices</li>
         <li><strong>Dream Car Finder</strong> – Shop for your next vehicle with tools to compare options and connect with sellers</li>
       </ul>
     </div>
 
-    <div style="margin-top: 40px; padding: 40px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl);">
-      <h2 style="font-family: 'Playfair Display', serif; font-size: 1.6rem; margin-bottom: 16px; color: var(--text-primary);">For Service Providers</h2>
+    <div style="height:1px;background:linear-gradient(90deg,transparent,var(--border-subtle),transparent);margin:32px 0;"></div>
+
+    <div style="margin-top: 40px; padding: 48px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl);">
+      <h2 style="font-family: 'Playfair Display', serif; font-size: 1.6rem; margin-bottom: 20px; color: var(--text-primary);">For Service Providers</h2>
       <p style="color: var(--text-secondary); margin-bottom: 24px; line-height: 1.7;">Are you a service provider looking to grow your business? Learn how My Car Concierge connects you with qualified customers seeking your expertise.</p>
       <a href="/provider-info.html" class="btn btn-primary" style="display: inline-flex;">Learn About Provider Opportunities</a>
     </div>
 
+    <div style="height:1px;background:linear-gradient(90deg,transparent,var(--border-subtle),transparent);margin:32px 0;"></div>
+
     <div class="cta-section">
       <h2>Ready to Get Started?</h2>
       <p>Join members across the country who trust My Car Concierge to find quality service providers and manage their vehicle maintenance.</p>
-      <a href="/signup-member.html" class="btn btn-primary">Create Your Free Account</a>
+      <a href="/onboarding-member.html" class="btn btn-primary">Create Your Free Account</a>
     </div>
   </main>
 
   <script src="/footer.js"></script>
+  <script src="/utils.js"></script>
 </body>
 </html>
