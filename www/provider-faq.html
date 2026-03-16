@@ -7,6 +7,7 @@
   <meta name="description" content="Frequently asked questions for service providers on My Car Concierge marketplace." />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -293,6 +294,8 @@
       .faq-question { padding: 20px 24px; font-size: 1rem; }
       .faq-answer-content { padding: 0 24px 20px; }
     }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
 </head>
 <body>
@@ -315,12 +318,64 @@
 
   <main class="container">
     <div class="page-header">
-      <span class="page-badge">🔧 For Service Providers</span>
+      <span class="page-badge"><span class="icon-inline" data-icon="wrench"></span> For Service Providers</span>
       <h1>Provider <span class="highlight">FAQ</span></h1>
       <p>Common questions from automotive service providers</p>
     </div>
 
     <div class="faq-list">
+      <div class="faq-item">
+        <button class="faq-question">
+          Will I lose my existing customers by joining MCC?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <div class="faq-answer-content">
+            <p>Absolutely not — your customers stay YOUR customers. In fact, we make your relationships even stronger. When you join, you can create a Car Club loyalty program with punch card rewards that give your customers a reason to keep coming back to you specifically.</p>
+            <p>Members auto-join your club on their first service, and their progress and rewards never expire. MCC is designed to help you retain and grow your customer base, not take it away.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question">
+          What is Car Club and how does it work?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <div class="faq-answer-content">
+            <p>Car Club is your personal loyalty program built right into the platform. You create reward rules (like 'Every 5th oil change is free'), and your customers automatically start earning toward those rewards when they complete jobs with you.</p>
+            <p>You can have up to 3 active rewards at once, and members can browse and join clubs from multiple providers. It's like having a professional loyalty app without the development cost.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question">
+          How do free bid credits work?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <div class="faq-answer-content">
+            <p>When you refer a customer to MCC and they book a job with you through the platform, you earn 10 free bid credits. These free credits never expire, and they get used before your paid bids (saving you money).</p>
+            <p>There's no cap on how many you can earn — the more loyal customers who book through you, the more free bids you accumulate.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question">
+          Can my customers belong to multiple Car Clubs?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <div class="faq-answer-content">
+            <p>Yes! Members can join as many provider Car Clubs as they like. Each club tracks progress independently, so a member might be 3 punches into your oil change reward and 7 punches into another provider's tire rotation deal.</p>
+            <p>This encourages members to build relationships with the providers they trust most.</p>
+          </div>
+        </div>
+      </div>
+
       <div class="faq-item">
         <button class="faq-question">
           How do I become a verified provider?
@@ -427,5 +482,13 @@
     });
   </script>
   <script src="/footer.js"></script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
 </body>
 </html>

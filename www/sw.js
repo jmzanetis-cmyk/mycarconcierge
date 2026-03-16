@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcc-cache-v87';
+const CACHE_NAME = 'mcc-cache-v102';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -7,7 +7,6 @@ const STATIC_ASSETS = [
   '/signup-provider.html',
   '/members.html',
   '/providers.html',
-  '/admin.html',
   '/fleet.html',
   '/provider-info.html',
   '/provider-pilot.html',
@@ -15,12 +14,15 @@ const STATIC_ASSETS = [
   '/terms.html',
   '/founding-partner-agreement.html',
   '/member-founder-agreement.html',
-  '/member-founder-deck.html',
   '/provider-agreement.html',
+  '/split-pay.html',
   '/logo.png',
   '/manifest.json',
   '/shared-styles.css',
   '/utils.js',
+  '/chat-widget-base.js',
+  '/helpdesk-widget.js',
+  '/provider-onboarding.js',
   '/pwa-init.js',
   '/i18n.js',
   '/agreement-form.js',
@@ -39,7 +41,10 @@ const STATIC_ASSETS = [
   '/fleet.js',
   '/founder-dashboard.js',
   '/check-in.js',
+  '/split-pay.js',
   '/signup-provider.js',
+  '/stripeutils.js',
+  '/supabaseclient.js',
   '/locales/en.json',
   '/locales/es.json',
   '/locales/fr.json',
@@ -90,16 +95,19 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.pathname.startsWith('/api/')) {
+    return;
+  }
+
+  // Network-first for chat widget files to ensure latest version
+  if (url.pathname === '/chat-widget-base.js' || url.pathname === '/helpdesk-widget.js') {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.match(request))
+      fetch(request).then((response) => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(request))
     );
     return;
   }

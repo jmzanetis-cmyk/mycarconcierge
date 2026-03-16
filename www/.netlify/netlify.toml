@@ -1,14 +1,14 @@
+functionsDirectory = "/home/runner/workspace/www/netlify/functions"
+functionsDirectoryOrigin = "config-v1"
 headersOrigin = "config"
+redirectsOrigin = "config"
 plugins = []
-
-[functions]
-
-[functions."*"]
 
 [build]
 publish = "/home/runner/workspace/www"
 publishOrigin = "config"
 base = "/home/runner/workspace/www"
+functions = "/home/runner/workspace/www/netlify/functions"
 
 [build.environment]
 
@@ -23,6 +23,10 @@ base = "/home/runner/workspace/www"
 [build.processing.js]
 
 [build.services]
+
+[functions]
+
+[functions."*"]
 
 [[headers]]
 for = "/*"
@@ -40,8 +44,212 @@ Cache-Control = "no-cache, no-store, must-revalidate"
 Service-Worker-Allowed = "/"
 
 [[redirects]]
-from = "/*"
-to = "/index.html"
+from = "/api/helpdesk-email"
+to = "/.netlify/functions/helpdesk-email"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/agreements/sign"
+to = "/.netlify/functions/sign-agreement"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/stripe-key"
+to = "/.netlify/functions/stripe-key"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/config/stripe"
+to = "/.netlify/functions/stripe-key"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/split/guest-details/*"
+to = "/.netlify/functions/split-guest-details/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/split/guest-pay/*"
+to = "/.netlify/functions/split-guest-pay/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/split/guest-confirm/*"
+to = "/.netlify/functions/split-guest-confirm/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/split/pay/*"
+to = "/.netlify/functions/split-pay/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/invitations/*/accept"
+to = "/.netlify/functions/accept-invitation/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/invitations/*"
+to = "/.netlify/functions/validate-invitation/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/provider-referral/lookup/*"
+to = "/.netlify/functions/referral-lookup/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/provider-referral/process"
+to = "/.netlify/functions/referral-process"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/stripe-publishable-key"
+to = "/.netlify/functions/stripe-key"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/stripe/connect/onboard/*"
+to = "/.netlify/functions/stripe-connect-onboard/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/stripe/connect/callback"
+to = "/.netlify/functions/stripe-connect-callback"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/stripe/connect/status/*"
+to = "/.netlify/functions/stripe-connect-status/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/helpdesk"
+to = "/.netlify/functions/helpdesk"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/create-bid-checkout"
+to = "/.netlify/functions/create-bid-checkout"
 status = 200.0
 force = false
 

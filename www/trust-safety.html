@@ -7,6 +7,7 @@
   <meta name="description" content="Learn how My Car Concierge protects you with provider verification, secure escrow payments, and fair dispute resolution." />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -308,6 +309,8 @@
       .trust-section { padding: 32px 24px; }
       .trust-section h2 { font-size: 1.3rem; }
     }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
 </head>
 <body>
@@ -335,7 +338,7 @@
     </div>
 
     <div class="trust-section verification">
-      <h2><span class="section-icon">🛡️</span> Provider Verification</h2>
+      <h2><span class="section-icon"><span class="icon-inline" data-icon="shield"></span></span> Provider Verification</h2>
       <p>Every service provider on My Car Concierge goes through a comprehensive verification process before they can bid on your service requests. We take provider quality seriously.</p>
       <ul class="feature-list">
         <li><strong>Identity Verification:</strong> Government ID verification ensures providers are who they claim to be.</li>
@@ -348,7 +351,7 @@
     </div>
 
     <div class="trust-section escrow">
-      <h2><span class="section-icon">💰</span> Secure Escrow System</h2>
+      <h2><span class="section-icon"><span class="icon-inline" data-icon="dollar-sign"></span></span> Secure Escrow System</h2>
       <p>Our escrow payment system protects both vehicle owners and service providers by ensuring funds are handled fairly throughout every transaction.</p>
       <ul class="feature-list">
         <li><strong>Payment Protection:</strong> Your payment is held securely until you confirm the work is complete.</li>
@@ -360,7 +363,7 @@
     </div>
 
     <div class="trust-section dispute">
-      <h2><span class="section-icon">⚖️</span> Dispute Resolution</h2>
+      <h2><span class="section-icon"><span class="icon-inline" data-icon="gavel"></span></span> Dispute Resolution</h2>
       <p>In the rare event that something goes wrong, our fair and structured dispute resolution process ensures both parties are heard and treated fairly.</p>
       <ul class="feature-list">
         <li><strong>Direct Resolution:</strong> We encourage and facilitate direct communication between parties first.</li>
@@ -374,17 +377,17 @@
 
     <div class="protection-grid">
       <div class="protection-card">
-        <div class="protection-icon">🔒</div>
+        <div class="protection-icon"><span class="icon-inline" data-icon="lock"></span></div>
         <h3>Data Security</h3>
         <p>Your personal and payment information is encrypted and stored securely using industry-best practices.</p>
       </div>
       <div class="protection-card">
-        <div class="protection-icon">⭐</div>
+        <div class="protection-icon"><span class="icon-inline" data-icon="star"></span></div>
         <h3>Review System</h3>
         <p>Authentic reviews from real customers help you make informed decisions about providers.</p>
       </div>
       <div class="protection-card">
-        <div class="protection-icon">📞</div>
+        <div class="protection-icon"><span class="icon-inline" data-icon="phone"></span></div>
         <h3>Support Team</h3>
         <p>Our dedicated support team is available to help resolve any issues that arise.</p>
       </div>
@@ -398,5 +401,13 @@
   </main>
 
   <script src="/footer.js"></script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
 </body>
 </html>

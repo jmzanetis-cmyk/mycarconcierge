@@ -2,3 +2,7 @@ node_modules
 
 # Local Netlify folder
 .netlify
+
+# Playwright
+.playwright
+test-results

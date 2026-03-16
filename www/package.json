@@ -5,7 +5,8 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npx playwright test",
+    "test:e2e": "npx playwright test",
     "electron": "electron .",
     "electron:dev": "electron .",
     "build:www": "mkdir -p www && cp -r *.html *.png manifest.json pwa-init.js sw.js supabaseclient.js icons www/",
@@ -29,21 +30,27 @@
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
-    "@capacitor-community/stripe": "^7.2.2",
-    "@capacitor/android": "^7.4.4",
-    "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",
-    "@capacitor/ios": "^7.4.4",
+    "@google-cloud/vision": "^4.3.2",
+    "@google/genai": "^1.0.0",
+    "@google/generative-ai": "^0.24.0",
     "@supabase/supabase-js": "^2.45.0",
-    "netlify-cli": "^23.12.3",
     "openai": "^4.50.0",
     "pdfkit": "^0.17.2",
-    "resend": "^6.8.0",
+    "pg": "^8.18.0",
+    "resend": "3.3.0",
+    "sharp": "^0.33.0",
     "stripe": "^15.0.0"
   },
   "devDependencies": {
+    "@capacitor-community/stripe": "^7.2.2",
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/ios": "^7.4.4",
+    "@playwright/test": "^1.58.2",
     "electron": "^39.2.6",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "netlify-cli": "^23.12.3"
   },
   "build": {
     "appId": "co.mycarconcierge.app",

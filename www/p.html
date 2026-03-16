@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title id="page-title">Provider Profile | My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" id="page-description" content="View this automotive service provider's profile on My Car Concierge. Request a quote with escrow payment protection." />
+  <meta name="theme-color" content="#12161c" />
+  <meta property="og:title" id="og-title" content="Provider Profile | My Car Concierge" />
+  <meta property="og:description" id="og-description" content="View this automotive service provider's profile. Request a quote with payment protection." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" id="og-url" content="" />
+  <meta property="og:site_name" content="My Car Concierge" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-blue: #38bdf8;
+      --accent-green: #4ade80;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+    }
+    [data-theme="light"] {
+      --bg-deep: #f3f4f6;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --border-subtle: rgba(30, 58, 95, 0.10);
+      --border-medium: rgba(30, 58, 95, 0.18);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+      --accent-blue: #1e3a5f;
+      --accent-green: #16a34a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh; font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep); color: var(--text-primary); line-height: 1.6;
+    }
+    .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    header {
+      padding: 20px 0; position: sticky; top: 0; z-index: 100;
+      background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent); backdrop-filter: blur(12px);
+    }
+    header .container { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .brand-icon { height: 50px; width: auto; border-radius: var(--radius-sm); }
+    .brand-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 1.1rem; color: var(--text-primary); }
+    .brand-tagline { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+    nav { display: flex; gap: 8px; align-items: center; }
+    nav a { padding: 8px 16px; font-size: 0.88rem; color: var(--text-secondary); text-decoration: none; border-radius: var(--radius-sm); transition: all 0.2s; }
+    nav a:hover { color: var(--text-primary); background: var(--bg-elevated); }
+    .btn-cta {
+      padding: 8px 18px; background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
+      color: #0a0a0f; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.88rem;
+    }
+    [data-theme="light"] .btn-cta { background: linear-gradient(135deg, #b8942d, #d4a63a); color: #fff; }
+
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); text-decoration: none; font-size: 0.88rem; margin-bottom: 24px; transition: color 0.2s; }
+    .back-link:hover { color: var(--accent-gold); }
+
+    .profile-header { display: flex; gap: 24px; align-items: flex-start; margin-bottom: 32px; flex-wrap: wrap; }
+    .profile-avatar {
+      width: 100px; height: 100px; border-radius: 50%; background: var(--accent-gold-soft);
+      display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 600;
+      color: var(--accent-gold); flex-shrink: 0; overflow: hidden;
+    }
+    .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .profile-info { flex: 1; min-width: 240px; }
+    .profile-info h1 { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 600; margin-bottom: 6px; }
+    .profile-location { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 0.95rem; margin-bottom: 10px; }
+    .profile-stats { display: flex; gap: 20px; flex-wrap: wrap; }
+    .stat-item { display: flex; align-items: center; gap: 6px; }
+    .stat-value { font-weight: 600; font-size: 1rem; }
+    .stat-label { font-size: 0.85rem; color: var(--text-muted); }
+    .stars { color: var(--accent-gold); letter-spacing: 1px; }
+
+    .card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 24px; margin-bottom: 20px; }
+    .card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .card h2 svg { width: 20px; height: 20px; stroke: var(--accent-gold); }
+
+    .services-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .service-tag {
+      padding: 6px 14px; background: var(--accent-gold-soft); color: var(--accent-gold);
+      border-radius: 100px; font-size: 0.82rem; font-weight: 500;
+    }
+
+    .cert-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .cert-tag {
+      display: flex; align-items: center; gap: 6px; padding: 6px 14px;
+      background: rgba(74,222,128,0.08); color: var(--accent-green);
+      border-radius: 100px; font-size: 0.82rem; font-weight: 500; border: 1px solid rgba(74,222,128,0.2);
+    }
+    .cert-tag svg { width: 14px; height: 14px; }
+
+    .badges-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+    .badge-card {
+      display: flex; align-items: center; gap: 10px; padding: 12px 18px;
+      background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md); font-size: 0.88rem; color: var(--text-secondary);
+    }
+    .badge-card svg { width: 20px; height: 20px; stroke: var(--accent-gold); flex-shrink: 0; }
+
+    .bio-text { color: var(--text-secondary); line-height: 1.7; white-space: pre-line; }
+
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+    .gallery-item { border-radius: var(--radius-sm); overflow: hidden; aspect-ratio: 1; }
+    .gallery-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s; }
+    .gallery-item:hover img { transform: scale(1.05); }
+
+    .reviews-section .review-card { padding: 20px 0; border-bottom: 1px solid var(--border-subtle); }
+    .reviews-section .review-card:last-child { border-bottom: none; }
+    .review-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+    .reviewer-name { font-weight: 600; font-size: 0.95rem; }
+    .review-date { font-size: 0.8rem; color: var(--text-muted); }
+    .review-text { color: var(--text-secondary); font-size: 0.92rem; line-height: 1.6; }
+    .review-ratings { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+    .review-sub-rating { font-size: 0.78rem; color: var(--text-muted); }
+
+    .cta-sticky {
+      position: fixed; bottom: 0; left: 0; right: 0; padding: 16px 24px;
+      background: var(--bg-deep); border-top: 1px solid var(--border-subtle);
+      backdrop-filter: blur(16px); z-index: 50;
+    }
+    .cta-sticky .container { display: flex; gap: 12px; align-items: center; justify-content: center; max-width: 900px; }
+    .btn-quote {
+      padding: 14px 40px; background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
+      color: #0a0a0f; border: none; border-radius: var(--radius-md); font-family: inherit;
+      font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; flex: 1; max-width: 400px;
+    }
+    .btn-quote:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.3); }
+    [data-theme="light"] .btn-quote { background: linear-gradient(135deg, #b8942d, #d4a63a); color: #fff; }
+
+    .loading-state { text-align: center; padding: 100px 20px; }
+    .spinner { width: 40px; height: 40px; border: 3px solid var(--border-subtle); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-state { text-align: center; padding: 100px 20px; }
+    .error-state h2 { font-size: 1.4rem; margin-bottom: 8px; }
+    .error-state p { color: var(--text-muted); margin-bottom: 20px; }
+    .error-state a { color: var(--accent-gold); text-decoration: none; }
+
+    .theme-toggle-pill {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+      background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+      border-radius: 100px; cursor: pointer; font-size: 0.8rem; color: var(--text-secondary);
+      transition: all 0.2s; user-select: none;
+    }
+    .theme-toggle-pill:hover { border-color: var(--accent-gold); }
+
+    footer { padding: 40px 0 100px; border-top: 1px solid var(--border-subtle); text-align: center; }
+    footer a { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; }
+    footer a:hover { color: var(--accent-gold); }
+    .footer-copy { font-size: 0.8rem; color: var(--text-muted); margin-top: 12px; }
+
+    @media (max-width: 768px) {
+      .profile-header { flex-direction: column; align-items: center; text-align: center; }
+      .profile-location { justify-content: center; }
+      .profile-stats { justify-content: center; }
+      .profile-info h1 { font-size: 1.5rem; }
+      nav a:not(.btn-cta) { display: none; }
+      .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="/" class="brand">
+        <img src="/logo.png" alt="My Car Concierge" class="brand-icon">
+        <div>
+          <div class="brand-name">My Car Concierge</div>
+          <div class="brand-tagline">Your Complete Auto Ownership Platform</div>
+        </div>
+      </a>
+      <nav>
+        <a href="/providers">Directory</a>
+        <a href="/how-it-works.html">How It Works</a>
+        <span class="theme-toggle-pill" onclick="toggleTheme()">
+          <span id="theme-icon">&#9790;</span>
+          <span id="theme-label">Night</span>
+        </span>
+        <a href="/login.html" class="btn-cta">Log In</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <a href="/providers" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+      Back to Directory
+    </a>
+    <div id="profile-content">
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p style="color:var(--text-muted);">Loading profile...</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="cta-sticky" id="cta-sticky" style="display:none;">
+    <div class="container">
+      <button class="btn-quote" onclick="requestQuote()">Request a Quote</button>
+    </div>
+  </div>
+
+  <footer>
+    <div class="container">
+      <a href="/">Home</a> &nbsp;|&nbsp;
+      <a href="/providers">Provider Directory</a> &nbsp;|&nbsp;
+      <a href="/how-it-works.html">How It Works</a> &nbsp;|&nbsp;
+      <a href="/privacy.html">Privacy</a> &nbsp;|&nbsp;
+      <a href="/terms.html">Terms</a>
+      <div class="footer-copy">&copy; <span id="year"></span> My Car Concierge. All rights reserved.</div>
+    </div>
+  </footer>
+
+  <script type="application/ld+json" id="jsonld-data"></script>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    let providerSlug = '';
+    let providerData = null;
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      document.getElementById('theme-icon').textContent = next === 'dark' ? '\u263E' : '\u2600';
+      document.getElementById('theme-label').textContent = next === 'dark' ? 'Night' : 'Day';
+    }
+
+    (function initThemeToggle() {
+      const t = document.documentElement.getAttribute('data-theme');
+      document.getElementById('theme-icon').textContent = t === 'dark' ? '\u263E' : '\u2600';
+      document.getElementById('theme-label').textContent = t === 'dark' ? 'Night' : 'Day';
+    })();
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function renderStars(rating) {
+      if (!rating) return '';
+      const full = Math.floor(rating);
+      const half = rating - full >= 0.5;
+      let html = '';
+      for (let i = 0; i < full; i++) html += '\u2605';
+      if (half) html += '\u2606';
+      for (let i = full + (half ? 1 : 0); i < 5; i++) html += '\u2606';
+      return html;
+    }
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    }
+
+    async function requestQuote() {
+      try {
+        if (typeof window.supabase !== 'undefined') {
+          const sb = window.supabase.createClient(
+            'https://ifbyjxuaclwmadqbjcyp.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmYnlqeHVhY2x3bWFkcWJqY3lwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MDI0OTUsImV4cCI6MjA4MDQ3ODQ5NX0.wts2W0ICqTSCUpF9ewvEk59P2A0stvqqmP0CNsPfIt8',
+            { auth: { persistSession: true, storageKey: 'sb-ifbyjxuaclwmadqbjcyp-auth-token', storage: window.localStorage } }
+          );
+          const { data: { session } } = await sb.auth.getSession();
+          if (session) {
+            const { data: profile } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
+            if (profile && (profile.role === 'member' || profile.role === 'dual')) {
+              localStorage.setItem('preferred_provider_slug', providerSlug);
+              window.location.href = '/members.html?create=true&provider=' + encodeURIComponent(providerSlug);
+              return;
+            }
+          }
+        }
+      } catch (e) {}
+      localStorage.setItem('preferred_provider_slug', providerSlug);
+      window.location.href = '/onboarding-member.html?provider=' + encodeURIComponent(providerSlug);
+    }
+
+    function getSlugFromUrl() {
+      const path = window.location.pathname;
+      const parts = path.split('/p/');
+      if (parts.length > 1) return decodeURIComponent(parts[1].replace(/\/$/, ''));
+      return null;
+    }
+
+    async function loadProfile() {
+      providerSlug = getSlugFromUrl();
+      if (!providerSlug) {
+        showError();
+        return;
+      }
+
+      try {
+        const resp = await fetch(apiBase + '/api/directory/providers/' + encodeURIComponent(providerSlug));
+        if (!resp.ok) {
+          showError();
+          return;
+        }
+
+        providerData = await resp.json();
+        renderProfile(providerData);
+        updateMeta(providerData);
+        injectJsonLd(providerData);
+        document.getElementById('cta-sticky').style.display = 'block';
+      } catch (err) {
+        console.error('Load profile error:', err);
+        showError();
+      }
+    }
+
+    function showError() {
+      document.getElementById('profile-content').innerHTML =
+        '<div class="error-state">' +
+          '<h2>Provider Not Found</h2>' +
+          '<p>This profile may no longer be available.</p>' +
+          '<a href="/providers">Browse the Provider Directory</a>' +
+        '</div>';
+    }
+
+    function updateMeta(p) {
+      const title = p.business_name + ' | My Car Concierge';
+      const location = [p.city, p.state].filter(Boolean).join(', ');
+      const desc = p.business_name + (location ? ' in ' + location : '') + '. ' + (p.services || []).slice(0, 5).join(', ') + '. Request a quote on My Car Concierge.';
+      document.title = title;
+      document.getElementById('page-title').textContent = title;
+      document.getElementById('page-description').content = desc;
+      document.getElementById('og-title').content = title;
+      document.getElementById('og-description').content = desc;
+      document.getElementById('og-url').content = 'https://mycarconcierge.com/p/' + providerSlug;
+    }
+
+    function injectJsonLd(p) {
+      const location = [p.city, p.state].filter(Boolean).join(', ');
+      const jsonLd = {
+        '@context': 'https://schema.org',
+        '@type': 'LocalBusiness',
+        'name': p.business_name,
+        'description': p.description || (p.business_name + ' on My Car Concierge'),
+        'url': 'https://mycarconcierge.com/p/' + providerSlug
+      };
+      if (location) {
+        jsonLd.address = { '@type': 'PostalAddress', 'addressLocality': p.city || '', 'addressRegion': p.state || '' };
+      }
+      if (p.avg_rating) {
+        jsonLd.aggregateRating = { '@type': 'AggregateRating', 'ratingValue': p.avg_rating, 'reviewCount': p.review_count };
+      }
+      if (p.services && p.services.length > 0) {
+        jsonLd.knowsAbout = p.services;
+      }
+      if (p.avatar_url) {
+        jsonLd.image = p.avatar_url;
+      }
+      document.getElementById('jsonld-data').textContent = JSON.stringify(jsonLd);
+    }
+
+    function renderProfile(p) {
+      const initials = (p.business_name || 'P').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+      const avatarContent = p.avatar_url
+        ? '<img src="' + escapeHtml(p.avatar_url) + '" alt="' + escapeHtml(p.business_name) + '">'
+        : initials;
+      const location = [p.city, p.state].filter(Boolean).join(', ');
+
+      let statsHtml = '';
+      if (p.avg_rating) {
+        statsHtml += '<div class="stat-item"><span class="stars">' + renderStars(parseFloat(p.avg_rating)) + '</span><span class="stat-value">' + p.avg_rating + '</span><span class="stat-label">(' + p.review_count + ' review' + (p.review_count !== 1 ? 's' : '') + ')</span></div>';
+      }
+      if (p.completed_jobs > 0) {
+        statsHtml += '<div class="stat-item"><span class="stat-value">' + p.completed_jobs + '</span><span class="stat-label">jobs completed</span></div>';
+      }
+
+      let badgesHtml = '';
+      const badges = [];
+      if (p.years_in_business && p.years_in_business >= 1) {
+        const label = p.years_in_business >= 20 ? '20+ years in business' : p.years_in_business + '+ years in business';
+        badges.push('<div class="badge-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> ' + label + '</div>');
+      }
+      if (p.member_since) {
+        badges.push('<div class="badge-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg> Member since ' + formatDate(p.member_since) + '</div>');
+      }
+      if (p.emergency_enabled) {
+        badges.push('<div class="badge-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Emergency Available</div>');
+      }
+      if (p.is_24_seven) {
+        badges.push('<div class="badge-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> 24/7 Service</div>');
+      }
+      if (p.can_tow) {
+        badges.push('<div class="badge-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg> Towing Available</div>');
+      }
+      if (badges.length > 0) badgesHtml = '<div class="badges-row">' + badges.join('') + '</div>';
+
+      let servicesHtml = '';
+      if (p.services && p.services.length > 0) {
+        servicesHtml = '<div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Services</h2><div class="services-list">' + p.services.map(function(s) { return '<span class="service-tag">' + escapeHtml(s) + '</span>'; }).join('') + '</div></div>';
+      }
+
+      let certsHtml = '';
+      const allCerts = (p.certifications || []).slice();
+      if (p.other_certifications) allCerts.push(p.other_certifications);
+      if (allCerts.length > 0) {
+        certsHtml = '<div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/></svg> Certifications</h2><div class="cert-list">' + allCerts.map(function(c) { return '<span class="cert-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg> ' + escapeHtml(c) + '</span>'; }).join('') + '</div></div>';
+      }
+
+      let bioHtml = '';
+      if (p.description) {
+        bioHtml = '<div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> About</h2><div class="bio-text">' + escapeHtml(p.description) + '</div></div>';
+      }
+
+      let galleryHtml = '';
+      if (p.gallery && p.gallery.length > 0) {
+        galleryHtml = '<div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg> Gallery</h2><div class="gallery-grid">' + p.gallery.map(function(g) { return '<div class="gallery-item"><img src="' + escapeHtml(g.image_url) + '" alt="' + escapeHtml(g.caption || p.business_name) + '" loading="lazy"></div>'; }).join('') + '</div></div>';
+      }
+
+      let reviewsHtml = '';
+      if (p.reviews && p.reviews.length > 0) {
+        const reviewCards = p.reviews.map(function(r) {
+          let subRatings = '';
+          const subs = [];
+          if (r.quality_rating) subs.push('Quality: ' + r.quality_rating + '/5');
+          if (r.communication_rating) subs.push('Communication: ' + r.communication_rating + '/5');
+          if (r.timeliness_rating) subs.push('Timeliness: ' + r.timeliness_rating + '/5');
+          if (r.value_rating) subs.push('Value: ' + r.value_rating + '/5');
+          if (subs.length > 0) subRatings = '<div class="review-ratings">' + subs.map(function(s) { return '<span class="review-sub-rating">' + s + '</span>'; }).join('') + '</div>';
+
+          return '<div class="review-card">' +
+            '<div class="review-header">' +
+              '<div><span class="reviewer-name">' + escapeHtml(r.reviewer_name) + '</span> <span class="stars" style="font-size:0.85rem;">' + renderStars(r.rating) + '</span></div>' +
+              '<span class="review-date">' + formatDate(r.created_at) + '</span>' +
+            '</div>' +
+            (r.comment ? '<div class="review-text">' + escapeHtml(r.comment) + '</div>' : '') +
+            subRatings +
+          '</div>';
+        }).join('');
+
+        reviewsHtml = '<div class="card reviews-section"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Reviews (' + p.review_count + ')</h2>' + reviewCards + '</div>';
+      }
+
+      let ctaCardHtml = '<div class="card" style="text-align:center;padding:32px;">' +
+        '<h2 style="justify-content:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Ready to get started?</h2>' +
+        '<p style="color:var(--text-secondary);margin-bottom:20px;">Get a competitive quote from ' + escapeHtml(p.business_name) + ' with escrow payment protection and verified reviews.</p>' +
+        '<button class="btn-quote" onclick="requestQuote()" style="max-width:300px;margin:0 auto;">Request a Quote</button>' +
+      '</div>';
+
+      document.getElementById('profile-content').innerHTML =
+        '<div class="profile-header">' +
+          '<div class="profile-avatar">' + avatarContent + '</div>' +
+          '<div class="profile-info">' +
+            '<h1>' + escapeHtml(p.business_name) + '</h1>' +
+            (location ? '<div class="profile-location"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> ' + escapeHtml(location) + '</div>' : '') +
+            '<div class="profile-stats">' + statsHtml + '</div>' +
+          '</div>' +
+        '</div>' +
+        badgesHtml +
+        bioHtml +
+        servicesHtml +
+        certsHtml +
+        galleryHtml +
+        reviewsHtml +
+        ctaCardHtml;
+    }
+
+    loadProfile();
+  </script>
+</body>
+</html>

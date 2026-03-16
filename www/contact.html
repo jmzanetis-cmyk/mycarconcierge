@@ -7,6 +7,7 @@
   <meta name="description" content="Get in touch with the My Car Concierge team. We're here to help with any questions about our automotive service marketplace." />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -34,6 +35,18 @@
       --radius-md: 14px;
       --radius-lg: 22px;
       --radius-xl: 32px;
+    }
+
+    html[data-theme="light"] {
+      --bg-deep: #fefdfb;
+      --bg-card: #ffffff;
+      --bg-elevated: #f5f3ef;
+      --text-primary: #1e3a5f;
+      --text-secondary: #4a5568;
+      --text-muted: #718096;
+      --accent-gold: #b8942d;
+      --border-subtle: rgba(30, 58, 95, 0.1);
+      --border-medium: rgba(30, 58, 95, 0.18);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -103,6 +116,20 @@
       height: 120px;
       width: auto;
       border-radius: var(--radius-md);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25));
+      transition: filter 0.3s ease;
+    }
+
+    .brand:hover .brand-icon {
+      filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.4));
+    }
+
+    .nav-area {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     nav {
@@ -130,6 +157,47 @@
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
     }
+
+    .theme-toggle {
+      position: relative;
+      width: 56px;
+      height: 28px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+      transition: all 0.3s ease;
+      margin-left: 8px;
+    }
+
+    .theme-toggle .toggle-knob {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--accent-gold);
+      transition: transform 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    html[data-theme="light"] .theme-toggle .toggle-knob {
+      transform: translateX(28px);
+    }
+
+    .theme-toggle .icon-moon,
+    .theme-toggle .icon-sun {
+      width: 14px;
+      height: 14px;
+    }
+
+    .theme-toggle .icon-sun { display: none; }
+    .theme-toggle .icon-moon { display: block; }
+    html[data-theme="light"] .theme-toggle .icon-sun { display: block; }
+    html[data-theme="light"] .theme-toggle .icon-moon { display: none; }
 
     main { padding: 60px 0 100px; }
 
@@ -160,16 +228,52 @@
 
     .contact-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 340px;
       gap: 40px;
+      max-width: 1100px;
+      margin: 0 auto;
     }
 
-    .contact-form {
+    .contact-form-wrapper {
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-xl);
       padding: 40px;
     }
+
+    .tab-buttons {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 500;
+      border: 1px solid var(--border-medium);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+      border-color: var(--accent-gold);
+    }
+
+    .tab-btn.active {
+      background: var(--accent-gold);
+      color: #0a0a0f;
+      border-color: var(--accent-gold);
+    }
+
+    .tab-form { display: none; }
+    .tab-form.active { display: block; }
 
     .form-group {
       margin-bottom: 24px;
@@ -201,13 +305,21 @@
     .form-group select:focus,
     .form-group textarea:focus {
       outline: none;
-      border-color: var(--accent-blue);
-      box-shadow: 0 0 0 3px rgba(74, 124, 255, 0.15);
+      border-color: var(--accent-gold);
+      box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
     }
 
     .form-group input::placeholder,
     .form-group textarea::placeholder {
       color: var(--text-muted);
+    }
+
+    .form-group select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      padding-right: 40px;
     }
 
     .form-group textarea {
@@ -243,6 +355,19 @@
       box-shadow: 0 12px 40px rgba(212, 168, 85, 0.4);
     }
 
+    .btn-primary:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .confidentiality-note {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 16px;
+    }
+
     .contact-info {
       display: flex;
       flex-direction: column;
@@ -270,8 +395,9 @@
     }
 
     .info-card a {
-      color: var(--accent-blue);
+      color: var(--accent-gold);
       text-decoration: none;
+      font-weight: 500;
     }
 
     .info-card a:hover { text-decoration: underline; }
@@ -279,11 +405,27 @@
     .form-success {
       display: none;
       text-align: center;
-      padding: 40px;
+      padding: 60px 20px;
     }
 
     .form-success.show { display: block; }
-    .form-success.show + form { display: none; }
+
+    .form-success .checkmark-icon {
+      width: 64px;
+      height: 64px;
+      background: rgba(34, 197, 94, 0.15);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+    }
+
+    .form-success .checkmark-icon svg {
+      width: 32px;
+      height: 32px;
+      color: #22c55e;
+    }
 
     .form-success h3 {
       font-family: 'Playfair Display', serif;
@@ -298,9 +440,11 @@
 
     @media (max-width: 768px) {
       header .container { flex-direction: column; gap: 16px; }
-      nav { width: 100%; justify-content: center; }
+      .nav-area { width: 100%; justify-content: center; flex-wrap: wrap; }
+      nav { width: auto; justify-content: center; }
       .contact-grid { grid-template-columns: 1fr; }
-      .contact-form { padding: 32px 24px; }
+      .contact-form-wrapper { padding: 32px 24px; }
+      .tab-buttons { justify-content: center; }
     }
   </style>
 </head>
@@ -313,12 +457,21 @@
       <a href="/" class="brand">
         <img src="/logo.png" alt="My Car Concierge" class="brand-icon" />
       </a>
-      <nav>
-        <a href="/">Home</a>
-        <a href="/how-it-works.html">How It Works</a>
-        <a href="/faq.html">FAQ</a>
-        <a href="/login.html" class="btn-login">Sign In</a>
-      </nav>
+      <div class="nav-area">
+        <nav>
+          <a href="/">Home</a>
+          <a href="/how-it-works.html">How It Works</a>
+          <a href="/faq.html">FAQ</a>
+          <a href="/contact.html">Contact</a>
+          <a href="/login.html" class="btn-login">Sign In</a>
+        </nav>
+        <div class="theme-toggle" id="themeToggle" role="button" aria-label="Toggle theme">
+          <div class="toggle-knob">
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="currentColor"><path d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z"/></svg>
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Zm11.394-5.834a.75.75 0 0 0-1.06-1.06l-1.591 1.59a.75.75 0 1 0 1.06 1.061l1.591-1.59Zm-15.788 0a.75.75 0 0 1 1.06-1.06l1.591 1.59a.75.75 0 0 1-1.06 1.061l-1.591-1.59ZM12 18a.75.75 0 0 1 .75.75V21a.75.75 0 0 1-1.5 0v-2.25A.75.75 0 0 1 12 18Zm4.894-.44a.75.75 0 0 0-1.06 1.06l1.59 1.591a.75.75 0 1 0 1.061-1.06l-1.59-1.591Zm-9.788 0a.75.75 0 0 1 1.06 1.06l-1.59 1.591a.75.75 0 1 1-1.061-1.06l1.59-1.591ZM21.75 12a.75.75 0 0 1-.75.75h-2.25a.75.75 0 0 1 0-1.5H21a.75.75 0 0 1 .75.75ZM3 11.25a.75.75 0 0 0 0 1.5h2.25a.75.75 0 0 0 0-1.5H3Z"/></svg>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -329,44 +482,140 @@
     </div>
 
     <div class="contact-grid">
-      <div class="contact-form">
+      <div class="contact-form-wrapper">
         <div class="form-success" id="formSuccess">
+          <div class="checkmark-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
           <h3>Message Sent!</h3>
-          <p>Thank you for reaching out. We'll get back to you within 24-48 hours.</p>
+          <p>Thank you for reaching out. We'll get back to you within 24 hours.</p>
         </div>
-        <form id="contactForm">
-          <div class="form-group">
-            <label for="email">Email Address</label>
-            <input type="email" id="email" name="email" placeholder="you@example.com" required />
+
+        <div id="formArea">
+          <div class="tab-buttons">
+            <button class="tab-btn active" data-tab="provider">I'm a Provider</button>
+            <button class="tab-btn" data-tab="member">I'm a Member</button>
+            <button class="tab-btn" data-tab="general">General Inquiry</button>
           </div>
-          <div class="form-group">
-            <label for="subject">Subject</label>
-            <select id="subject" name="subject" required>
-              <option value="">Select a topic...</option>
-              <option value="general">General Inquiry</option>
-              <option value="support">Account Support</option>
-              <option value="billing">Billing Question</option>
-              <option value="provider">Become a Provider</option>
-              <option value="partnership">Partnership Opportunity</option>
-              <option value="feedback">Feedback</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="message">Message</label>
-            <textarea id="message" name="message" placeholder="How can we help you?" required></textarea>
-          </div>
-          <button type="submit" class="btn btn-primary">Send Message</button>
-        </form>
+
+          <form class="tab-form active" id="form-provider" data-type="provider">
+            <div class="form-group">
+              <label for="provider-name">Your Name</label>
+              <input type="text" id="provider-name" name="name" placeholder="Your name" required />
+            </div>
+            <div class="form-group">
+              <label for="provider-company">Company Name</label>
+              <input type="text" id="provider-company" name="company" placeholder="Your Company" />
+            </div>
+            <div class="form-group">
+              <label for="provider-email">Email</label>
+              <input type="email" id="provider-email" name="email" placeholder="you@example.com" required />
+            </div>
+            <div class="form-group">
+              <label for="provider-phone">Phone</label>
+              <input type="tel" id="provider-phone" name="phone" placeholder="(555) 000-0000" />
+            </div>
+            <div class="form-group">
+              <label for="provider-topic">What do you need help with?</label>
+              <select id="provider-topic" name="topic" required>
+                <option value="" disabled selected>Select a topic</option>
+                <option value="Joining as a Provider">Joining as a Provider</option>
+                <option value="Onboarding Help">Onboarding Help</option>
+                <option value="Bid Credits & Billing">Bid Credits & Billing</option>
+                <option value="Technical Support">Technical Support</option>
+                <option value="Partnership Opportunity">Partnership Opportunity</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="provider-message">Tell me about your situation</label>
+              <textarea id="provider-message" name="message" placeholder="Tell me a bit about your current situation..." required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              Request Free Consultation
+            </button>
+            <p class="confidentiality-note">Your information is kept strictly confidential. We never share your data.</p>
+          </form>
+
+          <form class="tab-form" id="form-member" data-type="member">
+            <div class="form-group">
+              <label for="member-name">Your Name</label>
+              <input type="text" id="member-name" name="name" placeholder="Your name" required />
+            </div>
+            <div class="form-group">
+              <label for="member-email">Email</label>
+              <input type="email" id="member-email" name="email" placeholder="you@example.com" required />
+            </div>
+            <div class="form-group">
+              <label for="member-phone">Phone</label>
+              <input type="tel" id="member-phone" name="phone" placeholder="(555) 000-0000" />
+            </div>
+            <div class="form-group">
+              <label for="member-topic">What do you need help with?</label>
+              <select id="member-topic" name="topic" required>
+                <option value="" disabled selected>Select a topic</option>
+                <option value="Service Question">Service Question</option>
+                <option value="Account Help">Account Help</option>
+                <option value="Billing Question">Billing Question</option>
+                <option value="Vehicle Management">Vehicle Management</option>
+                <option value="Feedback">Feedback</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="member-message">Tell me about your situation</label>
+              <textarea id="member-message" name="message" placeholder="Tell me a bit about your current situation..." required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              Request Free Consultation
+            </button>
+            <p class="confidentiality-note">Your information is kept strictly confidential. We never share your data.</p>
+          </form>
+
+          <form class="tab-form" id="form-general" data-type="general">
+            <div class="form-group">
+              <label for="general-name">Your Name</label>
+              <input type="text" id="general-name" name="name" placeholder="Your name" required />
+            </div>
+            <div class="form-group">
+              <label for="general-email">Email</label>
+              <input type="email" id="general-email" name="email" placeholder="you@example.com" required />
+            </div>
+            <div class="form-group">
+              <label for="general-phone">Phone</label>
+              <input type="tel" id="general-phone" name="phone" placeholder="(555) 000-0000" />
+            </div>
+            <div class="form-group">
+              <label for="general-topic">What do you need help with?</label>
+              <select id="general-topic" name="topic" required>
+                <option value="" disabled selected>Select a topic</option>
+                <option value="General Inquiry">General Inquiry</option>
+                <option value="Press & Media">Press & Media</option>
+                <option value="Partnership">Partnership</option>
+                <option value="Investment Opportunity">Investment Opportunity</option>
+                <option value="Careers">Careers</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="general-message">Tell me about your situation</label>
+              <textarea id="general-message" name="message" placeholder="Tell me a bit about your current situation..." required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              Request Free Consultation
+            </button>
+            <p class="confidentiality-note">Your information is kept strictly confidential. We never share your data.</p>
+          </form>
+        </div>
       </div>
 
       <div class="contact-info">
         <div class="info-card">
-          <h3>Email Us</h3>
-          <p>For general inquiries:<br><a href="mailto:support@mycarconcierge.com">support@mycarconcierge.com</a></p>
-        </div>
-        <div class="info-card">
           <h3>Response Time</h3>
-          <p>We typically respond to all inquiries within 24-48 business hours. For urgent matters, please indicate so in your subject line.</p>
+          <p>We typically respond within 24 hours during business days.</p>
         </div>
         <div class="info-card">
           <h3>Help Center</h3>
@@ -374,18 +623,91 @@
         </div>
         <div class="info-card">
           <h3>For Providers</h3>
-          <p>Interested in joining as a service provider? Visit our <a href="/provider-info.html">Provider Info</a> page or contact us directly.</p>
+          <p>Interested in joining as a service provider? Visit our <a href="/provider-info.html">Provider Info</a> page to learn more.</p>
+        </div>
+        <div class="info-card">
+          <h3>For Members</h3>
+          <p>Need to manage your account? <a href="/login.html">Sign in</a> to access your dashboard.</p>
         </div>
       </div>
     </div>
   </main>
 
   <script>
-    document.getElementById('contactForm').addEventListener('submit', function(e) {
-      e.preventDefault();
-      document.getElementById('formSuccess').classList.add('show');
-    });
+    (function() {
+      var saved = localStorage.getItem('theme');
+      if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+
+      document.getElementById('themeToggle').addEventListener('click', function() {
+        var isLight = document.documentElement.getAttribute('data-theme') === 'light';
+        if (isLight) {
+          document.documentElement.removeAttribute('data-theme');
+          localStorage.setItem('theme', 'dark');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'light');
+          localStorage.setItem('theme', 'light');
+        }
+      });
+
+      var tabs = document.querySelectorAll('.tab-btn');
+      var forms = document.querySelectorAll('.tab-form');
+
+      tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          var target = tab.getAttribute('data-tab');
+          tabs.forEach(function(t) { t.classList.remove('active'); });
+          forms.forEach(function(f) { f.classList.remove('active'); });
+          tab.classList.add('active');
+          document.getElementById('form-' + target).classList.add('active');
+        });
+      });
+
+      forms.forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          var btn = form.querySelector('button[type="submit"]');
+          var originalText = btn.innerHTML;
+          btn.disabled = true;
+          btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" opacity="0.3"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></path></svg> Sending...';
+
+          var formData = new FormData(form);
+          var payload = {
+            name: formData.get('name') || '',
+            company: formData.get('company') || '',
+            email: formData.get('email') || '',
+            phone: formData.get('phone') || '',
+            topic: formData.get('topic') || '',
+            message: formData.get('message') || '',
+            formType: form.getAttribute('data-type')
+          };
+
+          fetch('https://02d27e1f-6d6d-48b8-b938-06bb7cd16658-00-3tgt4fe0973fs.worf.replit.dev/api/contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          })
+          .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
+          .then(function(result) {
+            if (result.ok && result.data.success) {
+              document.getElementById('formArea').style.display = 'none';
+              document.getElementById('formSuccess').classList.add('show');
+            } else {
+              btn.disabled = false;
+              btn.innerHTML = originalText;
+              alert(result.data.error || 'Something went wrong. Please try again.');
+            }
+          })
+          .catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            alert('Network error. Please check your connection and try again.');
+          });
+        });
+      });
+    })();
   </script>
   <script src="/footer.js"></script>
+  <script src="/utils.js"></script>
+  <script src="analytics-tracker.js" defer></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 (function() {
-  const REPLIT_API_URL = 'https://02d27e1f-6d6d-48b8-b938-06bb7cd16658-00-3tgt4fe0973fs.worf.replit.dev';
+  const REPLIT_API_URL = 'https://my-car-concierge--jmzanetis.replit.app';
   
   const isNetlify = window.location.hostname.includes('netlify') || 
                     window.location.hostname === 'mycarconcierge.com' ||

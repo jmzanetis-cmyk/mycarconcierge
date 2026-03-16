@@ -7,6 +7,7 @@
   <meta name="description" content="Terms of Service for My Car Concierge marketplace platform." />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <script>
@@ -242,10 +243,14 @@
     }
 
     .disclaimer-box li::before {
-      content: '⚠';
+      content: '';
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23c9a227' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cpath d='M12 9v4'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E") no-repeat center;
+      vertical-align: middle;
       position: absolute;
       left: 0;
-      color: var(--accent-gold);
     }
 
     .terms-section {
@@ -440,6 +445,8 @@
         gap: 16px;
       }
     }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
 </head>
 <body>
@@ -467,7 +474,7 @@
 
       <div class="terms-body">
         <div class="disclaimer-box">
-          <h3>⚠️ Important Disclaimers</h3>
+          <h3><span class="icon-inline" data-icon="alert-triangle"></span> Important Disclaimers</h3>
           <ul>
             <li>My Car Concierge ("MCC") is a marketplace connecting vehicle owners with independent service providers</li>
             <li>MCC does NOT perform any automotive services directly</li>
@@ -541,7 +548,7 @@
           <p>All payments on the MCC platform are processed securely through Stripe, our third-party payment processor.</p>
           <ul>
             <li><strong>Escrow System:</strong> When a Member accepts a Provider's bid, the payment amount is held in escrow until the service is completed and confirmed.</li>
-            <li><strong>Platform Fees:</strong> MCC charges a platform fee on transactions, which is deducted from the Provider's payment. Current fee structures are disclosed during the bidding process.</li>
+            <li><strong>No Platform Fees:</strong> MCC does not charge platform fees on transactions. Providers receive the full bid amount.</li>
             <li><strong>Release of Funds:</strong> Funds are released to the Provider after the Member confirms service completion or after any applicable review period.</li>
             <li><strong>Refunds:</strong> Refund requests for completed services must be resolved between the Member and Provider. MCC may mediate disputes but is not obligated to issue refunds for services provided by Providers.</li>
           </ul>
@@ -642,5 +649,13 @@
     </div>
   </main>
   <script src="/footer.js"></script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
 </body>
 </html>

@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -83,7 +84,8 @@
       margin-bottom: 40px;
       text-decoration: none;
     }
-    .brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); }
+    .brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25)); transition: filter 0.3s ease; }
+    .brand:hover .brand-icon { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.4)); }
 
     .card {
       background: var(--bg-card);
@@ -246,6 +248,8 @@
 
     #invite-content, #login-form, #signup-form { display: none; }
     #loading-state { display: block; }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
 </head>
 <body>
@@ -262,14 +266,14 @@
       </div>
 
       <div id="error-state" class="error-state" style="display: none;">
-        <div class="error-icon">⚠️</div>
+        <div class="error-icon"><span class="icon-inline" data-icon="alert-triangle"></span></div>
         <h2>Invalid Invitation</h2>
         <p id="error-message">This invitation link is invalid or has already been used.</p>
         <a href="login.html" class="btn btn-secondary">Go to Login</a>
       </div>
 
       <div id="expired-state" class="expired-state" style="display: none;">
-        <div class="expired-icon">⏰</div>
+        <div class="expired-icon"><span class="icon-inline" data-icon="clock"></span></div>
         <h2>Invitation Expired</h2>
         <p>This invitation has expired. Please contact the team administrator to request a new invitation.</p>
         <a href="login.html" class="btn btn-secondary">Go to Login</a>
@@ -360,7 +364,7 @@
       </div>
 
       <div id="success-state" class="success-state" style="display: none;">
-        <div class="success-icon">🎉</div>
+        <div class="success-icon"><span class="icon-inline" data-icon="party-popper"></span></div>
         <h2>Welcome to the Team!</h2>
         <p>You've successfully joined the team. You can now access the provider dashboard.</p>
         <a href="providers.html" class="btn btn-primary">Go to Dashboard</a>
@@ -372,6 +376,7 @@
     </div>
   </div>
 
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
   <script>
     let invitationData = null;
@@ -591,6 +596,14 @@
     }
 
     init();
+  </script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
   </script>
 </body>
 </html>

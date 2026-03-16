@@ -1,0 +1,11 @@
+{
+  "name": "mcc-outreach-runner",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@google/genai": "^0.14.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "resend": "^6.8.0"
+  }
+}

@@ -1,2 +1,18 @@
-# SPA fallback - only catch routes that don't match files
-/*    /index.html   200
+/api/agreements/sign /.netlify/functions/sign-agreement 200
+/api/stripe-key /.netlify/functions/stripe-key 200
+/api/config/stripe /.netlify/functions/stripe-key 200
+/api/split/guest-details/* /.netlify/functions/split-guest-details/:splat 200
+/api/split/guest-pay/* /.netlify/functions/split-guest-pay/:splat 200
+/api/split/guest-confirm/* /.netlify/functions/split-guest-confirm/:splat 200
+/api/split/pay/* /.netlify/functions/split-pay/:splat 200
+/api/invitations/*/accept /.netlify/functions/accept-invitation/:splat 200
+/api/invitations/* /.netlify/functions/validate-invitation/:splat 200
+/api/provider-referral/lookup/* /.netlify/functions/referral-lookup/:splat 200
+/api/provider-referral/process /.netlify/functions/referral-process 200
+/api/stripe-publishable-key /.netlify/functions/stripe-key 200
+/api/stripe/connect/onboard/* /.netlify/functions/stripe-connect-onboard/:splat 200
+/api/stripe/connect/callback /.netlify/functions/stripe-connect-callback 200
+/api/stripe/connect/status/* /.netlify/functions/stripe-connect-status/:splat 200
+/api/create-bid-checkout /.netlify/functions/create-bid-checkout 200
+/api/helpdesk /.netlify/functions/helpdesk 200
+/api/helpdesk-email /.netlify/functions/helpdesk-email 200

@@ -57,7 +57,7 @@
       
       const btn = document.getElementById('refresh-recalls-btn');
       btn.disabled = true;
-      btn.innerHTML = '⏳ Checking...';
+      btn.innerHTML = mccIcon('refresh-cw', 14) + ' Checking...';
       
       document.getElementById('recalls-list').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Checking NHTSA for updates...</div>';
       
@@ -69,7 +69,7 @@
         console.error('Error refreshing recalls:', error);
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '🔄 Check for Updates';
+        btn.innerHTML = `${mccIcon('refresh-cw', 16)} Check for Updates`;
       }
     }
     
@@ -113,14 +113,14 @@
             
             ${recall.consequence ? `
               <div class="recall-card-section">
-                <div class="recall-card-section-title">⚠️ Consequence</div>
+                <div class="recall-card-section-title">${mccIcon('alert-triangle', 16)} Consequence</div>
                 <div class="recall-card-section-content" style="color: var(--accent-red);">${escapeHtml(recall.consequence)}</div>
               </div>
             ` : ''}
             
             ${recall.remedy ? `
               <div class="recall-card-section">
-                <div class="recall-card-section-title">✅ Remedy</div>
+                <div class="recall-card-section-title">${mccIcon('check-circle', 14)} Remedy</div>
                 <div class="recall-card-section-content">${escapeHtml(recall.remedy)}</div>
               </div>
             ` : ''}
@@ -128,16 +128,16 @@
             ${!isAcknowledged ? `
               <div class="recall-card-actions">
                 <button class="btn btn-success btn-sm" onclick="acknowledgeRecall('${recall.id}')">
-                  ✓ Mark as Addressed
+                  ${mccIcon('check-circle', 14)} Mark as Addressed
                 </button>
                 <button class="btn btn-secondary btn-sm" onclick="createPackageForVehicle('${currentRecallsVehicleId}')">
-                  📦 Request Service
+                  ${mccIcon('package', 16)} Request Service
                 </button>
               </div>
             ` : `
               <div class="recall-card-actions">
                 <span style="font-size: 0.82rem; color: var(--text-muted);">
-                  ✓ Addressed ${recall.acknowledged_at ? new Date(recall.acknowledged_at).toLocaleDateString() : ''}
+                  ${mccIcon('check-circle', 14)} Addressed ${recall.acknowledged_at ? new Date(recall.acknowledged_at).toLocaleDateString() : ''}
                 </span>
               </div>
             `}
@@ -299,10 +299,10 @@
       if (status) {
         statusContainer.style.display = 'block';
         const statusLabels = {
-          pending: '⏳ Pending Review',
-          approved: '✅ Approved',
-          rejected: '❌ Rejected',
-          needs_review: '🔍 Needs Manual Review'
+          pending: mccIcon('clock', 16) + ' Pending Review',
+          approved: mccIcon('check-circle', 16) + ' Approved',
+          rejected: mccIcon('x', 16) + ' Rejected',
+          needs_review: mccIcon('search', 16) + ' Needs Manual Review'
         };
         document.getElementById('registration-status-display').innerHTML = `
           <span class="registration-status-badge ${status.status}">${statusLabels[status.status] || status.status}</span>
@@ -409,11 +409,11 @@
       
       const btn = document.getElementById('verify-registration-btn');
       btn.disabled = true;
-      btn.innerHTML = '⏳ Processing...';
+      btn.innerHTML = mccIcon('refresh-cw', 14) + ' Processing...';
       
       document.getElementById('registration-loading').style.display = 'block';
       document.getElementById('registration-result').style.display = 'none';
-      document.getElementById('registration-loading-icon').textContent = '📤';
+      document.getElementById('registration-loading-icon').innerHTML = mccIcon('upload', 24);
       document.getElementById('registration-loading-text').textContent = 'Uploading document...';
       document.getElementById('registration-loading-subtext').textContent = 'Please wait';
       document.getElementById('registration-progress-bar').style.width = '20%';
@@ -427,9 +427,9 @@
           throw new Error('Failed to upload document');
         }
         
-        document.getElementById('registration-loading-icon').textContent = '🔍';
+        document.getElementById('registration-loading-icon').innerHTML = mccIcon('search', 24);
         document.getElementById('registration-loading-text').textContent = 'Analyzing document...';
-        document.getElementById('registration-loading-subtext').textContent = 'Extracting registration details';
+        document.getElementById('registration-loading-subtext').textContent = 'Extracting registration details with AI';
         document.getElementById('registration-progress-bar').style.width = '70%';
         
         const result = await verifyRegistration(registrationUrl, currentRegistrationVehicleId);
@@ -444,37 +444,33 @@
         if (result.success) {
           const statusConfig = {
             approved: {
-              icon: '✅',
+              icon: mccIcon('check-circle', 48),
               title: 'Registration Verified!',
               message: 'Your vehicle registration has been successfully verified.',
-              class: 'approved',
               bgColor: 'var(--accent-green-soft)',
               borderColor: 'rgba(74,200,140,0.3)',
               color: 'var(--accent-green)'
             },
             needs_review: {
-              icon: '🔍',
+              icon: mccIcon('search', 48),
               title: 'Manual Review Required',
               message: 'Your registration requires manual review. We\'ll verify it within 24-48 hours.',
-              class: 'needs_review',
               bgColor: 'var(--accent-blue-soft)',
               borderColor: 'rgba(74,124,255,0.3)',
               color: 'var(--accent-blue)'
             },
             rejected: {
-              icon: '❌',
+              icon: mccIcon('x', 48),
               title: 'Verification Failed',
               message: 'The registration document could not be verified. Please ensure the image is clear and try again.',
-              class: 'rejected',
               bgColor: 'rgba(239,95,95,0.15)',
               borderColor: 'rgba(239,95,95,0.3)',
               color: 'var(--accent-red)'
             },
             pending: {
-              icon: '⏳',
+              icon: mccIcon('clock', 48),
               title: 'Verification Pending',
               message: 'Your registration is being processed.',
-              class: 'pending',
               bgColor: 'var(--accent-orange-soft)',
               borderColor: 'rgba(245,158,11,0.3)',
               color: 'var(--accent-orange)'
@@ -482,20 +478,49 @@
           };
           
           const config = statusConfig[result.status] || statusConfig.pending;
+          const d = result.details || {};
+          
+          function fieldRow(label, value, inputId) {
+            const hasValue = value !== null && value !== undefined && value !== '';
+            return `
+              <div style="margin-bottom:10px;">
+                <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:3px;">${label}${!hasValue ? ' <span style="color:var(--accent-orange);font-size:0.72rem;">(not detected)</span>' : ''}</label>
+                <input type="text" class="form-input" id="${inputId}" value="${hasValue ? escapeHtml(String(value)) : ''}" placeholder="Enter ${label.toLowerCase()}" style="font-size:0.88rem;">
+              </div>`;
+          }
           
           resultContainer.innerHTML = `
-            <div style="background:${config.bgColor};border:1px solid ${config.borderColor};border-radius:var(--radius-md);padding:20px;text-align:center;">
-              <div style="font-size:48px;margin-bottom:12px;">${config.icon}</div>
-              <div style="font-weight:600;font-size:1.1rem;margin-bottom:8px;color:${config.color};">${config.title}</div>
-              <p style="color:var(--text-secondary);font-size:0.9rem;">${config.message}</p>
-              ${result.details ? `
-                <div style="margin-top:12px;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);text-align:left;">
-                  <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">Extracted Information:</div>
-                  ${result.details.licensePlate ? `<div style="font-size:0.88rem;"><strong>Plate:</strong> ${result.details.licensePlate}</div>` : ''}
-                  ${result.details.vin ? `<div style="font-size:0.88rem;"><strong>VIN:</strong> ${result.details.vin}</div>` : ''}
-                  ${result.details.expirationDate ? `<div style="font-size:0.88rem;"><strong>Expires:</strong> ${result.details.expirationDate}</div>` : ''}
-                </div>
-              ` : ''}
+            <div style="background:${config.bgColor};border:1px solid ${config.borderColor};border-radius:var(--radius-md);padding:16px;text-align:center;margin-bottom:16px;">
+              <div style="font-size:36px;margin-bottom:8px;">${config.icon}</div>
+              <div style="font-weight:600;font-size:1rem;margin-bottom:4px;color:${config.color};">${config.title}</div>
+              <p style="color:var(--text-secondary);font-size:0.85rem;">${config.message}</p>
+            </div>
+            
+            <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                ${mccIcon('edit', 16)}
+                <span style="font-weight:600;font-size:0.95rem;">Review Extracted Info</span>
+              </div>
+              <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:14px;">Review and correct the information extracted from your registration. Fields that couldn't be read are left blank.</p>
+              
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px;">
+                ${fieldRow('VIN', d.vin, 'reg-review-vin')}
+                ${fieldRow('License Plate', d.licensePlate, 'reg-review-plate')}
+                ${fieldRow('Year', d.year, 'reg-review-year')}
+                ${fieldRow('Make', d.make, 'reg-review-make')}
+                ${fieldRow('Model', d.model, 'reg-review-model')}
+                ${fieldRow('State', d.state, 'reg-review-state')}
+              </div>
+              ${fieldRow('Expiration Date', d.expirationDate, 'reg-review-expiration')}
+              
+              <div style="display:flex;gap:10px;margin-top:16px;">
+                <button class="btn btn-gold" onclick="confirmRegistrationExtraction('${currentRegistrationVehicleId}')" style="flex:1;">
+                  ${mccIcon('check-circle', 14)} Confirm & Save
+                </button>
+                <button class="btn btn-secondary" onclick="closeModal('registration-modal')" style="flex:0 0 auto;">
+                  Skip
+                </button>
+              </div>
             </div>
           `;
           
@@ -506,14 +531,14 @@
         } else {
           resultContainer.innerHTML = `
             <div style="background:rgba(239,95,95,0.15);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);padding:20px;text-align:center;">
-              <div style="font-size:48px;margin-bottom:12px;">❌</div>
+              <div style="font-size:48px;margin-bottom:12px;">${mccIcon('x-circle', 48)}</div>
               <div style="font-weight:600;font-size:1.1rem;margin-bottom:8px;color:var(--accent-red);">Verification Error</div>
               <p style="color:var(--text-secondary);font-size:0.9rem;">${result.error || 'An error occurred during verification. Please try again.'}</p>
             </div>
           `;
         }
         
-        btn.innerHTML = '✓ Verify Registration';
+        btn.innerHTML = mccIcon('check-circle', 14) + ' Verify Registration';
         btn.disabled = true;
         
       } catch (error) {
@@ -522,19 +547,244 @@
         document.getElementById('registration-loading').style.display = 'none';
         document.getElementById('registration-result').innerHTML = `
           <div style="background:rgba(239,95,95,0.15);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);padding:20px;text-align:center;">
-            <div style="font-size:48px;margin-bottom:12px;">❌</div>
+            <div style="font-size:48px;margin-bottom:12px;">${mccIcon('x-circle', 48)}</div>
             <div style="font-weight:600;font-size:1.1rem;margin-bottom:8px;color:var(--accent-red);">Upload Failed</div>
             <p style="color:var(--text-secondary);font-size:0.9rem;">${error.message || 'Failed to upload the document. Please try again.'}</p>
           </div>
         `;
         document.getElementById('registration-result').style.display = 'block';
         
-        btn.innerHTML = '✓ Verify Registration';
+        btn.innerHTML = mccIcon('check-circle', 14) + ' Verify Registration';
         btn.disabled = false;
       }
     }
     
+    async function confirmRegistrationExtraction(vehicleId) {
+      const vin = document.getElementById('reg-review-vin')?.value?.trim().toUpperCase() || null;
+      const plate = document.getElementById('reg-review-plate')?.value?.trim().toUpperCase() || null;
+      const year = document.getElementById('reg-review-year')?.value?.trim() || null;
+      const make = document.getElementById('reg-review-make')?.value?.trim() || null;
+      const model = document.getElementById('reg-review-model')?.value?.trim() || null;
+      const state = document.getElementById('reg-review-state')?.value?.trim().toUpperCase() || null;
+      const expiration = document.getElementById('reg-review-expiration')?.value?.trim() || null;
+      
+      const updateData = {};
+      if (vin) updateData.vin = vin;
+      if (plate) updateData.license_plate = plate;
+      if (year) updateData.year = parseInt(year) || null;
+      if (make) updateData.make = make;
+      if (model) updateData.model = model;
+      if (state) updateData.registration_state = state;
+      if (expiration) updateData.registration_expiration = expiration;
+      
+      if (Object.keys(updateData).length === 0) {
+        showToast('No fields to update', 'info');
+        closeModal('registration-modal');
+        return;
+      }
+      
+      try {
+        const { data, error } = await supabaseClient
+          .from('vehicles')
+          .update(updateData)
+          .eq('id', vehicleId)
+          .select();
+        
+        if (error) {
+          console.error('Vehicle update error:', error);
+          showToast('Some fields could not be saved, but verification is complete.', 'error');
+        } else {
+          showToast('Vehicle details updated from registration!', 'success');
+        }
+        
+        closeModal('registration-modal');
+        await loadVehicles();
+        updateStats();
+      } catch (err) {
+        console.error('Error saving extracted data:', err);
+        showToast('Error saving data. Please update vehicle details manually.', 'error');
+        closeModal('registration-modal');
+      }
+    }
+    
     // ========== END REGISTRATION VERIFICATION ==========
+    
+    // ========== INSURANCE CARD EXTRACTION ==========
+    
+    async function extractInsuranceCard(file, vehicleId) {
+      if (!supabaseClient || !currentUser) {
+        showToast('Not authenticated', 'error');
+        return null;
+      }
+      
+      const timestamp = Date.now();
+      const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filePath = `${currentUser.id}/${timestamp}_insurance_${safeFileName}`;
+      
+      const { data: uploadData, error: uploadError } = await supabaseClient.storage
+        .from('insurance-documents')
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
+      
+      if (uploadError) {
+        console.error('Insurance upload error:', uploadError);
+        showToast('Failed to upload insurance card', 'error');
+        return null;
+      }
+      
+      const { data: publicData } = supabaseClient.storage
+        .from('insurance-documents')
+        .getPublicUrl(filePath);
+      
+      return { url: publicData?.publicUrl || null, storagePath: filePath };
+    }
+    
+    async function submitInsuranceExtraction(vehicleId) {
+      const fileInput = document.getElementById('insurance-file-input');
+      const file = fileInput?.files?.[0] || window._pendingInsuranceFile;
+      
+      if (!file) {
+        showToast('Please select an insurance card image', 'error');
+        return;
+      }
+      
+      if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+        showToast('Please upload a JPG or PNG image for extraction', 'error');
+        return;
+      }
+      
+      const submitBtn = document.getElementById('insurance-extract-btn');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = mccIcon('refresh-cw', 14) + ' Analyzing...';
+      }
+      
+      const extractionStatus = document.getElementById('insurance-extraction-status');
+      if (extractionStatus) {
+        extractionStatus.style.display = 'block';
+        extractionStatus.innerHTML = `
+          <div style="text-align:center;padding:16px;">
+            <div style="animation:pulse 1.5s infinite;margin-bottom:8px;">${mccIcon('search', 24)}</div>
+            <div style="font-weight:500;font-size:0.9rem;">Analyzing insurance card...</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">Extracting policy details with AI</div>
+          </div>`;
+      }
+      
+      try {
+        const uploadResult = await extractInsuranceCard(file, vehicleId);
+        if (!uploadResult?.url) {
+          throw new Error('Failed to upload insurance card');
+        }
+        
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        
+        const response = await fetch(`${apiBase}/api/insurance/extract`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          },
+          body: JSON.stringify({ imageUrl: uploadResult.url })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.extracted) {
+          showInsuranceReviewUI(result.extracted, vehicleId, uploadResult);
+        } else {
+          if (extractionStatus) {
+            extractionStatus.innerHTML = `
+              <div style="background:rgba(239,95,95,0.15);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);padding:16px;text-align:center;">
+                <div style="margin-bottom:8px;">${mccIcon('x-circle', 24)}</div>
+                <div style="font-weight:500;color:var(--accent-red);">Could not extract details</div>
+                <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">${result.error || 'Please fill in the fields manually.'}</p>
+              </div>`;
+          }
+        }
+      } catch (err) {
+        console.error('Insurance extraction error:', err);
+        if (extractionStatus) {
+          extractionStatus.innerHTML = `
+            <div style="background:rgba(239,95,95,0.15);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);padding:16px;text-align:center;">
+              <div style="margin-bottom:8px;">${mccIcon('x-circle', 24)}</div>
+              <div style="font-weight:500;color:var(--accent-red);">Extraction Failed</div>
+              <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">${err.message || 'Please fill in the fields manually.'}</p>
+            </div>`;
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = mccIcon('search', 14) + ' Extract from Image';
+        }
+      }
+    }
+    
+    function showInsuranceReviewUI(extracted, vehicleId, uploadResult) {
+      const extractionStatus = document.getElementById('insurance-extraction-status');
+      if (!extractionStatus) return;
+      
+      function iField(label, value, inputId) {
+        const hasValue = value !== null && value !== undefined && value !== '';
+        return `
+          <div style="margin-bottom:10px;">
+            <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:3px;">${label}${!hasValue ? ' <span style="color:var(--accent-orange);font-size:0.72rem;">(not detected)</span>' : ''}</label>
+            <input type="text" class="form-input" id="${inputId}" value="${hasValue ? escapeHtml(String(value)) : ''}" placeholder="Enter ${label.toLowerCase()}" style="font-size:0.88rem;">
+          </div>`;
+      }
+      
+      extractionStatus.innerHTML = `
+        <div style="background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);border-radius:var(--radius-md);padding:12px;text-align:center;margin-bottom:12px;">
+          <div style="font-weight:600;color:var(--accent-green);font-size:0.9rem;">${mccIcon('check-circle', 16)} Information Extracted</div>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">Review and correct the details below, then confirm to save.</p>
+        </div>
+        
+        ${iField('Insurance Provider', extracted.insurerName, 'ins-review-provider')}
+        ${iField('Policy Number', extracted.policyNumber, 'ins-review-policy')}
+        ${iField('Expiration Date', extracted.expirationDate, 'ins-review-expiration')}
+        
+        <div style="display:flex;gap:10px;margin-top:14px;">
+          <button class="btn btn-gold" onclick="confirmInsuranceExtraction('${vehicleId}', '${uploadResult?.url || ''}', '${uploadResult?.storagePath || ''}')" style="flex:1;">
+            ${mccIcon('check-circle', 14)} Confirm & Save
+          </button>
+          <button class="btn btn-secondary" onclick="document.getElementById('insurance-extraction-status').style.display='none'" style="flex:0 0 auto;">
+            Skip
+          </button>
+        </div>
+      `;
+      
+    }
+    
+    async function confirmInsuranceExtraction(vehicleId, fileUrl, storagePath) {
+      const provider = document.getElementById('ins-review-provider')?.value?.trim() || '';
+      const policyNumber = document.getElementById('ins-review-policy')?.value?.trim() || '';
+      const expiration = document.getElementById('ins-review-expiration')?.value?.trim() || '';
+      
+      if (!provider) {
+        showToast('Insurance provider name is required', 'error');
+        return;
+      }
+      
+      document.getElementById('insurance-doc-provider').value = provider;
+      document.getElementById('insurance-doc-policy-number').value = policyNumber;
+      
+      if (expiration) {
+        try {
+          const parsed = new Date(expiration);
+          if (!isNaN(parsed.getTime())) {
+            document.getElementById('insurance-doc-end-date').value = parsed.toISOString().split('T')[0];
+          }
+        } catch (e) {}
+      }
+      
+      if (fileUrl && storagePath) {
+        window._insurancePreUploadedFile = { url: fileUrl, storagePath: storagePath };
+      }
+      
+      document.getElementById('insurance-extraction-status').style.display = 'none';
+      showToast('Fields pre-filled! Review and save the document.', 'success');
+    }
+    
+    // ========== END INSURANCE CARD EXTRACTION ==========
 
     // ========== VEHICLE PHOTO HANDLING ==========
     function handleVehiclePhotoSelect(event) {
@@ -924,20 +1174,20 @@
           <div style="margin-top:24px;padding:16px;background:var(--bg-input);border-radius:var(--radius-lg);border:1px solid var(--border-subtle);">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
               <div>
-                <div style="font-weight:600;margin-bottom:4px;">📋 Registration Verification</div>
+                <div style="font-weight:600;margin-bottom:4px;">${mccIcon('clipboard-list', 16)} Registration Verification</div>
                 <div style="font-size:0.88rem;color:var(--text-muted);">
                   ${vehicle.registration_verified || vehicleRegistrationStatus[vehicleId]?.verified 
-                    ? '<span style="color:var(--accent-green);">✅ Verified</span>' 
+                    ? '<span style="color:var(--accent-green);">' + mccIcon('check-circle', 14) + ' Verified</span>' 
                     : vehicleRegistrationStatus[vehicleId]?.status === 'pending' 
-                      ? '<span style="color:var(--accent-orange);">⏳ Pending Review</span>'
+                      ? '<span style="color:var(--accent-orange);">' + mccIcon('refresh-cw', 14) + ' Pending Review</span>'
                       : vehicleRegistrationStatus[vehicleId]?.status === 'needs_review'
-                        ? '<span style="color:var(--accent-blue);">🔍 Under Review</span>'
+                        ? '<span style="color:var(--accent-blue);">' + mccIcon('search', 16) + ' Under Review</span>'
                         : 'Not verified yet'}
                 </div>
               </div>
               ${vehicle.registration_verified || vehicleRegistrationStatus[vehicleId]?.verified 
-                ? '<span class="registration-status-badge approved">✓ Verified</span>'
-                : `<button class="btn btn-primary" onclick="openRegistrationModal('${vehicleId}')" style="padding:10px 20px;">📋 Verify Registration</button>`
+                ? '<span class="registration-status-badge approved">' + mccIcon('check-circle', 14) + ' Verified</span>'
+                : `<button class="btn btn-primary" onclick="openRegistrationModal('${vehicleId}')" style="padding:10px 20px;">${mccIcon('clipboard-list', 16)} Verify Registration</button>`
               }
             </div>
           </div>
@@ -957,7 +1207,7 @@
               <option value="interior">Interior</option>
               <option value="damage">Damage</option>
             </select>
-            <button class="btn btn-primary" onclick="uploadVehiclePhotos('${vehicleId}')">📤 Upload</button>
+            <button class="btn btn-primary" onclick="uploadVehiclePhotos('${vehicleId}')">${mccIcon('upload', 16)} Upload</button>
           </div>
           <div class="photo-grid" style="margin-top:16px;" id="vehicle-photos-grid">
             ${photos?.length ? photos.map(p => `
@@ -965,8 +1215,8 @@
                 <img src="${p.url}" onclick="window.open('${p.url}','_blank')" style="cursor:pointer;">
                 ${p.is_primary ? '<span style="position:absolute;top:4px;left:4px;background:var(--accent-gold);color:#000;padding:2px 6px;border-radius:4px;font-size:0.7rem;">Primary</span>' : ''}
                 <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);padding:4px;display:flex;justify-content:space-between;">
-                  <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:0.7rem;" onclick="event.stopPropagation();window.setPrimaryPhoto('${p.id}','${vehicleId}')">⭐</button>
-                  <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:0.7rem;color:var(--accent-red);" onclick="event.stopPropagation();window.deleteVehiclePhoto('${p.id}','${vehicleId}')">🗑</button>
+                  <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:0.7rem;" onclick="event.stopPropagation();window.setPrimaryPhoto('${p.id}','${vehicleId}')">${mccIcon('check-circle', 14)}</button>
+                  <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:0.7rem;color:var(--accent-red);" onclick="event.stopPropagation();window.deleteVehiclePhoto('${p.id}','${vehicleId}')">${mccIcon('x', 14)}</button>
                 </div>
               </div>
             `).join('') : '<p style="color:var(--text-muted);grid-column:1/-1;">No photos yet. Upload photos of your vehicle!</p>'}
@@ -986,7 +1236,7 @@
               <option value="other">Other</option>
             </select>
             <input type="date" class="form-input" id="doc-expiration" style="width:auto;" placeholder="Expiration (optional)">
-            <button class="btn btn-primary" onclick="uploadVehicleDocument('${vehicleId}')">📤 Upload</button>
+            <button class="btn btn-primary" onclick="uploadVehicleDocument('${vehicleId}')">${mccIcon('upload', 16)} Upload</button>
           </div>
           <div id="vehicle-documents-list">
             ${documents?.length ? documents.map(d => `
@@ -1003,7 +1253,7 @@
                 </div>
                 <div style="display:flex;gap:8px;">
                   <a href="${d.file_url}" target="_blank" class="btn btn-secondary btn-sm">View</a>
-                  <button class="btn btn-ghost btn-sm" style="color:var(--accent-red);" onclick="window.deleteVehicleDocument('${d.id}','${vehicleId}')">🗑</button>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--accent-red);" onclick="window.deleteVehicleDocument('${d.id}','${vehicleId}')">${mccIcon('x', 14)}</button>
                 </div>
               </div>
             `).join('') : '<p style="color:var(--text-muted);">No documents yet. Upload your registration, insurance card, etc.</p>'}
@@ -1032,15 +1282,15 @@
 
     function getDocIcon(type) {
       const icons = {
-        registration: '📋',
-        insurance_card: '🛡️',
-        title: '📜',
-        inspection: '🔍',
-        warranty: '✅',
-        service_record: '🔧',
-        other: '📄'
+        registration: mccIcon('clipboard-list', 16),
+        insurance_card: mccIcon('shield', 16),
+        title: mccIcon('file-text', 16),
+        inspection: mccIcon('search', 16),
+        warranty: mccIcon('check-circle', 16),
+        service_record: mccIcon('wrench', 16),
+        other: mccIcon('file-text', 16)
       };
-      return icons[type] || '📄';
+      return icons[type] || mccIcon('file-text', 16);
     }
 
     function formatDocType(type) {
@@ -1351,7 +1601,7 @@
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(...colors.red);
-            doc.text('⚠ URGENT ITEMS:', margin + 4, yPos + 2);
+            doc.text('! URGENT ITEMS:', margin + 4, yPos + 2);
             yPos += 6;
             doc.setFont('helvetica', 'normal');
             urgentItems.forEach(item => {
@@ -1369,7 +1619,7 @@
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(...colors.orange);
-            doc.text('⚡ NEEDS ATTENTION:', margin + 4, yPos + 2);
+            doc.text('! NEEDS ATTENTION:', margin + 4, yPos + 2);
             yPos += 6;
             doc.setFont('helvetica', 'normal');
             attentionItems.forEach(item => {
@@ -1470,7 +1720,7 @@
           yPos += 4;
           drawSectionHeader('Current Recommendations');
           
-          const priorityLabels = { urgent: '🔴 Urgent', soon: '🟠 Soon', upcoming: '🟡 Upcoming', routine: '🔵 Routine' };
+          const priorityLabels = { urgent: 'Urgent', soon: 'Soon', upcoming: 'Upcoming', routine: 'Routine' };
           
           recommendations.forEach((rec, index) => {
             if (index >= 8) return;
@@ -1537,3 +1787,121 @@
       await loadReminders();
       updateStats();
     }
+
+    // ========== AI PREDICTIVE MAINTENANCE ==========
+
+    let vehiclePredictions = {};
+
+    async function fetchVehiclePredictions(vehicleId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return null;
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/vehicle/${vehicleId}/predictions`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          vehiclePredictions[vehicleId] = {
+            health_summary: data.health_summary,
+            predictions: data.predictions || [],
+            generated_at: data.generated_at,
+            cached: data.cached
+          };
+          return vehiclePredictions[vehicleId];
+        }
+        return null;
+      } catch (error) {
+        console.error('Error fetching predictions:', error);
+        return null;
+      }
+    }
+
+    async function loadAllVehiclePredictions() {
+      if (_predictionsLoading) return;
+      _predictionsLoading = true;
+      try {
+        const promises = vehicles.map(v => fetchVehiclePredictions(v.id));
+        await Promise.allSettled(promises);
+        renderVehicles();
+      } finally {
+        _predictionsLoading = false;
+      }
+    }
+
+    function getUrgencyConfig(urgency) {
+      const configs = {
+        critical: { label: 'Critical', color: 'var(--accent-red)', bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.3)', icon: 'alert-triangle' },
+        soon: { label: 'Soon', color: 'var(--accent-orange)', bg: 'var(--accent-orange-soft)', border: 'rgba(251,146,60,0.3)', icon: 'clock' },
+        upcoming: { label: 'Upcoming', color: 'var(--accent-blue)', bg: 'var(--accent-blue-soft)', border: 'rgba(56,189,248,0.3)', icon: 'calendar' },
+        routine: { label: 'Routine', color: 'var(--accent-green)', bg: 'var(--accent-green-soft)', border: 'rgba(52,211,153,0.3)', icon: 'check-circle' }
+      };
+      return configs[urgency] || configs.routine;
+    }
+
+    function renderPredictionsSection(vehicleId) {
+      const predData = vehiclePredictions[vehicleId];
+      if (!predData) {
+        return `<div class="predictions-section predictions-loading" id="predictions-${vehicleId}">
+          <div class="predictions-header">
+            <span class="predictions-title">${mccIcon('cpu', 14)} AI Maintenance Forecast</span>
+          </div>
+          <div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.82rem;">Analyzing vehicle data...</div>
+        </div>`;
+      }
+
+      const predictions = predData.predictions || [];
+      if (predictions.length === 0 && !predData.health_summary) {
+        return '';
+      }
+
+      let predictionsHtml = predictions.slice(0, 4).map((p, idx) => {
+        const config = getUrgencyConfig(p.urgency);
+        const milesText = p.estimated_miles ? `~${p.estimated_miles.toLocaleString()} mi` : '';
+        const dateText = p.estimated_date ? new Date(p.estimated_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
+        const timeInfo = [milesText, dateText].filter(Boolean).join(' · ');
+
+        return `<div class="prediction-item" data-vehicle-id="${vehicleId}" data-prediction-idx="${idx}" data-prediction-title="${escapeHtml(p.title)}">
+          <div class="prediction-item-left">
+            <span class="prediction-urgency-dot" style="background:${config.color};"></span>
+            <div>
+              <div class="prediction-item-title">${escapeHtml(p.title)}</div>
+              <div class="prediction-item-meta">${timeInfo ? timeInfo + ' — ' : ''}${escapeHtml(p.reason)}</div>
+            </div>
+          </div>
+          <div class="prediction-item-right">
+            <span class="prediction-urgency-badge" style="background:${config.bg};color:${config.color};border:1px solid ${config.border};">${config.label}</span>
+            <span class="prediction-action-icon">${mccIcon('package', 14)}</span>
+          </div>
+        </div>`;
+      }).join('');
+
+      return `<div class="predictions-section" id="predictions-${vehicleId}">
+        <div class="predictions-header">
+          <span class="predictions-title">${mccIcon('cpu', 14)} AI Maintenance Forecast</span>
+        </div>
+        ${predData.health_summary ? `<div class="predictions-health-summary">${escapeHtml(predData.health_summary)}</div>` : ''}
+        ${predictionsHtml ? `<div class="predictions-list">${predictionsHtml}</div>` : ''}
+      </div>`;
+    }
+
+    function createPackageFromPrediction(vehicleId, title) {
+      openPackageModal();
+      document.getElementById('p-vehicle').value = vehicleId;
+      document.getElementById('p-title').value = title;
+    }
+
+    let _predictionsLoading = false;
+
+    document.addEventListener('click', function(e) {
+      const item = e.target.closest('.prediction-item[data-vehicle-id]');
+      if (item) {
+        const vehicleId = item.getAttribute('data-vehicle-id');
+        const title = item.getAttribute('data-prediction-title') || '';
+        const decoded = document.createElement('textarea');
+        decoded.innerHTML = title;
+        createPackageFromPrediction(vehicleId, decoded.value);
+      }
+    });

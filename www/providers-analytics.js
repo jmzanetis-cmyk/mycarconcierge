@@ -108,7 +108,7 @@ function renderEarningsChart() {
 function renderEmptyEarningsChart() {
   const container = document.getElementById('earnings-chart-container');
   if (container) {
-    container.innerHTML = '<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">📊</div><p>No earnings data yet. Complete jobs to see your analytics!</p></div>';
+    container.innerHTML = `<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">${mccIcon('bar-chart', 14)}</div><p>No earnings data yet. Complete jobs to see your analytics!</p></div>`;
   }
 }
 
@@ -323,7 +323,7 @@ async function loadPosRevenueChart() {
     if (!data.transactions || data.transactions.length === 0) {
       const container = document.getElementById('pos-revenue-chart-container');
       if (container) {
-        container.innerHTML = '<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">📊</div><p>No POS transactions yet.</p></div>';
+        container.innerHTML = `<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">${mccIcon('bar-chart', 14)}</div><p>No POS transactions yet.</p></div>`;
       }
       return;
     }

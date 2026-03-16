@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Find Auto Service Providers | My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Browse vetted automotive service providers on My Car Concierge. Get quotes for maintenance, repairs, detailing, and more from trusted professionals near you." />
+  <meta name="theme-color" content="#12161c" />
+  <meta property="og:title" content="Find Auto Service Providers | My Car Concierge" />
+  <meta property="og:description" content="Browse vetted automotive service providers. Get quotes for maintenance, repairs, detailing, and more." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://mycarconcierge.com/providers" />
+  <link rel="canonical" href="https://mycarconcierge.com/providers" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-blue: #38bdf8;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+    }
+    [data-theme="light"] {
+      --bg-deep: #f3f4f6;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --border-subtle: rgba(30, 58, 95, 0.10);
+      --border-medium: rgba(30, 58, 95, 0.18);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+      --accent-blue: #1e3a5f;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    header {
+      padding: 20px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
+      backdrop-filter: blur(12px);
+    }
+    header .container { display: flex; justify-content: space-between; align-items: center; }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .brand-icon { height: 50px; width: auto; border-radius: var(--radius-sm); }
+    .brand-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 1.1rem; color: var(--text-primary); }
+    .brand-tagline { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+    nav { display: flex; gap: 8px; align-items: center; }
+    nav a { padding: 8px 16px; font-size: 0.88rem; color: var(--text-secondary); text-decoration: none; border-radius: var(--radius-sm); transition: all 0.2s; }
+    nav a:hover { color: var(--text-primary); background: var(--bg-elevated); }
+    .hero-section { padding: 60px 0 40px; text-align: center; }
+    .hero-section h1 { font-family: 'Playfair Display', serif; font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 500; margin-bottom: 12px; }
+    .hero-section h1 .highlight {
+      background: linear-gradient(135deg, var(--accent-gold) 0%, #f0c76d 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    [data-theme="light"] .hero-section h1 .highlight {
+      background: linear-gradient(135deg, #c9a962 0%, #d4b87a 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .hero-section p { max-width: 600px; margin: 0 auto; color: var(--text-secondary); font-size: 1.05rem; }
+    .filters-bar {
+      display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+      padding: 20px 0 30px;
+    }
+    .filter-input {
+      padding: 10px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);
+      background: var(--bg-elevated); color: var(--text-primary); font-family: inherit; font-size: 0.9rem;
+      min-width: 180px; outline: none; transition: border-color 0.2s;
+    }
+    .filter-input:focus { border-color: var(--accent-gold); }
+    select.filter-input { cursor: pointer; -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px;
+    }
+    .providers-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px; padding-bottom: 40px;
+    }
+    .provider-card {
+      background: var(--bg-card); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md); padding: 24px;
+      transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;
+    }
+    .provider-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.15); border-color: var(--accent-gold); }
+    .provider-card-header { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+    .provider-avatar {
+      width: 52px; height: 52px; border-radius: 50%; background: var(--accent-gold-soft);
+      display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: 600;
+      color: var(--accent-gold); flex-shrink: 0; overflow: hidden;
+    }
+    .provider-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .provider-name { font-weight: 600; font-size: 1.05rem; }
+    .provider-location { font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+    .provider-rating { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+    .stars { color: var(--accent-gold); font-size: 0.9rem; letter-spacing: 1px; }
+    .rating-text { font-size: 0.85rem; color: var(--text-secondary); }
+    .provider-services { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .service-tag {
+      padding: 4px 10px; background: var(--accent-gold-soft); color: var(--accent-gold);
+      border-radius: 100px; font-size: 0.75rem; font-weight: 500;
+    }
+    .provider-bio { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 16px; }
+    .provider-badges { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .badge-item { display: flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--text-muted); }
+    .badge-item svg { width: 14px; height: 14px; stroke: var(--accent-gold); }
+    .btn-quote {
+      width: 100%; padding: 12px; background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
+      color: #0a0a0f; border: none; border-radius: var(--radius-md); font-family: inherit;
+      font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-quote:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.3); }
+    [data-theme="light"] .btn-quote { background: linear-gradient(135deg, #b8942d, #d4a63a); color: #fff; }
+    .empty-state { text-align: center; padding: 80px 20px; color: var(--text-muted); }
+    .empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; stroke: var(--border-medium); }
+    .empty-state h3 { font-size: 1.2rem; margin-bottom: 8px; color: var(--text-secondary); }
+    .load-more { display: flex; justify-content: center; padding: 20px 0 60px; }
+    .btn-load-more {
+      padding: 12px 32px; background: var(--bg-elevated); color: var(--text-primary);
+      border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+      font-family: inherit; font-size: 0.9rem; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-load-more:hover { border-color: var(--accent-gold); }
+    .results-count { text-align: center; color: var(--text-muted); font-size: 0.88rem; margin-bottom: 20px; }
+    .loading-spinner { display: flex; justify-content: center; padding: 60px; }
+    .spinner { width: 40px; height: 40px; border: 3px solid var(--border-subtle); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    footer { padding: 40px 0; border-top: 1px solid var(--border-subtle); text-align: center; }
+    footer a { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; }
+    footer a:hover { color: var(--accent-gold); }
+    .footer-copy { font-size: 0.8rem; color: var(--text-muted); margin-top: 12px; }
+    @media (max-width: 768px) {
+      .providers-grid { grid-template-columns: 1fr; }
+      .filter-input { min-width: 0; flex: 1; }
+      nav a:not(.btn-cta) { display: none; }
+    }
+    .btn-cta {
+      padding: 8px 18px; background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
+      color: #0a0a0f; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.88rem;
+    }
+    [data-theme="light"] .btn-cta { background: linear-gradient(135deg, #b8942d, #d4a63a); color: #fff; }
+    .theme-toggle-pill {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+      background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+      border-radius: 100px; cursor: pointer; font-size: 0.8rem; color: var(--text-secondary);
+      transition: all 0.2s; user-select: none;
+    }
+    .theme-toggle-pill:hover { border-color: var(--accent-gold); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="/" class="brand">
+        <img src="/logo.png" alt="My Car Concierge" class="brand-icon">
+        <div>
+          <div class="brand-name">My Car Concierge</div>
+          <div class="brand-tagline">Provider Directory</div>
+        </div>
+      </a>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/how-it-works.html">How It Works</a>
+        <span class="theme-toggle-pill" onclick="toggleTheme()">
+          <span id="theme-icon">&#9790;</span>
+          <span id="theme-label">Night</span>
+        </span>
+        <a href="/login.html" class="btn-cta">Log In</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="hero-section">
+      <h1>Find <span class="highlight">Trusted Providers</span> Near You</h1>
+      <p>Browse vetted automotive service professionals. Request a quote and get competitive bids with escrow payment protection.</p>
+    </div>
+
+    <div class="filters-bar">
+      <input type="text" class="filter-input" id="filter-city" placeholder="City or location..." oninput="debounceFilter()">
+      <select class="filter-input" id="filter-category" onchange="loadProviders(1)">
+        <option value="">All Services</option>
+        <option value="Oil Change">Oil Change</option>
+        <option value="Brake Service">Brake Service</option>
+        <option value="Tire Service">Tire Service</option>
+        <option value="Engine Repair">Engine Repair</option>
+        <option value="Transmission">Transmission</option>
+        <option value="AC/Heating">AC/Heating</option>
+        <option value="Electrical">Electrical</option>
+        <option value="Diagnostics">Diagnostics</option>
+        <option value="Detailing">Detailing</option>
+        <option value="Body Work">Body Work</option>
+        <option value="Paint">Paint</option>
+        <option value="Towing">Towing</option>
+        <option value="Car Wraps">Car Wraps</option>
+        <option value="Ceramic Coating">Ceramic Coating</option>
+        <option value="Window Tinting">Window Tinting</option>
+        <option value="Glass Repair">Glass Repair</option>
+        <option value="Suspension">Suspension</option>
+        <option value="Exhaust">Exhaust</option>
+        <option value="Mobile Service">Mobile Service</option>
+        <option value="Snow Plowing">Snow Plowing</option>
+      </select>
+    </div>
+
+    <div class="results-count" id="results-count"></div>
+    <div id="providers-container"></div>
+    <div class="load-more" id="load-more" style="display:none;">
+      <button class="btn-load-more" onclick="loadMore()">Load More Providers</button>
+    </div>
+  </div>
+
+  <footer>
+    <div class="container">
+      <a href="/">Home</a> &nbsp;|&nbsp;
+      <a href="/how-it-works.html">How It Works</a> &nbsp;|&nbsp;
+      <a href="/onboarding-member.html">Sign Up</a> &nbsp;|&nbsp;
+      <a href="/onboarding-provider.html">Become a Provider</a> &nbsp;|&nbsp;
+      <a href="/privacy.html">Privacy</a> &nbsp;|&nbsp;
+      <a href="/terms.html">Terms</a>
+      <div class="footer-copy">&copy; <span id="year"></span> My Car Concierge. All rights reserved.</div>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+    let currentPage = 1;
+    let totalProviders = 0;
+    let filterTimer = null;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      document.getElementById('theme-icon').textContent = next === 'dark' ? '\u263E' : '\u2600';
+      document.getElementById('theme-label').textContent = next === 'dark' ? 'Night' : 'Day';
+    }
+
+    (function initThemeToggle() {
+      const t = document.documentElement.getAttribute('data-theme');
+      document.getElementById('theme-icon').textContent = t === 'dark' ? '\u263E' : '\u2600';
+      document.getElementById('theme-label').textContent = t === 'dark' ? 'Night' : 'Day';
+    })();
+
+    function debounceFilter() {
+      clearTimeout(filterTimer);
+      filterTimer = setTimeout(() => loadProviders(1), 400);
+    }
+
+    function renderStars(rating) {
+      if (!rating) return '';
+      const full = Math.floor(rating);
+      const half = rating - full >= 0.5;
+      let html = '';
+      for (let i = 0; i < full; i++) html += '\u2605';
+      if (half) html += '\u2606';
+      for (let i = full + (half ? 1 : 0); i < 5; i++) html += '\u2606';
+      return html;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function renderProviderCard(p) {
+      const initials = (p.business_name || 'P').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+      const avatarContent = p.avatar_url
+        ? '<img src="' + escapeHtml(p.avatar_url) + '" alt="' + escapeHtml(p.business_name) + '">'
+        : initials;
+      const location = [p.city, p.state].filter(Boolean).join(', ');
+      const services = (p.services || []).slice(0, 4);
+      const extraCount = (p.services || []).length - 4;
+
+      let ratingHtml = '';
+      if (p.avg_rating) {
+        ratingHtml = '<div class="provider-rating"><span class="stars">' + renderStars(parseFloat(p.avg_rating)) + '</span><span class="rating-text">' + p.avg_rating + ' (' + p.review_count + ' review' + (p.review_count !== 1 ? 's' : '') + ')</span></div>';
+      }
+
+      let badgesHtml = '';
+      const badges = [];
+      if (p.years_in_business && p.years_in_business >= 5) badges.push('<span class="badge-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> ' + p.years_in_business + '+ years</span>');
+      if (p.emergency_enabled) badges.push('<span class="badge-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Emergency</span>');
+      if ((p.certifications || []).length > 0) badges.push('<span class="badge-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/></svg> Certified</span>');
+      if (badges.length > 0) badgesHtml = '<div class="provider-badges">' + badges.join('') + '</div>';
+
+      return '<div class="provider-card" onclick="window.location.href=\'/p/' + escapeHtml(p.slug) + '\'">' +
+        '<div class="provider-card-header">' +
+          '<div class="provider-avatar">' + avatarContent + '</div>' +
+          '<div>' +
+            '<div class="provider-name">' + escapeHtml(p.business_name) + '</div>' +
+            (location ? '<div class="provider-location"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> ' + escapeHtml(location) + '</div>' : '') +
+          '</div>' +
+        '</div>' +
+        ratingHtml +
+        '<div class="provider-services">' + services.map(s => '<span class="service-tag">' + escapeHtml(s) + '</span>').join('') + (extraCount > 0 ? '<span class="service-tag">+' + extraCount + ' more</span>' : '') + '</div>' +
+        (p.description ? '<div class="provider-bio">' + escapeHtml(p.description) + '</div>' : '') +
+        badgesHtml +
+        '<button class="btn-quote" onclick="event.stopPropagation(); requestQuote(\'' + escapeHtml(p.slug) + '\')">Request a Quote</button>' +
+      '</div>';
+    }
+
+    async function loadProviders(page) {
+      currentPage = page || 1;
+      const container = document.getElementById('providers-container');
+      const city = document.getElementById('filter-city').value.trim();
+      const category = document.getElementById('filter-category').value;
+
+      if (currentPage === 1) {
+        container.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+      }
+
+      try {
+        const params = new URLSearchParams();
+        if (city) params.set('city', city);
+        if (category) params.set('category', category);
+        params.set('page', currentPage);
+        params.set('limit', '24');
+
+        const resp = await fetch(apiBase + '/api/directory/providers?' + params.toString());
+        const data = await resp.json();
+
+        if (!resp.ok) throw new Error(data.error || 'Failed to load');
+
+        totalProviders = data.total || 0;
+        const countEl = document.getElementById('results-count');
+        countEl.textContent = totalProviders + ' provider' + (totalProviders !== 1 ? 's' : '') + ' found';
+
+        if (currentPage === 1 && data.providers.length === 0) {
+          container.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><h3>No providers found</h3><p>Try adjusting your filters or check back soon.</p></div>';
+          document.getElementById('load-more').style.display = 'none';
+          return;
+        }
+
+        const html = data.providers.map(renderProviderCard).join('');
+        if (currentPage === 1) {
+          container.innerHTML = '<div class="providers-grid">' + html + '</div>';
+        } else {
+          container.querySelector('.providers-grid').insertAdjacentHTML('beforeend', html);
+        }
+
+        const loadMoreEl = document.getElementById('load-more');
+        loadMoreEl.style.display = (currentPage * data.limit < totalProviders) ? 'flex' : 'none';
+      } catch (err) {
+        console.error('Load providers error:', err);
+        if (currentPage === 1) {
+          container.innerHTML = '<div class="empty-state"><h3>Something went wrong</h3><p>Please try again in a moment.</p></div>';
+        }
+      }
+    }
+
+    function loadMore() {
+      loadProviders(currentPage + 1);
+    }
+
+    async function requestQuote(slug) {
+      try {
+        if (typeof window.supabase !== 'undefined') {
+          const sb = window.supabase.createClient(
+            'https://ifbyjxuaclwmadqbjcyp.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmYnlqeHVhY2x3bWFkcWJqY3lwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MDI0OTUsImV4cCI6MjA4MDQ3ODQ5NX0.wts2W0ICqTSCUpF9ewvEk59P2A0stvqqmP0CNsPfIt8',
+            { auth: { persistSession: true, storageKey: 'sb-ifbyjxuaclwmadqbjcyp-auth-token', storage: window.localStorage } }
+          );
+          const { data: { session } } = await sb.auth.getSession();
+          if (session) {
+            const { data: profile } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
+            if (profile && (profile.role === 'member' || profile.role === 'dual')) {
+              localStorage.setItem('preferred_provider_slug', slug);
+              window.location.href = '/members.html?create=true&provider=' + encodeURIComponent(slug);
+              return;
+            }
+          }
+        }
+      } catch (e) {}
+      localStorage.setItem('preferred_provider_slug', slug);
+      window.location.href = '/onboarding-member.html?provider=' + encodeURIComponent(slug);
+    }
+
+    loadProviders(1);
+  </script>
+</body>
+</html>

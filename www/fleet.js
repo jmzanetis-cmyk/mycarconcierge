@@ -220,7 +220,7 @@
             <td>${h.description || h.service_type || '-'}</td>
             <td>${h.provider_business || h.provider_name || '-'}</td>
             <td>$${(h.total_cost || 0).toFixed(2)}</td>
-            <td>${h.receipt_url ? '<button class="btn btn-sm btn-ghost">📄</button>' : '-'}</td>
+            <td>${h.receipt_url ? '<button class="btn btn-sm btn-ghost">' + mccIcon('file-text', 14) + '</button>' : '-'}</td>
           </tr>
         `;
       }).join('');
@@ -231,7 +231,7 @@
       const upcoming = fleetVehicles.filter(fv => fv.next_service_due).slice(0, 5);
       
       if (!upcoming.length) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><p>No upcoming maintenance scheduled.</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('calendar', 32) + '</div><p>No upcoming maintenance scheduled.</p></div>';
         return;
       }
 

@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Car Club – My Car Concierge</title>
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css?v=20260219">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-bronze: #cd7f32;
+      --accent-bronze-soft: rgba(205, 127, 50, 0.15);
+      --accent-teal: #22d3ee;
+      --accent-teal-soft: rgba(34, 211, 238, 0.12);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
+      --accent-green: #34d399;
+      --accent-green-soft: rgba(52, 211, 153, 0.12);
+      --accent-red: #f87171;
+      --accent-red-soft: rgba(248, 113, 113, 0.15);
+      --accent-orange: #fb923c;
+      --accent-orange-soft: rgba(251, 146, 60, 0.15);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --border-focus: rgba(56, 189, 248, 0.5);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #f3f4f6;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-input: #f0f1f3;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --border-subtle: rgba(30, 58, 95, 0.10);
+      --border-medium: rgba(30, 58, 95, 0.18);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+    }
+
+    [data-theme="light"] .sidebar {
+      background: linear-gradient(180deg, #ffffff 0%, #f3f4f6 100%);
+      border-right: 1px solid rgba(30, 58, 95, 0.1);
+    }
+    [data-theme="light"] .sidebar-footer {
+      background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.95));
+    }
+    [data-theme="light"] .nav-item:hover {
+      background: rgba(30, 58, 95, 0.06);
+      border-color: rgba(30, 58, 95, 0.15);
+    }
+    [data-theme="light"] .nav-item.active {
+      background: linear-gradient(135deg, rgba(184, 148, 45, 0.15), rgba(184, 148, 45, 0.08));
+      color: #1e3a5f;
+      border-color: rgba(184, 148, 45, 0.4);
+    }
+
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+    }
+
+    .theme-toggle-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      transition: all 0.3s ease;
+    }
+    .theme-toggle-btn:hover {
+      background: var(--accent-gold-soft);
+      border-color: var(--accent-gold);
+      color: var(--accent-gold);
+      transform: scale(1.02);
+      box-shadow: 0 0 20px rgba(201, 162, 39, 0.2);
+    }
+    .theme-icon-dark, .theme-icon-light { font-size: 1.2rem; transition: transform 0.3s ease; }
+    [data-theme="dark"] .theme-icon-light { display: none; }
+    [data-theme="light"] .theme-icon-dark { display: none; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; scrollbar-width: thin; scrollbar-color: var(--border-medium) var(--bg-deep); }
+    body { min-height: 100vh; font-family: 'Outfit', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); display: flex; overflow-x: hidden; }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-deep); }
+    ::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    .sidebar { width: 260px; background: linear-gradient(180deg, rgba(18, 18, 28, 0.98) 0%, rgba(12, 12, 20, 0.99) 100%); border-right: 1px solid var(--border-subtle); padding: 20px 12px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; backdrop-filter: blur(20px); scrollbar-width: none; -ms-overflow-style: none; }
+    .sidebar::-webkit-scrollbar { display: none; }
+    .sidebar-brand { display: flex; align-items: center; justify-content: center; padding: 8px 12px 20px; border-bottom: 1px solid rgba(148, 148, 168, 0.08); margin-bottom: 20px; text-decoration: none; }
+    .sidebar-brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: brightness(1.1) contrast(1.05) drop-shadow(0 4px 16px rgba(212, 168, 85, 0.35)); transition: all 0.3s ease; }
+    .sidebar-brand:hover .sidebar-brand-icon { filter: brightness(1.15) contrast(1.1) drop-shadow(0 8px 32px rgba(212, 168, 85, 0.6)); transform: scale(1.03); }
+    .nav-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); padding: 16px 14px 8px; margin-bottom: 4px; font-weight: 600; opacity: 0.7; }
+    .nav-label:first-of-type { margin-top: 0; padding-top: 0; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 10px; cursor: pointer; font-size: 0.88rem; color: var(--text-secondary); transition: all 0.2s ease; margin-bottom: 2px; border: 1px solid transparent; font-weight: 450; }
+    .nav-item:hover { background: rgba(74, 124, 255, 0.08); color: var(--text-primary); border-color: rgba(74, 124, 255, 0.12); }
+    .nav-item.active { background: linear-gradient(135deg, rgba(74, 124, 255, 0.15), rgba(74, 124, 255, 0.08)); color: var(--accent-blue); border-color: rgba(74, 124, 255, 0.25); font-weight: 500; }
+    .sidebar-footer { margin-top: auto; padding: 16px; border-top: 1px solid rgba(148, 148, 168, 0.08); background: linear-gradient(180deg, transparent, rgba(18, 18, 28, 0.5)); }
+
+    .main { flex: 1; margin-left: 260px; padding: 32px 40px 100px; min-height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .page-header { margin-bottom: 32px; }
+    .page-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 500; margin-bottom: 8px; }
+    .page-subtitle { color: var(--text-secondary); font-size: 0.95rem; }
+
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.88rem; margin-bottom: 20px; transition: color 0.2s; }
+    .back-link:hover { color: var(--accent-gold); }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .btn-metallic { background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze)); color: #12161c; font-weight: 600; box-shadow: 0 2px 12px rgba(201, 162, 39, 0.3); }
+    .btn-metallic:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201, 162, 39, 0.4); }
+
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 49; }
+    .mobile-header { display: none; position: fixed; top: 0; left: 0; right: 0; height: 56px; background: var(--bg-elevated); border-bottom: 1px solid var(--border-subtle); z-index: 48; padding: 0 16px; align-items: center; gap: 12px; }
+    .hamburger { background: none; border: none; color: var(--text-primary); cursor: pointer; padding: 8px; }
+
+    .club-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+
+    .club-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 24px; transition: all 0.2s; }
+    .club-card:hover { border-color: var(--border-medium); }
+    .club-card-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 4px; }
+    .club-card-provider { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 8px; }
+    .club-card-desc { font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; }
+    .club-card-welcome { font-size: 0.85rem; color: var(--accent-gold); font-style: italic; margin-bottom: 16px; padding: 10px 14px; background: var(--accent-gold-soft); border-radius: var(--radius-sm); border-left: 3px solid var(--accent-gold); }
+    .club-card-meta { display: flex; gap: 16px; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px; }
+    .club-card-meta span { display: flex; align-items: center; gap: 4px; }
+    .club-card-footer { display: flex; justify-content: flex-end; gap: 8px; align-items: center; }
+
+    .reward-progress { margin-bottom: 12px; padding: 12px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); }
+    .reward-progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .reward-progress-name { font-size: 0.88rem; font-weight: 500; }
+    .reward-progress-pct { font-size: 0.78rem; color: var(--text-muted); }
+
+    .punch-row { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+    .punch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--border-medium); transition: all 0.2s; }
+    .punch.filled { background: var(--accent-gold); border-color: var(--accent-gold); }
+
+    .punch-label { font-size: 0.78rem; color: var(--text-muted); }
+
+    .reward-earned-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze)); color: #12161c; font-size: 0.82rem; font-weight: 600; border-radius: 20px; animation: glowPulse 2s ease-in-out infinite; }
+    @keyframes glowPulse {
+      0%, 100% { box-shadow: 0 0 8px rgba(201, 162, 39, 0.4); }
+      50% { box-shadow: 0 0 20px rgba(201, 162, 39, 0.8), 0 0 40px rgba(201, 162, 39, 0.3); }
+    }
+
+    .reward-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px; margin-bottom: 12px; transition: all 0.2s; }
+    .reward-card:hover { border-color: var(--border-medium); }
+    .reward-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .reward-card-name { font-size: 1rem; font-weight: 600; }
+    .reward-card-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-secondary); }
+    .reward-card-meta span { display: flex; align-items: center; gap: 5px; }
+
+    .activity-item { display: flex; gap: 16px; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; align-items: flex-start; transition: all 0.2s; }
+    .activity-item:hover { border-color: var(--border-medium); }
+    .activity-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; }
+    .activity-icon.punch { background: var(--accent-gold-soft); color: var(--accent-gold); }
+    .activity-icon.visit { background: var(--accent-blue-soft); color: var(--accent-blue); }
+    .activity-icon.reward { background: var(--accent-green-soft); color: var(--accent-green); }
+    .activity-icon.spend { background: var(--accent-teal-soft); color: var(--accent-teal); }
+    .activity-content { flex: 1; }
+    .activity-title { font-weight: 500; font-size: 0.9rem; margin-bottom: 2px; }
+    .activity-desc { font-size: 0.82rem; color: var(--text-secondary); }
+    .activity-time { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+
+    .notif-item { display: flex; gap: 16px; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; align-items: flex-start; transition: all 0.2s; }
+    .notif-item:hover { border-color: var(--border-medium); }
+    .notif-item.unread { border-left: 3px solid var(--accent-gold); }
+    .notif-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; background: var(--accent-gold-soft); color: var(--accent-gold); }
+    .notif-content { flex: 1; }
+    .notif-title { font-weight: 500; font-size: 0.9rem; margin-bottom: 2px; }
+    .notif-body { font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 4px; }
+    .notif-time { font-size: 0.78rem; color: var(--text-muted); }
+    .notif-actions { flex-shrink: 0; }
+
+    .joined-badge { display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; background: var(--accent-green-soft); color: var(--accent-green); font-size: 0.82rem; font-weight: 600; border-radius: 20px; border: 1px solid var(--accent-green); }
+
+    .notif-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; background: var(--accent-red); color: #fff; font-size: 0.68rem; font-weight: 700; border-radius: 9px; margin-left: auto; }
+
+    .how-it-works { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 24px; overflow: hidden; }
+    .how-it-works-toggle { width: 100%; display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: transparent; border: none; color: var(--accent-gold); font-family: inherit; font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+    .how-it-works-toggle:hover { background: var(--accent-gold-soft); }
+    .how-it-works-body { padding: 0 20px 20px; display: none; }
+    .how-it-works-body.open { display: block; }
+    .how-it-works-section { margin-bottom: 16px; }
+    .how-it-works-section:last-child { margin-bottom: 0; }
+    .how-it-works-section h3 { font-size: 0.9rem; font-weight: 600; color: var(--accent-gold); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+    .how-it-works-section p { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; }
+
+    .empty-state-circle { width: 80px; height: 80px; border-radius: 50%; background: var(--accent-gold-soft); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+    .empty-state-circle svg { width: 36px; height: 36px; color: var(--accent-gold); stroke: var(--accent-gold); opacity: 0.8; }
+    .empty-state-title { font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+    .empty-state-desc { font-size: 0.88rem; color: var(--text-muted); max-width: 360px; margin: 0 auto 16px; line-height: 1.5; }
+    .empty-state-cta { display: inline-block; padding: 8px 20px; background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #12161c; font-weight: 600; border-radius: 100px; text-decoration: none; font-size: 0.85rem; cursor: pointer; border: none; transition: all 0.2s; }
+    .empty-state-cta:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    @media (max-width: 900px) {
+      .sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-overlay.active { display: block; }
+      .mobile-header { display: flex; }
+      .main { margin-left: 0; padding: 72px 16px 100px; }
+      .club-grid { grid-template-columns: 1fr; }
+    }
+    .star-rating { display: inline-flex; gap: 2px; cursor: pointer; font-size: 1.3rem; }
+    .star-rating .star { color: var(--text-muted); transition: color 0.15s; }
+    .star-rating .star.filled { color: var(--accent-gold); }
+    .star-rating .star:hover { color: var(--accent-gold); }
+    .star-display { display: inline-flex; gap: 1px; font-size: 0.95rem; }
+    .star-display .star-filled { color: var(--accent-gold); }
+    .star-display .star-empty { color: var(--text-muted); }
+    .testimonial-section { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+    .testimonial-avg { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-secondary); }
+    .review-form { margin-top: 12px; padding: 12px; background: var(--bg-input); border-radius: var(--radius-sm); }
+    .review-form textarea { width: 100%; min-height: 60px; margin: 8px 0; padding: 8px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); font-family: inherit; font-size: 0.85rem; resize: vertical; }
+    .review-form textarea:focus { outline: none; border-color: var(--border-focus); }
+    .recommended-section { margin-bottom: 24px; }
+    .recommended-badge { display: inline-block; background: var(--accent-gold-soft); color: var(--accent-gold); font-size: 0.72rem; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-sm); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .store-products-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .store-product-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .store-product-card:hover {
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+    }
+    .store-product-img {
+      width: 100%;
+      height: 180px;
+      background: var(--bg-input);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      overflow: hidden;
+    }
+    .store-product-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .store-product-body {
+      padding: 14px;
+    }
+    .store-product-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+    .store-product-price {
+      color: var(--accent-gold);
+      font-weight: 600;
+      font-size: 1rem;
+    }
+    .store-product-price .compare-price {
+      color: var(--text-muted);
+      text-decoration: line-through;
+      font-weight: 400;
+      font-size: 0.85rem;
+      margin-left: 8px;
+    }
+    .store-product-desc {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-top: 6px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .store-club-tab {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 100px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      transition: all 0.2s;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+    .store-club-tab:hover {
+      border-color: var(--accent-blue);
+      color: var(--text-primary);
+    }
+    .store-club-tab.active {
+      background: linear-gradient(135deg, rgba(74, 124, 255, 0.15), rgba(74, 124, 255, 0.08));
+      border-color: rgba(74, 124, 255, 0.3);
+      color: var(--accent-blue);
+    }
+    .product-detail-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    .product-detail-content {
+      background: var(--bg-elevated, var(--bg-card));
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      max-width: 500px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .product-detail-img {
+      width: 100%;
+      height: 240px;
+      border-radius: var(--radius-md);
+      object-fit: cover;
+      margin-bottom: 16px;
+      background: var(--bg-input);
+    }
+    .product-gallery {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      overflow-x: auto;
+    }
+    .product-gallery img {
+      width: 60px;
+      height: 60px;
+      border-radius: 8px;
+      object-fit: cover;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color 0.2s;
+    }
+    .product-gallery img.active, .product-gallery img:hover {
+      border-color: var(--accent-blue);
+    }
+    .qty-control {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .qty-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .qty-btn:hover { border-color: var(--accent-blue); }
+    .qty-value { font-size: 1.1rem; font-weight: 600; min-width: 30px; text-align: center; }
+    .order-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .order-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .order-items-list {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    .order-items-list div {
+      padding: 3px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+  <div class="mobile-header">
+    <button class="hamburger" onclick="toggleSidebar()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <span style="font-weight:600;font-size:1rem;">Car Club</span>
+  </div>
+
+  <aside class="sidebar" id="sidebar">
+    <a href="/members.html" class="sidebar-brand">
+      <img src="/logo.png" alt="My Car Concierge" class="sidebar-brand-icon" />
+    </a>
+    <div class="nav-label">Car Club</div>
+    <div class="nav-item active" onclick="showSection('myclubs')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      My Clubs
+    </div>
+    <div class="nav-item" onclick="showSection('browse')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+      Browse Clubs
+    </div>
+    <div class="nav-item" onclick="showSection('rewards')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+      My Rewards
+    </div>
+    <div class="nav-item" onclick="showSection('activity')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Activity
+    </div>
+    <div class="nav-item" onclick="showSection('notifications')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      Notifications
+      <span class="notif-count" id="notifBadge" style="display:none;">0</span>
+    </div>
+    <div class="nav-item" onclick="showSection('store')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      Club Stores
+    </div>
+    <div class="nav-item" onclick="showSection('myorders')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      My Orders
+    </div>
+    <div class="sidebar-footer">
+      <button class="theme-toggle-btn" onclick="toggleTheme()">
+        <span class="theme-icon-dark">🔆</span>
+        <span class="theme-icon-light">🌙</span>
+        <span class="theme-label">Toggle Theme</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <a href="/members.html" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back to My Garage
+    </a>
+    <div class="page-header">
+      <h1 class="page-title">Car Club</h1>
+      <p class="page-subtitle">Join clubs, earn rewards, and track your progress</p>
+    </div>
+
+    <div class="how-it-works" id="howItWorks">
+      <button class="how-it-works-toggle" onclick="toggleHowItWorks()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        How It Works
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="howItWorksChevron" style="margin-left:auto;transition:transform 0.2s;"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="how-it-works-body" id="howItWorksBody">
+        <div class="how-it-works-section">
+          <h3>🔍 How to Join</h3>
+          <p>Browse available clubs, join with one click, or auto-join after your first completed job with a provider.</p>
+        </div>
+        <div class="how-it-works-section">
+          <h3>🎯 Earning Punches</h3>
+          <p>Each completed job with a provider earns you punches toward their rewards.</p>
+        </div>
+        <div class="how-it-works-section">
+          <h3>📊 Tracking Progress</h3>
+          <p>See your punch cards fill up in "My Clubs" and get notified when you're close to earning a reward.</p>
+        </div>
+        <div class="how-it-works-section">
+          <h3>🎁 Redeeming Rewards</h3>
+          <p>When you hit the punch target, rewards unlock automatically and appear in "My Rewards."</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-myclubs" class="section active">
+      <div id="myclubs-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="skeleton" style="height:200px;border-radius:var(--radius-md);"></div>
+          <div class="skeleton" style="height:200px;border-radius:var(--radius-md);"></div>
+        </div>
+      </div>
+      <div id="myclubs-content" style="display:none;">
+        <h2 class="card-title" style="margin-bottom:20px;">My Clubs</h2>
+        <div class="club-grid" id="myclubs-list"></div>
+        <div id="myclubs-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+          <div class="empty-state-title">No Clubs Yet</div>
+          <p class="empty-state-desc">You haven't joined any clubs yet. Complete a job with a provider to automatically join their Car Club, or browse available clubs.</p>
+          <button class="empty-state-cta" onclick="showSection('browse')">Browse Clubs</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-browse" class="section">
+      <div id="browse-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="skeleton" style="height:180px;border-radius:var(--radius-md);"></div>
+          <div class="skeleton" style="height:180px;border-radius:var(--radius-md);"></div>
+        </div>
+      </div>
+      <div id="browse-content" style="display:none;">
+        <div id="recommended-section" class="recommended-section" style="display:none;">
+          <h2 class="card-title" style="margin-bottom:16px;">Recommended For You</h2>
+          <div class="club-grid" id="recommended-list"></div>
+        </div>
+        <h2 class="card-title" style="margin-bottom:20px;">Browse Clubs</h2>
+        <div class="club-grid" id="browse-list"></div>
+        <div id="browse-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+          <div class="empty-state-title">No Clubs Available</div>
+          <p class="empty-state-desc">No car clubs are available right now. Check back soon — providers are setting up their clubs for you to join.</p>
+          <a class="empty-state-cta" href="/members.html">Browse Packages</a>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-rewards" class="section">
+      <div id="rewards-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:80px;margin-bottom:12px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:80px;"></div>
+      </div>
+      <div id="rewards-content" style="display:none;">
+        <h2 class="card-title" style="margin-bottom:20px;">My Rewards</h2>
+        <div id="rewards-list"></div>
+        <div id="rewards-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg></div>
+          <div class="empty-state-title">No Rewards Yet</div>
+          <p class="empty-state-desc">Keep visiting your favorite providers and earning punches to unlock exclusive rewards and discounts.</p>
+          <button class="empty-state-cta" onclick="showSection('myclubs')">View My Clubs</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-activity" class="section">
+      <div id="activity-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:56px;margin-bottom:8px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:56px;margin-bottom:8px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:56px;"></div>
+      </div>
+      <div id="activity-content" style="display:none;">
+        <h2 class="card-title" style="margin-bottom:20px;">Activity</h2>
+        <div id="activity-list"></div>
+        <div id="activity-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+          <div class="empty-state-title">No Activity Yet</div>
+          <p class="empty-state-desc">Your activity history will appear here as you earn punches, visit providers, and redeem rewards.</p>
+          <button class="empty-state-cta" onclick="showSection('browse')">Find Clubs</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-notifications" class="section">
+      <div id="notif-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:56px;margin-bottom:8px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:56px;"></div>
+      </div>
+      <div id="notif-content" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <h2 class="card-title">Notifications</h2>
+          <button class="btn btn-secondary btn-sm" onclick="markAllRead()" id="mark-all-btn" style="display:none;">Mark All Read</button>
+        </div>
+        <div id="notif-list"></div>
+        <div id="notif-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+          <div class="empty-state-title">All Caught Up</div>
+          <p class="empty-state-desc">You have no new notifications. We'll let you know when you earn rewards, receive promotions, or hit milestones.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-store" class="section">
+      <div id="store-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="skeleton" style="height:200px;border-radius:var(--radius-md);"></div>
+          <div class="skeleton" style="height:200px;border-radius:var(--radius-md);"></div>
+        </div>
+      </div>
+      <div id="store-content" style="display:none;">
+        <h2 class="card-title" style="margin-bottom:20px;">Club Stores</h2>
+        <div id="store-club-select" style="margin-bottom:20px;"></div>
+        <div id="store-products" class="store-products-grid"></div>
+        <div id="store-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+          <div class="empty-state-title">No Products Available</div>
+          <p class="empty-state-desc">No products available yet. Check back soon — providers are setting up their merchandise stores.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-myorders" class="section">
+      <div id="myorders-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:60px;margin-bottom:8px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:60px;"></div>
+      </div>
+      <div id="myorders-content" style="display:none;">
+        <h2 class="card-title" style="margin-bottom:20px;">My Orders</h2>
+        <div id="myorders-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
+          <div class="empty-state-title">No Orders Yet</div>
+          <p class="empty-state-desc">Browse club stores to find exclusive merchandise from your favorite providers.</p>
+          <button class="empty-state-cta" onclick="showSection('store')">Browse Stores</button>
+        </div>
+        <div id="myorders-list"></div>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js?v=20260219"></script>
+  <script src="mcc-config.js?v=20260219"></script>
+  <script src="lib/reward-engine.js?v=20260219"></script>
+  <script>
+    function toggleHowItWorks() {
+      const body = document.getElementById('howItWorksBody');
+      const chevron = document.getElementById('howItWorksChevron');
+      body.classList.toggle('open');
+      chevron.style.transform = body.classList.contains('open') ? 'rotate(180deg)' : '';
+    }
+
+    let myClubsData = [];
+    let browseData = [];
+    let rewardsData = [];
+    let notifsData = [];
+    let joinedClubIds = new Set();
+
+    function getApiBase() {
+      return (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+    }
+
+    async function getToken() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        return session?.access_token || null;
+      } catch(e) { return null; }
+    }
+
+    async function apiFetch(path, opts = {}) {
+      const token = await getToken();
+      if (!token) { showToast('Please log in to continue', 'error'); window.location.href = '/login.html'; return null; }
+      const base = getApiBase();
+      const res = await fetch(`${base}${path}`, {
+        ...opts,
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    function formatDate(d) {
+      if (!d) return '—';
+      const date = new Date(d);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatDateTime(d) {
+      if (!d) return '—';
+      const date = new Date(d);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    }
+
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<span>${msg}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.animation = 'toastOut 0.3s ease forwards'; setTimeout(() => toast.remove(), 300); }, 4000);
+    }
+
+    function escHtml(str) {
+      if (!str) return '';
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function showSection(name) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.getElementById(`section-${name}`).classList.add('active');
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      const navItems = document.querySelectorAll('.nav-item');
+      const map = { myclubs: 0, browse: 1, rewards: 2, activity: 3, notifications: 4, store: 5, myorders: 6 };
+      if (map[name] !== undefined && navItems[map[name]]) navItems[map[name]].classList.add('active');
+      if (name === 'myclubs') loadMyClubs();
+      else if (name === 'browse') loadBrowse();
+      else if (name === 'rewards') loadRewards();
+      else if (name === 'activity') loadActivity();
+      else if (name === 'notifications') loadNotifications();
+      else if (name === 'store') loadClubStores();
+      else if (name === 'myorders') loadMyOrders();
+      if (window.innerWidth <= 900) toggleSidebar();
+    }
+
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('open');
+      document.getElementById('sidebarOverlay').classList.toggle('active');
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      html.classList.add('theme-transition');
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      setTimeout(() => html.classList.remove('theme-transition'), 400);
+    }
+
+    function buildPunchRow(current, total) {
+      let html = '<div class="punch-row">';
+      for (let i = 0; i < total; i++) {
+        html += `<div class="punch${i < current ? ' filled' : ''}"></div>`;
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function buildStarDisplay(avg, count) {
+      const rounded = Math.round(avg);
+      let stars = '';
+      for (let i = 1; i <= 5; i++) {
+        stars += i <= rounded ? '<span class="star-filled">★</span>' : '<span class="star-empty">☆</span>';
+      }
+      return `<span class="star-display">${stars}</span> <span style="font-size:0.82rem;color:var(--text-muted);">(${count})</span>`;
+    }
+
+    function buildStarRating(clubId, current) {
+      let html = `<div class="star-rating" id="star-rating-${clubId}">`;
+      for (let i = 1; i <= 5; i++) {
+        html += `<span class="star${i <= current ? ' filled' : ''}" data-value="${i}" onclick="setRating('${clubId}', ${i})">★</span>`;
+      }
+      html += '</div>';
+      return html;
+    }
+
+    let reviewRating = {};
+
+    function setRating(clubId, val) {
+      reviewRating[clubId] = val;
+      const container = document.getElementById(`star-rating-${clubId}`);
+      if (!container) return;
+      container.querySelectorAll('.star').forEach(s => {
+        s.classList.toggle('filled', parseInt(s.dataset.value) <= val);
+      });
+    }
+
+    function toggleReviewForm(clubId) {
+      const form = document.getElementById(`review-form-${clubId}`);
+      if (form) form.style.display = form.style.display === 'none' ? '' : 'none';
+    }
+
+    async function submitReview(clubId) {
+      const rating = reviewRating[clubId];
+      const content = document.getElementById(`review-text-${clubId}`).value.trim();
+      if (!rating || rating < 1) { showToast('Please select a rating', 'error'); return; }
+      if (!content) { showToast('Please write a review', 'error'); return; }
+      try {
+        await apiFetch('/api/car-club/testimonials', {
+          method: 'POST',
+          body: JSON.stringify({ club_id: clubId, rating, content })
+        });
+        showToast('Review submitted!', 'success');
+        const form = document.getElementById(`review-form-${clubId}`);
+        if (form) form.style.display = 'none';
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadMyClubs() {
+      document.getElementById('myclubs-loading').style.display = '';
+      document.getElementById('myclubs-content').style.display = 'none';
+      try {
+        const data = await apiFetch('/api/car-club/my-clubs');
+        if (!data) return;
+        myClubsData = data.clubs || [];
+        joinedClubIds = new Set(myClubsData.map(c => c.club_id));
+        document.getElementById('myclubs-loading').style.display = 'none';
+        document.getElementById('myclubs-content').style.display = '';
+        if (myClubsData.length === 0) {
+          document.getElementById('myclubs-list').innerHTML = '';
+          document.getElementById('myclubs-empty').style.display = '';
+        } else {
+          document.getElementById('myclubs-empty').style.display = 'none';
+          document.getElementById('myclubs-list').innerHTML = myClubsData.map(club => {
+            const balances = club.balances || [];
+            let progressHtml = '';
+            balances.forEach(b => {
+              if (!b.reward_rule_id) return;
+              const balance = {
+                punch_count: b.punch_count || 0,
+                total_spend: b.total_spend || 0,
+                visit_count: b.visit_count || 0,
+                points_balance: b.points_balance || 0
+              };
+              const params = { punches_required: 10 };
+              const result = RewardEngine.evaluate('punch_card', balance, params);
+              const displayTotal = Math.min(result.threshold, 20);
+              progressHtml += `<div class="reward-progress">
+                <div class="reward-progress-header">
+                  <span class="reward-progress-name">Punch Card</span>
+                  <span class="reward-progress-pct">${result.percentage}%</span>
+                </div>
+                ${buildPunchRow(result.progress, displayTotal)}
+                <div class="punch-label">${result.label}</div>
+                ${result.isEarned ? '<div style="margin-top:8px;"><span class="reward-earned-badge">✨ Reward Available!</span></div>' : ''}
+              </div>`;
+            });
+            return `<div class="club-card">
+              ${club.logo_url ? `<img src="${escHtml(club.logo_url)}" alt="" style="width:48px;height:48px;border-radius:var(--radius-md);object-fit:cover;margin-bottom:10px;" />` : ''}
+              <div class="club-card-name">${escHtml(club.name)}</div>
+              <div class="club-card-provider">Provider: ${escHtml((club.provider_id || club.club_id || '').substring(0, 8))}...</div>
+              ${club.welcome_message ? `<div class="club-card-welcome">${escHtml(club.welcome_message)}</div>` : ''}
+              ${progressHtml || '<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px;">No reward rules set up yet</div>'}
+              <div class="club-card-footer" style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="toggleReviewForm('${club.club_id}')">Leave a Review</button>
+                <button class="btn btn-danger btn-sm" onclick="leaveClub('${club.club_id}', '${escHtml(club.name)}')">Leave Club</button>
+              </div>
+              <div class="review-form" id="review-form-${club.club_id}" style="display:none;">
+                ${buildStarRating(club.club_id, 0)}
+                <textarea id="review-text-${club.club_id}" placeholder="Share your experience..."></textarea>
+                <button class="btn btn-metallic btn-sm" onclick="submitReview('${club.club_id}')">Submit Review</button>
+              </div>
+            </div>`;
+          }).join('');
+        }
+      } catch(e) {
+        document.getElementById('myclubs-loading').style.display = 'none';
+        document.getElementById('myclubs-content').style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function leaveClub(clubId, clubName) {
+      if (!confirm(`Are you sure you want to leave "${clubName}"? Your progress may be lost.`)) return;
+      try {
+        await apiFetch('/api/car-club/leave', {
+          method: 'POST',
+          body: JSON.stringify({ club_id: clubId })
+        });
+        showToast(`Left ${clubName}`, 'success');
+        await loadMyClubs();
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    let testimonialCache = {};
+
+    async function fetchTestimonials(clubId) {
+      if (testimonialCache[clubId]) return testimonialCache[clubId];
+      try {
+        const data = await apiFetch(`/api/car-club/testimonials?club_id=${clubId}`);
+        const testimonials = data.testimonials || [];
+        testimonialCache[clubId] = testimonials;
+        return testimonials;
+      } catch(e) { return []; }
+    }
+
+    function buildTestimonialSummary(testimonials) {
+      if (!testimonials || testimonials.length === 0) return '';
+      const avg = testimonials.reduce((s, t) => s + t.rating, 0) / testimonials.length;
+      return `<div class="testimonial-section"><div class="testimonial-avg">${buildStarDisplay(avg, testimonials.length)}</div></div>`;
+    }
+
+    async function loadBrowse() {
+      document.getElementById('browse-loading').style.display = '';
+      document.getElementById('browse-content').style.display = 'none';
+      try {
+        if (joinedClubIds.size === 0) {
+          try {
+            const myData = await apiFetch('/api/car-club/my-clubs');
+            if (myData) {
+              myClubsData = myData.clubs || [];
+              joinedClubIds = new Set(myClubsData.map(c => c.club_id));
+            }
+          } catch(e) {}
+        }
+        const [browseResult, recResult] = await Promise.all([
+          apiFetch('/api/car-club/browse'),
+          apiFetch('/api/car-club/recommended').catch(() => ({ clubs: [] }))
+        ]);
+        if (!browseResult) return;
+        browseData = browseResult.clubs || [];
+        const recommended = (recResult && recResult.clubs || []).slice(0, 3);
+
+        const allClubIds = [...new Set([...recommended.map(c => c.id), ...browseData.map(c => c.id)])];
+        const testimonialResults = await Promise.all(allClubIds.map(id => fetchTestimonials(id)));
+        const testimonialMap = {};
+        allClubIds.forEach((id, i) => { testimonialMap[id] = testimonialResults[i]; });
+
+        document.getElementById('browse-loading').style.display = 'none';
+        document.getElementById('browse-content').style.display = '';
+
+        if (recommended.length > 0) {
+          document.getElementById('recommended-section').style.display = '';
+          document.getElementById('recommended-list').innerHTML = recommended.map(club => {
+            const isJoined = joinedClubIds.has(club.id);
+            const tSummary = buildTestimonialSummary(testimonialMap[club.id]);
+            return `<div class="club-card">
+              <span class="recommended-badge">⭐ Recommended</span>
+              ${club.logo_url ? `<img src="${escHtml(club.logo_url)}" alt="" style="width:48px;height:48px;border-radius:var(--radius-md);object-fit:cover;margin-bottom:10px;" />` : ''}
+              <div class="club-card-name">${escHtml(club.name)}</div>
+              <div class="club-card-desc">${escHtml(club.description || 'Join this club to start earning rewards!')}</div>
+              <div class="club-card-meta">
+                <span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                  ${club.member_count || 0} member${(club.member_count || 0) !== 1 ? 's' : ''}
+                </span>
+                <span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  ${club.reward_count || 0} reward${(club.reward_count || 0) !== 1 ? 's' : ''}
+                </span>
+              </div>
+              ${tSummary}
+              <div class="club-card-footer">
+                ${isJoined
+                  ? '<span class="joined-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg> Joined</span>'
+                  : `<button class="btn btn-metallic btn-sm" onclick="joinClub('${club.id}', '${escHtml(club.name)}')">Join</button>`
+                }
+              </div>
+            </div>`;
+          }).join('');
+        } else {
+          document.getElementById('recommended-section').style.display = 'none';
+        }
+
+        if (browseData.length === 0) {
+          document.getElementById('browse-list').innerHTML = '';
+          document.getElementById('browse-empty').style.display = '';
+        } else {
+          document.getElementById('browse-empty').style.display = 'none';
+          document.getElementById('browse-list').innerHTML = browseData.map(club => {
+            const isJoined = joinedClubIds.has(club.id);
+            const tSummary = buildTestimonialSummary(testimonialMap[club.id]);
+            return `<div class="club-card">
+              ${club.logo_url ? `<img src="${escHtml(club.logo_url)}" alt="" style="width:48px;height:48px;border-radius:var(--radius-md);object-fit:cover;margin-bottom:10px;" />` : ''}
+              <div class="club-card-name">${escHtml(club.name)}</div>
+              <div class="club-card-desc">${escHtml(club.description || 'Join this club to start earning rewards!')}</div>
+              <div class="club-card-meta">
+                <span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                  ${club.member_count || 0} member${(club.member_count || 0) !== 1 ? 's' : ''}
+                </span>
+                <span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  ${club.reward_count || 0} reward${(club.reward_count || 0) !== 1 ? 's' : ''}
+                </span>
+              </div>
+              ${tSummary}
+              <div class="club-card-footer">
+                ${isJoined
+                  ? '<span class="joined-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg> Joined</span>'
+                  : `<button class="btn btn-metallic btn-sm" onclick="joinClub('${club.id}', '${escHtml(club.name)}')">Join</button>`
+                }
+              </div>
+            </div>`;
+          }).join('');
+        }
+      } catch(e) {
+        document.getElementById('browse-loading').style.display = 'none';
+        document.getElementById('browse-content').style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function joinClub(clubId, clubName) {
+      try {
+        await apiFetch('/api/car-club/join', {
+          method: 'POST',
+          body: JSON.stringify({ club_id: clubId })
+        });
+        showToast(`Joined ${clubName}!`, 'success');
+        joinedClubIds.add(clubId);
+        await loadBrowse();
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadRewards() {
+      document.getElementById('rewards-loading').style.display = '';
+      document.getElementById('rewards-content').style.display = 'none';
+      try {
+        const data = await apiFetch('/api/car-club/my-rewards');
+        if (!data) return;
+        rewardsData = data.rewards || [];
+        document.getElementById('rewards-loading').style.display = 'none';
+        document.getElementById('rewards-content').style.display = '';
+        if (rewardsData.length === 0) {
+          document.getElementById('rewards-list').innerHTML = '';
+          document.getElementById('rewards-empty').style.display = '';
+        } else {
+          document.getElementById('rewards-empty').style.display = 'none';
+          document.getElementById('rewards-list').innerHTML = rewardsData.map(r => {
+            const params = typeof r.parameters === 'string' ? JSON.parse(r.parameters) : (r.parameters || {});
+            return `<div class="reward-card">
+              <div class="reward-card-header">
+                <div>
+                  <div class="reward-card-name">${escHtml(r.reward_name)}</div>
+                  <div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">${escHtml(r.club_name)}</div>
+                </div>
+                <span class="reward-earned-badge">✨ You earned this!</span>
+              </div>
+              <div class="reward-card-meta">
+                ${r.reward_description ? `<span>🎁 ${escHtml(r.reward_description)}</span>` : ''}
+                ${params.reward_description ? `<span>🏆 ${escHtml(params.reward_description)}</span>` : ''}
+                ${params.reward_value ? `<span>💰 $${params.reward_value}</span>` : ''}
+                <span>📅 Unlocked ${formatDate(r.unlocked_at || r.created_at)}</span>
+              </div>
+            </div>`;
+          }).join('');
+        }
+      } catch(e) {
+        document.getElementById('rewards-loading').style.display = 'none';
+        document.getElementById('rewards-content').style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadActivity() {
+      document.getElementById('activity-loading').style.display = '';
+      document.getElementById('activity-content').style.display = 'none';
+      try {
+        const data = await apiFetch('/api/car-club/my-clubs');
+        if (!data) return;
+        document.getElementById('activity-loading').style.display = 'none';
+        document.getElementById('activity-content').style.display = '';
+        const clubs = data.clubs || [];
+        let activities = [];
+        clubs.forEach(club => {
+          (club.balances || []).forEach(b => {
+            if (b.last_activity_at) {
+              activities.push({
+                club_name: club.name,
+                activity_type: b.punch_count > 0 ? 'punch' : b.visit_count > 0 ? 'visit' : 'spend',
+                description: `Progress in ${club.name}`,
+                created_at: b.last_activity_at,
+                punch_count: b.punch_count,
+                visit_count: b.visit_count,
+                total_spend: b.total_spend
+              });
+            }
+          });
+        });
+        activities.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        if (activities.length === 0) {
+          document.getElementById('activity-list').innerHTML = '';
+          document.getElementById('activity-empty').style.display = '';
+        } else {
+          document.getElementById('activity-empty').style.display = 'none';
+          document.getElementById('activity-list').innerHTML = activities.map(a => {
+            const iconClass = a.activity_type === 'punch' ? 'punch' : a.activity_type === 'visit' ? 'visit' : a.activity_type === 'reward' ? 'reward' : 'spend';
+            const iconEmoji = a.activity_type === 'punch' ? '👊' : a.activity_type === 'visit' ? '📍' : a.activity_type === 'reward' ? '🎁' : '💳';
+            let details = '';
+            if (a.punch_count) details += `${a.punch_count} punches`;
+            if (a.visit_count) details += `${details ? ', ' : ''}${a.visit_count} visits`;
+            if (a.total_spend && parseFloat(a.total_spend) > 0) details += `${details ? ', ' : ''}$${parseFloat(a.total_spend).toFixed(2)} spent`;
+            return `<div class="activity-item">
+              <div class="activity-icon ${iconClass}">${iconEmoji}</div>
+              <div class="activity-content">
+                <div class="activity-title">${escHtml(a.club_name)}</div>
+                <div class="activity-desc">${escHtml(a.description)}${details ? ` — ${details}` : ''}</div>
+              </div>
+              <div class="activity-time">${formatDate(a.created_at)}</div>
+            </div>`;
+          }).join('');
+        }
+      } catch(e) {
+        document.getElementById('activity-loading').style.display = 'none';
+        document.getElementById('activity-content').style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadNotifications() {
+      document.getElementById('notif-loading').style.display = '';
+      document.getElementById('notif-content').style.display = 'none';
+      try {
+        const data = await apiFetch('/api/car-club/notifications');
+        if (!data) return;
+        notifsData = data.notifications || [];
+        document.getElementById('notif-loading').style.display = 'none';
+        document.getElementById('notif-content').style.display = '';
+        updateNotifBadge();
+        if (notifsData.length === 0) {
+          document.getElementById('notif-list').innerHTML = '';
+          document.getElementById('notif-empty').style.display = '';
+          document.getElementById('mark-all-btn').style.display = 'none';
+        } else {
+          document.getElementById('notif-empty').style.display = 'none';
+          document.getElementById('mark-all-btn').style.display = '';
+          document.getElementById('notif-list').innerHTML = notifsData.map(n => {
+            const isReward = (n.type || '').includes('reward');
+            const isBid = (n.type || '').includes('bid');
+            let extraMsg = '';
+            if (isBid && n.data) {
+              try {
+                const d = typeof n.data === 'string' ? JSON.parse(n.data) : n.data;
+                if (d.provider_name) extraMsg = `<div style="font-size:0.82rem;color:var(--accent-green);margin-top:4px;">You helped ${escHtml(d.provider_name)} earn rewards by booking with them!</div>`;
+              } catch(e) {}
+            }
+            return `<div class="notif-item unread">
+              <div class="notif-icon">${isReward ? '🎁' : isBid ? '🎫' : '🔔'}</div>
+              <div class="notif-content">
+                <div class="notif-title">${escHtml(n.title)}</div>
+                <div class="notif-body">${escHtml(n.body)}</div>
+                ${extraMsg}
+                <div class="notif-time">${formatDate(n.created_at)}</div>
+              </div>
+              <div class="notif-actions">
+                <button class="btn btn-secondary btn-sm" onclick="markRead('${n.id}')">Mark Read</button>
+              </div>
+            </div>`;
+          }).join('');
+        }
+      } catch(e) {
+        document.getElementById('notif-loading').style.display = 'none';
+        document.getElementById('notif-content').style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    function updateNotifBadge() {
+      const badge = document.getElementById('notifBadge');
+      if (notifsData.length > 0) {
+        badge.textContent = notifsData.length;
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
+    async function markRead(notifId) {
+      try {
+        await apiFetch('/api/car-club/notifications/read', {
+          method: 'POST',
+          body: JSON.stringify({ notification_ids: [notifId] })
+        });
+        notifsData = notifsData.filter(n => n.id !== notifId);
+        updateNotifBadge();
+        await loadNotifications();
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function markAllRead() {
+      if (notifsData.length === 0) return;
+      try {
+        const ids = notifsData.map(n => n.id);
+        await apiFetch('/api/car-club/notifications/read', {
+          method: 'POST',
+          body: JSON.stringify({ notification_ids: ids })
+        });
+        showToast('All notifications marked as read', 'success');
+        notifsData = [];
+        updateNotifBadge();
+        await loadNotifications();
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function init() {
+      await loadMyClubs();
+      try {
+        const notifData = await apiFetch('/api/car-club/notifications');
+        if (notifData) {
+          notifsData = notifData.notifications || [];
+          updateNotifBadge();
+        }
+      } catch(e) {}
+    }
+
+    let selectedStoreClubId = null;
+
+    async function loadClubStores() {
+      const loading = document.getElementById('store-loading');
+      const content = document.getElementById('store-content');
+      loading.style.display = '';
+      content.style.display = 'none';
+      try {
+        const clubsData = await apiFetch('/api/car-club/my-clubs');
+        const clubs = clubsData.memberships || [];
+        loading.style.display = 'none';
+        content.style.display = '';
+
+        const selectEl = document.getElementById('store-club-select');
+        if (clubs.length === 0) {
+          selectEl.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">Join a club to browse their store.</p>';
+          document.getElementById('store-products').innerHTML = '';
+          document.getElementById('store-empty').style.display = 'none';
+          return;
+        }
+
+        if (!selectedStoreClubId) selectedStoreClubId = clubs[0].club_id;
+
+        selectEl.innerHTML = clubs.map(c =>
+          '<span class="store-club-tab' + (c.club_id === selectedStoreClubId ? ' active' : '') + '" onclick="selectStoreClub(\'' + c.club_id + '\')">' +
+            escHtml(c.name) +
+          '</span>'
+        ).join('');
+
+        await loadStoreProducts(selectedStoreClubId);
+      } catch(e) {
+        loading.style.display = 'none';
+        content.style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    function selectStoreClub(clubId) {
+      selectedStoreClubId = clubId;
+      document.querySelectorAll('.store-club-tab').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      loadStoreProducts(clubId);
+    }
+
+    async function loadStoreProducts(clubId) {
+      const grid = document.getElementById('store-products');
+      const empty = document.getElementById('store-empty');
+      grid.innerHTML = '<div class="card" style="text-align:center;padding:40px;"><span class="spinner" style="display:inline-block;width:24px;height:24px;border-width:3px;"></span></div>';
+      empty.style.display = 'none';
+
+      try {
+        const data = await apiFetch('/api/car-club/store/' + clubId);
+        const products = data.products || [];
+
+        if (products.length === 0) {
+          grid.innerHTML = '';
+          empty.style.display = '';
+          return;
+        }
+
+        empty.style.display = 'none';
+        grid.innerHTML = products.map(p => {
+          const img = (p.images && p.images.length > 0) ? p.images[0].image_url : '';
+          const priceStr = '$' + (p.price / 100).toFixed(2);
+          const compareStr = p.compare_at_price ? '<span class="compare-price">$' + (p.compare_at_price / 100).toFixed(2) + '</span>' : '';
+          return '<div class="store-product-card" onclick="showProductDetail(\'' + p.id + '\', \'' + clubId + '\')">' +
+            '<div class="store-product-img">' + (img ? '<img src="' + escHtml(img) + '" alt="' + escHtml(p.name) + '" loading="lazy" />' : '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>') + '</div>' +
+            '<div class="store-product-body">' +
+              '<div class="store-product-name">' + escHtml(p.name) + '</div>' +
+              '<div class="store-product-price">' + priceStr + ' ' + compareStr + '</div>' +
+              (p.description ? '<div class="store-product-desc">' + escHtml(p.description) + '</div>' : '') +
+              (p.inventory_count !== null && p.inventory_count !== undefined && p.inventory_count <= 5 ? '<div style="font-size:0.78rem;color:var(--accent-orange);margin-top:4px;">Only ' + p.inventory_count + ' left</div>' : '') +
+            '</div>' +
+          '</div>';
+        }).join('');
+      } catch(e) {
+        grid.innerHTML = '';
+        empty.style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    let currentStoreProducts = {};
+
+    async function showProductDetail(productId, clubId) {
+      try {
+        const data = await apiFetch('/api/car-club/store/' + clubId);
+        const product = (data.products || []).find(p => p.id === productId);
+        if (!product) { showToast('Product not found', 'error'); return; }
+
+        const images = product.images || [];
+        const mainImg = images.length > 0 ? images[0].image_url : '';
+        const priceStr = '$' + (product.price / 100).toFixed(2);
+        const compareStr = product.compare_at_price ? '<span class="compare-price">$' + (product.compare_at_price / 100).toFixed(2) + '</span>' : '';
+
+        const galleryHtml = images.length > 1 ? '<div class="product-gallery">' + images.map((img, i) => '<img src="' + escHtml(img.image_url) + '" class="' + (i === 0 ? 'active' : '') + '" onclick="switchProductImage(this, \'' + escHtml(img.image_url) + '\')" />').join('') + '</div>' : '';
+
+        const modal = document.createElement('div');
+        modal.className = 'product-detail-modal';
+        modal.id = 'product-detail-modal';
+        modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+        modal.innerHTML = '<div class="product-detail-content">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">' +
+            '<h3 style="font-family:\'Playfair Display\',serif;font-size:1.15rem;">' + escHtml(product.name) + '</h3>' +
+            '<button onclick="document.getElementById(\'product-detail-modal\').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.3rem;">&times;</button>' +
+          '</div>' +
+          (mainImg ? '<img class="product-detail-img" id="product-detail-main-img" src="' + escHtml(mainImg) + '" alt="' + escHtml(product.name) + '" />' : '') +
+          galleryHtml +
+          '<div class="store-product-price" style="font-size:1.2rem;margin-bottom:12px;">' + priceStr + ' ' + compareStr + '</div>' +
+          (product.description ? '<p style="color:var(--text-secondary);font-size:0.92rem;line-height:1.5;margin-bottom:16px;">' + escHtml(product.description) + '</p>' : '') +
+          (product.category && product.category !== 'general' ? '<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px;">Category: ' + escHtml(product.category) + '</div>' : '') +
+          (product.inventory_count !== null && product.inventory_count !== undefined ? '<div style="font-size:0.82rem;color:' + (product.inventory_count <= 5 ? 'var(--accent-orange)' : 'var(--text-muted)') + ';margin-bottom:12px;">' + (product.inventory_count === 0 ? 'Out of stock' : product.inventory_count + ' in stock') + '</div>' : '') +
+          '<div class="qty-control">' +
+            '<span style="font-size:0.9rem;color:var(--text-secondary);">Quantity:</span>' +
+            '<button class="qty-btn" onclick="changeQty(-1)">−</button>' +
+            '<span class="qty-value" id="product-qty">1</span>' +
+            '<button class="qty-btn" onclick="changeQty(1)">+</button>' +
+          '</div>' +
+          '<button class="btn btn-metallic" style="width:100%;" id="buy-btn" onclick="buyProduct(\'' + productId + '\', \'' + clubId + '\')" ' + (product.inventory_count === 0 ? 'disabled' : '') + '>' +
+            (product.inventory_count === 0 ? 'Out of Stock' : 'Buy Now — ' + priceStr) +
+          '</button>' +
+        '</div>';
+
+        document.body.appendChild(modal);
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    function switchProductImage(thumbEl, url) {
+      document.getElementById('product-detail-main-img').src = url;
+      document.querySelectorAll('.product-gallery img').forEach(i => i.classList.remove('active'));
+      thumbEl.classList.add('active');
+    }
+
+    function changeQty(delta) {
+      const el = document.getElementById('product-qty');
+      let qty = parseInt(el.textContent) + delta;
+      if (qty < 1) qty = 1;
+      if (qty > 99) qty = 99;
+      el.textContent = qty;
+    }
+
+    async function buyProduct(productId, clubId) {
+      const qty = parseInt(document.getElementById('product-qty').textContent) || 1;
+      const btn = document.getElementById('buy-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px;margin-right:8px;"></span>Processing...';
+
+      try {
+        const data = await apiFetch('/api/car-club/store/checkout', {
+          method: 'POST',
+          body: JSON.stringify({
+            club_id: clubId,
+            items: [{ product_id: productId, quantity: qty }]
+          })
+        });
+
+        if (data.checkout_url) {
+          window.location.href = data.checkout_url;
+        } else {
+          showToast('Unable to create checkout session', 'error');
+          btn.disabled = false;
+          btn.textContent = 'Buy Now';
+        }
+      } catch(e) {
+        showToast(e.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Buy Now';
+      }
+    }
+
+    async function loadMyOrders() {
+      const loading = document.getElementById('myorders-loading');
+      const content = document.getElementById('myorders-content');
+      loading.style.display = '';
+      content.style.display = 'none';
+      try {
+        const data = await apiFetch('/api/car-club/my-orders');
+        loading.style.display = 'none';
+        content.style.display = '';
+        const orders = data.orders || [];
+        const container = document.getElementById('myorders-list');
+        const empty = document.getElementById('myorders-empty');
+
+        if (orders.length === 0) {
+          empty.style.display = '';
+          container.innerHTML = '';
+          return;
+        }
+
+        empty.style.display = 'none';
+        container.innerHTML = orders.map(o => {
+          const items = o.items || [];
+          const itemsHtml = items.map(i => '<div>' + escHtml(i.product_name) + ' x' + i.quantity + ' — $' + (i.product_price / 100).toFixed(2) + '</div>').join('');
+          const total = '$' + (o.total / 100).toFixed(2);
+          const date = new Date(o.created_at).toLocaleDateString();
+          const statusClass = o.status === 'delivered' ? 'badge-success' : o.status === 'shipped' ? 'badge-info' : o.status === 'paid' || o.status === 'processing' ? 'badge-info' : o.status === 'cancelled' || o.status === 'refunded' ? 'badge-warning' : 'badge-info';
+
+          let trackingHtml = '';
+          if (o.tracking_number) {
+            trackingHtml = '<div style="font-size:0.82rem;color:var(--text-muted);margin-top:8px;">Tracking: ' + escHtml(o.tracking_number) + (o.tracking_url ? ' <a href="' + escHtml(o.tracking_url) + '" target="_blank" style="color:var(--accent-blue);">Track</a>' : '') + '</div>';
+          }
+
+          return '<div class="order-card">' +
+            '<div class="order-card-header">' +
+              '<div><strong>' + escHtml(o.club_name || 'Club Store') + '</strong> <span style="font-size:0.82rem;color:var(--text-muted);">' + date + '</span></div>' +
+              '<div style="display:flex;align-items:center;gap:8px;"><span class="badge ' + statusClass + '">' + o.status + '</span><span style="font-weight:600;">' + total + '</span></div>' +
+            '</div>' +
+            '<div class="order-items-list">' + itemsHtml + '</div>' +
+            trackingHtml +
+          '</div>';
+        }).join('');
+      } catch(e) {
+        loading.style.display = 'none';
+        content.style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    function handleCheckoutReturn() {
+      const params = new URLSearchParams(window.location.search);
+      const checkout = params.get('checkout');
+      if (checkout === 'success') {
+        showToast('Order placed successfully!', 'success');
+        showSection('myorders');
+        window.history.replaceState({}, '', window.location.pathname);
+      } else if (checkout === 'cancel') {
+        showToast('Checkout was cancelled', 'info');
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+
+    const origInit = typeof init === 'function' ? init : null;
+    const wrappedInit = async () => {
+      if (origInit) await origInit();
+      handleCheckoutReturn();
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(wrappedInit, 300));
+    } else {
+      setTimeout(wrappedInit, 300);
+    }
+  </script>
+</body>
+</html>

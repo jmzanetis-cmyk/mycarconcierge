@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -524,6 +525,8 @@
         font-size: 1rem;
       }
     }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
 </head>
 <body>
@@ -692,7 +695,7 @@
             </div>
           </div>
           <div class="wait-time" id="estimated-wait">
-            <span class="wait-time-icon">⏱️</span>
+            <span class="wait-time-icon"><span class="icon-inline" data-icon="clock"></span></span>
             <span class="wait-time-text">Estimated wait: <span class="wait-time-value" id="estimated-wait-time">--</span></span>
           </div>
         </div>
@@ -707,12 +710,12 @@
       </div>
 
       <div class="screen" id="screen-success">
-        <div class="success-icon">✅</div>
+        <div class="success-icon"><span class="icon-inline" data-icon="check-circle"></span></div>
         <h1 class="screen-title">You're Checked In!</h1>
         <div class="queue-number" id="queue-number">#1</div>
         <div class="queue-position" id="queue-position">You're next in line!</div>
         <div class="wait-time">
-          <span class="wait-time-icon">⏱️</span>
+          <span class="wait-time-icon"><span class="icon-inline" data-icon="clock"></span></span>
           <span class="wait-time-text">Estimated wait: <span class="wait-time-value" id="success-wait-time">15 min</span></span>
         </div>
         <p class="screen-subtitle">Please have a seat. We'll call you when it's your turn.</p>
@@ -726,5 +729,13 @@
   </div>
 
   <script src="check-in.js"></script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
 </body>
 </html>

@@ -9,6 +9,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -77,6 +78,9 @@
     .header-brand img {
       height: 56px;
       border-radius: var(--radius-md);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25));
       transition: all 0.3s ease;
     }
     .header-brand:hover img {
@@ -469,6 +473,130 @@
       display: flex;
       align-items: center;
       gap: 8px;
+    }
+
+    .pay-tax-subsection {
+      margin-bottom: 28px;
+    }
+    
+    .pay-tax-subtitle {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .pay-tax-description {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    
+    .payout-methods-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    
+    .payout-method-item {
+      display: flex;
+      align-items: center;
+      padding: 16px 12px;
+      background: transparent;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background 0.2s ease;
+      gap: 16px;
+    }
+    
+    .payout-method-item:hover {
+      background: var(--bg-elevated);
+    }
+    
+    .payout-method-icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    
+    .payout-method-icon svg {
+      width: 20px;
+      height: 20px;
+    }
+    
+    .payout-method-details {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .payout-method-name {
+      font-weight: 500;
+      color: var(--text-primary);
+      font-size: 0.95rem;
+    }
+    
+    .payout-method-info {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    
+    .payout-status-badge {
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--accent-gold-soft);
+      color: var(--accent-gold);
+      flex-shrink: 0;
+    }
+    
+    .payout-status-badge.status-active {
+      background: var(--accent-green-soft);
+      color: var(--accent-green);
+    }
+    
+    .payout-status-badge.status-inactive {
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+    }
+    
+    .payout-status-badge.status-closed {
+      background: var(--accent-red-soft);
+      color: var(--accent-red);
+    }
+    
+    .payout-status-badge.status-pending {
+      background: var(--accent-orange-soft);
+      color: var(--accent-orange);
+    }
+    
+    .payout-method-arrow {
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    
+    .outstanding-balance-item {
+      background: rgba(248, 113, 113, 0.08);
+      border: 1px solid rgba(248, 113, 113, 0.2);
+    }
+    
+    .outstanding-balance-item:hover {
+      background: rgba(248, 113, 113, 0.12);
+    }
+    
+    .warning-icon {
+      background: var(--accent-red-soft);
     }
 
     .toast {
@@ -921,6 +1049,8 @@
     .tier-next-info strong {
       color: var(--text-primary);
     }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
   <script src="/i18n.js"></script>
 </head>
@@ -936,8 +1066,8 @@
     </a>
     <nav class="header-nav">
       <div id="language-switcher"></div>
-      <a href="members.html" class="btn btn-secondary" data-i18n="founderDashboard.memberPortal">🏠 Member Portal</a>
-      <button class="btn btn-danger" onclick="logout()" data-i18n="founderDashboard.logOut">🚪 Log Out</button>
+      <a href="members.html" class="btn btn-secondary" data-i18n="founderDashboard.memberPortal"><span class="icon-inline" data-icon="home"></span> Member Portal</a>
+      <button class="btn btn-danger" onclick="logout()" data-i18n="founderDashboard.logOut"><span class="icon-inline" data-icon="log-out"></span> Log Out</button>
     </nav>
   </header>
 
@@ -951,20 +1081,37 @@
           <div class="referral-code-label" data-i18n="founderDashboard.yourReferralCode">Your Referral Code</div>
           <div class="referral-code-value" id="referral-code">----</div>
         </div>
-        <button class="referral-code-copy" onclick="copyReferralCode()" data-i18n="founderDashboard.copyCode">📋 Copy Code</button>
+        <button class="referral-code-copy" onclick="copyReferralCode()" data-i18n="founderDashboard.copyCode"><span class="icon-inline" data-icon="clipboard-list"></span> Copy Code</button>
       </div>
 
       <div class="share-section">
-        <button class="share-btn" onclick="copyShareLink('member')" style="border-color:var(--accent-gold);" data-i18n="founderDashboard.copyMemberLink">🔗 Copy Member Link</button>
-        <button class="share-btn" onclick="copyShareLink('provider')" style="border-color:var(--accent-blue);" data-i18n="founderDashboard.copyProviderLink">🔗 Copy Provider Link</button>
-        <button class="share-btn" onclick="shareViaEmail('member')" data-i18n="founderDashboard.emailMemberInvite">📧 Email Member Invite</button>
-        <button class="share-btn" onclick="shareViaEmail('provider')" data-i18n="founderDashboard.emailProviderInvite">📧 Email Provider Invite</button>
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;text-align:center;">Share your referral links to grow the network and earn commissions:</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px;">
+          <button class="share-btn" onclick="copyShareLink('member')" style="border-color:var(--accent-gold);" data-i18n="founderDashboard.copyMemberLink"><span class="icon-inline" data-icon="share-2"></span> Copy Member Link</button>
+          <button class="share-btn" onclick="copyShareLink('provider')" style="border-color:var(--accent-blue);" data-i18n="founderDashboard.copyProviderLink"><span class="icon-inline" data-icon="share-2"></span> Copy Provider Link</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px;">
+          <button class="share-btn" onclick="shareViaEmail('member')" data-i18n="founderDashboard.emailMemberInvite"><span class="icon-inline" data-icon="mail"></span> Email Member Invite</button>
+          <button class="share-btn" onclick="shareViaEmail('provider')" data-i18n="founderDashboard.emailProviderInvite"><span class="icon-inline" data-icon="mail"></span> Email Provider Invite</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px;">
+          <button class="share-btn" onclick="shareViaSMS('member')" style="border-color:#22c55e;"><span class="icon-inline" data-icon="message-circle"></span> Text Member Invite</button>
+          <button class="share-btn" onclick="shareViaSMS('provider')" style="border-color:#22c55e;"><span class="icon-inline" data-icon="message-circle"></span> Text Provider Invite</button>
+        </div>
+        <div style="text-align:center;margin-bottom:8px;">
+          <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;">Share on Social</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+          <button class="share-btn" onclick="shareToFacebook('member')" style="border-color:#1877f2;color:#1877f2;" title="Share member link on Facebook"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Facebook</button>
+          <button class="share-btn" onclick="shareToTwitter('member')" style="border-color:#1da1f2;color:#1da1f2;" title="Share member link on X/Twitter"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> X</button>
+          <button class="share-btn" onclick="shareToWhatsApp('member')" style="border-color:#25d366;color:#25d366;" title="Share member link on WhatsApp"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg> WhatsApp</button>
+        </div>
       </div>
 
       <div class="tier-section" id="tier-section">
         <div class="tier-header">
           <span style="font-size:1rem;color:var(--text-secondary);" data-i18n="founderDashboard.yourCommissionTier">Your Commission Tier:</span>
-          <span class="tier-badge bronze" id="tier-badge">🥉 Bronze</span>
+          <span class="tier-badge bronze" id="tier-badge"><span class="icon-inline" data-icon="award"></span> Bronze</span>
         </div>
         <div class="tier-progress-container">
           <div class="tier-progress-labels">
@@ -991,20 +1138,20 @@
         <div style="display:flex;justify-content:center;gap:32px;flex-wrap:wrap;">
           <div style="text-align:center;">
             <div style="font-size:0.85rem;color:var(--accent-gold);font-weight:600;margin-bottom:8px;" data-i18n="founderDashboard.memberSignup">Member Signup</div>
-            <div style="display:inline-block;background:#fff;padding:16px;border-radius:var(--radius-md);border:2px solid var(--accent-gold);">
+            <div style="display:inline-block;background:var(--bg-card, #fff);padding:16px;border-radius:var(--radius-md);border:2px solid var(--accent-gold);">
               <canvas id="qr-code-member" style="display:block;"></canvas>
             </div>
             <div style="margin-top:12px;">
-              <button class="share-btn" onclick="downloadQRCode('member')" data-i18n="founderDashboard.downloadMemberQR">📥 Download Member QR</button>
+              <button class="share-btn" onclick="downloadQRCode('member')" data-i18n="founderDashboard.downloadMemberQR"><span class="icon-inline" data-icon="download"></span> Download Member QR</button>
             </div>
           </div>
           <div style="text-align:center;">
             <div style="font-size:0.85rem;color:var(--accent-blue);font-weight:600;margin-bottom:8px;" data-i18n="founderDashboard.providerSignup">Provider Signup</div>
-            <div style="display:inline-block;background:#fff;padding:16px;border-radius:var(--radius-md);border:2px solid var(--accent-blue);">
+            <div style="display:inline-block;background:var(--bg-card, #fff);padding:16px;border-radius:var(--radius-md);border:2px solid var(--accent-blue);">
               <canvas id="qr-code-provider" style="display:block;"></canvas>
             </div>
             <div style="margin-top:12px;">
-              <button class="share-btn" onclick="downloadQRCode('provider')" data-i18n="founderDashboard.downloadProviderQR">📥 Download Provider QR</button>
+              <button class="share-btn" onclick="downloadQRCode('provider')" data-i18n="founderDashboard.downloadProviderQR"><span class="icon-inline" data-icon="download"></span> Download Provider QR</button>
             </div>
           </div>
         </div>
@@ -1013,35 +1160,89 @@
 
     <section class="stats-grid">
       <div class="stat-card">
-        <div class="stat-icon blue">👨‍🔧</div>
+        <div class="stat-icon blue"><span class="icon-inline" data-icon="wrench"></span></div>
         <div class="stat-value" id="stat-provider-referrals">0</div>
         <div class="stat-label" data-i18n="founderDashboard.providerReferrals">Provider Referrals</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon gold">👥</div>
+        <div class="stat-icon gold"><span class="icon-inline" data-icon="users"></span></div>
         <div class="stat-value" id="stat-member-referrals">0</div>
         <div class="stat-label" data-i18n="founderDashboard.memberReferrals">Member Referrals</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon green">💰</div>
+        <div class="stat-icon green"><span class="icon-inline" data-icon="dollar-sign"></span></div>
         <div class="stat-value" id="stat-total-earnings">$0.00</div>
         <div class="stat-label" data-i18n="founderDashboard.totalEarnings">Total Earnings</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon orange">⏳</div>
+        <div class="stat-icon orange"><span class="icon-inline" data-icon="clock"></span></div>
         <div class="stat-value" id="stat-pending-balance">$0.00</div>
         <div class="stat-label" data-i18n="founderDashboard.pendingBalance">Pending Balance</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon blue">📅</div>
+        <div class="stat-icon blue"><span class="icon-inline" data-icon="calendar"></span></div>
         <div class="stat-value" id="stat-next-payout" style="font-size: 1.2rem;">--</div>
         <div class="stat-label" data-i18n="founderDashboard.nextPayoutDate">Next Payout Date</div>
       </div>
     </section>
 
+    <section class="card" id="wefunder-widget" style="margin-bottom: 20px; background: linear-gradient(135deg, rgba(26,32,42,0.98) 0%, rgba(30,38,50,0.95) 100%); border: 1px solid rgba(0,196,140,0.2); position: relative; overflow: hidden;">
+      <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #00c48c, #00a87a);"></div>
+      <div class="card-header" style="padding-bottom: 0;">
+        <h2 class="card-title" style="display: flex; align-items: center; gap: 10px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#00c48c" stroke-width="2" stroke-linejoin="round"/><path d="M2 17L12 22L22 17" stroke="#00c48c" stroke-width="2" stroke-linejoin="round"/><path d="M2 12L12 17L22 12" stroke="#00c48c" stroke-width="2" stroke-linejoin="round"/></svg>
+          <span>Wefunder Campaign</span>
+          <span id="wefunder-live-badge" style="display: none; padding: 2px 10px; border-radius: 100px; font-size: 0.72rem; font-weight: 700; background: rgba(0,196,140,0.15); color: #00c48c; border: 1px solid rgba(0,196,140,0.3); letter-spacing: 0.05em;">LIVE</span>
+        </h2>
+        <a href="https://wefunder.com/my.car.concierge" target="_blank" rel="noopener noreferrer" style="font-size: 0.82rem; color: #00c48c; text-decoration: none; white-space: nowrap;">wefunder.com/my.car.concierge ↗</a>
+      </div>
+      <div id="wefunder-loading" style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 0.88rem;">
+        Loading campaign stats…
+      </div>
+      <div id="wefunder-body" style="display: none; padding: 20px 24px 24px;">
+        <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5;">
+          My Car Concierge is raising capital on Wefunder to accelerate platform growth, provider acquisition, and mobile app development. As a founder, your early belief in this platform is invaluable — share the campaign and help us reach our goal.
+        </p>
+
+        <div id="wefunder-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;"></div>
+
+        <div id="wefunder-progress-wrap" style="display: none; margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); margin-bottom: 6px;">
+            <span id="wefunder-raised-label">$0 raised</span>
+            <span id="wefunder-goal-label">Goal: $0</span>
+          </div>
+          <div style="height: 8px; background: rgba(0,196,140,0.12); border-radius: 100px; overflow: hidden;">
+            <div id="wefunder-progress-bar" style="height: 100%; background: linear-gradient(90deg, #00c48c, #00a87a); border-radius: 100px; width: 0%; transition: width 0.8s ease;"></div>
+          </div>
+        </div>
+
+        <div style="background: rgba(0,196,140,0.06); border: 1px solid rgba(0,196,140,0.18); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 16px;">
+          <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 8px; font-weight: 600;">Your Personal Campaign Link</div>
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span id="wefunder-personal-link" style="font-size: 0.8rem; color: #00c48c; word-break: break-all; flex: 1; min-width: 0;">Loading…</span>
+            <button onclick="copyWefunderLink()" style="flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 7px 14px; background: rgba(0,196,140,0.12); color: #00c48c; font-weight: 600; font-size: 0.82rem; border-radius: var(--radius-sm); border: 1px solid rgba(0,196,140,0.3); cursor: pointer; white-space: nowrap;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              <span id="wefunder-copy-label">Copy Link</span>
+            </button>
+          </div>
+          <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 6px;">Investments made via your link are attributed to you for leaderboard and recognition.</div>
+        </div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <a id="wefunder-invest-link" href="https://wefunder.com/my.car.concierge" target="_blank" rel="noopener noreferrer" style="flex: 1; min-width: 140px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; background: linear-gradient(135deg, #00c48c, #00a87a); color: #fff; font-weight: 600; font-size: 0.92rem; border-radius: var(--radius-md); text-decoration: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            Invest Now
+          </a>
+          <button onclick="shareWefunderCampaign()" style="flex: 1; min-width: 140px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; background: rgba(0,196,140,0.1); color: #00c48c; font-weight: 600; font-size: 0.92rem; border-radius: var(--radius-md); border: 1px solid rgba(0,196,140,0.3); cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            Share Campaign
+          </button>
+        </div>
+      </div>
+    </section>
+
     <section class="card" style="margin-bottom: 20px;">
       <div class="card-header">
-        <h2 class="card-title" data-i18n="founderDashboard.commissionAnalytics">📊 Commission Analytics</h2>
+        <h2 class="card-title" data-i18n="founderDashboard.commissionAnalytics"><span class="icon-inline" data-icon="bar-chart"></span> Commission Analytics</h2>
       </div>
       <div class="analytics-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
         <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px;">
@@ -1058,26 +1259,26 @@
         </div>
       </div>
       <div class="empty-state" id="analytics-empty" style="display: none;">
-        <div class="empty-state-icon">📊</div>
+        <div class="empty-state-icon"><span class="icon-inline" data-icon="bar-chart"></span></div>
         <p data-i18n="founderDashboard.noCommissionData">No commission data available yet.</p>
       </div>
     </section>
 
     <section class="card" style="margin-bottom: 20px;">
       <div class="card-header">
-        <h2 class="card-title" data-i18n="founderDashboard.recentActivity">🔔 Recent Activity</h2>
+        <h2 class="card-title" data-i18n="founderDashboard.recentActivity"><span class="icon-inline" data-icon="bell"></span> Recent Activity</h2>
       </div>
       <div class="activity-feed" id="activity-feed">
       </div>
       <div class="empty-state" id="activity-empty" style="display: none;">
-        <div class="empty-state-icon">🔔</div>
+        <div class="empty-state-icon"><span class="icon-inline" data-icon="bell"></span></div>
         <p data-i18n="founderDashboard.noActivityYet">No activity yet. Your referral activity will appear here.</p>
       </div>
     </section>
 
     <section class="card" style="margin-bottom: 20px;">
       <div class="card-header">
-        <h2 class="card-title" data-i18n="founderDashboard.topFoundersLeaderboard">🏆 Top Founders Leaderboard</h2>
+        <h2 class="card-title" data-i18n="founderDashboard.topFoundersLeaderboard"><span class="icon-inline" data-icon="trophy"></span> Top Founders Leaderboard</h2>
       </div>
       <div class="leaderboard-optin">
         <input type="checkbox" id="leaderboard-optin-checkbox" onchange="toggleLeaderboardOptIn()">
@@ -1097,16 +1298,16 @@
         </tbody>
       </table>
       <div class="empty-state" id="leaderboard-empty" style="display: none;">
-        <div class="empty-state-icon">🏆</div>
+        <div class="empty-state-icon"><span class="icon-inline" data-icon="trophy"></span></div>
         <p data-i18n="founderDashboard.noFoundersOnLeaderboard">No founders on the leaderboard yet. Be the first to opt in!</p>
       </div>
     </section>
 
     <div class="card">
       <div class="tabs">
-        <div class="tab active" data-tab="referrals" data-i18n="founderDashboard.tabReferrals">📋 Referrals</div>
-        <div class="tab" data-tab="commissions" data-i18n="founderDashboard.tabCommissions">💵 Commissions</div>
-        <div class="tab" data-tab="payouts" data-i18n="founderDashboard.tabPayouts">📤 Payouts</div>
+        <div class="tab active" data-tab="referrals" data-i18n="founderDashboard.tabReferrals"><span class="icon-inline" data-icon="clipboard-list"></span> Referrals</div>
+        <div class="tab" data-tab="commissions" data-i18n="founderDashboard.tabCommissions"><span class="icon-inline" data-icon="dollar-sign"></span> Commissions</div>
+        <div class="tab" data-tab="payouts" data-i18n="founderDashboard.tabPayouts"><span class="icon-inline" data-icon="upload"></span> Payouts</div>
       </div>
 
       <div id="referrals-tab" class="tab-content active">
@@ -1123,7 +1324,7 @@
           </tbody>
         </table>
         <div class="empty-state" id="referrals-empty" style="display: none;">
-          <div class="empty-state-icon">📋</div>
+          <div class="empty-state-icon"><span class="icon-inline" data-icon="clipboard-list"></span></div>
           <p data-i18n="founderDashboard.noReferralsYet">No referrals yet. Share your code to start earning!</p>
         </div>
       </div>
@@ -1142,7 +1343,7 @@
           </tbody>
         </table>
         <div class="empty-state" id="commissions-empty" style="display: none;">
-          <div class="empty-state-icon">💵</div>
+          <div class="empty-state-icon"><span class="icon-inline" data-icon="dollar-sign"></span></div>
           <p data-i18n="founderDashboard.noCommissionsYet">No commissions yet. Commissions are earned when your referrals make purchases.</p>
         </div>
       </div>
@@ -1156,61 +1357,119 @@
               <th data-i18n="founderDashboard.method">Method</th>
               <th data-i18n="founderDashboard.status">Status</th>
               <th data-i18n="founderDashboard.date">Date</th>
+              <th>Receipt</th>
             </tr>
           </thead>
           <tbody id="payouts-tbody">
           </tbody>
         </table>
         <div class="empty-state" id="payouts-empty" style="display: none;">
-          <div class="empty-state-icon">📤</div>
+          <div class="empty-state-icon"><span class="icon-inline" data-icon="upload"></span></div>
           <p data-i18n="founderDashboard.noPayoutsYet">No payouts yet. Payouts are processed on the 15th of each month for balances ≥ $25.</p>
         </div>
       </div>
     </div>
 
-    <section class="payout-settings">
-      <h2 class="payout-settings-title" data-i18n="founderDashboard.payoutSettings">💳 Payout Settings</h2>
-      <form id="payout-settings-form">
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" data-i18n="founderDashboard.payoutMethod">Payout Method</label>
-            <select class="form-select" id="payout-method">
-              <option value="stripe_connect" data-i18n="founderDashboard.stripeConnect">Stripe Connect (Instant)</option>
-              <option value="paypal">PayPal</option>
-              <option value="venmo">Venmo</option>
-              <option value="zelle">Zelle</option>
-              <option value="bank_transfer" data-i18n="founderDashboard.bankTransfer">Bank Transfer</option>
-              <option value="check" data-i18n="founderDashboard.check">Check</option>
-            </select>
-          </div>
-          <div class="form-group" id="payout-email-group">
-            <label class="form-label" id="payout-email-label" data-i18n="founderDashboard.paypalEmail">PayPal Email</label>
-            <input type="text" class="form-input" id="payout-email" placeholder="your@email.com">
-          </div>
-          <div class="form-group" id="stripe-connect-group" style="display: none;">
-            <label class="form-label" data-i18n="founderDashboard.stripeAccount">Stripe Account</label>
-            <div id="stripe-connect-status">
-              <button type="button" class="btn btn-primary" id="stripe-connect-btn" onclick="initiateStripeConnect()">
-                <svg style="width:18px;height:18px;margin-right:6px;" viewBox="0 0 24 24" fill="currentColor"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z"/></svg>
-                <span data-i18n="founderDashboard.connectWithStripe">Connect with Stripe</span>
-              </button>
+    <section class="payout-settings" id="pay-tax-info-section">
+      <h2 class="payout-settings-title"><span class="icon-inline" data-icon="credit-card"></span> Pay and Tax Info</h2>
+      
+      <div class="pay-tax-subsection">
+        <h3 class="pay-tax-subtitle">Your payout methods</h3>
+        <p class="pay-tax-description">Earnings will be deposited into your weekly payout every Tuesday, unless you request to cash out with Instant Pay first.</p>
+        
+        <div class="payout-methods-list">
+          <div class="payout-method-item" id="stripe-connect-item" onclick="handlePayoutMethodClick('stripe_connect')">
+            <div class="payout-method-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z"/></svg>
             </div>
-            <div id="stripe-connect-connected" style="display: none;">
-              <div style="display: flex; align-items: center; gap: 12px;">
-                <span style="color: var(--accent-green); font-weight: 600;" data-i18n="founderDashboard.connected">✓ Connected</span>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="initiateStripeConnect()" data-i18n="founderDashboard.updateAccount">Update Account</button>
-                <button type="button" class="btn btn-ghost btn-sm" onclick="checkStripeConnectStatus()" data-i18n="founderDashboard.checkStatus">Check Status</button>
-              </div>
+            <div class="payout-method-details">
+              <div class="payout-method-name">Stripe Connect</div>
+              <div class="payout-method-info" id="stripe-connect-info">Not connected</div>
             </div>
+            <span class="payout-status-badge" id="stripe-connect-badge">Setup</span>
+            <svg class="payout-method-arrow" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+          </div>
+          
+          <div class="payout-method-item" id="instant-pay-item" onclick="handlePayoutMethodClick('instant_pay')">
+            <div class="payout-method-icon"><span class="icon-inline" data-icon="zap"></span></div>
+            <div class="payout-method-details">
+              <div class="payout-method-name">Instant Pay</div>
+              <div class="payout-method-info" id="instant-pay-info">Receive earnings instantly</div>
+            </div>
+            <span class="payout-status-badge status-inactive" id="instant-pay-badge">Off</span>
+            <svg class="payout-method-arrow" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+          </div>
+          
+          <div class="payout-method-item" id="weekly-payout-item" onclick="handlePayoutMethodClick('weekly')">
+            <div class="payout-method-icon"><span class="icon-inline" data-icon="calendar"></span></div>
+            <div class="payout-method-details">
+              <div class="payout-method-name">Weekly payouts</div>
+              <div class="payout-method-info" id="weekly-payout-info">Every Tuesday</div>
+            </div>
+            <span class="payout-status-badge status-active" id="weekly-payout-badge">Active</span>
+            <svg class="payout-method-arrow" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+          </div>
+          
+          <div class="payout-method-item" id="backup-payout-item" onclick="handlePayoutMethodClick('backup')">
+            <div class="payout-method-icon"><span class="icon-inline" data-icon="store"></span></div>
+            <div class="payout-method-details">
+              <div class="payout-method-name">Backup payout method</div>
+              <div class="payout-method-info" id="backup-payout-info">PayPal, Venmo, Zelle, or Check</div>
+            </div>
+            <span class="payout-status-badge status-inactive" id="backup-payout-badge">Setup</span>
+            <svg class="payout-method-arrow" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
           </div>
         </div>
-        <button type="submit" class="btn btn-primary" data-i18n="founderDashboard.savePayoutSettings">💾 Save Payout Settings</button>
+      </div>
+      
+      <div class="pay-tax-subsection">
+        <h3 class="pay-tax-subtitle">Tax</h3>
+        
+        <div class="payout-methods-list">
+          <div class="payout-method-item" id="tax-center-item" onclick="openTaxCenter()">
+            <div class="payout-method-icon"><span class="icon-inline" data-icon="file-text"></span></div>
+            <div class="payout-method-details">
+              <div class="payout-method-name">Tax Center</div>
+              <div class="payout-method-info">Documents to file your tax return</div>
+            </div>
+            <svg class="payout-method-arrow" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+          </div>
+          
+          <div class="payout-method-item" id="tax-info-item" onclick="openTaxInfo()">
+            <div class="payout-method-icon"><span class="icon-inline" data-icon="user"></span></div>
+            <div class="payout-method-details">
+              <div class="payout-method-name">Your tax info</div>
+              <div class="payout-method-info" id="tax-info-status">Not verified</div>
+            </div>
+            <svg class="payout-method-arrow" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+          </div>
+        </div>
+      </div>
+      
+      <div class="pay-tax-subsection" id="outstanding-balance-section" style="display: none;">
+        <h3 class="pay-tax-subtitle">Payments</h3>
+        
+        <div class="payout-methods-list">
+          <div class="payout-method-item outstanding-balance-item" onclick="payOutstandingBalance()">
+            <div class="payout-method-icon warning-icon"><span class="icon-inline" data-icon="alert-triangle"></span></div>
+            <div class="payout-method-details">
+              <div class="payout-method-name">Pay outstanding balance</div>
+              <div class="payout-method-info" id="outstanding-balance-info">You have an outstanding balance. Please pay now.</div>
+            </div>
+            <svg class="payout-method-arrow" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+          </div>
+        </div>
+      </div>
+      
+      <form id="payout-settings-form" style="display: none;">
+        <input type="hidden" id="payout-method" value="stripe_connect">
+        <input type="hidden" id="payout-email" value="">
       </form>
     </section>
   </main>
 
   <div class="not-founder-message" id="not-founder-message" style="display: none;">
-    <h2 data-i18n="founderDashboard.founderAccessRequired">🔒 Founder Access Required</h2>
+    <h2 data-i18n="founderDashboard.founderAccessRequired"><span class="icon-inline" data-icon="lock"></span> Founder Access Required</h2>
     <p data-i18n="founderDashboard.dashboardOnlyForFounders">This dashboard is only available to approved Member Founders.</p>
     <p data-i18n="founderDashboard.waitForApproval">If you've applied to become a founder, please wait for approval.</p>
     <a href="member-founder.html" class="btn btn-primary" data-i18n="founderDashboard.applyToBecomeFounder">Apply to Become a Founder</a>
@@ -1224,5 +1483,13 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
   <script src="founder-dashboard.js"></script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
 </body>
 </html>

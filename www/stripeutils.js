@@ -63,7 +63,7 @@ function initStripeSync() {
 /**
  * MCC Fee Structure
  */
-const MCC_FEE_PERCENT = 0.075; // 7.5%
+const MCC_FEE_PERCENT = 0;
 
 function calculateFees(totalAmount) {
   const mccFee = totalAmount * MCC_FEE_PERCENT;
@@ -206,29 +206,6 @@ async function getEscrowStatus(packageId) {
   return data;
 }
 
-// Legacy compatibility functions
-async function confirmPayment(clientSecret, cardElement) {
-  return confirmEscrowPayment(clientSecret, cardElement);
-}
-
-async function capturePayment(paymentIntentId) {
-  console.warn('capturePayment is deprecated, use releaseEscrowPayment(packageId) instead');
-  return { error: 'Use releaseEscrowPayment(packageId) instead' };
-}
-
-async function cancelPayment(paymentIntentId, reason) {
-  console.warn('cancelPayment is deprecated, use refundEscrowPayment(packageId, reason) instead');
-  const response = await fetch('/api/payments/cancel', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      payment_intent_id: paymentIntentId,
-      reason: reason
-    })
-  });
-  
-  return response.json();
-}
 
 /**
  * Stripe Connect Functions (for provider payouts)
@@ -349,35 +326,6 @@ async function getSavedPaymentMethods(customerId) {
  * - payout.paid - Payout to provider's bank completed
  */
 
-/**
- * Mock functions for development (when Stripe is not configured)
- */
-
-function mockCreatePayment(packageId, amount) {
-  console.log('[MOCK] Creating payment:', { packageId, amount });
-  return {
-    success: true,
-    payment_intent_id: 'pi_mock_' + Math.random().toString(36).substr(2, 9),
-    client_secret: 'cs_mock_' + Math.random().toString(36).substr(2, 9),
-    status: 'requires_capture'
-  };
-}
-
-function mockCapturePayment(paymentIntentId) {
-  console.log('[MOCK] Capturing payment:', paymentIntentId);
-  return {
-    success: true,
-    status: 'succeeded'
-  };
-}
-
-function mockCancelPayment(paymentIntentId) {
-  console.log('[MOCK] Canceling payment:', paymentIntentId);
-  return {
-    success: true,
-    status: 'canceled'
-  };
-}
 
 /**
  * Mobile Wallet Payment Functions
@@ -504,9 +452,6 @@ window.StripeUtils = {
   initStripe,
   calculateFees,
   createEscrowPayment,
-  confirmPayment,
-  capturePayment,
-  cancelPayment,
   createConnectAccount,
   getConnectOnboardingLink,
   transferToProvider,
@@ -519,13 +464,7 @@ window.StripeUtils = {
   // Mobile wallet payments
   payWithMobileWallet,
   isMobileWalletAvailable,
-  createMobileWalletPaymentIntent,
-  // Mock functions for development
-  mock: {
-    createPayment: mockCreatePayment,
-    capturePayment: mockCapturePayment,
-    cancelPayment: mockCancelPayment
-  }
+  createMobileWalletPaymentIntent
 };
 
 /**

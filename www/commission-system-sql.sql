@@ -493,7 +493,7 @@ WHERE referred_type = 'member' AND referred_user_id IS NOT NULL;
 
 -- 13. Function to calculate and record commission from platform fees (when referred members complete jobs)
 -- This is called when a member's job is completed and payment is released
--- Commission rate: 5% of the platform fee (MCC fee is 7.5% of job total)
+-- Commission rate: 5% of the platform fee (MCC fee is 2% of job total)
 -- SECURITY: Validates auth.uid() matches member_id, fetches fee from database, checks for duplicates
 CREATE OR REPLACE FUNCTION record_platform_fee_commission(
     p_member_id UUID,

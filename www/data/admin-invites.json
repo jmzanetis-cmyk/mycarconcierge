@@ -1,0 +1,52 @@
+[
+  {
+    "id": "6fc5f49e-2d4c-4237-89d0-ed28610bddcc",
+    "token": "6ba6ebefa74d4a83d01281282b8eeca45ec2a41e0e4e021f3eb4c9bd5a6cd73b",
+    "email": "test-invite@example.com",
+    "role": "marketing",
+    "invited_by": "super_admin",
+    "created_at": "2026-02-18T22:36:58.843Z",
+    "expires_at": "2026-02-20T22:36:58.843Z",
+    "status": "accepted"
+  },
+  {
+    "id": "b5326ec6-781b-46d6-93ae-c370b689f728",
+    "token": "ff502bcf3acffcc8e491e39205db8103f0dbd786d31accaefce60dde03565e6d",
+    "email": "sms-test@mycarconcierge.com",
+    "role": "operations",
+    "invited_by": "super_admin",
+    "created_at": "2026-02-19T02:56:50.889Z",
+    "expires_at": "2026-02-21T02:56:50.889Z",
+    "status": "pending"
+  },
+  {
+    "id": "349eb8a6-a6fd-45ba-ba0d-a7f69179dc48",
+    "token": "8e6291063a6f87b2a27d297c575cf7a7b835d61773e8e7c5926d8f2f8ffce1af",
+    "email": "sms-verify-test@mycarconcierge.com",
+    "role": "operations",
+    "invited_by": "super_admin",
+    "created_at": "2026-02-19T03:29:08.073Z",
+    "expires_at": "2026-02-21T03:29:08.073Z",
+    "status": "pending"
+  },
+  {
+    "id": "c28b5fc6-175c-4a35-a636-4d0997fd6a7b",
+    "token": "c63a9612885c3878561ea1bdc446e9ad67057fc187c9a4a2c0a4ff6b02d488fa",
+    "email": "invite-test-1771472324163@test-mcc.com",
+    "role": "operations",
+    "invited_by": "super_admin",
+    "created_at": "2026-02-19T03:38:59.227Z",
+    "expires_at": "2026-02-21T03:38:59.227Z",
+    "status": "pending"
+  },
+  {
+    "id": "8d899b54-f64f-456e-8fe2-25643da257ec",
+    "token": "d40e793c7db8b821f8c6dd3da7a1130fb393ac09a0932c6c43b6ee3eb7c5b325",
+    "email": "jordan.zanetis@frodobakingco.com",
+    "role": "marketing",
+    "invited_by": "super_admin",
+    "created_at": "2026-02-27T02:37:21.057Z",
+    "expires_at": "2026-03-01T02:37:21.057Z",
+    "status": "pending"
+  }
+]

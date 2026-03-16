@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Join as a Provider | My Car Concierge</title>
+  <meta name="theme-color" content="#ffffff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #ffffff;
+      color: #1a1a2e;
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow: hidden;
+    }
+
+    .onboarding {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 16px 24px 12px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+    }
+
+    .progress-track {
+      height: 4px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #2563eb;
+      border-radius: 4px;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      width: 0%;
+    }
+
+    .progress-text {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+
+    .progress-back {
+      background: none;
+      border: none;
+      color: #6b7280;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: inherit;
+    }
+
+    .progress-back:hover { color: #1a1a2e; }
+    .progress-back svg { width: 16px; height: 16px; }
+
+    .steps-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .step {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 80px 24px 24px;
+      opacity: 0;
+      transform: translateX(100%);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+      overflow-y: auto;
+    }
+
+    .step.active {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: auto;
+    }
+
+    .step.exit-left {
+      opacity: 0;
+      transform: translateX(-100%);
+    }
+
+    .step-content {
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+    }
+
+    .step-icon {
+      width: 64px;
+      height: 64px;
+      background: #eff6ff;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+    }
+
+    .step-icon svg {
+      width: 28px;
+      height: 28px;
+      stroke: #2563eb;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .step-question {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+    }
+
+    .step-subtitle {
+      font-size: 0.95rem;
+      color: #6b7280;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    .input-wrapper {
+      width: 100%;
+      margin-bottom: 16px;
+    }
+
+    .input-field {
+      width: 100%;
+      padding: 16px 20px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      font-size: 1.05rem;
+      font-family: inherit;
+      color: #1a1a2e;
+      background: #f9fafb;
+      outline: none;
+      transition: all 0.2s ease;
+      -webkit-appearance: none;
+    }
+
+    .input-field:focus {
+      border-color: #2563eb;
+      background: #ffffff;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    }
+
+    .input-field::placeholder { color: #9ca3af; }
+    .input-field.error { border-color: #ef4444; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1); }
+
+    .input-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .input-row .input-wrapper { flex: 1; margin-bottom: 0; }
+
+    .input-error {
+      font-size: 0.8rem;
+      color: #ef4444;
+      margin-top: 8px;
+      text-align: left;
+      display: none;
+    }
+
+    .btn-next {
+      width: 100%;
+      padding: 16px 24px;
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .btn-next:hover { background: #1d4ed8; transform: translateY(-1px); }
+    .btn-next:active { transform: translateY(0); }
+    .btn-next:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-next svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .btn-skip {
+      width: 100%;
+      padding: 14px 24px;
+      background: transparent;
+      color: #6b7280;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      margin-top: 12px;
+      transition: color 0.2s ease;
+    }
+
+    .btn-skip:hover { color: #1a1a2e; }
+
+    .type-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    .type-card {
+      padding: 16px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #f9fafb;
+    }
+
+    .type-card:hover { border-color: #93c5fd; background: #eff6ff; }
+
+    .type-card.selected {
+      border-color: #2563eb;
+      background: #eff6ff;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    }
+
+    .type-card-icon {
+      font-size: 1.5rem;
+      margin-bottom: 6px;
+      line-height: 1;
+    }
+
+    .type-card-icon svg {
+      width: 24px;
+      height: 24px;
+      stroke: #2563eb;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .type-card-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #1a1a2e;
+    }
+
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    .service-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 2px solid #e5e7eb;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.8rem;
+      font-weight: 500;
+      background: #f9fafb;
+      user-select: none;
+    }
+
+    .service-chip:hover { border-color: #93c5fd; }
+
+    .service-chip.selected {
+      border-color: #2563eb;
+      background: #eff6ff;
+      color: #1e40af;
+    }
+
+    .service-chip input { display: none; }
+
+    .chip-check {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #d1d5db;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+    }
+
+    .service-chip.selected .chip-check {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
+
+    .chip-check svg {
+      width: 12px;
+      height: 12px;
+      stroke: #ffffff;
+      stroke-width: 3;
+      fill: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .service-chip.selected .chip-check svg { opacity: 1; }
+
+    .review-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 24px;
+      text-align: left;
+      margin-bottom: 24px;
+      width: 100%;
+    }
+
+    .review-section-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #2563eb;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      margin-top: 16px;
+    }
+
+    .review-section-title:first-child { margin-top: 0; }
+
+    .review-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 8px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .review-row:last-child { border-bottom: none; }
+
+    .review-label {
+      font-size: 0.82rem;
+      color: #6b7280;
+      font-weight: 500;
+    }
+
+    .review-value {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #1a1a2e;
+      text-align: right;
+      max-width: 60%;
+    }
+
+    .consent-group {
+      text-align: left;
+      margin-bottom: 24px;
+    }
+
+    .consent-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 0;
+    }
+
+    .consent-item input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      margin-top: 2px;
+      accent-color: #2563eb;
+      flex-shrink: 0;
+    }
+
+    .consent-item label {
+      font-size: 0.85rem;
+      color: #4b5563;
+      line-height: 1.5;
+      cursor: pointer;
+    }
+
+    .consent-item a { color: #2563eb; text-decoration: none; }
+
+    .success-screen { text-align: center; }
+
+    .success-icon {
+      width: 80px;
+      height: 80px;
+      background: #ecfdf5;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      animation: successPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .success-icon svg {
+      width: 40px;
+      height: 40px;
+      stroke: #10b981;
+      stroke-width: 2.5;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    @keyframes successPop {
+      0% { transform: scale(0); }
+      100% { transform: scale(1); }
+    }
+
+    .loading-spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .login-link {
+      display: block;
+      text-align: center;
+      margin-top: 24px;
+      font-size: 0.9rem;
+      color: #6b7280;
+    }
+
+    .login-link a {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .password-rules { text-align: left; margin-top: 8px; }
+
+    .password-rule {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: #9ca3af;
+      padding: 3px 0;
+      transition: color 0.2s ease;
+    }
+
+    .password-rule.met { color: #10b981; }
+
+    .password-rule svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      flex-shrink: 0;
+    }
+
+    .next-steps {
+      text-align: left;
+      margin: 24px 0;
+    }
+
+    .next-step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .next-step-item:last-child { border-bottom: none; }
+
+    .next-step-num {
+      width: 28px;
+      height: 28px;
+      background: #eff6ff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #2563eb;
+      flex-shrink: 0;
+    }
+
+    .next-step-text {
+      font-size: 0.9rem;
+      color: #4b5563;
+      line-height: 1.5;
+    }
+
+    .next-step-text strong { color: #1a1a2e; }
+
+    .free-bids-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: 12px;
+      padding: 12px 20px;
+      margin: 16px 0;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #065f46;
+    }
+
+    .select-field {
+      width: 100%;
+      padding: 16px 20px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      font-size: 1.05rem;
+      font-family: inherit;
+      color: #1a1a2e;
+      background: #f9fafb;
+      outline: none;
+      transition: all 0.2s ease;
+      -webkit-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      padding-right: 44px;
+    }
+
+    .select-field:focus {
+      border-color: #2563eb;
+      background-color: #ffffff;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    }
+
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    .category-card {
+      padding: 16px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #f9fafb;
+      text-align: center;
+    }
+
+    .category-card:hover { border-color: #93c5fd; background: #eff6ff; }
+
+    .category-card.selected {
+      border-color: #2563eb;
+      background: #eff6ff;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    }
+
+    .category-card-icon {
+      margin-bottom: 6px;
+    }
+
+    .category-card-icon svg {
+      width: 24px;
+      height: 24px;
+      stroke: #2563eb;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .category-card-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #1a1a2e;
+      line-height: 1.3;
+    }
+
+    .textarea-field {
+      width: 100%;
+      padding: 16px 20px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-family: inherit;
+      color: #1a1a2e;
+      background: #f9fafb;
+      outline: none;
+      transition: all 0.2s ease;
+      -webkit-appearance: none;
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .textarea-field:focus {
+      border-color: #2563eb;
+      background: #ffffff;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    }
+
+    .textarea-field::placeholder { color: #9ca3af; }
+
+    .section-divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 24px 0;
+      width: 100%;
+    }
+
+    .section-divider::before,
+    .section-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e5e7eb;
+    }
+
+    .section-divider span {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #2563eb;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    .success-checklist {
+      text-align: left;
+      margin: 24px 0;
+    }
+
+    .success-check-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+    }
+
+    .success-check-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .success-check-icon.done { background: #ecfdf5; }
+
+    .success-check-icon.done svg {
+      width: 14px;
+      height: 14px;
+      stroke: #10b981;
+      stroke-width: 3;
+      fill: none;
+    }
+
+    .success-check-icon.pending { background: #f3f4f6; }
+
+    .success-check-icon.pending svg {
+      width: 14px;
+      height: 14px;
+      stroke: #9ca3af;
+      stroke-width: 3;
+      fill: none;
+    }
+
+    .success-check-text {
+      font-size: 0.9rem;
+      color: #4b5563;
+    }
+
+    .success-check-text.done { color: #1a1a2e; font-weight: 500; }
+
+    .referral-toggle {
+      margin: 20px 0 8px;
+      text-align: left;
+    }
+
+    .referral-toggle-btn {
+      background: none;
+      border: none;
+      color: #6b7280;
+      font-size: 0.85rem;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 0;
+      transition: color 0.2s ease;
+    }
+
+    .referral-toggle-btn:hover { color: #2563eb; }
+
+    .referral-toggle-btn svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 0.2s ease;
+    }
+
+    .referral-toggle-btn svg.open { transform: rotate(90deg); }
+
+    .referral-drawer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease, margin 0.3s ease;
+      margin-top: 0;
+    }
+
+    .referral-drawer.open {
+      max-height: 80px;
+      margin-top: 10px;
+    }
+
+    .pac-container {
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      margin-top: 4px;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      z-index: 10000;
+    }
+
+    .pac-item {
+      padding: 10px 16px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border-top: 1px solid #f3f4f6;
+    }
+
+    .pac-item:first-child { border-top: none; }
+    .pac-item:hover { background: #eff6ff; }
+    .pac-item-selected { background: #eff6ff; }
+
+    @media (max-width: 480px) {
+      .step { padding: 70px 20px 20px; }
+      .step-question { font-size: 1.4rem; }
+      .input-field, .select-field, .textarea-field { padding: 14px 16px; font-size: 1rem; }
+      .btn-next { padding: 14px 20px; }
+      .type-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .type-card { padding: 12px; }
+      .services-grid { grid-template-columns: 1fr 1fr; }
+      .category-grid { gap: 8px; }
+      .category-card { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="onboarding" id="onboarding">
+    <div class="progress-bar">
+      <div class="progress-text">
+        <button class="progress-back" id="back-btn" onclick="goBack()" style="visibility:hidden">
+          <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back
+        </button>
+        <span id="step-counter">Step 1 of 9</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </div>
+
+    <div class="steps-container" id="steps-container">
+
+      <div class="step active" data-step="0">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>
+          </div>
+          <h2 class="step-question">What's your email?</h2>
+          <p class="step-subtitle">We'll use this for your provider account.</p>
+          <div class="input-wrapper">
+            <input type="email" class="input-field" id="input-email" placeholder="you@yourbusiness.com" autocomplete="email" aria-label="Email address" autofocus>
+            <div class="input-error" id="error-email">Please enter a valid email address</div>
+          </div>
+          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <div class="login-link">Already have an account? <a href="login.html">Log in</a></div>
+        </div>
+      </div>
+
+      <div class="step" data-step="1">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </div>
+          <h2 class="step-question">What's your phone number?</h2>
+          <p class="step-subtitle">So customers and My Car Concierge can reach you.</p>
+          <div class="input-wrapper">
+            <input type="tel" class="input-field" id="input-phone" placeholder="(555) 123-4567" autocomplete="tel" aria-label="Phone number">
+            <div class="input-error" id="error-phone">Please enter a phone number</div>
+          </div>
+          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="step" data-step="2">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <h2 class="step-question">Create a password</h2>
+          <p class="step-subtitle">Keep your provider account secure.</p>
+          <div class="input-wrapper">
+            <input type="password" class="input-field" id="input-password" placeholder="At least 6 characters" autocomplete="new-password" aria-label="Password">
+          </div>
+          <div class="input-wrapper">
+            <input type="password" class="input-field" id="input-password-confirm" placeholder="Confirm your password" autocomplete="new-password" aria-label="Confirm password">
+            <div class="input-error" id="error-password">Passwords must match and be at least 6 characters</div>
+          </div>
+          <div class="password-rules">
+            <div class="password-rule" id="rule-length"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg> At least 6 characters</div>
+            <div class="password-rule" id="rule-match"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg> Passwords match</div>
+          </div>
+          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="step" data-step="3">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </div>
+          <h2 class="step-question">Tell us about your business</h2>
+          <p class="step-subtitle">Your business name and the primary contact.</p>
+          <div class="input-wrapper">
+            <input type="text" class="input-field" id="input-business" placeholder="Business name (e.g. Elite Auto Care)" autocomplete="organization" aria-label="Business name">
+            <div class="input-error" id="error-business">Please enter your business name</div>
+          </div>
+          <div class="input-wrapper">
+            <input type="text" class="input-field" id="input-name" placeholder="Your full name" autocomplete="name" aria-label="Contact name">
+            <div class="input-error" id="error-name">Please enter your name</div>
+          </div>
+          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="step" data-step="4">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+          </div>
+          <h2 class="step-question">What type of business do you run?</h2>
+          <p class="step-subtitle">Pick the one that best describes you.</p>
+          <div class="type-grid" id="type-grid">
+            <div class="type-card" data-type="Auto Repair" onclick="selectType(this)">
+              <div class="type-card-icon"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
+              <div class="type-card-label">Auto Repair</div>
+            </div>
+            <div class="type-card" data-type="Body Shop" onclick="selectType(this)">
+              <div class="type-card-icon"><svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/><path d="M12 11v6"/><path d="M8 17h8a2 2 0 0 1 2 2H6a2 2 0 0 1 2-2z"/></svg></div>
+              <div class="type-card-label">Body Shop</div>
+            </div>
+            <div class="type-card" data-type="Detailing" onclick="selectType(this)">
+              <div class="type-card-icon"><svg viewBox="0 0 24 24"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/></svg></div>
+              <div class="type-card-label">Detailing</div>
+            </div>
+            <div class="type-card" data-type="Mobile Service" onclick="selectType(this)">
+              <div class="type-card-icon"><svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
+              <div class="type-card-label">Mobile Service</div>
+            </div>
+            <div class="type-card" data-type="Dealership" onclick="selectType(this)">
+              <div class="type-card-icon"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+              <div class="type-card-label">Dealership</div>
+            </div>
+            <div class="type-card" data-type="Specialty" onclick="selectType(this)">
+              <div class="type-card-icon"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+              <div class="type-card-label">Specialty</div>
+            </div>
+            <div class="type-card" data-type="Towing" onclick="selectType(this)">
+              <div class="type-card-icon"><svg viewBox="0 0 24 24"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div>
+              <div class="type-card-label">Towing</div>
+            </div>
+            <div class="type-card" data-type="Snow Removal" onclick="selectType(this)">
+              <div class="type-card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 7l-5 5-5-5M2 12h20M7 17l5-5 5 5"/></svg></div>
+              <div class="type-card-label">Snow Removal</div>
+            </div>
+          </div>
+          <div class="input-error" id="error-type">Please select your business type</div>
+          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="step" data-step="5">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <h2 class="step-question">Where are you located?</h2>
+          <p class="step-subtitle">So we can match you with nearby customers.</p>
+          <div class="input-wrapper">
+            <input type="text" class="input-field" id="input-location" placeholder="Start typing your city..." autocomplete="off" aria-label="Business location">
+            <div class="input-error" id="error-location">Please enter your city and state (e.g. Chicago, IL)</div>
+          </div>
+          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="step" data-step="6">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          </div>
+          <h2 class="step-question">What services do you offer?</h2>
+          <p class="step-subtitle">Select all that apply.</p>
+          <div class="services-grid" id="services-grid">
+          </div>
+          <div class="input-error" id="error-services">Please select at least one service</div>
+          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="step" data-step="7">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <h2 class="step-question">How long have you been in business?</h2>
+          <p class="step-subtitle">Helps customers know your experience level.</p>
+          <div class="input-wrapper">
+            <input type="number" class="input-field" id="input-years" placeholder="Years in business" min="0" max="100" inputmode="numeric" aria-label="Years in business">
+            <div class="input-error" id="error-years">Please enter your years of experience</div>
+          </div>
+          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="step" data-step="8">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </div>
+          <h2 class="step-question">Almost there</h2>
+          <p class="step-subtitle">Agree to the terms and we'll create your account.</p>
+          <div class="consent-group">
+            <div class="consent-item">
+              <input type="checkbox" id="consent-terms">
+              <label for="consent-terms">I agree to the <a href="terms.html" target="_blank">Terms of Service</a>, <a href="privacy.html" target="_blank">Privacy Policy</a>, and <a href="founding-partner-agreement.html" target="_blank">Provider Agreement</a></label>
+            </div>
+          </div>
+          <div class="referral-toggle">
+            <button type="button" class="referral-toggle-btn" onclick="toggleReferral()">
+              <svg viewBox="0 0 24 24" id="referral-chevron"><path d="M9 18l6-6-6-6"/></svg>
+              Have a referral code?
+            </button>
+            <div class="referral-drawer" id="referral-drawer">
+              <input type="text" class="input-field" id="input-referral" placeholder="e.g. MCC-PROVIDER123" autocomplete="off" aria-label="Referral code">
+            </div>
+          </div>
+          <button class="btn-next" id="btn-submit" onclick="submitSignup()">Create Provider Account <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <div class="input-error" id="error-terms" style="text-align:center">Please agree to the Terms and Provider Agreement</div>
+        </div>
+      </div>
+
+      <div class="step" data-step="9">
+        <div class="step-content">
+          <div class="section-divider"><span>Now set up your member account</span></div>
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0"/><path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0"/><path d="M5 17H3v-6l2-5h9l4 5h1a2 2 0 0 1 2 2v4h-2"/><path d="M9 17h6"/></svg>
+          </div>
+          <h2 class="step-question">Tell us about your ride</h2>
+          <p class="step-subtitle">As a member, you can also get quotes for your own vehicle.</p>
+          <div class="input-wrapper">
+            <input type="number" class="input-field" id="input-vehicle-year" placeholder="Year (e.g. 2020)" min="1900" max="2030" inputmode="numeric" aria-label="Vehicle year">
+          </div>
+          <div class="input-wrapper">
+            <input type="text" class="input-field" id="input-vehicle-make" placeholder="Make (e.g. Toyota)" aria-label="Vehicle make">
+          </div>
+          <div class="input-wrapper">
+            <input type="text" class="input-field" id="input-vehicle-model" placeholder="Model (e.g. Camry)" aria-label="Vehicle model">
+            <div class="input-error" id="error-vehicle">Please enter your vehicle's year, make, and model</div>
+          </div>
+          <button class="btn-next" onclick="saveVehicleAndContinue()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn-skip" onclick="skipVehicle()">I'll add my car later</button>
+        </div>
+      </div>
+
+      <div class="step" data-step="10">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          </div>
+          <h2 class="step-question">Need any work done?</h2>
+          <p class="step-subtitle">Select a category and get quotes from other providers.</p>
+          <div class="category-grid">
+            <div class="category-card" data-category="maintenance" onclick="selectCategory(this)" aria-label="Maintenance and Mechanical">
+              <div class="category-card-icon"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
+              <div class="category-card-label">Maintenance &amp; Mechanical</div>
+            </div>
+            <div class="category-card" data-category="detailing" onclick="selectCategory(this)" aria-label="Detailing and Cleaning">
+              <div class="category-card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v6M12 18v4M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M2 12h6M18 12h4M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24"/></svg></div>
+              <div class="category-card-label">Detailing &amp; Cleaning</div>
+            </div>
+            <div class="category-card" data-category="body" onclick="selectCategory(this)" aria-label="Body and Paint">
+              <div class="category-card-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+              <div class="category-card-label">Body &amp; Paint</div>
+            </div>
+            <div class="category-card" data-category="tires" onclick="selectCategory(this)" aria-label="Tires and Wheels">
+              <div class="category-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></div>
+              <div class="category-card-label">Tires &amp; Wheels</div>
+            </div>
+            <div class="category-card" data-category="diagnostics" onclick="selectCategory(this)" aria-label="Diagnostics and Check Engine">
+              <div class="category-card-icon"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+              <div class="category-card-label">Diagnostics / Check Engine</div>
+            </div>
+            <div class="category-card" data-category="other" onclick="selectCategory(this)" aria-label="Other">
+              <div class="category-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+              <div class="category-card-label">Other</div>
+            </div>
+          </div>
+          <button class="btn-next" id="btn-category-next" onclick="categoryNext()" style="opacity:0.5;pointer-events:none">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn-skip" onclick="skipRequest()">I'll create a request later</button>
+        </div>
+      </div>
+
+      <div class="step" data-step="11">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </div>
+          <h2 class="step-question">Describe what you need</h2>
+          <p class="step-subtitle">Give providers a brief idea so they can give you an accurate quote.</p>
+          <div class="input-wrapper">
+            <input type="text" class="input-field" id="input-request-title" placeholder="e.g. Oil change and tire rotation" aria-label="Request title">
+          </div>
+          <div class="input-wrapper">
+            <textarea class="textarea-field" id="input-request-desc" placeholder="Any additional details — mileage, symptoms, preferred timing, etc." rows="4" aria-label="Request description"></textarea>
+            <div class="input-error" id="error-request">Please enter a title for your request</div>
+          </div>
+          <button class="btn-next" onclick="submitRequest()">Submit Request <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="step" data-step="12">
+        <div class="step-content success-screen">
+          <div class="success-icon">
+            <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <h2 class="step-question">You're in!</h2>
+          <p class="step-subtitle" id="success-subtitle">Your provider account is live. Here's what's waiting for you.</p>
+          <div class="free-bids-badge">
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="#065f46" stroke-width="2" fill="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            Your Jumpstart bid credit is loaded and ready to use
+          </div>
+          <div class="success-checklist" id="success-checklist"></div>
+          <div class="next-steps">
+            <div class="next-step-item">
+              <div class="next-step-num">1</div>
+              <div class="next-step-text"><strong>Confirm your email</strong> — check your inbox for a verification link.</div>
+            </div>
+            <div class="next-step-item">
+              <div class="next-step-num">2</div>
+              <div class="next-step-text"><strong>Browse open jobs</strong> — find a member request in your area and use your Jumpstart credit to submit your first bid.</div>
+            </div>
+            <div class="next-step-item">
+              <div class="next-step-num">3</div>
+              <div class="next-step-text"><strong>Complete your profile</strong> — add photos and certifications to stand out and win more jobs.</div>
+            </div>
+          </div>
+          <button class="btn-next" onclick="window.location.href='login.html?returnTo=/providers.html'">Log In &amp; Start Bidding <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn-skip" onclick="window.location.href='login.html'" style="margin-top:8px;">Just go to login</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js"></script>
+  <script>
+    let currentStep = 0;
+    const totalSteps = 12;
+    let userId = null;
+    let vehicleId = null;
+    let selectedCategory = '';
+    let vehicleAdded = false;
+    let requestSubmitted = false;
+    let placesAutocomplete = null;
+    const categoryTitleSuggestions = {
+      maintenance: 'Oil change and maintenance',
+      detailing: 'Full detail and cleaning',
+      body: 'Body work and paint repair',
+      tires: 'Tire replacement or rotation',
+      diagnostics: 'Check engine light diagnosis',
+      other: ''
+    };
+    const formData = {
+      email: '',
+      phone: '',
+      password: '',
+      businessName: '',
+      contactName: '',
+      businessType: '',
+      city: '',
+      state: '',
+      services: [],
+      yearsInBusiness: '',
+      referral: ''
+    };
+
+    const servicesList = [
+      'Oil Change', 'Brakes', 'Tires', 'Engine Repair',
+      'Transmission', 'Electrical', 'AC/Heating', 'Diagnostics',
+      'Body Work', 'Paint', 'Detailing', 'Car Wash',
+      'Glass', 'Exhaust', 'Suspension', 'State Inspection'
+    ];
+
+    function initServices() {
+      const grid = document.getElementById('services-grid');
+      grid.innerHTML = servicesList.map(s =>
+        '<div class="service-chip" onclick="toggleService(this)" role="checkbox" aria-checked="false" aria-label="' + s + '">' +
+          '<input type="checkbox" value="' + s + '">' +
+          '<span class="chip-check"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span>' +
+          '<span>' + s + '</span>' +
+        '</div>'
+      ).join('');
+    }
+
+    function toggleService(chip) {
+      const isSelected = chip.classList.toggle('selected');
+      const cb = chip.querySelector('input');
+      cb.checked = isSelected;
+      chip.setAttribute('aria-checked', isSelected);
+    }
+
+    function selectType(card) {
+      document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      formData.businessType = card.dataset.type;
+    }
+
+    function updateProgress() {
+      const preAccountSteps = 9;
+      const pct = Math.min(((currentStep) / totalSteps) * 100, 100);
+      document.getElementById('progress-fill').style.width = pct + '%';
+      if (currentStep < preAccountSteps) {
+        document.getElementById('step-counter').textContent = 'Step ' + (currentStep + 1) + ' of ' + preAccountSteps;
+      } else if (currentStep < totalSteps) {
+        document.getElementById('step-counter').textContent = 'Almost done';
+      } else {
+        document.getElementById('step-counter').textContent = 'Complete';
+      }
+      const canGoBack = currentStep > 0 && currentStep <= 8;
+      document.getElementById('back-btn').style.visibility = canGoBack ? 'visible' : 'hidden';
+    }
+
+    function showStep(index) {
+      const steps = document.querySelectorAll('.step');
+      steps.forEach((s, i) => {
+        s.classList.remove('active', 'exit-left');
+        if (i < index) s.classList.add('exit-left');
+      });
+      if (steps[index]) {
+        steps[index].classList.add('active');
+        const input = steps[index].querySelector('.input-field');
+        if (input) setTimeout(() => input.focus(), 400);
+      }
+      currentStep = index;
+      updateProgress();
+    }
+
+    function clearErrors() {
+      document.querySelectorAll('.input-error').forEach(e => e.style.display = 'none');
+      document.querySelectorAll('.input-field').forEach(f => f.classList.remove('error'));
+    }
+
+    function validateCurrentStep() {
+      clearErrors();
+
+      if (currentStep === 0) {
+        const val = document.getElementById('input-email').value.trim();
+        if (!val || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+          document.getElementById('input-email').classList.add('error');
+          document.getElementById('error-email').style.display = 'block';
+          return false;
+        }
+        formData.email = val;
+      } else if (currentStep === 1) {
+        const val = document.getElementById('input-phone').value.trim();
+        if (!val) {
+          document.getElementById('input-phone').classList.add('error');
+          document.getElementById('error-phone').style.display = 'block';
+          return false;
+        }
+        formData.phone = val;
+      } else if (currentStep === 2) {
+        const pw = document.getElementById('input-password').value;
+        const pwc = document.getElementById('input-password-confirm').value;
+        if (pw.length < 6 || pw !== pwc) {
+          document.getElementById('error-password').style.display = 'block';
+          return false;
+        }
+        formData.password = pw;
+      } else if (currentStep === 3) {
+        const biz = document.getElementById('input-business').value.trim();
+        if (!biz) {
+          document.getElementById('input-business').classList.add('error');
+          document.getElementById('error-business').style.display = 'block';
+          return false;
+        }
+        formData.businessName = biz;
+        const name = document.getElementById('input-name').value.trim();
+        if (!name) {
+          document.getElementById('input-name').classList.add('error');
+          document.getElementById('error-name').style.display = 'block';
+          return false;
+        }
+        formData.contactName = name;
+      } else if (currentStep === 4) {
+        if (!formData.businessType) {
+          document.getElementById('error-type').style.display = 'block';
+          return false;
+        }
+      } else if (currentStep === 5) {
+        if (!formData.city || !formData.state) {
+          const rawLocation = document.getElementById('input-location').value.trim();
+          if (rawLocation) {
+            const parts = rawLocation.split(',').map(s => s.trim());
+            if (parts.length >= 2 && parts[0] && parts[1]) {
+              formData.city = parts[0];
+              formData.state = parts[1].substring(0, 2).toUpperCase();
+            }
+          }
+        }
+        if (!formData.city || !formData.state) {
+          document.getElementById('error-location').style.display = 'block';
+          return false;
+        }
+      } else if (currentStep === 6) {
+        const selected = document.querySelectorAll('.service-chip.selected');
+        if (selected.length === 0) {
+          document.getElementById('error-services').style.display = 'block';
+          return false;
+        }
+        formData.services = Array.from(selected).map(c => c.querySelector('input').value);
+      } else if (currentStep === 7) {
+        const val = document.getElementById('input-years').value;
+        if (!val || val < 0) {
+          document.getElementById('error-years').style.display = 'block';
+          return false;
+        }
+        formData.yearsInBusiness = val;
+      }
+      return true;
+    }
+
+    function nextStep() {
+      if (!validateCurrentStep()) return;
+      showStep(currentStep + 1);
+    }
+
+    function goBack() {
+      if (currentStep > 0 && currentStep <= 8) showStep(currentStep - 1);
+    }
+
+    function toggleReferral() {
+      const drawer = document.getElementById('referral-drawer');
+      const chevron = document.getElementById('referral-chevron');
+      drawer.classList.toggle('open');
+      chevron.classList.toggle('open');
+    }
+
+    async function submitSignup() {
+      const termsChecked = document.getElementById('consent-terms').checked;
+      if (!termsChecked) {
+        document.getElementById('error-terms').style.display = 'block';
+        return;
+      }
+      formData.referral = document.getElementById('input-referral').value.trim();
+
+      const btn = document.getElementById('btn-submit');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="loading-spinner"></div> Creating account...';
+
+      try {
+        const { data, error } = await supabaseClient.auth.signUp({
+          email: formData.email,
+          password: formData.password
+        });
+
+        if (error) throw error;
+
+        if (data.user) {
+          userId = data.user.id;
+
+          const { error: profileError } = await supabaseClient.from('profiles').insert({
+            id: userId,
+            email: formData.email,
+            role: 'pending_provider',
+            is_also_member: true,
+            full_name: formData.contactName,
+            phone: formData.phone,
+            business_name: formData.businessName,
+            city: formData.city,
+            state: formData.state,
+            services_offered: formData.services,
+            free_trial_bids: 1
+          });
+
+          if (profileError) console.error('Profile insert error:', profileError);
+
+          const { data: appData, error: appError } = await supabaseClient.from('provider_applications').insert({
+            user_id: userId,
+            business_name: formData.businessName,
+            phone: formData.phone,
+            business_type: formData.businessType,
+            city: formData.city,
+            state: formData.state,
+            services_offered: formData.services,
+            years_in_business: parseInt(formData.yearsInBusiness),
+            status: 'approved'
+          }).select();
+
+          if (appError) console.error('Application insert error:', appError);
+
+          await supabaseClient.from('profiles').update({
+            role: 'provider',
+            is_also_member: true
+          }).eq('id', userId);
+
+          if (formData.referral) {
+            try {
+              await supabaseClient.rpc('register_provider_referral', {
+                p_provider_id: userId,
+                p_referral_code: formData.referral
+              });
+            } catch (refErr) {
+              console.error('Referral error:', refErr);
+            }
+          }
+        }
+
+        showStep(9);
+
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = 'Create Provider Account <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+        alert(err.message || 'Something went wrong. Please try again.');
+      }
+    }
+
+    async function saveVehicleAndContinue() {
+      const year = document.getElementById('input-vehicle-year').value.trim();
+      const make = document.getElementById('input-vehicle-make').value.trim();
+      const model = document.getElementById('input-vehicle-model').value.trim();
+      if (!year || !make || !model) {
+        document.getElementById('error-vehicle').style.display = 'block';
+        return;
+      }
+      try {
+        const { data, error } = await supabaseClient.from('vehicles').insert({
+          owner_id: userId,
+          year: parseInt(year),
+          make: make,
+          model: model,
+          health_score: 100
+        }).select();
+        if (error) throw error;
+        if (data && data[0]) vehicleId = data[0].id;
+        vehicleAdded = true;
+        showStep(10);
+      } catch (err) {
+        console.error('Vehicle insert error:', err);
+        alert('Could not save your vehicle. You can add it later from your dashboard.');
+        showStep(10);
+      }
+    }
+
+    function skipVehicle() {
+      showStep(10);
+    }
+
+    function selectCategory(card) {
+      document.querySelectorAll('.category-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedCategory = card.dataset.category;
+      const titleInput = document.getElementById('input-request-title');
+      titleInput.value = categoryTitleSuggestions[selectedCategory] || '';
+      const btn = document.getElementById('btn-category-next');
+      btn.style.opacity = '1';
+      btn.style.pointerEvents = 'auto';
+    }
+
+    function categoryNext() {
+      if (!selectedCategory) return;
+      showStep(11);
+    }
+
+    function skipRequest() {
+      showSuccessScreen();
+      showStep(totalSteps);
+    }
+
+    async function submitRequest() {
+      const title = document.getElementById('input-request-title').value.trim();
+      if (!title) {
+        document.getElementById('error-request').style.display = 'block';
+        return;
+      }
+      const desc = document.getElementById('input-request-desc').value.trim();
+      const deadline = new Date();
+      deadline.setDate(deadline.getDate() + 7);
+      try {
+        const { error } = await supabaseClient.from('maintenance_packages').insert({
+          member_id: userId,
+          vehicle_id: vehicleId,
+          title: title,
+          description: desc || null,
+          category: selectedCategory,
+          status: 'open',
+          bidding_deadline: deadline.toISOString(),
+          pickup_preference: 'either'
+        });
+        if (error) throw error;
+        requestSubmitted = true;
+      } catch (err) {
+        console.error('Request insert error:', err);
+      }
+      showSuccessScreen();
+      showStep(totalSteps);
+    }
+
+    function showSuccessScreen() {
+      const checklist = document.getElementById('success-checklist');
+      const subtitle = document.getElementById('success-subtitle');
+      const checkSvg = '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>';
+      let html = '<div class="success-check-item"><div class="success-check-icon done">' + checkSvg + '</div><span class="success-check-text done">Provider account created</span></div>';
+      html += '<div class="success-check-item"><div class="success-check-icon done">' + checkSvg + '</div><span class="success-check-text done">Member access enabled</span></div>';
+      html += '<div class="success-check-item"><div class="success-check-icon done">' + checkSvg + '</div><span class="success-check-text done">1 Jumpstart bid credit awarded</span></div>';
+      if (vehicleAdded) {
+        const year = document.getElementById('input-vehicle-year').value.trim();
+        const make = document.getElementById('input-vehicle-make').value.trim();
+        const model = document.getElementById('input-vehicle-model').value.trim();
+        html += '<div class="success-check-item"><div class="success-check-icon done">' + checkSvg + '</div><span class="success-check-text done">' + year + ' ' + make + ' ' + model + ' added to your garage</span></div>';
+      }
+      checklist.innerHTML = html;
+      if (vehicleAdded) {
+        subtitle.textContent = 'Your provider account is live, your vehicle is in the garage, and your Jumpstart credit is ready. Log in and find your first job.';
+      } else {
+        subtitle.textContent = 'Your provider account is live and your Jumpstart credit is ready to use. Log in and submit your first bid.';
+      }
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && currentStep < 8) {
+        e.preventDefault();
+        if (currentStep === 4 || currentStep === 6) return;
+        nextStep();
+      }
+    });
+
+    const pwInput = document.getElementById('input-password');
+    const pwConfirm = document.getElementById('input-password-confirm');
+    function checkPasswordRules() {
+      const pw = pwInput.value;
+      const pwc = pwConfirm.value;
+      const ruleLength = document.getElementById('rule-length');
+      const ruleMatch = document.getElementById('rule-match');
+      if (pw.length >= 6) {
+        ruleLength.classList.add('met');
+        ruleLength.querySelector('svg').innerHTML = '<path d="M20 6L9 17l-5-5"/>';
+      } else {
+        ruleLength.classList.remove('met');
+        ruleLength.querySelector('svg').innerHTML = '<circle cx="12" cy="12" r="10"/>';
+      }
+      if (pw && pwc && pw === pwc) {
+        ruleMatch.classList.add('met');
+        ruleMatch.querySelector('svg').innerHTML = '<path d="M20 6L9 17l-5-5"/>';
+      } else {
+        ruleMatch.classList.remove('met');
+        ruleMatch.querySelector('svg').innerHTML = '<circle cx="12" cy="12" r="10"/>';
+      }
+    }
+    pwInput.addEventListener('input', checkPasswordRules);
+    pwConfirm.addEventListener('input', checkPasswordRules);
+
+    async function initPlacesAutocomplete() {
+      try {
+        const resp = await fetch('/api/config');
+        const config = await resp.json();
+        if (!config.googlePlacesApiKey) return;
+
+        const script = document.createElement('script');
+        script.src = 'https://maps.googleapis.com/maps/api/js?key=' + config.googlePlacesApiKey + '&libraries=places';
+        script.onload = function() {
+          const input = document.getElementById('input-location');
+          placesAutocomplete = new google.maps.places.Autocomplete(input, {
+            types: ['(cities)'],
+            componentRestrictions: { country: 'us' }
+          });
+          placesAutocomplete.addListener('place_changed', function() {
+            const place = placesAutocomplete.getPlace();
+            if (place && place.address_components) {
+              let city = '';
+              let state = '';
+              for (const comp of place.address_components) {
+                if (comp.types.includes('locality')) city = comp.long_name;
+                if (comp.types.includes('sublocality_level_1') && !city) city = comp.long_name;
+                if (comp.types.includes('administrative_area_level_1')) state = comp.short_name;
+              }
+              formData.city = city;
+              formData.state = state;
+            }
+          });
+        };
+        document.head.appendChild(script);
+      } catch (e) {
+        console.error('Failed to load Places API:', e);
+      }
+    }
+
+    document.getElementById('input-location').addEventListener('input', function() {
+      formData.city = '';
+      formData.state = '';
+    });
+
+    initServices();
+    initPlacesAutocomplete();
+    updateProgress();
+  </script>
+</body>
+</html>

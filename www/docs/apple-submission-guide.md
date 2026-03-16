@@ -1,11 +1,11 @@
-# My Car Concierge - Apple App Store Submission Guide v1.1
+# My Car Concierge - Apple App Store Submission Guide v1.2 (Build 1)
 
 ## Pre-Submission Checklist
 
 ### 1. Demo Account for Apple Review
 
 Apple requires a demo account to test your app. Create one at:
-https://my-car-concierge.replit.app/signup.html
+https://www.mycarconcierge.com/signup.html
 
 **Recommended Demo Credentials:**
 - Email: `applereview@mycarconcierge.com`
@@ -57,8 +57,8 @@ open App.xcworkspace
    - Apple Pay (with merchant ID)
 
 #### C. Build Settings
-- **Version**: 1.1
-- **Build**: 2
+- **Version**: 1.2
+- **Build**: 1
 - **Bundle ID**: com.zanetisholdings.mycarconcierge
 
 #### D. Archive for App Store
@@ -73,7 +73,7 @@ open App.xcworkspace
 Login at: https://appstoreconnect.apple.com
 
 #### A. App Information
-- **Version**: 1.1
+- **Version**: 1.2
 - **What's New**: (see below)
 
 #### B. App Review Information
@@ -81,22 +81,29 @@ Login at: https://appstoreconnect.apple.com
 - **Demo Account Password**: AppleReview2024!
 - **Notes for Review**: 
   ```
-  This is an automotive service marketplace connecting vehicle owners 
-  with service providers. Key features to test:
-  1. Sign up/Login flow
-  2. Add a vehicle
-  3. Browse service providers
+  My Car Concierge is an automotive service marketplace connecting 
+  vehicle owners with service providers. This is a streamlined 
+  consumer app — admin and marketing tools are available on the 
+  website only.
+
+  Key features to test:
+  1. Sign up/Login flow (includes Face ID/Touch ID)
+  2. Add a vehicle (My Garage)
+  3. Browse and request service quotes
   4. View Car Care Academy articles
+  5. OBD Diagnostic Scanner
+  6. Merch Store
   
-  Payment features require Stripe test mode - no real charges will occur.
+  No platform fees — providers keep 100% of job earnings.
+  Payment features use Stripe test mode — no real charges will occur.
   Location features work best with location permissions enabled.
   ```
 
 #### C. Privacy Policy URL
-https://my-car-concierge.replit.app/privacy.html
+https://www.mycarconcierge.com/privacy.html
 
 #### D. Support URL
-https://my-car-concierge.replit.app/support.html
+https://www.mycarconcierge.com/support.html
 
 ---
 
@@ -133,17 +140,43 @@ Key screens to capture:
 
 ---
 
-## What's New in v1.1
+## What's New in v1.2 (Build 1)
 
 ```
-Version 1.1 brings enhanced security and usability improvements:
+Version 1.2 brings an improved experience across the board:
 
-- Added Face ID/Touch ID login for faster, secure access
-- Improved camera permissions for document scanning
-- Enhanced location services for finding nearby providers
-- Better photo library integration for uploading documents
-- Performance and stability improvements
+- No platform fees — providers keep 100% of job earnings
+- Face ID/Touch ID login for faster, secure access
+- Car Club loyalty rewards for repeat customers
+- OBD Diagnostic Scanner with AI-powered code explanations
+- AI Helpdesk Widget for instant car care guidance
+- Merch Store with Stripe checkout
+- Snow removal and property-based services
+- Conversational onboarding for smoother signup
+- Performance, stability, and accessibility improvements
+- Updated to Capacitor v7 for better native integration
 ```
+
+---
+
+## Streamlined iOS Build
+
+The iOS app is a focused consumer experience. The following are 
+excluded from the iOS build (available on the website only):
+
+- Admin portal and admin management tools
+- Admin team management (admin-team.js)
+- AI Outreach Engine and marketing automation
+- Provider brochures, presentations, and investor documents
+- Internal documentation, submission guides, and SQL migration files
+- Netlify functions directory
+- HubSpot CRM integration
+- Analytics tracker (admin-facing)
+- Data directory (admin-users.json, admin-invites.json)
+- Replit API URL is patched out of mcc-config.js
+
+This keeps the app lightweight and focused on what members and 
+providers need: finding services, managing vehicles, and getting work done.
 
 ---
 
@@ -152,9 +185,9 @@ Version 1.1 brings enhanced security and usability improvements:
 1. **Broken links** - Test all external URLs
 2. **Placeholder content** - Remove any "Lorem ipsum" or test data
 3. **Crash on launch** - Test on multiple iOS versions
-4. **Missing privacy descriptions** - All added in Info.plist ✓
+4. **Missing privacy descriptions** - All added in Info.plist
 5. **No demo account** - Create before submission
-6. **Guideline 4.2** - Ensure app has enough features/utility
+6. **Guideline 4.2** - App has extensive native features (Face ID, Apple Pay, Camera, Location)
 
 ---
 
@@ -164,6 +197,7 @@ Version 1.1 brings enhanced security and usability improvements:
 - [ ] Capabilities enabled in Apple Developer Portal
 - [ ] Provisioning profile updated and installed
 - [ ] Xcode shows all capabilities in Signing tab
+- [ ] Run `scripts/ios-build.sh` to sync and strip admin files
 - [ ] Clean archive builds successfully
 - [ ] Uploaded to App Store Connect
 - [ ] What's New text added

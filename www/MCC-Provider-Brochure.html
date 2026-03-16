@@ -182,11 +182,14 @@
     }
     
     li::before {
-      content: "✓";
+      content: '';
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23b8942d' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center;
+      vertical-align: middle;
       position: absolute;
       left: 0;
-      color: #b8942d;
-      font-weight: bold;
     }
     
     .highlight-box {
@@ -570,7 +573,7 @@
           <p><strong>Guaranteed Payment:</strong> When a member accepts your bid, funds are held in escrow. You complete the work, the member confirms, and you get paid. No chasing invoices. No bad checks.</p>
         </div>
         
-        <p style="font-size: 0.75rem; color: #999;"><strong>Platform Fee:</strong> 7.5% on completed jobs (waived for Founding Providers during pilot)</p>
+        <p style="font-size: 0.75rem; color: #999;"><strong>Platform Fee:</strong> None — you keep 100% of what you earn</p>
       </div>
       
       <!-- Panel 6: Inside Right - Rating System & Trust -->
@@ -606,6 +609,11 @@
           <li><strong>Upsell approval:</strong> Members approve any additional work</li>
           <li><strong>24-hour window:</strong> No pressure decisions</li>
         </ul>
+        
+        <div class="panel-subtitle" style="margin-top: 15px;">Car Club Loyalty</div>
+        <div class="highlight-box">
+          <p><strong>Built-In Retention:</strong> Launch your own Car Club loyalty program at no extra cost. Punch card rewards keep customers coming back, turning one-time jobs into repeat business.</p>
+        </div>
         
         <div class="partnership-box" style="margin-top: 15px;">
           <h4>Your Customers, Your Growth</h4>

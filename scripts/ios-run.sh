@@ -47,7 +47,7 @@ PY
 fi
 
 DESTINATION="platform=iOS Simulator,name=${SIM_NAME}"
-APP_ID="co.mycarconcierge.app"
+APP_ID="com.zanetisholdings.mycarconcierge"
 
 cd "$PROJECT_ROOT"
 npm run build:www

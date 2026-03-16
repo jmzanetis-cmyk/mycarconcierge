@@ -45,7 +45,7 @@ const I18n = (function() {
 
   async function loadTranslations(lang) {
     try {
-      const cacheBuster = 'v=1738300800';
+      const cacheBuster = 'v=1738660800';
       const response = await fetch(`/locales/${lang}.json?${cacheBuster}`);
       if (!response.ok) {
         throw new Error(`Failed to load ${lang} translations`);

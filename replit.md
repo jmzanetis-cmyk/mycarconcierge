@@ -1,104 +1,78 @@
 # My Car Concierge - PWA & Native Apps
 
 ## Overview
-My Car Concierge (MCC) is an automotive service marketplace PWA with broad native app support (iOS, Android, Windows, Mac, Linux). It connects vehicle owners with service providers, offering comprehensive solutions for booking, payment, vehicle tracking, and provider management, with a strong emphasis on security and user experience. The project aims to provide a robust platform for automotive service coordination.
+My Car Concierge (MCC) is an automotive service marketplace PWA with native app support across multiple platforms. It aims to be "Your complete auto ownership platform," connecting vehicle owners with service providers for booking, payment, vehicle tracking, and provider management. The platform focuses on security, user experience, service coordination, vehicle management, educational content, and smart shopping tools to enhance the car ownership journey.
 
 ## User Preferences
-- **Brand Messaging**: "Your complete car ownership platform" - positions MCC as the all-in-one solution for car owners
+- **Brand Messaging**: "Your complete auto ownership platform"
 - **Tone**: Professional, informative, memorable, and witty without being gimmicky
-- **Key Headlines**: "One app. Every car need. Zero hassle." - short, benefit-driven (follows advertising stats: 6-9 words perform best)
-- **Four Pillars**: Find Service, Manage Vehicles, Learn About Cars, Shop Smarter - each clearly explains platform features
-- **Automotive Theme**: Warmer dark slate backgrounds (#12161c) with bronze/copper gold accents and coolant teal highlights
-- Premium, luxury garage-inspired aesthetic with metallic gradients on buttons and cards
-- Less harsh dark mode with improved contrast and depth
-- **Light Mode**: Research-backed color scheme optimized for trust and conversion (navy blue #1e3a5f for trust, deeper gold #b8942d for 23% higher CTA contrast, warmer off-white #fefdfb for approachability). WCAG-compliant text contrast with white button text on gold.
-- **Theme Toggle**: Pill-shaped button with sun/moon icons and "Day"/"Night" text labels in header/navbar for clear accessibility
-- **Languages**: English, Spanish, French, Greek, Chinese, Hindi, Arabic (RTL supported)
+- **Key Headlines**: "One app. Every auto need. Zero hassle."
+- **Four Pillars**: Get Quotes, Manage Vehicles, Maintaining Your Ride, Shop Smarter
+- **Copy Terminology**: Use "auto" for general references (auto care, auto ownership), "ride" for casual/friendly tone (your ride, your next ride), "vehicle" for formal contexts (vehicle owners). Brand name "My Car Concierge" stays unchanged.
+- **Automotive Theme**: Warmer dark slate backgrounds (#12161c) with bronze/copper gold accents and coolant teal highlights; premium, luxury garage-inspired aesthetic with metallic gradients on buttons and cards; less harsh dark mode with improved contrast and depth.
+- **Light Mode**: Navy blue #1e3a5f for trust, deeper gold #b8942d for 23% higher CTA contrast, warmer off-white #fefdfb for approachability. WCAG-compliant text contrast with white button text on gold.
+- **Theme Toggle**: Pill-shaped button with sun/moon icons and "Day"/"Night" text labels in header/navbar for clear accessibility.
+- **Languages**: English, Spanish, French, Greek, Chinese, Hindi, Arabic (RTL supported).
 
 ## System Architecture
-The application uses a modern web stack with vanilla HTML, CSS, and JavaScript. JavaScript modules are lazy-loaded. Supabase provides the backend (PostgreSQL, authentication, storage). The system is multi-platform, utilizing PWA features for web, Capacitor for mobile, and Electron for desktop applications.
+The application uses a modern web stack (vanilla HTML, CSS, JS) with lazy-loaded JavaScript modules. It leverages PWA features for the web, Capacitor for mobile, and Electron for desktop applications.
 
-Key features include:
-- **PWA Capabilities**: Install to Home Screen, offline support, app-like experience, and auto-updates.
+Key architectural patterns and features include:
+- **PWA Capabilities**: Install to Home Screen, offline support, and auto-updates.
 - **User Role Management**: Supports `member`, `provider`, `pending_provider`, and `admin` roles, including dual roles.
-- **Database Schema**: 29 core tables cover profiles, vehicles, maintenance packages, bids, notifications, payments, and provider applications.
-- **Row-Level Security (RLS)**: Implemented with 212 policies for robust role-based access control.
-- **Service Scheduling & Coordination**: Facilitates appointment scheduling, vehicle transfer tracking, and temporary location sharing.
-- **Provider Rating & Suspension System**: Automatically suspends underperforming providers; admins can lift suspensions.
-- **Two-Factor Authentication (2FA)**: SMS-based 2FA using Twilio, with server-side enforcement and rate limiting.
-- **Sign in with Apple**: OAuth authentication via Supabase for Apple ID users. Available on login and signup pages. New OAuth users automatically get a profile created. Requires Apple Developer configuration and Supabase provider setup.
-- **Self-Service Account Deletion**: Apple App Store compliant account deletion feature. Users can permanently delete their account from Settings > Danger Zone. Cascade deletes user data while anonymizing payment records for audit compliance. Confirmation email sent after deletion.
-- **Provider Team Management**: Allows providers to add team members with role-based access.
-- **My Next Car (Car Shopping Tool)**: Enables members to track and compare prospective vehicle purchases with VIN lookup and comparison features.
-- **Dream Car Finder (AI Search)**: AI-powered automated car search with customizable criteria (makes, models, trims/versions, body styles, fuel types, colors, features), notifications, and match scoring.
-- **Vehicle Ownership Verification (Google Vision OCR)**: Simplifies verification using OCR for registration documents; includes admin review and referral-based bypass.
-- **Notification Preferences**: Members can control notification delivery (push, email, SMS) for various alerts.
-- **Push Notifications**: Web push notifications for instant alerts across devices.
-- **Merch Store (Printful Integration)**: E-commerce shop for branded merchandise with Stripe checkout.
-- **Merch Manager (Admin Tool)**: Admin interface for creating and managing Printful products, including catalog browsing, design library, and product creation.
-- **Automated Maintenance Reminders**: Tracks vehicle maintenance schedules and sends reminders.
-- **Provider Push Notifications**: Providers receive push notifications for opportunities, appointments, and messages.
-- **Branded Email Templates**: Professional HTML email templates matching the app's light theme for transactional emails.
-- **Automated Welcome Emails**: Personalized welcome emails sent to new members and providers on first login after email verification. Uses light theme (navy #1e3a5f, gold #b8942d, off-white #fefdfb) with role-specific content, quick-start guides, logo, and unique QR referral codes.
-- **Founder Referral Commission System**: Both members and providers automatically become "founders" who can refer new providers. Members receive MF-prefixed codes (stored in `member_founder_profiles`), providers receive PR-prefixed codes (stored in `provider_referral_codes`). Welcome emails include QR codes linking to provider signup. When referred providers purchase bid packs, the referrer earns 50% lifetime commission via `record_bid_pack_commission` RPC, tracked in `founder_referrals` and `founder_commissions` tables. Exception: Chris Agrapidis has a special Founding Provider Partner Agreement with 90% commission rate plus milestone bonuses.
-- **Provider Loyalty Referral System**: Comprehensive program with three QR code types (Loyal Customer, New Member, Provider referral), exclusive bidding windows, and private job options.
-- **Referral Program**: Member referral system with credits for both referrer and new members.
-- **Vehicle Recall Alerts**: Weekly checks against the NHTSA database for safety recalls.
-- **Fuel Cost Tracking**: Allows tracking fill-ups, calculating MPG, and analyzing spending.
-- **Insurance Card Storage**: Securely store insurance documents with expiration tracking.
-- **Service History Export**: Download service records as PDF or CSV.
-- **API Rate Limiting**: In-memory rate limiting to prevent abuse across different API endpoints.
-- **Login Activity Log**: Tracks login history and alerts on failed attempts.
-- **SMS Appointment Reminders**: Sends automated reminders 24 hours before scheduled service.
-- **Light/Dark Theme Toggle**: Premium dark mode and a dramatic light mode with smooth transitions and persistent preference.
-- **Vehicle Trim/Version Selector**: Members can select from predefined trim levels (Sport, Turbo, GTI, Mk 7.5, CLA 45, etc.) or type custom versions for accurate vehicle identification.
-- **Admin Dashboard Charts**: Visualizes revenue, user growth, and order statistics using Chart.js.
-- **Escrow Payment System (Stripe Connect)**: Secure marketplace payments using manual capture. Funds are held when member confirms card, then captured and transferred to provider (minus 2% platform fee) when job is marked complete. Features server-side amount validation, status state machine enforcement, idempotent operations, and server-side atomic updates for payment release.
-- **Additional Work Requests**: Providers can request additional payment during active jobs when discovering extra work needed. Members approve/decline with separate Stripe payment authorization. Uses two-step flow: authorization_pending → approved after successful card confirmation. Captured separately during final escrow release.
-- **Provider Discounts**: Providers can offer fixed or percentage discounts on active jobs (max 95% of original amount). Members can accept offers, which are applied at final payment capture time, reducing the captured amount.
-- **Member QR Check-in**: Members can generate a QR code for active packages with payment held. Providers scan the QR code when the member arrives to confirm drop-off and start service. Features include: provider setting toggle to enable/disable, 24-hour expiring tokens, one-time use, automatic status update to 'in_progress', and notifications for both parties.
-- **Provider Stripe Connect Onboarding**: Providers can connect their Stripe account to receive payments directly. Includes onboarding flow, status verification, and payout management.
-- **Member Payment Confirmation UI**: Members see payment status badges on packages (Awaiting Payment, Payment Authorized, Payment Held, Payment Complete) and can confirm job completion to release funds.
-- **Provider Analytics Dashboard**: Comprehensive analytics for providers including earnings trends, bid success rates, average job value, top services by revenue, and customer insights with Chart.js visualizations.
-- **Biometric Login (Capacitor)**: Face ID / fingerprint authentication for native mobile apps with graceful web fallback.
-- **Mobile Wallet Payments**: Apple Pay and Google Pay integration for native apps (requires Capacitor Stripe plugin and merchant ID configuration).
-
-## UX Optimizations (Consumer Psychology)
-- **Homepage Hero**: Outcome-focused headline, single dominant CTA, reduced cognitive load
-- **Trust Strip**: 3 visual trust badges (Vetted Providers, Escrow Protection, Verified Registration) using shield iconography
-- **Signup Progress Indicator**: 2-step visual progress bar for member signup reducing perceived complexity
-- **Password Reassurance**: Microcopy near password field to reduce security anxiety
-- **Dashboard Onboarding Checklist**: 3-step checklist for new users (Add Vehicle, Create Package, Verify Registration) with progress tracking and auto-hide on completion
-- **Founder's Message Modal**: "Meet the Founder" link in footer triggers modal with Jordan's story, Uber profile screenshot (2321 rides, 5.0 rating), platform features, and 50% lifetime commission program for founding members
-- **Mobile Touch Targets**: All buttons have 48px minimum height for proper touch targets
-- **Responsive Typography**: Hero headline and CTAs scale appropriately on mobile devices
-
-## Performance Optimizations
-- **Lazy-Loaded JS Modules**: Member and provider dashboards split into feature modules loaded on-demand, reducing initial load from ~500KB to ~25KB.
-- **Preconnect Hints**: Early connection establishment for external APIs (Supabase, Stripe, CDN) to reduce latency.
-- **Enhanced Service Worker Caching**: Cache-first for static assets, network-first with fallback for APIs, stale-while-revalidate for HTML pages.
-- **Admin Dashboard Lazy Loading**: Sections load data on-demand when clicked, not on initial page load.
-- **Server-Side Pagination**: Admin tables use paginated API endpoints with 25 items per page.
-- **Shared Styles & Utilities**: Centralized CSS (shared-styles.css) and JavaScript utilities (utils.js) reduce code duplication and improve caching.
-- **Image Lazy Loading**: Offscreen images use native lazy loading for faster initial page loads.
-- **CSS Skeleton Loaders**: Smooth loading states for dashboard sections with animated skeleton placeholders.
-
-## Recent Changes (February 2026)
-- **QA Audit & Bug Fixes**: Comprehensive audit of member and provider signup flows identified 48 issues across critical, major, and minor categories. All critical and high-priority fixes completed:
-  - Provider signup: State field converted to dropdown with all 50 US states + DC, CSS class syntax fixed, ZIP code pattern validation added
-  - Provider signup JS: Email/phone format validation added, submit button disabled during submission, user-friendly error messages implemented
-  - Member signup: SMS consent made optional (not required for signup), ARIA accessibility attributes added to message container
-  - Error handling: Replaced all `alert()` calls with `showToast()` for consistent UX across members-vehicles.js, members.js, providers.js, providers-core.js, tos-modal.js, agreement-form.js
+- **Database Schema**: 29 core tables with 212 Row-Level Security (RLS) policies.
+- **Authentication**: Two-Factor Authentication (2FA), Sign in with Apple, and Magic Link.
+- **Account Management**: Self-service account deletion.
+- **Team Management**: Providers can add team members with role-based access. Admin portal with 6 roles, session token auth, bcrypt password hashing, and self-service invite system.
+- **Service Coordination**: Appointment scheduling, vehicle transfer tracking, and temporary location sharing.
+- **Provider Management**: Rating and automated suspension system.
+- **Vehicle Tools**: "My Next Car" (prospective purchases with VIN lookup), "Dream Car Finder" (AI-powered search), and Google Vision OCR for registration document verification with AI-enhanced field extraction.
+- **Insurance Card Extraction**: AI-powered OCR for insurance cards, auto-filling details with a review UI.
+- **OBD Diagnostic Scanner**: Manual entry or photo OCR for codes, AI explanations, severity ratings, cost estimates, and recommendations.
+- **Notification System**: User-controlled preferences for push, email, and SMS.
+- **E-commerce**: Integrated Merch Store via Printful with Stripe checkout.
+- **Automated Reminders**: Maintenance and SMS appointment reminders.
+- **Referral & Commission System**: Founder referral program with lifetime commissions and instant payouts.
+- **Payout Management**: Comprehensive payout management for founders, including multiple methods and a Tax Center.
+- **Payment System**: Escrow payment system using Stripe Connect for marketplace transactions, supporting manual capture, additional work requests, provider discounts, post-capture refunds, and split payments.
+- **Job Workflow**: Member QR check-in for active jobs, provider confirmation.
+- **Analytics**: Provider and Admin dashboards with Chart.js.
+- **Security**: API Rate Limiting and Login Activity Log.
+- **Mobile Native Features**: Biometric Login, Mobile Wallet Payments, and FCM Push Notifications via Capacitor. `members-push.js` handles native push (permission, token registration, foreground banners, tap deep-links). Device tokens stored in `device_push_tokens` table. `sendFCMPushNotification()` in server.js sends via FCM legacy API using `FCM_SERVER_KEY` env var; wired into bid and reminder notifications. Requires `npx cap sync` to install native plugin in iOS/Android projects. Web browser falls back to existing VAPID/Service Worker push.
+- **UI/UX Decisions**: Homepage hero design, trust badges, signup progress indicators, password reassurance, dashboard onboarding checklists, and responsive design.
+- **Performance Optimizations**: Lazy-loaded JS modules, preconnect hints, enhanced service worker caching, server-side pagination, and image lazy loading.
+- **AI Smart Bid Analyzer**: AI-powered recommendation card ranks bids by value, provider reputation, ratings, completion rate, and response time.
+- **AI Helpdesk Widget**: Anthropic Claude-powered chat with 3 modes (Car Expert, Provider Support, Car Academy), context-aware prompts, and feedback.
+- **Admin AI Chat Insights**: Dashboard for monitoring chat widget usage and activity.
+- **Traffic Monitoring**: Server-side analytics with client-side tracker for device detection, anonymous visitor IDs, and non-blocking beacon sends.
+- **Marketing Hub Sharing**: Google Drive-style share modal for inviting collaborators with email invite, access list, and shareable link generation.
+- **Marketing & Outreach**: Unified admin portal section with Outreach Engine (autonomous lead discovery, scoring, pipeline, re-engagement, referral nudges, lead scoring, Claude AI message drafting, auto-send with compliance guardrails, campaign management, bulk import, CRM deduplication, contact enrichment, chain shop filtering, member lead discovery, Gemini-powered community discovery), Email Campaigns, Content Generator, Social Media (AI-generated platform-specific posts), Campaign Strategy, Fundraising & Grants, Research & Outreach Agent (Gemini with Google Search grounding), Saved Content, and Growth Funnel.
+- **Conversational Onboarding**: Progressive profiling signup flows for members (8-step) and providers (9-step pre-account + post-account member setup), utilizing white/light theme with blue accent, slide animations, one question per screen, mobile-first. Full Supabase auth integration.
+- **Provider Onboarding Walkthrough**: 7-step interactive guided tour.
+- **Snow Removal Services**: Property-based service category for members to create requests.
+- **AI Review Summarization**: AI-generated summary of provider reviews displayed on provider dashboard and member-facing bid detail views.
+- **Car Club Loyalty System**: Per-provider loyalty clubs with configurable punch card rewards.
+- **AI Fair Price Estimator**: Queries historical accepted bid data by category/region, returning quartile-based price ranges.
+- **AI Package Builder**: Debounced AI suggestion panel below description textarea in package creation modal, offering suggested category, clarifying questions, and missing field hints.
+- **AI Bid Strategy Insights**: Provider Bid Insights card showing per-category win rate badges, AI tips, and top recommendation.
+- **AI Provider Matching**: Scores active providers by category match, geo proximity, rating, win rate, and tier, sending notifications to top matches.
+- **Smart Service Recommendations**: When a member selects a vehicle, a "Suggested for your [Vehicle]" panel shows up to 7 service recommendations based on client-side logic and an AI endpoint for make/model-specific suggestions.
+- **iOS App Store Build**: Strips admin portal, outreach engine, marketing docs, investor files, and server-only code for a consumer-focused iOS app.
+- **Deployment Architecture**: GitHub is the source of truth for production deploys. Netlify hosts the entire production stack (frontend, serverless functions). Replit is for development only.
+- **Outreach Engine (Serverless)**: Fully serverless on Netlify using Scheduled Functions and Background Functions for lead discovery, scoring, drafting, auto-sending, follow-ups, and cleanup.
 
 ## External Dependencies
-- **Supabase**: Backend services (PostgreSQL, authentication, storage).
-- **Stripe**: Payment processing.
-- **Capacitor**: Mobile app development.
-- **Electron**: Desktop app development.
-- **Twilio**: SMS for 2FA and notifications.
-- **Netlify**: PWA deployment.
-- **OpenAI**: Integrated for the helpdesk widget.
-- **Anthropic**: AI fallback for Dream Car Finder.
-- **Google Gemini**: Primary AI provider for Dream Car Finder (uses user's own API key, with Anthropic as fallback).
-- **Resend**: Email delivery.
+- **Supabase**: Backend as a Service (PostgreSQL, authentication, storage).
+- **Stripe**: Payment processing (Stripe Connect for marketplace, general payments).
+- **Capacitor**: Cross-platform native runtime for web apps.
+- **Electron**: Framework for building desktop applications.
+- **Twilio**: SMS services (2FA, notifications).
+- **Netlify**: PWA deployment and hosting.
+- **OpenAI**: AI integration.
+- **Anthropic**: AI fallback for Dream Car Finder, primary for AI Helpdesk Widget and AI Marketing Hub content generation.
+- **Google Gemini**: Primary AI provider for Dream Car Finder and Research & Outreach Agent.
+- **Resend**: Email delivery services.
 - **Google Cloud Vision**: OCR for document verification.
+- **HubSpot**: CRM integration.
+- **Google Places API**: Used by AI Outreach Engine for provider discovery and contact enrichment.
+- **Instantly.ai**: Cold email outreach platform for campaign delivery, warmup, A/B testing, and deliverability, integrating with the Outreach Engine via API v2.

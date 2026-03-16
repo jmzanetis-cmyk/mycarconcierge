@@ -39,8 +39,8 @@
 
       document.getElementById('payout-method').value = profile.payout_method || 'stripe_connect';
       document.getElementById('payout-email').value = profile.payout_email || '';
-      updatePayoutLabel();
       
+      initPayTaxInfo(profile);
       handleStripeCallback();
 
       document.getElementById('leaderboard-optin-checkbox').checked = profile.show_on_leaderboard || false;
@@ -52,7 +52,8 @@
         loadCommissions(),
         loadPayouts(),
         loadActivityFeed(),
-        loadLeaderboard()
+        loadLeaderboard(),
+        loadWefunderWidget()
       ]);
 
       document.getElementById('loading-overlay').style.display = 'none';
@@ -92,10 +93,10 @@
 
     function calculateTier(totalReferrals) {
       const tiers = [
-        { name: 'Bronze', icon: '🥉', minReferrals: 0, maxReferrals: 9, bidPack: 50, cssClass: 'bronze' },
-        { name: 'Silver', icon: '🥈', minReferrals: 10, maxReferrals: 24, bidPack: 50, cssClass: 'silver' },
-        { name: 'Gold', icon: '🥇', minReferrals: 25, maxReferrals: 49, bidPack: 50, cssClass: 'gold' },
-        { name: 'Platinum', icon: '💎', minReferrals: 50, maxReferrals: Infinity, bidPack: 50, cssClass: 'platinum' }
+        { name: 'Bronze', icon: mccIcon('star', 16), minReferrals: 0, maxReferrals: 9, bidPack: 50, cssClass: 'bronze' },
+        { name: 'Silver', icon: mccIcon('star', 16), minReferrals: 10, maxReferrals: 24, bidPack: 50, cssClass: 'silver' },
+        { name: 'Gold', icon: mccIcon('star', 16), minReferrals: 25, maxReferrals: 49, bidPack: 50, cssClass: 'gold' },
+        { name: 'Platinum', icon: mccIcon('star', 16), minReferrals: 50, maxReferrals: Infinity, bidPack: 50, cssClass: 'platinum' }
       ];
 
       let currentTier = tiers[0];
@@ -148,7 +149,7 @@
         document.getElementById('tier-next-info').style.display = 'block';
       } else {
         document.getElementById('tier-progress-next').textContent = 'Max tier reached!';
-        document.getElementById('tier-next-info').innerHTML = `🎉 Congratulations! You've reached the highest tier - Platinum Founder status!`;
+        document.getElementById('tier-next-info').innerHTML = `Congratulations! You've reached the highest tier - Platinum Founder status!`;
       }
 
       document.getElementById('tier-rate-bidpack').textContent = `${tierInfo.current.bidPack}%`;
@@ -180,7 +181,7 @@
         const name = ref.referred_name || ref.referred_email || 'Someone';
         activities.push({
           type: isProvider ? 'provider' : 'member',
-          icon: isProvider ? '👨‍🔧' : '👤',
+          icon: isProvider ? mccIcon('wrench', 16) : mccIcon('user', 16),
           description: isProvider 
             ? `<span class="highlight-blue">${name}</span> signed up as a provider`
             : `<span class="highlight-gold">${name}</span> signed up as a member`,
@@ -194,7 +195,7 @@
         const type = comm.commission_type === 'bid_pack' ? 'bid pack purchase' : 'platform fee';
         activities.push({
           type: 'commission',
-          icon: '💰',
+          icon: mccIcon('dollar-sign', 16),
           description: `You earned <span class="highlight-green">${amount}</span> from a ${type}`,
           timestamp: comm.created_at,
           date: new Date(comm.created_at)
@@ -264,7 +265,7 @@
       
       tbody.innerHTML = data.map(ref => `
         <tr>
-          <td><span class="type-badge ${ref.referred_type}">${ref.referred_type === 'provider' ? '👨‍🔧 Provider' : '👤 Member'}</span></td>
+          <td><span class="type-badge ${ref.referred_type}">${ref.referred_type === 'provider' ? mccIcon('wrench', 14) + ' Provider' : mccIcon('user', 14) + ' Member'}</span></td>
           <td>${ref.referred_name || ref.referred_email || '--'}</td>
           <td>${formatDate(ref.created_at)}</td>
           <td><span class="status-badge ${ref.status}">${ref.status}</span></td>
@@ -295,7 +296,7 @@
       
       tbody.innerHTML = data.map(comm => `
         <tr>
-          <td>${comm.commission_type === 'bid_pack' ? '📦 Bid Pack' : '💳 Platform Fee'}</td>
+          <td>${comm.commission_type === 'bid_pack' ? mccIcon('package', 14) + ' Bid Pack' : mccIcon('dollar-sign', 14) + ' Platform Fee'}</td>
           <td style="color: var(--accent-green); font-weight: 600;">${formatCurrency(comm.commission_amount)}</td>
           <td>${formatDate(comm.created_at)}</td>
           <td><span class="status-badge ${comm.status}">${comm.status}</span></td>
@@ -470,15 +471,60 @@
         'check': 'Check'
       };
       
-      tbody.innerHTML = data.map(payout => `
-        <tr>
-          <td>${payout.payout_period || '--'}</td>
-          <td style="color: var(--accent-green); font-weight: 600;">${formatCurrency(payout.amount)}</td>
-          <td>${methodLabels[payout.payout_method] || payout.payout_method}</td>
-          <td><span class="status-badge ${payout.status}">${payout.status}</span></td>
-          <td>${formatDate(payout.processed_at || payout.created_at)}</td>
-        </tr>
-      `).join('');
+      const hasFees = data.some(p => parseFloat(p.fee_amount || 0) > 0);
+      
+      if (hasFees) {
+        document.querySelector('#payouts-table thead tr').innerHTML = `
+          <th>Period</th>
+          <th>Gross</th>
+          <th>Fee</th>
+          <th>Net Received</th>
+          <th>Method</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th>Receipt</th>
+        `;
+      }
+      
+      tbody.innerHTML = data.map(payout => {
+        const grossAmount = parseFloat(payout.amount || 0);
+        const feeAmount = parseFloat(payout.fee_amount || 0);
+        const netAmount = parseFloat(payout.net_amount || grossAmount);
+        
+        if (hasFees) {
+          return `
+            <tr>
+              <td>${payout.payout_period || '--'}</td>
+              <td style="color: var(--text-primary);">${formatCurrency(grossAmount)}</td>
+              <td style="color: ${feeAmount > 0 ? 'var(--accent-orange)' : 'var(--text-muted)'};">${feeAmount > 0 ? '-' + formatCurrency(feeAmount) : 'FREE'}</td>
+              <td style="color: var(--accent-green); font-weight: 600;">${formatCurrency(netAmount)}</td>
+              <td>${methodLabels[payout.payout_method] || payout.payout_method}</td>
+              <td><span class="status-badge ${payout.status}">${payout.status}</span></td>
+              <td>${formatDate(payout.processed_at || payout.created_at)}</td>
+              <td>
+                <a href="/api/founder/payout-receipt/${payout.id}" target="_blank" class="btn btn-sm btn-secondary" title="Download Receipt">
+                  ${mccIcon('file-text', 14)}
+                </a>
+              </td>
+            </tr>
+          `;
+        }
+        
+        return `
+          <tr>
+            <td>${payout.payout_period || '--'}</td>
+            <td style="color: var(--accent-green); font-weight: 600;">${formatCurrency(grossAmount)}</td>
+            <td>${methodLabels[payout.payout_method] || payout.payout_method}</td>
+            <td><span class="status-badge ${payout.status}">${payout.status}</span></td>
+            <td>${formatDate(payout.processed_at || payout.created_at)}</td>
+            <td>
+              <a href="/api/founder/payout-receipt/${payout.id}" target="_blank" class="btn btn-sm btn-secondary" title="Download Receipt">
+                ${mccIcon('file-text', 14)} Receipt
+              </a>
+            </td>
+          </tr>
+        `;
+      }).join('');
     }
 
     async function loadLeaderboard() {
@@ -513,13 +559,13 @@
         let rankDisplay = rank;
         if (rank === 1) {
           rankClass = 'gold';
-          rankDisplay = '🥇';
+          rankDisplay = mccIcon('star', 16);
         } else if (rank === 2) {
           rankClass = 'silver';
-          rankDisplay = '🥈';
+          rankDisplay = mccIcon('star', 16);
         } else if (rank === 3) {
           rankClass = 'bronze';
-          rankDisplay = '🥉';
+          rankDisplay = mccIcon('star', 16);
         }
 
         const displayName = isCurrentUser 
@@ -599,6 +645,51 @@
       window.open(`mailto:?subject=${subject}&body=${body}`);
     }
 
+    function shareViaSMS(type) {
+      const code = founderProfile.referral_code;
+      const page = type === 'provider' ? 'signup-provider.html' : 'signup-member.html';
+      const link = `${window.location.origin}/${page}?ref=${code}`;
+      const typeLabel = type === 'provider' ? 'service provider' : 'member';
+      const message = encodeURIComponent(`Check out My Car Concierge! Join as a ${typeLabel} and get competitive bids on auto services. Sign up here: ${link}`);
+      if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        window.open(`sms:&body=${message}`);
+      } else {
+        window.open(`sms:?body=${message}`);
+      }
+    }
+
+    function shareToFacebook(type) {
+      const code = founderProfile.referral_code;
+      const page = type === 'provider' ? 'signup-provider.html' : 'signup-member.html';
+      const link = encodeURIComponent(`${window.location.origin}/${page}?ref=${code}`);
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${link}`, '_blank', 'width=600,height=400');
+    }
+
+    function shareToTwitter(type) {
+      const code = founderProfile.referral_code;
+      const page = type === 'provider' ? 'signup-provider.html' : 'signup-member.html';
+      const link = `${window.location.origin}/${page}?ref=${code}`;
+      const typeLabel = type === 'provider' ? 'service provider' : 'member';
+      const text = encodeURIComponent(`Join My Car Concierge as a ${typeLabel}! Get competitive bids on auto services. ${link}`);
+      window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank', 'width=600,height=400');
+    }
+
+    function shareToWhatsApp(type) {
+      const code = founderProfile.referral_code;
+      const page = type === 'provider' ? 'signup-provider.html' : 'signup-member.html';
+      const link = `${window.location.origin}/${page}?ref=${code}`;
+      const typeLabel = type === 'provider' ? 'service provider' : 'member';
+      const text = encodeURIComponent(`Check out My Car Concierge! Join as a ${typeLabel} and get competitive bids on auto services. Sign up here: ${link}`);
+      window.open(`https://wa.me/?text=${text}`, '_blank');
+    }
+
+    window.copyShareLink = copyShareLink;
+    window.shareViaSMS = shareViaSMS;
+    window.shareViaEmail = shareViaEmail;
+    window.shareToFacebook = shareToFacebook;
+    window.shareToTwitter = shareToTwitter;
+    window.shareToWhatsApp = shareToWhatsApp;
+
     function generateQRCode() {
       if (!founderProfile?.referral_code) return;
       const code = founderProfile.referral_code;
@@ -651,61 +742,30 @@
     }
 
     function updatePayoutLabel() {
-      const method = document.getElementById('payout-method').value;
-      const label = document.getElementById('payout-email-label');
-      const input = document.getElementById('payout-email');
-      const emailGroup = document.getElementById('payout-email-group');
-      const stripeGroup = document.getElementById('stripe-connect-group');
-      
-      if (method === 'stripe_connect') {
-        emailGroup.style.display = 'none';
-        stripeGroup.style.display = 'block';
-        updateStripeConnectUI();
-      } else {
-        emailGroup.style.display = 'block';
-        stripeGroup.style.display = 'none';
-        
-        const labels = {
-          'paypal': { label: 'PayPal Email', placeholder: 'your@email.com' },
-          'venmo': { label: 'Venmo Username', placeholder: '@username' },
-          'zelle': { label: 'Zelle Email/Phone', placeholder: 'email or phone' },
-          'bank_transfer': { label: 'Bank Details', placeholder: 'Account details' },
-          'check': { label: 'Mailing Address', placeholder: 'Your address' }
-        };
-        
-        const config = labels[method] || labels.paypal;
-        label.textContent = config.label;
-        input.placeholder = config.placeholder;
-      }
+      // Deprecated - now handled by initPayTaxInfo
+    }
+    
+    function updateInstantPayoutUI() {
+      // Deprecated - now handled by initPayTaxInfo
+    }
+    
+    function updateToggleVisual(isChecked, slider, bg) {
+      // Deprecated - instant payout is now toggled via handlePayoutMethodClick
     }
 
     function updateStripeConnectUI() {
-      const statusDiv = document.getElementById('stripe-connect-status');
-      const connectedDiv = document.getElementById('stripe-connect-connected');
-      
-      if (founderProfile && founderProfile.stripe_connect_account_id) {
-        statusDiv.style.display = 'none';
-        connectedDiv.style.display = 'block';
-      } else {
-        statusDiv.style.display = 'block';
-        connectedDiv.style.display = 'none';
-      }
+      // Deprecated - now handled by initPayTaxInfo
     }
 
     async function initiateStripeConnect() {
       if (!founderProfile) return;
       
-      const btn = document.getElementById('stripe-connect-btn');
-      const originalText = btn.innerHTML;
-      btn.innerHTML = 'Connecting...';
-      btn.disabled = true;
+      showToast('Connecting to Stripe...');
       
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) {
           showToast('Please log in to connect with Stripe');
-          btn.innerHTML = originalText;
-          btn.disabled = false;
           return;
         }
         
@@ -718,8 +778,6 @@
         
         if (data.error) {
           showToast('Error: ' + data.error);
-          btn.innerHTML = originalText;
-          btn.disabled = false;
           return;
         }
         
@@ -729,8 +787,6 @@
       } catch (error) {
         console.error('Stripe Connect error:', error);
         showToast('Failed to connect with Stripe');
-        btn.innerHTML = originalText;
-        btn.disabled = false;
       }
     }
 
@@ -783,32 +839,21 @@
       }
     }
 
-    document.getElementById('payout-method').addEventListener('change', updatePayoutLabel);
-
-    document.getElementById('payout-settings-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      const method = document.getElementById('payout-method').value;
-      const email = document.getElementById('payout-email').value;
-      
-      const { error } = await supabaseClient
-        .from('member_founder_profiles')
-        .update({
-          payout_method: method,
-          payout_email: email,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', founderProfile.id);
-      
-      if (error) {
-        showToast('Error saving settings');
-        console.error(error);
-      } else {
-        founderProfile.payout_method = method;
-        founderProfile.payout_email = email;
-        showToast('Payout settings saved!');
-      }
-    });
+    // Deprecated - form is now hidden, settings are managed via modals
+    const payoutForm = document.getElementById('payout-settings-form');
+    if (payoutForm) {
+      payoutForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        // Form submission is now handled by individual modal save functions
+      });
+    }
+    
+    const payoutMethodEl = document.getElementById('payout-method');
+    if (payoutMethodEl) {
+      payoutMethodEl.addEventListener('change', () => {
+        // Deprecated - now handled by initPayTaxInfo
+      });
+    }
 
     document.querySelectorAll('.tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -824,6 +869,455 @@
       supabaseClient.auth.signOut().then(() => {
         window.location.href = 'login.html';
       });
+    }
+
+    function initPayTaxInfo(profile) {
+      const stripeConnected = !!profile.stripe_connect_account_id;
+      const instantPayEnabled = profile.instant_payout_enabled;
+      const weeklyEnabled = profile.weekly_payout_enabled !== false;
+      const hasBackupMethod = profile.payout_method && profile.payout_method !== 'stripe_connect' && profile.payout_email;
+      const taxVerified = profile.tax_info_verified;
+      const taxVerifiedAt = profile.tax_info_verified_at;
+      const outstandingBalance = parseFloat(profile.outstanding_balance || 0);
+      
+      if (stripeConnected) {
+        document.getElementById('stripe-connect-info').textContent = 'Account connected';
+        document.getElementById('stripe-connect-badge').textContent = 'Connected';
+        document.getElementById('stripe-connect-badge').className = 'payout-status-badge status-active';
+      } else {
+        document.getElementById('stripe-connect-info').textContent = 'Not connected';
+        document.getElementById('stripe-connect-badge').textContent = 'Setup';
+        document.getElementById('stripe-connect-badge').className = 'payout-status-badge';
+      }
+      
+      if (instantPayEnabled && stripeConnected) {
+        document.getElementById('instant-pay-info').textContent = 'Receive earnings instantly';
+        document.getElementById('instant-pay-badge').textContent = 'On';
+        document.getElementById('instant-pay-badge').className = 'payout-status-badge status-active';
+      } else if (!stripeConnected) {
+        document.getElementById('instant-pay-info').textContent = 'Requires Stripe Connect';
+        document.getElementById('instant-pay-badge').textContent = 'Setup';
+        document.getElementById('instant-pay-badge').className = 'payout-status-badge status-inactive';
+      } else {
+        document.getElementById('instant-pay-info').textContent = 'Receive earnings instantly';
+        document.getElementById('instant-pay-badge').textContent = 'Off';
+        document.getElementById('instant-pay-badge').className = 'payout-status-badge status-inactive';
+      }
+      
+      if (weeklyEnabled) {
+        document.getElementById('weekly-payout-info').textContent = profile.bank_last_four ? `Account ending in *${profile.bank_last_four}` : 'Every Tuesday';
+        document.getElementById('weekly-payout-badge').textContent = 'Active';
+        document.getElementById('weekly-payout-badge').className = 'payout-status-badge status-active';
+      } else {
+        document.getElementById('weekly-payout-badge').textContent = 'Off';
+        document.getElementById('weekly-payout-badge').className = 'payout-status-badge status-inactive';
+      }
+      
+      if (hasBackupMethod) {
+        const methodNames = { paypal: 'PayPal', venmo: 'Venmo', zelle: 'Zelle', check: 'Check', bank_transfer: 'Bank Transfer' };
+        document.getElementById('backup-payout-info').textContent = `${methodNames[profile.payout_method] || profile.payout_method}: ${profile.payout_email}`;
+        document.getElementById('backup-payout-badge').textContent = 'Active';
+        document.getElementById('backup-payout-badge').className = 'payout-status-badge status-active';
+      }
+      
+      if (taxVerified && taxVerifiedAt) {
+        const verifiedDate = new Date(taxVerifiedAt);
+        document.getElementById('tax-info-status').textContent = `Verified ${verifiedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+      } else {
+        document.getElementById('tax-info-status').textContent = 'Not verified - required for payouts';
+      }
+      
+      if (outstandingBalance > 0) {
+        document.getElementById('outstanding-balance-section').style.display = 'block';
+        document.getElementById('outstanding-balance-info').textContent = `You have an outstanding balance of ${formatCurrency(outstandingBalance)}. Please pay now.`;
+      }
+    }
+    
+    function handlePayoutMethodClick(method) {
+      if (method === 'stripe_connect') {
+        if (founderProfile.stripe_connect_account_id) {
+          showPayoutMethodModal('stripe_connect');
+        } else {
+          initiateStripeConnect();
+        }
+      } else if (method === 'instant_pay') {
+        if (!founderProfile.stripe_connect_account_id) {
+          showToast('Please connect Stripe first to enable Instant Pay');
+          return;
+        }
+        toggleInstantPay();
+      } else if (method === 'weekly') {
+        showPayoutMethodModal('weekly');
+      } else if (method === 'backup') {
+        showBackupPayoutModal();
+      }
+    }
+    
+    async function toggleInstantPay() {
+      const newValue = !founderProfile.instant_payout_enabled;
+      
+      const { error } = await supabaseClient
+        .from('member_founder_profiles')
+        .update({
+          instant_payout_enabled: newValue,
+          payout_preference: newValue ? 'instant' : 'weekly',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', founderProfile.id);
+      
+      if (error) {
+        showToast('Failed to update instant pay setting');
+        return;
+      }
+      
+      founderProfile.instant_payout_enabled = newValue;
+      founderProfile.payout_preference = newValue ? 'instant' : 'weekly';
+      
+      initPayTaxInfo(founderProfile);
+      showToast(newValue ? 'Instant Pay enabled!' : 'Instant Pay disabled');
+    }
+    
+    function showPayoutMethodModal(method) {
+      showToast(`${method === 'stripe_connect' ? 'Stripe Connect' : 'Weekly payout'} settings coming soon`);
+    }
+    
+    function showBackupPayoutModal() {
+      const modal = document.createElement('div');
+      modal.id = 'backup-payout-modal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:1000;';
+      modal.innerHTML = `
+        <div style="background:var(--bg-card);border-radius:var(--radius-lg);padding:32px;max-width:420px;width:90%;max-height:80vh;overflow-y:auto;">
+          <h3 style="margin-bottom:20px;font-size:1.2rem;">Backup Payout Method</h3>
+          <p style="color:var(--text-muted);margin-bottom:20px;font-size:0.9rem;">Set a backup method for receiving payouts when Stripe is unavailable.</p>
+          <div style="margin-bottom:16px;">
+            <label style="display:block;margin-bottom:8px;font-weight:500;">Method</label>
+            <select id="backup-method-select" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);font-size:1rem;">
+              <option value="paypal">PayPal</option>
+              <option value="venmo">Venmo</option>
+              <option value="zelle">Zelle</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="check">Check</option>
+            </select>
+          </div>
+          <div style="margin-bottom:20px;">
+            <label style="display:block;margin-bottom:8px;font-weight:500;" id="backup-email-label">PayPal Email</label>
+            <input type="text" id="backup-email-input" placeholder="your@email.com" value="${founderProfile.payout_email || ''}" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);font-size:1rem;">
+          </div>
+          <div style="display:flex;gap:12px;">
+            <button onclick="closeBackupPayoutModal()" class="btn btn-secondary" style="flex:1;">Cancel</button>
+            <button onclick="saveBackupPayout()" class="btn btn-primary" style="flex:1;">Save</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      
+      const select = document.getElementById('backup-method-select');
+      select.value = founderProfile.payout_method || 'paypal';
+      select.addEventListener('change', updateBackupLabel);
+      updateBackupLabel();
+    }
+    
+    function updateBackupLabel() {
+      const method = document.getElementById('backup-method-select').value;
+      const labels = {
+        paypal: 'PayPal Email',
+        venmo: 'Venmo Username/Phone',
+        zelle: 'Zelle Email/Phone',
+        bank_transfer: 'Bank Account Info',
+        check: 'Mailing Address'
+      };
+      document.getElementById('backup-email-label').textContent = labels[method] || 'Details';
+    }
+    
+    function closeBackupPayoutModal() {
+      const modal = document.getElementById('backup-payout-modal');
+      if (modal) modal.remove();
+    }
+    
+    async function saveBackupPayout() {
+      const method = document.getElementById('backup-method-select').value;
+      const email = document.getElementById('backup-email-input').value.trim();
+      
+      if (!email) {
+        showToast('Please enter the required details');
+        return;
+      }
+      
+      const { error } = await supabaseClient
+        .from('member_founder_profiles')
+        .update({
+          payout_method: method,
+          payout_email: email,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', founderProfile.id);
+      
+      if (error) {
+        showToast('Failed to save backup payout method');
+        return;
+      }
+      
+      founderProfile.payout_method = method;
+      founderProfile.payout_email = email;
+      
+      closeBackupPayoutModal();
+      initPayTaxInfo(founderProfile);
+      showToast('Backup payout method saved!');
+    }
+    
+    function openTaxCenter() {
+      const modal = document.createElement('div');
+      modal.id = 'tax-center-modal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:1000;';
+      
+      const year = new Date().getFullYear();
+      const hasEarnings = (founderProfile.total_commissions_earned || 0) >= 600;
+      
+      modal.innerHTML = `
+        <div style="background:var(--bg-card);border-radius:var(--radius-lg);padding:32px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+            <h3 style="font-size:1.2rem;">${mccIcon('file-text', 18)} Tax Center</h3>
+            <button onclick="closeTaxCenterModal()" style="background:none;border:none;color:var(--text-muted);font-size:1.5rem;cursor:pointer;">×</button>
+          </div>
+          
+          <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:20px;margin-bottom:20px;">
+            <div style="font-weight:600;margin-bottom:8px;">Tax Year ${year - 1}</div>
+            ${hasEarnings ? `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border-subtle);">
+                <div>
+                  <div style="font-weight:500;">1099-NEC</div>
+                  <div style="font-size:0.85rem;color:var(--text-muted);">Non-employee compensation</div>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="downloadTaxForm('1099-NEC', ${year - 1})">Download</button>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;">
+                <div>
+                  <div style="font-weight:500;">Annual Summary</div>
+                  <div style="font-size:0.85rem;color:var(--text-muted);">Total earnings: ${formatCurrency(founderProfile.total_commissions_earned || 0)}</div>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="downloadTaxForm('summary', ${year - 1})">Download</button>
+              </div>
+            ` : `
+              <div style="color:var(--text-muted);font-size:0.9rem;">
+                <p>No tax documents available.</p>
+                <p style="margin-top:8px;">A 1099-NEC form will be generated if you earn $600 or more in a calendar year.</p>
+              </div>
+            `}
+          </div>
+          
+          <p style="font-size:0.85rem;color:var(--text-muted);">
+            Tax documents are typically available by January 31st for the previous year. For questions about taxes, please consult a tax professional.
+          </p>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    
+    function closeTaxCenterModal() {
+      const modal = document.getElementById('tax-center-modal');
+      if (modal) modal.remove();
+    }
+    
+    function downloadTaxForm(type, year) {
+      showToast(`Downloading ${type} for ${year}...`);
+    }
+    
+    function openTaxInfo() {
+      const modal = document.createElement('div');
+      modal.id = 'tax-info-modal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:1000;';
+      
+      const verified = founderProfile.tax_info_verified;
+      const formType = founderProfile.tax_form_type || 'W-9';
+      const ssnLast4 = founderProfile.ssn_last_four || '';
+      
+      modal.innerHTML = `
+        <div style="background:var(--bg-card);border-radius:var(--radius-lg);padding:32px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+            <h3 style="font-size:1.2rem;">${mccIcon('user', 18)} Your Tax Info</h3>
+            <button onclick="closeTaxInfoModal()" style="background:none;border:none;color:var(--text-muted);font-size:1.5rem;cursor:pointer;">×</button>
+          </div>
+          
+          ${verified ? `
+            <div style="background:var(--accent-green-soft);border:1px solid var(--accent-green);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
+              <div style="display:flex;align-items:center;gap:8px;color:var(--accent-green);font-weight:600;">
+                <span>✓</span> Tax info verified
+              </div>
+              <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:8px;">
+                Form: ${formType} • SSN ending in ${ssnLast4 || '****'}
+              </div>
+            </div>
+          ` : `
+            <div style="background:var(--accent-orange-soft);border:1px solid var(--accent-orange);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
+              <div style="display:flex;align-items:center;gap:8px;color:var(--accent-orange);font-weight:600;">
+                ⚠️ Tax info required
+              </div>
+              <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:8px;">
+                Please submit your tax information to receive payouts. This is required by the IRS for anyone earning $600 or more.
+              </div>
+            </div>
+          `}
+          
+          <div style="margin-bottom:20px;">
+            <label style="display:block;margin-bottom:8px;font-weight:500;">Tax Form Type</label>
+            <select id="tax-form-type" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
+              <option value="W-9" ${formType === 'W-9' ? 'selected' : ''}>W-9 (US Citizen/Resident)</option>
+              <option value="W-8BEN" ${formType === 'W-8BEN' ? 'selected' : ''}>W-8BEN (Non-US Individual)</option>
+            </select>
+          </div>
+          
+          <div style="margin-bottom:20px;">
+            <label style="display:block;margin-bottom:8px;font-weight:500;">Social Security Number (Last 4 digits)</label>
+            <input type="text" id="ssn-last-four" maxlength="4" placeholder="****" value="${ssnLast4}" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
+            <div style="font-size:0.8rem;color:var(--text-muted);margin-top:6px;">For verification purposes only. Your full SSN is never stored.</div>
+          </div>
+          
+          <div style="display:flex;gap:12px;">
+            <button onclick="closeTaxInfoModal()" class="btn btn-secondary" style="flex:1;">Cancel</button>
+            <button onclick="saveTaxInfo()" class="btn btn-primary" style="flex:1;">Save Tax Info</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    
+    function closeTaxInfoModal() {
+      const modal = document.getElementById('tax-info-modal');
+      if (modal) modal.remove();
+    }
+    
+    async function saveTaxInfo() {
+      const formType = document.getElementById('tax-form-type').value;
+      const ssnLast4 = document.getElementById('ssn-last-four').value.trim();
+      
+      if (!ssnLast4 || ssnLast4.length !== 4 || !/^\d{4}$/.test(ssnLast4)) {
+        showToast('Please enter the last 4 digits of your SSN');
+        return;
+      }
+      
+      const { error } = await supabaseClient
+        .from('member_founder_profiles')
+        .update({
+          tax_form_type: formType,
+          ssn_last_four: ssnLast4,
+          tax_info_verified: true,
+          tax_info_verified_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', founderProfile.id);
+      
+      if (error) {
+        showToast('Failed to save tax info');
+        return;
+      }
+      
+      founderProfile.tax_form_type = formType;
+      founderProfile.ssn_last_four = ssnLast4;
+      founderProfile.tax_info_verified = true;
+      founderProfile.tax_info_verified_at = new Date().toISOString();
+      
+      closeTaxInfoModal();
+      initPayTaxInfo(founderProfile);
+      showToast('Tax info saved and verified!');
+    }
+    
+    function payOutstandingBalance() {
+      showToast('Outstanding balance payment coming soon');
+    }
+
+    function formatCompact(n) {
+      if (!n || isNaN(n)) return '—';
+      if (n >= 1000000) return '$' + (n / 1000000).toFixed(2) + 'M';
+      if (n >= 1000) return '$' + Math.round(n / 1000) + 'K';
+      return '$' + Math.round(n).toLocaleString();
+    }
+
+    async function loadWefunderWidget() {
+      const personalUrl = getPersonalWefunderLink();
+      const linkEl = document.getElementById('wefunder-personal-link');
+      if (linkEl) linkEl.textContent = personalUrl;
+      const investEl = document.getElementById('wefunder-invest-link');
+      if (investEl) investEl.href = personalUrl;
+
+      try {
+        const res = await fetch('/api/wefunder/stats');
+        const s = await res.json();
+        const loading = document.getElementById('wefunder-loading');
+        const body = document.getElementById('wefunder-body');
+        const badge = document.getElementById('wefunder-live-badge');
+        if (loading) loading.style.display = 'none';
+        if (body) body.style.display = 'block';
+
+        if (s.live) {
+          if (badge) badge.style.display = 'inline-flex';
+        }
+
+        const grid = document.getElementById('wefunder-stats-grid');
+        if (grid) {
+          const statCard = (label, value, color) =>
+            `<div style="padding: 16px; background: rgba(0,196,140,0.06); border: 1px solid rgba(0,196,140,0.14); border-radius: var(--radius-md); text-align: center;">
+              <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;">${label}</div>
+              <div style="font-size: 1.3rem; font-weight: 700; color: ${color};">${value}</div>
+            </div>`;
+          grid.innerHTML =
+            statCard('Raised', s.raised > 0 ? formatCompact(s.raised) : '—', '#00c48c') +
+            statCard('Investors', s.investors > 0 ? s.investors.toLocaleString() : '—', 'var(--accent-gold)') +
+            statCard(s.daysLeft !== null ? 'Days Left' : 'Status', s.daysLeft !== null ? s.daysLeft : 'Active', 'var(--accent-blue)');
+        }
+
+        if (s.raised > 0 && s.goal > 0) {
+          const pw = document.getElementById('wefunder-progress-wrap');
+          const pb = document.getElementById('wefunder-progress-bar');
+          const rl = document.getElementById('wefunder-raised-label');
+          const gl = document.getElementById('wefunder-goal-label');
+          if (pw) pw.style.display = 'block';
+          if (rl) rl.textContent = formatCompact(s.raised) + ' raised';
+          if (gl) gl.textContent = 'Goal: ' + formatCompact(s.goal);
+          if (pb) {
+            const pct = Math.min(100, (s.raised / s.goal) * 100).toFixed(1);
+            setTimeout(() => { pb.style.width = pct + '%'; }, 100);
+          }
+        }
+      } catch (e) {
+        const loading = document.getElementById('wefunder-loading');
+        const body = document.getElementById('wefunder-body');
+        if (loading) loading.style.display = 'none';
+        if (body) body.style.display = 'block';
+      }
+    }
+
+    function getPersonalWefunderLink() {
+      const code = founderProfile?.referral_code || founderProfile?.id || '';
+      if (!code) return 'https://wefunder.com/my.car.concierge';
+      return `https://wefunder.com/my.car.concierge?utm_source=mcc_founder&utm_medium=referral&utm_campaign=wefunder&utm_content=${encodeURIComponent(code)}`;
+    }
+
+    function copyWefunderLink() {
+      const url = getPersonalWefunderLink();
+      navigator.clipboard.writeText(url).then(() => {
+        const label = document.getElementById('wefunder-copy-label');
+        if (label) {
+          label.textContent = 'Copied!';
+          setTimeout(() => { label.textContent = 'Copy Link'; }, 2500);
+        }
+        if (typeof showToast === 'function') showToast('Your personal campaign link copied!');
+      }).catch(() => {
+        if (typeof showToast === 'function') showToast('Copy this link: ' + url);
+      });
+    }
+
+    function shareWefunderCampaign() {
+      const url = getPersonalWefunderLink();
+      const text = 'I\'m a founding member of My Car Concierge — the app that connects car owners with trusted service providers. They\'re raising on Wefunder and it\'s worth a look.';
+      if (navigator.share) {
+        navigator.share({ title: 'My Car Concierge on Wefunder', text, url }).catch(() => {});
+      } else {
+        navigator.clipboard.writeText(url).then(() => {
+          if (typeof showToast === 'function') showToast('Campaign link copied — paste it anywhere to share!');
+        }).catch(() => {
+          if (typeof showToast === 'function') showToast('Copy: ' + url);
+        });
+      }
     }
 
     init();

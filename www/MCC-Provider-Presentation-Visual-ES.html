@@ -85,7 +85,7 @@
       font-size: 8pt; color: #343a40; margin: 1mm 0; padding-left: 3mm;
       position: relative; line-height: 1.25;
     }
-    .bullet-list li::before { content: "✓"; position: absolute; left: 0; color: #28a745; font-weight: bold; font-size: 7pt; }
+    .bullet-list li::before { content: ''; position: absolute; left: 0; width: 14px; height: 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2328a745' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center; }
     .step-list { counter-reset: step; list-style: none; padding: 0; }
     .step-list li {
       font-size: 8pt; color: #343a40; margin: 1.5mm 0; padding-left: 7mm;
@@ -178,7 +178,7 @@
 <body>
   <div class="print-controls">
     <h2>Presentación de Plataforma MCC para Proveedores</h2>
-    <p>Catálogo Completo de Funciones - Formato Imprimible - 19 Diapositivas</p>
+    <p>Catálogo Completo de Funciones - Formato Imprimible - 20 Diapositivas</p>
     <button class="print-btn" onclick="window.print()">Imprimir / Guardar como PDF</button>
   </div>
 
@@ -237,11 +237,12 @@
 
     <div class="content-box highlight" style="margin-top: 2mm;">
       <div class="box-title">Programa y Cómo Empezar</div>
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm;">
-        <div class="toc-item"><div class="toc-num">16</div><div><div class="feature-title">¿Para Quién es MCC?</div></div></div>
-        <div class="toc-item"><div class="toc-num">17</div><div><div class="feature-title">Programa Fundador</div></div></div>
-        <div class="toc-item"><div class="toc-num">18</div><div><div class="feature-title">Cómo Empezar</div></div></div>
-        <div class="toc-item"><div class="toc-num">19</div><div><div class="feature-title">Aplica Ahora</div></div></div>
+      <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 2mm;">
+        <div class="toc-item"><div class="toc-num">16</div><div><div class="feature-title">Car Club — Lealtad</div></div></div>
+        <div class="toc-item"><div class="toc-num">17</div><div><div class="feature-title">¿Para Quién es MCC?</div></div></div>
+        <div class="toc-item"><div class="toc-num">18</div><div><div class="feature-title">Programa Fundador</div></div></div>
+        <div class="toc-item"><div class="toc-num">19</div><div><div class="feature-title">Cómo Empezar</div></div></div>
+        <div class="toc-item"><div class="toc-num">20</div><div><div class="feature-title">Aplica Ahora</div></div></div>
       </div>
     </div>
 
@@ -250,7 +251,7 @@
       <div class="text">Estas funciones atraen y retienen miembros en la plataforma. Más miembros = más solicitudes de servicio = más oportunidades de ofertas para ti. Mientras mejor sea la experiencia del miembro, más trabajos disponibles en tu área.</div>
     </div>
 
-    <div class="slide-number">2 / 18</div>
+    <div class="slide-number">2 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -269,13 +270,13 @@
 
     <div class="section-title">Cómo Funciona</div>
     <div class="icon-flow">
-      <div class="icon-step"><div class="icon">📝</div><div class="label">Miembro Publica<br>Solicitud de Servicio</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg></div><div class="label">Miembro Publica<br>Solicitud de Servicio</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">🔔</div><div class="label">Proveedores<br>Notificados</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div><div class="label">Proveedores<br>Notificados</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">💰</div><div class="label">Envía Tu<br>Oferta Competitiva</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="label">Envía Tu<br>Oferta Competitiva</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">✅</div><div class="label">Gana el Trabajo<br>y Cobra</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="label">Gana el Trabajo<br>y Cobra</div></div>
     </div>
 
     <div class="screenshot-container">
@@ -288,7 +289,7 @@
       <div class="text">Cada cliente que traes a MCC se convierte en parte de una base compartida. Cuando necesitan un servicio que no ofreces, otro proveedor gana. Cuando los clientes de otros proveedores necesitan TU especialidad, tú ganas.</div>
     </div>
 
-    <div class="slide-number">3 / 18</div>
+    <div class="slide-number">3 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -307,22 +308,22 @@
 
     <div class="feature-grid">
       <div class="feature-item">
-        <div class="feature-icon">📊</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg></div>
         <div class="feature-title">Estadísticas en Tiempo Real</div>
         <div class="feature-desc">Créditos de oferta, miembros en tu área, paquetes abiertos, ofertas pendientes, trabajos ganados</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">⭐</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
         <div class="feature-title">Visualización de Calificación</div>
         <div class="feature-desc">Tu calificación de estrellas prominentemente mostrada—genera confianza con reseñas</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📋</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></div>
         <div class="feature-title">Cola de Trabajos</div>
         <div class="feature-desc">Explora paquetes, ve trabajos activos, rastrea solicitudes de emergencia</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">💰</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         <div class="feature-title">Seguimiento de Ganancias</div>
         <div class="feature-desc">Monitoreo de ingresos, analíticas, gestión de pagos</div>
       </div>
@@ -333,7 +334,7 @@
       <div class="box-text">Acceso rápido a: Créditos de Oferta, Explorar Paquetes, Mis Ofertas, Trabajos Activos, Cola de Emergencia, Servicios de Flota, Cola de Clientes, Ganancias, Analíticas, Reseñas, Gestión de Equipo y Configuración.</div>
     </div>
 
-    <div class="slide-number">4 / 18</div>
+    <div class="slide-number">4 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -377,7 +378,7 @@
       <div class="text">¡Los Proveedores Fundadores reciben ofertas ilimitadas durante el período piloto—sin necesidad de créditos!</div>
     </div>
 
-    <div class="slide-number">5 / 18</div>
+    <div class="slide-number">5 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -395,7 +396,7 @@
         <div class="stat-label">Protegido en Depósito</div>
       </div>
       <div class="stat-box">
-        <div class="stat-value">7.5%</div>
+        <div class="stat-value">0%</div>
         <div class="stat-label">Comisión de Plataforma</div>
       </div>
       <div class="stat-box">
@@ -406,15 +407,15 @@
 
     <div class="section-title">Flujo de Pago</div>
     <div class="icon-flow">
-      <div class="icon-step"><div class="icon">🤝</div><div class="label">Oferta<br>Aceptada</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="label">Oferta<br>Aceptada</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">🔒</div><div class="label">Fondos en<br>Depósito</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><div class="label">Fondos en<br>Depósito</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">🔧</div><div class="label">Completa el<br>Trabajo</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div><div class="label">Completa el<br>Trabajo</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">✅</div><div class="label">Miembro<br>Confirma</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="label">Miembro<br>Confirma</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">💳</div><div class="label">Pago<br>Liberado</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div><div class="label">Pago<br>Liberado</div></div>
     </div>
 
     <div class="two-col">
@@ -443,7 +444,7 @@
       <div class="box-text">Todos los pagos procesados a través de Stripe—cumplimiento PCI y confiado por millones de negocios en todo el mundo.</div>
     </div>
 
-    <div class="slide-number">6 / 18</div>
+    <div class="slide-number">6 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -462,15 +463,15 @@
 
     <div class="section-title">Flujo de Check-In y Estado</div>
     <div class="icon-flow">
-      <div class="icon-step"><div class="icon">📱</div><div class="label">Miembro Escanea<br>Código QR</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></div><div class="label">Miembro Escanea<br>Código QR</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">📍</div><div class="label">En el<br>Proveedor</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></div><div class="label">En el<br>Proveedor</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">🔧</div><div class="label">Trabajo en<br>Progreso</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div><div class="label">Trabajo en<br>Progreso</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">🚙</div><div class="label">Devolviendo<br>Vehículo</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div><div class="label">Devolviendo<br>Vehículo</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">✅</div><div class="label">Devuelto<br>Completo</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="label">Devuelto<br>Completo</div></div>
     </div>
 
     <div class="two-col">
@@ -499,7 +500,7 @@
       <div class="box-text">Cada vehículo en el garaje del miembro tiene un código QR único. Muestra el escáner QR de tu taller o haz que los miembros escaneen con la cámara de su teléfono. La llegada se registra, tu equipo es notificado y la cita de servicio comienza—todo automáticamente.</div>
     </div>
 
-    <div class="slide-number">7 / 18</div>
+    <div class="slide-number">7 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -513,7 +514,7 @@
 
     <div class="stat-grid">
       <div class="stat-box">
-        <div class="stat-value">5⭐</div>
+        <div class="stat-value">5<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
         <div class="stat-label">Sistema de Calificación</div>
       </div>
       <div class="stat-box">
@@ -529,22 +530,22 @@
     <div class="section-title">Acceso Multiusuario</div>
     <div class="feature-grid-4">
       <div class="feature-item">
-        <div class="feature-icon">👑</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5.21 16.5h13.58"/></svg></div>
         <div class="feature-title">Propietario</div>
         <div class="feature-desc">Acceso completo a facturación, equipo, configuración</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">👔</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
         <div class="feature-title">Administrador</div>
         <div class="feature-desc">Gestiona trabajos, mensajes, analíticas</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">👤</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
         <div class="feature-title">Personal</div>
         <div class="feature-desc">Actualiza estado, comunica</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📧</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></div>
         <div class="feature-title">Invitación por Email</div>
         <div class="feature-desc">Agrega miembros de equipo fácilmente</div>
       </div>
@@ -553,28 +554,28 @@
     <div class="section-title">Funciones de Seguridad</div>
     <div class="feature-grid-4">
       <div class="feature-item">
-        <div class="feature-icon">🔐</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg></div>
         <div class="feature-title">Autenticación 2FA</div>
         <div class="feature-desc">2FA basado en SMS</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🔒</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
         <div class="feature-title">Datos Encriptados</div>
         <div class="feature-desc">Encriptación TLS</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📱</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></div>
         <div class="feature-title">Actividad de Inicio</div>
         <div class="feature-desc">Rastrea todos los inicios de sesión</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🛡️</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></div>
         <div class="feature-title">Límite de Velocidad</div>
         <div class="feature-desc">Protección contra abuso</div>
       </div>
     </div>
 
-    <div class="slide-number">8 / 18</div>
+    <div class="slide-number">8 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -594,42 +595,42 @@
     <div class="section-title">Opciones de Criterios de Búsqueda</div>
     <div class="feature-grid-4">
       <div class="feature-item">
-        <div class="feature-icon">🚗</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>
         <div class="feature-title">Marca y Modelo</div>
         <div class="feature-desc">Marcas y modelos preferidos</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📅</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div>
         <div class="feature-title">Rango de Año</div>
         <div class="feature-desc">Preferencias de año mín/máx</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">💰</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         <div class="feature-title">Rango de Precio</div>
         <div class="feature-desc">Límites de presupuesto</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📍</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></div>
         <div class="feature-title">Radio de Ubicación</div>
         <div class="feature-desc">Distancia de búsqueda desde código postal</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🛣️</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14l-3 16H8z"/><path d="M12 4v16"/></svg></div>
         <div class="feature-title">Kilometraje Máximo</div>
         <div class="feature-desc">Límite de kilometraje</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🎨</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.622 17.897-10.68-2.913"/><path d="M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z"/><path d="M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15"/></svg></div>
         <div class="feature-title">Colores Exteriores</div>
         <div class="feature-desc">Preferencias de color</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">⛽</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v17"/><path d="M15 10h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2 2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 4"/><path d="M3 22h12"/><path d="M7 9h4"/></svg></div>
         <div class="feature-title">Tipo de Combustible</div>
         <div class="feature-desc">Gasolina, híbrido, eléctrico</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">✨</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg></div>
         <div class="feature-title">Características Esenciales</div>
         <div class="feature-desc">Techo solar, cuero, etc.</div>
       </div>
@@ -659,7 +660,7 @@
       <div class="text">Cuando los miembros encuentran y compran nuevos vehículos a través de MCC, traen esos vehículos a la plataforma—creando nuevas oportunidades de servicio para TI.</div>
     </div>
 
-    <div class="slide-number">9 / 18</div>
+    <div class="slide-number">9 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -679,22 +680,22 @@
     <div class="section-title">Características</div>
     <div class="feature-grid">
       <div class="feature-item">
-        <div class="feature-icon">🔍</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
         <div class="feature-title">Búsqueda por VIN</div>
         <div class="feature-desc">Búsqueda gratuita de API NHTSA para especificaciones del vehículo e historial de retiros</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📝</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg></div>
         <div class="feature-title">Entrada Manual</div>
         <div class="feature-desc">Agrega vehículos manualmente con fotos, notas e información del vendedor</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📊</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg></div>
         <div class="feature-title">Comparación Lado a Lado</div>
         <div class="feature-desc">Compara 2-4 vehículos a la vez en especificaciones, precio, características</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">💯</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></div>
         <div class="feature-title">Puntuación de Coincidencia</div>
         <div class="feature-desc">Preferencias personales puntuadas contra cada vehículo</div>
       </div>
@@ -702,15 +703,15 @@
 
     <div class="section-title">Seguimiento de Estado</div>
     <div class="icon-flow">
-      <div class="icon-step"><div class="icon">🤔</div><div class="label">Considerando</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></div><div class="label">Considerando</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">🚗</div><div class="label">Prueba de Manejo</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div><div class="label">Prueba de Manejo</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">💰</div><div class="label">Oferta Hecha</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="label">Oferta Hecha</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">✅</div><div class="label">Comprado</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="label">Comprado</div></div>
       <div class="arrow">o</div>
-      <div class="icon-step"><div class="icon">👎</div><div class="label">Descartado</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg></div><div class="label">Descartado</div></div>
     </div>
 
     <div class="callout">
@@ -718,7 +719,7 @@
       <div class="text">Los miembros frecuentemente necesitan inspecciones pre-compra antes de comprar. Cuando están comprando, pueden solicitar servicios de inspección a través de MCC—¡trabajos por los que puedes ofertar!</div>
     </div>
 
-    <div class="slide-number">10 / 18</div>
+    <div class="slide-number">10 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -738,47 +739,47 @@
     <div class="section-title">9 Categorías de Servicio</div>
     <div class="feature-grid-3">
       <div class="feature-item">
-        <div class="feature-icon">🔧</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
         <div class="feature-title">Mantenimiento</div>
         <div class="feature-desc">Aceite, frenos, fluidos, filtros</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">⚙️</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></div>
         <div class="feature-title">Reparaciones</div>
         <div class="feature-desc">Motor, transmisión, AC, eléctrico</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">✨</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg></div>
         <div class="feature-title">Detallado</div>
         <div class="feature-desc">Lavado, cera, recubrimiento cerámico</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🎨</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.622 17.897-10.68-2.913"/><path d="M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z"/><path d="M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15"/></svg></div>
         <div class="feature-title">Carrocería</div>
         <div class="feature-desc">Abolladuras, pintura, parachoques</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🔍</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
         <div class="feature-title">Inspección</div>
         <div class="feature-desc">Pre-compra, estatal, multipunto</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🖥️</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg></div>
         <div class="feature-title">Diagnóstico</div>
         <div class="feature-desc">Check engine, eléctrico</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">⚡</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg></div>
         <div class="feature-title">EV e Híbridos</div>
         <div class="feature-desc">Batería, sistemas de carga</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🛡️</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></div>
         <div class="feature-title">Protección</div>
         <div class="feature-desc">PPF, polarizado, antióxido</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🏎️</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>
         <div class="feature-title">Rendimiento</div>
         <div class="feature-desc">Limpieza de carbón, tuneo ECU</div>
       </div>
@@ -803,7 +804,7 @@
       </div>
     </div>
 
-    <div class="slide-number">11 / 18</div>
+    <div class="slide-number">11 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -861,7 +862,7 @@
       <div class="text">Los recordatorios de mantenimiento crean solicitudes de servicio predecibles y recurrentes. Cambios de aceite, rotación de llantas e inspecciones suceden según el programa—generando oportunidades de ofertas consistentes.</div>
     </div>
 
-    <div class="slide-number">12 / 18</div>
+    <div class="slide-number">12 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -881,22 +882,22 @@
     <div class="section-title">Componentes de Aprendizaje</div>
     <div class="feature-grid">
       <div class="feature-item">
-        <div class="feature-icon">📚</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/></svg></div>
         <div class="feature-title">Centro de Aprendizaje</div>
         <div class="feature-desc">36+ artículos en 6 categorías: Mantenimiento 101, Entendiendo Reparaciones, Señales de Advertencia, Consejos para Ahorrar, Rideshare/Alto Kilometraje, Comercial/Flota</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📖</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></div>
         <div class="feature-title">Glosario Automotriz</div>
         <div class="feature-desc">32+ términos buscables con definiciones en lenguaje sencillo para jerga automotriz común</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">❓</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></div>
         <div class="feature-title">Educación Contextual</div>
         <div class="feature-desc">Explicaciones "¿Qué es esto?" en elementos de mantenimiento y "Por qué esto importa" en servicios</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🤖</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg></div>
         <div class="feature-title">Tutor IA</div>
         <div class="feature-desc">"Pregunta a nuestra IA sobre autos" - Obtén respuestas instantáneas a preguntas automotrices del asistente IA</div>
       </div>
@@ -916,7 +917,7 @@
       <div class="text">Los miembros educados entienden el valor del trabajo de calidad. Son menos propensos a buscar el precio más bajo en reparaciones complejas y más propensos a aprobar servicios recomendados.</div>
     </div>
 
-    <div class="slide-number">13 / 18</div>
+    <div class="slide-number">13 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -930,42 +931,42 @@
 
     <div class="feature-grid">
       <div class="feature-item">
-        <div class="feature-icon">⛽</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v17"/><path d="M15 10h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2 2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 4"/><path d="M3 22h12"/><path d="M7 9h4"/></svg></div>
         <div class="feature-title">Seguimiento de Costos de Combustible</div>
         <div class="feature-desc">Rastrea cargas, calcula consumo, ve gastos mensuales/anuales, costo por km con gráficos de tendencia</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">⚠️</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
         <div class="feature-title">Alertas de Retiros de Vehículos</div>
         <div class="feature-desc">Verificación automática semanal de base de datos NHTSA. Insignia en vehículos con retiros activos. ¡Seguridad primero!</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📄</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg></div>
         <div class="feature-title">Almacenamiento de Tarjeta de Seguro</div>
         <div class="feature-desc">Sube y almacena documentos de seguro (PDF, JPG, PNG) con seguimiento de vencimiento</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📋</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></div>
         <div class="feature-title">Exportación de Historial de Servicio</div>
         <div class="feature-desc">Descarga registros completos de servicio como PDF o CSV para reventa o registros personales</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">✅</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
         <div class="feature-title">Verificación de Identidad</div>
         <div class="feature-desc">Verificación de identidad Stripe (ID gubernamental + selfie) para propiedad vehicular. Insignia "Propietario Verificado"</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🎁</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg></div>
         <div class="feature-title">Programa de Referidos</div>
         <div class="feature-desc">$10 de crédito por referir amigos. Nuevos miembros obtienen $10 de bono de bienvenida. Comparte vía email/SMS</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🔔</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div>
         <div class="feature-title">Preferencias de Notificación</div>
         <div class="feature-desc">Controla notificaciones vía push, email o SMS. Activa/desactiva para ofertas, estado, recordatorios, marketing</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">👨‍👩‍👧‍👦</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
         <div class="feature-title">Gestión del Hogar</div>
         <div class="feature-desc">Gestiona múltiples vehículos de miembros de la familia en una cuenta</div>
       </div>
@@ -973,19 +974,19 @@
 
     <div class="stat-grid-4">
       <div class="stat-box">
-        <div class="stat-value">📱</div>
+        <div class="stat-value"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></div>
         <div class="stat-label">Apps iOS y Android</div>
       </div>
       <div class="stat-box">
-        <div class="stat-value">💻</div>
+        <div class="stat-value"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></svg></div>
         <div class="stat-label">Plataforma Web</div>
       </div>
       <div class="stat-box">
-        <div class="stat-value">🖥️</div>
+        <div class="stat-value"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg></div>
         <div class="stat-label">Apps de Escritorio</div>
       </div>
       <div class="stat-box">
-        <div class="stat-value">🔄</div>
+        <div class="stat-value"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M21 21v-5h-5"/></svg></div>
         <div class="stat-label">Sincronizado en Todas Partes</div>
       </div>
     </div>
@@ -995,72 +996,7 @@
       <div class="text">Los miembros no necesitan 5 apps diferentes. MCC es su solución completa de gestión vehicular—lo que los mantiene comprometidos y generando solicitudes de servicio.</div>
     </div>
 
-    <div class="slide-number">14 / 18</div>
-    <div class="footer-bar"></div>
-  </div>
-
-  <!-- DIAPOSITIVA 15: PARA QUIÉN ES -->
-  <div class="slide">
-    <div class="slide-header">
-      <img src="logo.png" class="logo" alt="MCC">
-      <div class="slide-title">¿Para Quién es MCC?</div>
-      <div class="slide-subtitle">Todos los Profesionales de Servicios Automotrices</div>
-    </div>
-
-    <div class="feature-grid">
-      <div class="feature-item">
-        <div class="feature-icon">🔧</div>
-        <div class="feature-title">Talleres de Reparación</div>
-        <div class="feature-desc">Mecánicos generales, talleres especializados, concesionarios</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">🚗</div>
-        <div class="feature-title">Mecánicos Móviles</div>
-        <div class="feature-desc">Reparación en sitio, asistencia en carretera, mantenimiento de flota</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">✨</div>
-        <div class="feature-title">Detalladores</div>
-        <div class="feature-desc">Interior/exterior, corrección de pintura, cerámico</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">🎨</div>
-        <div class="feature-title">Talleres de Carrocería</div>
-        <div class="feature-desc">Colisión, pintura, remoción de abolladuras, restauración</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">🪟</div>
-        <div class="feature-title">Polarizado y Viniles</div>
-        <div class="feature-desc">Polarizado de ventanas, rotulación, PPF</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">🛞</div>
-        <div class="feature-title">Llanterías</div>
-        <div class="feature-desc">Venta, montaje, balanceo, alineación</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">🔊</div>
-        <div class="feature-title">Audio y Electrónica</div>
-        <div class="feature-desc">Audio automotriz, alarmas, arranque remoto</div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">🪨</div>
-        <div class="feature-title">Servicios de Cristales</div>
-        <div class="feature-desc">Reparación/reemplazo de parabrisas</div>
-      </div>
-    </div>
-
-    <div class="content-box highlight">
-      <div class="box-title">Sin Exclusividad Requerida</div>
-      <div class="box-text">MCC es un canal de ingresos complementario. Mantén tus clientes existentes, publicidad y modelo de negocio. Somos solo otra forma de encontrar trabajo nuevo cuando tienes capacidad.</div>
-    </div>
-
-    <div class="callout">
-      <div class="title">Llena Capacidad No Utilizada</div>
-      <div class="text">¿Tienes días lentos? MCC te trae clientes pre-calificados listos para agendar. Sin costos de publicidad—solo trabajos entregados a tu panel.</div>
-    </div>
-
-    <div class="slide-number">16 / 19</div>
+    <div class="slide-number">14 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -1079,15 +1015,15 @@
 
     <div class="section-title">Cómo Funciona</div>
     <div class="icon-flow">
-      <div class="icon-step"><div class="icon">👤</div><div class="label">Conductor de Viajes<br>Descubre la Calculadora</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="label">Conductor de Viajes<br>Descubre la Calculadora</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">📊</div><div class="label">Ingresa Detalles<br>de Ingresos</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg></div><div class="label">Ingresa Detalles<br>de Ingresos</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">💡</div><div class="label">Recibe Análisis<br>de Rentabilidad</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg></div><div class="label">Recibe Análisis<br>de Rentabilidad</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">🔑</div><div class="label">Se Registra en MCC<br>como Miembro</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg></div><div class="label">Se Registra en MCC<br>como Miembro</div></div>
       <div class="arrow">→</div>
-      <div class="icon-step"><div class="icon">🚗</div><div class="label">Accede a Servicios<br>Automotrices</div></div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div><div class="label">Accede a Servicios<br>Automotrices</div></div>
     </div>
 
     <div class="two-col">
@@ -1115,22 +1051,22 @@
     <div class="section-title">Beneficios de Negocio</div>
     <div class="feature-grid">
       <div class="feature-item">
-        <div class="feature-icon">📈</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg></div>
         <div class="feature-title">Crecimiento de Base de Clientes</div>
         <div class="feature-desc">Cada conductor que se registra amplía tu grupo de clientes potenciales</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">⏰</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
         <div class="feature-title">Urgencia de Reparación</div>
         <div class="feature-desc">Los conductores necesitan vehículos reparados rápidamente para mantener ingresos</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🔄</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M21 21v-5h-5"/></svg></div>
         <div class="feature-title">Clientes Recurrentes</div>
         <div class="feature-desc">Mantenimiento regular genera solicitudes de servicio predecibles</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">💼</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg></div>
         <div class="feature-title">Ingresos Adicionales</div>
         <div class="feature-desc">Oportunidades de servicios complementarios: detalles, neumáticos, accesorios</div>
       </div>
@@ -1141,11 +1077,132 @@
       <div class="text">Esta herramienta no solo trae conductores a la plataforma—también los precalifica como clientes serios que entienden el valor del mantenimiento vehicular. Cuando necesitan un servicio, van a ofertar primero contigo.</div>
     </div>
 
-    <div class="slide-number">15 / 19</div>
+    <div class="slide-number">15 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- DIAPOSITIVA 17: PROGRAMA PROVEEDOR FUNDADOR -->
+  <!-- DIAPOSITIVA 16: CAR CLUB — LEALTAD DEL CLIENTE -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Car Club — Lealtad del Cliente</div>
+      <div class="slide-subtitle">Tu Motor de Retención Integrado</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">Car Club — Mantén a Tus Clientes Regresando</div>
+      <div class="box-text">Cada proveedor recibe un programa de lealtad <strong>Car Club</strong> integrado sin costo adicional. Las tarjetas de sellos mantienen a los clientes eligiéndote sobre la competencia, convirtiendo trabajos únicos en relaciones de por vida.</div>
+    </div>
+
+    <div class="section-title">Cómo Funciona Car Club</div>
+    <div class="icon-flow">
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="label">Miembro Reserva<br>un Servicio</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="label">Se Une Automáticamente<br>a Tu Car Club</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></div><div class="label">Gana Progreso<br>en Tarjeta de Sellos</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg></div><div class="label">Canjea<br>Recompensas</div></div>
+      <div class="arrow">→</div>
+      <div class="icon-step"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M21 21v-5h-5"/></svg></div><div class="label">Cliente<br>Recurrente</div></div>
+    </div>
+
+    <div class="two-col">
+      <div class="content-box">
+        <div class="box-title">Beneficios para el Proveedor</div>
+        <ul class="bullet-list">
+          <li>Sin costo — incluido con cada cuenta de proveedor</li>
+          <li>Unión automática — sin fricción de registro</li>
+          <li>Hasta 3 recompensas activas por club</li>
+          <li>Créditos de oferta gratis por miembros referidos</li>
+        </ul>
+      </div>
+      <div class="content-box highlight">
+        <div class="box-title">Beneficios para el Miembro</div>
+        <ul class="bullet-list">
+          <li>Progreso independiente en múltiples clubs</li>
+          <li>Recompensas ganadas nunca se pierden</li>
+          <li>Insignia "Car Club" visible en ofertas</li>
+          <li>Explorar todos los clubs de proveedores</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Retención Sin Esfuerzo</div>
+      <div class="text">Car Club funciona automáticamente. Los miembros ganan sellos en trabajos completados y canjean recompensas cuando están listos — manteniéndolos leales a tu negocio sin trabajo extra de tu parte.</div>
+    </div>
+
+    <div class="slide-number">16 / 20</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 17: PARA QUIÉN ES -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">¿Para Quién es MCC?</div>
+      <div class="slide-subtitle">Todos los Profesionales de Servicios Automotrices</div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
+        <div class="feature-title">Talleres de Reparación</div>
+        <div class="feature-desc">Mecánicos generales, talleres especializados, concesionarios</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>
+        <div class="feature-title">Mecánicos Móviles</div>
+        <div class="feature-desc">Reparación en sitio, asistencia en carretera, mantenimiento de flota</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg></div>
+        <div class="feature-title">Detalladores</div>
+        <div class="feature-desc">Interior/exterior, corrección de pintura, cerámico</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.622 17.897-10.68-2.913"/><path d="M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z"/><path d="M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15"/></svg></div>
+        <div class="feature-title">Talleres de Carrocería</div>
+        <div class="feature-desc">Colisión, pintura, remoción de abolladuras, restauración</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div>
+        <div class="feature-title">Polarizado y Viniles</div>
+        <div class="feature-desc">Polarizado de ventanas, rotulación, PPF</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg></div>
+        <div class="feature-title">Llanterías</div>
+        <div class="feature-desc">Venta, montaje, balanceo, alineación</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></svg></div>
+        <div class="feature-title">Audio y Electrónica</div>
+        <div class="feature-desc">Audio automotriz, alarmas, arranque remoto</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
+        <div class="feature-title">Servicios de Cristales</div>
+        <div class="feature-desc">Reparación/reemplazo de parabrisas</div>
+      </div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">Sin Exclusividad Requerida</div>
+      <div class="box-text">MCC es un canal de ingresos complementario. Mantén tus clientes existentes, publicidad y modelo de negocio. Somos solo otra forma de encontrar trabajo nuevo cuando tienes capacidad.</div>
+    </div>
+
+    <div class="callout">
+      <div class="title">Llena Capacidad No Utilizada</div>
+      <div class="text">¿Tienes días lentos? MCC te trae clientes pre-calificados listos para agendar. Sin costos de publicidad—solo trabajos entregados a tu panel.</div>
+    </div>
+
+    <div class="slide-number">17 / 20</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- DIAPOSITIVA 18: PROGRAMA PROVEEDOR FUNDADOR -->
   <div class="slide">
     <div class="slide-header">
       <img src="logo.png" class="logo" alt="MCC">
@@ -1160,32 +1217,32 @@
 
     <div class="feature-grid">
       <div class="feature-item">
-        <div class="feature-icon">🎫</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg></div>
         <div class="feature-title">Sin Comisiones de Plataforma</div>
-        <div class="feature-desc">Quédate con el 100% de ganancias durante el piloto (normalmente 7.5%)</div>
+        <div class="feature-desc">Quédate con el 100% de ganancias durante el piloto (normalmente 2%)</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">♾️</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z"/></svg></div>
         <div class="feature-title">Ofertas Ilimitadas</div>
         <div class="feature-desc">Oferta en cualquier trabajo sin usar créditos durante el piloto</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🏆</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></div>
         <div class="feature-title">Visibilidad Prioritaria</div>
         <div class="feature-desc">Los Proveedores Fundadores aparecen primero en resultados de búsqueda</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🎖️</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15"/><path d="M11 12 5.12 2.2"/><path d="m13 12 5.88-9.8"/><path d="M8 7h8"/><circle cx="12" cy="17" r="5"/><path d="M12 18v-2h-.5"/></svg></div>
         <div class="feature-title">Insignia Permanente</div>
         <div class="feature-desc">Insignia "Proveedor Fundador" en tu perfil para siempre</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">💰</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         <div class="feature-title">Comisiones por Referidos</div>
         <div class="feature-desc">Hasta 50% de comisión de por vida en proveedores referidos</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🎯</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
         <div class="feature-title">Opinión Directa</div>
         <div class="feature-desc">Da forma a la plataforma con retroalimentación directa al equipo</div>
       </div>
@@ -1196,11 +1253,11 @@
       <div class="text">Los espacios de Proveedor Fundador están limitados por área de mercado. Los primeros solicitantes aseguran las mejores posiciones y comienzan a construir reseñas antes de que llegue la competencia.</div>
     </div>
 
-    <div class="slide-number">17 / 19</div>
+    <div class="slide-number">18 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- DIAPOSITIVA 18: CÓMO EMPEZAR -->
+  <!-- DIAPOSITIVA 19: CÓMO EMPEZAR -->
   <div class="slide">
     <div class="slide-header">
       <img src="logo.png" class="logo" alt="MCC">
@@ -1240,11 +1297,11 @@
       </div>
     </div>
 
-    <div class="slide-number">18 / 19</div>
+    <div class="slide-number">19 / 20</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- DIAPOSITIVA 19: LLAMADA A LA ACCIÓN -->
+  <!-- DIAPOSITIVA 20: LLAMADA A LA ACCIÓN -->
   <div class="slide">
     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
       <img src="logo.png" style="width: 45mm; margin-bottom: 5mm;" alt="My Car Concierge">
@@ -1263,11 +1320,11 @@
           <div class="stat-label">Comisiones Durante el Piloto</div>
         </div>
         <div class="stat-box">
-          <div class="stat-value">♾️</div>
+          <div class="stat-value"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z"/></svg></div>
           <div class="stat-label">Ofertas Ilimitadas Durante el Piloto</div>
         </div>
         <div class="stat-box">
-          <div class="stat-value">🏆</div>
+          <div class="stat-value"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></div>
           <div class="stat-label">Visibilidad Prioritaria</div>
         </div>
       </div>
@@ -1303,7 +1360,7 @@
         <div class="badge">Apps de Escritorio</div>
       </div>
     </div>
-    <div class="slide-number">19 / 19</div>
+    <div class="slide-number">20 / 20</div>
     <div class="footer-bar"></div>
   </div>
 

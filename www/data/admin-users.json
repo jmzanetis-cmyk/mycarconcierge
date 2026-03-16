@@ -1,0 +1,57 @@
+[
+  {
+    "id": "8972975c-c572-4ed4-82dc-9160b4517146",
+    "email": "smoke-test-1771452752794@test-mcc.com",
+    "password_hash": "724936cd9b665b34b178904d938970b9fffede7f6fcbae3e0f61b87170c06feb",
+    "display_name": "Smoke Test User",
+    "role": "marketing",
+    "status": "active",
+    "last_login": "2026-02-18T22:12:33.207Z",
+    "created_at": "2026-02-18T22:12:33.049Z",
+    "updated_at": "2026-02-18T22:12:33.189Z"
+  },
+  {
+    "id": "cb7e3310-5864-43fa-9913-1b46ba720a89",
+    "email": "session-test-1771452809993@test-mcc.com",
+    "password_hash": "70e1b5f6b77bd5ed26a917a5289537fbf16c8a567fcb5f0892d9bbfe9eae2a92",
+    "display_name": "Session Tester",
+    "role": "support",
+    "status": "active",
+    "last_login": "2026-02-18T22:13:30.567Z",
+    "created_at": "2026-02-18T22:13:30.549Z",
+    "updated_at": "2026-02-18T22:13:30.549Z"
+  },
+  {
+    "id": "595ecc8d-125f-4955-a514-266b89a09a89",
+    "email": "smoke-test-1771452912024@test-mcc.com",
+    "password_hash": "724936cd9b665b34b178904d938970b9fffede7f6fcbae3e0f61b87170c06feb",
+    "display_name": "Smoke Test User",
+    "role": "marketing",
+    "status": "inactive",
+    "last_login": null,
+    "created_at": "2026-02-18T22:15:24.697Z",
+    "updated_at": "2026-02-18T22:15:24.804Z"
+  },
+  {
+    "id": "021f2dcd-f665-45a9-a8a8-b25ab8d9784a",
+    "email": "crm-mgr-1771468056422@test-mcc.com",
+    "password_hash": "2668381ae19bd8f159db1fb7b07903e347f325d7bdbb7b32e4b9e27375930ba5",
+    "display_name": "CRM Manager Tester",
+    "role": "crm_manager",
+    "status": "active",
+    "last_login": null,
+    "created_at": "2026-02-19T02:27:36.915Z",
+    "updated_at": "2026-02-19T02:27:36.915Z"
+  },
+  {
+    "id": "0775c9a0-116f-4b9b-beda-5287a7b06e68",
+    "email": "crm-mgr-1771468156190@test-mcc.com",
+    "password_hash": "2668381ae19bd8f159db1fb7b07903e347f325d7bdbb7b32e4b9e27375930ba5",
+    "display_name": "CRM Manager Tester",
+    "role": "crm_manager",
+    "status": "active",
+    "last_login": null,
+    "created_at": "2026-02-19T02:29:16.578Z",
+    "updated_at": "2026-02-19T02:29:16.578Z"
+  }
+]

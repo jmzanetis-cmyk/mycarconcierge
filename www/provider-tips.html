@@ -7,6 +7,7 @@
   <meta name="description" content="Expert tips and strategies for service providers to win more bids on My Car Concierge marketplace." />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -348,6 +349,8 @@
       .tip-section { padding: 32px 24px; }
       .tip-section h2 { font-size: 1.3rem; }
     }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
 </head>
 <body>
@@ -370,7 +373,7 @@
 
   <main class="container">
     <div class="page-header">
-      <span class="page-badge">🏆 Provider Success Guide</span>
+      <span class="page-badge"><span class="icon-inline" data-icon="trophy"></span> Provider Success Guide</span>
       <h1>How to <span class="highlight">Win More Bids</span></h1>
       <p>Proven strategies to stand out, attract customers, and grow your business on My Car Concierge.</p>
     </div>
@@ -472,5 +475,13 @@
   </main>
 
   <script src="/footer.js"></script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
 </body>
 </html>

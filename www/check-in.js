@@ -190,7 +190,7 @@
 
       list.innerHTML = vehiclesData.map(v => `
         <div class="vehicle-option" data-id="${v.id}" onclick="selectVehicle('${v.id}')">
-          <div class="vehicle-icon">🚗</div>
+          <div class="vehicle-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>
           <div class="vehicle-info">
             <div class="vehicle-name">${v.year} ${v.make} ${v.model}</div>
             <div class="vehicle-details">${v.color || ''} ${v.license_plate ? '• ' + v.license_plate : ''}</div>
@@ -379,7 +379,7 @@
             document.getElementById('success-wait-time').textContent = `~${data.estimatedWait} min`;
           }
           if (data.status === 'serving') {
-            document.getElementById('queue-position').textContent = "🎉 It's your turn! Please proceed.";
+            document.getElementById('queue-position').innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> It\'s your turn! Please proceed.';
             clearInterval(refreshInterval);
           }
         } catch (error) {

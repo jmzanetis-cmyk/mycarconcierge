@@ -16,6 +16,22 @@
       };
     }
 
+    let magicLinkRedirecting = false;
+
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        window.location.href = '/reset-password.html';
+      }
+      if (event === 'SIGNED_IN' && session && !magicLinkRedirecting) {
+        const hash = window.location.hash;
+        if (hash && (hash.includes('type=magiclink') || hash.includes('type=signup') || hash.includes('access_token'))) {
+          magicLinkRedirecting = true;
+          history.replaceState(null, '', window.location.pathname + window.location.search);
+          check2faAndProceed(session.user);
+        }
+      }
+    });
+
     window.addEventListener('load', async () => {
       await initBiometricUI();
       
@@ -23,14 +39,12 @@
       const urlParams = getUrlParams();
       
       if (user) {
-        // If 2FA is required (redirected from protected page), trigger 2FA flow
         if (urlParams.twoFaRequired) {
           await handle2faRequiredRedirect(user);
         } else {
           await handleUserRedirect(user);
         }
       } else {
-        // No user logged in - check if biometric login should be prompted
         await checkBiometricAutoPrompt();
       }
     });
@@ -51,9 +65,9 @@
         const textEl = document.getElementById('biometric-btn-text');
         
         if (availability.biometryType === 'faceId' || availability.biometryType === 'face') {
-          iconEl.textContent = '😊';
+          iconEl.innerHTML = mccIcon('user', 24);
         } else if (availability.biometryType === 'touchId' || availability.biometryType === 'fingerprint') {
-          iconEl.textContent = '👆';
+          iconEl.innerHTML = mccIcon('user', 24);
         }
         
         textEl.textContent = `Sign in with ${typeName}`;
@@ -105,7 +119,7 @@
       biometricBtn.disabled = false;
       const availability = await BiometricAuth.isAvailable();
       const typeName = BiometricAuth.getBiometryTypeName(availability.biometryType);
-      biometricBtn.innerHTML = `<span class="biometric-btn-icon" id="biometric-btn-icon">🔐</span><span>Sign in with ${typeName}</span>`;
+      biometricBtn.innerHTML = `<span class="biometric-btn-icon" id="biometric-btn-icon">${mccIcon('lock', 20)}</span><span>Sign in with ${typeName}</span>`;
     }
     
     async function checkBiometricEnrollmentOffer(user, session) {
@@ -138,11 +152,11 @@
       const textEl = document.getElementById('biometric-enroll-text');
       
       if (availability.biometryType === 'faceId' || availability.biometryType === 'face') {
-        iconEl.textContent = '😊';
+        iconEl.innerHTML = mccIcon('user', 24);
         titleEl.textContent = `Enable ${typeName}`;
         textEl.textContent = `Would you like to use ${typeName} for faster, secure sign-in next time?`;
       } else if (availability.biometryType === 'touchId' || availability.biometryType === 'fingerprint') {
-        iconEl.textContent = '👆';
+        iconEl.innerHTML = mccIcon('user', 24);
         titleEl.textContent = `Enable ${typeName}`;
         textEl.textContent = `Would you like to use ${typeName} for faster, secure sign-in next time?`;
       }
@@ -286,6 +300,7 @@
       document.getElementById('portal-selection-screen').style.display = 'none';
       document.getElementById('twofa-screen').style.display = 'none';
       document.getElementById('biometric-enroll-screen').style.display = 'none';
+      document.getElementById('magic-link-sent').style.display = 'none';
       document.getElementById(screenId).style.display = 'block';
     }
 
@@ -303,11 +318,10 @@
       
       let { data: profile, error } = await supabaseClient
         .from('profiles')
-        .select('role, is_also_member, is_also_provider, welcome_email_sent')
+        .select('role, is_also_member, is_also_provider')
         .eq('id', user.id)
         .single();
 
-      // If profile doesn't exist (new OAuth user), create one
       if (error && error.code === 'PGRST116') {
         console.log('Creating profile for new OAuth user:', user.email);
         const { data: newProfile, error: createError } = await supabaseClient
@@ -319,7 +333,7 @@
             role: 'member',
             created_at: new Date().toISOString()
           })
-          .select('role, is_also_member, is_also_provider, welcome_email_sent')
+          .select('role, is_also_member, is_also_provider')
           .single();
         
         if (createError) {
@@ -332,25 +346,23 @@
       }
 
       if (error || !profile) {
+        console.error('Profile load error:', error);
         showMessage('Unable to load profile. Please try again.');
         return;
       }
-      
-      // Send welcome email if not already sent (fire and forget - don't block redirect)
-      if (!profile.welcome_email_sent) {
-        supabaseClient.auth.getSession().then(({ data }) => {
-          if (data?.session?.access_token) {
-            const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-            fetch(`${apiBase}/api/email/welcome`, {
-              method: 'POST',
-              headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${data.session.access_token}`
-              }
-            }).catch(() => {});
-          }
-        }).catch(() => {});
-      }
+
+      supabaseClient.auth.getSession().then(({ data }) => {
+        if (data?.session?.access_token) {
+          const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+          fetch(`${apiBase}/api/email/welcome`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${data.session.access_token}`
+            }
+          }).catch(() => {});
+        }
+      }).catch(() => {});
 
       const isMember = profile.role === 'member' || profile.role === 'admin' || profile.is_also_member;
       const isProvider = profile.role === 'provider' || profile.is_also_provider;
@@ -419,7 +431,10 @@
 
       if (error) {
         setLoading(false);
-        return showMessage(error.message);
+        const friendlyMsg = (error.message || '').toLowerCase().includes('invalid') 
+          ? 'Incorrect email or password. Please try again.'
+          : 'Unable to sign in. Please try again.';
+        return showMessage(friendlyMsg);
       }
 
       if (data.user) {
@@ -748,7 +763,7 @@
         
         if (error) {
           console.error('Apple Sign In error:', error);
-          showMessage(error.message || 'Failed to connect to Apple. Please try again.', 'error');
+          showMessage('Failed to connect to Apple. Please try again.', 'error');
           if (appleBtn) {
             appleBtn.disabled = false;
             appleBtn.innerHTML = '<svg class="apple-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg><span>Sign in with Apple</span>';
@@ -768,6 +783,142 @@
     // Make signInWithApple available globally
     window.signInWithApple = signInWithApple;
     
+    let magicResendCountdown = 0;
+    let magicResendTimer = null;
+    let lastMagicLinkEmail = '';
+
+    function switchLoginTab(tab) {
+      const tabPassword = document.getElementById('tab-password');
+      const tabMagic = document.getElementById('tab-magic');
+      const passwordGroup = document.getElementById('password').closest('.form-group');
+      const loginBtnEl = document.getElementById('login-btn');
+      const magicLinkBtn = document.getElementById('magic-link-btn');
+
+      tabPassword.classList.remove('active');
+      tabMagic.classList.remove('active');
+
+      if (tab === 'password') {
+        tabPassword.classList.add('active');
+        passwordGroup.style.display = 'block';
+        loginBtnEl.style.display = 'block';
+        magicLinkBtn.style.display = 'none';
+      } else {
+        tabMagic.classList.add('active');
+        passwordGroup.style.display = 'none';
+        loginBtnEl.style.display = 'none';
+        magicLinkBtn.style.display = 'block';
+      }
+
+      messageEl.className = 'login-message';
+    }
+
+    async function sendMagicLink() {
+      const email = document.getElementById('email').value.trim();
+      if (!email) {
+        showMessage('Please enter your email address.');
+        return;
+      }
+
+      const magicBtn = document.getElementById('magic-link-btn');
+      magicBtn.disabled = true;
+      magicBtn.innerHTML = '<span class="spinner"></span>Sending...';
+
+      try {
+        const { error } = await supabaseClient.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: window.location.origin + '/login.html'
+          }
+        });
+
+        if (error) {
+          showMessage(error.message || 'Failed to send magic link. Please try again.');
+          magicBtn.disabled = false;
+          magicBtn.innerHTML = 'Send Magic Link';
+          return;
+        }
+
+        lastMagicLinkEmail = email;
+        document.getElementById('magic-link-email-display').textContent = email;
+        document.getElementById('login-form-container').style.display = 'none';
+        document.getElementById('magic-link-sent').style.display = 'block';
+        startMagicResendCountdown();
+      } catch (err) {
+        showMessage('An error occurred. Please try again.');
+        magicBtn.disabled = false;
+        magicBtn.innerHTML = 'Send Magic Link';
+      }
+    }
+
+    function startMagicResendCountdown() {
+      magicResendCountdown = 60;
+      const resendLink = document.getElementById('magic-resend-link');
+      const countdownEl = document.getElementById('magic-resend-countdown');
+
+      resendLink.classList.add('disabled');
+
+      if (magicResendTimer) clearInterval(magicResendTimer);
+
+      magicResendTimer = setInterval(() => {
+        magicResendCountdown--;
+        if (magicResendCountdown > 0) {
+          countdownEl.textContent = `You can resend in ${magicResendCountdown}s`;
+        } else {
+          countdownEl.textContent = '';
+          resendLink.classList.remove('disabled');
+          clearInterval(magicResendTimer);
+        }
+      }, 1000);
+    }
+
+    async function resendMagicLink() {
+      if (magicResendCountdown > 0) return;
+
+      if (!lastMagicLinkEmail) {
+        showMagicLinkForm();
+        return;
+      }
+
+      const resendLink = document.getElementById('magic-resend-link');
+      resendLink.textContent = 'Sending...';
+      resendLink.classList.add('disabled');
+
+      try {
+        const { error } = await supabaseClient.auth.signInWithOtp({
+          email: lastMagicLinkEmail,
+          options: {
+            emailRedirectTo: window.location.origin + '/login.html'
+          }
+        });
+
+        if (error) {
+          showMessage('Failed to resend. Please try again.');
+          resendLink.textContent = 'Resend magic link';
+          resendLink.classList.remove('disabled');
+          return;
+        }
+
+        resendLink.textContent = 'Resend magic link';
+        startMagicResendCountdown();
+      } catch (err) {
+        showMessage('Failed to resend. Please try again.');
+        resendLink.textContent = 'Resend magic link';
+        resendLink.classList.remove('disabled');
+      }
+    }
+
+    function showMagicLinkForm() {
+      document.getElementById('magic-link-sent').style.display = 'none';
+      document.getElementById('login-form-container').style.display = 'block';
+      if (magicResendTimer) clearInterval(magicResendTimer);
+      switchLoginTab('magic');
+    }
+
+    window.switchLoginTab = switchLoginTab;
+    window.sendMagicLink = sendMagicLink;
+    window.resendMagicLink = resendMagicLink;
+    window.showMagicLinkForm = showMagicLinkForm;
+
     async function logLoginActivityClient(accessToken, isSuccessful = true, failureReason = null) {
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';

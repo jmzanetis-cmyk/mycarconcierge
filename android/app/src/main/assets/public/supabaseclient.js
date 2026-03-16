@@ -352,7 +352,7 @@ async function notifyBidReceived(packageId, bidAmount, providerId) {
 async function notifyBidAccepted(bidId, packageId) {
   const { data: bid } = await supabaseClient
     .from('bids')
-    .select('provider_id, price, maintenance_packages(title)')
+    .select('provider_id, price, maintenance_packages!bids_package_id_fkey(title)')
     .eq('id', bidId)
     .single();
   
@@ -361,7 +361,7 @@ async function notifyBidAccepted(bidId, packageId) {
   await createNotification(
     bid.provider_id,
     'bid_accepted',
-    'Bid Accepted! 🎉',
+    'Bid Accepted!',
     `Your $${bid.price.toFixed(2)} bid on "${bid.maintenance_packages.title}" was accepted!`,
     'package',
     packageId
@@ -383,7 +383,7 @@ async function notifyWorkStarted(packageId) {
   await createNotification(
     pkg.member_id,
     'work_started',
-    'Work Has Started 🔧',
+    'Work Has Started',
     `${providerName} has started work on "${pkg.title}"`,
     'package',
     packageId
@@ -473,7 +473,7 @@ async function createAppointment(packageId, memberId, providerId, proposedDate, 
     await createNotification(
       recipientId,
       'appointment_proposed',
-      'New Appointment Proposed 📅',
+      'New Appointment Proposed',
       `A service appointment has been proposed for ${proposedDate}. Please review and confirm.`,
       'package',
       packageId
@@ -569,7 +569,7 @@ async function proposeNewTime(appointmentId, packageId, newDate, newTimeStart, n
     await createNotification(
       recipientId,
       'appointment_rescheduled',
-      'New Time Proposed 📅',
+      'New Time Proposed',
       `A new service time has been proposed for ${newDate}. Please review.`,
       'package',
       packageId
@@ -731,7 +731,7 @@ async function updateVehicleStatus(transferId, packageId, newStatus, additionalD
     await createNotification(
       recipientId,
       'vehicle_status_update',
-      'Vehicle Status Update 🚗',
+      'Vehicle Status Update',
       statusMessages[newStatus] || `Vehicle status: ${newStatus}`,
       'package',
       packageId
@@ -847,7 +847,7 @@ async function shareLocation(packageId, sharedWithId, context = 'general', messa
           await createNotification(
             sharedWithId,
             'location_shared',
-            'Location Shared 📍',
+            'Location Shared',
             `A location has been shared with you for "${pkg?.title || 'your service'}". ${message || ''}`,
             'package',
             packageId
@@ -933,6 +933,9 @@ async function isProviderSuspended(providerId) {
   const { data, error } = await supabaseClient.rpc('is_provider_suspended', {
     p_provider_id: providerId
   });
+  if (!error && typeof data === 'boolean') {
+    return { data: { suspended: data, reason: null, current_rating: null }, error: null };
+  }
   return { data, error };
 }
 
@@ -991,16 +994,20 @@ async function canProviderBid(providerId) {
   const suspensionStatus = await isProviderSuspended(providerId);
   
   if (suspensionStatus.error) {
-    return { canBid: true, error: suspensionStatus.error };
+    return { canBid: false, error: suspensionStatus.error, reason: 'status_check_failed' };
   }
   
-  const isSuspended = suspensionStatus.data?.suspended || false;
+  if (suspensionStatus.data == null) {
+    return { canBid: false, reason: 'status_check_failed' };
+  }
+  
+  const isSuspended = suspensionStatus.data.suspended || false;
   
   return {
     canBid: !isSuspended,
     suspended: isSuspended,
-    reason: suspensionStatus.data?.reason || null,
-    currentRating: suspensionStatus.data?.current_rating || null
+    reason: suspensionStatus.data.reason || null,
+    currentRating: suspensionStatus.data.current_rating || null
   };
 }
 
@@ -1101,7 +1108,7 @@ async function saveEvidence(evidenceData) {
         await createNotification(
           recipientId,
           'evidence_captured',
-          `${typeLabels[evidenceData.type] || 'Vehicle'} Evidence Captured 📸`,
+          `${typeLabels[evidenceData.type] || 'Vehicle'} Evidence Captured`,
           `Vehicle condition has been documented with photos, odometer, and fuel level.`,
           'package',
           evidenceData.packageId
@@ -1372,7 +1379,7 @@ async function acceptEmergency(emergencyId, providerId, etaMinutes) {
     await createNotification(
       data.member_id,
       'emergency_accepted',
-      'Help is on the way! 🚗',
+      'Help is on the way!',
       `A provider has accepted your emergency request. ETA: ${etaMinutes} minutes.`,
       'emergency',
       emergencyId
@@ -1416,7 +1423,7 @@ async function updateEmergencyStatus(emergencyId, status, extraData = {}) {
       await createNotification(
         data.member_id,
         'emergency_status_update',
-        status === 'completed' ? 'Emergency Resolved ✅' : 'Emergency Update 🚗',
+        status === 'completed' ? 'Emergency Resolved ✅' : 'Emergency Update',
         statusMessages[status],
         'emergency',
         emergencyId
@@ -1464,7 +1471,7 @@ async function respondToEmergency(emergencyId, providerId, etaMinutes, bidCredit
     await createNotification(
       data.member_id,
       'emergency_accepted',
-      'Help is on the way! 🚗',
+      'Help is on the way!',
       `A provider has accepted your emergency request. ETA: ${etaMinutes} minutes.`,
       'emergency',
       emergencyId
@@ -1717,12 +1724,12 @@ async function calculateProviderPerformance(providerId) {
 
 function getTierIcon(tier) {
   const icons = {
-    platinum: '💎',
-    gold: '🥇',
-    silver: '🥈',
-    bronze: '🥉'
+    platinum: (typeof mccIcon === 'function') ? mccIcon('sparkles', 16) : 'Platinum',
+    gold: (typeof mccIcon === 'function') ? mccIcon('trophy', 16) : 'Gold',
+    silver: (typeof mccIcon === 'function') ? mccIcon('award', 16) : 'Silver',
+    bronze: (typeof mccIcon === 'function') ? mccIcon('star', 16) : 'Bronze'
   };
-  return icons[tier] || '🥉';
+  return icons[tier] || icons.bronze;
 }
 
 function getTierLabel(tier) {
@@ -1753,7 +1760,7 @@ function getPerformanceTips(performance) {
   
   if (!performance) {
     tips.push({
-      icon: '🚀',
+      icon: (typeof mccIcon === 'function') ? mccIcon('zap', 16) : '',
       text: 'Start bidding on packages to build your performance profile and unlock badges!'
     });
     return tips;
@@ -1788,7 +1795,7 @@ function getPerformanceTips(performance) {
   // Experience tips
   if (performance.jobs_completed < 50) {
     tips.push({
-      icon: '🎖️',
+      icon: (typeof mccIcon === 'function') ? mccIcon('award', 16) : '',
       text: `You've completed ${performance.jobs_completed} jobs. Complete 50 to earn the Veteran badge!`
     });
   }
@@ -1804,7 +1811,7 @@ function getPerformanceTips(performance) {
   // Acceptance rate tips
   if (performance.acceptance_rate < 20 && performance.bids_submitted >= 10) {
     tips.push({
-      icon: '🎯',
+      icon: (typeof mccIcon === 'function') ? mccIcon('target', 16) : '',
       text: 'Your bid acceptance rate is low. Try making more competitive bids with detailed descriptions.'
     });
   }
@@ -1812,24 +1819,24 @@ function getPerformanceTips(performance) {
   // Overall score tips
   if (performance.overall_score < 50) {
     tips.push({
-      icon: '📈',
+      icon: (typeof mccIcon === 'function') ? mccIcon('trending-up', 16) : '',
       text: 'Focus on improving your ratings and response time to reach Silver tier (50+ score).'
     });
   } else if (performance.overall_score < 75) {
     tips.push({
-      icon: '📈',
+      icon: (typeof mccIcon === 'function') ? mccIcon('trending-up', 16) : '',
       text: 'You\'re close to Gold tier! Keep up the good work and aim for 75+ overall score.'
     });
   } else if (performance.overall_score < 90) {
     tips.push({
-      icon: '💎',
+      icon: (typeof mccIcon === 'function') ? mccIcon('sparkles', 16) : '',
       text: 'Excellent work! You\'re near Platinum tier. Achieve 90+ score to become a top provider!'
     });
   }
 
   if (tips.length === 0) {
     tips.push({
-      icon: '🏆',
+      icon: (typeof mccIcon === 'function') ? mccIcon('trophy', 16) : '',
       text: 'Outstanding performance! You\'re among our top-rated providers. Keep up the excellent work!'
     });
   }

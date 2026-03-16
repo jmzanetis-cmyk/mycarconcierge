@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "postgresql-16"]
+modules = ["nodejs-20", "python-3.11", "postgresql-16"]
 [workflows]
 runButton = "Project"
 
@@ -15,13 +15,13 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd www && node server.js"
 waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
 
 [[ports]]
 localPort = 5000
@@ -29,11 +29,12 @@ externalPort = 80
 
 [agent]
 expertMode = true
+integrations = ["stripe:2.0.0", "hubspot:1.0.0", "github:1.0.0"]
 
 [deployment]
-deploymentTarget = "autoscale"
-run = ["node", "www/server.js"]
-build = ["bash", "-c", "cd www && rm -rf node_modules && npm install && echo BUILD_TIMESTAMP:$(date +%s)"]
+deploymentTarget = "vm"
+run = ["node", "outreach-runner/runner.js"]
+build = ["bash", "-c", "cd outreach-runner && npm install && npm cache clean --force"]
 
 [objectStorage]
 defaultBucketID = "replit-objstore-970c9ce6-a451-4b77-b216-7f5cdd6ab7c7"
@@ -42,7 +43,12 @@ defaultBucketID = "replit-objstore-970c9ce6-a451-4b77-b216-7f5cdd6ab7c7"
 
 [userenv.shared]
 GLOBAL_2FA_ENABLED = "false"
+RUNNER_BASE_URL = "https://my-car-concierge--jmzanetis.replit.app"
 
 [nix]
 channel = "stable-25_05"
-packages = ["glib", "nss", "nspr", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXrandr", "xorg.libxcb", "cups", "libdrm", "at-spi2-core", "pango", "alsa-lib", "mesa", "chromium", "libxkbcommon", "xorg.libX11", "xorg.libXext", "xorg.libXfixes", "at-spi2-atk"]
+packages = ["imagemagick", "glib", "nss", "nspr", "atk", "cups", "dbus", "expat", "libdrm", "libxkbcommon", "pango", "cairo", "alsa-lib", "mesa", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libxcb"]
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 60000

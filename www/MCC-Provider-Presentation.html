@@ -197,11 +197,14 @@
     }
 
     .bullet-list li::before {
-      content: "✓";
+      content: '';
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2322c55e' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center;
+      vertical-align: middle;
       position: absolute;
       left: 0;
-      color: #4ac88c;
-      font-weight: bold;
     }
 
     .step-list {
@@ -408,7 +411,7 @@
 <body>
   <div class="print-controls">
     <h2>MCC Provider Platform Presentation</h2>
-    <p>Portrait A4 Format - 15 Slides</p>
+    <p>Portrait A4 Format - 16 Slides</p>
     <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
   </div>
 
@@ -459,7 +462,7 @@
       <div class="box-text">Think of it this way: Every customer you bring onto MCC becomes part of a shared pool. When they need a service you don't offer, another provider wins. When other providers' customers need YOUR specialty, you win.</div>
     </div>
 
-    <div class="slide-number">2 / 15</div>
+    <div class="slide-number">2 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -473,42 +476,42 @@
 
     <div class="feature-grid">
       <div class="feature-item">
-        <div class="feature-icon">🔧</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
         <div class="feature-title">Repair Shops</div>
         <div class="feature-desc">General mechanics, specialty shops, dealership service departments</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🚗</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>
         <div class="feature-title">Mobile Mechanics</div>
         <div class="feature-desc">On-site repair services, emergency roadside, fleet maintenance</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">✨</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg></div>
         <div class="feature-title">Detailers</div>
         <div class="feature-desc">Interior/exterior detailing, paint correction, ceramic coating</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🎨</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.622 17.897-10.68-2.913"/><path d="M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z"/><path d="M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15"/></svg></div>
         <div class="feature-title">Body Shops</div>
         <div class="feature-desc">Collision repair, paint work, dent removal, restoration</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🪟</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div>
         <div class="feature-title">Tint & Wrap</div>
         <div class="feature-desc">Window tinting, vinyl wraps, PPF installation</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🛞</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg></div>
         <div class="feature-title">Tire Shops</div>
         <div class="feature-desc">Tire sales, mounting, balancing, alignment</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🔊</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></svg></div>
         <div class="feature-title">Audio & Electronics</div>
         <div class="feature-desc">Car audio, alarms, remote start, custom electronics</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🪨</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
         <div class="feature-title">Glass Services</div>
         <div class="feature-desc">Windshield repair/replacement, chip repair</div>
       </div>
@@ -519,7 +522,7 @@
       <div class="text">MCC is a supplemental channel. Keep your existing customers, advertising, and business model. We're just another way to find new work.</div>
     </div>
 
-    <div class="slide-number">3 / 15</div>
+    <div class="slide-number">3 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -560,7 +563,7 @@
     </table>
     <div style="font-size: 8pt; color: #888; margin-top: 2mm; font-style: italic;">*18 total bid pack tiers available. See complete pricing sheet for full list.</div>
 
-    <div class="slide-number">4 / 15</div>
+    <div class="slide-number">4 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -578,7 +581,7 @@
         <div class="stat-label">Escrow Protected</div>
       </div>
       <div class="stat-box">
-        <div class="stat-value">7.5%</div>
+        <div class="stat-value">0%</div>
         <div class="stat-label">Platform Fee</div>
       </div>
       <div class="stat-box">
@@ -606,7 +609,7 @@
       <div class="text">Platform fee is waived for all Founding Providers during the pilot period. You keep 100% of your earnings.</div>
     </div>
 
-    <div class="slide-number">5 / 15</div>
+    <div class="slide-number">5 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -620,42 +623,42 @@
 
     <div class="feature-grid">
       <div class="feature-item">
-        <div class="feature-icon">📋</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></div>
         <div class="feature-title">Job Queue</div>
         <div class="feature-desc">View all available service requests in your area and specialties</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📊</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg></div>
         <div class="feature-title">Analytics</div>
         <div class="feature-desc">Track your win rate, revenue, and performance metrics</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📅</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div>
         <div class="feature-title">Scheduling</div>
         <div class="feature-desc">Manage appointments, set availability, track vehicle status</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">💬</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
         <div class="feature-title">Messaging</div>
         <div class="feature-desc">Communicate directly with members through secure chat</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">💳</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div>
         <div class="feature-title">Payments</div>
         <div class="feature-desc">View earnings, purchase bid credits, manage payouts</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">⭐</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
         <div class="feature-title">Reviews</div>
         <div class="feature-desc">Monitor your rating and respond to customer feedback</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">👥</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
         <div class="feature-title">Team Management</div>
         <div class="feature-desc">Add staff with role-based access (Owner, Admin, Staff)</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🔔</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div>
         <div class="feature-title">Notifications</div>
         <div class="feature-desc">Real-time alerts for new jobs, messages, and payments</div>
       </div>
@@ -666,7 +669,7 @@
       <div class="box-text">Access your dashboard from any device—phone, tablet, or computer. Native apps for iOS and Android plus full web access.</div>
     </div>
 
-    <div class="slide-number">6 / 15</div>
+    <div class="slide-number">6 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -686,23 +689,23 @@
     <div class="section-title">Status Workflow</div>
     <div class="icon-row">
       <div class="icon-item">
-        <div class="icon">🚗</div>
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>
         <div class="label">Pickup</div>
       </div>
       <div class="icon-item">
-        <div class="icon">📍</div>
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></div>
         <div class="label">At Provider</div>
       </div>
       <div class="icon-item">
-        <div class="icon">🔧</div>
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
         <div class="label">In Progress</div>
       </div>
       <div class="icon-item">
-        <div class="icon">🚙</div>
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>
         <div class="label">Returning</div>
       </div>
       <div class="icon-item">
-        <div class="icon">✅</div>
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
         <div class="label">Returned</div>
       </div>
     </div>
@@ -733,7 +736,7 @@
       <div class="box-text">For pickup/delivery services, temporary location sharing via Google Maps lets members track their vehicle in transit. Sharing automatically disables after the handoff.</div>
     </div>
 
-    <div class="slide-number">7 / 15</div>
+    <div class="slide-number">7 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -747,7 +750,7 @@
 
     <div class="stat-grid">
       <div class="stat-box">
-        <div class="stat-value">5⭐</div>
+        <div class="stat-value">5<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#b8942d" stroke="#b8942d" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
         <div class="stat-label">Rating System</div>
       </div>
       <div class="stat-box">
@@ -783,7 +786,7 @@
       <div class="text">Founding Providers have the advantage of building reviews before the market gets crowded. Early positive reviews compound over time.</div>
     </div>
 
-    <div class="slide-number">8 / 15</div>
+    <div class="slide-number">8 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -802,32 +805,32 @@
 
     <div class="feature-grid">
       <div class="feature-item">
-        <div class="feature-icon">🔔</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div>
         <div class="feature-title">New Job Alerts</div>
         <div class="feature-desc">Instant notification when a job matching your services is posted</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">💰</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         <div class="feature-title">Bid Accepted</div>
         <div class="feature-desc">Know immediately when a member chooses your bid</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">💳</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div>
         <div class="feature-title">Payment Received</div>
         <div class="feature-desc">Confirmation when funds are released to your account</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">💬</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
         <div class="feature-title">New Messages</div>
         <div class="feature-desc">Alert when a member sends you a message</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📅</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div>
         <div class="feature-title">Appointment Reminders</div>
         <div class="feature-desc">Reminders for upcoming scheduled services</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">⭐</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
         <div class="feature-title">New Reviews</div>
         <div class="feature-desc">Notification when a customer leaves a review</div>
       </div>
@@ -838,7 +841,7 @@
       <div class="box-text">Control exactly which notifications you receive and how. Turn off marketing emails while keeping critical alerts on. Set quiet hours. Your preferences, your way.</div>
     </div>
 
-    <div class="slide-number">9 / 15</div>
+    <div class="slide-number">9 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -885,7 +888,7 @@
       <div class="box-text">All actions are logged with the team member who performed them. Know who updated a job status or sent a message at any time.</div>
     </div>
 
-    <div class="slide-number">10 / 15</div>
+    <div class="slide-number">10 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -918,7 +921,7 @@
       <li><strong>No-Show Protection:</strong> Members who repeatedly no-show are flagged.</li>
     </ul>
 
-    <div class="slide-number">11 / 15</div>
+    <div class="slide-number">11 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -932,32 +935,32 @@
 
     <div class="feature-grid">
       <div class="feature-item">
-        <div class="feature-icon">🔐</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg></div>
         <div class="feature-title">Two-Factor Authentication</div>
         <div class="feature-desc">SMS-based 2FA protects your account with a code sent to your phone</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🔒</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
         <div class="feature-title">Encrypted Data</div>
         <div class="feature-desc">All data encrypted in transit (TLS) and at rest</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🛡️</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></div>
         <div class="feature-title">Rate Limiting</div>
         <div class="feature-desc">Protection against brute force attacks and abuse</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">📱</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></div>
         <div class="feature-title">Login Activity</div>
         <div class="feature-desc">View all login attempts with device and location info</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">👤</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
         <div class="feature-title">Role-Based Access</div>
         <div class="feature-desc">Team members only see what they need for their role</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">💳</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div>
         <div class="feature-title">PCI Compliant</div>
         <div class="feature-desc">Payment processing through Stripe, fully PCI compliant</div>
       </div>
@@ -973,7 +976,7 @@
       <div class="box-text">MCC is built on Supabase (PostgreSQL) with row-level security policies. Over 200 security policies ensure data access is properly controlled.</div>
     </div>
 
-    <div class="slide-number">12 / 15</div>
+    <div class="slide-number">12 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -993,32 +996,32 @@
     <div class="section-title">Founding Provider Benefits</div>
     <div class="feature-grid">
       <div class="feature-item">
-        <div class="feature-icon">🎫</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg></div>
         <div class="feature-title">No Platform Fees</div>
-        <div class="feature-desc">Keep 100% of your earnings during pilot (normally 7.5%)</div>
+        <div class="feature-desc">Keep 100% of your earnings during pilot (normally 2%)</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">♾️</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z"/></svg></div>
         <div class="feature-title">Unlimited Bidding</div>
         <div class="feature-desc">Bid on any job without using credits during pilot</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🏆</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></div>
         <div class="feature-title">Priority Visibility</div>
         <div class="feature-desc">Founding Providers appear first in search results</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🎖️</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></div>
         <div class="feature-title">Permanent Badge</div>
         <div class="feature-desc">"Founding Provider" badge displayed on your profile forever</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">💰</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         <div class="feature-title">Referral Commissions</div>
         <div class="feature-desc">Lifetime commission on providers you refer (up to 50%)</div>
       </div>
       <div class="feature-item">
-        <div class="feature-icon">🎯</div>
+        <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
         <div class="feature-title">Direct Input</div>
         <div class="feature-desc">Help shape the platform with direct feedback to the team</div>
       </div>
@@ -1029,7 +1032,7 @@
       <div class="text">Founding Provider spots are limited by market. Early applicants secure the best positions in their area.</div>
     </div>
 
-    <div class="slide-number">13 / 15</div>
+    <div class="slide-number">13 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
@@ -1064,11 +1067,71 @@
       <div class="box-text">Most applications are reviewed within 24-48 hours. Once approved, you can be bidding on jobs the same day.</div>
     </div>
 
-    <div class="slide-number">14 / 15</div>
+    <div class="slide-number">14 / 16</div>
     <div class="footer-bar"></div>
   </div>
 
-  <!-- SLIDE 15: CALL TO ACTION -->
+  <div class="slide">
+    <div class="slide-header">
+      <img src="logo.png" class="logo" alt="MCC">
+      <div class="slide-title">Car Club Loyalty</div>
+      <div class="slide-subtitle">Your Built-In Retention Engine</div>
+    </div>
+
+    <div class="content-box highlight">
+      <div class="box-title">Car Club — Keep Customers Coming Back</div>
+      <div class="box-text">Every provider gets a built-in Car Club loyalty program at no extra cost. Punch card rewards keep customers choosing you over the competition, turning one-time jobs into lifelong relationships.</div>
+    </div>
+
+    <div class="section-title">How Car Club Works</div>
+    <div class="icon-row">
+      <div class="icon-item">
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <div class="label">Auto-Joins Your Club</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></div>
+        <div class="label">Earns Punch Card Progress</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <div class="label">Redeems Rewards</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M21 21v-5h-5"/></svg></div>
+        <div class="label">Repeat Customer</div>
+      </div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-title">Zero Cost</div>
+        <div class="feature-desc">Car Club is included free with every provider account—no setup fees or monthly charges</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-title">Auto-Join</div>
+        <div class="feature-desc">Members automatically join your club when they book—no signup friction</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-title">Customizable Rewards</div>
+        <div class="feature-desc">Create up to 3 active punch card rewards tailored to your services</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-title">Free Bid Credits</div>
+        <div class="feature-desc">Earn free bid credits when referred members book their first job</div>
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <div class="title">Retention Without Effort</div>
+      <div class="text">Car Club runs automatically in the background. Members earn punches on completed jobs and redeem rewards when ready—keeping them loyal to your shop without extra work on your part.</div>
+    </div>
+
+    <div class="slide-number">15 / 16</div>
+    <div class="footer-bar"></div>
+  </div>
+
+  <!-- SLIDE 16: CALL TO ACTION -->
   <div class="slide">
     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
       <img src="logo.png" style="width: 50mm; margin-bottom: 8mm;" alt="My Car Concierge">
@@ -1098,7 +1161,7 @@
         <div>Desktop Apps</div>
       </div>
     </div>
-    <div class="slide-number">15 / 15</div>
+    <div class="slide-number">16 / 16</div>
     <div class="footer-bar"></div>
   </div>
 

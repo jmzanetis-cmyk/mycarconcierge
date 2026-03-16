@@ -45,7 +45,7 @@
     }
 
     [data-theme="light"] {
-      --bg-deep: #fefdfb;
+      --bg-deep: #f3f4f6;
       --bg-card: #ffffff;
       --bg-elevated: #ffffff;
       --bg-input: #f9f7f4;
@@ -585,11 +585,65 @@
         padding: 40px 24px;
       }
     }
+
+    .onboarding-banner {
+      position: relative;
+      z-index: 101;
+      background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
+      color: #0a0a0f;
+      text-align: center;
+      padding: 10px 48px 10px 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+    .onboarding-banner a {
+      color: #0a0a0f;
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .onboarding-banner a:hover { opacity: 0.8; }
+    .onboarding-banner .banner-dismiss {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #0a0a0f;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      line-height: 1;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+    .onboarding-banner .banner-dismiss:hover { opacity: 1; }
+    [data-theme="light"] .onboarding-banner {
+      background: linear-gradient(135deg, #b8942d, #d4a63a);
+      color: #ffffff;
+    }
+    [data-theme="light"] .onboarding-banner a { color: #ffffff; }
+    [data-theme="light"] .onboarding-banner .banner-dismiss { color: #ffffff; }
+    @media (max-width: 600px) {
+      .onboarding-banner { font-size: 0.82rem; padding: 8px 40px 8px 12px; }
+    }
   </style>
 </head>
 <body>
   <div class="ambient-bg"></div>
   <div class="noise"></div>
+
+  <div class="onboarding-banner" id="onboardingBanner" style="display:none;">
+    We're live! Now onboarding new members &amp; providers &mdash; <a href="/founders.html">join the founding community &rarr;</a>
+    <button class="banner-dismiss" onclick="document.getElementById('onboardingBanner').style.display='none';localStorage.setItem('onboardingBannerDismissed','1');" aria-label="Dismiss banner">&times;</button>
+  </div>
+  <script>
+    if (!localStorage.getItem('onboardingBannerDismissed')) {
+      document.getElementById('onboardingBanner').style.display = '';
+    }
+  </script>
 
   <header>
     <div class="container">
@@ -597,9 +651,9 @@
         <img src="/logo.png" alt="My Car Concierge" class="brand-icon">
       </a>
       <nav>
-        <a href="/marketing/services.html">Services</a>
-        <a href="/marketing/providers.html">For Providers</a>
-        <a href="/marketing/about.html">About</a>
+        <a href="/marketing/services.html" data-i18n="nav.services">Services</a>
+        <a href="/marketing/providers.html" data-i18n="nav.forProviders">For Providers</a>
+        <a href="/marketing/about.html" data-i18n="nav.about">How It Works</a>
         <a href="/login.html" class="btn-login">Log In</a>
       </nav>
     </div>
@@ -651,6 +705,11 @@
             <div class="benefit-icon">🔄</div>
             <h3>Recurring Customers</h3>
             <p>Satisfied customers come back. Build lasting relationships with vehicle owners in your area.</p>
+          </div>
+          <div class="benefit-card">
+            <div class="benefit-icon">🏆</div>
+            <h3>Car Club Loyalty</h3>
+            <p>Launch your own loyalty program at no extra cost. Punch card rewards keep customers choosing you, turning first-time jobs into repeat business.</p>
           </div>
           <div class="benefit-card">
             <div class="benefit-icon">🛡️</div>
@@ -722,9 +781,9 @@
   <footer>
     <div class="container">
       <div class="footer-links">
-        <a href="/marketing/services.html">Services</a>
-        <a href="/marketing/providers.html">For Providers</a>
-        <a href="/marketing/about.html">About</a>
+        <a href="/marketing/services.html" data-i18n="nav.services">Services</a>
+        <a href="/marketing/providers.html" data-i18n="nav.forProviders">For Providers</a>
+        <a href="/marketing/about.html" data-i18n="nav.about">How It Works</a>
         <a href="/privacy.html">Privacy</a>
         <a href="/terms.html">Terms</a>
       </div>

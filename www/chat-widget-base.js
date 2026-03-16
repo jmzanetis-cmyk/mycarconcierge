@@ -8,6 +8,7 @@ class ChatWidgetBase {
     this.primaryColor = options.primaryColor || '#d4a855';
     this.secondaryColor = options.secondaryColor || '#c49a45';
     this.apiBaseUrl = this.getApiBaseUrl();
+    this.storageKey = options.storageKey || 'mcc-chat';
   }
 
   getApiBaseUrl() {
@@ -21,6 +22,39 @@ class ChatWidgetBase {
     }
     return '';
   }
+
+  saveToStorage() {
+    try {
+      const key = `${this.storageKey}-${this.mode || 'default'}`;
+      const maxMessages = 50;
+      const toSave = this.messages.length > maxMessages ? this.messages.slice(-maxMessages) : this.messages;
+      localStorage.setItem(key, JSON.stringify(toSave));
+    } catch (e) {}
+  }
+
+  loadFromStorage() {
+    try {
+      const key = `${this.storageKey}-${this.mode || 'default'}`;
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  clearConversation() {
+    this.messages = [];
+    try {
+      const key = `${this.storageKey}-${this.mode || 'default'}`;
+      localStorage.removeItem(key);
+    } catch (e) {}
+    const widget = document.getElementById(this.widgetId);
+    const messagesContainer = widget.querySelector('.chat-widget-messages');
+    messagesContainer.innerHTML = '';
+    this.onConversationCleared();
+  }
+
+  onConversationCleared() {}
 
   getBaseStyles() {
     return `
@@ -348,6 +382,69 @@ class ChatWidgetBase {
         line-height: 1.5;
       }
 
+      .chat-widget-feedback {
+        display: flex;
+        gap: 4px;
+        margin-top: 4px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+      }
+      .chat-widget-message.assistant:hover .chat-widget-feedback {
+        opacity: 1;
+      }
+      .chat-widget-feedback-btn {
+        background: none;
+        border: none;
+        color: rgba(148, 148, 168, 0.5);
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+      }
+      .chat-widget-feedback-btn:hover {
+        color: rgba(148, 148, 168, 0.9);
+        background: rgba(148, 148, 168, 0.1);
+      }
+      .chat-widget-feedback-btn.selected {
+        color: #d4a855;
+      }
+      .chat-widget-feedback-btn.selected svg {
+        fill: currentColor;
+      }
+      .chat-widget-feedback-done {
+        font-size: 11px;
+        color: rgba(148, 148, 168, 0.5);
+        padding: 4px 0;
+      }
+      [data-theme="light"] .chat-widget-feedback-btn {
+        color: rgba(30, 58, 95, 0.3);
+      }
+      [data-theme="light"] .chat-widget-feedback-btn:hover {
+        color: rgba(30, 58, 95, 0.6);
+        background: rgba(30, 58, 95, 0.06);
+      }
+      [data-theme="light"] .chat-widget-feedback-btn.selected {
+        color: #b8942d;
+      }
+      [data-theme="light"] .chat-widget-feedback-done {
+        color: rgba(30, 58, 95, 0.4);
+      }
+
+      .chat-widget-message.system .chat-widget-message-content {
+        background: rgba(255, 165, 0, 0.1);
+        color: #e6a817;
+        border: 1px solid rgba(255, 165, 0, 0.2);
+        font-size: 0.85rem;
+        text-align: center;
+      }
+      [data-theme="light"] .chat-widget-message.system .chat-widget-message-content {
+        background: rgba(184, 148, 45, 0.08);
+        color: #8a6d1b;
+        border: 1px solid rgba(184, 148, 45, 0.2);
+      }
+
       @media (max-width: 480px) {
         .chat-widget-base {
           bottom: 16px;
@@ -374,6 +471,99 @@ class ChatWidgetBase {
           left: -8px;
           right: auto;
         }
+      }
+
+      [data-theme="light"] .chat-widget-panel {
+        background: rgba(254, 253, 251, 0.98);
+        border: 1px solid rgba(30, 58, 95, 0.12);
+        box-shadow: 0 20px 60px rgba(30, 58, 95, 0.15);
+      }
+
+      [data-theme="light"] .chat-widget-header {
+        background: rgba(30, 58, 95, 0.06);
+        border-bottom: 1px solid rgba(30, 58, 95, 0.08);
+      }
+
+      [data-theme="light"] .chat-widget-header h3 {
+        color: #1e3a5f;
+      }
+
+      [data-theme="light"] .chat-widget-message.assistant .chat-widget-message-content {
+        background: rgba(30, 58, 95, 0.07);
+        color: #2c3e50;
+        border: 1px solid rgba(30, 58, 95, 0.12);
+      }
+
+      [data-theme="light"] .chat-widget-message.assistant .chat-widget-message-content strong {
+        color: #1e3a5f;
+      }
+
+      [data-theme="light"] .chat-widget-input-container {
+        background: rgba(30, 58, 95, 0.04);
+        border-top: 1px solid rgba(30, 58, 95, 0.08);
+      }
+
+      [data-theme="light"] .chat-widget-input {
+        background: #ffffff;
+        border: 1px solid rgba(30, 58, 95, 0.15);
+        color: #2c3e50;
+      }
+
+      [data-theme="light"] .chat-widget-input::placeholder {
+        color: #8899a6;
+      }
+
+      [data-theme="light"] .chat-widget-input:focus {
+        border-color: rgba(184, 148, 45, 0.5);
+      }
+
+      [data-theme="light"] .chat-widget-welcome {
+        color: rgba(30, 58, 95, 0.6);
+      }
+
+      [data-theme="light"] .chat-widget-welcome h4 {
+        color: #1e3a5f;
+      }
+
+      [data-theme="light"] .chat-widget-typing-dot {
+        background: #8899a6;
+      }
+
+      [data-theme="light"] .chat-widget-messages::-webkit-scrollbar-thumb {
+        background: rgba(30, 58, 95, 0.15);
+      }
+
+      [data-theme="light"] .chat-widget-toggle {
+        box-shadow: 0 8px 32px rgba(184, 148, 45, 0.3);
+      }
+
+      [data-theme="light"] .chat-widget-toggle:hover {
+        box-shadow: 0 12px 40px rgba(184, 148, 45, 0.4);
+      }
+
+      [data-theme="light"] .chat-widget-welcome-icon {
+        background: linear-gradient(135deg, rgba(184, 148, 45, 0.15), rgba(184, 148, 45, 0.05));
+      }
+
+      [data-theme="light"] .chat-widget-welcome-icon svg {
+        fill: #b8942d;
+      }
+
+      [data-theme="light"] .chat-widget-welcome p {
+        color: rgba(30, 58, 95, 0.55);
+      }
+
+      [data-theme="light"] .chat-widget-send:disabled {
+        opacity: 0.4;
+      }
+
+      [data-theme="light"] .chat-widget-message.assistant .chat-widget-message-content h2,
+      [data-theme="light"] .chat-widget-message.assistant .chat-widget-message-content h3 {
+        color: #1e3a5f;
+      }
+
+      [data-theme="light"] .chat-widget-message.assistant .chat-widget-message-content a {
+        color: #b8942d;
       }
     `;
   }
@@ -463,6 +653,23 @@ class ChatWidgetBase {
         sendBtn.disabled = !input.value.trim() || this.isLoading;
       }
     });
+
+    widget.addEventListener('click', (e) => {
+      const feedbackBtn = e.target.closest('.chat-widget-feedback-btn');
+      if (feedbackBtn) {
+        const feedback = feedbackBtn.getAttribute('data-feedback');
+        const feedbackContainer = feedbackBtn.closest('.chat-widget-feedback');
+        const msgIndex = feedbackContainer ? parseInt(feedbackContainer.getAttribute('data-msg-index'), 10) : -1;
+        if (feedbackContainer) {
+          feedbackContainer.innerHTML = '<span class="chat-widget-feedback-done">Thanks for the feedback!</span>';
+        }
+        try {
+          const existing = JSON.parse(localStorage.getItem('mcc-chat-feedback') || '[]');
+          existing.push({ timestamp: Date.now(), feedback, messageIndex: msgIndex });
+          localStorage.setItem('mcc-chat-feedback', JSON.stringify(existing));
+        } catch (e) {}
+      }
+    });
   }
 
   toggle() {
@@ -516,9 +723,28 @@ class ChatWidgetBase {
     messageDiv.className = `chat-widget-message ${role}`;
     
     const formattedContent = useFormatting ? this.formatMessage(content) : this.escapeHtml(content);
-    messageDiv.innerHTML = `<div class="chat-widget-message-content">${formattedContent}</div>`;
+    let innerHTML = `<div class="chat-widget-message-content">${formattedContent}</div>`;
     
+    if (role === 'assistant') {
+      const msgIdx = this.messages.length > 0 ? this.messages.length - 1 : 0;
+      innerHTML += `
+        <div class="chat-widget-feedback" data-msg-index="${msgIdx}">
+          <button class="chat-widget-feedback-btn" data-feedback="up" aria-label="Helpful">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+          </button>
+          <button class="chat-widget-feedback-btn" data-feedback="down" aria-label="Not helpful">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+          </button>
+        </div>`;
+    }
+    
+    messageDiv.innerHTML = innerHTML;
     messagesContainer.appendChild(messageDiv);
+    
+    if (this.messages.length > 0) {
+      this.saveToStorage();
+    }
+    
     this.scrollToBottom();
   }
 
