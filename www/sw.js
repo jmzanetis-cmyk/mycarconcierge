@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcc-cache-v102';
+const CACHE_NAME = 'mcc-cache-v103';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -135,16 +135,13 @@ self.addEventListener('fetch', (event) => {
       url.pathname.endsWith('.html') ||
       request.headers.get('accept')?.includes('text/html')) {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        const fetchPromise = fetch(request).then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        }).catch(() => cached);
-        return cached || fetchPromise;
-      })
+      fetch(request).then((response) => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))
     );
     return;
   }
