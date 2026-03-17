@@ -1,4 +1,43 @@
+const crypto = require('crypto');
 const { createSupabaseClient } = require('./outreach-engine-core');
+
+function verifyResendWebhookSignature(rawBody, headers) {
+  const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    return { valid: false, reason: 'RESEND_WEBHOOK_SECRET not configured' };
+  }
+
+  const svixId = headers['svix-id'];
+  const svixTimestamp = headers['svix-timestamp'];
+  const svixSignature = headers['svix-signature'];
+
+  if (!svixId || !svixTimestamp || !svixSignature) {
+    return { valid: false, reason: 'Missing Svix signature headers' };
+  }
+
+  const timestampMs = parseInt(svixTimestamp, 10) * 1000;
+  const fiveMinutes = 5 * 60 * 1000;
+  if (Math.abs(Date.now() - timestampMs) > fiveMinutes) {
+    return { valid: false, reason: 'Webhook timestamp too old or too new (replay attack prevention)' };
+  }
+
+  const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`;
+  const secretBytes = Buffer.from(webhookSecret.replace(/^whsec_/, ''), 'base64');
+  const hmac = crypto.createHmac('sha256', secretBytes);
+  hmac.update(signedContent);
+  const computedSig = `v1,${hmac.digest('base64')}`;
+
+  const providedSigs = svixSignature.split(' ');
+  const isValid = providedSigs.some(sig => {
+    try {
+      return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(computedSig));
+    } catch {
+      return false;
+    }
+  });
+
+  return { valid: isValid, reason: isValid ? null : 'Signature mismatch' };
+}
 
 exports.handler = async function(event, context) {
   if (event.httpMethod === 'OPTIONS') {
@@ -6,10 +45,27 @@ exports.handler = async function(event, context) {
       statusCode: 204,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Headers': 'Content-Type,svix-id,svix-timestamp,svix-signature',
         'Access-Control-Allow-Methods': 'POST, OPTIONS'
       },
       body: ''
+    };
+  }
+
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: 'Method not allowed' };
+  }
+
+  const rawBody = event.body || '';
+  const headers = event.headers || {};
+
+  const verification = verifyResendWebhookSignature(rawBody, headers);
+  if (!verification.valid) {
+    console.warn('[OutreachEngine] Resend webhook rejected:', verification.reason);
+    return {
+      statusCode: 401,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Webhook signature invalid', reason: verification.reason })
     };
   }
 
@@ -19,7 +75,7 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    const body = JSON.parse(event.body || '{}');
+    const body = JSON.parse(rawBody);
     const eventType = body.type;
     const data = body.data || {};
 
