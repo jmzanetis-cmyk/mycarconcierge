@@ -13,9 +13,10 @@ function isValidUUID(str) {
   return UUID_REGEX.test(str);
 }
 
-var GUEST_TOKEN_SECRET = process.env.ADMIN_PASSWORD ?
-  crypto.createHash('sha256').update('mcc-guest-split-' + process.env.ADMIN_PASSWORD).digest('hex') :
-  'mcc-guest-token-fallback-dev';
+if (!process.env.ADMIN_PASSWORD) {
+  throw new Error('[utils] ADMIN_PASSWORD environment variable is required but not set');
+}
+var GUEST_TOKEN_SECRET = crypto.createHash('sha256').update('mcc-guest-split-' + process.env.ADMIN_PASSWORD).digest('hex');
 
 function generateGuestToken(participantId) {
   return crypto.createHmac('sha256', GUEST_TOKEN_SECRET).update(participantId).digest('hex').substring(0, 32);
