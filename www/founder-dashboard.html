@@ -1225,7 +1225,12 @@
               <span id="wefunder-copy-label">Copy Link</span>
             </button>
           </div>
-          <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 6px;">Investments made via your link are attributed to you for leaderboard and recognition.</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-top:6px;">
+            <div style="font-size: 0.74rem; color: var(--text-muted);">Investments made via your link are attributed to you for leaderboard and recognition.</div>
+            <div id="wefunder-click-stats" style="font-size:0.74rem;color:var(--text-muted);display:none;">
+              <span id="wefunder-click-total" style="font-weight:600;color:#00c48c;">0</span> total clicks &bull; <span id="wefunder-click-7d" style="font-weight:600;color:#00c48c;">0</span> this week
+            </div>
+          </div>
         </div>
         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
           <a id="wefunder-invest-link" href="https://wefunder.com/my.car.concierge" target="_blank" rel="noopener noreferrer" style="flex: 1; min-width: 140px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; background: linear-gradient(135deg, #00c48c, #00a87a); color: #fff; font-weight: 600; font-size: 0.92rem; border-radius: var(--radius-md); text-decoration: none;">

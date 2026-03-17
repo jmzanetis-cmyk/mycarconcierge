@@ -16,7 +16,7 @@
       const themeIcon = document.getElementById('theme-icon');
       const currentTheme = document.documentElement.getAttribute('data-theme');
       if (themeIcon) {
-        themeIcon.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+        themeIcon.innerHTML = currentTheme === 'dark' ? mccIcon('moon', 16) : '☀️';
       }
     }
 
@@ -32,7 +32,7 @@
         themeLabel.textContent = currentTheme === 'dark' ? 'Dark Mode' : 'Light Mode';
       }
       if (iconDisplay) {
-        iconDisplay.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+        iconDisplay.innerHTML = currentTheme === 'dark' ? mccIcon('moon', 16) : '☀️';
       }
     }
 
@@ -377,7 +377,7 @@
         if (data.redirect_url) {
           window.location.href = data.redirect_url;
         } else if (data.success) {
-          showToast('🍀 Clover connected successfully!', 'success');
+          showToast('Clover connected successfully!', 'success');
           await loadCloverStatus();
         } else {
           throw new Error(data.error || 'Failed to connect Clover');
@@ -388,7 +388,7 @@
       } finally {
         const connectBtn = document.getElementById('clover-connect-btn');
         connectBtn.disabled = false;
-        connectBtn.innerHTML = '🔗 Connect Clover Account';
+        connectBtn.innerHTML = `${mccIcon('share-2', 16)} Connect Clover Account`;
       }
     }
 
@@ -426,7 +426,7 @@
       } finally {
         const disconnectBtn = document.getElementById('clover-disconnect-btn');
         disconnectBtn.disabled = false;
-        disconnectBtn.innerHTML = '❌ Disconnect';
+        disconnectBtn.innerHTML = `${mccIcon('x', 16)} Disconnect`;
       }
     }
 
@@ -448,7 +448,7 @@
         const data = await response.json();
         
         if (data.success) {
-          showToast(`🍀 Synced ${data.transactions_count || 0} transactions!`, 'success');
+          showToast(`Synced ${data.transactions_count || 0} transactions!`, 'success');
           document.getElementById('clover-last-sync').textContent = new Date().toLocaleString();
           document.getElementById('clover-last-sync-display').textContent = 'Just now';
           await loadCloverTransactions();
@@ -461,7 +461,7 @@
       } finally {
         const syncBtn = document.getElementById('clover-sync-btn');
         syncBtn.disabled = false;
-        syncBtn.innerHTML = '🔄 Sync Now';
+        syncBtn.innerHTML = `${mccIcon('refresh-cw', 16)} Sync Now`;
       }
     }
 
@@ -525,7 +525,7 @@
       } finally {
         const connectBtn = document.getElementById('square-connect-btn');
         connectBtn.disabled = false;
-        connectBtn.innerHTML = '🔗 Connect Square';
+        connectBtn.innerHTML = `${mccIcon('share-2', 16)} Connect Square`;
       }
     }
 
@@ -564,7 +564,7 @@
       } finally {
         const disconnectBtn = document.getElementById('square-disconnect-btn');
         disconnectBtn.disabled = false;
-        disconnectBtn.innerHTML = '❌ Disconnect';
+        disconnectBtn.innerHTML = `${mccIcon('x', 16)} Disconnect`;
       }
     }
 
@@ -599,7 +599,7 @@
       } finally {
         const syncBtn = document.getElementById('square-sync-btn');
         syncBtn.disabled = false;
-        syncBtn.innerHTML = '🔄 Sync Now';
+        syncBtn.innerHTML = `${mccIcon('refresh-cw', 16)} Sync Now`;
       }
     }
 
@@ -632,7 +632,7 @@
           return `
             <tr>
               <td>${date}</td>
-              <td><span class="pos-tx-source-badge ${sourceClass}">${source === 'clover' ? '🍀' : '⬛'} ${source.charAt(0).toUpperCase() + source.slice(1)}</span></td>
+              <td><span class="pos-tx-source-badge ${sourceClass}">${source.charAt(0).toUpperCase() + source.slice(1)}</span></td>
               <td class="amount">$${amount}</td>
               <td>${card}</td>
               <td class="${statusClass}">${tx.status || 'completed'}</td>
@@ -660,7 +660,7 @@
         }, async (payload) => {
           if (payload.new.status === 'open') {
             console.log('[REALTIME] New package posted:', payload.new);
-            showToast('📦 New package available!', 'success');
+            showToast('New package available!', 'success');
             await loadOpenPackages();
             applyFilters();
           }
@@ -676,7 +676,7 @@
           console.log('[REALTIME] Bid updated:', payload.new);
           if (payload.old.status !== payload.new.status) {
             if (payload.new.status === 'accepted') {
-              showToast('🎉 Your bid was accepted!', 'success');
+              showToast('Your bid was accepted!', 'success');
             } else if (payload.new.status === 'rejected') {
               showToast('Your bid was not selected', 'success');
             }
@@ -693,7 +693,7 @@
           filter: `recipient_id=eq.${currentUser.id}`
         }, async (payload) => {
           console.log('[REALTIME] New message:', payload.new);
-          showToast('💬 New message from member!', 'success');
+          showToast('New message from member!', 'success');
           
           // If message modal is open, add message
           if (document.getElementById('message-modal').classList.contains('active')) {
@@ -742,7 +742,7 @@
         }, async (payload) => {
           if (payload.new.status === 'released' && payload.old.status !== 'released') {
             console.log('[REALTIME] Payment released:', payload.new);
-            showToast('💰 Payment released to your account!', 'success');
+            showToast('Payment released to your account!', 'success');
             await loadEarnings();
           }
         })
@@ -885,6 +885,7 @@
       }
       
       renderReviews();
+      loadAiReviewSummary();
     }
     
     async function submitCAR(event) {
@@ -917,7 +918,7 @@
           console.error('CAR submission error:', error);
           showToast('Failed to submit CAR: ' + error.message, 'error');
           submitBtn.disabled = false;
-          submitBtn.innerHTML = '<span>📤</span> Submit Corrective Action Response';
+          submitBtn.innerHTML = `<span>${mccIcon('upload', 16)}</span> Submit Corrective Action Response`;
           return;
         }
         
@@ -936,8 +937,54 @@
         console.error('CAR submission exception:', err);
         showToast('An error occurred while submitting. Please try again.', 'error');
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<span>📤</span> Submit Corrective Action Response';
+        submitBtn.innerHTML = `<span>${mccIcon('upload', 16)}</span> Submit Corrective Action Response`;
       }
+    }
+
+    async function loadAiReviewSummary() {
+      try {
+        const { data } = await getAiReviewSummary(currentUser.id);
+        if (data && data.summary_text) {
+          renderAiSummaryCard(data);
+        } else if (myReviews.length >= 2) {
+          const { data: generated } = await generateAiReviewSummary(currentUser.id);
+          if (generated && generated.summary_text) {
+            renderAiSummaryCard(generated);
+          }
+        }
+      } catch (err) {
+        console.log('AI review summary not available:', err);
+      }
+    }
+
+    function renderAiSummaryCard(data) {
+      const card = document.getElementById('ai-review-summary-card');
+      if (!card || !data.summary_text) return;
+
+      const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+      card.style.display = 'block';
+      document.getElementById('ai-summary-text').textContent = data.summary_text;
+
+      const positiveEl = document.getElementById('ai-positive-themes');
+      if (data.positive_themes && data.positive_themes.length > 0) {
+        positiveEl.innerHTML = `
+          <div style="font-size:0.82rem;font-weight:600;color:var(--accent-green);margin-bottom:8px;">${mccIcon('thumbs-up', 14)} Strengths</div>
+          ${data.positive_themes.map(t => `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:0.88rem;color:var(--text-secondary);"><span style="color:var(--accent-green);">+</span> ${esc(t)}</div>`).join('')}
+        `;
+      }
+
+      const constructiveEl = document.getElementById('ai-constructive-themes');
+      if (data.constructive_themes && data.constructive_themes.length > 0) {
+        constructiveEl.innerHTML = `
+          <div style="font-size:0.82rem;font-weight:600;color:var(--accent-orange);margin-bottom:8px;">${mccIcon('message-square', 14)} Areas for Growth</div>
+          ${data.constructive_themes.map(t => `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:0.88rem;color:var(--text-secondary);"><span style="color:var(--accent-orange);">~</span> ${esc(t)}</div>`).join('')}
+        `;
+      }
+
+      const meta = document.getElementById('ai-summary-meta');
+      const generatedDate = data.last_generated_at ? new Date(data.last_generated_at).toLocaleDateString() : '';
+      meta.textContent = `Based on ${data.review_count || 0} reviews${generatedDate ? ' • Updated ' + generatedDate : ''}`;
     }
 
     function renderReviews() {
@@ -992,9 +1039,9 @@
           </div>
           ${r.review_text ? `<p style="color:var(--text-secondary);margin-bottom:12px;">${r.review_text}</p>` : ''}
           <div style="font-size:0.85rem;color:var(--text-muted);">
-            ${r.service_type ? `<span style="margin-right:16px;">🔧 ${r.service_type}</span>` : ''}
-            ${r.vehicle_info ? `<span style="margin-right:16px;">🚗 ${r.vehicle_info}</span>` : ''}
-            ${r.amount_paid ? `<span>💰 $${r.amount_paid.toFixed(2)}</span>` : ''}
+            ${r.service_type ? `<span style="margin-right:16px;">${mccIcon('wrench', 14)} ${r.service_type}</span>` : ''}
+            ${r.vehicle_info ? `<span style="margin-right:16px;">${mccIcon('car', 14)} ${r.vehicle_info}</span>` : ''}
+            ${r.amount_paid ? `<span>${mccIcon('dollar-sign', 14)} $${r.amount_paid.toFixed(2)}</span>` : ''}
           </div>
           ${r.provider_response ? `
             <div style="margin-top:16px;padding:12px 16px;background:var(--bg-input);border-radius:var(--radius-md);border-left:3px solid var(--accent-gold);">
@@ -1002,7 +1049,7 @@
               <p style="margin:0;">${r.provider_response}</p>
             </div>
           ` : `
-            <button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="respondToReview('${r.id}')">💬 Respond to Review</button>
+            <button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="respondToReview('${r.id}')">${mccIcon('message-square', 14)} Respond to Review</button>
           `}
         </div>
       `).join('');
@@ -1025,7 +1072,7 @@
     let myPerformance = null;
 
     function getTierIcon(tier) {
-      return {'platinum': '💎', 'gold': '🥇', 'silver': '🥈', 'bronze': '🥉'}[tier] || '🥉';
+      return {'platinum': mccIcon('sparkles', 16), 'gold': mccIcon('trophy', 16), 'silver': mccIcon('award', 16), 'bronze': mccIcon('award', 16)}[tier] || mccIcon('award', 16);
     }
 
     function getTierLabel(tier) {
@@ -1049,11 +1096,11 @@
     function getPerformanceTips(perf) {
       const tips = [];
       if (!perf) {
-        tips.push({ icon: '💡', text: 'Start bidding on packages to build your performance record and earn badges!' });
+        tips.push({ icon: mccIcon('lightbulb', 16), text: 'Start bidding on packages to build your performance record and earn badges!' });
         return tips;
       }
       if (perf.jobs_completed < 5) {
-        tips.push({ icon: '🚀', text: 'Complete more jobs to improve your experience score. Each completed job boosts your overall rating!' });
+        tips.push({ icon: mccIcon('zap', 16), text: 'Complete more jobs to improve your experience score. Each completed job boosts your overall rating!' });
       }
       if (perf.rating_avg && perf.rating_avg < 4.5) {
         tips.push({ icon: '⭐', text: 'Focus on quality service to improve your rating. Aim for 4.8+ to earn the Top Rated badge!' });
@@ -1065,10 +1112,10 @@
         tips.push({ icon: '⏰', text: 'Improve your on-time completion rate. Reliable providers earn more repeat customers!' });
       }
       if (perf.acceptance_rate && perf.acceptance_rate < 30) {
-        tips.push({ icon: '📝', text: 'Your bid acceptance rate is low. Try competitive pricing or highlight your specialties.' });
+        tips.push({ icon: mccIcon('file-text', 16), text: 'Your bid acceptance rate is low. Try competitive pricing or highlight your specialties.' });
       }
       if (tips.length === 0) {
-        tips.push({ icon: '🎉', text: 'Great job! Keep up the excellent work to maintain your performance tier.' });
+        tips.push({ icon: mccIcon('party-popper', 16), text: 'Great job! Keep up the excellent work to maintain your performance tier.' });
       }
       return tips;
     }
@@ -1186,27 +1233,97 @@
 
       const container = document.getElementById('earnings-list');
       if (!myPayments.length) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">💰</div><p>No payments yet. Complete jobs to see your earnings!</p></div>';
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('dollar-sign', 48)}</div><p>No payments yet. Complete jobs to see your earnings!</p></div>`;
         return;
       }
 
       container.innerHTML = myPayments.map(p => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border-bottom:1px solid var(--border-subtle);">
-          <div>
-            <div style="font-weight:500;">${p.maintenance_packages?.title || 'Package'}</div>
-            <div style="font-size:0.85rem;color:var(--text-muted);">${new Date(p.created_at).toLocaleDateString()}</div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-weight:600;color:${p.status === 'released' ? 'var(--accent-green)' : p.status === 'held' ? 'var(--accent-blue)' : 'var(--text-muted)'};">
-              ${p.status === 'released' ? '+' : ''}$${(p.amount_provider || 0).toFixed(2)}
+        <div style="border-bottom:1px solid var(--border-subtle);">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;">
+            <div>
+              <div style="font-weight:500;">${p.maintenance_packages?.title || 'Package'}</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);">${new Date(p.created_at).toLocaleDateString()}</div>
+              ${p.status === 'released' && p.package_id ? `<button class="btn btn-ghost btn-sm" onclick="providerEarningsDebrief('${p.package_id}')" style="margin-top:6px;font-size:0.78rem;color:var(--accent-blue);padding:3px 8px;">${mccIcon('file-text', 14)} AI Service Summary</button>` : ''}
             </div>
-            <div style="font-size:0.8rem;color:var(--text-muted);">
-              ${p.status === 'held' ? '⏳ In Escrow' : p.status === 'released' ? '✓ Released' : p.status === 'refunded' ? '↩ Refunded' : p.status}
+            <div style="text-align:right;">
+              <div style="font-weight:600;color:${p.status === 'released' ? 'var(--accent-green)' : p.status === 'held' ? 'var(--accent-blue)' : 'var(--text-muted)'};">
+                ${p.status === 'released' ? '+' : ''}$${(p.amount_provider || 0).toFixed(2)}
+              </div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">
+                ${p.status === 'held' ? '⏳ In Escrow' : p.status === 'released' ? '✓ Released' : p.status === 'refunded' ? '↩ Refunded' : p.status}
+              </div>
             </div>
           </div>
+          ${p.status === 'released' && p.package_id ? `<div id="earnings-debrief-panel-${p.package_id}" style="display:none;padding:0 16px 16px;"></div>` : ''}
         </div>
       `).join('');
     }
+
+    async function providerEarningsDebrief(packageId) {
+      const panel = document.getElementById(`earnings-debrief-panel-${packageId}`);
+      if (!panel) return;
+      if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+
+      panel.style.display = 'block';
+      panel.innerHTML = `<div style="padding:10px;color:var(--text-muted);font-size:0.85rem;">${mccIcon('loader', 14)} Generating AI service summary…</div>`;
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const resp = await fetch(`${apiBase}/api/ai/appointment-debrief`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ package_id: packageId })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Failed to generate summary');
+
+        const summaryText = data.summary || '';
+        panel.innerHTML = `
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px;font-size:0.88rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <span style="font-weight:600;color:var(--accent-blue);font-size:0.85rem;">${mccIcon('file-text', 14)} AI Service Summary</span>
+              <button onclick="document.getElementById('earnings-debrief-panel-${packageId}').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--text-muted);">${mccIcon('x', 14)}</button>
+            </div>
+            <p style="font-size:0.78rem;color:var(--text-muted);margin:0 0 6px;">Review and edit before saving to service record.</p>
+            <textarea id="earnings-debrief-edit-${packageId}" style="width:100%;min-height:100px;padding:8px;border:1px solid var(--border-subtle);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:0.85rem;resize:vertical;font-family:inherit;">${summaryText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
+              <button onclick="saveEarningsDebrief('${packageId}')" class="btn btn-primary btn-sm" id="earnings-debrief-save-${packageId}">${mccIcon('save', 14)} Save to Service Record</button>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        panel.innerHTML = `<div style="padding:10px;color:var(--accent-red);font-size:0.85rem;">${mccIcon('alert-triangle', 14)} ${err.message || 'Could not generate summary'}</div>`;
+      }
+    }
+    window.providerEarningsDebrief = providerEarningsDebrief;
+
+    async function saveEarningsDebrief(packageId) {
+      const textarea = document.getElementById(`earnings-debrief-edit-${packageId}`);
+      const saveBtn = document.getElementById(`earnings-debrief-save-${packageId}`);
+      if (!textarea) return;
+      const summaryText = textarea.value.trim();
+      if (!summaryText) { showToast('Please enter a summary before saving', 'error'); return; }
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const resp = await fetch(`${apiBase}/api/ai/save-debrief`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ package_id: packageId, summary: summaryText })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Failed to save summary');
+        const panel = document.getElementById(`earnings-debrief-panel-${packageId}`);
+        if (panel) panel.innerHTML = `<div style="padding:10px;color:var(--accent-green);font-size:0.85rem;">${mccIcon('check-circle', 14)} Summary saved to service record.</div>`;
+        showToast('Service summary saved', 'success');
+      } catch (err) {
+        showToast(err.message || 'Could not save summary', 'error');
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = `${mccIcon('save', 14)} Save to Service Record`; }
+      }
+    }
+    window.saveEarningsDebrief = saveEarningsDebrief;
 
     function setupNav() {
       document.querySelectorAll('.nav-item[data-section]').forEach(item => {
@@ -1256,6 +1373,10 @@
       if (id === 'credits') {
         loadSubscription();
       }
+      // Load availability when section is shown
+      if (id === 'availability') {
+        loadAvailabilitySection();
+      }
     }
 
     async function loadOpenPackages() {
@@ -1292,7 +1413,10 @@
         
         renderOpenPackages();
         renderRecentPackages();
-        document.getElementById('open-count').textContent = openPackages.length;
+        const _oc = document.getElementById('open-count');
+        _oc.textContent = openPackages.length;
+        if (_oc.textContent === '0') _oc.style.display = 'none';
+        else _oc.style.display = '';
       } catch (err) {
         console.error('loadOpenPackages error:', err);
         openPackages = [];
@@ -1339,7 +1463,7 @@
       const packagesToRender = filtered || openPackages;
       
       if (!packagesToRender.length) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><p>No packages match your filters. Try adjusting your criteria.</p></div>';
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('package', 48)}</div><p>No packages match your filters. Try adjusting your criteria.</p></div>`;
         document.getElementById('filter-results-info').textContent = '';
         return;
       }
@@ -1487,7 +1611,7 @@
       const container = document.getElementById('recent-packages');
       const recent = openPackages.slice(0, 3);
       if (!recent.length) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><p>No open packages.</p></div>';
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('package', 48)}</div><p>No open packages.</p></div>`;
         return;
       }
       container.innerHTML = recent.map(p => renderPackageCard(p, true)).join('');
@@ -1499,13 +1623,13 @@
       const isRecurring = p.frequency && p.frequency !== 'one_time';
       const alreadyBid = myBids.some(b => b.package_id === p.id) || p._myBid;
       const myCurrentBid = p._myBid || myBids.find(b => b.package_id === p.id);
-      const vinDisplay = vehicle?.vin ? `<span title="${vehicle.vin}">🔖 VIN: ...${vehicle.vin.slice(-6)}</span>` : '';
+      const vinDisplay = vehicle?.vin ? `<span title="${vehicle.vin}">${mccIcon('file-text', 14)} VIN: ...${vehicle.vin.slice(-6)}</span>` : '';
       
       // Member loyalty badges
       const member = p.member || {};
       let memberBadgesHtml = '';
       if (member.platform_fee_exempt) {
-        memberBadgesHtml += '<span class="member-badge vip">👑 VIP</span>';
+        memberBadgesHtml += `<span class="member-badge vip">${mccIcon('award', 14)} VIP</span>`;
       }
       if (member.provider_verified) {
         memberBadgesHtml += '<span class="member-badge trusted">✓ Trusted</span>';
@@ -1540,7 +1664,7 @@
       const competitionHtml = bidCount > 0 ? `
         <div style="margin-top:10px;padding:10px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-            <span style="font-size:0.85rem;">🏆 <strong>${bidCount}</strong> bid${bidCount !== 1 ? 's' : ''} ${lowestBid ? `• Lowest: <strong style="color:var(--accent-gold);">$${lowestBid}</strong>` : ''}</span>
+            <span style="font-size:0.85rem;`>${mccIcon('trophy', 14)} <strong>${bidCount}</strong> bid${bidCount !== 1 ? 's' : ''} ${lowestBid ? `• Lowest: <strong style=`color:var(--accent-gold);">$${lowestBid}</strong>` : ''}</span>
             ${isLowestBidder ? '<span style="color:var(--accent-green);font-size:0.8rem;">✓ You\'re the lowest!</span>' : ''}
             ${canBeatLowest ? '<span style="color:var(--accent-orange);font-size:0.8rem;">⚡ You can beat this!</span>' : ''}
           </div>
@@ -1580,13 +1704,13 @@
               <strong style="color:var(--accent-blue);">${dsLabel}</strong>
             </div>
             <div style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:4px;">
-              📍 <span style="color:var(--text-primary);">${pickup}</span> → <span style="color:var(--text-primary);">${dropoff}</span>
+              ${mccIcon('map-pin', 14)} <span style="color:var(--text-primary);">${pickup}</span> → <span style="color:var(--text-primary);">${dropoff}</span>
             </div>
-            ${serviceTime ? `<div style="font-size:0.85rem;color:var(--text-muted);">🕐 ${serviceTime}</div>` : ''}
+            ${serviceTime ? `<div style="font-size:0.85rem;color:var(--text-muted);">${mccIcon('clock', 14)} ${serviceTime}</div>` : ''}
           </div>
         `;
       } else if (isDestinationService) {
-        destinationBadgeHtml = '<span class="package-badge" style="background:var(--accent-blue-soft);color:var(--accent-blue);">🚗 Transport Service</span>';
+        destinationBadgeHtml = `<span class="package-badge" style="background:var(--accent-blue-soft);color:var(--accent-blue);">${mccIcon('car', 14)} Transport Service</span>`;
       }
 
       // Private job indicator
@@ -1594,7 +1718,7 @@
       if (p._isPrivateJob) {
         privateJobHtml = `
           <div class="private-job-banner" style="margin-bottom:12px;padding:12px 16px;background:linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(168, 85, 247, 0.1));border:1px solid rgba(139, 92, 246, 0.5);border-radius:var(--radius-md);display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.3rem;">🔒</span>
+            <span style="font-size:1.3rem;">${mccIcon('lock', 20)}</span>
             <div>
               <div style="font-weight:600;color:#a78bfa;font-size:0.95rem;">Private Request</div>
               <div style="font-size:0.85rem;color:var(--text-secondary);">This customer sent this request directly to you. No competitive bidding required.</div>
@@ -1632,7 +1756,7 @@
             <div style="text-align:right;">
               ${destinationBadgeHtml}
               ${isRecurring ? '<span class="package-badge recurring">Recurring</span>' : ''}
-              ${p._isPrivateJob ? '<span class="package-badge" style="background:rgba(139, 92, 246, 0.15);color:#a78bfa;border:1px solid rgba(139, 92, 246, 0.5);">🔒 Private Request</span>' : ''}
+              ${p._isPrivateJob ? `<span class="package-badge" style="background:rgba(139, 92, 246, 0.15);color:#a78bfa;border:1px solid rgba(139, 92, 246, 0.5);">${mccIcon('lock', 14)} Private Request</span>` : ''}
               ${p._isExclusiveOpportunity && !p._isPrivateJob ? '<span class="package-badge" style="background:var(--accent-gold-soft);color:var(--accent-gold);border:1px solid var(--accent-gold);">⭐ Exclusive</span>' : ''}
               <span class="package-badge open">Open</span>
               ${countdownHtml}
@@ -1640,12 +1764,12 @@
           </div>
           ${destinationInfoHtml}
           <div class="package-meta">
-            <span style="color:var(--accent-gold);font-weight:500;">📍 ${locationDisplay} ${distanceDisplay ? `(${distanceDisplay})` : ''}</span>
-            <span>📅 ${new Date(p.created_at).toLocaleDateString()}</span>
-            ${p.category ? `<span>🏷️ ${formatCategory(p.category)}</span>` : ''}
-            <span>🔄 ${formatFrequency(p.frequency)}</span>
-            <span>🔧 ${p.parts_preference || 'Standard'} parts</span>
-            <span>🚗 ${formatPickup(p.pickup_preference)}</span>
+            <span style="color:var(--accent-gold);font-weight:500;">${mccIcon('map-pin', 14)} ${locationDisplay} ${distanceDisplay ? `(${distanceDisplay})` : ''}</span>
+            <span>${mccIcon('calendar', 14)} ${new Date(p.created_at).toLocaleDateString()}</span>
+            ${p.category ? `<span>${mccIcon('tag', 14)} ${formatCategory(p.category)}</span>` : ''}
+            <span>${mccIcon('refresh-cw', 14)} ${formatFrequency(p.frequency)}</span>
+            <span>${mccIcon('wrench', 14)} ${p.parts_preference || 'Standard'} parts</span>
+            <span>${mccIcon('car', 14)} ${formatPickup(p.pickup_preference)}</span>
             ${vinDisplay}
           </div>
           ${p._isPrivateJob ? '' : competitionHtml}
@@ -1684,7 +1808,9 @@
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       
       let text = '';
-      if (days > 0) {
+      if (days > 3) {
+        text = `Closes ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      } else if (days > 0) {
         text = `${days}d ${hours}h left`;
       } else if (hours > 0) {
         text = `${hours}h ${minutes}m left`;
@@ -1695,12 +1821,12 @@
       return { 
         text, 
         expired: false, 
-        urgent: diff < 4 * 60 * 60 * 1000 // Less than 4 hours
+        urgent: diff < 4 * 60 * 60 * 1000
       };
     }
 
     function formatCategory(cat) {
-      const map = { maintenance: 'Maintenance', detailing: 'Detailing', cosmetic: 'Cosmetic', accident_repair: 'Accident Repair', destination_service: 'Destination Service', other: 'Other' };
+      const map = { maintenance: 'Maintenance', detailing: 'Detailing', cosmetic: 'Cosmetic', accident_repair: 'Accident Repair', destination_service: 'Destination Service', snow_removal: 'Snow Removal', other: 'Other' };
       return map[cat] || cat || 'General';
     }
 
@@ -1714,8 +1840,8 @@
     }
 
     function getDestinationServiceIcon(serviceType) {
-      const icons = { airport: '✈️', dealership: '🏢', detailing: '✨', valet: '🔑' };
-      return icons[serviceType] || '📍';
+      const icons = { airport: '✈️', dealership: mccIcon('store', 16), detailing: '✨', valet: mccIcon('key', 16) };
+      return icons[serviceType] || mccIcon('map-pin', 16);
     }
 
     function getDestinationServiceLabel(serviceType) {
@@ -1739,7 +1865,7 @@
       const container = document.getElementById('my-bids');
       const pending = myBids.filter(b => b.status === 'pending' || b.status === 'rejected');
       if (!pending.length) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">💬</div><p>No pending bids. Browse packages to submit bids!</p></div>';
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('message-square', 48)}</div><p>No pending bids. Browse packages to submit bids!</p></div>`;
         return;
       }
       container.innerHTML = pending.map(b => `
@@ -1752,7 +1878,7 @@
             <div class="bid-meta">Submitted ${new Date(b.created_at).toLocaleDateString()}</div>
             <div class="bid-amount">$${(b.price || 0).toFixed(2)}</div>
           </div>
-          ${b.status === 'pending' ? `<div style="margin-top:12px;"><button class="btn btn-secondary btn-sm" onclick="openMessageWithMember('${b.package_id}', '${b.maintenance_packages?.member_id}')">💬 Message Member</button></div>` : ''}
+          ${b.status === 'pending' ? `<div style="margin-top:12px;"><button class="btn btn-secondary btn-sm" onclick="openMessageWithMember('${b.package_id}', '${b.maintenance_packages?.member_id}')">${mccIcon('message-square', 14)} Message Member</button></div>` : ''}
         </div>
       `).join('');
     }
@@ -1827,7 +1953,7 @@
           <div class="job-dashboard-header">
             <div>
               <div class="job-dashboard-title">${pkg?.title || 'Package'}</div>
-              <div class="job-dashboard-vehicle">🚗 ${vehicleName}</div>
+              <div class="job-dashboard-vehicle">${mccIcon('car', 14)} ${vehicleName}</div>
             </div>
             <div style="text-align:right;">
               <div class="job-dashboard-price">$${(bid.price || 0).toFixed(2)}</div>
@@ -1837,7 +1963,7 @@
           
           ${pkgStatus === 'accepted' ? `
             <div class="alert" style="background:var(--accent-blue-soft);border:1px solid rgba(74,124,255,0.3);color:var(--accent-blue);margin-bottom:16px;padding:12px;border-radius:var(--radius-md);font-size:0.88rem;">
-              💰 Payment is held in escrow. Coordinate with member and start work when ready!
+              ${mccIcon('dollar-sign', 14)} Payment is held in escrow. Coordinate with member and start work when ready!
             </div>
           ` : ''}
           
@@ -1864,29 +1990,70 @@
           ${evidenceHtml}
           
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle);">
-            <button class="btn btn-primary btn-sm" onclick="openMessageWithMember('${packageId}', '${memberId}')">💬 Contact Member</button>
-            <button class="inspection-btn" onclick="openInspectionModal('${packageId}', '${vehicleId}')">🔍 Inspection Report</button>
+            <button class="btn btn-primary btn-sm" onclick="openMessageWithMember('${packageId}', '${memberId}')">${mccIcon('message-square', 14)} Contact Member</button>
+            <button class="inspection-btn" onclick="openInspectionModal('${packageId}', '${vehicleId}')">${mccIcon('search', 14)} Inspection Report</button>
             ${pkgStatus === 'accepted' ? `
               <button class="btn btn-secondary btn-sm" style="background:var(--accent-green);color:#fff;border:none;" onclick="markWorkStarted('${packageId}')">▶️ Start Work</button>
             ` : pkgStatus === 'in_progress' ? `
               <button class="btn btn-secondary btn-sm" style="background:var(--accent-green);color:#fff;border:none;" onclick="markJobComplete('${packageId}')">✓ Mark Complete</button>
-              <button class="btn btn-secondary btn-sm" onclick="openUpsellModal('${packageId}', '${memberId}')">📢 Send Update</button>
+              <button class="btn btn-secondary btn-sm" onclick="openUpsellModal('${packageId}', '${memberId}')">${mccIcon('bell', 14)} Send Update</button>
             ` : ''}
           </div>
         </div>
       `;
     }
     
+    function showProviderApptCalendarOptions(apptId, dateStr, timeRange) {
+      const startTime = (timeRange || '').split(' - ')[0] || '12:00 PM';
+      const endTime = (timeRange || '').split(' - ')[1] || '1:00 PM';
+      const title = 'Auto Service Appointment — My Car Concierge';
+      const desc = 'Service appointment booked via My Car Concierge';
+
+      function toISODate(ds) {
+        try { const d = new Date(ds); return d.toISOString().split('T')[0].replace(/-/g, ''); } catch { return ''; }
+      }
+      function to24h(t) {
+        const m = t.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+        if (!m) return '120000';
+        let h = parseInt(m[1]); const min = m[2];
+        if (m[3] && m[3].toUpperCase() === 'PM' && h < 12) h += 12;
+        if (m[3] && m[3].toUpperCase() === 'AM' && h === 12) h = 0;
+        return String(h).padStart(2, '0') + min + '00';
+      }
+      const dtDate = toISODate(dateStr);
+      const dtStart = dtDate + 'T' + to24h(startTime);
+      const dtEnd = dtDate + 'T' + to24h(endTime);
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-backdrop active';
+      modal.id = 'provider-cal-modal';
+      modal.innerHTML = `
+        <div class="modal" style="max-width:340px;">
+          <div class="modal-header"><h3 class="modal-title">Add to Calendar</h3><button class="modal-close" onclick="document.getElementById('provider-cal-modal').remove()">×</button></div>
+          <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;">
+            <button class="btn btn-primary" onclick="(function(){
+              const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MCC//EN','BEGIN:VEVENT','UID:mcc-'+Date.now()+'@mycarconcierge.com','DTSTART:${dtStart}','DTEND:${dtEnd}','SUMMARY:${title.replace(/'/g, '')}','DESCRIPTION:${desc}','END:VEVENT','END:VCALENDAR'].join('\\r\\n');
+              const blob=new Blob([ics],{type:'text/calendar'});
+              const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mcc-appointment.ics';a.click();
+              document.getElementById('provider-cal-modal').remove();
+            })()">Download .ics File</button>
+            <a class="btn btn-ghost" href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dtStart}/${dtEnd}&details=${encodeURIComponent(desc)}" target="_blank" rel="noopener" onclick="document.getElementById('provider-cal-modal').remove()">Open in Google Calendar</a>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
     function renderSchedulingSection(packageId, memberId, providerId, appointment) {
       if (!appointment) {
         return `
           <div class="logistics-section">
             <div class="logistics-section-header">
-              <div class="logistics-section-title">📅 Service Scheduling</div>
+              <div class="logistics-section-title">${mccIcon('calendar', 16)} Service Scheduling</div>
             </div>
             <div class="logistics-section-content">
               <p style="margin-bottom:12px;">No appointment scheduled yet. Propose a date and time for the service.</p>
-              <button class="btn btn-primary btn-sm" onclick="openProviderScheduleModal('${packageId}', '${memberId}', '${providerId}')">📅 Propose Appointment</button>
+              <button class="btn btn-primary btn-sm" onclick="openProviderScheduleModal('${packageId}', '${memberId}', '${providerId}')">${mccIcon('calendar', 14)} Propose Appointment</button>
             </div>
           </div>
         `;
@@ -1902,7 +2069,7 @@
         actionHtml = `
           <div style="display:flex;gap:8px;margin-top:12px;">
             <button class="btn btn-primary btn-sm" onclick="confirmScheduleFromProvider('${appointment.id}', '${packageId}')">✓ Confirm</button>
-            <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromProvider('${appointment.id}', '${packageId}')">🔄 Suggest Different Time</button>
+            <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromProvider('${appointment.id}', '${packageId}')">${mccIcon('refresh-cw', 14)} Suggest Different Time</button>
           </div>
         `;
       } else if (status === 'rescheduled' && appointment.counter_proposed_by === 'member') {
@@ -1913,7 +2080,7 @@
             ${appointment.counter_notes ? `<p style="margin-top:4px;font-size:0.85rem;">${appointment.counter_notes}</p>` : ''}
             <div style="display:flex;gap:8px;margin-top:8px;">
               <button class="btn btn-primary btn-sm" onclick="acceptCounterFromProvider('${appointment.id}', '${packageId}')">✓ Accept</button>
-              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromProvider('${appointment.id}', '${packageId}')">🔄 Counter</button>
+              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromProvider('${appointment.id}', '${packageId}')">${mccIcon('refresh-cw', 14)} Counter</button>
             </div>
           </div>
         `;
@@ -1934,15 +2101,20 @@
       return `
         <div class="logistics-section">
           <div class="logistics-section-header">
-            <div class="logistics-section-title">📅 Service Scheduling</div>
-            <span class="appointment-status ${status}">${status === 'confirmed' ? '✓ Confirmed' : status === 'rescheduled' ? '🔄 Rescheduled' : '⏳ Proposed'}</span>
+            <div class="logistics-section-title">${mccIcon('calendar', 16)} Service Scheduling</div>
+            <span class="appointment-status ${status}">${status === 'confirmed' ? '✓ Confirmed' : status === 'rescheduled' ? `${mccIcon('refresh-cw', 14)} Rescheduled` : '⏳ Proposed'}</span>
           </div>
           <div class="logistics-section-content">
             <div class="appointment-card">
               <div class="appointment-date">${proposedDate}</div>
-              <div class="appointment-time">🕐 ${timeRange}</div>
+              <div class="appointment-time">${mccIcon('clock', 14)} ${timeRange}</div>
               <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Proposed by: ${proposedBy}</div>
-              ${appointment.provider_notes || appointment.member_notes ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:8px;">📝 ${appointment.provider_notes || appointment.member_notes}</div>` : ''}
+              ${appointment.provider_notes || appointment.member_notes ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:8px;">${mccIcon('file-text', 14)} ${appointment.provider_notes || appointment.member_notes}</div>` : ''}
+              <div style="margin-top:10px;">
+                <button class="btn btn-sm btn-ghost" onclick="showProviderApptCalendarOptions('${appointment.id}', '${(proposedDate || '').replace(/'/g, '')}', '${(timeRange || '').replace(/'/g, '')}')">
+                  ${mccIcon('calendar', 14)} Add to Calendar
+                </button>
+              </div>
             </div>
             ${confirmedHtml}
             ${actionHtml}
@@ -1953,14 +2125,14 @@
     
     function renderTransferSection(packageId, transfer) {
       const statusFlow = [
-        { key: 'with_member', label: 'With Member', icon: '👤' },
-        { key: 'in_transit_to_provider', label: 'In Transit to Shop', icon: '🚗' },
-        { key: 'at_provider', label: 'At Shop', icon: '🏪' },
-        { key: 'work_in_progress', label: 'Work Started', icon: '🔧' },
+        { key: 'with_member', label: 'With Member', icon: mccIcon('user', 16) },
+        { key: 'in_transit_to_provider', label: 'In Transit to Shop', icon: mccIcon('car', 16) },
+        { key: 'at_provider', label: 'At Shop', icon: mccIcon('store', 16) },
+        { key: 'work_in_progress', label: 'Work Started', icon: mccIcon('wrench', 16) },
         { key: 'work_complete', label: 'Work Complete', icon: '✅' },
-        { key: 'ready_for_return', label: 'Ready for Return', icon: '📦' },
-        { key: 'in_transit_to_member', label: 'Returning to Member', icon: '🚗' },
-        { key: 'returned', label: 'Returned', icon: '🎉' }
+        { key: 'ready_for_return', label: 'Ready for Return', icon: mccIcon('package', 16) },
+        { key: 'in_transit_to_member', label: 'Returning to Member', icon: mccIcon('car', 16) },
+        { key: 'returned', label: 'Returned', icon: mccIcon('party-popper', 16) }
       ];
       
       const currentStatus = transfer?.vehicle_status || 'with_member';
@@ -1968,9 +2140,9 @@
       const transferType = transfer?.transfer_type || 'member_dropoff';
       
       const transferTypeLabels = {
-        'member_dropoff': '🚗 Member drops off',
-        'provider_pickup': '🚚 Provider picks up',
-        'mobile_service': '📍 Mobile service'
+        'member_dropoff': `${mccIcon('car', 14)} Member drops off`,
+        'provider_pickup': `${mccIcon('truck', 14)} Provider picks up`,
+        'mobile_service': `${mccIcon('map-pin', 14)} Mobile service`
       };
       
       const timelineHtml = statusFlow.map((step, idx) => {
@@ -2011,7 +2183,7 @@
       return `
         <div class="logistics-section">
           <div class="logistics-section-header">
-            <div class="logistics-section-title">🚗 Vehicle Transfer</div>
+            <div class="logistics-section-title">${mccIcon('car', 16)} Vehicle Transfer</div>
             <span style="font-size:0.85rem;color:var(--text-muted);">${transferTypeLabels[transferType] || transferType}</span>
           </div>
           <div class="logistics-section-content">
@@ -2026,18 +2198,18 @@
     
     function getNextTransferAction(currentStatus, transferId, packageId) {
       const actions = {
-        'with_member': { label: 'Mark Vehicle Picked Up', nextStatus: 'in_transit_to_provider', icon: '🚗' },
-        'in_transit_to_provider': { label: 'Mark Vehicle Received', nextStatus: 'at_provider', icon: '🏪' },
-        'at_provider': { label: 'Mark Work Started', nextStatus: 'work_in_progress', icon: '🔧' },
+        'with_member': { label: 'Mark Vehicle Picked Up', nextStatus: 'in_transit_to_provider', icon: mccIcon('car', 16) },
+        'in_transit_to_provider': { label: 'Mark Vehicle Received', nextStatus: 'at_provider', icon: mccIcon('store', 16) },
+        'at_provider': { label: 'Mark Work Started', nextStatus: 'work_in_progress', icon: mccIcon('wrench', 16) },
         'work_in_progress': { label: 'Mark Work Complete', nextStatus: 'work_complete', icon: '✅' },
-        'work_complete': { label: 'Mark Ready for Return', nextStatus: 'ready_for_return', icon: '📦' },
-        'ready_for_return': { label: 'Mark Vehicle Returned', nextStatus: 'returned', icon: '🎉' },
-        'in_transit_to_member': { label: 'Mark Vehicle Returned', nextStatus: 'returned', icon: '🎉' }
+        'work_complete': { label: 'Mark Ready for Return', nextStatus: 'ready_for_return', icon: mccIcon('package', 16) },
+        'ready_for_return': { label: 'Mark Vehicle Returned', nextStatus: 'returned', icon: mccIcon('party-popper', 16) },
+        'in_transit_to_member': { label: 'Mark Vehicle Returned', nextStatus: 'returned', icon: mccIcon('party-popper', 16) }
       };
       
       const action = actions[currentStatus];
       if (!action || currentStatus === 'returned') {
-        return currentStatus === 'returned' ? `<div style="text-align:center;color:var(--accent-green);font-weight:500;padding:12px;">🎉 Vehicle returned successfully!</div>` : '';
+        return currentStatus === 'returned' ? `<div style="text-align:center;color:var(--accent-green);font-weight:500;padding:12px;">${mccIcon('party-popper', 16)} Vehicle returned successfully!</div>` : '';
       }
       
       return `
@@ -2056,13 +2228,13 @@
         const sharedByName = memberLocation.profiles?.full_name || 'Member';
         memberLocationHtml = `
           <div class="location-card" style="margin-bottom:12px;">
-            <div class="location-icon">📍</div>
+            <div class="location-icon">${mccIcon('map-pin', 16)}</div>
             <div class="location-details">
               <div style="font-weight:500;margin-bottom:4px;">Member's Location</div>
               <div class="location-address">${memberLocation.address_text || 'Location shared'}</div>
               <div class="location-time">Shared ${sharedTime}</div>
               <a href="${memberLocation.maps_link}" target="_blank" class="btn btn-secondary btn-sm" style="margin-top:8px;">
-                🗺️ Open in Google Maps
+                ${mccIcon('map-pin', 14)} Open in Google Maps
               </a>
             </div>
           </div>
@@ -2074,7 +2246,7 @@
         <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);border-radius:var(--radius-md);margin-bottom:12px;">
           <div style="width:12px;height:12px;border-radius:50%;background:var(--accent-green);animation:pulse 1.5s ease-in-out infinite;"></div>
           <div>
-            <div style="font-weight:600;color:var(--accent-green);">🚗 Live Tracking Active</div>
+            <div style="font-weight:600;color:var(--accent-green);">${mccIcon('car', 14)} Live Tracking Active</div>
             <div style="font-size:0.8rem;color:var(--text-secondary);" id="tracking-status-${packageId}">Sending location updates...</div>
           </div>
         </div>
@@ -2082,15 +2254,15 @@
       
       const trackingButtonsHtml = isTracking ? `
         <button class="btn btn-sm" style="background:var(--accent-red);color:#fff;border:none;" onclick="stopLocationTracking()">
-          🛑 Stop Tracking
+          ${mccIcon('x', 14)} Stop Tracking
         </button>
       ` : `
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-secondary btn-sm" onclick="startLocationTracking('${packageId}', 'pickup')" title="Track while picking up vehicle">
-            📍 Start Pickup Tracking
+            ${mccIcon('map-pin', 14)} Start Pickup Tracking
           </button>
           <button class="btn btn-secondary btn-sm" onclick="startLocationTracking('${packageId}', 'return')" title="Track while returning vehicle">
-            📍 Start Return Tracking
+            ${mccIcon('map-pin', 14)} Start Return Tracking
           </button>
         </div>
       `;
@@ -2098,7 +2270,7 @@
       return `
         <div class="logistics-section">
           <div class="logistics-section-header">
-            <div class="logistics-section-title">📍 Location & Tracking</div>
+            <div class="logistics-section-title">${mccIcon('map-pin', 16)} Location & Tracking</div>
           </div>
           <div class="logistics-section-content">
             ${trackingStatusHtml}
@@ -2108,7 +2280,7 @@
               ${trackingButtonsHtml}
               ${!isTracking ? `
                 <button class="btn btn-secondary btn-sm" onclick="shareProviderLocation('${packageId}', '${memberId}')">
-                  📍 Share One-Time Location
+                  ${mccIcon('map-pin', 14)} Share One-Time Location
                 </button>
               ` : ''}
             </div>
@@ -2181,7 +2353,7 @@
         }
       }, 25000);
       
-      showToast(`📍 Live tracking started (${trackingType})`, 'success');
+      showToast(`Live tracking started (${trackingType})`, 'success');
       renderActiveJobs();
     }
     
@@ -2233,7 +2405,7 @@
       activeTrackingPackageId = null;
       lastTrackingPosition = null;
       
-      showToast('🛑 Live tracking stopped', 'success');
+      showToast('Live tracking stopped', 'success');
       renderActiveJobs();
     }
 
@@ -2375,10 +2547,10 @@
       btn.disabled = true;
       btn.textContent = 'Getting location...';
       statusDiv.style.display = 'block';
-      statusDiv.innerHTML = '<p style="color:var(--accent-gold);">📍 Getting your location...</p>';
+      statusDiv.innerHTML = `<p style="color:var(--accent-gold);">${mccIcon('map-pin', 14)} Getting your location...</p>`;
       const { error, mapsLink } = await window.shareLocation(packageId, memberId, context, message);
       btn.disabled = false;
-      btn.textContent = '📍 Share My Location';
+      btn.innerHTML = `${mccIcon('map-pin', 14)} Share My Location`;
       if (error) { statusDiv.innerHTML = `<p style="color:var(--accent-red);">❌ ${error}</p>`; return; }
       statusDiv.innerHTML = `<p style="color:var(--accent-green);">✅ Location shared!</p><a href="${mapsLink}" target="_blank" style="color:var(--accent-gold);">View on Maps</a>`;
       showToast('Location shared with member!', 'success');
@@ -2402,10 +2574,10 @@
     // ========== SERVICE EVIDENCE CAPTURE ==========
     
     const evidenceTypeLabels = {
-      'pre_pickup': { label: 'Pre-Pickup Condition', icon: '🔵', color: 'var(--accent-blue)' },
-      'arrival_shop': { label: 'Arrival at Shop', icon: '🟠', color: '#f59e0b' },
-      'post_service': { label: 'Post-Service Condition', icon: '🟢', color: 'var(--accent-green)' },
-      'return': { label: 'Vehicle Return', icon: '🟣', color: '#a855f7' }
+      'pre_pickup': { label: 'Pre-Pickup Condition', icon: mccIcon('circle', 16), color: 'var(--accent-blue)' },
+      'arrival_shop': { label: 'Arrival at Shop', icon: mccIcon('circle', 16), color: '#f59e0b' },
+      'post_service': { label: 'Post-Service Condition', icon: mccIcon('circle', 16), color: 'var(--accent-green)' },
+      'return': { label: 'Vehicle Return', icon: mccIcon('circle', 16), color: '#a855f7' }
     };
 
     function captureEvidence(packageId, type) {
@@ -2464,7 +2636,7 @@
       btn.disabled = true;
       btn.textContent = 'Uploading...';
       statusDiv.style.display = 'block';
-      statusDiv.innerHTML = '<p style="color:var(--accent-gold);">📤 Uploading photos...</p>';
+      statusDiv.innerHTML = `<p style="color:var(--accent-gold);">${mccIcon('upload', 14)} Uploading photos...</p>`;
 
       try {
         const photoUrls = await window.uploadEvidencePhotos(packageId, files);
@@ -2472,7 +2644,7 @@
           throw new Error('Failed to upload photos');
         }
 
-        statusDiv.innerHTML = '<p style="color:var(--accent-gold);">📝 Saving evidence...</p>';
+        statusDiv.innerHTML = `<p style="color:var(--accent-gold);">${mccIcon('file-text', 14)} Saving evidence...</p>`;
 
         let lat = null, lng = null;
         try {
@@ -2512,7 +2684,7 @@
         showToast('Failed to save evidence', 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = '📸 Save Evidence';
+        btn.innerHTML = `${mccIcon('camera', 14)} Save Evidence`;
       }
     }
 
@@ -2523,18 +2695,18 @@
         return `
           <div class="logistics-section">
             <div class="logistics-section-header">
-              <div class="logistics-section-title">📸 Vehicle Condition Evidence</div>
+              <div class="logistics-section-title">${mccIcon('camera', 16)} Vehicle Condition Evidence</div>
             </div>
             <div class="logistics-section-content">
               <p style="color:var(--text-muted);margin-bottom:16px;font-size:0.9rem;">No evidence captured yet. Document the vehicle condition at each stage.</p>
-              <button class="btn btn-secondary btn-sm" onclick="captureEvidence('${packageId}', 'pre_pickup')">📸 Capture Pre-Pickup Evidence</button>
+              <button class="btn btn-secondary btn-sm" onclick="captureEvidence('${packageId}', 'pre_pickup')">${mccIcon('camera', 14)} Capture Pre-Pickup Evidence</button>
             </div>
           </div>
         `;
       }
 
       const timeline = evidence.map(e => {
-        const typeInfo = evidenceTypeLabels[e.type] || { label: e.type, icon: '📷', color: 'var(--text-muted)' };
+        const typeInfo = evidenceTypeLabels[e.type] || { label: e.type, icon: mccIcon('camera', 16), color: 'var(--text-muted)' };
         const photoGrid = e.photos?.length ? `
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
             ${e.photos.slice(0, 4).map(url => `
@@ -2552,7 +2724,7 @@
             <div style="flex:1;">
               <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;">${typeInfo.label}</div>
               <div style="display:flex;gap:16px;font-size:0.82rem;color:var(--text-secondary);margin-bottom:4px;">
-                <span>🔢 ${e.odometer?.toLocaleString() || 'N/A'} mi</span>
+                <span>${mccIcon('hash', 14)} ${e.odometer?.toLocaleString() || 'N/A'} mi</span>
                 <span>⛽ ${e.fuel_level || 'N/A'}</span>
               </div>
               ${e.notes ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:6px;">${e.notes}</div>` : ''}
@@ -2566,19 +2738,19 @@
       const capturedTypes = evidence.map(e => e.type);
       let nextButton = '';
       if (!capturedTypes.includes('pre_pickup')) {
-        nextButton = `<button class="btn btn-secondary btn-sm" onclick="captureEvidence('${packageId}', 'pre_pickup')">📸 Capture Pre-Pickup</button>`;
+        nextButton = `<button class="btn btn-secondary btn-sm" onclick="captureEvidence('${packageId}', 'pre_pickup')">${mccIcon('camera', 14)} Capture Pre-Pickup</button>`;
       } else if (!capturedTypes.includes('arrival_shop')) {
-        nextButton = `<button class="btn btn-secondary btn-sm" onclick="captureEvidence('${packageId}', 'arrival_shop')">📸 Record Shop Arrival</button>`;
+        nextButton = `<button class="btn btn-secondary btn-sm" onclick="captureEvidence('${packageId}', 'arrival_shop')">${mccIcon('camera', 14)} Record Shop Arrival</button>`;
       } else if (!capturedTypes.includes('post_service')) {
-        nextButton = `<button class="btn btn-secondary btn-sm" onclick="captureEvidence('${packageId}', 'post_service')">📸 Record Post-Service</button>`;
+        nextButton = `<button class="btn btn-secondary btn-sm" onclick="captureEvidence('${packageId}', 'post_service')">${mccIcon('camera', 14)} Record Post-Service</button>`;
       } else if (!capturedTypes.includes('return')) {
-        nextButton = `<button class="btn btn-secondary btn-sm" onclick="captureEvidence('${packageId}', 'return')">📸 Record Return</button>`;
+        nextButton = `<button class="btn btn-secondary btn-sm" onclick="captureEvidence('${packageId}', 'return')">${mccIcon('camera', 14)} Record Return</button>`;
       }
 
       return `
         <div class="logistics-section">
           <div class="logistics-section-header">
-            <div class="logistics-section-title">📸 Vehicle Condition Evidence</div>
+            <div class="logistics-section-title">${mccIcon('camera', 16)} Vehicle Condition Evidence</div>
           </div>
           <div class="logistics-section-content">
             ${timeline}
@@ -2676,7 +2848,7 @@
       btn.disabled = true;
       btn.textContent = 'Uploading...';
       statusDiv.style.display = 'block';
-      statusDiv.innerHTML = '<p style="color:var(--accent-gold);">📤 Uploading photos...</p>';
+      statusDiv.innerHTML = `<p style="color:var(--accent-gold);">${mccIcon('upload', 14)} Uploading photos...</p>`;
 
       try {
         const idPhotoUrl = await uploadKeyExchangePhoto(packageId, stage, idPhotoInput.files[0], 'driver_id');
@@ -2685,14 +2857,14 @@
         const keyPhotoFiles = Array.from(keyPhotosInput.files).slice(0, 3);
         const keyPhotoUrls = [];
         for (let i = 0; i < keyPhotoFiles.length; i++) {
-          statusDiv.innerHTML = `<p style="color:var(--accent-gold);">📤 Uploading photo ${i + 2} of ${keyPhotoFiles.length + 1}...</p>`;
+          statusDiv.innerHTML = `<p style="color:var(--accent-gold);">${mccIcon('upload', 14)} Uploading photo ${i + 2} of ${keyPhotoFiles.length + 1}...</p>`;
           const url = await uploadKeyExchangePhoto(packageId, stage, keyPhotoFiles[i], `key_${i + 1}`);
           if (url) keyPhotoUrls.push(url);
         }
 
         if (keyPhotoUrls.length === 0) throw new Error('Failed to upload key photos');
 
-        statusDiv.innerHTML = '<p style="color:var(--accent-gold);">📝 Saving key exchange record...</p>';
+        statusDiv.innerHTML = `<p style="color:var(--accent-gold);">${mccIcon('file-text', 14)} Saving key exchange record...</p>`;
 
         const { data: existingExchange } = await supabaseClient
           .from('key_exchanges')
@@ -2736,7 +2908,7 @@
         showToast('Failed to save key exchange', 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = '🔑 Verify Key Exchange';
+        btn.innerHTML = `${mccIcon('key', 14)} Verify Key Exchange`;
       }
     }
 
@@ -2786,7 +2958,7 @@
               <div style="font-size:20px;opacity:0.5;">${icon}</div>
               <div style="flex:1;">
                 <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;color:var(--text-muted);">${label}</div>
-                <button class="btn btn-secondary btn-sm" onclick="openKeyExchangeModal('${packageId}', '${stage}')">🔑 Verify ${label}</button>
+                <button class="btn btn-secondary btn-sm" onclick="openKeyExchangeModal('${packageId}', '${stage}')">${mccIcon('key', 14)} Verify ${label}</button>
               </div>
             </div>
           `;
@@ -2796,12 +2968,12 @@
       return `
         <div class="logistics-section">
           <div class="logistics-section-header">
-            <div class="logistics-section-title">🔑 Key Exchange Verification</div>
+            <div class="logistics-section-title">${mccIcon('key', 16)} Key Exchange Verification</div>
           </div>
           <div class="logistics-section-content">
             <p style="color:var(--text-muted);margin-bottom:16px;font-size:0.9rem;">Document key handoffs to verify custody and protect both parties.</p>
-            ${renderExchangeCard(pickupExchange, 'pickup', 'Pickup Key Exchange', '🔵')}
-            ${renderExchangeCard(returnExchange, 'return', 'Return Key Exchange', '🟣')}
+            ${renderExchangeCard(pickupExchange, 'pickup', 'Pickup Key Exchange', mccIcon('circle', 16))}
+            ${renderExchangeCard(returnExchange, 'return', 'Return Key Exchange', mccIcon('circle', 16))}
           </div>
         </div>
       `;
@@ -3143,13 +3315,13 @@
             
             <div style="margin-bottom:16px;padding:12px 16px;background:var(--bg-card);border-radius:var(--radius-md);">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                <span style="color:var(--accent-green);">📍</span>
+                <span style="color:var(--accent-green);">${mccIcon('map-pin', 14)}</span>
                 <span style="color:var(--text-muted);font-size:0.85rem;">Pickup Location</span>
               </div>
               <div style="font-weight:500;margin-bottom:12px;">${destService.pickup_location || 'To be confirmed'}</div>
               
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                <span style="color:var(--accent-gold);">🎯</span>
+                <span style="color:var(--accent-gold);">${mccIcon('target', 14)}</span>
                 <span style="color:var(--text-muted);font-size:0.85rem;">Destination</span>
               </div>
               <div style="font-weight:500;">${destService.dropoff_location || 'To be confirmed'}</div>
@@ -3159,7 +3331,7 @@
             
             ${destService.special_instructions ? `
               <div style="margin-top:16px;padding:12px 16px;background:var(--bg-card);border-radius:var(--radius-md);border-left:3px solid var(--accent-gold);">
-                <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:4px;">📝 Special Instructions</div>
+                <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:4px;">${mccIcon('file-text', 14)} Special Instructions</div>
                 <div style="color:var(--text-secondary);line-height:1.5;">${destService.special_instructions}</div>
               </div>
             ` : ''}
@@ -3171,7 +3343,7 @@
       document.getElementById('package-details-body').innerHTML = `
         ${pkg._isPrivateJob ? `
           <div style="margin-bottom:20px;padding:16px;background:linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(168, 85, 247, 0.1));border:1px solid rgba(139, 92, 246, 0.5);border-radius:var(--radius-md);display:flex;align-items:center;gap:12px;">
-            <span style="font-size:1.5rem;">🔒</span>
+            <span style="font-size:1.5rem;">${mccIcon('lock', 24)}</span>
             <div>
               <div style="font-weight:600;color:#a78bfa;font-size:1rem;">Private Request</div>
               <div style="font-size:0.9rem;color:var(--text-secondary);">This customer sent this request directly to you. No competitive bidding - accept directly!</div>
@@ -3180,9 +3352,9 @@
         ` : ''}
         <div style="margin-bottom:20px;">
           <div class="package-meta">
-            <span>🚗 ${vehicleName}</span>
-            <span>📍 ${locationDisplay}</span>
-            <span>📅 Posted ${new Date(pkg.created_at).toLocaleDateString()}</span>
+            <span>${mccIcon('car', 14)} ${vehicleName}</span>
+            <span>${mccIcon('map-pin', 14)} ${locationDisplay}</span>
+            <span>${mccIcon('calendar', 14)} Posted ${new Date(pkg.created_at).toLocaleDateString()}</span>
           </div>
         </div>
         ${destinationDetailsHtml}
@@ -3196,9 +3368,9 @@
         <div style="margin-bottom:20px;">
           <strong>Requirements</strong>
           <div class="package-meta" style="margin-top:8px;">
-            <span>🔄 ${formatFrequency(pkg.frequency)}</span>
-            <span>🔧 ${pkg.parts_preference || 'Standard'} parts</span>
-            <span>🚗 ${formatPickup(pkg.pickup_preference)}</span>
+            <span>${mccIcon('refresh-cw', 14)} ${formatFrequency(pkg.frequency)}</span>
+            <span>${mccIcon('wrench', 14)} ${pkg.parts_preference || 'Standard'} parts</span>
+            <span>${mccIcon('car', 14)} ${formatPickup(pkg.pickup_preference)}</span>
           </div>
           ${pkg.preferred_schedule ? `<p style="margin-top:8px;color:var(--text-secondary);">Preferred timing: ${pkg.preferred_schedule}</p>` : ''}
         </div>
@@ -3207,12 +3379,12 @@
             const oilPref = typeof pkg.oil_preference === 'string' ? JSON.parse(pkg.oil_preference) : pkg.oil_preference;
             if (oilPref.choice === 'provider') {
               return `<div style="margin-bottom:20px;padding:12px 16px;background:var(--accent-gold-soft);border-radius:var(--radius-md);border-left:3px solid var(--accent-gold);">
-                <strong>🛢️ Oil/Fluid Preference</strong>
+                <strong>${mccIcon('wrench', 14)} Oil/Fluid Preference</strong>
                 <p style="color:var(--text-secondary);margin-top:8px;">Provider's choice based on vehicle specs & manufacturer recommendations</p>
               </div>`;
             } else if (oilPref.choice === 'specify') {
               return `<div style="margin-bottom:20px;padding:12px 16px;background:var(--accent-gold-soft);border-radius:var(--radius-md);border-left:3px solid var(--accent-gold);">
-                <strong>🛢️ Oil/Fluid Preference</strong>
+                <strong>${mccIcon('wrench', 14)} Oil/Fluid Preference</strong>
                 <div style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;">
                   <span style="color:var(--text-secondary);">Type: <strong style="color:var(--text-primary);">${oilPref.oil_type || 'Not specified'}</strong></span>
                   ${oilPref.brand_preference ? `<span style="color:var(--text-secondary);">Brand: <strong style="color:var(--text-primary);">${oilPref.brand_preference}</strong></span>` : ''}
@@ -3226,7 +3398,7 @@
         ${pkg.insurance_claim ? `<div style="margin-bottom:20px;padding:12px;background:var(--accent-gold-soft);border-radius:var(--radius-md);"><strong>⚠️ Insurance Claim</strong><p style="color:var(--text-secondary);margin-top:4px;">Carrier: ${pkg.insurance_company || 'N/A'} • Claim #: ${pkg.claim_number || 'N/A'}</p></div>` : ''}
         ${photos?.length ? `
           <div style="margin-bottom:20px;">
-            <strong>📷 Photos (${photos.length})</strong>
+            <strong>${mccIcon('camera', 14)} Photos (${photos.length})</strong>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px;">
               ${photos.map(p => `
                 <div style="aspect-ratio:1;border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-subtle);cursor:pointer;" onclick="window.open('${p.url}','_blank')">
@@ -3348,7 +3520,7 @@
         if (ds.scheduled_date || ds.scheduled_time) {
           const dateStr = ds.scheduled_date ? new Date(ds.scheduled_date).toLocaleDateString() : '';
           const timeStr = ds.scheduled_time || '';
-          scheduleEl.innerHTML = `🕐 ${dateStr} ${timeStr}`.trim();
+          scheduleEl.innerHTML = `${mccIcon('clock', 14)} ${dateStr} ${timeStr}`.trim();
           scheduleEl.style.display = 'flex';
         } else {
           scheduleEl.style.display = 'none';
@@ -3357,7 +3529,7 @@
         // Special instructions
         const instructionsEl = document.getElementById('bid-dest-instructions');
         if (ds.special_instructions) {
-          instructionsEl.textContent = '📝 ' + ds.special_instructions;
+          instructionsEl.innerHTML = `${mccIcon('file-text', 14)} ${ds.special_instructions}`;
           instructionsEl.style.display = 'block';
         } else {
           instructionsEl.style.display = 'none';
@@ -3403,9 +3575,13 @@
       // Reset and initialize bid calculator
       resetBidCalculator();
       
-      // Load competition data for this package
+      // Load competition data and AI price suggestion for this package
       if (pkg) {
-        loadCompetitionData(packageId, pkg.categories?.[0] || 'General');
+        const pkgCategory = pkg.category || pkg.categories?.[0] || 'General';
+        loadCompetitionData(packageId, pkgCategory);
+        if (typeof loadAIPriceSuggestion === 'function') {
+          loadAIPriceSuggestion(packageId, pkgCategory);
+        }
       }
     }
 
@@ -3422,7 +3598,7 @@
       'WI': 5.0, 'WY': 4.0, 'DC': 6.0
     };
     
-    const PLATFORM_FEE_PERCENT = 10;
+    const PLATFORM_FEE_PERCENT = 0;
     
     let calculatorCompetitionData = { minBid: 0, maxBid: 0, avgBid: 0, count: 0 };
     
@@ -3738,9 +3914,13 @@
       if (!isUpdatingBid) {
         const suspensionCheck = await canProviderBid(currentUser.id);
         if (!suspensionCheck.canBid) {
-          showToast('Your account is currently suspended due to low ratings. You cannot place new bids at this time.', 'error');
+          if (suspensionCheck.reason === 'status_check_failed') {
+            showToast('Unable to verify your account status. Please try again.', 'error');
+          } else {
+            showToast('Your account is currently suspended due to low ratings. You cannot place new bids at this time.', 'error');
+            showSection('my-reviews');
+          }
           closeModal('bid-modal');
-          showSection('my-reviews');
           return;
         }
       }
@@ -3824,7 +4004,7 @@
         await supabaseClient.from('notifications').insert({
           user_id: pkg?.member_id,
           type: isUpdatingBid ? 'bid_updated' : 'bid_received',
-          title: isUpdatingBid ? '🔄 Bid updated!' : '💰 New bid received!',
+          title: isUpdatingBid ? 'Bid updated!' : 'New bid received!',
           message: `A provider has ${isUpdatingBid ? 'updated their bid to' : 'submitted a bid of'} $${Number(price).toFixed(2)} for "${pkg?.title || 'your package'}".`,
           link_type: 'package',
           link_id: currentBidPackageId
@@ -3924,7 +4104,7 @@
         member_dropoff: 'Drop-off', 
         rideshare: 'Rideshare', 
         either: 'Flexible',
-        destination_service: '🚗 Transport Service'
+        destination_service: 'Transport Service'
       };
       return map[pref] || pref || 'Flexible';
     }
@@ -4089,7 +4269,7 @@
         if (expStatus.status === 'expired') expiredDocs.push('Business License');
         else if (expStatus.status === 'expiring_soon') expiringDocs.push('Business License');
       } else if (app?.business_license_url) {
-        licenseStatus.textContent = '📄';
+        licenseStatus.innerHTML = mccIcon('file-text', 16);
         licenseBadge.textContent = 'Under Review';
         licenseBadge.style.background = 'var(--accent-blue-soft)';
         licenseBadge.style.color = 'var(--accent-blue)';
@@ -4119,7 +4299,7 @@
         if (expStatus.status === 'expired') expiredDocs.push('Insurance Certificate');
         else if (expStatus.status === 'expiring_soon') expiringDocs.push('Insurance Certificate');
       } else if (app?.insurance_document_url) {
-        insuranceStatus.textContent = '📄';
+        insuranceStatus.innerHTML = mccIcon('file-text', 16);
         insuranceBadge.textContent = 'Under Review';
         insuranceBadge.style.background = 'var(--accent-blue-soft)';
         insuranceBadge.style.color = 'var(--accent-blue)';
@@ -4149,7 +4329,7 @@
         if (expStatus.status === 'expired') expiredDocs.push('Certifications');
         else if (expStatus.status === 'expiring_soon') expiringDocs.push('Certifications');
       } else if (app?.certifications_url) {
-        certsStatus.textContent = '📄';
+        certsStatus.innerHTML = mccIcon('file-text', 16);
         certsBadge.textContent = 'Under Review';
         certsBadge.style.background = 'var(--accent-blue-soft)';
         certsBadge.style.color = 'var(--accent-blue)';
@@ -4613,7 +4793,7 @@
         return `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-input);border-radius:var(--radius-sm);margin-bottom:8px;">
             <div>
-              <span style="font-weight:500;">🚫 ${dateRange}</span>
+              <span style="font-weight:500;">${mccIcon('x', 14)} ${dateRange}</span>
               ${block.reason ? `<span style="color:var(--text-muted);margin-left:12px;">(${block.reason})</span>` : ''}
             </div>
             <button onclick="removeBlockedDate(${i})" style="background:none;border:none;color:var(--accent-red);cursor:pointer;font-size:1.1rem;">×</button>
@@ -4720,7 +4900,7 @@
           <div style="background:var(--bg-elevated);border:2px solid ${hasBadge ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:var(--radius-lg);padding:20px;position:relative;text-align:center;">
             ${badgeText ? `<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-gold);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">${badgeText}</div>` : ''}
             
-            <div style="font-size:2.5rem;margin-bottom:8px;">🎟️</div>
+            <div style="font-size:2.5rem;margin-bottom:8px;">${mccIcon('tag', 40)}</div>
             <h3 style="font-size:1.2rem;font-weight:600;margin-bottom:4px;">${pack.name}</h3>
             
             <div style="margin:16px 0;">
@@ -4867,7 +5047,7 @@
             
             const data = await response.json();
             if (data.success) {
-              showToast(`🎉 ${totalBids} bid credits added to your account!`, 'success');
+              showToast(`${totalBids} bid credits added to your account!`, 'success');
               await loadSubscription();
               return;
             } else {
@@ -4949,7 +5129,7 @@
         providerProfile.bid_credits = newCredits;
         providerProfile.total_bids_purchased = newTotalPurchased;
 
-        showToast(`🎉 ${totalBids} bid credits added to your account! (Demo Mode)`, 'success');
+        showToast(`${totalBids} bid credits added to your account! (Demo Mode)`, 'success');
         await loadSubscription();
 
       } catch (err) {
@@ -4957,12 +5137,13 @@
         showToast('Failed to process purchase. Please try again.', 'error');
       }
     }
+    window.purchaseBidPack = purchaseBidPack;
 
     // Handle return from Stripe Checkout
     function checkPurchaseStatus() {
       const params = new URLSearchParams(window.location.search);
       if (params.get('purchase') === 'success') {
-        showToast('🎉 Purchase successful! Credits added to your account.', 'success');
+        showToast('Purchase successful! Credits added to your account.', 'success');
         window.history.replaceState({}, '', 'providers.html');
         // Refresh to show updated credits
         setTimeout(() => loadSubscription(), 1000);
@@ -5008,7 +5189,7 @@
       if (!teamMembers.length) {
         container.innerHTML = `
           <div class="empty-state" style="grid-column:1/-1;">
-            <div class="empty-state-icon">👥</div>
+            <div class="empty-state-icon">${mccIcon('users', 48)}</div>
             <p>No team members yet. Add your first team member to showcase your team!</p>
           </div>
         `;
@@ -5027,7 +5208,7 @@
       container.innerHTML = teamMembers.map(member => {
         const photoHtml = member.photo_url 
           ? `<img src="${member.photo_url}" alt="${member.name}">`
-          : '👤';
+          : mccIcon('user', 24);
         
         const certBadges = (member.certifications || []).slice(0, 3).map(cert => 
           `<span class="team-badge">${cert}</span>`
@@ -5045,7 +5226,7 @@
               <div class="team-info">
                 <div class="team-name">${member.name}</div>
                 <span class="team-role">${roleLabels[member.role] || member.role}</span>
-                ${member.years_experience ? `<div class="team-experience">🛠️ ${member.years_experience} years experience</div>` : ''}
+                ${member.years_experience ? `<div class="team-experience">${mccIcon('wrench', 14)} ${member.years_experience} years experience</div>` : ''}
               </div>
             </div>
             ${member.bio ? `<div class="team-bio">${member.bio}</div>` : ''}
@@ -5062,7 +5243,7 @@
             </div>
             <div class="team-actions">
               <button class="btn btn-secondary btn-sm" onclick="openTeamMemberModal('${member.id}')">✏️ Edit</button>
-              <button class="btn btn-ghost btn-sm" onclick="deleteTeamMember('${member.id}')" style="color:var(--accent-red);">🗑️ Delete</button>
+              <button class="btn btn-ghost btn-sm" onclick="deleteTeamMember('${member.id}')" style="color:var(--accent-red);">${mccIcon('trash', 14)} Delete</button>
             </div>
           </div>
         `;
@@ -5086,7 +5267,7 @@
       // Reset photo upload
       const photoUpload = document.getElementById('team-photo-upload');
       photoUpload.innerHTML = `
-        <div class="team-photo-upload-icon">📷</div>
+        <div class="team-photo-upload-icon">${mccIcon('camera', 24)}</div>
         <div class="team-photo-upload-text">Upload Photo</div>
       `;
       photoUpload.classList.remove('has-photo');
@@ -5148,7 +5329,7 @@
       pendingTeamPhoto = null;
       const photoUpload = document.getElementById('team-photo-upload');
       photoUpload.innerHTML = `
-        <div class="team-photo-upload-icon">📷</div>
+        <div class="team-photo-upload-icon">${mccIcon('camera', 24)}</div>
         <div class="team-photo-upload-text">Upload Photo</div>
       `;
       photoUpload.classList.remove('has-photo');
@@ -5313,7 +5494,7 @@
         if (!data.checks || data.checks.length === 0) {
           container.innerHTML = `
             <div style="text-align:center;padding:20px;color:var(--text-muted);">
-              <div style="font-size:2rem;margin-bottom:12px;">📋</div>
+              <div style="font-size:2rem;margin-bottom:12px;">${mccIcon('clipboard-list', 32)}</div>
               <p>No background checks on file</p>
               <p style="font-size:0.85rem;">Initiate a background check to verify your credentials</p>
             </div>
@@ -5333,11 +5514,11 @@
             'pending': '⏳',
             'clear': '✅',
             'consider': '⚠️',
-            'suspended': '🚫',
-            'dispute': '📝'
+            'suspended': mccIcon('x', 16),
+            'dispute': mccIcon('file-text', 16)
           };
           const statusColor = statusColors[check.status] || 'var(--text-muted)';
-          const statusIcon = statusIcons[check.status] || '📋';
+          const statusIcon = statusIcons[check.status] || mccIcon('clipboard-list', 16);
           const checkDate = new Date(check.created_at).toLocaleDateString();
 
           return `
@@ -5358,7 +5539,7 @@
         console.error('Error loading background check status:', err);
         container.innerHTML = `
           <div style="text-align:center;padding:20px;color:var(--text-muted);">
-            <div style="font-size:2rem;margin-bottom:12px;">📋</div>
+            <div style="font-size:2rem;margin-bottom:12px;">${mccIcon('clipboard-list', 32)}</div>
             <p>Background check status unavailable</p>
             <p style="font-size:0.85rem;">Please try again later</p>
           </div>
@@ -5469,15 +5650,17 @@
 
     function updateNotificationBadge() {
       const unreadCount = notifications.filter(n => !n.read).length;
-      const badge = document.getElementById('notif-count');
-      if (badge) {
+      const label = unreadCount > 9 ? '9+' : String(unreadCount);
+      ['notif-count', 'header-notif-count', 'header-notif-count-desktop'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
         if (unreadCount > 0) {
-          badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
-          badge.style.display = 'inline';
+          el.textContent = label;
+          el.style.display = 'inline-flex';
         } else {
-          badge.style.display = 'none';
+          el.style.display = 'none';
         }
-      }
+      });
     }
 
     function renderNotifications() {
@@ -5485,17 +5668,17 @@
       if (!container) return;
       
       if (!notifications.length) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔔</div><p>No notifications yet.</p></div>';
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('bell', 48)}</div><p>No notifications yet.</p></div>`;
         return;
       }
 
       const notifIcons = {
-        'bid_accepted': '🎉',
-        'new_package': '📦',
-        'message_received': '💬',
-        'payment_received': '💰',
+        'bid_accepted': mccIcon('party-popper', 24),
+        'new_package': mccIcon('package', 24),
+        'message_received': mccIcon('message-square', 24),
+        'payment_received': mccIcon('dollar-sign', 24),
         'review_received': '⭐',
-        'default': '📢'
+        'default': mccIcon('bell', 24)
       };
 
       container.innerHTML = notifications.map(n => {
@@ -5633,7 +5816,7 @@
       
       const location = await getProviderLocation();
       if (!location) {
-        queueEl.innerHTML = '<div class="empty-state" style="padding:24px;"><p style="color:var(--text-muted);">📍 Enable location to see nearby emergencies</p></div>';
+        queueEl.innerHTML = `<div class="empty-state" style="padding:24px;"><p style="color:var(--text-muted);">${mccIcon('map-pin', 14)} Enable location to see nearby emergencies</p></div>`;
         return;
       }
 
@@ -5695,12 +5878,12 @@
       }
       
       const typeLabels = {
-        'flat_tire': '🛞 Flat Tire',
-        'dead_battery': '🔋 Dead Battery',
-        'lockout': '🔐 Locked Out',
-        'tow_needed': '🚛 Tow Needed',
+        'flat_tire': `${mccIcon('wrench', 14)} Flat Tire`,
+        'dead_battery': `${mccIcon('zap', 14)} Dead Battery`,
+        'lockout': `${mccIcon('lock', 14)} Locked Out`,
+        'tow_needed': `${mccIcon('truck', 14)} Tow Needed`,
         'fuel_delivery': '⛽ Out of Fuel',
-        'accident': '💥 Accident',
+        'accident': `${mccIcon('alert-triangle', 14)} Accident`,
         'other': '❓ Other'
       };
       
@@ -5728,7 +5911,7 @@
         }
         
         const claimCostHtml = hasCredits
-          ? `<span style="font-size:0.85rem;color:var(--accent-gold);">🎟️ 1 bid credit to claim</span>`
+          ? `<span style="font-size:0.85rem;color:var(--accent-gold);">${mccIcon('tag', 14)} 1 bid credit to claim</span>`
           : `<span style="font-size:0.85rem;color:var(--accent-red);">⚠️ Need 1 bid credit to claim</span>`;
         
         return `
@@ -5737,13 +5920,13 @@
               <div>
                 <span class="emergency-type-badge">${typeLabels[e.emergency_type] || e.emergency_type}</span>
                 <div style="margin-top:8px;">
-                  <span class="emergency-distance">📍 ${distance}</span>
+                  <span class="emergency-distance">${mccIcon('map-pin', 14)} ${distance}</span>
                   <span class="emergency-time" style="margin-left:12px;">⏱️ ${timeAgo}</span>
                 </div>
               </div>
               <div style="text-align:right;">
                 ${countdownHtml}
-                <div style="font-size:1.1rem;font-weight:600;color:var(--accent-green);margin-top:4px;">💰 ${escrowAmount}</div>
+                <div style="font-size:1.1rem;font-weight:600;color:var(--accent-green);margin-top:4px;">${mccIcon('dollar-sign', 14)} ${escrowAmount}</div>
                 <div style="font-size:0.75rem;color:var(--text-muted);">escrow authorized</div>
               </div>
             </div>
@@ -5753,7 +5936,7 @@
               ${claimCostHtml}
             </div>
             <div class="emergency-actions">
-              <button class="btn btn-emergency" onclick="openAcceptEmergency('${e.id}')" ${!hasCredits ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>🚗 Claim Emergency</button>
+              <button class="btn btn-emergency" onclick="openAcceptEmergency('${e.id}')" ${!hasCredits ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>${mccIcon('car', 14)} Claim Emergency</button>
               <button class="btn btn-secondary" onclick="viewEmergencyDetails('${e.id}')">View Details</button>
             </div>
           </div>
@@ -5809,12 +5992,12 @@
       
       const e = myActiveEmergency;
       const typeLabels = {
-        'flat_tire': '🛞 Flat Tire',
-        'dead_battery': '🔋 Dead Battery',
-        'lockout': '🔐 Locked Out',
-        'tow_needed': '🚛 Tow Needed',
+        'flat_tire': `${mccIcon('wrench', 14)} Flat Tire`,
+        'dead_battery': `${mccIcon('zap', 14)} Dead Battery`,
+        'lockout': `${mccIcon('lock', 14)} Locked Out`,
+        'tow_needed': `${mccIcon('truck', 14)} Tow Needed`,
         'fuel_delivery': '⛽ Out of Fuel',
-        'accident': '💥 Accident',
+        'accident': `${mccIcon('alert-triangle', 14)} Accident`,
         'other': '❓ Other'
       };
       
@@ -5849,7 +6032,7 @@
       // Mark Arrived button for accepted/en_route status
       let markArrivedBtn = '';
       if (['accepted', 'en_route'].includes(e.status) && !e.provider_arrived_at) {
-        markArrivedBtn = `<button class="btn btn-primary" onclick="markArrivedEmergency('${e.id}')">📍 Mark Arrived</button>`;
+        markArrivedBtn = `<button class="btn btn-primary" onclick="markArrivedEmergency('${e.id}')">${mccIcon('map-pin', 14)} Mark Arrived</button>`;
       }
       
       // Arrived confirmation
@@ -5866,14 +6049,14 @@
         case 'accepted':
           statusButtons = `
             ${markArrivedBtn}
-            <button class="btn btn-secondary" onclick="updateMyEmergencyStatus('${e.id}', 'en_route')">🚗 I'm En Route</button>
+            <button class="btn btn-secondary" onclick="updateMyEmergencyStatus('${e.id}', 'en_route`)">${mccIcon('car', 14)} I`m En Route</button>
           `;
           break;
         case 'en_route':
-          statusButtons = markArrivedBtn || `<button class="btn btn-primary" onclick="updateMyEmergencyStatus('${e.id}', 'arrived')">📍 I've Arrived</button>`;
+          statusButtons = markArrivedBtn || `<button class="btn btn-primary" onclick="updateMyEmergencyStatus('${e.id}', 'arrived`)">${mccIcon('map-pin', 14)} I`ve Arrived</button>`;
           break;
         case 'arrived':
-          statusButtons = `<button class="btn btn-primary" onclick="updateMyEmergencyStatus('${e.id}', 'in_progress')">🔧 Start Work</button>`;
+          statusButtons = `<button class="btn btn-primary" onclick="updateMyEmergencyStatus('${e.id}', 'in_progress')">${mccIcon('wrench', 14)} Start Work</button>`;
           break;
         case 'in_progress':
           statusButtons = `<button class="btn btn-primary" onclick="openCompleteEmergency('${e.id}', ${isTowing})">✅ Submit Invoice & Complete</button>`;
@@ -5894,21 +6077,21 @@
           ${arrivedInfo}
           
           <div style="background:var(--bg-elevated);padding:16px;border-radius:var(--radius-md);margin-bottom:16px;">
-            <div style="font-weight:600;margin-bottom:8px;">👤 ${memberName}</div>
-            ${memberPhone ? `<a href="tel:${memberPhone}" class="btn btn-secondary btn-sm" style="margin-top:8px;">📞 Call Member</a>` : ''}
+            <div style="font-weight:600;margin-bottom:8px;">${mccIcon('user', 14)} ${memberName}</div>
+            ${memberPhone ? `<a href="tel:${memberPhone}" class="btn btn-secondary btn-sm" style="margin-top:8px;">${mccIcon('phone', 14)} Call Member</a>` : ''}
           </div>
           
           ${e.address ? `
             <div style="margin-bottom:16px;">
-              <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">📍 Location</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">${mccIcon('map-pin', 14)} Location</div>
               <div style="font-size:0.9rem;">${e.address}</div>
-              <a href="https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}" target="_blank" class="btn btn-secondary btn-sm" style="margin-top:8px;">🗺️ Navigate</a>
+              <a href="https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}" target="_blank" class="btn btn-secondary btn-sm" style="margin-top:8px;">${mccIcon('map-pin', 14)} Navigate</a>
             </div>
           ` : ''}
           
           ${e.escrow_amount ? `
             <div style="margin-bottom:16px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);">
-              <div style="font-size:0.85rem;color:var(--text-muted);">💰 Member Escrow Authorized</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);">${mccIcon('dollar-sign', 14)} Member Escrow Authorized</div>
               <div style="font-size:1.2rem;font-weight:600;color:var(--accent-green);">$${parseFloat(e.escrow_amount).toFixed(2)}</div>
             </div>
           ` : ''}
@@ -5935,7 +6118,7 @@
         
         if (error) throw error;
         
-        showToast('📍 Marked as arrived!', 'success');
+        showToast('Marked as arrived!', 'success');
         await loadMyActiveEmergency();
       } catch (err) {
         console.error('Error marking arrived:', err);
@@ -5991,7 +6174,7 @@
         if (error) throw new Error(error);
         
         closeModal('emergency-accept-modal');
-        showToast('🚗 Emergency claimed! 1 bid credit deducted. Navigate to the member now.', 'success');
+        showToast('Emergency claimed! 1 bid credit deducted. Navigate to the member now.', 'success');
         await refreshEmergencies();
         await updateProviderStats();
         showSection('emergencies');
@@ -6009,12 +6192,12 @@
         if (!emergency) throw new Error('Emergency not found');
         
         const typeLabels = {
-          'flat_tire': '🛞 Flat Tire',
-          'dead_battery': '🔋 Dead Battery',
-          'lockout': '🔐 Locked Out',
-          'tow_needed': '🚛 Tow Needed',
+          'flat_tire': `${mccIcon('wrench', 14)} Flat Tire`,
+          'dead_battery': `${mccIcon('zap', 14)} Dead Battery`,
+          'lockout': `${mccIcon('lock', 14)} Locked Out`,
+          'tow_needed': `${mccIcon('truck', 14)} Tow Needed`,
           'fuel_delivery': '⛽ Out of Fuel',
-          'accident': '💥 Accident',
+          'accident': `${mccIcon('alert-triangle', 14)} Accident`,
           'other': '❓ Other'
         };
         
@@ -6022,14 +6205,14 @@
         
         document.getElementById('emergency-detail-content').innerHTML = `
           <div style="text-align:center;margin-bottom:20px;">
-            <div style="font-size:48px;margin-bottom:8px;">${typeLabels[emergency.emergency_type]?.split(' ')[0] || '🚨'}</div>
+            <div style="font-size:48px;margin-bottom:8px;">${typeLabels[emergency.emergency_type]?.split(' ')[0] || `${mccIcon('alert-triangle', 14)}`}</div>
             <div style="font-size:1.2rem;font-weight:600;">${typeLabels[emergency.emergency_type] || emergency.emergency_type}</div>
             <div style="color:var(--text-muted);font-size:0.9rem;">Posted ${timeAgo}</div>
           </div>
           
           ${emergency.address ? `
             <div style="padding:16px;background:var(--bg-input);border-radius:var(--radius-md);margin-bottom:16px;">
-              <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">📍 Location</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">${mccIcon('map-pin', 14)} Location</div>
               <div>${emergency.address}</div>
               <a href="https://www.google.com/maps?q=${emergency.lat},${emergency.lng}" target="_blank" style="color:var(--accent-gold);font-size:0.9rem;">View on Map →</a>
             </div>
@@ -6052,7 +6235,7 @@
         
         document.getElementById('emergency-detail-footer').innerHTML = `
           <button class="btn btn-secondary" onclick="closeModal('emergency-detail-modal')">Close</button>
-          <button class="btn btn-emergency" onclick="closeModal('emergency-detail-modal'); openAcceptEmergency('${emergencyId}')">🚗 Accept Emergency</button>
+          <button class="btn btn-emergency" onclick="closeModal('emergency-detail-modal'); openAcceptEmergency('${emergencyId}')">${mccIcon('car', 14)} Accept Emergency</button>
         `;
       } catch (err) {
         document.getElementById('emergency-detail-content').innerHTML = `
@@ -6142,7 +6325,7 @@
         }
         
         closeModal('emergency-complete-modal');
-        showToast('🎉 Invoice submitted! Emergency completed successfully!', 'success');
+        showToast('Invoice submitted! Emergency completed successfully!', 'success');
         myActiveEmergency = null;
         renderMyActiveEmergency();
       } catch (err) {
@@ -6321,7 +6504,7 @@
         if (result.error) throw result.error;
         
         closeModal('inspection-modal');
-        showToast('🔍 Inspection report saved successfully!', 'success');
+        showToast('Inspection report saved successfully!', 'success');
         await loadActiveJobs();
       } catch (err) {
         console.error('Error saving inspection:', err);
@@ -6339,13 +6522,13 @@
       'airport_pickup': { icon: '✈️', label: 'Airport Pickup', class: 'airport' },
       'airport_dropoff': { icon: '✈️', label: 'Airport Drop-off', class: 'airport' },
       'parking': { icon: '🅿️', label: 'Airport Parking', class: 'airport' },
-      'dealership': { icon: '🔧', label: 'Dealership', class: 'dealership' },
-      'dealership_pickup': { icon: '🔧', label: 'Dealership Pickup', class: 'dealership' },
-      'dealership_dropoff': { icon: '🔧', label: 'Dealership Drop-off', class: 'dealership' },
+      'dealership': { icon: mccIcon('wrench', 14), label: 'Dealership', class: 'dealership' },
+      'dealership_pickup': { icon: mccIcon('wrench', 14), label: 'Dealership Pickup', class: 'dealership' },
+      'dealership_dropoff': { icon: mccIcon('wrench', 14), label: 'Dealership Drop-off', class: 'dealership' },
       'detailing': { icon: '✨', label: 'Detailing', class: 'detail' },
       'detail': { icon: '✨', label: 'Detail', class: 'detail' },
-      'valet': { icon: '🔑', label: 'Valet', class: 'valet' },
-      'valet_event': { icon: '🔑', label: 'Valet Event', class: 'valet' }
+      'valet': { icon: mccIcon('key', 14), label: 'Valet', class: 'valet' },
+      'valet_event': { icon: mccIcon('key', 14), label: 'Valet Event', class: 'valet' }
     };
 
     const destStatusLabels = {
@@ -6539,7 +6722,7 @@
       const priority = getTaskPriority(task);
       if (priority === 3) return '<span class="dest-task-priority high">⚠️ OVERDUE</span>';
       if (priority === 2) return '<span class="dest-task-priority high">⚡ URGENT</span>';
-      if (priority === 1) return '<span class="dest-task-priority normal">📅 TODAY</span>';
+      if (priority === 1) return `<span class="dest-task-priority normal">${mccIcon('calendar', 14)} TODAY</span>`;
       return '';
     }
 
@@ -6550,7 +6733,7 @@
       if (!tasks.length) {
         container.innerHTML = `
           <div class="empty-state">
-            <div class="empty-state-icon">🚗</div>
+            <div class="empty-state-icon">${mccIcon('car', 14)}</div>
             <p>${currentDestFilter === 'all' ? 'No destination tasks yet. Tasks will appear here when members request transport services.' : 'No ' + currentDestFilter + ' tasks found.'}</p>
           </div>
         `;
@@ -6568,7 +6751,7 @@
       const member = pkg.profiles || task.member || {};
       const memberName = member.full_name || member.name || 'Member';
       
-      const typeInfo = destServiceTypeLabels[task.service_type] || { icon: '🚗', label: task.service_type, class: '' };
+      const typeInfo = destServiceTypeLabels[task.service_type] || { icon: `${mccIcon('car', 14)}`, label: task.service_type, class: '' };
       const statusLabel = destStatusLabels[task.status] || task.status;
       
       const pickupLocation = task.pickup_location || 'TBD';
@@ -6592,29 +6775,29 @@
           
           <div style="margin-bottom:12px;">
             <div style="font-weight:600;font-size:1rem;">${vehicleName}</div>
-            <div style="font-size:0.88rem;color:var(--text-secondary);">👤 ${memberName}</div>
+            <div style="font-size:0.88rem;color:var(--text-secondary);">${mccIcon('user', 14)} ${memberName}</div>
           </div>
           
           <div style="font-size:0.85rem;color:var(--accent-gold);margin-bottom:12px;">
-            🕐 ${scheduledTime}
+            ${mccIcon('clock', 14)} ${scheduledTime}
           </div>
           
           <div class="dest-task-route">
             <div style="flex:1;">
-              <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;">📍 From</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;">${mccIcon('map-pin', 14)} From</div>
               <div>${pickupLocation.substring(0, 40)}${pickupLocation.length > 40 ? '...' : ''}</div>
             </div>
             <span class="dest-task-route-arrow">→</span>
             <div style="flex:1;">
-              <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;">🏁 To</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;">${mccIcon('flag', 14)} To</div>
               <div>${dropoffLocation.substring(0, 40)}${dropoffLocation.length > 40 ? '...' : ''}</div>
             </div>
           </div>
           
           <div class="dest-task-meta">
             ${task.flight_number ? `<span>✈️ ${task.flight_number}</span>` : ''}
-            ${task.dealership_name ? `<span>🏢 ${task.dealership_name}</span>` : ''}
-            ${pkg.title ? `<span>📦 ${pkg.title}</span>` : ''}
+            ${task.dealership_name ? `<span>${mccIcon('store', 14)} ${task.dealership_name}</span>` : ''}
+            ${pkg.title ? `<span>${mccIcon('package', 14)} ${pkg.title}</span>` : ''}
           </div>
           
           <div class="dest-task-actions" onclick="event.stopPropagation();">
@@ -6630,25 +6813,25 @@
       switch(task.status) {
         case 'pending':
           buttons.push(`<button class="btn btn-primary btn-sm" onclick="updateDestTaskStatus('${task.id}', 'assigned')">✓ Accept Task</button>`);
-          buttons.push(`<button class="btn btn-secondary btn-sm" onclick="openDriverAssignment('${task.id}')">👤 Assign Driver</button>`);
+          buttons.push(`<button class="btn btn-secondary btn-sm" onclick="openDriverAssignment('${task.id}')">${mccIcon('user', 14)} Assign Driver</button>`);
           break;
         case 'assigned':
         case 'accepted':
-          buttons.push(`<button class="btn btn-primary btn-sm" onclick="openDestStatusUpdate('${task.id}', 'en_route')">🚗 Start Pickup</button>`);
+          buttons.push(`<button class="btn btn-primary btn-sm" onclick="openDestStatusUpdate('${task.id}', 'en_route')">${mccIcon('car', 14)} Start Pickup</button>`);
           break;
         case 'en_route':
-          buttons.push(`<button class="btn btn-primary btn-sm" onclick="openDestStatusUpdate('${task.id}', 'picked_up')">📸 Mark Picked Up</button>`);
+          buttons.push(`<button class="btn btn-primary btn-sm" onclick="openDestStatusUpdate('${task.id}', 'picked_up')">${mccIcon('camera', 14)} Mark Picked Up</button>`);
           break;
         case 'picked_up':
         case 'in_transit':
-          buttons.push(`<button class="btn btn-primary btn-sm" onclick="openDestStatusUpdate('${task.id}', 'at_destination')">🏁 At Destination</button>`);
+          buttons.push(`<button class="btn btn-primary btn-sm" onclick="openDestStatusUpdate('${task.id}', 'at_destination')">${mccIcon('flag', 14)} At Destination</button>`);
           break;
         case 'in_progress':
-          buttons.push(`<button class="btn btn-primary btn-sm" onclick="openDestStatusUpdate('${task.id}', 'at_destination')">🏁 At Destination</button>`);
+          buttons.push(`<button class="btn btn-primary btn-sm" onclick="openDestStatusUpdate('${task.id}', 'at_destination')">${mccIcon('flag', 14)} At Destination</button>`);
           break;
         case 'at_destination':
           if (task.service_type?.includes('airport') || task.service_type === 'parking') {
-            buttons.push(`<button class="btn btn-secondary btn-sm" onclick="openDestStatusUpdate('${task.id}', 'returning')">🚗 Start Return</button>`);
+            buttons.push(`<button class="btn btn-secondary btn-sm" onclick="openDestStatusUpdate('${task.id}', 'returning')">${mccIcon('car', 14)} Start Return</button>`);
           }
           buttons.push(`<button class="btn btn-primary btn-sm" onclick="openDestStatusUpdate('${task.id}', 'completed')">✅ Complete</button>`);
           break;
@@ -6675,7 +6858,7 @@
       const pkg = task.maintenance_packages || {};
       const vehicle = pkg.vehicles || {};
       const vehicleName = vehicle.year ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : 'Vehicle';
-      const typeInfo = destServiceTypeLabels[task.service_type] || { icon: '🚗', label: task.service_type, class: '' };
+      const typeInfo = destServiceTypeLabels[task.service_type] || { icon: `${mccIcon('car', 14)}`, label: task.service_type, class: '' };
       
       const member = pkg.profiles || task.member || {};
       const memberName = member.full_name || member.name || 'Member';
@@ -6706,28 +6889,28 @@
         
         <!-- Member Contact Info -->
         <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
-          <div style="font-weight:600;margin-bottom:12px;">👤 Member Contact</div>
+          <div style="font-weight:600;margin-bottom:12px;">${mccIcon('user', 14)} Member Contact</div>
           <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;">
             <div style="font-size:1rem;font-weight:500;">${memberName}</div>
-            ${memberPhone ? `<a href="tel:${memberPhone}" class="btn btn-sm btn-secondary" style="text-decoration:none;">📞 ${memberPhone}</a>` : ''}
+            ${memberPhone ? `<a href="tel:${memberPhone}" class="btn btn-sm btn-secondary" style="text-decoration:none;">${mccIcon('phone', 14)} ${memberPhone}</a>` : ''}
             ${memberEmail ? `<a href="mailto:${memberEmail}" class="btn btn-sm btn-secondary" style="text-decoration:none;">✉️ Email</a>` : ''}
           </div>
         </div>
         
         <!-- Route Info with Maps Links -->
         <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
-          <div style="font-weight:600;margin-bottom:12px;">📍 Route Information</div>
+          <div style="font-weight:600;margin-bottom:12px;">${mccIcon('map-pin', 14)} Route Information</div>
           <div class="dest-task-route" style="margin:0;">
             <div style="flex:1;">
               <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;">Pickup</div>
               <div>${pickupAddr || 'Not specified'}</div>
-              ${mapsPickupUrl ? `<a href="${mapsPickupUrl}" target="_blank" style="color:var(--accent-gold);font-size:0.85rem;text-decoration:none;">🗺️ Open in Maps</a>` : ''}
+              ${mapsPickupUrl ? `<a href="${mapsPickupUrl}" target="_blank" style="color:var(--accent-gold);font-size:0.85rem;text-decoration:none;">${mccIcon('map-pin', 14)} Open in Maps</a>` : ''}
             </div>
             <span class="dest-task-route-arrow">→</span>
             <div style="flex:1;">
               <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;">Destination</div>
               <div>${dropoffAddr || 'Not specified'}</div>
-              ${mapsDropoffUrl ? `<a href="${mapsDropoffUrl}" target="_blank" style="color:var(--accent-gold);font-size:0.85rem;text-decoration:none;">🗺️ Open in Maps</a>` : ''}
+              ${mapsDropoffUrl ? `<a href="${mapsDropoffUrl}" target="_blank" style="color:var(--accent-gold);font-size:0.85rem;text-decoration:none;">${mccIcon('map-pin', 14)} Open in Maps</a>` : ''}
             </div>
           </div>
           ${task.estimated_pickup_time ? `
@@ -6758,7 +6941,7 @@
       if (task.service_type?.includes('dealership')) {
         detailsHtml += `
           <div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.3);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
-            <div style="font-weight:600;margin-bottom:12px;">🔧 Dealership Information</div>
+            <div style="font-weight:600;margin-bottom:12px;">${mccIcon('wrench', 14)} Dealership Information</div>
             ${task.dealership_name ? `<div style="margin-bottom:8px;"><span style="color:var(--text-muted);">Dealership:</span> ${task.dealership_name}</div>` : ''}
             ${task.dealership_service_type ? `<div><span style="color:var(--text-muted);">Service Type:</span> ${task.dealership_service_type}</div>` : ''}
           </div>
@@ -6777,7 +6960,7 @@
       if (task.service_type?.includes('valet')) {
         detailsHtml += `
           <div style="background:rgba(236,72,153,0.1);border:1px solid rgba(236,72,153,0.3);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
-            <div style="font-weight:600;margin-bottom:12px;">🔑 Valet Event</div>
+            <div style="font-weight:600;margin-bottom:12px;">${mccIcon('key', 14)} Valet Event</div>
             ${task.valet_event_name ? `<div style="margin-bottom:8px;"><span style="color:var(--text-muted);">Event:</span> ${task.valet_event_name}</div>` : ''}
             ${task.valet_venue ? `<div><span style="color:var(--text-muted);">Venue:</span> ${task.valet_venue}</div>` : ''}
           </div>
@@ -6788,7 +6971,7 @@
       if (task.special_instructions) {
         detailsHtml += `
           <div style="background:var(--accent-gold-soft);border:1px solid rgba(212,168,85,0.3);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
-            <div style="font-weight:600;margin-bottom:8px;">📝 Special Instructions</div>
+            <div style="font-weight:600;margin-bottom:8px;">${mccIcon('file-text', 14)} Special Instructions</div>
             <div style="color:var(--text-secondary);">${task.special_instructions}</div>
           </div>
         `;
@@ -6797,7 +6980,7 @@
       // Status Timeline
       detailsHtml += `
         <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
-          <div style="font-weight:600;margin-bottom:16px;">📊 Status Timeline</div>
+          <div style="font-weight:600;margin-bottom:16px;">${mccIcon('bar-chart', 14)} Status Timeline</div>
           ${renderDestStatusTimeline(task)}
         </div>
       `;
@@ -6863,10 +7046,10 @@
       
       const statusInfo = {
         'assigned': '✓ Accepting this task - you will be responsible for completing it.',
-        'en_route': '🚗 Starting pickup - you are on your way to pick up the vehicle.',
-        'picked_up': '📸 Marking vehicle as picked up - please capture a photo, odometer reading, and fuel level.',
-        'at_destination': '🏁 Arrived at destination - please capture a photo and record the location.',
-        'returning': '🚗 Starting return trip - you are bringing the vehicle back.',
+        'en_route': `${mccIcon('car', 14)} Starting pickup - you are on your way to pick up the vehicle.`,
+        'picked_up': `${mccIcon('camera', 14)} Marking vehicle as picked up - please capture a photo, odometer reading, and fuel level.`,
+        'at_destination': `${mccIcon('flag', 14)} Arrived at destination - please capture a photo and record the location.`,
+        'returning': `${mccIcon('car', 14)} Starting return trip - you are bringing the vehicle back.`,
         'completed': '✅ Completing delivery - please capture a return photo and final odometer reading.'
       };
       
@@ -7103,7 +7286,7 @@
           const pkg = task.maintenance_packages || {};
           const vehicle = pkg.vehicles || {};
           const vehicleName = vehicle.year ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : 'Vehicle';
-          const typeInfo = destServiceTypeLabels[task.service_type] || { icon: '🚗', label: task.service_type };
+          const typeInfo = destServiceTypeLabels[task.service_type] || { icon: `${mccIcon('car', 14)}`, label: task.service_type };
           const completedDate = task.completed_at ? new Date(task.completed_at).toLocaleDateString() : 'Unknown';
           
           return `
@@ -7186,7 +7369,7 @@
       if (!fleetJobQueue.length) {
         container.innerHTML = `
           <div class="empty-state">
-            <div class="empty-state-icon">🏢</div>
+            <div class="empty-state-icon">${mccIcon('store', 14)}</div>
             <p>No fleet job requests at the moment. Fleet requests from verified business accounts will appear here.</p>
           </div>
         `;
@@ -7206,7 +7389,7 @@
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                   <span style="font-weight:600;font-size:1.05rem;">${fleet.company_name || fleet.name || 'Fleet Account'}</span>
                   ${fleet.verified ? '<span style="background:linear-gradient(135deg, var(--accent-gold), #c49a45);color:#0a0a0f;padding:2px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;">✓ Verified Business</span>' : ''}
-                  <span class="fleet-badge" style="background:var(--accent-gold-soft);color:var(--accent-gold);padding:2px 8px;border-radius:100px;font-size:0.72rem;font-weight:500;">🏢 Fleet</span>
+                  <span class="fleet-badge" style="background:var(--accent-gold-soft);color:var(--accent-gold);padding:2px 8px;border-radius:100px;font-size:0.72rem;font-weight:500;">${mccIcon('store', 14)} Fleet</span>
                 </div>
                 <div style="font-size:1rem;margin-bottom:4px;">${batch.name || batch.service_type || 'Bulk Service Request'}</div>
                 <div style="font-size:0.85rem;color:var(--text-muted);">Posted ${timePosted}</div>
@@ -7218,13 +7401,13 @@
             </div>
             
             <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;font-size:0.88rem;">
-              <span style="color:var(--text-secondary);">🚗 <strong>${vehicleCount}</strong> vehicles</span>
-              ${batch.service_type ? `<span style="color:var(--text-secondary);">🔧 ${batch.service_type}</span>` : ''}
-              ${batch.date_range_start && batch.date_range_end ? `<span style="color:var(--text-secondary);">📅 ${new Date(batch.date_range_start).toLocaleDateString()} - ${new Date(batch.date_range_end).toLocaleDateString()}</span>` : ''}
+              <span style="color:var(--text-secondary);">${mccIcon('car', 14)} <strong>${vehicleCount}</strong> vehicles</span>
+              ${batch.service_type ? `<span style="color:var(--text-secondary);">${mccIcon('wrench', 14)} ${batch.service_type}</span>` : ''}
+              ${batch.date_range_start && batch.date_range_end ? `<span style="color:var(--text-secondary);">${mccIcon('calendar', 14)} ${new Date(batch.date_range_start).toLocaleDateString()} - ${new Date(batch.date_range_end).toLocaleDateString()}</span>` : ''}
             </div>
 
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="btn btn-primary btn-sm" onclick="openFleetBulkBidModal('${batch.id}')">💼 Submit Bid</button>
+              <button class="btn btn-primary btn-sm" onclick="openFleetBulkBidModal('${batch.id}')">${mccIcon('briefcase', 14)} Submit Bid</button>
               <button class="btn btn-secondary btn-sm" onclick="openFleetRequestDetail('${batch.id}')">View Details</button>
             </div>
           </div>
@@ -7266,7 +7449,7 @@
       if (!fleetBatches.length) {
         container.innerHTML = `
           <div class="empty-state">
-            <div class="empty-state-icon">📦</div>
+            <div class="empty-state-icon">${mccIcon('package', 14)}</div>
             <p>No active bulk service batches. Accept fleet jobs to see batches here.</p>
           </div>
         `;
@@ -7304,8 +7487,8 @@
             </div>
 
             <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;font-size:0.88rem;">
-              <span style="color:var(--text-secondary);">🚗 <strong>${totalCount}</strong> vehicles</span>
-              ${batch.date_range_start && batch.date_range_end ? `<span style="color:var(--text-secondary);">📅 ${new Date(batch.date_range_start).toLocaleDateString()} - ${new Date(batch.date_range_end).toLocaleDateString()}</span>` : ''}
+              <span style="color:var(--text-secondary);">${mccIcon('car', 14)} <strong>${totalCount}</strong> vehicles</span>
+              ${batch.date_range_start && batch.date_range_end ? `<span style="color:var(--text-secondary);">${mccIcon('calendar', 14)} ${new Date(batch.date_range_start).toLocaleDateString()} - ${new Date(batch.date_range_end).toLocaleDateString()}</span>` : ''}
             </div>
 
             <div style="margin-bottom:16px;">
@@ -7319,7 +7502,7 @@
             </div>
 
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="btn btn-primary btn-sm" onclick="openFleetBatchDetail('${batch.id}')">📋 View Vehicles</button>
+              <button class="btn btn-primary btn-sm" onclick="openFleetBatchDetail('${batch.id}')">${mccIcon('clipboard-list', 14)} View Vehicles</button>
             </div>
           </div>
         `;
@@ -7418,15 +7601,15 @@
       const completedCount = items.filter(i => i.status === 'completed').length;
       const progress = items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0;
 
-      document.getElementById('fleet-batch-modal-title').textContent = `📦 ${batch.name || 'Batch Details'}`;
+      document.getElementById(`fleet-batch-modal-title`).innerHTML = `${mccIcon('package', 14)} ${batch.name || `Batch Details`}`;
 
       let html = `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
           <div>
             <div style="font-size:0.9rem;color:var(--text-secondary);">${fleet.company_name || fleet.name || 'Fleet'}</div>
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
-              <span style="font-size:0.88rem;color:var(--text-secondary);">🚗 ${items.length} vehicles</span>
-              ${batch.date_range_start ? `<span style="font-size:0.88rem;color:var(--text-secondary);">📅 ${new Date(batch.date_range_start).toLocaleDateString()} - ${new Date(batch.date_range_end || batch.date_range_start).toLocaleDateString()}</span>` : ''}
+              <span style="font-size:0.88rem;color:var(--text-secondary);">${mccIcon('car', 14)} ${items.length} vehicles</span>
+              ${batch.date_range_start ? `<span style="font-size:0.88rem;color:var(--text-secondary);">${mccIcon('calendar', 14)} ${new Date(batch.date_range_start).toLocaleDateString()} - ${new Date(batch.date_range_end || batch.date_range_start).toLocaleDateString()}</span>` : ''}
             </div>
           </div>
           <div style="text-align:right;">
@@ -7470,10 +7653,10 @@
             
             <div style="flex:1;min-width:150px;">
               <div style="font-weight:500;">${vehicleName}</div>
-              ${item.assigned_driver ? `<div style="font-size:0.82rem;color:var(--text-muted);">👤 ${item.assigned_driver.full_name || 'Driver'}</div>` : ''}
+              ${item.assigned_driver ? `<div style="font-size:0.82rem;color:var(--text-muted);">${mccIcon('user', 14)} ${item.assigned_driver.full_name || 'Driver'}</div>` : ''}
             </div>
 
-            <div style="font-size:0.85rem;color:var(--text-secondary);">📅 ${scheduledDate}</div>
+            <div style="font-size:0.85rem;color:var(--text-secondary);">${mccIcon('calendar', 14)} ${scheduledDate}</div>
 
             <span class="fleet-item-status ${item.status}">${statusLabels[item.status] || item.status}</span>
 
@@ -7655,7 +7838,7 @@
         const items = batch.items || [];
         const vehicleCount = items.length || batch.vehicle_count || 0;
 
-        document.getElementById('fleet-request-modal-title').textContent = `📋 ${batch.name || 'Fleet Service Request'}`;
+        document.getElementById(`fleet-request-modal-title`).innerHTML = `${mccIcon('clipboard-list', 14)} ${batch.name || `Fleet Service Request`}`;
 
         let html = `
           <div style="background:linear-gradient(135deg, var(--accent-gold-soft), rgba(212,168,85,0.05));border:1px solid rgba(212,168,85,0.3);border-radius:var(--radius-md);padding:20px;margin-bottom:20px;">
@@ -7665,8 +7848,8 @@
             </div>
             <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:0.9rem;">
               <span style="color:var(--accent-green);">✓ Guaranteed Payment</span>
-              <span style="color:var(--accent-blue);">💰 Volume Pricing</span>
-              <span style="color:var(--text-secondary);">🔄 Recurring Potential</span>
+              <span style="color:var(--accent-blue);">${mccIcon('dollar-sign', 14)} Volume Pricing</span>
+              <span style="color:var(--text-secondary);">${mccIcon('refresh-cw', 14)} Recurring Potential</span>
             </div>
           </div>
 
@@ -7688,7 +7871,7 @@
           </div>
 
           <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
-            <div style="font-weight:600;margin-bottom:12px;">🔧 Service Details</div>
+            <div style="font-weight:600;margin-bottom:12px;">${mccIcon('wrench', 14)} Service Details</div>
             <div style="color:var(--text-secondary);">
               ${batch.service_type ? `<div style="margin-bottom:8px;"><strong>Service Type:</strong> ${batch.service_type}</div>` : ''}
               ${batch.description ? `<div>${batch.description}</div>` : '<div>Standard fleet service request</div>'}
@@ -7697,7 +7880,7 @@
 
           ${items.length > 0 ? `
           <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;">
-            <div style="font-weight:600;margin-bottom:12px;">🚗 Vehicles in Batch</div>
+            <div style="font-weight:600;margin-bottom:12px;">${mccIcon('car', 14)} Vehicles in Batch</div>
             <div style="max-height:200px;overflow-y:auto;">
               ${items.slice(0, 10).map((item, i) => {
                 const v = item.vehicle || {};
@@ -7712,7 +7895,7 @@
         document.getElementById('fleet-request-modal-body').innerHTML = html;
         document.getElementById('fleet-request-modal-footer').innerHTML = `
           <button class="btn btn-secondary" onclick="closeModal('fleet-request-modal')">Close</button>
-          <button class="btn btn-primary" onclick="closeModal('fleet-request-modal');openFleetBulkBidModal('${batchId}')">💼 Submit Bid</button>
+          <button class="btn btn-primary" onclick="closeModal('fleet-request-modal');openFleetBulkBidModal('${batchId}')">${mccIcon('briefcase', 14)} Submit Bid</button>
         `;
       } catch (err) {
         console.error('Error loading request details:', err);
@@ -8753,9 +8936,9 @@
       if (!referrals || referrals.length === 0) {
         listEl.innerHTML = `
           <div class="empty-state" style="padding:32px;text-align:center;">
-            <div style="font-size:2rem;margin-bottom:12px;">👥</div>
+            <div style="font-size:2rem;margin-bottom:12px;">${mccIcon('users', 14)}</div>
             <p style="color:var(--text-muted);">No referrals yet. Share your QR codes to grow your network!</p>
-            <button onclick="showSection('refer-providers')" class="btn btn-primary" style="margin-top:16px;">🔗 Get Your QR Codes</button>
+            <button onclick="showSection('refer-providers')" class="btn btn-primary" style="margin-top:16px;">${mccIcon('share-2', 14)} Get Your QR Codes</button>
           </div>
         `;
         return;
@@ -8770,13 +8953,13 @@
         const formattedDate = signupDate ? new Date(signupDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
         
         let badgeText = 'New Member';
-        let badgeIcon = '🌟';
+        let badgeIcon = `${mccIcon('sparkles', 14)}`;
         if (referralType === 'loyal_customer') {
           badgeText = 'Loyal Customer';
-          badgeIcon = '👑';
+          badgeIcon = `${mccIcon('award', 14)}`;
         } else if (referralType === 'provider') {
           badgeText = 'Provider';
-          badgeIcon = '🔧';
+          badgeIcon = `${mccIcon('wrench', 14)}`;
         }
         
         return `
@@ -9197,61 +9380,61 @@
       quick_visual: {
         name: 'Quick Visual',
         items: [
-          { id: 'tires', name: 'Tires', icon: '🛞', options: ['Good', 'Fair', 'Poor'] },
-          { id: 'lights', name: 'Lights', icon: '💡', options: ['Working', 'Not Working'] },
-          { id: 'fluids', name: 'Fluid Levels', icon: '🛢️', options: ['Full', 'Low', 'Empty'] },
-          { id: 'wipers', name: 'Wipers', icon: '🌧️', options: ['Good', 'Worn'] },
-          { id: 'exterior', name: 'Exterior Condition', icon: '🚗', options: ['Good', 'Fair', 'Poor'] }
+          { id: 'tires', name: 'Tires', icon: mccIcon('wrench', 14), options: ['Good', 'Fair', 'Poor'] },
+          { id: 'lights', name: 'Lights', icon: mccIcon('lightbulb', 14), options: ['Working', 'Not Working'] },
+          { id: 'fluids', name: 'Fluid Levels', icon: mccIcon('wrench', 14), options: ['Full', 'Low', 'Empty'] },
+          { id: 'wipers', name: 'Wipers', icon: mccIcon('cloud', 14), options: ['Good', 'Worn'] },
+          { id: 'exterior', name: 'Exterior Condition', icon: mccIcon('car', 14), options: ['Good', 'Fair', 'Poor'] }
         ]
       },
       multi_point: {
         name: 'Multi-Point',
         items: [
-          { id: 'tires_tread', name: 'Tire Tread Depth', icon: '🛞', options: ['Good', 'Fair', 'Poor'] },
-          { id: 'tires_pressure', name: 'Tire Pressure', icon: '🎈', options: ['Good', 'Low', 'High'] },
-          { id: 'brakes_pads', name: 'Brake Pads', icon: '🛑', options: ['Good', 'Fair', 'Poor'] },
+          { id: 'tires_tread', name: 'Tire Tread Depth', icon: mccIcon('wrench', 14), options: ['Good', 'Fair', 'Poor'] },
+          { id: 'tires_pressure', name: 'Tire Pressure', icon: mccIcon('circle', 14), options: ['Good', 'Low', 'High'] },
+          { id: 'brakes_pads', name: 'Brake Pads', icon: mccIcon('x', 14), options: ['Good', 'Fair', 'Poor'] },
           { id: 'brakes_rotors', name: 'Brake Rotors', icon: '⚙️', options: ['Good', 'Fair', 'Poor'] },
-          { id: 'brakes_fluid', name: 'Brake Fluid', icon: '💧', options: ['Full', 'Low', 'Empty'] },
-          { id: 'lights_headlights', name: 'Headlights', icon: '🔦', options: ['Working', 'Not Working'] },
-          { id: 'lights_taillights', name: 'Taillights', icon: '🚨', options: ['Working', 'Not Working'] },
+          { id: 'brakes_fluid', name: 'Brake Fluid', icon: mccIcon('droplet', 14), options: ['Full', 'Low', 'Empty'] },
+          { id: 'lights_headlights', name: 'Headlights', icon: mccIcon('flashlight', 14), options: ['Working', 'Not Working'] },
+          { id: 'lights_taillights', name: 'Taillights', icon: mccIcon('alert-triangle', 14), options: ['Working', 'Not Working'] },
           { id: 'lights_signals', name: 'Turn Signals', icon: '↗️', options: ['Working', 'Not Working'] },
-          { id: 'oil', name: 'Oil Level', icon: '🛢️', options: ['Full', 'Low', 'Empty'] },
+          { id: 'oil', name: 'Oil Level', icon: mccIcon('wrench', 14), options: ['Full', 'Low', 'Empty'] },
           { id: 'coolant', name: 'Coolant', icon: '❄️', options: ['Full', 'Low', 'Empty'] },
           { id: 'transmission', name: 'Transmission Fluid', icon: '⚙️', options: ['Full', 'Low', 'Empty'] },
-          { id: 'battery', name: 'Battery', icon: '🔋', options: ['Good', 'Weak', 'Replace'] },
-          { id: 'belts', name: 'Belts & Hoses', icon: '🔗', options: ['Good', 'Worn', 'Replace'] },
-          { id: 'wipers', name: 'Wipers', icon: '🌧️', options: ['Good', 'Worn'] },
-          { id: 'air_filter', name: 'Air Filter', icon: '🌬️', options: ['Clean', 'Dirty', 'Replace'] }
+          { id: 'battery', name: 'Battery', icon: mccIcon('zap', 14), options: ['Good', 'Weak', 'Replace'] },
+          { id: 'belts', name: 'Belts & Hoses', icon: mccIcon('share-2', 14), options: ['Good', 'Worn', 'Replace'] },
+          { id: 'wipers', name: 'Wipers', icon: mccIcon('cloud', 14), options: ['Good', 'Worn'] },
+          { id: 'air_filter', name: 'Air Filter', icon: mccIcon('wind', 14), options: ['Clean', 'Dirty', 'Replace'] }
         ]
       },
       full_diagnostic: {
         name: 'Full Diagnostic',
         items: [
-          { id: 'tires_tread', name: 'Tire Tread Depth', icon: '🛞', options: ['Good', 'Fair', 'Poor'] },
-          { id: 'tires_pressure', name: 'Tire Pressure', icon: '🎈', options: ['Good', 'Low', 'High'] },
+          { id: 'tires_tread', name: 'Tire Tread Depth', icon: mccIcon('wrench', 14), options: ['Good', 'Fair', 'Poor'] },
+          { id: 'tires_pressure', name: 'Tire Pressure', icon: mccIcon('circle', 14), options: ['Good', 'Low', 'High'] },
           { id: 'tires_condition', name: 'Tire Sidewall', icon: '⭕', options: ['Good', 'Fair', 'Poor'] },
-          { id: 'brakes_pads', name: 'Brake Pads', icon: '🛑', options: ['Good', 'Fair', 'Poor'] },
+          { id: 'brakes_pads', name: 'Brake Pads', icon: mccIcon('x', 14), options: ['Good', 'Fair', 'Poor'] },
           { id: 'brakes_rotors', name: 'Brake Rotors', icon: '⚙️', options: ['Good', 'Fair', 'Poor'] },
-          { id: 'brakes_fluid', name: 'Brake Fluid', icon: '💧', options: ['Full', 'Low', 'Empty'] },
-          { id: 'brakes_lines', name: 'Brake Lines', icon: '🔗', options: ['Good', 'Fair', 'Poor'] },
-          { id: 'lights_headlights', name: 'Headlights', icon: '🔦', options: ['Working', 'Not Working'] },
-          { id: 'lights_taillights', name: 'Taillights', icon: '🚨', options: ['Working', 'Not Working'] },
+          { id: 'brakes_fluid', name: 'Brake Fluid', icon: mccIcon('droplet', 14), options: ['Full', 'Low', 'Empty'] },
+          { id: 'brakes_lines', name: 'Brake Lines', icon: mccIcon('share-2', 14), options: ['Good', 'Fair', 'Poor'] },
+          { id: 'lights_headlights', name: 'Headlights', icon: mccIcon('flashlight', 14), options: ['Working', 'Not Working'] },
+          { id: 'lights_taillights', name: 'Taillights', icon: mccIcon('alert-triangle', 14), options: ['Working', 'Not Working'] },
           { id: 'lights_signals', name: 'Turn Signals', icon: '↗️', options: ['Working', 'Not Working'] },
-          { id: 'lights_brake', name: 'Brake Lights', icon: '🔴', options: ['Working', 'Not Working'] },
-          { id: 'oil', name: 'Oil Level', icon: '🛢️', options: ['Full', 'Low', 'Empty'] },
-          { id: 'oil_condition', name: 'Oil Condition', icon: '🔍', options: ['Clean', 'Dark', 'Dirty'] },
+          { id: 'lights_brake', name: 'Brake Lights', icon: mccIcon('alert-triangle', 14), options: ['Working', 'Not Working'] },
+          { id: 'oil', name: 'Oil Level', icon: mccIcon('wrench', 14), options: ['Full', 'Low', 'Empty'] },
+          { id: 'oil_condition', name: 'Oil Condition', icon: mccIcon('search', 14), options: ['Clean', 'Dark', 'Dirty'] },
           { id: 'coolant', name: 'Coolant', icon: '❄️', options: ['Full', 'Low', 'Empty'] },
           { id: 'transmission', name: 'Transmission Fluid', icon: '⚙️', options: ['Full', 'Low', 'Empty'] },
-          { id: 'power_steering', name: 'Power Steering', icon: '🎯', options: ['Full', 'Low', 'Empty'] },
-          { id: 'washer', name: 'Washer Fluid', icon: '💦', options: ['Full', 'Low', 'Empty'] },
-          { id: 'battery', name: 'Battery', icon: '🔋', options: ['Good', 'Weak', 'Replace'] },
-          { id: 'battery_terminals', name: 'Battery Terminals', icon: '🔌', options: ['Clean', 'Corroded'] },
-          { id: 'belts', name: 'Serpentine Belt', icon: '🔗', options: ['Good', 'Worn', 'Replace'] },
-          { id: 'hoses', name: 'Coolant Hoses', icon: '🧪', options: ['Good', 'Worn', 'Replace'] },
-          { id: 'wipers', name: 'Wipers', icon: '🌧️', options: ['Good', 'Worn'] },
-          { id: 'air_filter', name: 'Air Filter', icon: '🌬️', options: ['Clean', 'Dirty', 'Replace'] },
-          { id: 'cabin_filter', name: 'Cabin Filter', icon: '🏠', options: ['Clean', 'Dirty', 'Replace'] },
-          { id: 'suspension', name: 'Suspension', icon: '🚙', options: ['Good', 'Fair', 'Poor'] }
+          { id: 'power_steering', name: 'Power Steering', icon: mccIcon('target', 14), options: ['Full', 'Low', 'Empty'] },
+          { id: 'washer', name: 'Washer Fluid', icon: mccIcon('droplet', 14), options: ['Full', 'Low', 'Empty'] },
+          { id: 'battery', name: 'Battery', icon: mccIcon('zap', 14), options: ['Good', 'Weak', 'Replace'] },
+          { id: 'battery_terminals', name: 'Battery Terminals', icon: mccIcon('plug', 14), options: ['Clean', 'Corroded'] },
+          { id: 'belts', name: 'Serpentine Belt', icon: mccIcon('share-2', 14), options: ['Good', 'Worn', 'Replace'] },
+          { id: 'hoses', name: 'Coolant Hoses', icon: mccIcon('flask-conical', 14), options: ['Good', 'Worn', 'Replace'] },
+          { id: 'wipers', name: 'Wipers', icon: mccIcon('cloud', 14), options: ['Good', 'Worn'] },
+          { id: 'air_filter', name: 'Air Filter', icon: mccIcon('wind', 14), options: ['Clean', 'Dirty', 'Replace'] },
+          { id: 'cabin_filter', name: 'Cabin Filter', icon: mccIcon('store', 14), options: ['Clean', 'Dirty', 'Replace'] },
+          { id: 'suspension', name: 'Suspension', icon: mccIcon('car', 14), options: ['Good', 'Fair', 'Poor'] }
         ]
       }
     };
@@ -9284,7 +9467,7 @@
       
       checklistDiv.style.display = 'block';
       
-      let html = `<h4 style="font-size:0.95rem;font-weight:600;margin-bottom:16px;color:var(--accent-gold);">📋 ${config.name} Inspection (${config.items.length} points)</h4>`;
+      let html = `<h4 style="font-size:0.95rem;font-weight:600;margin-bottom:16px;color:var(--accent-gold);">${mccIcon('clipboard-list', 14)} ${config.name} Inspection (${config.items.length} points)</h4>`;
       
       config.items.forEach(item => {
         html += `
@@ -9412,7 +9595,7 @@
         showToast('Failed to resend code', 'error');
       }
       btn.disabled = false;
-      btn.innerHTML = '🔄 Resend Code';
+      btn.innerHTML = `${mccIcon('refresh-cw', 14)} Resend Code`;
     }
 
     function posPrintReceipt() {
@@ -9542,10 +9725,10 @@
       
       const conditionLabels = {
         'excellent': '✅ Excellent',
-        'good': '👍 Good',
+        'good': `${mccIcon('check-circle', 14)} Good`,
         'fair': '⚠️ Fair',
-        'needs_attention': '🔶 Needs Attention',
-        'critical': '🔴 Critical'
+        'needs_attention': `${mccIcon('alert-triangle', 14)} Needs Attention`,
+        'critical': `${mccIcon('alert-triangle', 14)} Critical`
       };
       
       const statusColors = {
@@ -9574,7 +9757,7 @@
       return `
         <div class="divider-bold"></div>
         <div class="section">
-          <div class="section-title">🔍 Vehicle Inspection Report</div>
+          <div class="section-title">${mccIcon('search', 14)} Vehicle Inspection Report</div>
           <div class="row"><span class="row-label">Type:</span><span class="row-value">${inspection.typeName || inspection.type}</span></div>
           ${inspection.technicianName ? `<div class="row"><span class="row-label">Inspector:</span><span class="row-value">${inspection.technicianName}</span></div>` : ''}
           ${inspection.overallCondition ? `<div class="row"><span class="row-label">Overall:</span><span class="row-value">${conditionLabels[inspection.overallCondition] || inspection.overallCondition}</span></div>` : ''}
@@ -9799,7 +9982,7 @@
       if (!posState.sessionId) {
         await posStartSession();
         if (!posState.sessionId) {
-          posSetLoading('pos-lookup-btn', false, '🔍 Look Up Customer');
+          posSetLoading('pos-lookup-btn', false, `${mccIcon('search', 14)} Look Up Customer`);
           return;
         }
       }
@@ -9841,12 +10024,12 @@
           document.getElementById('pos-existing-email').textContent = data.email || '';
         }
         
-        posSetLoading('pos-lookup-btn', false, '🔍 Look Up Customer');
+        posSetLoading('pos-lookup-btn', false, `${mccIcon('search', 14)} Look Up Customer`);
         posGoToStep(2);
       } catch (err) {
         errorEl.textContent = err.message;
         errorEl.style.display = 'block';
-        posSetLoading('pos-lookup-btn', false, '🔍 Look Up Customer');
+        posSetLoading('pos-lookup-btn', false, `${mccIcon('search', 14)} Look Up Customer`);
       }
     }
 
@@ -9941,14 +10124,14 @@
         const vehicleName = job.vehicleName || 'No vehicle info';
         const escrowBadge = job.escrowFunded 
           ? `<span style="background:var(--accent-green-soft);color:var(--accent-green);padding:4px 10px;border-radius:100px;font-size:0.8rem;font-weight:500;">✓ Escrow Funded</span>`
-          : `<span style="background:var(--accent-gold-soft);color:var(--accent-gold);padding:4px 10px;border-radius:100px;font-size:0.8rem;font-weight:500;">💳 Payment Needed</span>`;
+          : `<span style="background:var(--accent-gold-soft);color:var(--accent-gold);padding:4px 10px;border-radius:100px;font-size:0.8rem;font-weight:500;">${mccIcon('credit-card', 14)} Payment Needed</span>`;
         
         return `
           <div class="pos-marketplace-job" onclick="posSelectMarketplaceJob('${job.bidId}', '${job.packageId}', ${job.escrowFunded})" style="background:var(--bg-card);border:2px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;margin-bottom:12px;cursor:pointer;transition:all 0.2s;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
               <div>
                 <div style="font-weight:600;font-size:1.1rem;margin-bottom:4px;">${job.title}</div>
-                <div style="color:var(--text-muted);font-size:0.9rem;">🚗 ${vehicleName}</div>
+                <div style="color:var(--text-muted);font-size:0.9rem;">${mccIcon('car', 14)} ${vehicleName}</div>
               </div>
               <div style="text-align:right;">
                 <div style="font-weight:700;color:var(--accent-gold);font-size:1.2rem;">$${(job.price || 0).toFixed(2)}</div>
@@ -10004,7 +10187,7 @@
           if (data.vipMember && data.vipMessage) {
             breakdownHtml += `
               <div style="display:flex;align-items:center;gap:8px;padding:12px;margin-top:12px;background:linear-gradient(135deg,rgba(201,162,39,0.15),rgba(201,162,39,0.05));border:1px solid rgba(201,162,39,0.3);border-radius:8px;color:#c9a227;">
-                <span style="font-size:1.2rem;">👑</span>
+                <span style="font-size:1.2rem;">${mccIcon('award', 14)}</span>
                 <span style="font-weight:600;">${data.vipMessage}</span>
               </div>
             `;
@@ -10409,7 +10592,7 @@
           if (data.vipMember && data.vipMessage) {
             vipBadgeEl.innerHTML = `
               <div style="display:flex;align-items:center;gap:8px;padding:12px;background:linear-gradient(135deg,rgba(201,162,39,0.15),rgba(201,162,39,0.05));border:1px solid rgba(201,162,39,0.3);border-radius:8px;color:#c9a227;">
-                <span style="font-size:1.2rem;">👑</span>
+                <span style="font-size:1.2rem;">${mccIcon('award', 14)}</span>
                 <span style="font-weight:600;">${data.vipMessage}</span>
               </div>
             `;
@@ -10491,7 +10674,7 @@
         errorEl.textContent = err.message;
         errorEl.style.display = 'block';
         payBtn.disabled = false;
-        payBtn.innerHTML = '💳 Process Payment';
+        payBtn.innerHTML = `${mccIcon('credit-card', 14)} Process Payment`;
       }
     }
 
@@ -10664,7 +10847,7 @@
           listEl.style.display = 'block';
           listEl.innerHTML += `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-elevated);border-radius:var(--radius-sm);margin-top:8px;">
-              <span>🔔 ${reminderType}</span>
+              <span>${mccIcon('bell', 14)} ${reminderType}</span>
               <span style="color:var(--text-muted);font-size:0.85rem;">${new Date(reminderDate).toLocaleDateString()}</span>
             </div>
           `;
@@ -10690,7 +10873,7 @@
         statusEl.style.color = 'var(--accent-red)';
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '🔔 Add Reminder';
+        btn.innerHTML = `${mccIcon('bell', 14)} Add Reminder`;
       }
     }
 
@@ -10708,7 +10891,7 @@
         if (error) throw error;
         
         if (!data || data.length === 0) {
-          container.innerHTML = '<div class="empty-state" style="padding:32px;"><div class="empty-state-icon">🛒</div><p>No walk-in transactions yet. Start your first transaction above!</p></div>';
+          container.innerHTML = `<div class="empty-state" style="padding:32px;"><div class="empty-state-icon">${mccIcon('shopping-cart', 14)}</div><p>No walk-in transactions yet. Start your first transaction above!</p></div>`;
           return;
         }
         
@@ -10786,7 +10969,7 @@
         if (!queue || queue.length === 0) {
           container.innerHTML = `
             <div class="empty-state" style="padding:48px 24px;">
-              <div class="empty-state-icon">📋</div>
+              <div class="empty-state-icon">${mccIcon('clipboard-list', 14)}</div>
               <p>No customers in queue. Set up the tablet kiosk to let customers check themselves in.</p>
             </div>`;
           return;
@@ -10813,17 +10996,17 @@
                 <span class="package-badge" style="background:${statusBg};color:var(--${statusClass});text-transform:capitalize;">${item.status}</span>
               </div>
               <div class="package-meta">
-                <span>🚗 ${item.vehicle_year || ''} ${item.vehicle_make || ''} ${item.vehicle_model || 'No vehicle info'}</span>
-                <span>🔧 ${item.service_category || 'General Service'}</span>
+                <span>${mccIcon('car', 14)} ${item.vehicle_year || ''} ${item.vehicle_make || ''} ${item.vehicle_model || 'No vehicle info'}</span>
+                <span>${mccIcon('wrench', 14)} ${item.service_category || 'General Service'}</span>
               </div>
               ${item.service_description ? `<div class="package-description" style="margin-bottom:12px;">${item.service_description}</div>` : ''}
               <div class="package-footer" style="flex-wrap:wrap;gap:12px;">
                 <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
                   <span style="font-size:0.85rem;color:var(--text-muted);">⏰ Checked in ${waitMinutes} min ago</span>
-                  <span style="font-size:0.85rem;color:var(--text-muted);">📅 ${checkInTime.toLocaleTimeString()}</span>
+                  <span style="font-size:0.85rem;color:var(--text-muted);">${mccIcon('calendar', 14)} ${checkInTime.toLocaleTimeString()}</span>
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                  ${item.status === 'waiting' ? `<button class="btn btn-primary btn-sm" onclick="callQueueCustomer('${item.id}')">📞 Call Customer</button>` : ''}
+                  ${item.status === 'waiting' ? `<button class="btn btn-primary btn-sm" onclick="callQueueCustomer('${item.id}')">${mccIcon('phone', 14)} Call Customer</button>` : ''}
                   ${item.status === 'serving' ? `<button class="btn btn-sm" onclick="completeQueueCustomer('${item.id}')" style="background:var(--accent-green);color:#fff;">✓ Mark Complete</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="cancelQueueCustomer('${item.id}')" style="color:var(--accent-red);">✕ Cancel</button>
                 </div>
@@ -10837,7 +11020,7 @@
           <div class="empty-state" style="padding:32px;">
             <div class="empty-state-icon">⚠️</div>
             <p>Failed to load queue. Please try again.</p>
-            <button class="btn btn-secondary" onclick="loadCustomerQueue()" style="margin-top:16px;">🔄 Retry</button>
+            <button class="btn btn-secondary" onclick="loadCustomerQueue()" style="margin-top:16px;">${mccIcon('refresh-cw', 14)} Retry</button>
           </div>`;
       }
     }
@@ -11007,7 +11190,7 @@
       const maskedPhoneEl = document.getElementById('2fa-masked-phone');
       
       if (enabled) {
-        if (statusIcon) statusIcon.textContent = '🔒';
+        if (statusIcon) statusIcon.innerHTML = `${mccIcon('lock', 14)}`;
         if (statusText) statusText.textContent = '2FA is Enabled';
         if (statusDesc) statusDesc.textContent = 'Your account is protected with two-factor authentication.';
         if (statusBadge) {
@@ -11019,7 +11202,7 @@
         if (disableSection) disableSection.style.display = 'block';
         if (maskedPhoneEl) maskedPhoneEl.textContent = maskedPhone || '***-***-****';
       } else {
-        if (statusIcon) statusIcon.textContent = '🔓';
+        if (statusIcon) statusIcon.innerHTML = `${mccIcon('lock', 14)}`;
         if (statusText) statusText.textContent = '2FA is Disabled';
         if (statusDesc) statusDesc.textContent = 'Your account is protected by password only.';
         if (statusBadge) {
@@ -11369,7 +11552,7 @@
         tbody.innerHTML = `
           <tr>
             <td colspan="5" style="padding:48px;text-align:center;color:var(--text-muted);">
-              <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">👥</div>
+              <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">${mccIcon('users', 14)}</div>
               <p>No team members found</p>
             </td>
           </tr>
@@ -11393,7 +11576,7 @@
             <td style="padding:16px;">
               <div style="display:flex;align-items:center;gap:12px;">
                 <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--accent-gold-soft),var(--bg-elevated));display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--accent-gold);">
-                  ${member.full_name ? member.full_name.charAt(0).toUpperCase() : '👤'}
+                  ${member.full_name ? member.full_name.charAt(0).toUpperCase() : `${mccIcon('user', 14)}`}
                 </div>
                 <div>
                   <div style="font-weight:500;">${member.full_name || 'Unknown'}${isCurrentUser ? ' <span style="color:var(--text-muted);font-weight:400;">(You)</span>' : ''}</div>
@@ -11435,7 +11618,7 @@
       if (!teamInvitations.length) {
         container.innerHTML = `
           <div class="empty-state" style="padding:32px;">
-            <div class="empty-state-icon">📧</div>
+            <div class="empty-state-icon">${mccIcon('mail', 14)}</div>
             <p>No pending invitations</p>
           </div>
         `;
@@ -11452,7 +11635,7 @@
         return `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border-subtle);">
             <div style="display:flex;align-items:center;gap:16px;">
-              <div style="width:40px;height:40px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text-muted);">📧</div>
+              <div style="width:40px;height:40px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text-muted);">${mccIcon('mail', 14)}</div>
               <div>
                 <div style="font-weight:500;">${invite.email}</div>
                 <div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">
@@ -11542,7 +11725,7 @@
         feedback.style.color = 'var(--accent-red)';
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = '📧 Send Invitation';
+        submitBtn.innerHTML = `${mccIcon('mail', 14)} Send Invitation`;
       }
     }
 
@@ -11683,7 +11866,7 @@
       if (!statusIcon) return;
       
       if (enabled) {
-        statusIcon.textContent = '🔔';
+        statusIcon.innerHTML = `${mccIcon('bell', 14)}`;
         statusText.textContent = 'Push Notifications Enabled';
         statusDesc.textContent = 'You\'ll receive instant alerts on this device.';
         statusBadge.textContent = 'On';
@@ -11692,7 +11875,7 @@
         enableSection.style.display = 'none';
         enabledSection.style.display = 'block';
       } else {
-        statusIcon.textContent = '🔕';
+        statusIcon.innerHTML = `${mccIcon('bell', 14)}`;
         statusText.textContent = 'Push Notifications Disabled';
         statusDesc.textContent = 'Enable to receive instant alerts for new bid opportunities and updates.';
         statusBadge.textContent = 'Off';
@@ -11714,7 +11897,7 @@
         if (permission !== 'granted') {
           showToast('Please allow notifications in your browser settings', 'error');
           btn.disabled = false;
-          btn.textContent = '🔔 Enable Push Notifications';
+          btn.innerHTML = `${mccIcon('bell', 14)} Enable Push Notifications`;
           return;
         }
         
@@ -11724,7 +11907,7 @@
         if (!vapidKey) {
           showToast('Push notifications not configured', 'error');
           btn.disabled = false;
-          btn.textContent = '🔔 Enable Push Notifications';
+          btn.innerHTML = `${mccIcon('bell', 14)} Enable Push Notifications`;
           return;
         }
         
@@ -11744,7 +11927,7 @@
         showToast('Failed to enable push notifications', 'error');
         const btn = document.getElementById('provider-push-enable-btn');
         btn.disabled = false;
-        btn.textContent = '🔔 Enable Push Notifications';
+        btn.innerHTML = `${mccIcon('bell', 14)} Enable Push Notifications`;
       }
     }
     
@@ -12123,7 +12306,7 @@
     function renderEmptyEarningsLineChart() {
       const container = document.getElementById('analytics-earnings-chart-container');
       if (container) {
-        container.innerHTML = '<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">📈</div><p>No earnings data yet. Complete jobs to see your earnings trend!</p></div>';
+        container.innerHTML = `<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">${mccIcon('trending-up', 14)}</div><p>No earnings data yet. Complete jobs to see your earnings trend!</p></div>`;
       }
     }
 
@@ -12161,7 +12344,7 @@
     function renderEmptyBidChart() {
       const container = document.getElementById('analytics-bid-chart-container');
       if (container) {
-        container.innerHTML = '<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">🎯</div><p>No bids submitted yet.</p></div>';
+        container.innerHTML = `<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">${mccIcon('target', 14)}</div><p>No bids submitted yet.</p></div>`;
       }
     }
 
@@ -12213,7 +12396,7 @@
     function renderEmptyServicesChart() {
       const container = document.getElementById('analytics-services-chart-container');
       if (container) {
-        container.innerHTML = '<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">🏆</div><p>Complete jobs to see your top services.</p></div>';
+        container.innerHTML = `<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">${mccIcon('trophy', 14)}</div><p>Complete jobs to see your top services.</p></div>`;
       }
     }
 
@@ -12263,4 +12446,277 @@
           }
         }
       });
+    }
+
+    // ========== AVAILABILITY SECTION ==========
+    let scheduleWeekStart = null;
+
+    async function loadAvailabilitySection() {
+      await Promise.all([
+        loadWorkingHours(),
+        loadBlockedTime(),
+        loadScheduleOverview()
+      ]);
+    }
+
+    async function loadWorkingHours() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const response = await fetch(`/api/provider/availability/${currentUser.id}`, {
+          headers: { 'Authorization': 'Bearer ' + session.access_token }
+        });
+        const data = await response.json();
+        const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        const defaults = dayNames.map((name, i) => ({
+          day_of_week: i,
+          is_active: i >= 1 && i <= 5,
+          start_time: '08:00',
+          end_time: '17:00',
+          bay_capacity: 1
+        }));
+        const hours = (data.hours && data.hours.length > 0) ? data.hours : defaults;
+        hours.forEach(h => {
+          const d = h.day_of_week;
+          const activeEl = document.getElementById('day-active-' + d);
+          const startEl = document.getElementById('day-start-' + d);
+          const endEl = document.getElementById('day-end-' + d);
+          const baysEl = document.getElementById('day-bays-' + d);
+          if (activeEl) activeEl.checked = h.is_active;
+          if (startEl) startEl.value = h.start_time;
+          if (endEl) endEl.value = h.end_time;
+          if (baysEl) baysEl.value = h.bay_capacity || 1;
+        });
+      } catch (error) {
+        console.error('Load working hours error:', error);
+      }
+    }
+
+    async function saveWorkingHours() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const hours = [];
+        for (let d = 0; d < 7; d++) {
+          hours.push({
+            day_of_week: d,
+            is_active: document.getElementById('day-active-' + d).checked,
+            start_time: document.getElementById('day-start-' + d).value,
+            end_time: document.getElementById('day-end-' + d).value,
+            bay_capacity: parseInt(document.getElementById('day-bays-' + d).value) || 1
+          });
+        }
+        const response = await fetch('/api/provider/availability', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + session.access_token
+          },
+          body: JSON.stringify({ provider_id: currentUser.id, hours })
+        });
+        const result = await response.json();
+        if (result.success || response.ok) {
+          showToast('Working hours saved successfully!', 'success');
+        } else {
+          showToast(result.error || 'Failed to save working hours', 'error');
+        }
+      } catch (error) {
+        console.error('Save working hours error:', error);
+        showToast('Failed to save working hours', 'error');
+      }
+    }
+
+    async function loadBlockedTime() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const response = await fetch(`/api/provider/blocked-time/${currentUser.id}`, {
+          headers: { 'Authorization': 'Bearer ' + session.access_token }
+        });
+        const data = await response.json();
+        const container = document.getElementById('blocked-time-list');
+        if (!container) return;
+        const blocks = data.blocks || [];
+        if (blocks.length === 0) {
+          container.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">No blocked time entries yet.</p>';
+          return;
+        }
+        container.innerHTML = blocks.map(b => {
+          const dateStr = new Date(b.block_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+          const startStr = formatTime12(b.start_time);
+          const endStr = formatTime12(b.end_time);
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);margin-bottom:8px;">
+            <div>
+              <strong style="font-size:0.9rem;">${dateStr}</strong>
+              <span style="color:var(--text-muted);font-size:0.85rem;margin-left:8px;">${startStr} - ${endStr}</span>
+              ${b.reason ? `<span style="color:var(--text-secondary);font-size:0.85rem;margin-left:8px;">— ${b.reason}</span>` : ''}
+            </div>
+            <button onclick="deleteBlockedTime('${b.id}')" class="btn btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Delete</button>
+          </div>`;
+        }).join('');
+      } catch (error) {
+        console.error('Load blocked time error:', error);
+      }
+    }
+
+    function formatTime12(time24) {
+      if (!time24) return '';
+      const [h, m] = time24.split(':').map(Number);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      return h12 + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+    }
+
+    async function addBlockedTime() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const blockDate = document.getElementById('block-date').value;
+        const startTime = document.getElementById('block-start').value;
+        const endTime = document.getElementById('block-end').value;
+        const reason = document.getElementById('block-reason').value;
+        if (!blockDate) {
+          showToast('Please select a date', 'error');
+          return;
+        }
+        const response = await fetch('/api/provider/blocked-time', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + session.access_token
+          },
+          body: JSON.stringify({
+            provider_id: currentUser.id,
+            block_date: blockDate,
+            start_time: startTime,
+            end_time: endTime,
+            reason: reason
+          })
+        });
+        const result = await response.json();
+        if (result.success || response.ok) {
+          showToast('Blocked time added!', 'success');
+          document.getElementById('block-date').value = '';
+          document.getElementById('block-reason').value = '';
+          await loadBlockedTime();
+        } else {
+          showToast(result.error || 'Failed to add blocked time', 'error');
+        }
+      } catch (error) {
+        console.error('Add blocked time error:', error);
+        showToast('Failed to add blocked time', 'error');
+      }
+    }
+
+    async function deleteBlockedTime(blockId) {
+      if (!confirm('Are you sure you want to delete this blocked time?')) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const response = await fetch(`/api/provider/blocked-time/${blockId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + session.access_token }
+        });
+        const result = await response.json();
+        if (result.success || response.ok) {
+          showToast('Blocked time removed', 'success');
+          await loadBlockedTime();
+        } else {
+          showToast(result.error || 'Failed to delete blocked time', 'error');
+        }
+      } catch (error) {
+        console.error('Delete blocked time error:', error);
+        showToast('Failed to delete blocked time', 'error');
+      }
+    }
+
+    async function loadScheduleOverview() {
+      if (!scheduleWeekStart) {
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        scheduleWeekStart = new Date(now);
+        scheduleWeekStart.setDate(now.getDate() - dayOfWeek);
+        scheduleWeekStart.setHours(0, 0, 0, 0);
+      }
+      const weekEnd = new Date(scheduleWeekStart);
+      weekEnd.setDate(scheduleWeekStart.getDate() + 6);
+      const labelEl = document.getElementById('schedule-week-label');
+      if (labelEl) {
+        const opts = { month: 'short', day: 'numeric' };
+        labelEl.textContent = scheduleWeekStart.toLocaleDateString('en-US', opts) + ' - ' + weekEnd.toLocaleDateString('en-US', opts) + ', ' + weekEnd.getFullYear();
+      }
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const weekStartStr = scheduleWeekStart.toISOString().split('T')[0];
+        const response = await fetch(`/api/provider/schedule/${currentUser.id}?week_start=${weekStartStr}`, {
+          headers: { 'Authorization': 'Bearer ' + session.access_token }
+        });
+        const data = await response.json();
+        renderScheduleCalendar(data);
+      } catch (error) {
+        console.error('Load schedule overview error:', error);
+        renderScheduleCalendar({});
+      }
+    }
+
+    function renderScheduleCalendar(data) {
+      const container = document.getElementById('schedule-calendar-view');
+      const timeAxis = document.getElementById('schedule-time-axis');
+      if (!container) return;
+
+      const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const startHour = 6;
+      const endHour = 20;
+
+      if (timeAxis) {
+        let axisHtml = '';
+        for (let h = startHour; h <= endHour; h++) {
+          const label = h === 0 ? '12am' : h < 12 ? h + 'am' : h === 12 ? '12pm' : (h - 12) + 'pm';
+          axisHtml += `<span>${label}</span>`;
+        }
+        timeAxis.innerHTML = axisHtml;
+      }
+
+      let html = '';
+      for (let d = 0; d < 7; d++) {
+        const dayDate = new Date(scheduleWeekStart);
+        dayDate.setDate(scheduleWeekStart.getDate() + d);
+        const dateStr = (dayDate.getMonth() + 1) + '/' + dayDate.getDate();
+        const dayKey = dayDate.toISOString().split('T')[0];
+        const dayData = (data.schedule && data.schedule[dayKey]) || {};
+        const bookings = dayData.bookings || [];
+        const blockedTimes = dayData.blocked || [];
+        const isToday = new Date().toISOString().split('T')[0] === dayKey;
+
+        html += `<div class="schedule-day-column" ${isToday ? 'style="border:2px solid var(--accent-gold);"' : ''}>`;
+        html += `<div class="day-header">${dayNames[d]}<br><span style="font-size:0.75rem;color:var(--text-muted);">${dateStr}</span></div>`;
+
+        bookings.forEach(b => {
+          const label = (b.member_name || 'Booking') + (b.service ? ' - ' + b.service : '');
+          html += `<div class="schedule-block mcc-booking" title="${label}">${b.start_time ? formatTime12(b.start_time) + ' ' : ''}${label}</div>`;
+        });
+
+        blockedTimes.forEach(b => {
+          const label = b.reason || 'Blocked';
+          html += `<div class="schedule-block blocked" title="${label}">${b.start_time ? formatTime12(b.start_time) + ' ' : ''}${label}</div>`;
+        });
+
+        if (bookings.length === 0 && blockedTimes.length === 0) {
+          html += `<div class="schedule-block available">Available</div>`;
+        }
+
+        html += '</div>';
+      }
+      container.innerHTML = html;
+    }
+
+    function navigateWeek(direction) {
+      if (!scheduleWeekStart) {
+        const now = new Date();
+        scheduleWeekStart = new Date(now);
+        scheduleWeekStart.setDate(now.getDate() - now.getDay());
+      }
+      scheduleWeekStart.setDate(scheduleWeekStart.getDate() + (direction * 7));
+      loadScheduleOverview();
     }

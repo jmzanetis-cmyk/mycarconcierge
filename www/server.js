@@ -6,12 +6,79 @@ const zlib = require('zlib');
 const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
 const vision = require('@google-cloud/vision');
 const sharp = require('sharp');
 const PDFDocument = require('pdfkit');
 const { Resend } = require('resend');
+const stripeTreasury = require('./stripe-treasury');
+const { getHubSpotClient } = require('./hubspot-client');
+const handleCarClubRequest = require('./car-club-api');
+const { handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook, startEngineSchedulers, initEngineState } = require('./outreach-engine-api');
+const { Pool: PgPool } = require('pg');
+let _localPgPool = null;
+function getLocalPool() {
+  if (!_localPgPool) _localPgPool = new PgPool({ connectionString: process.env.DATABASE_URL });
+  return _localPgPool;
+}
+
+async function syncContactToHubSpot(email, firstname, lastname, role, phone, extra = {}) {
+  try {
+    const hubspot = await getHubSpotClient();
+    const properties = {
+      email,
+      firstname: firstname || '',
+      lastname: lastname || '',
+      phone: phone || '',
+      lifecyclestage: role === 'provider' || role === 'pending_provider' ? 'customer' : 'lead',
+      company: extra.businessName || '',
+      mcc_role: role || 'member',
+      ...extra.properties
+    };
+    const contact = await hubspot.crm.contacts.basicApi.create({ properties });
+    console.log(`[HUBSPOT] Contact synced: ${email} (${role})`);
+    return contact;
+  } catch (err) {
+    if (err.code === 409 || err.body?.message?.includes('already exists')) {
+      console.log(`[HUBSPOT] Contact already exists: ${email}`);
+      return null;
+    }
+    console.error(`[HUBSPOT] Failed to sync contact ${email}:`, err.message);
+    return null;
+  }
+}
+
+async function createHubSpotDeal(dealname, amount, stage, properties = {}) {
+  try {
+    const hubspot = await getHubSpotClient();
+    const deal = await hubspot.crm.deals.basicApi.create({
+      properties: {
+        dealname,
+        amount: amount ? amount.toString() : '',
+        dealstage: stage || 'closedwon',
+        pipeline: 'default',
+        closedate: new Date().toISOString().split('T')[0],
+        ...properties
+      }
+    });
+    console.log(`[HUBSPOT] Deal created: ${dealname} ($${amount || 0})`);
+    return deal;
+  } catch (err) {
+    console.error(`[HUBSPOT] Failed to create deal "${dealname}":`, err.message);
+    return null;
+  }
+}
+
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught exception:', err.message);
+  console.error(err.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled promise rejection:', reason);
+});
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -23,6 +90,10 @@ const geminiClient = process.env.GEMINI_API_KEY
   ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
   : null;
 
+const geminiSearchClient = process.env.GEMINI_API_KEY
+  ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+  : null;
+
 async function generateAIContent(prompt, options = {}) {
   const { maxTokens = 1024, preferredProvider = 'gemini' } = options;
   const providers = preferredProvider === 'gemini' 
@@ -32,7 +103,7 @@ async function generateAIContent(prompt, options = {}) {
   for (const provider of providers) {
     try {
       if (provider === 'gemini' && geminiClient) {
-        const model = geminiClient.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = geminiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
         const result = await model.generateContent(prompt);
         const response = await result.response;
         return { text: response.text(), provider: 'gemini' };
@@ -50,6 +121,30 @@ async function generateAIContent(prompt, options = {}) {
     }
   }
   throw new Error('All AI providers failed');
+}
+
+async function searchWithGrounding(query, options = {}) {
+  const { maxTokens = 4096 } = options;
+  if (!geminiSearchClient) throw new Error('Gemini API key not configured');
+  const response = await geminiSearchClient.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: query,
+    config: {
+      tools: [{ googleSearch: {} }],
+      maxOutputTokens: maxTokens
+    }
+  });
+  const text = response.text || '';
+  const metadata = response.candidates?.[0]?.groundingMetadata || null;
+  const sources = [];
+  if (metadata?.groundingChunks) {
+    for (const chunk of metadata.groundingChunks) {
+      if (chunk.web) {
+        sources.push({ title: chunk.web.title || '', url: chunk.web.uri || '' });
+      }
+    }
+  }
+  return { text, sources, searchQueries: metadata?.webSearchQueries || [] };
 }
 
 const helpdeskConversations = new Map();
@@ -78,7 +173,7 @@ If you need more info, ask focused follow-up questions (year/make/model, mileage
 Always end with a simple, practical next step (what to do, what kind of provider to see, and what kind of service they might book on My Car Concierge).`;
 
 const HELPDESK_DRIVER_MODE = `MODE: DRIVER
-You are helping a DRIVER (a regular car owner).
+You are helping a DRIVER (a vehicle owner).
 
 Focus on:
 - Explaining their symptoms, warning lights, or noises in simple terms.
@@ -129,7 +224,7 @@ Topics you excel at teaching:
 1) MAINTENANCE BASICS: What each service is, why it matters, how often it's needed, and what happens if skipped
 2) REPAIR COSTS: What factors affect pricing (labor rates, parts quality, vehicle type), when to get second opinions, red flags in quotes
 3) SYMPTOMS & DIAGNOSIS: Help them understand what sounds, smells, and warning lights might mean
-4) CAR CARE TIPS: Money-saving advice, DIY vs. professional work, seasonal maintenance
+4) AUTO CARE TIPS: Money-saving advice, DIY vs. professional work, seasonal maintenance
 
 When explaining maintenance items:
 - What is it? (simple explanation)
@@ -139,7 +234,7 @@ When explaining maintenance items:
 - DIY potential (is this something they can do themselves?)
 
 Educational resources to mention:
-- Suggest they check the "Car Care Academy" Learn section for articles on specific topics
+- Suggest they check the "Vehicle Maintenance" Learn section for articles on specific topics
 - Categories include: Maintenance 101, Understanding Repairs, Warning Signs, Money-Saving Tips
 - The Automotive Glossary can help with unfamiliar terms
 
@@ -188,6 +283,26 @@ let global2faEnabled = process.env.GLOBAL_2FA_ENABLED !== 'false';
 
 const WWW_DIR = path.resolve(__dirname);
 
+const GUEST_TOKEN_SECRET = process.env.ADMIN_PASSWORD ? 
+  crypto.createHash('sha256').update('mcc-guest-split-' + process.env.ADMIN_PASSWORD).digest('hex') : 
+  'mcc-guest-token-fallback-dev';
+
+function generateGuestToken(participantId) {
+  return crypto.createHmac('sha256', GUEST_TOKEN_SECRET).update(participantId).digest('hex').substring(0, 32);
+}
+
+function verifyGuestToken(participantId, token) {
+  if (!token || token.length !== 32) return false;
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(token, 'utf8'),
+      Buffer.from(generateGuestToken(participantId), 'utf8')
+    );
+  } catch {
+    return false;
+  }
+}
+
 // ========== RATE LIMITING ==========
 
 const rateLimitStore = new Map();
@@ -197,7 +312,8 @@ const rateLimitConfig = {
   sms2fa: { limit: 3, windowMs: 60000 },
   apiAuth: { limit: 100, windowMs: 60000 },
   public: { limit: 30, windowMs: 60000 },
-  adminVerify: { limit: 3, windowMs: 60000 }
+  adminVerify: { limit: 10, windowMs: 60000 },
+  helpdesk: { limit: 10, windowMs: 60000 }
 };
 
 function getClientIP(req) {
@@ -296,6 +412,57 @@ function cleanupExpiredRateLimits() {
 setInterval(cleanupExpiredRateLimits, 60000);
 
 // ========== END RATE LIMITING ==========
+
+const analyticsData = {
+  pageViews: new Map(),
+  visitors: new Map(),
+  pages: new Map(),
+  referrers: new Map(),
+  devices: new Map(),
+  hourly: new Map(),
+  activeVisitors: new Map()
+};
+
+function getDateKey(date) {
+  return date.toISOString().split('T')[0];
+}
+
+function cleanupAnalytics() {
+  const cutoff = Date.now() - (90 * 24 * 60 * 60 * 1000);
+  const cutoffDate = getDateKey(new Date(cutoff));
+  for (const [key] of analyticsData.pageViews) {
+    if (key < cutoffDate) analyticsData.pageViews.delete(key);
+  }
+  for (const [key] of analyticsData.visitors) {
+    if (key < cutoffDate) analyticsData.visitors.delete(key);
+  }
+  for (const [key] of analyticsData.hourly) {
+    if (key < cutoffDate) analyticsData.hourly.delete(key);
+  }
+  for (const [key] of analyticsData.pages) {
+    if (key < cutoffDate) analyticsData.pages.delete(key);
+  }
+  for (const [key] of analyticsData.referrers) {
+    if (key < cutoffDate) analyticsData.referrers.delete(key);
+  }
+  for (const [key] of analyticsData.devices) {
+    if (key < cutoffDate) analyticsData.devices.delete(key);
+  }
+  for (const [visitorId, ts] of analyticsData.activeVisitors) {
+    if (Date.now() - ts > 5 * 60 * 1000) analyticsData.activeVisitors.delete(visitorId);
+  }
+}
+
+setInterval(cleanupAnalytics, 60 * 60 * 1000);
+
+const analyticsRateLimit = new Map();
+
+const marketingCampaigns = new Map();
+let campaignIdCounter = 1;
+let wefunderStatsCache = null;
+
+const outreachQueue = new Map();
+let outreachIdCounter = 1;
 
 // ========== REQUEST BODY PARSER ==========
 // Consistent body size limit for Printful API endpoints (slightly larger for bulk operations)
@@ -416,7 +583,9 @@ const AGREEMENT_TITLES = {
   founding_partner: 'Founding Partner Agreement',
   member_founder: 'Member Founder Agreement',
   provider: 'Provider Agreement',
-  founding_provider_chris_agrapidis: 'Founding Provider Partner Agreement - Chris Agrapidis'
+  founding_provider_chris_agrapidis: 'Founding Provider Partner Agreement - Chris Agrapidis',
+  contractor: 'IT & Marketing Contractor Agreement',
+  designer: 'Designer Collaboration Agreement'
 };
 
 async function generateAgreementPDF(agreementData) {
@@ -649,6 +818,108 @@ async function sendAgreementConfirmationEmail(userEmail, agreementData, pdfUrl) 
   }
 }
 
+async function sendPayoutNotificationEmail(founderEmail, founderName, amount, payoutMethod, transactionId) {
+  if (!resend) {
+    console.log('[EMAIL] Resend not configured, skipping payout notification');
+    return false;
+  }
+  
+  try {
+    const formattedAmount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    const formattedDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const payoutMethodDisplay = payoutMethod === 'stripe_connect' ? 'Stripe Connect' : payoutMethod;
+    
+    const { data, error } = await resend.emails.send({
+      from: 'My Car Concierge <noreply@mycarconcierge.com>',
+      to: founderEmail,
+      subject: 'Your My Car Concierge payout has been processed',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #12161c; font-family: 'Helvetica Neue', Arial, sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #12161c; padding: 40px 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #1a1f28; border-radius: 16px; overflow: hidden;">
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #d4a855, #b8942d); padding: 30px; text-align: center;">
+                      <h1 style="margin: 0; color: #12161c; font-size: 28px; font-weight: 700;">My Car Concierge</h1>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 40px;">
+                      <h2 style="margin: 0 0 20px; color: #f4f4f6; font-size: 22px;">Payout Processed Successfully</h2>
+                      <p style="margin: 0 0 20px; color: #a0a5b0; font-size: 16px; line-height: 1.6;">
+                        Great news, <strong style="color: #d4a855;">${founderName}</strong>! Your commission payout has been processed and is on its way to you.
+                      </p>
+                      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #242a35; border-radius: 8px; margin: 20px 0;">
+                        <tr>
+                          <td style="padding: 20px;">
+                            <p style="margin: 0 0 15px; color: #a0a5b0; font-size: 14px;">
+                              <strong style="color: #f4f4f6;">Amount:</strong> <span style="color: #d4a855; font-size: 18px; font-weight: 600;">${formattedAmount}</span>
+                            </p>
+                            <p style="margin: 0 0 15px; color: #a0a5b0; font-size: 14px;">
+                              <strong style="color: #f4f4f6;">Payout Method:</strong> ${payoutMethodDisplay}
+                            </p>
+                            <p style="margin: 0 0 15px; color: #a0a5b0; font-size: 14px;">
+                              <strong style="color: #f4f4f6;">Date Processed:</strong> ${formattedDate}
+                            </p>
+                            <p style="margin: 0; color: #a0a5b0; font-size: 14px;">
+                              <strong style="color: #f4f4f6;">Transaction ID:</strong> <span style="font-family: monospace; font-size: 12px;">${transactionId}</span>
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                      <p style="margin: 20px 0; color: #a0a5b0; font-size: 14px; line-height: 1.6;">
+                        Funds typically arrive in your connected bank account within 2-3 business days. You can view your complete payout history in your Founder Dashboard.
+                      </p>
+                      <table cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                        <tr>
+                          <td style="background: linear-gradient(135deg, #d4a855, #b8942d); border-radius: 8px;">
+                            <a href="https://www.mycarconcierge.com/founder-dashboard.html" style="display: inline-block; padding: 14px 32px; color: #12161c; text-decoration: none; font-weight: 600; font-size: 16px;">
+                              View Dashboard
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+                      <p style="margin: 20px 0 0; color: #6b7280; font-size: 12px; line-height: 1.5;">
+                        Thank you for being a valued Member Founder. Your success is our success!
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="background-color: #0d1016; padding: 20px; text-align: center;">
+                      <p style="margin: 0; color: #6b7280; font-size: 12px;">
+                        © ${new Date().getFullYear()} My Car Concierge. All rights reserved.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `
+    });
+    
+    if (error) {
+      console.error('[EMAIL] Error sending payout notification:', error);
+      return false;
+    }
+    
+    console.log('[EMAIL] Payout notification sent to:', founderEmail);
+    return true;
+  } catch (err) {
+    console.error('[EMAIL] Exception sending payout notification:', err);
+    return false;
+  }
+}
+
 async function handleSignAgreement(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -660,7 +931,7 @@ async function handleSignAgreement(req, res, requestId) {
   }
   
   const MAX_SIGNATURE_SIZE = 500000;
-  const VALID_AGREEMENT_TYPES = ['founding_partner', 'member_founder', 'provider', 'founding_provider_chris_agrapidis'];
+  const VALID_AGREEMENT_TYPES = ['founding_partner', 'member_founder', 'provider', 'founding_provider_chris_agrapidis', 'contractor', 'designer'];
   const VALID_SIGNATURE_TYPES = ['draw', 'type'];
   
   try {
@@ -688,7 +959,7 @@ async function handleSignAgreement(req, res, requestId) {
         }
         
         const data = JSON.parse(body);
-        const { agreement_type, full_name, business_name, ein_last4, effective_date, signature_data, signature_type, acknowledgments, user_id } = data;
+        const { agreement_type, full_name, business_name, ein_last4, effective_date, signature_data, signature_type, acknowledgments, user_id, country, role_scope, email, website } = data;
         
         if (!agreement_type || !full_name || !signature_data) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -744,6 +1015,10 @@ async function handleSignAgreement(req, res, requestId) {
           business_name: business_name ? business_name.trim() : null,
           signature_data,
           ein_last4: ein_last4 || null,
+          country: country ? String(country).trim().substring(0, 255) : null,
+          role_scope: role_scope ? String(role_scope).trim().substring(0, 255) : null,
+          email: email ? String(email).trim().substring(0, 255) : null,
+          website: website ? String(website).trim().substring(0, 500) : null,
           signed_at: new Date().toISOString(),
           ip_address,
           user_agent,
@@ -820,6 +1095,47 @@ async function handleSignAgreement(req, res, requestId) {
               .eq('id', result.id);
             
             console.log(`[${requestId}] Agreement ${result.id} updated: pdf_url=${!!pdfUrl}, email_sent=${emailSent}`);
+            
+            // If this is Chris Agrapidis's founding provider agreement, create the founding_provider_partners record
+            if (agreement_type === 'founding_provider_chris_agrapidis') {
+              try {
+                const signingDate = new Date(insertData.signed_at).toISOString().split('T')[0];
+                
+                // Get user email if available
+                let partnerEmail = null;
+                if (user_id) {
+                  const { data: profile } = await supabaseClient
+                    .from('profiles')
+                    .select('email')
+                    .eq('id', user_id)
+                    .single();
+                  partnerEmail = profile?.email || null;
+                }
+                
+                const { error: partnerError } = await supabaseClient
+                  .from('founding_provider_partners')
+                  .upsert({
+                    user_id: user_id || null,
+                    full_name: 'Chris Agrapidis',
+                    email: partnerEmail,
+                    agreement_date: signingDate,
+                    anniversary_date: signingDate,
+                    commission_rate: 0.90,
+                    milestone_bonus_eligible: true,
+                    zero_fees: true,
+                    status: 'active',
+                    notes: `Founding Provider Partner Agreement signed ${signingDate}`
+                  }, { onConflict: 'full_name' });
+                
+                if (partnerError) {
+                  console.error(`[${requestId}] Error creating founding provider partner record:`, partnerError);
+                } else {
+                  console.log(`[${requestId}] Created founding provider partner record for Chris Agrapidis, anniversary: ${signingDate}`);
+                }
+              } catch (partnerCreateError) {
+                console.error(`[${requestId}] Error in founding provider partner creation:`, partnerCreateError);
+              }
+            }
           } catch (postProcessError) {
             console.error(`[${requestId}] Post-processing error:`, postProcessError);
           }
@@ -834,7 +1150,7 @@ async function handleSignAgreement(req, res, requestId) {
   } catch (err) {
     console.error(`[${requestId}] Agreement signing error:`, err);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Internal server error' }));
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -896,7 +1212,7 @@ async function handleGetSignedAgreements(req, res, requestId, userId) {
   } catch (err) {
     console.error(`[${requestId}] Get agreements error:`, err);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Internal server error' }));
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -911,6 +1227,13 @@ async function handleAdminGetAllAgreements(req, res, requestId) {
   }
   
   try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Service unavailable' }));
+      return;
+    }
+
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
@@ -980,7 +1303,499 @@ async function handleAdminGetAllAgreements(req, res, requestId) {
   } catch (err) {
     console.error(`[${requestId}] Admin get agreements error:`, err);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Internal server error' }));
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function handleAdminGetAgreementPDF(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Authentication required' }));
+      return;
+    }
+
+    const token = authHeader.split(' ')[1];
+    const supabase = getSupabaseClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Admin access required' }));
+      return;
+    }
+
+    const urlMatch = req.url.match(/^\/api\/admin\/agreements\/([^/]+)\/pdf/);
+    if (!urlMatch) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid agreement ID' }));
+      return;
+    }
+    const agreementId = urlMatch[1];
+
+    const { data: agreement, error: fetchError } = await supabase
+      .from('signed_agreements')
+      .select('*')
+      .eq('id', agreementId)
+      .single();
+
+    if (fetchError || !agreement) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Agreement not found' }));
+      return;
+    }
+
+    const signedDateFormatted = agreement.signed_at
+      ? new Date(agreement.signed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      : 'N/A';
+
+    const pdfBuffer = await new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
+      const buffers = [];
+      doc.on('data', (chunk) => { buffers.push(chunk); });
+      doc.on('end', () => { resolve(Buffer.concat(buffers)); });
+      doc.on('error', reject);
+
+      const gold = '#b8942d';
+      const darkText = '#1a1a1a';
+      const grayText = '#555555';
+      const lightGray = '#999999';
+
+      const isFoundingProvider = agreement.agreement_type === 'founding_provider_chris_agrapidis';
+
+      doc.rect(0, 0, doc.page.width, 100).fill('#12161c');
+      doc.fillColor('#d4a855').fontSize(22).font('Helvetica-Bold').text('My Car Concierge', 50, 30, { align: 'center' });
+
+      if (isFoundingProvider) {
+        doc.fillColor('#ffffff').fontSize(11).font('Helvetica').text('Founding Provider Partner Agreement', 50, 58, { align: 'center' });
+        doc.fillColor('#d4a855').fontSize(9).text('FOUNDING PROVIDER PARTNER', 50, 76, { align: 'center' });
+      } else {
+        const typeLabel = (agreement.agreement_type || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        doc.fillColor('#ffffff').fontSize(11).font('Helvetica').text(typeLabel + ' Agreement', 50, 58, { align: 'center' });
+        doc.fillColor('#d4a855').fontSize(9).text(typeLabel.toUpperCase(), 50, 76, { align: 'center' });
+      }
+
+      doc.moveDown(3);
+      doc.y = 120;
+
+      doc.fillColor(darkText).fontSize(10).font('Helvetica');
+      doc.text('Effective Date: ' + signedDateFormatted, 50);
+      doc.moveDown(0.3);
+      doc.text('BETWEEN: Zanetis Holdings LLC d/b/a My Car Concierge, 107 Almond Drive, Somerset, NJ 08873 ("MCC")', 50);
+      doc.moveDown(0.3);
+      doc.text('AND: ', { continued: true });
+      doc.font('Helvetica-Bold').fillColor(gold).text(agreement.full_name || 'Provider', { continued: true });
+      doc.font('Helvetica').fillColor(darkText).text(isFoundingProvider ? ' ("Founding Provider")' : ' ("Provider")');
+      doc.moveDown(0.3);
+      doc.fillColor(lightGray).fontSize(8).text('Reference ID: ' + (agreement.id || 'N/A') + '  |  IP: ' + (agreement.ip_address || 'N/A'), 50);
+
+      doc.moveDown(1.5);
+
+      function sectionHeader(text) {
+        doc.moveDown(0.8);
+        doc.fillColor(gold).fontSize(12).font('Helvetica-Bold').text(text, 50);
+        doc.moveTo(50, doc.y + 2).lineTo(562, doc.y + 2).strokeColor(gold).lineWidth(0.5).stroke();
+        doc.moveDown(0.5);
+      }
+
+      function sectionBody(label, text) {
+        doc.fillColor(gold).fontSize(10).font('Helvetica-Bold').text(label, 50, doc.y, { continued: true });
+        doc.fillColor(darkText).font('Helvetica').text(' ' + text, { align: 'justify' });
+        doc.moveDown(0.4);
+      }
+
+      if (isFoundingProvider) {
+        sectionHeader('1. FOUNDING PROVIDER BENEFITS');
+
+        sectionBody('1.1 Zero Fees.', 'Founding Provider receives unlimited bid credits at no cost and pays zero transaction fees. Founding Provider keeps 100% of customer payments minus only credit card payment processing fees when applied.');
+
+        sectionBody('1.2 Referral Commissions.', 'Founding Provider receives 90% of total revenue from bid pack purchases made by any provider Founding Provider refers to MCC, for the lifetime of the respective provider\'s account. Commissions paid monthly within 15 business days.');
+
+        sectionBody('1.3 Milestone Bonuses.', 'Founding Provider receives one-time bonuses when MCC achieves total aggregate revenue milestones:');
+
+        const milestones = [
+          ['$1,000', '$100'],
+          ['$5,000', '$500'],
+          ['$10,000', '$1,000'],
+          ['$25,000', '$2,500'],
+          ['$50,000', '$5,000'],
+          ['$100,000', '$12,500'],
+          ['$250,000', '$30,000'],
+          ['$500,000', '$60,000'],
+          ['$1,000,000', '$125,000']
+        ];
+
+        const tableTop = doc.y + 5;
+        const col1X = 150;
+        const col2X = 350;
+        const colWidth1 = 200;
+        const colWidth2 = 200;
+        const rowHeight = 18;
+
+        doc.rect(col1X, tableTop, colWidth1, rowHeight).fill('#12161c');
+        doc.rect(col2X, tableTop, colWidth2, rowHeight).fill('#12161c');
+        doc.fillColor('#d4a855').fontSize(8).font('Helvetica-Bold');
+        doc.text('PLATFORM REVENUE MILESTONE', col1X + 5, tableTop + 5, { width: colWidth1 - 10, align: 'center' });
+        doc.text('BONUS AMOUNT', col2X + 5, tableTop + 5, { width: colWidth2 - 10, align: 'center' });
+
+        for (let mi = 0; mi < milestones.length; mi++) {
+          const rowY = tableTop + rowHeight + (mi * rowHeight);
+          if (mi % 2 === 0) {
+            doc.rect(col1X, rowY, colWidth1, rowHeight).fill('#f9f6ef');
+            doc.rect(col2X, rowY, colWidth2, rowHeight).fill('#f9f6ef');
+          }
+          doc.fillColor(darkText).fontSize(9).font('Helvetica');
+          doc.text(milestones[mi][0], col1X + 5, rowY + 5, { width: colWidth1 - 10, align: 'center' });
+          doc.text(milestones[mi][1], col2X + 5, rowY + 5, { width: colWidth2 - 10, align: 'center' });
+        }
+
+        doc.y = tableTop + rowHeight + (milestones.length * rowHeight) + 10;
+
+        doc.fillColor(grayText).fontSize(8).font('Helvetica').text('Milestone bonuses are revenue-based, paid when cumulative company revenue reaches each threshold. Bonus reserve funds are held in a secure, interest-bearing account, earning interest until milestones are reached. Bonuses will be paid within 30 days of achieving each milestone. Additional milestone amounts and bonus structures beyond $1,000,000 in cumulative company revenue will be discussed by mutual written agreement as the company grows.', 50, doc.y, { align: 'justify' });
+
+        doc.addPage();
+
+        sectionHeader('2. FOUNDING PROVIDER OBLIGATIONS');
+
+        sectionBody('2.1 Service Standards.', 'Founding Provider shall maintain required licenses, insurance, and certifications, and comply with all applicable laws.');
+
+        sectionBody('2.2 Platform Compliance.', 'Founding Provider shall maintain accurate profile information.');
+
+        sectionBody('2.3 Provider Recruitment.', 'Founding Provider shall actively recruit qualified service providers to the MCC platform.');
+
+        sectionHeader('3. TERMS & CONDITIONS');
+
+        sectionBody('3.1 Independent Contractor.', 'Founding Provider is an independent contractor, not an employee. MCC will issue Form 1099-NEC for payments exceeding $600/year. Founding Provider provides Form W-9 before first payment and is responsible for all taxes, insurance, and business expenses.');
+
+        sectionBody('3.2 Duration.', 'This Agreement continues indefinitely and may only be terminated by mutual written agreement of both parties.');
+
+        sectionBody('3.3 Commission Protection.', 'The 90% commission rate on already-referred providers continues for life, even if this Agreement terminates. All other benefits (zero fees, milestone bonuses) end upon termination.');
+
+        sectionBody('3.4 Confidentiality.', 'Both parties maintain confidentiality of business information, customer data, and proprietary processes.');
+
+        sectionBody('3.5 Intellectual Property.', 'All MCC trademarks, platform technology, and IP remain MCC\'s exclusive property. Founding Provider may use MCC branding only for recruiting providers.');
+
+        sectionBody('3.6 Indemnification.', 'Founding Provider shall indemnify, defend, and hold harmless MCC and its officers, directors, employees, and agents from and against any and all claims, damages, losses, liabilities, costs, and expenses (including reasonable attorneys\' fees) arising out of or related to Founding Provider\'s services, operations, or breach of this Agreement. Founding Provider shall maintain adequate insurance coverage as required by applicable law.');
+
+        sectionBody('3.7 Modification.', 'This Agreement may only be modified by written agreement signed by both parties.');
+
+        sectionBody('3.8 Governing Law.', 'This Agreement is governed by New Jersey law. Disputes resolved first through negotiation, then mediation, then New Jersey courts.');
+      } else {
+        sectionHeader('AGREEMENT DETAILS');
+
+        const typeLabel = (agreement.agreement_type || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        sectionBody('Agreement Type:', typeLabel);
+        sectionBody('Full Name:', agreement.full_name || 'N/A');
+        if (agreement.business_name) {
+          sectionBody('Business Name:', agreement.business_name);
+        }
+        sectionBody('Date Signed:', signedDateFormatted);
+        sectionBody('Reference ID:', String(agreement.id || 'N/A'));
+        if (agreement.ip_address) {
+          sectionBody('IP Address:', agreement.ip_address);
+        }
+      }
+
+      doc.moveDown(2);
+
+      doc.fillColor(gold).fontSize(12).font('Helvetica-Bold').text('SIGNATURES', 50);
+      doc.moveTo(50, doc.y + 2).lineTo(562, doc.y + 2).strokeColor(gold).lineWidth(0.5).stroke();
+      doc.moveDown(1);
+
+      const sigY = doc.y;
+      doc.rect(50, sigY, 240, 120).strokeColor('#cccccc').lineWidth(0.5).stroke();
+      doc.fillColor(darkText).fontSize(9).font('Helvetica-Bold').text('Zanetis Holdings LLC d/b/a My Car Concierge', 60, sigY + 10, { width: 220 });
+      doc.moveDown(0.5);
+      doc.fillColor(gold).fontSize(16).font('Helvetica-Oblique').text('Jordan Zanetis', 60, sigY + 35, { width: 220 });
+      doc.fillColor(darkText).fontSize(9).font('Helvetica-Bold').text('Jordan Zanetis', 60, sigY + 58, { continued: true });
+      doc.font('Helvetica').text(', Founder & CEO');
+      doc.fillColor(grayText).fontSize(8).text('Date: ' + signedDateFormatted, 60, sigY + 78);
+      doc.fillColor(lightGray).fontSize(7).text('Pre-signed by MCC', 60, sigY + 95);
+
+      doc.rect(310, sigY, 240, 120).strokeColor('#cccccc').lineWidth(0.5).stroke();
+      doc.fillColor(darkText).fontSize(9).font('Helvetica-Bold').text(isFoundingProvider ? 'Founding Provider' : 'Provider', 320, sigY + 10, { width: 220 });
+
+      const sigData = agreement.signature_data || '';
+      const sigType = agreement.signature_type || '';
+      if (sigData && sigData.indexOf('data:image') === 0) {
+        try {
+          const base64Part = sigData.split(',')[1];
+          if (base64Part) {
+            const imgBuffer = Buffer.from(base64Part, 'base64');
+            doc.image(imgBuffer, 320, sigY + 28, { width: 180, height: 40, fit: [180, 40] });
+          }
+        } catch (imgErr) {
+          doc.fillColor(gold).fontSize(16).font('Helvetica-Oblique').text(agreement.full_name || 'Provider', 320, sigY + 35, { width: 220 });
+        }
+      } else if (sigData && sigData.indexOf('typed:') === 0) {
+        const typedName = sigData.substring(6);
+        doc.fillColor(gold).fontSize(18).font('Helvetica-Oblique').text(typedName, 320, sigY + 35, { width: 220 });
+      } else {
+        doc.fillColor(gold).fontSize(16).font('Helvetica-Bold').text(agreement.full_name || 'Provider', 320, sigY + 35, { width: 220 });
+      }
+
+      doc.fillColor(darkText).fontSize(9).font('Helvetica-Bold').text(agreement.full_name || 'Provider', 320, sigY + 72);
+      doc.fillColor(grayText).fontSize(8).font('Helvetica').text('Date: ' + signedDateFormatted, 320, sigY + 85);
+      doc.fillColor(lightGray).fontSize(7).text('Electronically signed', 320, sigY + 100);
+
+      doc.moveDown(6);
+
+      const footerY = doc.page.height - 40;
+      doc.fillColor(lightGray).fontSize(7).font('Helvetica');
+      doc.text('Reference ID: ' + (agreement.id || 'N/A') + '  |  Signed: ' + signedDateFormatted + '  |  My Car Concierge - mycarconcierge.com', 50, footerY, { align: 'center', width: 512 });
+
+      doc.end();
+    });
+
+    const fileName = 'MCC-Agreement-' + agreementId + '.pdf';
+    res.writeHead(200, {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'attachment; filename="' + fileName + '"',
+      'Content-Length': pdfBuffer.length
+    });
+    res.end(pdfBuffer);
+  } catch (err) {
+    console.error(`[${requestId}] Admin get agreement PDF error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function handleUpdateFounderCommission(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  try {
+    // Extract founder ID from URL: /api/admin/founders/:founderId/commission
+    const urlParts = req.url.split('/');
+    const founderId = urlParts[4]; // /api/admin/founders/[founderId]/commission
+    
+    if (!founderId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Founder ID is required' }));
+      return;
+    }
+    
+    // Verify admin authentication
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Authentication required' }));
+      return;
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+      return;
+    }
+    
+    // Check admin role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Admin access required' }));
+      return;
+    }
+    
+    // Parse request body
+    const body = await new Promise((resolve, reject) => {
+      let data = '';
+      req.on('data', chunk => data += chunk);
+      req.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error('Invalid JSON'));
+        }
+      });
+      req.on('error', reject);
+    });
+    
+    const { commission_rate } = body;
+    
+    // Validate commission rate (should be between 0 and 1)
+    if (typeof commission_rate !== 'number' || commission_rate < 0 || commission_rate > 1) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Commission rate must be between 0 and 1 (e.g., 0.50 for 50%)' }));
+      return;
+    }
+    
+    // Get current rate for history tracking
+    const { data: currentProfile } = await supabase
+      .from('member_founder_profiles')
+      .select('commission_rate')
+      .eq('id', founderId)
+      .single();
+    
+    const oldRate = currentProfile?.commission_rate || 0.50;
+    
+    // Update founder commission rate
+    const { data: updatedProfile, error: updateError } = await supabase
+      .from('member_founder_profiles')
+      .update({ 
+        commission_rate: commission_rate,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', founderId)
+      .select()
+      .single();
+    
+    if (updateError) {
+      console.error(`[${requestId}] Error updating founder commission:`, updateError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to update commission rate' }));
+      return;
+    }
+    
+    if (!updatedProfile) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Founder not found' }));
+      return;
+    }
+    
+    // Log commission rate change to history (don't wait for this)
+    supabase
+      .from('commission_rate_history')
+      .insert({
+        founder_id: founderId,
+        admin_id: user.id,
+        admin_email: user.email,
+        old_rate: oldRate,
+        new_rate: commission_rate,
+        reason: body.reason || null
+      })
+      .then(({ error }) => {
+        if (error) {
+          console.error(`[${requestId}] Failed to log commission rate history:`, error);
+        } else {
+          console.log(`[${requestId}] Commission rate history logged for founder ${founderId}`);
+        }
+      });
+    
+    console.log(`[${requestId}] Admin ${user.email} updated founder ${founderId} commission rate from ${oldRate * 100}% to ${commission_rate * 100}%`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true,
+      founder_id: founderId,
+      old_rate: oldRate,
+      commission_rate: commission_rate,
+      message: `Commission rate updated from ${(oldRate * 100).toFixed(0)}% to ${(commission_rate * 100).toFixed(0)}%`
+    }));
+    
+  } catch (err) {
+    console.error(`[${requestId}] Update founder commission error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function handleGetFounderCommissionHistory(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  try {
+    const urlParts = req.url.split('/');
+    const founderId = urlParts[4];
+    
+    if (!founderId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Founder ID is required' }));
+      return;
+    }
+    
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Authentication required' }));
+      return;
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Admin access required' }));
+      return;
+    }
+    
+    const { data: history, error: historyError } = await supabase
+      .from('commission_rate_history')
+      .select('id, old_rate, new_rate, admin_email, created_at')
+      .eq('founder_id', founderId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    
+    if (historyError) {
+      console.error(`[${requestId}] Error fetching commission history:`, historyError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch commission history' }));
+      return;
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ history: history || [] }));
+    
+  } catch (err) {
+    console.error(`[${requestId}] Get founder commission history error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -1023,7 +1838,7 @@ async function handleLogLoginActivity(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Log login activity error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
 }
@@ -1088,7 +1903,7 @@ async function handleGetLoginActivity(req, res, requestId, memberId) {
   } catch (error) {
     console.error(`[${requestId}] Get login activity exception:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -1152,7 +1967,7 @@ async function handleAcknowledgeLoginActivity(req, res, requestId, activityId) {
   } catch (error) {
     console.error(`[${requestId}] Acknowledge login activity exception:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -1220,7 +2035,7 @@ async function handleReportSuspiciousLogin(req, res, requestId, activityId) {
   } catch (error) {
     console.error(`[${requestId}] Report suspicious login exception:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -1706,6 +2521,20 @@ async function syncSquareTransactions(providerId, locationId, accessToken, envir
 
 const PRINTFUL_API_URL = 'https://api.printful.com';
 
+function getPrintfulHeaders(apiKey) {
+  const headers = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json'
+  };
+  const storeId = process.env.PRINTFUL_STORE_ID;
+  if (storeId) {
+    headers['X-PF-Store-Id'] = storeId;
+  } else {
+    console.warn('[Printful] PRINTFUL_STORE_ID not set — some endpoints may return errors.');
+  }
+  return headers;
+}
+
 // Product cache for Printful products (5 minute TTL)
 const productCache = {
   data: null,
@@ -1826,10 +2655,7 @@ async function fetchPrintfulProducts() {
   try {
     const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      }
+      headers: getPrintfulHeaders(apiKey)
     });
     
     if (!response.ok) {
@@ -1842,10 +2668,7 @@ async function fetchPrintfulProducts() {
     
     for (const item of (data.result || [])) {
       const productResponse = await fetch(`${PRINTFUL_API_URL}/store/products/${item.id}`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
+        headers: getPrintfulHeaders(apiKey)
       });
       
       if (productResponse.ok) {
@@ -1926,10 +2749,7 @@ async function createPrintfulOrder(orderData) {
   try {
     const response = await fetch(`${PRINTFUL_API_URL}/orders`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
+      headers: getPrintfulHeaders(apiKey),
       body: JSON.stringify(printfulOrderData)
     });
     
@@ -1961,10 +2781,7 @@ async function getPrintfulOrderStatus(orderId) {
   try {
     const response = await fetch(`${PRINTFUL_API_URL}/orders/${orderId}`, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      }
+      headers: getPrintfulHeaders(apiKey)
     });
     
     if (!response.ok) {
@@ -2048,10 +2865,7 @@ async function handlePrintfulCatalog(req, res, requestId) {
     
     for (const category of PRINTFUL_POPULAR_CATEGORIES) {
       const response = await fetch(`${PRINTFUL_API_URL}/products?category_id=${category.id}`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
+        headers: getPrintfulHeaders(apiKey)
       });
       
       if (!response.ok) {
@@ -2083,7 +2897,7 @@ async function handlePrintfulCatalog(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Printful catalog error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: error.message }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -2101,17 +2915,14 @@ async function handlePrintfulCatalogProduct(req, res, requestId, productId) {
   try {
     console.log(`[Printful] Fetching catalog product ${productId}...`);
     const response = await fetch(`${PRINTFUL_API_URL}/products/${productId}`, {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      }
+      headers: getPrintfulHeaders(apiKey)
     });
     
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[Printful] API Error ${response.status}: ${errorText}`);
       res.writeHead(response.status, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: `Printful API error: ${response.status}`, details: errorText }));
+      res.end(JSON.stringify({ success: false, error: 'Unable to fetch products. Please try again later.' }));
       return;
     }
     
@@ -2156,7 +2967,7 @@ async function handlePrintfulCatalogProduct(req, res, requestId, productId) {
   } catch (error) {
     console.error(`[${requestId}] Printful product error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: error.message }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -2204,10 +3015,7 @@ async function handleCreatePrintfulProduct(req, res, requestId) {
     
     const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
+      headers: getPrintfulHeaders(apiKey),
       body: JSON.stringify(payload)
     });
     
@@ -2233,7 +3041,7 @@ async function handleCreatePrintfulProduct(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Create Printful product error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: error.message }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -2298,10 +3106,7 @@ async function handleBulkCreatePrintfulProducts(req, res, requestId) {
         
         const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-          },
+          headers: getPrintfulHeaders(apiKey),
           body: JSON.stringify(payload)
         });
         
@@ -2348,7 +3153,7 @@ async function handleBulkCreatePrintfulProducts(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Bulk create Printful products error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: error.message }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -2366,9 +3171,7 @@ async function handleDeletePrintfulProduct(req, res, requestId, productId) {
   try {
     const response = await fetch(`${PRINTFUL_API_URL}/store/products/${productId}`, {
       method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`
-      }
+      headers: getPrintfulHeaders(apiKey)
     });
     
     if (!response.ok && response.status !== 404) {
@@ -2384,7 +3187,7 @@ async function handleDeletePrintfulProduct(req, res, requestId, productId) {
   } catch (error) {
     console.error(`[${requestId}] Delete Printful product error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: error.message }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -2402,17 +3205,14 @@ async function handleGetPrintfulStoreProducts(req, res, requestId) {
   try {
     console.log(`[Printful] Fetching store products...`);
     const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      }
+      headers: getPrintfulHeaders(apiKey)
     });
     
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[Printful] Store products API Error ${response.status}: ${errorText}`);
       res.writeHead(response.status, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: `Printful API error: ${response.status}`, details: errorText }));
+      res.end(JSON.stringify({ success: false, error: 'Unable to fetch products. Please try again later.' }));
       return;
     }
     
@@ -2432,7 +3232,7 @@ async function handleGetPrintfulStoreProducts(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Get store products error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: error.message }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -2480,10 +3280,7 @@ async function handlePrintfulMockup(req, res, requestId) {
     
     const createResponse = await fetch(`${PRINTFUL_API_URL}/mockup-generator/create-task/${productId}`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
+      headers: getPrintfulHeaders(apiKey),
       body: JSON.stringify(mockupPayload)
     });
     
@@ -2507,10 +3304,7 @@ async function handlePrintfulMockup(req, res, requestId) {
       attempts++;
       
       const resultResponse = await fetch(`${PRINTFUL_API_URL}/mockup-generator/task?task_key=${taskKey}`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
+        headers: getPrintfulHeaders(apiKey)
       });
       
       const resultData = await resultResponse.json();
@@ -2541,7 +3335,7 @@ async function handlePrintfulMockup(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Mockup generation error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: error.message }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -2724,7 +3518,7 @@ async function handleDesignUpload(req, res, requestId) {
     if (error) {
       console.error(`[${requestId}] Design upload error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: error.message }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
       return;
     }
     
@@ -2745,7 +3539,7 @@ async function handleDesignUpload(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Design upload error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: error.message }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -2778,7 +3572,7 @@ async function handleDesignList(req, res, requestId) {
     if (error) {
       console.error(`[${requestId}] Design list error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: error.message }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
       return;
     }
     
@@ -2803,7 +3597,7 @@ async function handleDesignList(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Design list error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: error.message }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -2834,7 +3628,7 @@ async function handleDesignDelete(req, res, requestId, filename) {
     if (error) {
       console.error(`[${requestId}] Design delete error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: error.message }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
       return;
     }
     
@@ -2844,7 +3638,7 @@ async function handleDesignDelete(req, res, requestId, filename) {
   } catch (error) {
     console.error(`[${requestId}] Design delete error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: error.message }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -3801,6 +4595,401 @@ async function handleCreateInsuranceDocument(req, res, requestId, memberId) {
   });
 }
 
+// OBD Diagnostic Scan Handlers
+async function handleOBDScanSubmit(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    const body = await getRequestBody(req);
+    const { vehicleId, codes, notes, source } = body;
+    
+    if (!vehicleId || !codes || !Array.isArray(codes) || codes.length === 0) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'vehicleId and codes array are required' }));
+      return;
+    }
+    
+    const validCodes = codes.filter(code => /^[PCBU][0-9]{4}$/i.test(code)).map(c => c.toUpperCase());
+    if (validCodes.length === 0) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No valid OBD codes provided. Codes should be in format like P0420, C0035, B0001, U0100' }));
+      return;
+    }
+    
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: vehicle, error: vehicleError } = await supabase
+      .from('vehicles')
+      .select('id, owner_id, year, make, model')
+      .eq('id', vehicleId)
+      .single();
+    
+    if (vehicleError || !vehicle) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Vehicle not found' }));
+      return;
+    }
+    
+    if (vehicle.owner_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Access denied - you do not own this vehicle' }));
+      return;
+    }
+    
+    const validSources = ['manual', 'photo_ocr', 'import'];
+    const scanSource = validSources.includes(source) ? source : 'manual';
+    
+    const { data: scan, error: insertError } = await supabase
+      .from('diagnostic_scans')
+      .insert({
+        vehicle_id: vehicleId,
+        user_id: user.id,
+        codes: validCodes,
+        raw_input: codes.join(', '),
+        source: scanSource,
+        notes: notes ? notes.substring(0, 1000) : null
+      })
+      .select()
+      .single();
+    
+    if (insertError) {
+      console.error(`[${requestId}] Error creating diagnostic scan:`, insertError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to save diagnostic scan' }));
+      return;
+    }
+    
+    console.log(`[${requestId}] Diagnostic scan created: ${scan.id} with ${validCodes.length} codes for vehicle ${vehicleId}`);
+
+    recomputeVehicleHealthBackground(vehicleId, requestId);
+
+    res.writeHead(201, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      scan,
+      vehicle: { year: vehicle.year, make: vehicle.make, model: vehicle.model }
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] OBD scan submit error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to submit diagnostic scan' }));
+  }
+}
+
+async function handleOBDScanOCR(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    const body = await getRequestBody(req);
+    const { imageBase64, imageUrl } = body;
+    
+    if (!imageBase64 && !imageUrl) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Either imageBase64 or imageUrl is required' }));
+      return;
+    }
+    
+    const apiKey = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'OCR service not configured' }));
+      return;
+    }
+    
+    let imageContent = imageBase64;
+    
+    if (imageUrl && !imageBase64) {
+      try {
+        const imageResponse = await fetch(imageUrl);
+        if (!imageResponse.ok) {
+          throw new Error('Failed to fetch image from URL');
+        }
+        const imageBuffer = await imageResponse.arrayBuffer();
+        if (imageBuffer.byteLength > 10 * 1024 * 1024) {
+          throw new Error('Image file too large (max 10MB)');
+        }
+        imageContent = Buffer.from(imageBuffer).toString('base64');
+      } catch (fetchError) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: fetchError.message || 'Failed to fetch image' }));
+        return;
+      }
+    }
+    
+    if (imageContent && imageContent.includes(',')) {
+      imageContent = imageContent.split(',')[1];
+    }
+    
+    console.log(`[${requestId}] Calling Google Vision API for OBD code OCR...`);
+    const visionResponse = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requests: [{
+          image: { content: imageContent },
+          features: [{ type: 'TEXT_DETECTION' }]
+        }]
+      })
+    });
+    
+    const visionData = await visionResponse.json();
+    
+    if (!visionResponse.ok) {
+      console.error(`[${requestId}] Vision API error:`, visionData);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'OCR service error', details: visionData.error?.message }));
+      return;
+    }
+    
+    const extractedText = visionData.responses?.[0]?.fullTextAnnotation?.text || '';
+    console.log(`[${requestId}] OCR extracted text length: ${extractedText.length} chars`);
+    
+    const obdCodeRegex = /[PCBU][0-9]{4}/gi;
+    const matches = extractedText.match(obdCodeRegex) || [];
+    const uniqueCodes = [...new Set(matches.map(c => c.toUpperCase()))];
+    
+    console.log(`[${requestId}] Extracted ${uniqueCodes.length} OBD codes from image`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      codes: uniqueCodes,
+      rawText: extractedText.substring(0, 500),
+      codeCount: uniqueCodes.length
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] OBD scan OCR error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to process image for OBD codes' }));
+  }
+}
+
+async function handleOBDInterpret(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    const body = await getRequestBody(req);
+    const { scanId, codes, vehicleInfo } = body;
+    
+    if (!scanId && (!codes || !Array.isArray(codes) || codes.length === 0)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Either scanId or codes array is required' }));
+      return;
+    }
+    
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    let codesToInterpret = codes || [];
+    let scanRecord = null;
+    let vehicle = null;
+    
+    if (scanId) {
+      const { data: scan, error: scanError } = await supabase
+        .from('diagnostic_scans')
+        .select('*, vehicles(year, make, model)')
+        .eq('id', scanId)
+        .single();
+      
+      if (scanError || !scan) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Diagnostic scan not found' }));
+        return;
+      }
+      
+      if (scan.user_id !== user.id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Access denied' }));
+        return;
+      }
+      
+      codesToInterpret = scan.codes || [];
+      scanRecord = scan;
+      vehicle = scan.vehicles;
+    }
+    
+    if (codesToInterpret.length === 0) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No codes to interpret' }));
+      return;
+    }
+    
+    const vehicleDesc = vehicle 
+      ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` 
+      : (vehicleInfo || 'the vehicle');
+    
+    const prompt = `You are an automotive diagnostic expert. A car owner has the following OBD-II diagnostic trouble codes from their ${vehicleDesc}:
+
+Codes: ${codesToInterpret.join(', ')}
+
+Please provide a helpful interpretation for the car owner. Include:
+
+1. **Plain English Explanation**: What each code means in simple terms that a non-mechanic can understand.
+
+2. **Severity Assessment**: Rate the overall severity as one of: low, medium, high, or critical
+   - low: Can continue driving, schedule service when convenient
+   - medium: Should be addressed within a week or two
+   - high: Should be addressed soon, within a few days
+   - critical: Stop driving immediately, safety risk
+
+3. **Likely Causes**: What are the most common causes for these codes?
+
+4. **Estimated Repair Cost Range**: Provide a rough estimate in USD (give a range like $100-$300). If multiple issues, break it down.
+
+5. **Urgency & Recommendations**: What should the car owner do next? Is it safe to drive? Should they get a tow?
+
+6. **Questions for the Mechanic**: 2-3 smart questions the car owner can ask when they visit a shop.
+
+Format your response as JSON with this structure:
+{
+  "codes_explained": [{"code": "P0420", "meaning": "...", "severity": "low|medium|high|critical"}],
+  "overall_severity": "low|medium|high|critical",
+  "summary": "Brief 1-2 sentence summary",
+  "likely_causes": ["cause1", "cause2"],
+  "estimated_cost": {"min": 100, "max": 500, "notes": "..."},
+  "urgency": "Brief urgency statement",
+  "safe_to_drive": true|false,
+  "recommendations": ["recommendation1", "recommendation2"],
+  "questions_for_mechanic": ["question1", "question2"]
+}`;
+
+    console.log(`[${requestId}] Generating AI interpretation for ${codesToInterpret.length} OBD codes`);
+    
+    const aiResult = await generateAIContent(prompt, { maxTokens: 2048, preferredProvider: 'gemini' });
+    
+    let interpretation;
+    try {
+      const jsonMatch = aiResult.text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        interpretation = JSON.parse(jsonMatch[0]);
+      } else {
+        interpretation = { raw_response: aiResult.text, parse_error: true };
+      }
+    } catch (parseError) {
+      interpretation = { raw_response: aiResult.text, parse_error: true };
+    }
+    
+    const severity = interpretation.overall_severity || 'medium';
+    
+    if (scanRecord) {
+      const { error: updateError } = await supabase
+        .from('diagnostic_scans')
+        .update({
+          ai_interpretation: interpretation,
+          severity: severity
+        })
+        .eq('id', scanId);
+      
+      if (updateError) {
+        console.error(`[${requestId}] Error updating scan with interpretation:`, updateError);
+      } else {
+        console.log(`[${requestId}] Updated scan ${scanId} with AI interpretation, severity: ${severity}`);
+      }
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      interpretation,
+      severity,
+      codes: codesToInterpret,
+      provider: aiResult.provider,
+      scanId: scanId || null
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] OBD interpret error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to interpret diagnostic codes' }));
+  }
+}
+
+async function handleGetVehicleDiagnosticScans(req, res, requestId, vehicleId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: vehicle, error: vehicleError } = await supabase
+      .from('vehicles')
+      .select('id, owner_id, year, make, model')
+      .eq('id', vehicleId)
+      .single();
+    
+    if (vehicleError || !vehicle) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Vehicle not found' }));
+      return;
+    }
+    
+    if (vehicle.owner_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Access denied - you do not own this vehicle' }));
+      return;
+    }
+    
+    const { data: scans, error: scansError } = await supabase
+      .from('diagnostic_scans')
+      .select('*')
+      .eq('vehicle_id', vehicleId)
+      .order('created_at', { ascending: false });
+    
+    if (scansError) {
+      console.error(`[${requestId}] Error fetching diagnostic scans:`, scansError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch diagnostic scans' }));
+      return;
+    }
+    
+    console.log(`[${requestId}] Retrieved ${scans?.length || 0} diagnostic scans for vehicle ${vehicleId}`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      scans: scans || [],
+      vehicle: { year: vehicle.year, make: vehicle.make, model: vehicle.model },
+      count: scans?.length || 0
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Get vehicle diagnostic scans error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to fetch diagnostic scans' }));
+  }
+}
+
 async function handleDeleteInsuranceDocument(req, res, requestId, memberId, docId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -4101,11 +5290,11 @@ function setSecurityHeaders(res, isApiRoute = false) {
   if (!isApiRoute) {
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://maps.googleapis.com https://maps.gstatic.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
       "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:",
       "img-src 'self' data: blob: https: http:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.printful.com https://api.anthropic.com https://generativelanguage.googleapis.com https://*.replit.dev https://*.repl.co https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.printful.com https://api.anthropic.com https://generativelanguage.googleapis.com https://*.replit.dev https://*.repl.co https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com https://maps.googleapis.com",
       "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
       "object-src 'none'",
       "base-uri 'self'",
@@ -4302,6 +5491,75 @@ async function getBidPackById(packId) {
     bonus: pack.bonus_bids || 0,
     price: Math.round(pack.price * 100)
   };
+}
+
+async function updateMilestoneTracking(purchaseAmount) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.error('[MILESTONE] Supabase not configured');
+    return;
+  }
+  
+  try {
+    const now = new Date();
+    const monthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const reserveAmount = purchaseAmount * 0.15;
+    
+    const { data: revenueResult, error: revenueError } = await supabase
+      .rpc('upsert_platform_revenue', { p_amount: purchaseAmount });
+    
+    if (revenueError) {
+      console.error('[MILESTONE] Error upserting platform revenue:', revenueError.message);
+      return;
+    }
+    
+    const newTotal = revenueResult?.[0]?.new_total || purchaseAmount;
+    console.log(`[MILESTONE] Platform revenue updated atomically: $${Number(newTotal).toFixed(2)}`);
+    
+    const { data: reserveResult, error: reserveError } = await supabase
+      .rpc('upsert_bonus_reserve', { 
+        p_month_year: monthYear, 
+        p_bid_pack_amount: purchaseAmount, 
+        p_reserve_amount: reserveAmount 
+      });
+    
+    if (reserveError) {
+      console.error('[MILESTONE] Error upserting bonus reserve:', reserveError.message);
+      return;
+    }
+    
+    const newReserveTotal = reserveResult?.[0]?.new_reserve_amount || reserveAmount;
+    console.log(`[MILESTONE] Bonus reserve for ${monthYear}: $${Number(newReserveTotal).toFixed(2)} (+$${reserveAmount.toFixed(2)})`);
+    
+    // Try to transfer to Stripe Treasury (if available)
+    const treasuryResult = await stripeTreasury.transferToTreasury(reserveAmount, `15% reserve from $${purchaseAmount.toFixed(2)} bid pack`);
+    const treasuryNote = treasuryResult.success && treasuryResult.treasuryActive 
+      ? ` (transferred to Treasury: ${treasuryResult.transactionId})`
+      : treasuryResult.fallbackToDb 
+        ? ' (Treasury pending - tracked in DB)'
+        : ' (Treasury transfer failed - tracked in DB)';
+    
+    const { error: txError } = await supabase
+      .from('bonus_reserve_transactions')
+      .insert({
+        transaction_type: 'accrual',
+        amount: reserveAmount,
+        balance_after: newReserveTotal,
+        reference_type: 'bid_pack_purchase',
+        notes: `15% accrual from $${purchaseAmount.toFixed(2)} bid pack purchase${treasuryNote}`,
+        stripe_treasury_id: treasuryResult.transactionId || null
+      });
+    
+    if (txError) {
+      console.error('[MILESTONE] Error logging bonus reserve transaction:', txError.message);
+      return;
+    }
+    
+    console.log(`[MILESTONE] Transaction logged: $${reserveAmount.toFixed(2)} accrual${treasuryNote}`);
+    
+  } catch (err) {
+    console.error('[MILESTONE] Unexpected error in updateMilestoneTracking:', err.message);
+  }
 }
 
 async function checkNotificationPreference(userId, channel, type) {
@@ -4660,7 +5918,7 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
                   <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td width="50" valign="top"><span style="font-size: 28px;">👤</span></td>
+                        <td width="50" valign="top"><span style="display:inline-block;width:32px;height:32px;line-height:32px;text-align:center;border-radius:50%;background:#1e3a5f;color:#fff;font-size:16px;font-weight:bold;">1</span></td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Complete Your Profile</h3>
                           <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">Add your business details, service areas, specialties, and upload photos. Complete profiles get 3x more opportunities.</p>
@@ -4674,7 +5932,7 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
                   <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td width="50" valign="top"><span style="font-size: 28px;">💳</span></td>
+                        <td width="50" valign="top"><span style="display:inline-block;width:32px;height:32px;line-height:32px;text-align:center;border-radius:50%;background:#1e3a5f;color:#fff;font-size:16px;font-weight:bold;">2</span></td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Connect Your Payment Account</h3>
                           <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">Link your Stripe account to receive payments directly. Funds are released as soon as customers confirm job completion.</p>
@@ -4688,7 +5946,7 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
                   <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td width="50" valign="top"><span style="font-size: 28px;">🔨</span></td>
+                        <td width="50" valign="top"><span style="display:inline-block;width:32px;height:32px;line-height:32px;text-align:center;border-radius:50%;background:#1e3a5f;color:#fff;font-size:16px;font-weight:bold;">3</span></td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Browse & Bid on Jobs</h3>
                           <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">View available maintenance packages in your area and submit competitive bids. Win customers by offering great prices and service.</p>
@@ -4702,7 +5960,7 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
                   <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td width="50" valign="top"><span style="font-size: 28px;">⭐</span></td>
+                        <td width="50" valign="top"><span style="display:inline-block;width:32px;height:32px;line-height:32px;text-align:center;border-radius:50%;background:#1e3a5f;color:#fff;font-size:16px;font-weight:bold;">4</span></td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Build Your Reputation</h3>
                           <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">Deliver excellent service and earn positive reviews. Higher ratings mean more visibility and winning more bids.</p>
@@ -4767,7 +6025,7 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
                   <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px; margin-bottom: 12px;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td width="50" valign="top"><span style="font-size: 28px;">🚗</span></td>
+                        <td width="50" valign="top"><span style="display:inline-block;width:32px;height:32px;line-height:32px;text-align:center;border-radius:50%;background:#b8942d;color:#fff;font-size:16px;font-weight:bold;">1</span></td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Add Your Vehicle</h3>
                           <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">Start by adding your vehicle to your Digital Garage. Track maintenance, store documents, and get personalized service recommendations.</p>
@@ -4781,7 +6039,7 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
                   <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td width="50" valign="top"><span style="font-size: 28px;">💰</span></td>
+                        <td width="50" valign="top"><span style="display:inline-block;width:32px;height:32px;line-height:32px;text-align:center;border-radius:50%;background:#b8942d;color:#fff;font-size:16px;font-weight:bold;">2</span></td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Get Competitive Bids</h3>
                           <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">Need a service? Create a maintenance package and receive anonymous bids from vetted providers who compete for your business.</p>
@@ -4795,10 +6053,10 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
                   <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td width="50" valign="top"><span style="font-size: 28px;">📚</span></td>
+                        <td width="50" valign="top"><span style="display:inline-block;width:32px;height:32px;line-height:32px;text-align:center;border-radius:50%;background:#b8942d;color:#fff;font-size:16px;font-weight:bold;">3</span></td>
                         <td>
-                          <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Learn at Car Care Academy</h3>
-                          <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">Become a smarter car owner with our educational resources covering maintenance tips, buying guides, and money-saving advice.</p>
+                          <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Learn at Vehicle Maintenance</h3>
+                          <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">Become a smarter auto owner with our educational resources covering maintenance tips, buying guides, and money-saving advice.</p>
                         </td>
                       </tr>
                     </table>
@@ -4809,7 +6067,7 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
                   <td style="padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td width="50" valign="top"><span style="font-size: 28px;">🔒</span></td>
+                        <td width="50" valign="top"><span style="display:inline-block;width:32px;height:32px;line-height:32px;text-align:center;border-radius:50%;background:#b8942d;color:#fff;font-size:16px;font-weight:bold;">4</span></td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Pay with Confidence</h3>
                           <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">Your payment is held in escrow until you confirm the work is complete. No surprises, no hassle—just peace of mind.</p>
@@ -4865,6 +6123,11 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
         .update({ welcome_email_sent: true })
         .eq('id', userId);
       
+      const nameParts = (userName || '').split(' ');
+      syncContactToHubSpot(userEmail, nameParts[0] || '', nameParts.slice(1).join(' ') || '', userRole, '').catch(err => {
+        console.error('[HUBSPOT] Auto-sync on welcome email failed:', err.message);
+      });
+      
       return { sent: true, id: result.id };
     } else {
       const errorData = await response.json();
@@ -4878,7 +6141,7 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
 }
 
 async function handleSendWelcomeEmail(req, res, requestId) {
-  const authResult = await verifyAuth(req);
+  const authResult = await verifyAuthToken(req);
   if (!authResult.authenticated) {
     res.writeHead(401, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
@@ -4923,6 +6186,57 @@ async function handleSendWelcomeEmail(req, res, requestId) {
   }
 }
 
+async function sendFCMPushNotification(memberIds, title, body, data = {}) {
+  const fcmKey = process.env.FCM_SERVER_KEY;
+  if (!fcmKey) {
+    console.log('[FCM] FCM_SERVER_KEY not set — push skipped');
+    return { sent: false, reason: 'not_configured' };
+  }
+  if (!memberIds || memberIds.length === 0) return { sent: false, reason: 'no_recipients' };
+  const supabase = getSupabaseClient();
+  if (!supabase) return { sent: false, reason: 'no_db' };
+  try {
+    const { data: tokenRows } = await supabase
+      .from('device_push_tokens')
+      .select('token, member_id, platform')
+      .in('member_id', memberIds)
+      .eq('active', true);
+    if (!tokenRows || tokenRows.length === 0) {
+      console.log(`[FCM] No device tokens for ${memberIds.length} member(s)`);
+      return { sent: false, reason: 'no_tokens' };
+    }
+    const tokens = tokenRows.map(r => r.token);
+    const payload = {
+      registration_ids: tokens,
+      notification: { title, body },
+      data: { ...data, title, body },
+      priority: 'high',
+      content_available: true
+    };
+    const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `key=${fcmKey}` },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    console.log(`[FCM] Sent to ${tokens.length} device(s): success=${result.success} failure=${result.failure}`);
+    if (result.results) {
+      const stale = [];
+      result.results.forEach((r, i) => {
+        if (r.error === 'InvalidRegistration' || r.error === 'NotRegistered') stale.push(tokens[i]);
+      });
+      if (stale.length > 0) {
+        await supabase.from('device_push_tokens').update({ active: false }).in('token', stale);
+        console.log(`[FCM] Deactivated ${stale.length} stale token(s)`);
+      }
+    }
+    return { sent: true, success: result.success, failure: result.failure };
+  } catch (err) {
+    console.error('[FCM] Send error:', err.message);
+    return { sent: false, reason: 'error' };
+  }
+}
+
 async function sendDreamCarSMSNotification(userId, matches) {
   const supabase = getSupabaseClient();
   if (!supabase) {
@@ -4955,65 +6269,102 @@ async function sendDreamCarSMSNotification(userId, matches) {
   }
 }
 
-async function sendDreamCarEmailNotification(userId, searchName, matches) {
+async function sendDreamCarEmailNotification(userId, searchName, listings, criteriaDescription, marketIntel) {
   const supabase = getSupabaseClient();
   if (!supabase) {
     console.log('Dream Car Email: Database not available');
     return { sent: false, reason: 'db_unavailable' };
   }
-  
+
   try {
     const { data: profile } = await supabase
       .from('profiles')
       .select('email, full_name')
       .eq('id', userId)
       .single();
-    
+
     if (!profile?.email) {
       console.log(`Dream Car Email: No email for user ${userId}`);
       return { sent: false, reason: 'no_email' };
     }
-    
-    const matchCount = matches?.length || 0;
-    const appUrl = process.env.REPLIT_DEV_DOMAIN 
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+
+    const appUrl = process.env.REPLIT_DEV_DOMAIN
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
       : 'https://mycarconcierge.com';
-    
-    let matchSummaryHtml = '';
-    if (matches && matches.length > 0) {
-      const topMatches = matches.slice(0, 5);
-      matchSummaryHtml = '<div style="margin: 20px 0;">';
-      for (const match of topMatches) {
-        matchSummaryHtml += `
-          <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
-            <strong>${match.year || ''} ${match.make || ''} ${match.model || ''}</strong>
-            ${match.trim ? ` - ${match.trim}` : ''}
-            <div style="color: #666; font-size: 14px; margin-top: 4px;">
-              ${match.price ? `$${Number(match.price).toLocaleString()}` : 'Price TBD'}
-              ${match.mileage ? ` • ${Number(match.mileage).toLocaleString()} miles` : ''}
-              ${match.location ? ` • ${match.location}` : ''}
-            </div>
-            ${match.match_score ? `<div style="color: #28a745; font-size: 13px; margin-top: 4px;">Match Score: ${match.match_score}%</div>` : ''}
-          </div>`;
-      }
-      matchSummaryHtml += '</div>';
-      if (matches.length > 5) {
-        matchSummaryHtml += `<p style="color: #666; font-size: 14px;">...and ${matches.length - 5} more matches</p>`;
-      }
+
+    const intel = marketIntel || {};
+    const pr = intel.priceRange || {};
+    const fmtPrice = (v) => v != null ? '$' + Number(v).toLocaleString() : 'N/A';
+    const trendLabels = { hot: 'Hot Market \u2191', fair: 'Fair Market \u2194', soft: "Buyer's Market \u2193" };
+    const trendColors = { hot: '#ef5f5f', fair: '#b8942d', soft: '#28a745' };
+    const trendLabel = trendLabels[intel.trend] || trendLabels.fair;
+    const trendColor = trendColors[intel.trend] || trendColors.fair;
+
+    let priceHtml = '';
+    if (pr.low != null) {
+      priceHtml = `
+        <div style="background:#f8f9fa;border-radius:12px;padding:20px;margin:16px 0;border:1px solid #e9ecef;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;">
+            <span style="font-size:14px;color:#6c757d;">Price Range (${intel.listingCount || listings.length} listings)</span>
+            <span style="padding:4px 12px;border-radius:100px;font-size:13px;font-weight:600;background:${trendColor}22;color:${trendColor};">${trendLabel}</span>
+          </div>
+          <table style="width:100%;border-collapse:collapse;">
+            <tr>
+              <td style="text-align:left;padding:8px 0;"><div style="font-size:12px;color:#6c757d;text-transform:uppercase;">Low</div><div style="font-size:20px;font-weight:700;color:#28a745;">${fmtPrice(pr.low)}</div></td>
+              <td style="text-align:center;padding:8px 0;"><div style="font-size:12px;color:#6c757d;text-transform:uppercase;">Median</div><div style="font-size:24px;font-weight:700;color:#b8942d;">${fmtPrice(pr.median)}</div></td>
+              <td style="text-align:right;padding:8px 0;"><div style="font-size:12px;color:#6c757d;text-transform:uppercase;">High</div><div style="font-size:20px;font-weight:700;color:#ef5f5f;">${fmtPrice(pr.high)}</div></td>
+            </tr>
+          </table>
+          <div style="height:8px;background:linear-gradient(90deg,#28a745,#b8942d,#ef5f5f);border-radius:4px;margin-top:8px;"></div>
+        </div>
+      `;
     }
-    
+
+    let checklistHtml = '';
+    if (intel.buyingChecklist && intel.buyingChecklist.length > 0) {
+      checklistHtml = `<h3 style="color:#1e3a5f;margin:20px 0 12px;">Buying Checklist</h3>` +
+        intel.buyingChecklist.map((tip, i) => {
+          const escapedTip = String(tip).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return `<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 14px;background:${i % 2 === 0 ? '#f8f9fa' : '#fff'};border-radius:8px;margin-bottom:6px;border:1px solid #e9ecef;">
+            <span style="flex-shrink:0;width:22px;height:22px;border-radius:50%;background:#b8942d;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">${i + 1}</span>
+            <span style="font-size:14px;color:#495057;line-height:1.5;">${escapedTip}</span>
+          </div>`;
+        }).join('');
+    }
+
+    let inventoryHtml = '';
+    const searchUrls = intel.searchUrls;
+    if (searchUrls) {
+      inventoryHtml = `
+        <h3 style="color:#1e3a5f;margin:20px 0 12px;">Search Live Inventory</h3>
+        <table style="width:100%;border-collapse:separate;border-spacing:8px;">
+          <tr>
+            <td style="text-align:center;"><a href="${searchUrls.autotrader}" style="display:block;padding:12px 16px;background:#1e3a5f;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Autotrader</a></td>
+            <td style="text-align:center;"><a href="${searchUrls.cargurus}" style="display:block;padding:12px 16px;background:#1e3a5f;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">CarGurus</a></td>
+            <td style="text-align:center;"><a href="${searchUrls.cars_com}" style="display:block;padding:12px 16px;background:#1e3a5f;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Cars.com</a></td>
+          </tr>
+        </table>
+      `;
+    }
+
     const htmlContent = `
       <p>Hi ${profile.full_name || 'there'},</p>
-      <p>Great news! We found <strong>${matchCount} new car${matchCount !== 1 ? 's' : ''}</strong> matching your "${searchName || 'Dream Car'}" search!</p>
-      ${matchSummaryHtml}
-      <p><a href="${appUrl}/members.html#dream-car" class="button">View Your Matches</a></p>
-      <p>Happy car hunting!</p>
+      <p>Here's your market intelligence report for <strong>${searchName || 'your Dream Car search'}</strong>:</p>
+
+      ${criteriaDescription ? `<div style="background:#f5f5f5;border-radius:8px;padding:12px 16px;margin:16px 0;font-size:13px;color:#555;white-space:pre-line;">${criteriaDescription}</div>` : ''}
+
+      ${priceHtml}
+      ${checklistHtml}
+      ${inventoryHtml}
+
+      <p style="margin-top:24px;"><a href="${appUrl}/members.html" style="display:inline-block;padding:12px 24px;background:#b8860b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">View Full Report in Dashboard</a></p>
+      <p style="color:#888;font-size:13px;">Happy car hunting from My Car Concierge!</p>
     `;
-    
+
     return await sendEmailNotification(
       profile.email,
       profile.full_name,
-      `${matchCount} New Dream Car Match${matchCount !== 1 ? 'es' : ''} Found!`,
+      `Dream Car Finder: Market Intelligence for "${searchName || 'Your Search'}"`,
       htmlContent
     );
   } catch (error) {
@@ -5035,10 +6386,16 @@ function maskPhoneNumber(phone) {
   return '*'.repeat(phone.length - 4) + phone.slice(-4);
 }
 
-function setCorsHeaders(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+function setCorsHeaders(res, req) {
+  const origin = (req && req.headers && req.headers.origin) || '';
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', 'https://www.mycarconcierge.com');
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-password, x-admin-token');
 }
 
 // 2FA Authentication helper - extracts user from Authorization header
@@ -5403,7 +6760,7 @@ async function handle2faSendCode(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] 2FA send-code error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
 }
@@ -5517,7 +6874,7 @@ async function handle2faVerifyCode(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] 2FA verify-code error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
 }
@@ -5595,7 +6952,7 @@ async function handle2faEnable(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] 2FA enable error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
 }
@@ -5662,7 +7019,7 @@ async function handle2faDisable(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] 2FA disable error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
 }
@@ -5727,7 +7084,7 @@ async function handle2faStatus(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] 2FA status error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -5779,7 +7136,7 @@ async function handleAdminGetProviders(req, res, requestId) {
     
     let query = supabase
       .from('profiles')
-      .select('*, provider_stats(*)', { count: 'exact' })
+      .select('*, provider_stats!provider_stats_provider_id_fkey!left(*)', { count: 'exact' })
       .eq('role', 'provider')
       .eq('application_status', 'approved');
     
@@ -5798,6 +7155,8 @@ async function handleAdminGetProviders(req, res, requestId) {
     const { data, count, error } = await query
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
+    
+    console.log(`[${requestId}] Admin providers query: filter=${filter}, search="${search}", page=${page}, limit=${limit}, results=${data?.length || 0}, total=${count}, error=${error ? error.message : 'none'}`);
     
     if (error) {
       console.error(`[${requestId}] Admin providers error:`, error);
@@ -5818,7 +7177,7 @@ async function handleAdminGetProviders(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Admin providers exception:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -5908,7 +7267,7 @@ async function handleAdminGetMembers(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Admin members exception:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -6012,7 +7371,7 @@ async function handleAdminGetPackages(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Admin packages exception:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -6063,7 +7422,7 @@ async function handleAdminGet2faGlobalStatus(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Admin 2FA global status error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -6146,7 +7505,511 @@ async function handleAdminToggle2faGlobal(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Admin 2FA toggle error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
+    }
+  });
+}
+
+// ==================== MILESTONE AND BONUS RESERVE ADMIN ENDPOINTS ====================
+
+async function handleAdminGetMilestones(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+      return;
+    }
+    
+    // Get platform revenue tracking
+    const { data: revenueData } = await supabase
+      .from('platform_revenue_tracking')
+      .select('*')
+      .single();
+    
+    const totalBidPackRevenue = parseFloat(revenueData?.total_bid_pack_revenue || 0);
+    
+    // Get milestone thresholds
+    const { data: thresholds } = await supabase
+      .from('milestone_thresholds')
+      .select('*')
+      .eq('is_active', true)
+      .order('threshold_amount', { ascending: true });
+    
+    // Get milestone achievements
+    const { data: achievements } = await supabase
+      .from('milestone_achievements')
+      .select('*')
+      .order('threshold_amount', { ascending: true });
+    
+    // Get founding provider partners (Chris Agrapidis)
+    const { data: partners } = await supabase
+      .from('founding_provider_partners')
+      .select('*')
+      .eq('status', 'active');
+    
+    // Calculate milestones with status
+    const milestones = (thresholds || []).map(threshold => {
+      const achievement = (achievements || []).find(a => a.milestone_id === threshold.id);
+      const isAchieved = totalBidPackRevenue >= threshold.threshold_amount;
+      const isPaid = achievement?.status === 'paid';
+      
+      return {
+        ...threshold,
+        is_achieved: isAchieved,
+        is_paid: isPaid,
+        achievement: achievement || null
+      };
+    });
+    
+    // Find next milestone
+    const nextMilestone = milestones.find(m => !m.is_achieved);
+    const progressPercent = nextMilestone 
+      ? Math.min(100, (totalBidPackRevenue / nextMilestone.threshold_amount) * 100)
+      : 100;
+    
+    // Calculate anniversary countdown (January 23rd)
+    const now = new Date();
+    let nextAnniversary = new Date(now.getFullYear(), 0, 23);
+    if (nextAnniversary <= now) {
+      nextAnniversary = new Date(now.getFullYear() + 1, 0, 23);
+    }
+    const daysUntilAnniversary = Math.ceil((nextAnniversary - now) / (1000 * 60 * 60 * 24));
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      total_bid_pack_revenue: totalBidPackRevenue,
+      milestones: milestones,
+      next_milestone: nextMilestone,
+      progress_percent: progressPercent,
+      founding_partners: partners || [],
+      next_anniversary: nextAnniversary.toISOString(),
+      days_until_anniversary: daysUntilAnniversary
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Admin get milestones error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function handleAdminGetBonusReserve(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+      return;
+    }
+    
+    // Get monthly reserve breakdown (last 12 months)
+    const { data: monthlyReserve } = await supabase
+      .from('bonus_reserve')
+      .select('*')
+      .order('month_year', { ascending: false })
+      .limit(12);
+    
+    // Get all transactions for history
+    const { data: transactions } = await supabase
+      .from('bonus_reserve_transactions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    
+    // Calculate current balance from transactions
+    const totalAccruals = (transactions || [])
+      .filter(t => t.transaction_type === 'accrual')
+      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+    
+    const totalPayouts = (transactions || [])
+      .filter(t => t.transaction_type === 'payout')
+      .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount || 0)), 0);
+    
+    const totalAdjustments = (transactions || [])
+      .filter(t => t.transaction_type === 'adjustment')
+      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+    
+    const currentBalance = totalAccruals - totalPayouts + totalAdjustments;
+    
+    // Get latest balance_after from most recent transaction as fallback
+    const latestTransaction = (transactions || [])[0];
+    const balanceFromTransaction = parseFloat(latestTransaction?.balance_after || 0);
+    
+    // Get Stripe Treasury balance (if available)
+    const treasuryStatus = await stripeTreasury.getTreasuryBalance();
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      current_balance: transactions?.length > 0 ? balanceFromTransaction : currentBalance,
+      reserve_rate: 0.15,
+      monthly_breakdown: monthlyReserve || [],
+      transactions: transactions || [],
+      total_accruals: totalAccruals,
+      total_payouts: totalPayouts,
+      total_adjustments: totalAdjustments,
+      treasury: {
+        active: treasuryStatus.treasuryActive || false,
+        balance: treasuryStatus.balance || 0,
+        pendingBalance: treasuryStatus.pendingBalance || 0,
+        financialAccountId: treasuryStatus.financialAccountId || null,
+        status: treasuryStatus.fallbackToDb ? 'pending_setup' : (treasuryStatus.success ? 'active' : 'error'),
+        message: treasuryStatus.message || null
+      }
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Admin get bonus reserve error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function handleAdminPayMilestone(req, res, requestId, milestoneId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+    if (body.length > MAX_BODY_SIZE) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Request too large' }));
+      return;
+    }
+  });
+  
+  req.on('end', async () => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      if (!profile || profile.role !== 'admin') {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+        return;
+      }
+      
+      let data = {};
+      try {
+        if (body) data = JSON.parse(body);
+      } catch (parseError) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid JSON body' }));
+        return;
+      }
+      
+      const { stripe_transfer_id, notes } = data;
+      
+      // Get the milestone threshold
+      const { data: threshold, error: thresholdError } = await supabase
+        .from('milestone_thresholds')
+        .select('*')
+        .eq('id', milestoneId)
+        .single();
+      
+      if (thresholdError || !threshold) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Milestone not found' }));
+        return;
+      }
+      
+      // Get current platform revenue
+      const { data: revenueData } = await supabase
+        .from('platform_revenue_tracking')
+        .select('total_bid_pack_revenue')
+        .single();
+      
+      const totalRevenue = parseFloat(revenueData?.total_bid_pack_revenue || 0);
+      
+      // Check if milestone is already paid
+      const { data: existingAchievement } = await supabase
+        .from('milestone_achievements')
+        .select('*')
+        .eq('milestone_id', milestoneId)
+        .eq('status', 'paid')
+        .single();
+      
+      if (existingAchievement) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Milestone already paid' }));
+        return;
+      }
+      
+      // Create or update achievement record
+      const { data: achievement, error: achievementError } = await supabase
+        .from('milestone_achievements')
+        .upsert({
+          milestone_id: milestoneId,
+          threshold_amount: threshold.threshold_amount,
+          bonus_amount: threshold.bonus_amount,
+          platform_revenue_at_achievement: totalRevenue,
+          evaluation_date: new Date().toISOString().split('T')[0],
+          paid_at: new Date().toISOString(),
+          paid_by: user.id,
+          stripe_transfer_id: stripe_transfer_id || null,
+          status: 'paid',
+          notes: notes || null
+        }, { onConflict: 'milestone_id' })
+        .select()
+        .single();
+      
+      if (achievementError) {
+        console.error(`[${requestId}] Error creating achievement:`, achievementError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to record payment' }));
+        return;
+      }
+      
+      // Try to transfer from Stripe Treasury (if available)
+      const treasuryResult = await stripeTreasury.transferFromTreasury(
+        threshold.bonus_amount,
+        `Milestone payout: ${threshold.description}`
+      );
+      const treasuryNote = treasuryResult.success && treasuryResult.treasuryActive
+        ? ` (transferred from Treasury: ${treasuryResult.transactionId})`
+        : treasuryResult.fallbackToDb
+          ? ' (Treasury pending - manual payout required)'
+          : ' (Treasury transfer failed - manual payout required)';
+      
+      // Record transaction in bonus_reserve_transactions
+      const { data: latestTransaction } = await supabase
+        .from('bonus_reserve_transactions')
+        .select('balance_after')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      const currentBalance = parseFloat(latestTransaction?.balance_after || 0);
+      const newBalance = currentBalance - threshold.bonus_amount;
+      
+      await supabase
+        .from('bonus_reserve_transactions')
+        .insert({
+          transaction_type: 'payout',
+          amount: -threshold.bonus_amount,
+          balance_after: newBalance,
+          reference_id: achievement.id,
+          reference_type: 'milestone_achievement',
+          notes: `Milestone payment: ${threshold.description}${treasuryNote}`,
+          created_by: user.id,
+          stripe_treasury_id: treasuryResult.transactionId || null
+        });
+      
+      console.log(`[${requestId}] Milestone ${milestoneId} marked as paid by admin ${user.id}${treasuryNote}`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        achievement: achievement,
+        message: `Milestone bonus of $${threshold.bonus_amount.toLocaleString()} marked as paid`
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Admin pay milestone error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
+    }
+  });
+}
+
+async function handleAdminAdjustBonusReserve(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+    if (body.length > MAX_BODY_SIZE) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Request too large' }));
+      return;
+    }
+  });
+  
+  req.on('end', async () => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      if (!profile || profile.role !== 'admin') {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+        return;
+      }
+      
+      let data = {};
+      try {
+        data = JSON.parse(body);
+      } catch (parseError) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid JSON body' }));
+        return;
+      }
+      
+      const { amount, notes } = data;
+      
+      if (typeof amount !== 'number' || amount === 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Amount must be a non-zero number' }));
+        return;
+      }
+      
+      if (!notes || notes.trim().length === 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Notes are required for adjustments' }));
+        return;
+      }
+      
+      // Get current balance
+      const { data: latestTransaction } = await supabase
+        .from('bonus_reserve_transactions')
+        .select('balance_after')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      const currentBalance = parseFloat(latestTransaction?.balance_after || 0);
+      const newBalance = currentBalance + amount;
+      
+      // Record adjustment transaction
+      const { data: transaction, error: transactionError } = await supabase
+        .from('bonus_reserve_transactions')
+        .insert({
+          transaction_type: 'adjustment',
+          amount: amount,
+          balance_after: newBalance,
+          notes: notes.trim(),
+          created_by: user.id
+        })
+        .select()
+        .single();
+      
+      if (transactionError) {
+        console.error(`[${requestId}] Error creating adjustment:`, transactionError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Failed to record adjustment' }));
+        return;
+      }
+      
+      console.log(`[${requestId}] Bonus reserve adjusted by $${amount} by admin ${user.id}`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        transaction: transaction,
+        new_balance: newBalance,
+        message: `Reserve balance adjusted by $${amount > 0 ? '+' : ''}${amount.toFixed(2)}`
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Admin adjust bonus reserve error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
 }
@@ -6498,7 +8361,7 @@ async function handleVerifyRegistration(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Registration verification error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: error.message }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
 }
@@ -6560,7 +8423,7 @@ async function handleGetRegistrationVerifications(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Get verifications error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: error.message }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -6637,7 +8500,7 @@ async function handleUpdateRegistrationVerification(req, res, requestId, verific
     } catch (error) {
       console.error(`[${requestId}] Update verification error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: error.message }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
 }
@@ -6745,7 +8608,7 @@ async function handleGetReferralCode(req, res, requestId, memberId) {
   } catch (error) {
     console.error(`[${requestId}] Get referral code error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -6832,7 +8695,7 @@ async function handleGetMemberReferrals(req, res, requestId, memberId) {
   } catch (error) {
     console.error(`[${requestId}] Get member referrals error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -6874,7 +8737,7 @@ async function handleGetMemberCredits(req, res, requestId, memberId) {
   } catch (error) {
     console.error(`[${requestId}] Get member credits error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -6987,7 +8850,7 @@ async function handleApplyReferralCode(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Apply referral code error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
 }
@@ -7085,18 +8948,30 @@ async function handleCompleteReferral(req, res, requestId) {
         return;
       }
       
-      const { error: updateError } = await supabase
+      const { data: updatedRows, error: updateError } = await supabase
         .from('referrals')
         .update({
           status: 'credited',
           credited_at: new Date().toISOString()
         })
-        .eq('id', pendingReferral.id);
+        .eq('id', pendingReferral.id)
+        .eq('status', 'pending')
+        .select('id');
       
       if (updateError) {
         console.error(`[${requestId}] Error updating referral status:`, updateError);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: 'Failed to complete referral' }));
+        return;
+      }
+
+      if (!updatedRows || updatedRows.length === 0) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          message: 'Referral already completed',
+          credited: false
+        }));
         return;
       }
       
@@ -7124,7 +8999,7 @@ async function handleCompleteReferral(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Complete referral error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
 }
@@ -7284,7 +9159,7 @@ async function handleGetVehicleRecalls(req, res, requestId, vehicleId) {
   } catch (error) {
     console.error(`[${requestId}] Get vehicle recalls error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -7393,7 +9268,7 @@ async function handleCheckAllRecalls(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Check all recalls error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
 }
@@ -7451,9 +9326,145 @@ async function handleAcknowledgeRecall(req, res, requestId, recallId) {
     } catch (error) {
       console.error(`[${requestId}] Acknowledge recall error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Internal server error' }));
+      res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
+}
+
+async function handleEnrichRecall(req, res, requestId, recallId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: recall, error: fetchError } = await supabase
+      .from('vehicle_recalls')
+      .select('id, vehicle_id, component, summary, consequence, remedy, manufacturer, nhtsa_campaign_number, ai_summary, severity')
+      .eq('id', recallId)
+      .single();
+
+    if (fetchError || !recall) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Recall not found' }));
+      return;
+    }
+
+    const { data: vehicle } = await supabase
+      .from('vehicles')
+      .select('id, owner_id')
+      .eq('id', recall.vehicle_id)
+      .single();
+
+    if (!vehicle || vehicle.owner_id !== user.id) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      if (profile?.role !== 'admin') {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Access denied' }));
+        return;
+      }
+    }
+
+    if (recall.ai_summary && recall.severity) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, ai_summary: recall.ai_summary, severity: recall.severity, cached: true }));
+      return;
+    }
+
+    if (!anthropicClient) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'AI service not available' }));
+      return;
+    }
+
+    const prompt = `You are an automotive safety expert. A vehicle owner needs to understand an NHTSA recall. Rewrite it in plain English and rate its severity.
+
+Recall details:
+- Component: ${recall.component || 'Unknown'}
+- Campaign: ${recall.nhtsa_campaign_number || 'N/A'}
+- Manufacturer: ${recall.manufacturer || 'Unknown'}
+- Summary: ${recall.summary || 'No summary available'}
+- Consequence: ${recall.consequence || 'None stated'}
+- Remedy: ${recall.remedy || 'None stated'}
+
+Return ONLY valid JSON (no markdown, no code blocks):
+{
+  "plain_summary": "2-3 sentences: what is wrong, what could happen, what the owner should do",
+  "severity": "critical|important|monitor",
+  "severity_reason": "one short sentence explaining the severity rating"
+}
+
+Severity guide: critical = risk of injury/accident/fire; important = significant safety or functionality issue; monitor = minor issue, watch but not urgent.`;
+
+    const aiResponse = await anthropicClient.messages.create({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 400,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    let aiSummary = null;
+    let severity = 'monitor';
+
+    try {
+      const rawText = aiResponse.content[0]?.text?.trim() || '';
+      const cleaned = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+      const parsed = JSON.parse(cleaned);
+      if (parsed.plain_summary && typeof parsed.plain_summary === 'string') {
+        aiSummary = parsed.plain_summary;
+      }
+      if (['critical', 'important', 'monitor'].includes(parsed.severity)) {
+        severity = parsed.severity;
+      }
+    } catch {
+      aiSummary = aiResponse.content[0]?.text?.trim() || null;
+      severity = 'monitor';
+    }
+
+    if (aiSummary) {
+      try {
+        await supabase
+          .from('vehicle_recalls')
+          .update({ ai_summary: aiSummary, severity })
+          .eq('id', recallId);
+      } catch (dbErr) {
+        console.error(`[${requestId}] Failed to save recall enrichment:`, dbErr.message);
+      }
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, ai_summary: aiSummary, severity, cached: false }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Enrich recall error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function runRecallsAiMigration() {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    await supabase.from('vehicle_recalls').select('ai_summary, severity').limit(1);
+  } catch {
+    console.warn('[Migration] vehicle_recalls ai_summary/severity columns not yet added. Run vehicle_recalls_ai_columns_migration.sql in Supabase SQL Editor.');
+  }
 }
 
 function startWeeklyRecallCheckScheduler() {
@@ -8124,6 +10135,98 @@ async function handleDreamCarUpdateMatch(req, res, requestId, matchId) {
   });
 }
 
+async function searchDreamCarListings(search, requestId) {
+  const criteriaDescription = buildSearchCriteriaDescription(search);
+  const locationContext = search.zip_code
+    ? `near zip code ${search.zip_code} within ${search.max_distance_miles || 50} miles`
+    : 'any location';
+
+  const prompt = `Search the web right now for real, currently available used car listings for sale matching these buyer requirements:
+
+${criteriaDescription}
+Location: ${locationContext}
+
+Search Autotrader, CarGurus, Cars.com, Facebook Marketplace, dealer websites, and Craigslist. Find up to 6 actual listings currently for sale with real prices and real listing URLs.
+
+Return ONLY valid JSON — no markdown, no explanation:
+{
+  "listings": [
+    {
+      "title": "Full listing title as shown on the site",
+      "year": 2020,
+      "make": "Toyota",
+      "model": "Camry",
+      "trim": "SE",
+      "price": 21500,
+      "mileage": 32000,
+      "location": "Los Angeles, CA",
+      "url": "https://actual-listing-url",
+      "source_site": "Autotrader",
+      "description": "Key details about condition, features, and seller"
+    }
+  ]
+}
+
+Rules:
+- Only include real listings found on the web — no made-up data
+- Set price and mileage as integers (no symbols or commas)
+- If a value is unknown, use null
+- The url must be the direct link to the listing page`;
+
+  let listings = [];
+  try {
+    const { text, sources } = await searchWithGrounding(prompt, { maxTokens: 2000 });
+    console.log(`[${requestId}] Dream Car Gemini search: ${sources.length} grounding sources`);
+    let parsed = null;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      const jsonMatch = text.match(/\{[\s\S]*"listings"[\s\S]*\}/);
+      if (jsonMatch) {
+        try { parsed = JSON.parse(jsonMatch[0]); } catch {}
+      }
+    }
+    if (parsed?.listings && Array.isArray(parsed.listings)) {
+      listings = parsed.listings.slice(0, 6).map((l, i) => {
+        if (!l.url && sources[i]) l.url = sources[i].url;
+        return l;
+      });
+    } else if (sources.length > 0) {
+      listings = sources.slice(0, 6).map(s => {
+        let hostname = s.url;
+        try { hostname = new URL(s.url).hostname.replace('www.', ''); } catch {}
+        return {
+          title: s.title || 'Car Listing',
+          url: s.url,
+          source_site: hostname,
+          price: null,
+          mileage: null,
+          make: search.preferred_makes?.[0] || null,
+          model: search.preferred_models?.[0] || null,
+          year: null,
+          location: null,
+          description: null
+        };
+      });
+    }
+  } catch (err) {
+    console.error(`[${requestId}] Dream Car Gemini search error:`, err.message);
+  }
+  return listings;
+}
+
+function computeListingMatchScore(listing, search) {
+  let score = 70;
+  if (search.max_price && listing.price && listing.price <= Number(search.max_price)) score += 10;
+  if (search.min_year && listing.year && Number(listing.year) >= Number(search.min_year)) score += 5;
+  if (search.max_year && listing.year && Number(listing.year) <= Number(search.max_year)) score += 5;
+  if (search.max_mileage && listing.mileage && listing.mileage <= search.max_mileage) score += 10;
+  if (search.preferred_makes?.length && listing.make) {
+    if (search.preferred_makes.some(m => m.toLowerCase() === (listing.make || '').toLowerCase())) score += 5;
+  }
+  return Math.min(100, score);
+}
+
 async function handleDreamCarRunSearch(req, res, requestId, searchId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -8168,115 +10271,81 @@ async function handleDreamCarRunSearch(req, res, requestId, searchId) {
       return;
     }
     
-    // Build search criteria description for AI
     const criteriaDescription = buildSearchCriteriaDescription(search);
-    
-    // Use AI (Gemini preferred, Anthropic fallback) to generate intelligent search queries
-    let aiResponse = null;
-    const searchPrompt = `Based on the following car search criteria, generate 3 mock car listings that would match these preferences. Return a JSON array of car listings.
 
-Search Criteria:
-${criteriaDescription}
+    const listings = await searchDreamCarListings(search, requestId);
+    console.log(`[${requestId}] Dream Car Gemini found ${listings.length} listings for search ${searchId}`);
 
-Return ONLY valid JSON in this exact format (no markdown, no explanation):
-[
-  {
-    "year": "2022",
-    "make": "Toyota",
-    "model": "Camry",
-    "trim": "XLE",
-    "price": 28500,
-    "mileage": 25000,
-    "exterior_color": "Silver",
-    "location": "San Francisco, CA",
-    "seller_type": "dealer",
-    "match_score": 95,
-    "match_reasons": ["Low mileage", "Great condition", "Matches preferred make"],
-    "listing_url": "https://example.com/listing/123",
-    "photos": ["https://example.com/photo1.jpg"]
-  }
-]`;
-    try {
-      const aiResult = await generateAIContent(searchPrompt, { maxTokens: 1024, preferredProvider: 'gemini' });
-      const responseText = aiResult.text || '[]';
-      console.log(`[${requestId}] Dream Car search using ${aiResult.provider}`);
-      // Try to parse the JSON response
-      try {
-        aiResponse = JSON.parse(responseText);
-      } catch (parseErr) {
-        // If parsing fails, try to extract JSON from the response
-        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          aiResponse = JSON.parse(jsonMatch[0]);
-        }
-      }
-    } catch (aiError) {
-      console.error(`[${requestId}] AI API error:`, aiError.message);
-      // Continue with fallback mock data
-    }
-    
-    // Use AI response or fallback to mock data
-    const mockMatches = aiResponse || generateMockMatches(search);
-    
-    // Insert mock matches into database
-    const matchesToInsert = mockMatches.map(match => ({
-      search_id: searchId,
-      user_id: auth.user.id,
-      source: 'mock_search',
-      listing_url: match.listing_url || `https://example.com/listing/${crypto.randomBytes(8).toString('hex')}`,
-      listing_id: crypto.randomBytes(8).toString('hex'),
-      year: match.year || String(search.min_year || 2020),
-      make: match.make || (search.preferred_makes?.[0] || 'Toyota'),
-      model: match.model || (search.preferred_models?.[0] || 'Camry'),
-      trim: match.trim || 'Base',
-      price: match.price || (search.max_price ? Number(search.max_price) * 0.9 : 25000),
-      mileage: match.mileage || (search.max_mileage ? search.max_mileage * 0.7 : 30000),
-      exterior_color: match.exterior_color || (search.exterior_colors?.[0] || 'Black'),
-      location: match.location || `Near ${search.zip_code || '90210'}`,
-      seller_type: match.seller_type || 'dealer',
-      match_score: match.match_score || 85,
-      match_reasons: match.match_reasons || ['Matches search criteria'],
-      listing_data: {},
-      photos: match.photos || [],
-      found_at: new Date().toISOString()
-    }));
-    
-    const { data: insertedMatches, error: insertError } = await supabase
-      .from('dream_car_matches')
-      .insert(matchesToInsert)
-      .select();
-    
-    if (insertError) {
-      console.error(`[${requestId}] Dream car insert matches error:`, insertError);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to save matches' }));
+    if (listings.length === 0) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        message: 'No listings found for your criteria. Try broadening your search.',
+        data: [],
+        matchCount: 0
+      }));
       return;
     }
-    
-    // Update last_searched_at
+
+    const records = listings.map(listing => ({
+      search_id: searchId,
+      user_id: auth.user.id,
+      source: 'gemini_search',
+      listing_id: crypto.randomBytes(8).toString('hex'),
+      listing_url: listing.url || null,
+      make: listing.make || search.preferred_makes?.[0] || null,
+      model: listing.model || search.preferred_models?.[0] || null,
+      year: listing.year ? String(listing.year) : String(search.min_year || ''),
+      price: listing.price || null,
+      match_score: computeListingMatchScore(listing, search),
+      match_reasons: [],
+      listing_data: listing,
+      photos: [],
+      found_at: new Date().toISOString()
+    }));
+
+    const { data: insertedMatches, error: insertError } = await supabase
+      .from('dream_car_matches')
+      .insert(records)
+      .select();
+
+    if (insertError) {
+      console.error(`[${requestId}] Dream car insert error:`, insertError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to save listings' }));
+      return;
+    }
+
     await supabase
       .from('dream_car_searches')
       .update({ last_searched_at: new Date().toISOString() })
       .eq('id', searchId);
-    
-    // Send notifications if enabled
-    const notificationResults = { sms: null, email: null };
-    if (insertedMatches.length > 0) {
-      if (search.notify_sms) {
-        notificationResults.sms = await sendDreamCarSMSNotification(auth.user.id, insertedMatches);
-      }
-      if (search.notify_email) {
-        notificationResults.email = await sendDreamCarEmailNotification(auth.user.id, search.search_name, insertedMatches);
-      }
+
+    const marketIntel = await buildMarketIntelligence(listings, search, requestId);
+
+    try {
+      await supabase
+        .from('dream_car_searches')
+        .update({ market_intel: marketIntel })
+        .eq('id', searchId);
+    } catch (e) {
+      console.log(`[${requestId}] market_intel column not available, skipping persist`);
     }
-    
-    console.log(`[${requestId}] Ran dream car search ${searchId}, found ${insertedMatches.length} matches`);
+
+    const notificationResults = { sms: null, email: null };
+    if (search.notify_email) {
+      notificationResults.email = await sendDreamCarEmailNotification(auth.user.id, search.search_name, listings, criteriaDescription, marketIntel);
+    }
+
+    console.log(`[${requestId}] Dream Car search complete: ${listings.length} listings saved for search ${searchId}`);
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ 
-      success: true, 
-      message: `Search completed. Found ${insertedMatches.length} matches.`,
+    res.end(JSON.stringify({
+      success: true,
+      message: `Found ${listings.length} listing${listings.length !== 1 ? 's' : ''} matching your criteria.`,
       data: insertedMatches,
-      notifications: notificationResults
+      matchCount: listings.length,
+      notifications: notificationResults,
+      marketIntel
     }));
     
   } catch (error) {
@@ -8284,6 +10353,75 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: safeMsg }));
   }
+}
+
+async function buildMarketIntelligence(listings, search, requestId) {
+  const prices = listings
+    .map(l => parseFloat(l.price))
+    .filter(p => !isNaN(p) && p > 0)
+    .sort((a, b) => a - b);
+
+  let priceRange = { low: null, median: null, high: null };
+  if (prices.length > 0) {
+    priceRange.low = prices[0];
+    priceRange.high = prices[prices.length - 1];
+    const mid = Math.floor(prices.length / 2);
+    priceRange.median = prices.length % 2 === 0
+      ? Math.round((prices[mid - 1] + prices[mid]) / 2)
+      : prices[mid];
+  }
+
+  let trend = 'fair';
+  if (prices.length >= 3) {
+    const spread = priceRange.high - priceRange.low;
+    const medianRatio = priceRange.median / priceRange.high;
+    if (medianRatio > 0.8) trend = 'hot';
+    else if (medianRatio < 0.6 || spread > priceRange.median * 0.5) trend = 'soft';
+  }
+
+  const searchUrls = buildDreamCarSearchUrls(search);
+
+  let buyingChecklist = [];
+  try {
+    const make = search.preferred_makes?.[0] || 'this vehicle';
+    const model = search.preferred_models?.[0] || '';
+    const yearRange = search.min_year && search.max_year
+      ? `${search.min_year}-${search.max_year}`
+      : search.min_year ? `${search.min_year}+` : search.max_year ? `up to ${search.max_year}` : 'recent';
+
+    const prompt = `You are an expert used car buying advisor. Give exactly 5 short, specific buying tips for a ${yearRange} ${make} ${model}. Each tip should be 1 sentence, practical, and specific to this make/model. Cover: common mechanical issues to inspect, known recalls or weak points, fair pricing negotiation advice, what to check on a test drive, and maintenance cost expectations. Return ONLY a JSON array of 5 strings, no other text.`;
+
+    const aiResult = await generateAIContent(prompt, { maxTokens: 512 });
+    const jsonMatch = aiResult.text.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      buyingChecklist = JSON.parse(jsonMatch[0]);
+    }
+  } catch (err) {
+    console.error(`[${requestId}] Market intel AI checklist error:`, err.message);
+    buyingChecklist = [
+      'Get a pre-purchase inspection from an independent mechanic before buying.',
+      'Check the vehicle history report for accidents, title issues, and service records.',
+      'Compare prices across multiple dealerships and private sellers in your area.',
+      'Test drive on both highway and local roads, listening for unusual noises.',
+      'Factor in insurance, fuel costs, and expected maintenance when budgeting.'
+    ];
+  }
+
+  return {
+    priceRange,
+    trend,
+    listingCount: listings.length,
+    searchUrls,
+    buyingChecklist,
+    searchCriteria: {
+      make: search.preferred_makes?.[0] || null,
+      model: search.preferred_models?.[0] || null,
+      minYear: search.min_year,
+      maxYear: search.max_year,
+      maxPrice: search.max_price,
+      minPrice: search.min_price
+    }
+  };
 }
 
 function buildSearchCriteriaDescription(search) {
@@ -8335,55 +10473,24 @@ function buildSearchCriteriaDescription(search) {
   return parts.length > 0 ? parts.join('\n') : 'No specific criteria set';
 }
 
-function generateMockMatches(search) {
-  const makes = search.preferred_makes?.length > 0 ? search.preferred_makes : ['Toyota', 'Honda', 'Ford'];
-  const models = search.preferred_models?.length > 0 ? search.preferred_models : ['Camry', 'Accord', 'F-150'];
-  const colors = search.exterior_colors?.length > 0 ? search.exterior_colors : ['Black', 'White', 'Silver'];
-  
-  return [
-    {
-      year: String(search.min_year || 2021),
-      make: makes[0],
-      model: models[0] || 'Sedan',
-      trim: 'SE',
-      price: search.max_price ? Math.floor(Number(search.max_price) * 0.85) : 28000,
-      mileage: search.max_mileage ? Math.floor(search.max_mileage * 0.6) : 25000,
-      exterior_color: colors[0],
-      location: search.zip_code ? `${search.max_distance_miles || 25} miles from ${search.zip_code}` : 'Los Angeles, CA',
-      seller_type: 'dealer',
-      match_score: 92,
-      match_reasons: ['Excellent condition', 'Low mileage', 'Full service history'],
-      photos: []
-    },
-    {
-      year: String((search.min_year || 2020) + 1),
-      make: makes[Math.min(1, makes.length - 1)],
-      model: models[Math.min(1, models.length - 1)] || 'SUV',
-      trim: 'XLE',
-      price: search.max_price ? Math.floor(Number(search.max_price) * 0.75) : 24000,
-      mileage: search.max_mileage ? Math.floor(search.max_mileage * 0.8) : 35000,
-      exterior_color: colors[Math.min(1, colors.length - 1)],
-      location: search.zip_code ? `${Math.floor((search.max_distance_miles || 50) * 0.5)} miles from ${search.zip_code}` : 'San Diego, CA',
-      seller_type: 'private',
-      match_score: 87,
-      match_reasons: ['Great price', 'One owner', 'Clean title'],
-      photos: []
-    },
-    {
-      year: String((search.min_year || 2019) + 2),
-      make: makes[Math.min(2, makes.length - 1)],
-      model: models[Math.min(2, models.length - 1)] || 'Truck',
-      trim: 'Limited',
-      price: search.max_price ? Math.floor(Number(search.max_price) * 0.95) : 32000,
-      mileage: search.max_mileage ? Math.floor(search.max_mileage * 0.4) : 18000,
-      exterior_color: colors[Math.min(2, colors.length - 1)],
-      location: search.zip_code ? `${search.max_distance_miles || 30} miles from ${search.zip_code}` : 'Phoenix, AZ',
-      seller_type: 'dealer',
-      match_score: 95,
-      match_reasons: ['Premium trim', 'Certified pre-owned', 'Extended warranty available'],
-      photos: []
-    }
-  ];
+function buildDreamCarSearchUrls(search) {
+  const make = (search.preferred_makes?.[0] || '').toLowerCase().replace(/\s+/g, '-');
+  const model = (search.preferred_models?.[0] || '').toLowerCase().replace(/\s+/g, '-');
+  const zip = search.zip_code || '';
+  const radius = search.max_distance_miles || 50;
+  const maxPrice = search.max_price || '';
+  const maxMileage = search.max_mileage || '';
+  const minYear = search.min_year || (new Date().getFullYear() - 6);
+  const maxYear = search.max_year || new Date().getFullYear();
+
+  const atMake = make ? `/${make}` : '';
+  const atModel = model ? `/${model}` : '';
+
+  return {
+    autotrader: `https://www.autotrader.com/cars-for-sale/used-cars${atMake}${atModel}?zip=${zip}&searchRadius=${radius}${maxPrice ? '&maxPrice=' + maxPrice : ''}${maxMileage ? '&maxMileage=' + maxMileage : ''}&startYear=${minYear}&endYear=${maxYear}&utm_source=mycarconcierge&utm_medium=referral`,
+    cargurus: `https://www.cargurus.com/Cars/inventoryListing/viewDetailsFilterViewInventoryListing.action?zip=${zip}&localSearchRadius=${radius}${maxPrice ? '&maxPrice=' + maxPrice : ''}${maxMileage ? '&maxMileage=' + maxMileage : ''}&minYear=${minYear}&maxYear=${maxYear}&utm_source=mycarconcierge&utm_medium=referral`,
+    cars_com: `https://www.cars.com/shopping/results/?zip=${zip}&maximum_distance=${radius}${maxPrice ? '&maximum_price=' + maxPrice : ''}${maxMileage ? '&maximum_mileage=' + maxMileage : ''}&year_min=${minYear}&year_max=${maxYear}${make ? '&makes[]=' + make : ''}&sort=best_match_desc&utm_source=mycarconcierge&utm_medium=referral`
+  };
 }
 
 async function handleDreamCarScheduledSearch(req, res, requestId) {
@@ -8446,114 +10553,77 @@ async function handleDreamCarScheduledSearch(req, res, requestId) {
     
     for (const search of dueSearches) {
       try {
-        // Build search criteria description for AI
         const criteriaDescription = buildSearchCriteriaDescription(search);
-        
-        // Use AI (Gemini preferred, Anthropic fallback) to generate intelligent search queries
-        let aiResponse = null;
-        const scheduledSearchPrompt = `Based on the following car search criteria, generate 3 mock car listings that would match these preferences. Return a JSON array of car listings.
 
-Search Criteria:
-${criteriaDescription}
+        const listings = await searchDreamCarListings(search, requestId);
+        console.log(`[${requestId}] Scheduled Dream Car: ${listings.length} listings found for search ${search.id}`);
 
-Return ONLY valid JSON in this exact format (no markdown, no explanation):
-[
-  {
-    "year": "2022",
-    "make": "Toyota",
-    "model": "Camry",
-    "trim": "XLE",
-    "price": 28500,
-    "mileage": 25000,
-    "exterior_color": "Silver",
-    "location": "San Francisco, CA",
-    "seller_type": "dealer",
-    "match_score": 95,
-    "match_reasons": ["Low mileage", "Great condition", "Matches preferred make"],
-    "listing_url": "https://example.com/listing/123",
-    "photos": ["https://example.com/photo1.jpg"]
-  }
-]`;
-        try {
-          const aiResult = await generateAIContent(scheduledSearchPrompt, { maxTokens: 1024, preferredProvider: 'gemini' });
-          const responseText = aiResult.text || '[]';
-          console.log(`[${requestId}] Scheduled search ${search.id} using ${aiResult.provider}`);
-          try {
-            aiResponse = JSON.parse(responseText);
-          } catch (parseErr) {
-            const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-            if (jsonMatch) {
-              aiResponse = JSON.parse(jsonMatch[0]);
-            }
+        if (listings.length > 0) {
+          const records = listings.map(listing => ({
+            search_id: search.id,
+            user_id: search.user_id,
+            source: 'gemini_search',
+            listing_id: crypto.randomBytes(8).toString('hex'),
+            listing_url: listing.url || null,
+            make: listing.make || search.preferred_makes?.[0] || null,
+            model: listing.model || search.preferred_models?.[0] || null,
+            year: listing.year ? String(listing.year) : String(search.min_year || ''),
+            price: listing.price || null,
+            match_score: computeListingMatchScore(listing, search),
+            match_reasons: [],
+            listing_data: listing,
+            photos: [],
+            found_at: new Date().toISOString()
+          }));
+
+          const { error: insertError } = await supabase
+            .from('dream_car_matches')
+            .insert(records);
+
+          if (insertError) {
+            console.error(`[${requestId}] Scheduled dream car insert error for ${search.id}:`, insertError);
+            results.push({ searchId: search.id, success: false, error: 'Insert failed' });
+            continue;
           }
-        } catch (aiError) {
-          console.error(`[${requestId}] Scheduled search AI error for ${search.id}:`, aiError.message);
         }
-        
-        const mockMatches = aiResponse || generateMockMatches(search);
-        
-        // Insert matches into database
-        const matchesToInsert = mockMatches.map(match => ({
-          search_id: search.id,
-          user_id: search.user_id,
-          source: 'scheduled_search',
-          listing_url: match.listing_url || `https://example.com/listing/${crypto.randomBytes(8).toString('hex')}`,
-          listing_id: crypto.randomBytes(8).toString('hex'),
-          year: match.year || String(search.min_year || 2020),
-          make: match.make || (search.preferred_makes?.[0] || 'Toyota'),
-          model: match.model || (search.preferred_models?.[0] || 'Camry'),
-          trim: match.trim || 'Base',
-          price: match.price || (search.max_price ? Number(search.max_price) * 0.9 : 25000),
-          mileage: match.mileage || (search.max_mileage ? search.max_mileage * 0.7 : 30000),
-          exterior_color: match.exterior_color || (search.exterior_colors?.[0] || 'Black'),
-          location: match.location || `Near ${search.zip_code || '90210'}`,
-          seller_type: match.seller_type || 'dealer',
-          match_score: match.match_score || 85,
-          match_reasons: match.match_reasons || ['Matches search criteria'],
-          listing_data: {},
-          photos: match.photos || [],
-          found_at: new Date().toISOString()
-        }));
-        
-        const { data: insertedMatches, error: insertError } = await supabase
-          .from('dream_car_matches')
-          .insert(matchesToInsert)
-          .select();
-        
-        if (insertError) {
-          console.error(`[${requestId}] Scheduled search insert error for ${search.id}:`, insertError);
-          results.push({ searchId: search.id, success: false, error: 'Insert failed' });
-          continue;
+
+        let scheduledMarketIntel = null;
+        try {
+          scheduledMarketIntel = await buildMarketIntelligence(listings, search, requestId);
+        } catch (e) {
+          console.log(`[${requestId}] Scheduled: market intel build failed for ${search.id}`);
         }
-        
-        // Update last_searched_at
+
         await supabase
           .from('dream_car_searches')
           .update({ last_searched_at: new Date().toISOString() })
           .eq('id', search.id);
-        
-        // Send notifications if matches found and notifications enabled
-        const notificationResults = { sms: null, email: null };
-        if (insertedMatches && insertedMatches.length > 0) {
-          if (search.notify_sms) {
-            notificationResults.sms = await sendDreamCarSMSNotification(search.user_id, insertedMatches);
-          }
-          if (search.notify_email) {
-            notificationResults.email = await sendDreamCarEmailNotification(search.user_id, search.search_name, insertedMatches);
-          }
+
+        if (scheduledMarketIntel) {
+          try {
+            await supabase
+              .from('dream_car_searches')
+              .update({ market_intel: scheduledMarketIntel })
+              .eq('id', search.id);
+          } catch (e) {}
         }
-        
+
+        const notificationResults = { sms: null, email: null };
+        if (search.notify_email && listings.length > 0) {
+          notificationResults.email = await sendDreamCarEmailNotification(search.user_id, search.search_name, listings, criteriaDescription, scheduledMarketIntel);
+        }
+
         results.push({
           searchId: search.id,
           userId: search.user_id,
           searchName: search.search_name,
           success: true,
-          matchesFound: insertedMatches?.length || 0,
+          matchesFound: listings.length,
           notifications: notificationResults
         });
-        
-        console.log(`[${requestId}] Processed scheduled search ${search.id}: ${insertedMatches?.length || 0} matches`);
-        
+
+        console.log(`[${requestId}] Scheduled dream car search complete: ${listings.length} listings for search ${search.id}`);
+
       } catch (searchError) {
         console.error(`[${requestId}] Scheduled search error for ${search.id}:`, searchError.message);
         results.push({ searchId: search.id, success: false, error: searchError.message });
@@ -8579,6 +10649,248 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
     const safeMsg = safeError(error, requestId);
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function sendBidNotifications(supabase, packageId, newBidId, bidPrice, requestId) {
+  let pkg = null;
+  try {
+    const { data, error } = await supabase
+      .from('maintenance_packages')
+      .select('id, title, member_id, member_bid_alerts_sms, member_bid_alerts_email')
+      .eq('id', packageId)
+      .single();
+    if (error) {
+      if (error.code === '42703' || error.message?.includes('does not exist')) {
+        console.warn(`[${requestId}] sendBidNotifications: alert columns missing, run bid_alerts_migration.sql`);
+        const fallback = await supabase.from('maintenance_packages').select('id, title, member_id').eq('id', packageId).single();
+        pkg = fallback.data;
+        if (pkg) { pkg.member_bid_alerts_sms = true; pkg.member_bid_alerts_email = false; }
+      } else {
+        console.log(`[${requestId}] sendBidNotifications: package query error`, error.message);
+        return;
+      }
+    } else {
+      pkg = data;
+    }
+  } catch (e) {
+    console.error(`[${requestId}] sendBidNotifications: unexpected error`, e.message);
+    return;
+  }
+
+  if (!pkg) {
+    console.log(`[${requestId}] sendBidNotifications: package not found`);
+    return;
+  }
+
+  const { data: memberProfile } = await supabase
+    .from('profiles')
+    .select('id, email, phone, sms_consent, full_name')
+    .eq('id', pkg.member_id)
+    .single();
+
+  if (memberProfile) {
+    const alertSms = pkg.member_bid_alerts_sms !== false;
+    const alertEmail = pkg.member_bid_alerts_email === true;
+
+    if (alertSms && memberProfile.phone && memberProfile.sms_consent) {
+      const msg = `My Car Concierge: A new bid of $${bidPrice.toFixed(2)} was received on your "${pkg.title}" request. Log in to view bids: mycarconcierge.com/members.html`;
+      await sendSmsNotification(memberProfile.phone, msg, null, null);
+      console.log(`[${requestId}] Bid SMS sent to member ${pkg.member_id}`);
+    }
+
+    if (alertEmail && memberProfile.email) {
+      const html = `
+        <h2 style="margin:0 0 16px;color:#d4a855;">New Bid Received</h2>
+        <p>Hi ${memberProfile.full_name || 'there'},</p>
+        <p>A provider just submitted a bid of <strong>$${bidPrice.toFixed(2)}</strong> on your service request: <strong>${pkg.title}</strong>.</p>
+        <p>Log in to review all bids and accept the one that's right for you.</p>
+        <a href="https://mycarconcierge.com/members.html" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#d4a855;color:#0a0a0f;font-weight:600;border-radius:8px;text-decoration:none;">View Bids</a>
+      `;
+      await sendEmailNotification(memberProfile.email, memberProfile.full_name || 'Member', `New Bid on "${pkg.title}"`, html, null, null);
+      console.log(`[${requestId}] Bid email sent to member ${pkg.member_id}`);
+    }
+
+    sendFCMPushNotification(
+      [pkg.member_id],
+      'New Bid Received',
+      `$${bidPrice.toFixed(2)} bid on "${pkg.title}" — tap to review.`,
+      { section: 'packages', package_id: packageId }
+    ).catch(err => console.error(`[${requestId}] FCM bid push error:`, err.message));
+  }
+
+  const { data: competingBids } = await supabase
+    .from('bids')
+    .select('id, provider_id, provider_bid_alerts_sms, provider_bid_alerts_email')
+    .eq('package_id', packageId)
+    .eq('status', 'pending')
+    .neq('id', newBidId);
+
+  if (!competingBids?.length) return;
+
+  const providerIds = competingBids.map(b => b.provider_id);
+  const { data: providerProfiles } = await supabase
+    .from('profiles')
+    .select('id, email, phone, sms_consent, full_name')
+    .in('id', providerIds);
+
+  const profileMap = {};
+  providerProfiles?.forEach(p => { profileMap[p.id] = p; });
+
+  for (const cb of competingBids) {
+    const pProfile = profileMap[cb.provider_id];
+    if (!pProfile) continue;
+
+    if (cb.provider_bid_alerts_sms && pProfile.phone && pProfile.sms_consent) {
+      const msg = `My Car Concierge: A competing bid was just placed on "${pkg.title}". Check your My Bids page and update your bid: mycarconcierge.com/providers.html`;
+      await sendSmsNotification(pProfile.phone, msg, null, null);
+      console.log(`[${requestId}] Competing bid SMS sent to provider ${cb.provider_id}`);
+    }
+
+    if (cb.provider_bid_alerts_email && pProfile.email) {
+      const html = `
+        <h2 style="margin:0 0 16px;color:#d4a855;">Competing Bid Alert</h2>
+        <p>Hi ${pProfile.full_name || 'there'},</p>
+        <p>Another provider just submitted a bid on <strong>${pkg.title}</strong> — a job you've already bid on.</p>
+        <p>You may want to review your bid and adjust if needed to stay competitive.</p>
+        <a href="https://mycarconcierge.com/providers.html" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#d4a855;color:#0a0a0f;font-weight:600;border-radius:8px;text-decoration:none;">View My Bids</a>
+      `;
+      await sendEmailNotification(pProfile.email, pProfile.full_name || 'Provider', `Competing Bid Alert: ${pkg.title}`, html, null, null);
+      console.log(`[${requestId}] Competing bid email sent to provider ${cb.provider_id}`);
+    }
+
+    sendFCMPushNotification(
+      [cb.provider_id],
+      'Competing Bid Alert',
+      `Another provider just bid on "${pkg.title}" — review and update your bid.`,
+      { section: 'bids' }
+    ).catch(() => {});
+  }
+}
+
+async function handleSubmitBid(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  const supabase = getSupabaseClient();
+
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid token' }));
+      return;
+    }
+
+    const body = await getRequestBody(req);
+    const { package_id, price, notes, estimated_duration, availability, provider_notify_sms, provider_notify_email } = body;
+
+    if (!package_id || !price) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'package_id and price are required' }));
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, role, bid_credits, free_trial_bids')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Provider profile not found' }));
+      return;
+    }
+
+    if (profile.role !== 'provider' && profile.role !== 'pending_provider') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Only providers can submit bids' }));
+      return;
+    }
+
+    const freeTrialBids = profile.free_trial_bids || 0;
+    const bidCredits = profile.bid_credits || 0;
+    if (freeTrialBids + bidCredits < 1) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No bid credits available' }));
+      return;
+    }
+
+    const { data: pkgCheck } = await supabase
+      .from('maintenance_packages')
+      .select('status, bidding_deadline')
+      .eq('id', package_id)
+      .single();
+    if (pkgCheck && (pkgCheck.status === 'bidding_closed' || (pkgCheck.bidding_deadline && new Date(pkgCheck.bidding_deadline) < new Date()))) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Bidding on this package has closed' }));
+      return;
+    }
+
+    let bidInsertData = {
+      package_id,
+      provider_id: user.id,
+      price: parseFloat(price),
+      description: notes || null,
+      estimated_time: estimated_duration || null,
+      status: 'pending',
+      provider_bid_alerts_sms: provider_notify_sms === true || provider_notify_sms === 'true',
+      provider_bid_alerts_email: provider_notify_email === true || provider_notify_email === 'true'
+    };
+
+    let { data: bid, error: bidError } = await supabase.from('bids').insert(bidInsertData).select().single();
+
+    if (bidError && (bidError.code === '42703' || bidError.message?.includes('column') && bidError.message?.includes('does not exist'))) {
+      console.warn(`[${requestId}] Bid alert columns missing — run bid_alerts_migration.sql. Retrying without alert fields.`);
+      delete bidInsertData.provider_bid_alerts_sms;
+      delete bidInsertData.provider_bid_alerts_email;
+      const retry = await supabase.from('bids').insert(bidInsertData).select().single();
+      bid = retry.data;
+      bidError = retry.error;
+    }
+
+    if (bid) {
+      bid.notes = bid.description;
+      bid.estimated_duration = bid.estimated_time;
+    }
+
+    if (bidError) {
+      if (bidError.code === '23505') {
+        res.writeHead(409, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'You have already submitted a bid for this package' }));
+        return;
+      }
+      console.error(`[${requestId}] Bid insert error:`, bidError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: bidError.message }));
+      return;
+    }
+
+    if (freeTrialBids > 0) {
+      await supabase.from('profiles').update({ free_trial_bids: freeTrialBids - 1 }).eq('id', user.id);
+    } else {
+      await supabase.from('profiles').update({ bid_credits: bidCredits - 1 }).eq('id', user.id);
+    }
+
+    console.log(`[${requestId}] Bid submitted: provider=${user.id}, package=${package_id}, price=${price}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ bid }));
+
+    sendBidNotifications(supabase, package_id, bid.id, parseFloat(price), requestId).catch(err => {
+      console.error(`[${requestId}] Bid notification error:`, err);
+    });
+  } catch (err) {
+    console.error(`[${requestId}] Submit bid error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
   }
 }
 
@@ -8716,7 +11028,7 @@ async function handleStripeWebhook(req, res, requestId) {
     } catch (err) {
       console.error(`[${requestId}] Webhook signature verification failed:`, err.message);
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: `Webhook signature verification failed: ${err.message}` }));
+      res.end(JSON.stringify({ error: 'Webhook signature verification failed' }));
       return;
     }
     
@@ -8729,6 +11041,24 @@ async function handleStripeWebhook(req, res, requestId) {
       if (metadata.type === 'merch_order') {
         console.log(`[${requestId}] Merch order checkout completed: ${session.id}`);
         await handleMerchOrderWebhook(session, requestId);
+      } else if (metadata.type === 'club_merch') {
+        console.log(`[${requestId}] Club merch checkout completed: ${session.id}`);
+        try {
+          const supabase = getSupabaseClient();
+          if (supabase && session.payment_status === 'paid') {
+            const { error } = await supabase
+              .from('club_orders')
+              .update({ status: 'paid', stripe_payment_intent: session.payment_intent, updated_at: new Date().toISOString() })
+              .eq('stripe_session_id', session.id);
+            if (error) {
+              console.error(`[${requestId}] Error updating club merch order:`, error.message);
+            } else {
+              console.log(`[${requestId}] Club merch order updated to paid for session ${session.id}`);
+            }
+          }
+        } catch (clubMerchErr) {
+          console.error(`[${requestId}] Error updating club merch order:`, clubMerchErr.message);
+        }
       } else {
         const providerId = metadata.provider_id;
         const packId = metadata.pack_id;
@@ -8746,19 +11076,50 @@ async function handleStripeWebhook(req, res, requestId) {
             console.error(`[${requestId}] Supabase not configured, skipping commission recording`);
           } else {
             try {
-              const { error } = await supabase.rpc('record_bid_pack_commission', {
-                p_provider_id: providerId,
-                p_purchase_amount: purchaseAmount,
-                p_transaction_id: transactionId
-              });
+              const commissionResult = await recordBidPackCommission(supabase, providerId, purchaseAmount, transactionId, requestId);
               
-              if (error) {
-                console.error(`[${requestId}] Failed to record commission:`, error);
+              if (!commissionResult.success) {
+                console.error(`[${requestId}] Failed to record commission:`, commissionResult.error);
               } else {
-                console.log(`[${requestId}] Commission recorded for provider ${providerId}, amount: $${purchaseAmount}`);
+                console.log(`[${requestId}] Commission recorded for provider ${providerId}, amount: $${purchaseAmount} (${commissionResult.message})`);
+                
+                // Process instant commission payout if referrer has it enabled
+                try {
+                  const instantResult = await processInstantCommissionPayout(supabase, providerId, purchaseAmount, transactionId, requestId);
+                  if (instantResult && instantResult.success) {
+                    console.log(`[${requestId}] Instant payout completed: $${instantResult.amount} to ${instantResult.founderName}`);
+                  }
+                } catch (instantErr) {
+                  console.error(`[${requestId}] Instant payout processing error:`, instantErr);
+                }
+                
+                // Update milestone tracking (async, non-blocking)
+                updateMilestoneTracking(purchaseAmount).catch(err => {
+                  console.error(`[${requestId}] Milestone tracking error:`, err.message);
+                });
+                
+                // Track bid pack purchase as HubSpot deal (async, non-blocking)
+                (async () => {
+                  try {
+                    const { data: provProfile } = await supabase
+                      .from('profiles')
+                      .select('full_name, email, business_name')
+                      .eq('id', providerId)
+                      .single();
+                    const provName = provProfile?.business_name || provProfile?.full_name || providerId;
+                    createHubSpotDeal(
+                      `Bid Pack Purchase - ${provName}`,
+                      purchaseAmount,
+                      'closedwon',
+                      { description: `${bids} bids + ${bonusBids} bonus purchased by ${provName}` }
+                    );
+                  } catch (hsErr) {
+                    console.error(`[${requestId}] HubSpot deal tracking error:`, hsErr.message);
+                  }
+                })();
               }
             } catch (err) {
-              console.error(`[${requestId}] Error calling record_bid_pack_commission:`, err);
+              console.error(`[${requestId}] Error recording bid pack commission:`, err);
             }
             
             // Add bid credits to provider's account
@@ -8800,6 +11161,378 @@ async function handleStripeWebhook(req, res, requestId) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ received: true }));
   });
+}
+
+// Instant Commission Payout Processing
+async function recordBidPackCommission(supabase, providerId, purchaseAmount, transactionId, requestId) {
+  try {
+    const { data: existing } = await supabase
+      .from('founder_commissions')
+      .select('id')
+      .eq('transaction_id', transactionId)
+      .maybeSingle();
+
+    if (existing) {
+      return { success: true, message: 'commission_already_recorded' };
+    }
+
+    const { data: referral } = await supabase
+      .from('founder_referrals')
+      .select('id, founder_id')
+      .eq('referred_user_id', providerId)
+      .eq('referred_type', 'provider')
+      .in('status', ['pending', 'active'])
+      .maybeSingle();
+
+    if (!referral) {
+      return { success: true, message: 'no_referrer' };
+    }
+
+    const { data: founderProfile } = await supabase
+      .from('member_founder_profiles')
+      .select('email')
+      .eq('id', referral.founder_id)
+      .maybeSingle();
+
+    const founderEmail = founderProfile?.email || '';
+    const isSpecialRate = founderEmail.toLowerCase().includes('agrapidis');
+    const commissionRate = isSpecialRate ? 0.90 : 0.50;
+    const commissionAmount = parseFloat((purchaseAmount * commissionRate).toFixed(2));
+
+    const description = commissionRate === 0.90
+      ? 'Bid pack purchase commission (90% - Founding Provider Partner)'
+      : 'Bid pack purchase commission (50%)';
+
+    const { error: insertError } = await supabase
+      .from('founder_commissions')
+      .insert({
+        founder_id: referral.founder_id,
+        referral_id: referral.id,
+        commission_type: 'bid_pack',
+        transaction_id: transactionId,
+        source_transaction_id: transactionId,
+        original_amount: purchaseAmount,
+        purchase_amount: purchaseAmount,
+        commission_rate: commissionRate,
+        commission_amount: commissionAmount,
+        description,
+        status: 'pending'
+      });
+
+    if (insertError) {
+      if (insertError.code === '23505') {
+        return { success: true, message: 'commission_already_recorded' };
+      }
+      console.error(`[${requestId}] Commission insert error:`, insertError);
+      return { success: false, error: insertError.message };
+    }
+
+    await supabase
+      .from('founder_referrals')
+      .update({ status: 'active' })
+      .eq('id', referral.id)
+      .eq('status', 'pending');
+
+    console.log(`[${requestId}] Commission recorded: $${commissionAmount} (${commissionRate * 100}%) for founder ${referral.founder_id}`);
+    return { success: true, message: 'commission_recorded', commissionAmount, commissionRate, founderId: referral.founder_id };
+  } catch (err) {
+    console.error(`[${requestId}] recordBidPackCommission error:`, err);
+    return { success: false, error: err.message };
+  }
+}
+
+async function processInstantCommissionPayout(supabase, providerId, purchaseAmount, transactionId, requestId) {
+  try {
+    // IDEMPOTENCY CHECK: Skip if this transaction was already processed for instant payout
+    const { data: existingPayout, error: existingError } = await supabase
+      .from('founder_commissions')
+      .select('id, stripe_transfer_id, status')
+      .eq('transaction_id', transactionId)
+      .maybeSingle();
+    
+    if (existingError) {
+      // Hard-stop on DB errors to prevent inconsistent state
+      console.error(`[${requestId}] DB error in idempotency check, aborting:`, existingError);
+      return null;
+    }
+    
+    if (existingPayout?.stripe_transfer_id || existingPayout?.status === 'paid') {
+      console.log(`[${requestId}] Transaction ${transactionId} already processed (${existingPayout?.stripe_transfer_id || existingPayout?.status}), skipping`);
+      return null;
+    }
+    
+    // Look up the provider to get their referrer
+    const { data: provider, error: providerError } = await supabase
+      .from('profiles')
+      .select('id, referred_by_founder_id, referred_by_code')
+      .eq('id', providerId)
+      .single();
+    
+    if (providerError || !provider || !provider.referred_by_founder_id) {
+      console.log(`[${requestId}] No referrer found for provider ${providerId}, skipping instant payout`);
+      return null;
+    }
+    
+    // Look up the founder who referred this provider
+    const { data: founder, error: founderError } = await supabase
+      .from('member_founder_profiles')
+      .select('id, user_id, full_name, email, stripe_connect_account_id, instant_payout_enabled, payout_preference, referral_code, total_commissions_earned, total_commissions_paid')
+      .eq('user_id', provider.referred_by_founder_id)
+      .eq('status', 'active')
+      .single();
+    
+    if (founderError || !founder) {
+      console.log(`[${requestId}] Founder not found for user_id ${provider.referred_by_founder_id}`);
+      return null;
+    }
+    
+    // Check if instant payout is enabled
+    if (!founder.instant_payout_enabled || founder.payout_preference !== 'instant') {
+      console.log(`[${requestId}] Founder ${founder.full_name} has instant payout disabled, commission will be batched`);
+      return null;
+    }
+    
+    // Check if founder has Stripe Connect account
+    if (!founder.stripe_connect_account_id) {
+      console.log(`[${requestId}] Founder ${founder.full_name} has no Stripe Connect account, skipping instant payout`);
+      return null;
+    }
+    
+    // Verify Stripe account is active
+    const stripe = getStripeClient();
+    if (!stripe) {
+      console.error(`[${requestId}] Stripe not configured, skipping instant payout`);
+      return null;
+    }
+    
+    const account = await stripe.accounts.retrieve(founder.stripe_connect_account_id);
+    if (!account.payouts_enabled || !account.charges_enabled) {
+      console.log(`[${requestId}] Founder Stripe account not fully enabled, skipping instant payout`);
+      return null;
+    }
+    
+    // Calculate commission rate
+    // 90% for Chris Agrapidis (identified by email match for security, not just code prefix)
+    // 50% for all other founders
+    let commissionRate = 0.50; // 50% standard
+    const isChrisAgrapidis = founder.email && 
+      (founder.email.toLowerCase().includes('chris') && founder.email.toLowerCase().includes('agrapidis')) ||
+      (founder.referral_code && founder.referral_code === 'CHRISAGRAPIDIS');
+    
+    if (isChrisAgrapidis) {
+      commissionRate = 0.90; // 90% per Founding Provider Partner Agreement
+      console.log(`[${requestId}] Applying 90% commission rate for Chris Agrapidis`);
+    }
+    
+    const commissionAmount = parseFloat((purchaseAmount * commissionRate).toFixed(2));
+    const transferAmountCents = Math.round(commissionAmount * 100);
+    
+    if (transferAmountCents < 100) {
+      console.log(`[${requestId}] Commission amount too small for transfer: $${commissionAmount}`);
+      return null;
+    }
+    
+    // STEP 1: Find or create commission record with 'pending_payout' status
+    // First try to find existing commission record by transaction_id (unique index enforces single record)
+    let { data: commissionRecord, error: findError } = await supabase
+      .from('founder_commissions')
+      .select('id, founder_id')
+      .eq('transaction_id', transactionId)
+      .maybeSingle();
+    
+    // If record exists but belongs to different founder, log warning and skip
+    if (commissionRecord && commissionRecord.founder_id !== founder.id) {
+      console.warn(`[${requestId}] Commission record for ${transactionId} belongs to different founder, skipping`);
+      return null;
+    }
+    
+    if (!commissionRecord) {
+      const { data: newRecord, error: insertError } = await supabase
+        .from('founder_commissions')
+        .insert({
+          founder_id: founder.id,
+          referred_provider_id: providerId,
+          purchase_amount: purchaseAmount,
+          original_amount: purchaseAmount,
+          commission_rate: commissionRate,
+          commission_amount: commissionAmount,
+          transaction_id: transactionId,
+          source_transaction_id: transactionId,
+          status: 'pending',
+          commission_type: 'bid_pack',
+          description: `Bid pack purchase commission (${commissionRate * 100}%)`
+        })
+        .select('id')
+        .single();
+      
+      if (insertError) {
+        // Handle unique constraint violation - another process may have inserted
+        if (insertError.code === '23505') {
+          console.log(`[${requestId}] Concurrent insert detected, fetching existing record`);
+          const { data: existingRecord, error: fetchError } = await supabase
+            .from('founder_commissions')
+            .select('id, founder_id, stripe_transfer_id, status')
+            .eq('transaction_id', transactionId)
+            .maybeSingle();
+          
+          if (fetchError) {
+            console.error(`[${requestId}] Error fetching after conflict:`, fetchError);
+            return null;
+          }
+          
+          // Full validation after conflict
+          if (existingRecord?.stripe_transfer_id || existingRecord?.status === 'paid') {
+            console.log(`[${requestId}] Record already processed, skipping`);
+            return null;
+          }
+          if (existingRecord?.founder_id && existingRecord.founder_id !== founder.id) {
+            console.warn(`[${requestId}] Record belongs to different founder, skipping`);
+            return null;
+          }
+          commissionRecord = existingRecord;
+        } else {
+          console.error(`[${requestId}] Error creating commission record:`, insertError);
+          return null;
+        }
+      } else {
+        commissionRecord = newRecord;
+      }
+    }
+    
+    if (!commissionRecord) {
+      console.error(`[${requestId}] Could not find or create commission record`);
+      return null;
+    }
+    
+    // Use existing record from initial check if found (update canonical RPC row)
+    if (existingPayout && !existingPayout.stripe_transfer_id && existingPayout.status !== 'paid') {
+      commissionRecord = { id: existingPayout.id };
+    }
+    
+    {
+      await supabase
+        .from('founder_commissions')
+        .update({
+          referred_provider_id: providerId,
+          purchase_amount: purchaseAmount,
+          commission_rate: commissionRate,
+          commission_amount: commissionAmount,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', commissionRecord.id);
+    }
+    
+    // STEP 2: Re-check record state before transfer (race condition guard)
+    const { data: recheckRecord } = await supabase
+      .from('founder_commissions')
+      .select('stripe_transfer_id, status')
+      .eq('id', commissionRecord.id)
+      .maybeSingle();
+    
+    if (recheckRecord?.stripe_transfer_id || recheckRecord?.status === 'paid') {
+      console.log(`[${requestId}] Record already processed by concurrent request, skipping`);
+      return null;
+    }
+    
+    // Create Stripe transfer with idempotency key to prevent duplicates
+    let transfer;
+    try {
+      transfer = await stripe.transfers.create({
+        amount: transferAmountCents,
+        currency: 'usd',
+        destination: founder.stripe_connect_account_id,
+        metadata: {
+          type: 'instant_commission',
+          founder_id: founder.id,
+          founder_user_id: founder.user_id,
+          provider_id: providerId,
+          purchase_amount: purchaseAmount.toString(),
+          commission_rate: commissionRate.toString(),
+          transaction_id: transactionId,
+          commission_record_id: commissionRecord.id
+        }
+      }, {
+        idempotencyKey: `instant_payout_${transactionId}_${founder.id}`
+      });
+    } catch (transferError) {
+      await supabase
+        .from('founder_commissions')
+        .update({
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', commissionRecord.id);
+      
+      console.error(`[${requestId}] Stripe transfer failed:`, transferError);
+      return null;
+    }
+    
+    console.log(`[${requestId}] Instant commission payout: $${commissionAmount} (${commissionRate * 100}%) to ${founder.full_name} - Transfer: ${transfer.id}`);
+    
+    // STEP 3: Update commission record with transfer details (mark as paid)
+    await supabase
+      .from('founder_commissions')
+      .update({
+        stripe_transfer_id: transfer.id,
+        status: 'paid',
+        paid_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', commissionRecord.id);
+    
+    // STEP 4: Update founder's total commissions (use atomic increment - no fallback)
+    const { data: currentFounder, error: fetchFounderError } = await supabase
+      .from('member_founder_profiles')
+      .select('total_commissions_earned, total_commissions_paid')
+      .eq('id', founder.id)
+      .single();
+
+    if (fetchFounderError || !currentFounder) {
+      console.error(`[${requestId}] Error fetching founder totals:`, fetchFounderError);
+      await supabase
+        .from('commission_reconciliation_queue')
+        .insert({
+          commission_id: commissionRecord.id,
+          founder_id: founder.id,
+          amount: commissionAmount,
+          status: 'pending',
+          error_message: fetchFounderError?.message || 'Founder profile not found'
+        });
+    } else {
+      const newTotal = parseFloat(((currentFounder.total_commissions_earned || 0) + commissionAmount).toFixed(2));
+      const { error: updateError } = await supabase
+        .from('member_founder_profiles')
+        .update({
+          total_commissions_earned: newTotal,
+          total_commissions_paid: parseFloat(((currentFounder.total_commissions_paid || 0) + commissionAmount).toFixed(2))
+        })
+        .eq('id', founder.id);
+
+      if (updateError) {
+        console.error(`[${requestId}] Error updating founder totals - enqueued for reconciliation:`, updateError);
+        await supabase
+          .from('commission_reconciliation_queue')
+          .insert({
+            commission_id: commissionRecord.id,
+            founder_id: founder.id,
+            amount: commissionAmount,
+            status: 'pending',
+            error_message: updateError.message
+          });
+      }
+    }
+    
+    return {
+      success: true,
+      transferId: transfer.id,
+      amount: commissionAmount,
+      founderName: founder.full_name
+    };
+    
+  } catch (error) {
+    console.error(`[${requestId}] Error processing instant commission payout:`, error);
+    return null;
+  }
 }
 
 function sanitizeString(str) {
@@ -8962,19 +11695,30 @@ async function handleHelpdeskRequest(req, res, requestId) {
         { role: 'user', content: sanitizedMessage }
       ];
 
-      const openaiMessages = [
-        { role: 'system', content: systemPrompt },
-        ...messages
-      ];
-      
-      const openaiResponse = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: openaiMessages,
-        max_completion_tokens: 600,
-        temperature: 0.4,
-      });
-
-      const reply = openaiResponse.choices[0]?.message?.content || 'I apologize, but I was unable to generate a response.';
+      let reply;
+      if (process.env.ANTHROPIC_API_KEY) {
+        const anthropicResponse = await anthropicClient.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 600,
+          system: systemPrompt,
+          messages: messages
+        });
+        reply = anthropicResponse.content && anthropicResponse.content[0] && anthropicResponse.content[0].text
+          ? anthropicResponse.content[0].text
+          : 'I apologize, but I was unable to generate a response.';
+      } else {
+        const openaiMessages = [
+          { role: 'system', content: systemPrompt },
+          ...messages
+        ];
+        const openaiResponse = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: openaiMessages,
+          max_completion_tokens: 600,
+          temperature: 0.4,
+        });
+        reply = openaiResponse.choices[0]?.message?.content || 'I apologize, but I was unable to generate a response.';
+      }
 
       history.push({ role: 'user', content: sanitizedMessage });
       history.push({ role: 'assistant', content: reply });
@@ -8999,7 +11743,71 @@ async function handleHelpdeskRequest(req, res, requestId) {
   });
 }
 
+const ADMIN_ROLE_PERMISSIONS = {
+  super_admin: ['dashboard', 'analytics', 'applications', 'pilot-applications', 'member-founders', 'commission-payouts', 'providers', 'violations', 'car-reviews', 'packages', 'payments', 'disputes', 'refunds', 'registration-verifications', 'tickets', 'ai-chat-insights', 'members', 'user-roles', 'user-management', 'agreements', 'merch-manager', 'crm', 'documents', 'settings', 'team-management', 'marketing-outreach'],
+  crm_manager: ['dashboard', 'crm'],
+  marketing: ['dashboard', 'crm', 'ai-chat-insights', 'analytics', 'merch-manager', 'marketing-outreach'],
+  operations: ['dashboard', 'analytics', 'applications', 'providers', 'violations', 'car-reviews', 'packages', 'members', 'user-roles', 'user-management', 'registration-verifications'],
+  finance: ['dashboard', 'analytics', 'payments', 'disputes', 'refunds', 'commission-payouts', 'pilot-applications', 'member-founders'],
+  support: ['dashboard', 'tickets', 'ai-chat-insights', 'members', 'user-management', 'violations']
+};
+
+const adminSessions = new Map();
+
+function generateAdminToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function cleanExpiredAdminSessions() {
+  const now = Date.now();
+  for (const [token, session] of adminSessions) {
+    if (now - session.createdAt > 24 * 60 * 60 * 1000) {
+      adminSessions.delete(token);
+    }
+  }
+}
+setInterval(cleanExpiredAdminSessions, 60 * 60 * 1000);
+
+function getAdminSessionFromReq(req) {
+  const token = req.headers['x-admin-token'];
+  if (!token) return null;
+  const session = adminSessions.get(token);
+  if (!session) return null;
+  if (Date.now() - session.createdAt > 24 * 60 * 60 * 1000) {
+    adminSessions.delete(token);
+    return null;
+  }
+  return session;
+}
+
+function handleAdminAuth(req, res, requestId, callback, requiredSection) {
+  const session = getAdminSessionFromReq(req);
+  if (session) {
+    if (requiredSection && session.role !== 'super_admin') {
+      const perms = ADMIN_ROLE_PERMISSIONS[session.role] || [];
+      if (!perms.includes(requiredSection)) {
+        setCorsHeaders(res);
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Insufficient permissions for this section' }));
+        return;
+      }
+    }
+    callback();
+    return;
+  }
+  const adminPw = req.headers['x-admin-password'];
+  const envPw = process.env.ADMIN_PASSWORD;
+  if (envPw && adminPw === envPw) {
+    callback();
+    return;
+  }
+  setCorsHeaders(res);
+  res.writeHead(401, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: 'Unauthorized' }));
+}
+
 async function handleAdminPasswordVerify(req, res, requestId) {
+  setCorsHeaders(res);
   setSecurityHeaders(res, true);
   
   let body = '';
@@ -9351,6 +12159,393 @@ async function handleFounderConnectStatus(req, res, requestId, founderId) {
       business_type: account.business_type,
       country: account.country
     }));
+    
+  } catch (error) {
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleFounderPayoutReceipt(req, res, requestId, payoutId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(payoutId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid payout_id format' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: payout, error: payoutError } = await supabase
+      .from('founder_payouts')
+      .select('*')
+      .eq('id', payoutId)
+      .single();
+
+    if (payoutError || !payout) {
+      console.log(`[${requestId}] Payout not found: ${payoutId}`);
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Payout not found' }));
+      return;
+    }
+
+    const { data: founder, error: founderError } = await supabase
+      .from('member_founder_profiles')
+      .select('id, user_id, full_name, email, referral_code')
+      .eq('id', payout.founder_id)
+      .single();
+
+    if (founderError || !founder) {
+      console.log(`[${requestId}] Founder not found for payout: ${payout.founder_id}`);
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Founder not found' }));
+      return;
+    }
+
+    if (founder.user_id !== user.id) {
+      console.log(`[${requestId}] Unauthorized receipt access attempt: user ${user.id} tried to access founder ${founder.user_id}'s payout`);
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const receiptNumber = `MCC-${payout.id.substring(0, 8).toUpperCase()}`;
+    const payoutDate = payout.processed_at ? new Date(payout.processed_at) : new Date(payout.created_at);
+    const formattedDate = payoutDate.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    
+    const methodLabels = {
+      'stripe_connect': 'Stripe Connect',
+      'paypal': 'PayPal',
+      'venmo': 'Venmo',
+      'zelle': 'Zelle',
+      'bank_transfer': 'Bank Transfer',
+      'check': 'Check'
+    };
+    
+    const payoutMethod = methodLabels[payout.payout_method] || payout.payout_method || 'N/A';
+    const amount = parseFloat(payout.amount || 0).toFixed(2);
+    const transactionId = payout.stripe_transfer_id || 'N/A';
+    const period = payout.payout_period || 'N/A';
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payout Receipt - ${receiptNumber}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f5f5f7;
+      color: #1a1a2e;
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+    
+    .receipt {
+      max-width: 600px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #12161c, #1a2030);
+      color: #fff;
+      padding: 32px;
+      text-align: center;
+    }
+    
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem;
+      color: #c9a227;
+      margin-bottom: 8px;
+    }
+    
+    .logo-icon {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto 16px;
+      background: linear-gradient(135deg, #c9a227, #d4a855);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+    
+    .receipt-title {
+      font-size: 1.1rem;
+      color: #a0a8b8;
+      margin-top: 8px;
+    }
+    
+    .receipt-number {
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: #c9a227;
+      margin-top: 12px;
+      padding: 8px 16px;
+      background: rgba(201, 162, 39, 0.15);
+      border-radius: 8px;
+      display: inline-block;
+    }
+    
+    .content {
+      padding: 32px;
+    }
+    
+    .section {
+      margin-bottom: 24px;
+    }
+    
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #6b7280;
+      margin-bottom: 12px;
+    }
+    
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+    
+    .detail-label {
+      color: #6b7280;
+      font-size: 0.9rem;
+    }
+    
+    .detail-value {
+      font-weight: 500;
+      color: #1a1a2e;
+      text-align: right;
+    }
+    
+    .amount-section {
+      background: linear-gradient(135deg, rgba(201, 162, 39, 0.1), rgba(201, 162, 39, 0.05));
+      border-radius: 12px;
+      padding: 24px;
+      margin: 24px 0;
+    }
+    
+    .amount-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .amount-label {
+      font-size: 1rem;
+      color: #1a1a2e;
+    }
+    
+    .amount-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #16a34a;
+    }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 6px 14px;
+      border-radius: 100px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    .status-completed, .status-paid {
+      background: rgba(22, 163, 74, 0.15);
+      color: #16a34a;
+    }
+    
+    .status-pending, .status-processing {
+      background: rgba(245, 158, 11, 0.15);
+      color: #d97706;
+    }
+    
+    .footer {
+      text-align: center;
+      padding: 24px 32px;
+      background: #f9fafb;
+      border-top: 1px solid #e5e7eb;
+    }
+    
+    .footer-text {
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    
+    .footer-text a {
+      color: #c9a227;
+      text-decoration: none;
+    }
+    
+    .print-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #c9a227, #d4a855);
+      color: #0a0a0f;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 16px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .print-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(201, 162, 39, 0.3);
+    }
+    
+    @media print {
+      body {
+        background: #fff;
+        padding: 0;
+      }
+      
+      .receipt {
+        box-shadow: none;
+        border-radius: 0;
+      }
+      
+      .print-btn {
+        display: none !important;
+      }
+      
+      .header {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      
+      .amount-section {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      
+      .status-badge {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="receipt">
+    <div class="header">
+      <div class="logo-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 8-2 2-1.5-3.7A2 2 0 0 0 15.646 5H8.4a2 2 0 0 0-1.903 1.257L5 10 3 8"/><path d="M7 14h.01"/><path d="M17 14h.01"/><rect width="18" height="8" x="3" y="10" rx="2"/><path d="M5 18v2"/><path d="M19 18v2"/></svg></div>
+      <div class="logo">My Car Concierge</div>
+      <div class="receipt-title">Founder Commission Payout Receipt</div>
+      <div class="receipt-number">${receiptNumber}</div>
+    </div>
+    
+    <div class="content">
+      <div class="section">
+        <div class="section-title">Founder Information</div>
+        <div class="detail-row">
+          <span class="detail-label">Name</span>
+          <span class="detail-value">${founder.full_name || 'N/A'}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Email</span>
+          <span class="detail-value">${founder.email || 'N/A'}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Referral Code</span>
+          <span class="detail-value">${founder.referral_code || 'N/A'}</span>
+        </div>
+      </div>
+      
+      <div class="amount-section">
+        <div class="amount-row">
+          <span class="amount-label">Total Payout</span>
+          <span class="amount-value">$${amount}</span>
+        </div>
+      </div>
+      
+      <div class="section">
+        <div class="section-title">Payout Details</div>
+        <div class="detail-row">
+          <span class="detail-label">Payout Period</span>
+          <span class="detail-value">${period}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Date Processed</span>
+          <span class="detail-value">${formattedDate}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Payment Method</span>
+          <span class="detail-value">${payoutMethod}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Transaction ID</span>
+          <span class="detail-value" style="font-family: monospace; font-size: 0.85rem;">${transactionId}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Status</span>
+          <span class="detail-value">
+            <span class="status-badge status-${payout.status}">${payout.status}</span>
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p class="footer-text">Thank you for being a Member Founder!</p>
+      <p class="footer-text" style="margin-top: 8px;">
+        Questions? Contact us at <a href="mailto:support@mycarconcierge.io">support@mycarconcierge.io</a>
+      </p>
+      <button class="print-btn" onclick="window.print()">
+        <svg style="vertical-align:middle;margin-right:4px" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg> Print Receipt
+      </button>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    res.writeHead(200, { 
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
+    });
+    res.end(html);
     
   } catch (error) {
     const safeMsg = safeError(error, requestId);
@@ -9938,7 +13133,7 @@ async function handleAdminProcessFounderPayout(req, res, requestId) {
 
       const { data: founder, error: founderError } = await supabase
         .from('member_founder_profiles')
-        .select('id, stripe_connect_account_id, full_name')
+        .select('id, stripe_connect_account_id, full_name, email')
         .eq('id', payout.founder_id)
         .single();
 
@@ -9964,18 +13159,33 @@ async function handleAdminProcessFounderPayout(req, res, requestId) {
         return;
       }
 
-      const amountInCents = Math.round(payout.amount * 100);
+      const payoutSettings = await getPayoutSettings(supabase);
+      const payoutType = parsed.payout_type || 'instant';
+      const grossAmount = parseFloat(payout.amount);
+      const feeAmount = calculatePayoutFee(grossAmount, payoutType, payoutSettings);
+      const netAmount = grossAmount - feeAmount;
+
+      if (netAmount <= 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Net amount after fees must be greater than zero' }));
+        return;
+      }
+
+      const netAmountInCents = Math.round(netAmount * 100);
       
       const transfer = await stripe.transfers.create({
-        amount: amountInCents,
+        amount: netAmountInCents,
         currency: 'usd',
         destination: founder.stripe_connect_account_id,
         metadata: {
           payout_id: payout_id,
           founder_id: payout.founder_id,
-          founder_name: founder.full_name
+          founder_name: founder.full_name,
+          gross_amount: grossAmount.toFixed(2),
+          fee_amount: feeAmount.toFixed(2),
+          payout_type: payoutType
         },
-        description: `Commission payout for ${founder.full_name}`
+        description: `Commission payout for ${founder.full_name}${feeAmount > 0 ? ` (fee: $${feeAmount.toFixed(2)})` : ''}`
       });
 
       const { error: updateError } = await supabase
@@ -9984,8 +13194,11 @@ async function handleAdminProcessFounderPayout(req, res, requestId) {
           stripe_transfer_id: transfer.id,
           status: 'completed',
           payout_method: 'stripe_connect',
+          payout_type: payoutType,
+          fee_amount: feeAmount,
+          net_amount: netAmount,
           processed_at: new Date().toISOString(),
-          notes: `Stripe transfer ${transfer.id} created successfully`
+          notes: `Stripe transfer ${transfer.id} created successfully. Gross: $${grossAmount.toFixed(2)}, Fee: $${feeAmount.toFixed(2)}, Net: $${netAmount.toFixed(2)}`
         })
         .eq('id', payout_id);
 
@@ -9996,8 +13209,8 @@ async function handleAdminProcessFounderPayout(req, res, requestId) {
       await supabase
         .from('member_founder_profiles')
         .update({ 
-          total_commissions_paid: founder.total_commissions_paid ? founder.total_commissions_paid + payout.amount : payout.amount,
-          pending_balance: founder.pending_balance ? Math.max(0, founder.pending_balance - payout.amount) : 0,
+          total_commissions_paid: founder.total_commissions_paid ? founder.total_commissions_paid + grossAmount : grossAmount,
+          pending_balance: founder.pending_balance ? Math.max(0, founder.pending_balance - grossAmount) : 0,
           updated_at: new Date().toISOString()
         })
         .eq('id', payout.founder_id);
@@ -10008,17 +13221,423 @@ async function handleAdminProcessFounderPayout(req, res, requestId) {
         .eq('founder_id', payout.founder_id)
         .eq('status', 'approved');
 
-      console.log(`[${requestId}] Created Stripe transfer ${transfer.id} for payout ${payout_id}, amount: $${payout.amount}`);
+      console.log(`[${requestId}] Created Stripe transfer ${transfer.id} for payout ${payout_id}, gross: $${grossAmount}, fee: $${feeAmount}, net: $${netAmount}`);
       
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ 
         success: true,
         stripe_transfer_id: transfer.id,
-        amount: payout.amount,
+        amount: grossAmount,
+        fee_amount: feeAmount,
+        net_amount: netAmount,
+        payout_type: payoutType,
         founder_id: payout.founder_id,
         destination_account: founder.stripe_connect_account_id
       }));
       
+      if (founder.email) {
+        sendPayoutNotificationEmail(
+          founder.email,
+          founder.full_name,
+          netAmount,
+          'stripe_connect',
+          transfer.id,
+          feeAmount
+        ).catch(err => {
+          console.error(`[${requestId}] Failed to send payout notification email:`, err);
+        });
+      }
+      
+    } catch (error) {
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: safeMsg }));
+    }
+  });
+}
+
+async function handleAdminProcessBulkPayouts(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  
+  req.on('end', async () => {
+    try {
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        return;
+      }
+
+      const adminPassword = process.env.ADMIN_PASSWORD;
+      if (adminPassword && parsed.admin_password !== adminPassword) {
+        console.log(`[${requestId}] Invalid admin password for bulk payout processing`);
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid admin password' }));
+        return;
+      }
+
+      const threshold = parsed.threshold || 10;
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      const { data: eligibleFounders, error: foundersError } = await supabase
+        .from('member_founder_profiles')
+        .select('id, full_name, email, pending_balance, stripe_connect_account_id, payout_details')
+        .gte('pending_balance', threshold)
+        .eq('status', 'active');
+
+      if (foundersError) {
+        console.error(`[${requestId}] Error fetching eligible founders:`, foundersError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to fetch eligible founders' }));
+        return;
+      }
+
+      if (!eligibleFounders || eligibleFounders.length === 0) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: true, 
+          message: 'No eligible founders for payout',
+          results: [],
+          summary: { succeeded: 0, failed: 0, total: 0 }
+        }));
+        return;
+      }
+
+      const stripe = await getStripeClient();
+      const payoutSettings = await getPayoutSettings(supabase);
+      const results = [];
+      let succeeded = 0;
+      let failed = 0;
+
+      for (const founder of eligibleFounders) {
+        const result = {
+          founder_id: founder.id,
+          founder_name: founder.full_name,
+          email: founder.email,
+          amount: parseFloat(founder.pending_balance),
+          status: 'pending',
+          error: null,
+          stripe_transfer_id: null
+        };
+
+        try {
+          if (!founder.stripe_connect_account_id) {
+            result.status = 'failed';
+            result.error = 'No Stripe Connect account';
+            failed++;
+            results.push(result);
+            continue;
+          }
+
+          if (!founder.payout_details?.transfers_enabled) {
+            const account = await stripe.accounts.retrieve(founder.stripe_connect_account_id);
+            if (account.capabilities?.transfers !== 'active') {
+              result.status = 'failed';
+              result.error = 'Stripe account not enabled for transfers';
+              failed++;
+              results.push(result);
+              continue;
+            }
+          }
+
+          const grossAmount = result.amount;
+          const feeAmount = calculatePayoutFee(grossAmount, 'weekly', payoutSettings);
+          const netAmount = grossAmount - feeAmount;
+
+          if (netAmount <= 0) {
+            result.status = 'failed';
+            result.error = 'Net amount after fees must be greater than zero';
+            failed++;
+            results.push(result);
+            continue;
+          }
+
+          result.fee_amount = feeAmount;
+          result.net_amount = netAmount;
+
+          const netAmountInCents = Math.round(netAmount * 100);
+          
+          const transfer = await stripe.transfers.create({
+            amount: netAmountInCents,
+            currency: 'usd',
+            destination: founder.stripe_connect_account_id,
+            metadata: {
+              bulk_payout: 'true',
+              founder_id: founder.id,
+              founder_name: founder.full_name,
+              gross_amount: grossAmount.toFixed(2),
+              fee_amount: feeAmount.toFixed(2),
+              payout_type: 'weekly'
+            },
+            description: `Bulk commission payout for ${founder.full_name}${feeAmount > 0 ? ` (fee: $${feeAmount.toFixed(2)})` : ''}`
+          });
+
+          const { error: payoutInsertError } = await supabase
+            .from('founder_payouts')
+            .insert({
+              founder_id: founder.id,
+              amount: grossAmount,
+              fee_amount: feeAmount,
+              net_amount: netAmount,
+              payout_type: 'weekly',
+              payout_period: new Date().toISOString().slice(0, 7),
+              payout_method: 'stripe_connect',
+              status: 'completed',
+              stripe_transfer_id: transfer.id,
+              processed_at: new Date().toISOString(),
+              notes: `Bulk payout - Stripe transfer ${transfer.id}. Gross: $${grossAmount.toFixed(2)}, Fee: $${feeAmount.toFixed(2)}, Net: $${netAmount.toFixed(2)}`
+            });
+
+          if (payoutInsertError) {
+            console.error(`[${requestId}] Failed to insert payout record for founder ${founder.id}:`, payoutInsertError);
+          }
+
+          await supabase
+            .from('member_founder_profiles')
+            .update({ 
+              total_commissions_paid: supabase.raw ? 
+                supabase.raw('COALESCE(total_commissions_paid, 0) + ?', [grossAmount]) :
+                (founder.total_commissions_paid || 0) + grossAmount,
+              pending_balance: 0,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', founder.id);
+
+          await supabase
+            .from('founder_commissions')
+            .update({ status: 'paid' })
+            .eq('founder_id', founder.id)
+            .eq('status', 'approved');
+
+          result.status = 'success';
+          result.stripe_transfer_id = transfer.id;
+          succeeded++;
+
+          if (founder.email) {
+            sendPayoutNotificationEmail(
+              founder.email,
+              founder.full_name,
+              netAmount,
+              'stripe_connect',
+              transfer.id,
+              feeAmount
+            ).catch(err => {
+              console.error(`[${requestId}] Failed to send payout notification to ${founder.email}:`, err);
+            });
+          }
+
+        } catch (stripeError) {
+          console.error(`[${requestId}] Stripe transfer failed for founder ${founder.id}:`, stripeError);
+          result.status = 'failed';
+          result.error = stripeError.message || 'Stripe transfer failed';
+          failed++;
+        }
+
+        results.push(result);
+      }
+
+      console.log(`[${requestId}] Bulk payout complete: ${succeeded} succeeded, ${failed} failed out of ${eligibleFounders.length} founders`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: true,
+        results,
+        summary: { 
+          succeeded, 
+          failed, 
+          total: eligibleFounders.length,
+          total_amount: results.filter(r => r.status === 'success').reduce((sum, r) => sum + r.amount, 0)
+        }
+      }));
+      
+    } catch (error) {
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: safeMsg }));
+    }
+  });
+}
+
+// =====================================================
+// PAYOUT SETTINGS
+// Manages payout fee configuration and thresholds
+// =====================================================
+
+const DEFAULT_PAYOUT_SETTINGS = {
+  min_payout_threshold: 10.00,
+  instant_payout_fee_percent: 1.00,
+  instant_payout_fee_min: 0.50,
+  instant_payout_fee_max: 10.00,
+  weekly_payout_fee: 0.00
+};
+
+async function getPayoutSettings(supabase) {
+  try {
+    const { data, error } = await supabase
+      .from('payout_settings')
+      .select('*')
+      .limit(1)
+      .single();
+    
+    if (error || !data) {
+      return DEFAULT_PAYOUT_SETTINGS;
+    }
+    
+    return {
+      min_payout_threshold: parseFloat(data.min_payout_threshold) || DEFAULT_PAYOUT_SETTINGS.min_payout_threshold,
+      instant_payout_fee_percent: parseFloat(data.instant_payout_fee_percent) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_percent,
+      instant_payout_fee_min: parseFloat(data.instant_payout_fee_min) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_min,
+      instant_payout_fee_max: parseFloat(data.instant_payout_fee_max) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_max,
+      weekly_payout_fee: parseFloat(data.weekly_payout_fee) || DEFAULT_PAYOUT_SETTINGS.weekly_payout_fee
+    };
+  } catch (err) {
+    console.error('Error fetching payout settings:', err);
+    return DEFAULT_PAYOUT_SETTINGS;
+  }
+}
+
+function calculatePayoutFee(amount, payoutType, settings) {
+  if (payoutType === 'weekly' || payoutType === 'bulk') {
+    return settings.weekly_payout_fee;
+  }
+  const feePercent = settings.instant_payout_fee_percent / 100;
+  const calculatedFee = amount * feePercent;
+  return Math.min(Math.max(calculatedFee, settings.instant_payout_fee_min), settings.instant_payout_fee_max);
+}
+
+async function handleAdminGetPayoutSettings(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const settings = await getPayoutSettings(supabase);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, settings }));
+  } catch (error) {
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleAdminSavePayoutSettings(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  
+  req.on('end', async () => {
+    try {
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        return;
+      }
+
+      const adminPassword = process.env.ADMIN_PASSWORD;
+      if (adminPassword && parsed.admin_password !== adminPassword) {
+        console.log(`[${requestId}] Invalid admin password for payout settings update`);
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid admin password' }));
+        return;
+      }
+
+      const { settings } = parsed;
+      if (!settings) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Settings object is required' }));
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      const settingsToSave = {
+        min_payout_threshold: parseFloat(settings.min_payout_threshold) || DEFAULT_PAYOUT_SETTINGS.min_payout_threshold,
+        instant_payout_fee_percent: parseFloat(settings.instant_payout_fee_percent) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_percent,
+        instant_payout_fee_min: parseFloat(settings.instant_payout_fee_min) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_min,
+        instant_payout_fee_max: parseFloat(settings.instant_payout_fee_max) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_max,
+        weekly_payout_fee: parseFloat(settings.weekly_payout_fee) || 0,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id
+      };
+
+      const { data: existing } = await supabase
+        .from('payout_settings')
+        .select('id')
+        .limit(1)
+        .single();
+
+      if (existing) {
+        const { error: updateError } = await supabase
+          .from('payout_settings')
+          .update(settingsToSave)
+          .eq('id', existing.id);
+
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('payout_settings')
+          .insert({ ...settingsToSave, created_at: new Date().toISOString() });
+
+        if (insertError) throw insertError;
+      }
+
+      console.log(`[${requestId}] Payout settings updated by ${user.email}`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, settings: settingsToSave }));
     } catch (error) {
       const safeMsg = safeError(error, requestId);
       res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -10092,6 +13711,11 @@ async function handleEscrowCreate(req, res, requestId) {
       }
       
       // Verify package status allows payment creation
+      if (pkg.status === 'pending_split_payment') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'This package has an active split payment. Cancel it first to use normal payment.' }));
+        return;
+      }
       if (!['open', 'accepted'].includes(pkg.status)) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: `Cannot create payment for package in ${pkg.status} status` }));
@@ -10164,8 +13788,7 @@ async function handleEscrowCreate(req, res, requestId) {
         return;
       }
       
-      // Calculate platform fee (2%)
-      const platformFeeCents = Math.round(amountCents * 0.02);
+      const platformFeeCents = 0;
       const providerAmountCents = amountCents - platformFeeCents;
       
       const stripe = await getStripeClient();
@@ -10192,15 +13815,10 @@ async function handleEscrowCreate(req, res, requestId) {
         description: `Escrow for service package ${package_id}`
       };
       
-      // If provider has connected Stripe account, use destination charges with application fee
       if (providerStripeAccount) {
-        // Use application_fee_amount for proper platform fee collection
-        paymentIntentParams.application_fee_amount = platformFeeCents;
         paymentIntentParams.transfer_data = {
           destination: providerStripeAccount
         };
-        // Note: With application_fee_amount, the platform keeps the fee and 
-        // the rest automatically goes to the destination account on capture
       }
       
       const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
@@ -10222,6 +13840,13 @@ async function handleEscrowCreate(req, res, requestId) {
         .from('bids')
         .update({ status: 'accepted', accepted_at: new Date().toISOString() })
         .eq('id', bid_id);
+
+      sendFCMPushNotification(
+        [bid.provider_id],
+        'Your Bid Was Accepted!',
+        `$${parseFloat(bid.price).toFixed(2)} bid on "${pkg.title}" accepted — get in touch with the member to schedule work.`,
+        { section: 'bids', package_id: package_id }
+      ).catch(err => console.error(`[${requestId}] FCM bid accepted push error:`, err.message));
       
       console.log(`[${requestId}] Created escrow PaymentIntent ${paymentIntent.id} for package ${package_id}, amount: $${bid.price}`);
       
@@ -10332,9 +13957,8 @@ async function handleEscrowConfirm(req, res, requestId, packageId) {
       .eq('id', pkg.accepted_bid_id)
       .single();
     
-    // Calculate fees
     const amount = parseFloat(pkg.escrow_amount);
-    const platformFee = amount * 0.02;
+    const platformFee = 0;
     const providerAmount = amount - platformFee;
     
     // Check if payment record already exists (idempotency)
@@ -10410,7 +14034,6 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
       return;
     }
     
-    // Get package with payment details
     const { data: pkg, error: pkgError } = await supabase
       .from('maintenance_packages')
       .select(`
@@ -10420,7 +14043,8 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
         escrow_payment_intent_id, 
         escrow_amount, 
         escrow_captured,
-        accepted_bid_id
+        accepted_bid_id,
+        split_payment_id
       `)
       .eq('id', packageId)
       .single();
@@ -10452,6 +14076,140 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
       return;
     }
     
+    if (pkg.split_payment_id) {
+      const stripe = await getStripeClient();
+      if (!stripe) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Payment system not configured' }));
+        return;
+      }
+
+      const { data: splitParticipants } = await supabase
+        .from('split_participants')
+        .select('amount_cents')
+        .eq('split_payment_id', pkg.split_payment_id)
+        .eq('status', 'paid');
+
+      const totalAmountCents = splitParticipants?.reduce((sum, p) => sum + p.amount_cents, 0) || 0;
+
+      const { data: bid } = await supabase
+        .from('bids')
+        .select('provider_id, price, profiles(provider_alias, business_name, full_name, stripe_account_id)')
+        .eq('id', pkg.accepted_bid_id)
+        .single();
+
+      const providerStripeAccountId = bid?.profiles?.stripe_account_id;
+      let transferId = null;
+
+      if (providerStripeAccountId && totalAmountCents > 0) {
+        const platformFeeCents = 0;
+        const providerAmountCents = totalAmountCents - platformFeeCents;
+
+        if (providerAmountCents > 0) {
+          const transfer = await stripe.transfers.create({
+            amount: providerAmountCents,
+            currency: 'usd',
+            destination: providerStripeAccountId,
+            metadata: {
+              package_id: packageId,
+              split_payment_id: pkg.split_payment_id,
+              type: 'split_payment_release'
+            }
+          });
+          transferId = transfer.id;
+          console.log(`[${requestId}] Split payment transfer ${transfer.id} of $${(providerAmountCents / 100).toFixed(2)} to ${providerStripeAccountId}`);
+        }
+      }
+
+      const now = new Date().toISOString();
+      const { data: fullPkg } = await supabase
+        .from('maintenance_packages')
+        .select('id, title, service_type, category, vehicle_id')
+        .eq('id', packageId)
+        .single();
+
+      let vehicleMileage = null;
+      if (fullPkg?.vehicle_id) {
+        const { data: vehicle } = await supabase
+          .from('vehicles')
+          .select('mileage')
+          .eq('id', fullPkg.vehicle_id)
+          .single();
+        vehicleMileage = vehicle?.mileage;
+      }
+
+      await supabase
+        .from('maintenance_packages')
+        .update({
+          status: 'completed',
+          escrow_captured: true,
+          member_confirmed_at: now,
+          work_completed_at: now,
+          updated_at: now
+        })
+        .eq('id', packageId);
+
+      await supabase
+        .from('payments')
+        .update({
+          status: 'released',
+          escrow_captured: true,
+          released_at: now
+        })
+        .eq('package_id', packageId)
+        .eq('status', 'held');
+
+      const finalTotal = totalAmountCents / 100;
+
+      if (fullPkg?.vehicle_id && bid) {
+        const providerName = bid?.profiles?.provider_alias ||
+                            bid?.profiles?.business_name ||
+                            bid?.profiles?.full_name ||
+                            `Provider #${bid?.provider_id?.slice(0,4).toUpperCase()}`;
+
+        await supabase.from('service_history').insert({
+          vehicle_id: fullPkg.vehicle_id,
+          package_id: packageId,
+          provider_id: bid?.provider_id,
+          service_date: now.split('T')[0],
+          service_type: fullPkg.service_type,
+          service_category: fullPkg.category,
+          description: fullPkg.title,
+          mileage_at_service: vehicleMileage,
+          total_cost: finalTotal,
+          provider_name: providerName
+        });
+
+        recomputeVehicleHealthBackground(fullPkg.vehicle_id, requestId);
+      }
+
+      if (bid?.provider_id) {
+        await supabase.from('notifications').insert({
+          user_id: bid.provider_id,
+          type: 'payment_released',
+          title: 'Payment Released!',
+          message: `Payment of $${finalTotal.toFixed(2)} has been released for your completed service (split payment).`,
+          entity_type: 'package',
+          entity_id: packageId
+        });
+      }
+
+      console.log(`[${requestId}] Split payment escrow released for package ${packageId}, total: $${finalTotal.toFixed(2)}`);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        status: 'completed',
+        totalAmount: finalTotal,
+        transferId,
+        splitPayment: true,
+        message: 'Payment has been released to the service provider',
+        provider_id: bid?.provider_id,
+        service_history_created: !!fullPkg?.vehicle_id
+      }));
+      return;
+    }
+
     if (!pkg.escrow_payment_intent_id) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'No payment to release' }));
@@ -10626,6 +14384,8 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
         total_cost: finalTotal,
         provider_name: providerName
       });
+
+      recomputeVehicleHealthBackground(fullPkg.vehicle_id, requestId);
     }
     
     // Notify provider
@@ -10641,14 +14401,59 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
       await supabase.from('notifications').insert({
         user_id: bid.provider_id,
         type: 'payment_released',
-        title: 'Payment Released! 💰',
+        title: 'Payment Released!',
         message: paymentMsg,
         entity_type: 'package',
         entity_id: packageId
       });
+
+      sendFCMPushNotification(
+        [bid.provider_id],
+        'Payment Released!',
+        paymentMsg,
+        { section: 'jobs', package_id: packageId }
+      ).catch(err => console.error(`[${requestId}] FCM payment release push error:`, err.message));
     }
     
+    if (fullPkg?.crowd_funded) {
+      try {
+        const { data: contribs } = await supabase
+          .from('crowd_fund_contributions')
+          .select('contributor_id')
+          .eq('package_id', packageId)
+          .eq('status', 'completed');
+        if (contribs?.length) {
+          const uniqueIds = [...new Set(contribs.map(c => c.contributor_id))];
+          const notifs = uniqueIds.map(uid => ({
+            user_id: uid,
+            type: 'crowd_fund_complete',
+            title: 'Job Completed!',
+            message: `The crowd-funded service "${fullPkg.title}" you contributed to has been completed. Thank you for helping a fellow member!`,
+            entity_type: 'package',
+            entity_id: packageId
+          }));
+          await supabase.from('notifications').insert(notifs);
+          sendFCMPushNotification(
+            uniqueIds,
+            'Crowd-Funded Job Completed!',
+            `"${fullPkg.title}" is done — your contribution helped make it happen!`,
+            { section: 'packages', package_id: packageId }
+          ).catch(() => {});
+        }
+      } catch (cfErr) {
+        console.error(`[${requestId}] Contributor notification error:`, cfErr.message);
+      }
+    }
+
     console.log(`[${requestId}] Escrow released for package ${packageId}, captured ${capturedPayment.id}, total: $${finalTotal.toFixed(2)}, discount: $${discountApplied.toFixed(2)}, additional: $${additionalWorkTotal.toFixed(2)}`);
+    
+    // Track completed job as HubSpot deal (async, non-blocking)
+    createHubSpotDeal(
+      `Completed Job - ${fullPkg?.title || packageId}`,
+      finalTotal,
+      'closedwon',
+      { description: `Service: ${fullPkg?.service_type || 'N/A'} | Category: ${fullPkg?.category || 'N/A'}` }
+    ).catch(err => console.error(`[${requestId}] HubSpot job deal error:`, err.message));
     
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -10671,6 +14476,161 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
   }
 }
 
+async function processSplitPaymentRefund(supabase, stripe, packageId, splitPaymentId, refundType, partialAmountCents, reason, approvedBy, requestId) {
+  try {
+    const { data: participants, error: partErr } = await supabase
+      .from('split_participants')
+      .select('id, member_id, email, amount_cents, payment_intent_id, status')
+      .eq('split_payment_id', splitPaymentId)
+      .in('status', ['paid', 'partially_refunded']);
+
+    if (partErr || !participants || participants.length === 0) {
+      return { success: false, error: 'No paid participants found for this split payment' };
+    }
+
+    const totalPaid = participants.reduce((sum, p) => sum + p.amount_cents, 0);
+    const isFullRefund = refundType === 'full';
+    const refundedParticipants = [];
+    let totalRefunded = 0;
+
+    const refundAmounts = [];
+    if (isFullRefund) {
+      participants.forEach(p => refundAmounts.push(p.amount_cents));
+    } else {
+      let allocated = 0;
+      for (let i = 0; i < participants.length; i++) {
+        if (i === participants.length - 1) {
+          refundAmounts.push(partialAmountCents - allocated);
+        } else {
+          const share = Math.round((participants[i].amount_cents / totalPaid) * partialAmountCents);
+          const capped = Math.min(share, participants[i].amount_cents);
+          refundAmounts.push(capped);
+          allocated += capped;
+        }
+      }
+      const lastAmount = refundAmounts[refundAmounts.length - 1];
+      if (lastAmount > participants[participants.length - 1].amount_cents) {
+        refundAmounts[refundAmounts.length - 1] = participants[participants.length - 1].amount_cents;
+      }
+    }
+
+    for (let i = 0; i < participants.length; i++) {
+      const participant = participants[i];
+      const refundAmount = refundAmounts[i];
+
+      if (refundAmount <= 0) continue;
+
+      try {
+        const refundParams = { payment_intent: participant.payment_intent_id };
+        if (!isFullRefund || refundAmount < participant.amount_cents) {
+          refundParams.amount = refundAmount;
+        }
+        const stripeRefund = await stripe.refunds.create(refundParams);
+
+        const newStatus = (refundAmount >= participant.amount_cents) ? 'refunded' : 'partially_refunded';
+        await supabase
+          .from('split_participants')
+          .update({ status: newStatus })
+          .eq('id', participant.id);
+
+        refundedParticipants.push({
+          participant_id: participant.id,
+          member_id: participant.member_id,
+          email: participant.email,
+          amount_cents: refundAmount,
+          stripe_refund_id: stripeRefund.id
+        });
+
+        totalRefunded += refundAmount;
+
+        if (participant.member_id) {
+          await supabase.from('notifications').insert({
+            user_id: participant.member_id,
+            type: 'payment_refunded',
+            title: 'Refund Processed',
+            message: `A ${isFullRefund ? 'full' : 'partial'} refund of $${(refundAmount / 100).toFixed(2)} has been processed and will be returned to your payment method.`,
+            entity_type: 'package',
+            entity_id: packageId
+          });
+        } else if (participant.email && typeof resend !== 'undefined' && resend) {
+          try {
+            await resend.emails.send({
+              from: 'My Car Concierge <noreply@mycarconcierge.com>',
+              to: participant.email,
+              subject: 'Refund Processed - My Car Concierge',
+              html: `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                  <h2 style="color:#c9a227;">My Car Concierge - Refund Notification</h2>
+                  <p>A ${isFullRefund ? 'full' : 'partial'} refund of <strong>$${(refundAmount / 100).toFixed(2)}</strong> has been processed for your split payment contribution.</p>
+                  <p>The refund will be returned to your original payment method within 5-10 business days.</p>
+                  <p style="color:#666;font-size:0.9em;">If you have any questions, please contact us at support@mycarconcierge.com.</p>
+                </div>
+              `
+            });
+          } catch (emailErr) {
+            console.error(`[${requestId}] Failed to send guest refund email to ${participant.email}:`, emailErr.message);
+          }
+        }
+      } catch (stripeErr) {
+        console.error(`[${requestId}] Failed to refund participant ${participant.id}:`, stripeErr.message);
+        return {
+          success: false,
+          error: `Failed to refund participant ${participant.email || participant.id}: ${stripeErr.message}`,
+          partialResults: refundedParticipants
+        };
+      }
+    }
+
+    if (isFullRefund) {
+      await supabase
+        .from('split_payments')
+        .update({ status: 'refunded' })
+        .eq('id', splitPaymentId);
+    }
+
+    await supabase.from('refunds').insert({
+      package_id: packageId,
+      amount_cents: totalRefunded,
+      refund_type: refundType,
+      reason: reason || 'Split payment refund',
+      status: 'processed',
+      approved_by: approvedBy,
+      requested_by: approvedBy,
+      requested_at: new Date().toISOString(),
+      approved_at: new Date().toISOString(),
+      processed_at: new Date().toISOString()
+    });
+
+    if (isFullRefund) {
+      await supabase
+        .from('maintenance_packages')
+        .update({
+          status: 'cancelled',
+          cancellation_reason: reason || 'Split payment refund',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', packageId);
+    }
+
+    await supabase
+      .from('payments')
+      .update({
+        status: isFullRefund ? 'refunded' : 'partially_refunded',
+        refunded_at: new Date().toISOString(),
+        refund_amount: totalRefunded / 100
+      })
+      .eq('package_id', packageId)
+      .in('status', ['held', 'released', 'completed']);
+
+    console.log(`[${requestId}] Split payment refund processed for package ${packageId}: ${refundType}, total refunded: ${totalRefunded}, participants: ${refundedParticipants.length}`);
+
+    return { success: true, refundedParticipants, totalRefunded };
+  } catch (err) {
+    console.error(`[${requestId}] Split payment refund error:`, err);
+    return { success: false, error: err.message };
+  }
+}
+
 async function handleEscrowRefund(req, res, requestId, packageId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -10689,7 +14649,8 @@ async function handleEscrowRefund(req, res, requestId, packageId) {
   
   req.on('end', async () => {
     try {
-      const { reason } = body ? JSON.parse(body) : {};
+      const { reason, refund_type, amount_cents } = body ? JSON.parse(body) : {};
+      const refundType = refund_type || 'full';
       
       const supabase = getSupabaseClient();
       if (!supabase) {
@@ -10698,10 +14659,9 @@ async function handleEscrowRefund(req, res, requestId, packageId) {
         return;
       }
       
-      // Get package details
       const { data: pkg, error: pkgError } = await supabase
         .from('maintenance_packages')
-        .select('id, member_id, escrow_payment_intent_id, escrow_amount, escrow_captured, accepted_bid_id')
+        .select('id, member_id, escrow_payment_intent_id, escrow_amount, escrow_captured, accepted_bid_id, status, split_payment_id')
         .eq('id', packageId)
         .single();
       
@@ -10711,14 +14671,108 @@ async function handleEscrowRefund(req, res, requestId, packageId) {
         return;
       }
       
-      // Only the member can request refund
-      if (pkg.member_id !== user.id) {
+      let isProvider = false;
+      let isMember = pkg.member_id === user.id;
+
+      if (pkg.accepted_bid_id) {
+        const { data: bid } = await supabase
+          .from('bids')
+          .select('provider_id')
+          .eq('id', pkg.accepted_bid_id)
+          .single();
+        if (bid && bid.provider_id === user.id) {
+          isProvider = true;
+        }
+      }
+
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      const isAdmin = userProfile?.role === 'admin';
+
+      if (!isMember && !isProvider && !isAdmin) {
         res.writeHead(403, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not authorized' }));
         return;
       }
       
       if (!pkg.escrow_payment_intent_id) {
+        if (pkg.split_payment_id) {
+          const stripe = await getStripeClient();
+          if (isProvider || isAdmin) {
+            const splitResult = await processSplitPaymentRefund(
+              supabase, stripe, packageId, pkg.split_payment_id,
+              refundType, refundType === 'partial' ? amount_cents : null,
+              reason || (isProvider ? 'Provider initiated refund' : 'Admin initiated refund'),
+              user.id, requestId
+            );
+            if (!splitResult.success) {
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: splitResult.error }));
+              return;
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: true,
+              status: 'refunded',
+              refund_type: refundType,
+              amount_cents: splitResult.totalRefunded,
+              split_refund: true,
+              refunded_participants: splitResult.refundedParticipants.length,
+              message: `${refundType === 'full' ? 'Full' : 'Partial'} split refund of $${(splitResult.totalRefunded / 100).toFixed(2)} processed across ${splitResult.refundedParticipants.length} participants`
+            }));
+            return;
+          } else {
+            let refundedAmountCents = refundType === 'partial' && amount_cents > 0 ? amount_cents : null;
+            if (!refundedAmountCents) {
+              const { data: splitPayment } = await supabase
+                .from('split_payments')
+                .select('total_amount_cents')
+                .eq('id', pkg.split_payment_id)
+                .single();
+              refundedAmountCents = splitPayment?.total_amount_cents || 0;
+            }
+
+            await supabase.from('refunds').insert({
+              package_id: packageId,
+              amount_cents: refundedAmountCents,
+              refund_type: refundType,
+              reason: reason || 'Customer requested refund',
+              status: 'requested',
+              requested_by: user.id,
+              requested_at: new Date().toISOString()
+            });
+
+            let providerId = null;
+            if (pkg.accepted_bid_id) {
+              const { data: bidInfo } = await supabase.from('bids').select('provider_id').eq('id', pkg.accepted_bid_id).single();
+              providerId = bidInfo?.provider_id;
+            }
+            if (providerId) {
+              await supabase.from('notifications').insert({
+                user_id: providerId,
+                type: 'refund_request',
+                title: 'Refund Request',
+                message: `A member has requested a ${refundType} refund of $${(refundedAmountCents / 100).toFixed(2)} for a split payment job. Please review and approve or deny.`,
+                entity_type: 'package',
+                entity_id: packageId
+              });
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: true,
+              status: 'requested',
+              refund_type: refundType,
+              amount_cents: refundedAmountCents,
+              split_payment: true,
+              message: 'Your refund request has been submitted to the service provider for review.'
+            }));
+            return;
+          }
+        }
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'No payment to refund' }));
         return;
@@ -10728,47 +14782,187 @@ async function handleEscrowRefund(req, res, requestId, packageId) {
       const paymentIntent = await stripe.paymentIntents.retrieve(pkg.escrow_payment_intent_id);
       
       let refundResult;
+      let stripeRefundId = null;
+      let refundedAmountCents = 0;
+      let newPaymentStatus = 'refunded';
       
       if (paymentIntent.status === 'requires_capture') {
-        // Payment not captured yet - just cancel it
         refundResult = await stripe.paymentIntents.cancel(pkg.escrow_payment_intent_id, {
           cancellation_reason: 'requested_by_customer'
         });
-      } else if (paymentIntent.status === 'succeeded' && !pkg.escrow_captured) {
-        // Should not happen but handle it
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Payment already processed' }));
-        return;
+        refundedAmountCents = paymentIntent.amount;
+      } else if (paymentIntent.status === 'succeeded') {
+        if (refundType === 'partial' && amount_cents && amount_cents > 0) {
+          refundedAmountCents = amount_cents;
+        } else {
+          refundedAmountCents = paymentIntent.amount;
+        }
+
+        if (isProvider || isAdmin) {
+          const stripeRefund = await stripe.refunds.create({
+            payment_intent: pkg.escrow_payment_intent_id,
+            ...(refundType === 'partial' && amount_cents > 0 ? { amount: refundedAmountCents } : {})
+          });
+          stripeRefundId = stripeRefund.id;
+
+          await supabase.from('refunds').insert({
+            package_id: packageId,
+            payment_intent_id: pkg.escrow_payment_intent_id,
+            stripe_refund_id: stripeRefundId,
+            amount_cents: refundedAmountCents,
+            refund_type: refundType,
+            reason: reason || (isProvider ? 'Provider initiated refund' : 'Admin initiated refund'),
+            status: 'processed',
+            requested_by: user.id,
+            approved_by: user.id,
+            requested_at: new Date().toISOString(),
+            approved_at: new Date().toISOString(),
+            processed_at: new Date().toISOString()
+          });
+
+          console.log(`[${requestId}] Post-capture refund processed immediately by ${isProvider ? 'provider' : 'admin'} for package ${packageId}, amount: ${refundedAmountCents}, stripe refund: ${stripeRefundId}`);
+
+          if (refundType === 'full') {
+            await supabase
+              .from('maintenance_packages')
+              .update({
+                status: 'cancelled',
+                escrow_payment_intent_id: null,
+                escrow_amount: null,
+                cancellation_reason: reason || (isProvider ? 'Provider initiated refund' : 'Admin initiated refund'),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', packageId);
+          }
+
+          await supabase
+            .from('payments')
+            .update({
+              status: refundType === 'full' ? 'refunded' : 'partially_refunded',
+              refunded_at: new Date().toISOString(),
+              refund_reason: reason,
+              refund_amount: refundedAmountCents / 100
+            })
+            .eq('package_id', packageId)
+            .in('status', ['held', 'released']);
+
+          if (isMember && pkg.accepted_bid_id) {
+            const { data: bidData } = await supabase.from('bids').select('provider_id').eq('id', pkg.accepted_bid_id).single();
+            if (bidData?.provider_id) {
+              await supabase.from('notifications').insert({
+                user_id: bidData.provider_id,
+                type: 'payment_refunded',
+                title: 'Refund Processed',
+                message: `A ${refundType} refund of $${(refundedAmountCents / 100).toFixed(2)} has been processed for the job.`,
+                entity_type: 'package',
+                entity_id: packageId
+              });
+            }
+          } else if (isProvider) {
+            await supabase.from('notifications').insert({
+              user_id: pkg.member_id,
+              type: 'payment_refunded',
+              title: 'Refund Processed',
+              message: `Your provider has issued a ${refundType} refund of $${(refundedAmountCents / 100).toFixed(2)}.`,
+              entity_type: 'package',
+              entity_id: packageId
+            });
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            status: 'refunded',
+            refund_type: refundType,
+            amount_cents: refundedAmountCents,
+            stripe_refund_id: stripeRefundId,
+            message: `${refundType === 'full' ? 'Full' : 'Partial'} refund of $${(refundedAmountCents / 100).toFixed(2)} has been processed`
+          }));
+          return;
+        } else {
+          let providerId = null;
+          if (pkg.accepted_bid_id) {
+            const { data: bidInfo } = await supabase.from('bids').select('provider_id').eq('id', pkg.accepted_bid_id).single();
+            providerId = bidInfo?.provider_id;
+          }
+
+          await supabase.from('refunds').insert({
+            package_id: packageId,
+            payment_intent_id: pkg.escrow_payment_intent_id,
+            amount_cents: refundedAmountCents,
+            refund_type: refundType,
+            reason: reason || 'Customer requested refund',
+            status: 'requested',
+            requested_by: user.id,
+            requested_at: new Date().toISOString()
+          });
+
+          if (providerId) {
+            await supabase.from('notifications').insert({
+              user_id: providerId,
+              type: 'refund_request',
+              title: 'Refund Request',
+              message: `A member has requested a ${refundType} refund of $${(refundedAmountCents / 100).toFixed(2)} for a job. Please review and approve or deny.`,
+              entity_type: 'package',
+              entity_id: packageId
+            });
+          }
+
+          console.log(`[${requestId}] Refund request submitted for package ${packageId}, amount: ${refundedAmountCents} (awaiting provider approval)`);
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            status: 'requested',
+            refund_type: refundType,
+            amount_cents: refundedAmountCents,
+            message: 'Your refund request has been submitted to the service provider for review.'
+          }));
+          return;
+        }
       } else {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: `Cannot refund payment in ${paymentIntent.status} status` }));
         return;
       }
       
-      // Update package
+      await supabase.from('refunds').insert({
+        package_id: packageId,
+        payment_intent_id: pkg.escrow_payment_intent_id,
+        stripe_refund_id: stripeRefundId,
+        amount_cents: refundedAmountCents,
+        refund_type: refundType,
+        reason: reason || 'Customer requested refund',
+        status: 'processed',
+        requested_by: user.id,
+        approved_by: user.id,
+        requested_at: new Date().toISOString(),
+        approved_at: new Date().toISOString(),
+        processed_at: new Date().toISOString()
+      });
+      
       await supabase
         .from('maintenance_packages')
         .update({
           status: 'cancelled',
           escrow_payment_intent_id: null,
           escrow_amount: null,
-          cancellation_reason: reason || 'Customer requested refund',
+          cancellation_reason: reason || 'Customer requested cancellation',
           updated_at: new Date().toISOString()
         })
         .eq('id', packageId);
       
-      // Update payment record
       await supabase
         .from('payments')
         .update({
           status: 'refunded',
           refunded_at: new Date().toISOString(),
-          refund_reason: reason
+          refund_reason: reason,
+          refund_amount: refundedAmountCents / 100
         })
         .eq('package_id', packageId)
-        .eq('status', 'held');
+        .in('status', ['held', 'released']);
       
-      // Notify provider
       const { data: bid } = await supabase
         .from('bids')
         .select('provider_id')
@@ -10780,18 +14974,20 @@ async function handleEscrowRefund(req, res, requestId, packageId) {
           user_id: bid.provider_id,
           type: 'payment_refunded',
           title: 'Job Cancelled',
-          message: `The customer has cancelled the service and the payment has been refunded.`,
+          message: 'The customer has cancelled the service and the payment has been refunded.',
           entity_type: 'package',
           entity_id: packageId
         });
       }
       
-      console.log(`[${requestId}] Escrow refunded for package ${packageId}`);
+      console.log(`[${requestId}] Escrow pre-capture cancellation for package ${packageId}, amount: ${refundedAmountCents}`);
       
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         success: true,
         status: 'refunded',
+        refund_type: refundType,
+        amount_cents: refundedAmountCents,
         message: 'Payment has been cancelled and refunded'
       }));
       
@@ -10867,6 +15063,1768 @@ async function handleEscrowStatus(req, res, requestId, packageId) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: safeMsg }));
   }
+}
+
+// ========== SPLIT PAYMENT SYSTEM ==========
+/*
+ * ========== SPLIT PAYMENTS TABLE MIGRATION ==========
+ * Run this SQL in Supabase SQL Editor to create the split payments tables:
+ *
+ * Migration: Add crowd_funded column to maintenance_packages
+ * ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS crowd_funded BOOLEAN DEFAULT FALSE;
+ *
+ * CREATE TABLE IF NOT EXISTS split_payments (
+ *   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ *   package_id uuid REFERENCES maintenance_packages(id),
+ *   created_by uuid REFERENCES auth.users(id),
+ *   total_amount_cents integer NOT NULL,
+ *   status text NOT NULL DEFAULT 'pending',
+ *   expires_at timestamptz,
+ *   created_at timestamptz DEFAULT now(),
+ *   updated_at timestamptz DEFAULT now()
+ * );
+ *
+ * CREATE TABLE IF NOT EXISTS split_participants (
+ *   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ *   split_payment_id uuid REFERENCES split_payments(id) ON DELETE CASCADE,
+ *   member_id uuid REFERENCES auth.users(id),
+ *   email text NOT NULL,
+ *   display_name text,
+ *   amount_cents integer NOT NULL,
+ *   status text NOT NULL DEFAULT 'invited',
+ *   payment_intent_id text,
+ *   stripe_client_secret text,
+ *   paid_at timestamptz,
+ *   invited_at timestamptz DEFAULT now(),
+ *   created_at timestamptz DEFAULT now()
+ * );
+ *
+ * ALTER TABLE split_payments ENABLE ROW LEVEL SECURITY;
+ * ALTER TABLE split_participants ENABLE ROW LEVEL SECURITY;
+ *
+ * CREATE POLICY "Members view own splits" ON split_payments FOR SELECT USING (auth.uid() = created_by);
+ * CREATE POLICY "Service role bypass split_payments" ON split_payments FOR ALL USING (auth.role() = 'service_role');
+ *
+ * CREATE POLICY "Participants view own" ON split_participants FOR SELECT USING (auth.uid() = member_id);
+ * CREATE POLICY "Service role bypass split_participants" ON split_participants FOR ALL USING (auth.role() = 'service_role');
+ */
+
+async function handleSplitCreate(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+
+  req.on('end', async () => {
+    try {
+      const { package_id, participants } = JSON.parse(body);
+
+      if (!package_id || !participants || !Array.isArray(participants) || participants.length < 2) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'package_id and at least 2 participants are required' }));
+        return;
+      }
+
+      if (!isValidUUID(package_id)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid package_id format' }));
+        return;
+      }
+
+      for (const p of participants) {
+        if (!p.email || !p.amount_cents || typeof p.amount_cents !== 'number' || p.amount_cents < 50) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Each participant must contribute at least $0.50' }));
+          return;
+        }
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      const { data: pkg, error: pkgError } = await supabase
+        .from('maintenance_packages')
+        .select('id, member_id, status, accepted_bid_id, escrow_payment_intent_id')
+        .eq('id', package_id)
+        .single();
+
+      if (pkgError || !pkg) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package not found' }));
+        return;
+      }
+
+      if (pkg.member_id !== user.id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not authorized to create split payment for this package' }));
+        return;
+      }
+
+      if (!['open', 'accepted'].includes(pkg.status)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Cannot create split payment for package in ${pkg.status} status` }));
+        return;
+      }
+
+      if (pkg.escrow_payment_intent_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package already has a payment in progress. Cancel it first.' }));
+        return;
+      }
+
+      if (!pkg.accepted_bid_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package must have an accepted bid before creating a split payment' }));
+        return;
+      }
+
+      const { data: bid, error: bidError } = await supabase
+        .from('bids')
+        .select('id, price, status, provider_id')
+        .eq('id', pkg.accepted_bid_id)
+        .eq('package_id', package_id)
+        .single();
+
+      if (bidError || !bid) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Accepted bid not found' }));
+        return;
+      }
+
+      const totalAmountCents = Math.round(parseFloat(bid.price) * 100);
+      const participantTotal = participants.reduce((sum, p) => sum + p.amount_cents, 0);
+
+      if (participantTotal !== totalAmountCents) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Participant amounts ($${(participantTotal / 100).toFixed(2)}) must equal bid total ($${(totalAmountCents / 100).toFixed(2)})` }));
+        return;
+      }
+
+      const { data: existingSplit } = await supabase
+        .from('split_payments')
+        .select('id')
+        .eq('package_id', package_id)
+        .in('status', ['pending'])
+        .single();
+
+      if (existingSplit) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'An active split payment already exists for this package' }));
+        return;
+      }
+
+      const expiresAt = new Date();
+      expiresAt.setTime(expiresAt.getTime() + 72 * 60 * 60 * 1000); // 72 hours
+
+      const { data: splitPayment, error: splitError } = await supabase
+        .from('split_payments')
+        .insert({
+          package_id: package_id,
+          created_by: user.id,
+          total_amount_cents: totalAmountCents,
+          status: 'pending',
+          expires_at: expiresAt.toISOString()
+        })
+        .select()
+        .single();
+
+      if (splitError || !splitPayment) {
+        console.error(`[${requestId}] Split payment creation error:`, splitError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create split payment' }));
+        return;
+      }
+
+      const participantEmails = participants.map(p => p.email.toLowerCase());
+      const { data: existingProfiles } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .in('email', participantEmails);
+
+      const profileMap = {};
+      if (existingProfiles) {
+        existingProfiles.forEach(p => { profileMap[p.email.toLowerCase()] = p.id; });
+      }
+
+      const participantRecords = participants.map(p => ({
+        split_payment_id: splitPayment.id,
+        member_id: p.is_guest ? null : (profileMap[p.email.toLowerCase()] || null),
+        email: p.email.toLowerCase(),
+        display_name: p.display_name || null,
+        amount_cents: p.amount_cents,
+        status: 'invited',
+        invited_at: new Date().toISOString()
+      }));
+
+      const { data: createdParticipants, error: partError } = await supabase
+        .from('split_participants')
+        .insert(participantRecords)
+        .select();
+
+      if (partError) {
+        console.error(`[${requestId}] Split participants creation error:`, partError);
+        await supabase.from('split_payments').delete().eq('id', splitPayment.id);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create split participants' }));
+        return;
+      }
+
+      await supabase
+        .from('maintenance_packages')
+        .update({ status: 'pending_split_payment', updated_at: new Date().toISOString() })
+        .eq('id', package_id);
+
+      const { data: pkgDetails } = await supabase
+        .from('maintenance_packages')
+        .select('title')
+        .eq('id', package_id)
+        .single();
+
+      if (bid.provider_id) {
+        await supabase.from('notifications').insert({
+          user_id: bid.provider_id,
+          type: 'split_payment_created',
+          title: 'Split Payment In Progress',
+          message: `A split payment has been set up for "${pkgDetails?.title || 'a service'}". Please do not begin work until all participants have completed payment. You will be notified when everything is ready.`,
+          entity_type: 'package',
+          entity_id: package_id
+        });
+      }
+
+      for (const participant of createdParticipants) {
+        if (participant.member_id) {
+          await supabase.from('notifications').insert({
+            user_id: participant.member_id,
+            type: 'split_payment_invite',
+            title: 'Split Payment Invitation',
+            message: `You've been invited to share the cost of "${pkgDetails?.title || 'a service'}". Your share: $${(participant.amount_cents / 100).toFixed(2)}`,
+            entity_type: 'split_payment',
+            entity_id: splitPayment.id
+          });
+        }
+
+        if (resend && participant.email) {
+          try {
+            const isGuest = !participant.member_id && participants.find(p => p.email.toLowerCase() === participant.email)?.is_guest;
+            const guestToken = isGuest ? generateGuestToken(participant.id) : null;
+            const payLink = isGuest 
+              ? `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}&guest=true&token=${guestToken}`
+              : `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}`;
+            const emailHtml = isGuest ? `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                  <h2 style="color:#c9a227;">My Car Concierge - Split Payment</h2>
+                  <p>You've been invited to share the cost of an auto service.</p>
+                  <p><strong>Service:</strong> ${pkgDetails?.title || 'Auto Service'}</p>
+                  <p><strong>Your share:</strong> $${(participant.amount_cents / 100).toFixed(2)}</p>
+                  <p><strong>Total cost:</strong> $${(totalAmountCents / 100).toFixed(2)}</p>
+                  <p style="color:#34d399;font-weight:bold;">No account needed — pay securely as a guest!</p>
+                  <p><a href="${payLink}" style="display:inline-block;background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Pay My Share</a></p>
+                  <p style="color:#666;font-size:0.9em;">This split payment expires on ${expiresAt.toLocaleDateString()}. Your payment is securely processed through Stripe.</p>
+                </div>
+              ` : `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                  <h2 style="color:#c9a227;">My Car Concierge - Split Payment</h2>
+                  <p>You've been invited to share the cost of an auto service.</p>
+                  <p><strong>Service:</strong> ${pkgDetails?.title || 'Auto Service'}</p>
+                  <p><strong>Your share:</strong> $${(participant.amount_cents / 100).toFixed(2)}</p>
+                  <p><strong>Total cost:</strong> $${(totalAmountCents / 100).toFixed(2)}</p>
+                  <p><a href="${payLink}" style="display:inline-block;background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Pay My Share</a></p>
+                  <p style="color:#666;font-size:0.9em;">This split payment expires on ${expiresAt.toLocaleDateString()}.</p>
+                </div>
+              `;
+            await resend.emails.send({
+              from: 'My Car Concierge <noreply@mycarconcierge.com>',
+              to: participant.email,
+              subject: 'You\'ve been invited to split a payment - My Car Concierge',
+              html: emailHtml
+            });
+          } catch (emailErr) {
+            console.error(`[${requestId}] Failed to send split payment email to ${participant.email}:`, emailErr.message);
+          }
+        }
+      }
+
+      console.log(`[${requestId}] Created split payment ${splitPayment.id} for package ${package_id}, ${participants.length} participants, total: $${(totalAmountCents / 100).toFixed(2)}`);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        splitPayment: splitPayment,
+        participants: createdParticipants
+      }));
+
+    } catch (error) {
+      console.error(`[${requestId}] Split create error:`, error);
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: safeMsg }));
+    }
+  });
+}
+
+async function handleSplitCreateAdditional(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+
+  req.on('end', async () => {
+    try {
+      const { additional_work_id, participants } = JSON.parse(body);
+
+      if (!additional_work_id || !participants || !Array.isArray(participants) || participants.length < 2) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'additional_work_id and at least 2 participants are required' }));
+        return;
+      }
+
+      if (!isValidUUID(additional_work_id)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid additional_work_id format' }));
+        return;
+      }
+
+      for (const p of participants) {
+        if (!p.email || !p.amount_cents || typeof p.amount_cents !== 'number' || p.amount_cents < 50) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Each participant must contribute at least $0.50' }));
+          return;
+        }
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      const { data: workRequest, error: workError } = await supabase
+        .from('additional_work_requests')
+        .select('id, package_id, provider_id, estimated_cost, status, title')
+        .eq('id', additional_work_id)
+        .single();
+
+      if (workError || !workRequest) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Additional work request not found' }));
+        return;
+      }
+
+      if (workRequest.status !== 'pending') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Additional work request is already ${workRequest.status}` }));
+        return;
+      }
+
+      const { data: pkg, error: pkgError } = await supabase
+        .from('maintenance_packages')
+        .select('id, member_id, status, title')
+        .eq('id', workRequest.package_id)
+        .single();
+
+      if (pkgError || !pkg) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package not found' }));
+        return;
+      }
+
+      if (pkg.member_id !== user.id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not authorized to create split payment for this package' }));
+        return;
+      }
+
+      const totalAmountCents = Math.round(parseFloat(workRequest.estimated_cost) * 100);
+      const participantTotal = participants.reduce((sum, p) => sum + p.amount_cents, 0);
+
+      if (participantTotal !== totalAmountCents) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Participant amounts ($${(participantTotal / 100).toFixed(2)}) must equal additional work cost ($${(totalAmountCents / 100).toFixed(2)})` }));
+        return;
+      }
+
+      const expiresAt = new Date();
+      expiresAt.setTime(expiresAt.getTime() + 2 * 60 * 60 * 1000);
+
+      const { data: splitPayment, error: splitError } = await supabase
+        .from('split_payments')
+        .insert({
+          package_id: workRequest.package_id,
+          created_by: user.id,
+          total_amount_cents: totalAmountCents,
+          status: 'pending',
+          expires_at: expiresAt.toISOString()
+        })
+        .select()
+        .single();
+
+      if (splitError || !splitPayment) {
+        console.error(`[${requestId}] Split payment creation error for additional work:`, splitError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create split payment' }));
+        return;
+      }
+
+      const participantEmails = participants.map(p => p.email.toLowerCase());
+      const { data: existingProfiles } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .in('email', participantEmails);
+
+      const profileMap = {};
+      if (existingProfiles) {
+        existingProfiles.forEach(p => { profileMap[p.email.toLowerCase()] = p.id; });
+      }
+
+      const participantRecords = participants.map(p => ({
+        split_payment_id: splitPayment.id,
+        member_id: p.is_guest ? null : (profileMap[p.email.toLowerCase()] || null),
+        email: p.email.toLowerCase(),
+        display_name: p.display_name || null,
+        amount_cents: p.amount_cents,
+        status: 'invited',
+        invited_at: new Date().toISOString()
+      }));
+
+      const { data: createdParticipants, error: partError } = await supabase
+        .from('split_participants')
+        .insert(participantRecords)
+        .select();
+
+      if (partError) {
+        console.error(`[${requestId}] Split participants creation error for additional work:`, partError);
+        await supabase.from('split_payments').delete().eq('id', splitPayment.id);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create split participants' }));
+        return;
+      }
+
+
+      if (!['in_progress', 'pending_split_payment'].includes(pkg.status)) {
+        await supabase
+          .from('maintenance_packages')
+          .update({ status: 'pending_split_payment', updated_at: new Date().toISOString() })
+          .eq('id', workRequest.package_id);
+      }
+
+      if (workRequest.provider_id) {
+        await supabase.from('notifications').insert({
+          user_id: workRequest.provider_id,
+          type: 'split_payment_created',
+          title: 'Additional Work - Crowd Funding In Progress',
+          message: `Additional work cost is being crowd-funded for "${workRequest.title || pkg.title || 'a service'}". Do not proceed until all payments are received. You will be notified when everything is ready.`,
+          entity_type: 'package',
+          entity_id: workRequest.package_id
+        });
+      }
+
+      for (const participant of createdParticipants) {
+        if (participant.member_id) {
+          await supabase.from('notifications').insert({
+            user_id: participant.member_id,
+            type: 'split_payment_invite',
+            title: 'Split Payment Invitation - Additional Work',
+            message: `You've been invited to share the cost of additional work on "${workRequest.title || pkg.title || 'a service'}". Your share: $${(participant.amount_cents / 100).toFixed(2)}. You have 2 hours to complete payment.`,
+            entity_type: 'split_payment',
+            entity_id: splitPayment.id
+          });
+        }
+
+        if (resend && participant.email) {
+          try {
+            const isGuest = !participant.member_id && participants.find(p => p.email.toLowerCase() === participant.email)?.is_guest;
+            const guestToken = isGuest ? generateGuestToken(participant.id) : null;
+            const payLink = isGuest
+              ? `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}&guest=true&token=${guestToken}`
+              : `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}`;
+            const serviceTitle = workRequest.title || pkg.title || 'Auto Service';
+            const emailHtml = isGuest ? `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                  <h2 style="color:#c9a227;">My Car Concierge - Split Payment (Additional Work)</h2>
+                  <p>You've been invited to share the cost of additional auto service work.</p>
+                  <p><strong>Additional Work:</strong> ${serviceTitle}</p>
+                  <p><strong>Your share:</strong> $${(participant.amount_cents / 100).toFixed(2)}</p>
+                  <p><strong>Total cost:</strong> $${(totalAmountCents / 100).toFixed(2)}</p>
+                  <p style="color:#f59e0b;font-weight:bold;">⏰ You have 2 hours to complete payment.</p>
+                  <p style="color:#34d399;font-weight:bold;">No account needed — pay securely as a guest!</p>
+                  <p><a href="${payLink}" style="display:inline-block;background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Pay My Share</a></p>
+                  <p style="color:#666;font-size:0.9em;">This split payment expires on ${expiresAt.toLocaleString()}. Your payment is securely processed through Stripe.</p>
+                </div>
+              ` : `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                  <h2 style="color:#c9a227;">My Car Concierge - Split Payment (Additional Work)</h2>
+                  <p>You've been invited to share the cost of additional auto service work.</p>
+                  <p><strong>Additional Work:</strong> ${serviceTitle}</p>
+                  <p><strong>Your share:</strong> $${(participant.amount_cents / 100).toFixed(2)}</p>
+                  <p><strong>Total cost:</strong> $${(totalAmountCents / 100).toFixed(2)}</p>
+                  <p style="color:#f59e0b;font-weight:bold;">⏰ You have 2 hours to complete payment.</p>
+                  <p><a href="${payLink}" style="display:inline-block;background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Pay My Share</a></p>
+                  <p style="color:#666;font-size:0.9em;">This split payment expires on ${expiresAt.toLocaleString()}.</p>
+                </div>
+              `;
+            await resend.emails.send({
+              from: 'My Car Concierge <noreply@mycarconcierge.com>',
+              to: participant.email,
+              subject: 'Urgent: Split Payment for Additional Work - My Car Concierge (2hr window)',
+              html: emailHtml
+            });
+          } catch (emailErr) {
+            console.error(`[${requestId}] Failed to send additional work split payment email to ${participant.email}:`, emailErr.message);
+          }
+        }
+      }
+
+      console.log(`[${requestId}] Created additional work split payment ${splitPayment.id} for package ${workRequest.package_id}, work ${additional_work_id}, ${participants.length} participants, total: $${(totalAmountCents / 100).toFixed(2)}, 2hr expiry`);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        splitPayment: splitPayment,
+        participants: createdParticipants
+      }));
+
+    } catch (error) {
+      console.error(`[${requestId}] Split create additional error:`, error);
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: safeMsg }));
+    }
+  });
+}
+
+async function handleSplitStatus(req, res, requestId, packageId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  if (!isValidUUID(packageId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid package ID' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: splitPayments, error: splitError } = await supabase
+      .from('split_payments')
+      .select('*')
+      .eq('package_id', packageId)
+      .in('status', ['pending', 'complete', 'expired', 'cancelled'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+
+    const splitPayment = splitPayments && splitPayments[0];
+
+    if (splitError || !splitPayment) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No split payment found for this package' }));
+      return;
+    }
+
+    const { data: participants, error: partError } = await supabase
+      .from('split_participants')
+      .select('*')
+      .eq('split_payment_id', splitPayment.id)
+      .order('created_at', { ascending: true });
+
+    const isCreator = splitPayment.created_by === user.id;
+    const isParticipant = participants?.some(p => p.member_id === user.id || p.email === user.email);
+
+    if (!isCreator && !isParticipant) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized to view this split payment' }));
+      return;
+    }
+
+    const { data: pkg } = await supabase
+      .from('maintenance_packages')
+      .select('title, status')
+      .eq('id', packageId)
+      .single();
+
+    const { data: creatorProfile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', splitPayment.created_by)
+      .single();
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      splitPayment,
+      participants: participants || [],
+      packageTitle: pkg?.title || 'Auto Service',
+      packageStatus: pkg?.status || null,
+      creatorName: creatorProfile?.full_name || creatorProfile?.email || 'Unknown',
+      isCreator
+    }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Split status error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleSplitPay(req, res, requestId, participantId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  if (!isValidUUID(participantId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid participant ID' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: participant, error: partError } = await supabase
+      .from('split_participants')
+      .select('*, split_payments(*)')
+      .eq('id', participantId)
+      .single();
+
+    if (partError || !participant) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Participant not found' }));
+      return;
+    }
+
+    if (participant.member_id && participant.member_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized to pay for this participant' }));
+      return;
+    }
+
+    if (!participant.member_id) {
+      const { data: profile } = await supabase.from('profiles').select('email').eq('id', user.id).single();
+      if (!profile?.email || profile.email.toLowerCase() !== (participant.email || '').toLowerCase()) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not authorized to pay for this participant' }));
+        return;
+      }
+      await supabase
+        .from('split_participants')
+        .update({ member_id: user.id })
+        .eq('id', participantId);
+    }
+
+    if (participant.status === 'paid') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'This share has already been paid' }));
+      return;
+    }
+
+    if (participant.split_payments.status !== 'pending') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Split payment is ${participant.split_payments.status}, cannot pay` }));
+      return;
+    }
+
+    // Check if split payment has expired
+    if (participant.split_payments.expires_at && new Date(participant.split_payments.expires_at) < new Date()) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'This split payment has expired. Payment is no longer accepted.' }));
+      return;
+    }
+
+    if (participant.payment_intent_id) {
+      const stripe = await getStripeClient();
+      if (!stripe) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Payment system not configured' }));
+        return;
+      }
+      try {
+        const existingIntent = await stripe.paymentIntents.retrieve(participant.payment_intent_id);
+        if (['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(existingIntent.status)) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            clientSecret: existingIntent.client_secret,
+            paymentIntentId: existingIntent.id,
+            amountCents: participant.amount_cents,
+            existing: true
+          }));
+          return;
+        }
+        if (existingIntent.status === 'succeeded') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Payment already succeeded. Please confirm.' }));
+          return;
+        }
+      } catch (stripeErr) {
+        console.log(`[${requestId}] Existing split PaymentIntent not found/invalid, creating new one`);
+      }
+    }
+
+    const stripe = await getStripeClient();
+    if (!stripe) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Payment system not configured' }));
+      return;
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: participant.amount_cents,
+      currency: 'usd',
+      capture_method: 'automatic',
+      metadata: {
+        split_payment_id: participant.split_payment_id,
+        participant_id: participantId,
+        package_id: participant.split_payments.package_id,
+        member_id: user.id,
+        type: 'split_payment_share'
+      },
+      description: `Split payment share for package ${participant.split_payments.package_id}`
+    });
+
+    await supabase
+      .from('split_participants')
+      .update({
+        payment_intent_id: paymentIntent.id,
+        stripe_client_secret: paymentIntent.client_secret,
+        status: 'pending',
+        member_id: user.id
+      })
+      .eq('id', participantId);
+
+    console.log(`[${requestId}] Created split PaymentIntent ${paymentIntent.id} for participant ${participantId}, amount: $${(participant.amount_cents / 100).toFixed(2)}`);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      amountCents: participant.amount_cents
+    }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Split pay error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleSplitGuestPay(req, res, requestId, participantId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  if (!isValidUUID(participantId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid participant ID' }));
+    return;
+  }
+
+  let body = '';
+  for await (const chunk of req) body += chunk;
+  let parsed;
+  try { parsed = JSON.parse(body || '{}'); } catch { parsed = {}; }
+  
+  const { token } = parsed;
+  
+  if (!token || !verifyGuestToken(participantId, token)) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid or expired guest token' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: participant, error: partError } = await supabase
+      .from('split_participants')
+      .select('*, split_payments(*)')
+      .eq('id', participantId)
+      .single();
+
+    if (partError || !participant) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Participant not found' }));
+      return;
+    }
+
+    if (participant.member_id) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'This participant is linked to an account. Please log in to pay.' }));
+      return;
+    }
+
+    if (participant.split_payments?.expires_at && new Date(participant.split_payments.expires_at) < new Date()) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'This split payment has expired. Please contact the person who invited you.' }));
+      return;
+    }
+
+    if (participant.status === 'paid') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'This share has already been paid' }));
+      return;
+    }
+
+    if (participant.split_payments.status !== 'pending') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Split payment is ${participant.split_payments.status}, cannot pay` }));
+      return;
+    }
+
+    if (participant.payment_intent_id) {
+      const stripe = await getStripeClient();
+      if (!stripe) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Payment system not configured' }));
+        return;
+      }
+      try {
+        const existingIntent = await stripe.paymentIntents.retrieve(participant.payment_intent_id);
+        if (['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(existingIntent.status)) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            clientSecret: existingIntent.client_secret,
+            paymentIntentId: existingIntent.id,
+            amountCents: participant.amount_cents,
+            existing: true
+          }));
+          return;
+        }
+        if (existingIntent.status === 'succeeded') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Payment already succeeded.' }));
+          return;
+        }
+      } catch (stripeErr) {
+        console.log(`[${requestId}] Existing guest split PaymentIntent not found, creating new`);
+      }
+    }
+
+    const stripe = await getStripeClient();
+    if (!stripe) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Payment system not configured' }));
+      return;
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: participant.amount_cents,
+      currency: 'usd',
+      capture_method: 'automatic',
+      metadata: {
+        split_payment_id: participant.split_payment_id,
+        participant_id: participantId,
+        package_id: participant.split_payments.package_id,
+        type: 'split_payment_guest_share',
+        guest_email: participant.email
+      },
+      description: `Guest split payment share for package ${participant.split_payments.package_id}`,
+      receipt_email: participant.email
+    });
+
+    await supabase
+      .from('split_participants')
+      .update({
+        payment_intent_id: paymentIntent.id,
+        stripe_client_secret: paymentIntent.client_secret,
+        status: 'pending'
+      })
+      .eq('id', participantId);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      amountCents: participant.amount_cents
+    }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Guest split pay error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleSplitGuestPayConfirm(req, res, requestId, participantId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  if (!isValidUUID(participantId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid participant ID' }));
+    return;
+  }
+
+  let body = '';
+  for await (const chunk of req) body += chunk;
+  let parsed;
+  try { parsed = JSON.parse(body || '{}'); } catch { parsed = {}; }
+  
+  const { token, payment_intent_id } = parsed;
+  
+  if (!token || !verifyGuestToken(participantId, token)) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid guest token' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    const stripe = await getStripeClient();
+    if (!supabase || !stripe) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Service not configured' }));
+      return;
+    }
+
+    const { data: partCheck } = await supabase
+      .from('split_participants')
+      .select('id, status, payment_intent_id, split_payment_id')
+      .eq('id', participantId)
+      .single();
+
+    if (!partCheck || partCheck.status === 'paid') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: partCheck?.status === 'paid' ? 'Already paid' : 'Participant not found' }));
+      return;
+    }
+
+    if (partCheck.payment_intent_id !== payment_intent_id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Payment intent does not match this participant' }));
+      return;
+    }
+
+    const intent = await stripe.paymentIntents.retrieve(payment_intent_id);
+    if (intent.status !== 'succeeded') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Payment status: ${intent.status}` }));
+      return;
+    }
+
+    await supabase
+      .from('split_participants')
+      .update({ status: 'paid', paid_at: new Date().toISOString() })
+      .eq('id', participantId);
+
+    const participant = partCheck;
+
+    if (participant) {
+      const { data: allParts } = await supabase
+        .from('split_participants')
+        .select('id, status')
+        .eq('split_payment_id', participant.split_payment_id);
+
+      const allPaid = allParts?.every(p => p.id === participantId ? true : p.status === 'paid');
+      if (allPaid) {
+        const { data: sp } = await supabase
+          .from('split_payments')
+          .select('package_id')
+          .eq('id', participant.split_payment_id)
+          .single();
+
+        await supabase
+          .from('split_payments')
+          .update({ status: 'complete' })
+          .eq('id', participant.split_payment_id);
+
+        if (sp?.package_id) {
+          await supabase
+            .from('maintenance_packages')
+            .update({ 
+              status: 'payment_held', 
+              split_payment_id: participant.split_payment_id,
+              escrow_amount: intent.metadata?.total_amount ? parseFloat(intent.metadata.total_amount) : null,
+              updated_at: new Date().toISOString() 
+            })
+            .eq('id', sp.package_id);
+
+          // Check if this split was for additional work and approve it
+          const splitTotal = participant.split_payments?.total_amount_cents;
+          const { data: pendingWork } = await supabase
+            .from('additional_work_requests')
+            .select('id, provider_id, title, estimated_cost')
+            .eq('package_id', sp.package_id)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (pendingWork && pendingWork.length > 0) {
+            const work = pendingWork[0];
+            const workAmountCents = Math.round((work.estimated_cost || 0) * 100);
+            if (workAmountCents === splitTotal) {
+              await supabase
+                .from('additional_work_requests')
+                .update({ status: 'approved', updated_at: new Date().toISOString() })
+                .eq('id', work.id);
+              
+              // Notify provider that additional work is approved and funded
+              if (work.provider_id) {
+                await supabase.from('notifications').insert({
+                  user_id: work.provider_id,
+                  type: 'additional_work_approved',
+                  title: 'Additional Work Approved & Funded',
+                  message: `Additional work "${work.title || 'Additional Work'}" has been crowd-funded and approved. You may proceed with the work.`,
+                  entity_type: 'additional_work_request',
+                  entity_id: work.id
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Guest split confirm error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeError(error, requestId) }));
+  }
+}
+
+async function handleSplitGuestDetails(req, res, requestId, participantId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  if (!isValidUUID(participantId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid participant ID' }));
+    return;
+  }
+
+  let body = '';
+  for await (const chunk of req) body += chunk;
+  let parsed;
+  try { parsed = JSON.parse(body || '{}'); } catch { parsed = {}; }
+  
+  const { token } = parsed;
+  
+  if (!token || !verifyGuestToken(participantId, token)) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid guest token' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: participant, error } = await supabase
+      .from('split_participants')
+      .select('id, email, display_name, amount_cents, status, split_payment_id, split_payments(package_id, total_amount_cents, status, expires_at)')
+      .eq('id', participantId)
+      .single();
+
+    if (error || !participant) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Participant not found' }));
+      return;
+    }
+
+    if (participant.split_payments?.expires_at && new Date(participant.split_payments.expires_at) < new Date()) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'This split payment has expired.' }));
+      return;
+    }
+
+    if (participant.status === 'paid') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ already_paid: true }));
+      return;
+    }
+
+    const { data: pkg } = await supabase
+      .from('maintenance_packages')
+      .select('title')
+      .eq('id', participant.split_payments.package_id)
+      .single();
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      amountCents: participant.amount_cents,
+      totalAmountCents: participant.split_payments.total_amount_cents,
+      displayName: participant.display_name,
+      email: participant.email,
+      packageTitle: pkg?.title || 'Auto Service',
+      expiresAt: participant.split_payments.expires_at,
+      splitStatus: participant.split_payments.status
+    }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Guest details error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeError(error, requestId) }));
+  }
+}
+
+async function handleSplitConfirm(req, res, requestId, participantId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  if (!isValidUUID(participantId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid participant ID' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: participant, error: partError } = await supabase
+      .from('split_participants')
+      .select('*, split_payments(*)')
+      .eq('id', participantId)
+      .single();
+
+    if (partError || !participant) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Participant not found' }));
+      return;
+    }
+
+    if (participant.member_id && participant.member_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized' }));
+      return;
+    }
+
+    if (!participant.member_id) {
+      const { data: profile } = await supabase.from('profiles').select('email').eq('id', user.id).single();
+      if (!profile?.email || profile.email.toLowerCase() !== (participant.email || '').toLowerCase()) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not authorized' }));
+        return;
+      }
+    }
+
+    // Check if split payment has expired
+    if (participant.split_payments.expires_at && new Date(participant.split_payments.expires_at) < new Date()) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'This split payment has expired. Payment is no longer accepted.' }));
+      return;
+    }
+
+    if (participant.status === 'paid') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, already_paid: true }));
+      return;
+    }
+
+    if (!participant.payment_intent_id) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No payment intent found. Please initiate payment first.' }));
+      return;
+    }
+
+    const stripe = await getStripeClient();
+    if (!stripe) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Payment system not configured' }));
+      return;
+    }
+
+    const paymentIntent = await stripe.paymentIntents.retrieve(participant.payment_intent_id);
+
+    if (paymentIntent.status !== 'succeeded') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Payment not yet succeeded. Status: ${paymentIntent.status}` }));
+      return;
+    }
+
+    await supabase
+      .from('split_participants')
+      .update({
+        status: 'paid',
+        paid_at: new Date().toISOString()
+      })
+      .eq('id', participantId);
+
+    const { data: allParticipants } = await supabase
+      .from('split_participants')
+      .select('id, status')
+      .eq('split_payment_id', participant.split_payment_id);
+
+    const allPaid = allParticipants?.every(p =>
+      p.id === participantId ? true : p.status === 'paid'
+    );
+
+    let splitComplete = false;
+
+    if (allPaid) {
+      await supabase
+        .from('split_payments')
+        .update({ status: 'complete', updated_at: new Date().toISOString() })
+        .eq('id', participant.split_payment_id);
+
+      await supabase
+        .from('maintenance_packages')
+        .update({
+          status: 'payment_held',
+          split_payment_id: participant.split_payment_id,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', participant.split_payments.package_id);
+
+      splitComplete = true;
+
+      // Check if this split was for additional work and approve it
+      const splitTotal = participant.split_payments.total_amount_cents;
+      const { data: pendingWork } = await supabase
+        .from('additional_work_requests')
+        .select('id, provider_id, title, estimated_cost')
+        .eq('package_id', participant.split_payments.package_id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (pendingWork && pendingWork.length > 0) {
+        const work = pendingWork[0];
+        const workAmountCents = Math.round((work.estimated_cost || 0) * 100);
+        if (workAmountCents === splitTotal) {
+          await supabase
+            .from('additional_work_requests')
+            .update({ status: 'approved', updated_at: new Date().toISOString() })
+            .eq('id', work.id);
+          
+          // Notify provider that additional work is approved and funded
+          if (work.provider_id) {
+            await supabase.from('notifications').insert({
+              user_id: work.provider_id,
+              type: 'additional_work_approved',
+              title: 'Additional Work Approved & Funded',
+              message: `Additional work "${work.title || 'Additional Work'}" has been crowd-funded and approved. You may proceed with the work.`,
+              entity_type: 'additional_work_request',
+              entity_id: work.id
+            });
+          }
+        }
+      }
+
+      const splitPayment = participant.split_payments;
+      if (splitPayment.created_by) {
+        await supabase.from('notifications').insert({
+          user_id: splitPayment.created_by,
+          type: 'split_payment_complete',
+          title: 'Split Payment Complete!',
+          message: 'All participants have paid their share. The service can now proceed.',
+          entity_type: 'split_payment',
+          entity_id: splitPayment.id
+        });
+      }
+
+      const { data: bid } = await supabase
+        .from('bids')
+        .select('provider_id')
+        .eq('id', (await supabase.from('maintenance_packages').select('accepted_bid_id').eq('id', splitPayment.package_id).single()).data?.accepted_bid_id)
+        .single();
+
+      if (bid?.provider_id) {
+        await supabase.from('notifications').insert({
+          user_id: bid.provider_id,
+          type: 'payment_received',
+          title: 'Payment Received',
+          message: 'The split payment has been completed. You can now begin the service.',
+          entity_type: 'package',
+          entity_id: splitPayment.package_id
+        });
+      }
+    }
+
+    console.log(`[${requestId}] Split payment confirmed for participant ${participantId}${splitComplete ? ' - ALL PAID, split complete' : ''}`);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      participantPaid: true,
+      allPaid: splitComplete,
+      splitComplete
+    }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Split confirm error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleSplitCancel(req, res, requestId, splitId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  if (!isValidUUID(splitId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid split payment ID' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: splitPayment, error: splitError } = await supabase
+      .from('split_payments')
+      .select('*')
+      .eq('id', splitId)
+      .single();
+
+    if (splitError || !splitPayment) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Split payment not found' }));
+      return;
+    }
+
+    if (splitPayment.created_by !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Only the creator can cancel a split payment' }));
+      return;
+    }
+
+    if (splitPayment.status !== 'pending') {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Cannot cancel split payment in ${splitPayment.status} status` }));
+      return;
+    }
+
+    const { data: participants } = await supabase
+      .from('split_participants')
+      .select('*')
+      .eq('split_payment_id', splitId);
+
+    const stripe = await getStripeClient();
+    if (!stripe) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Payment system not configured' }));
+      return;
+    }
+
+    let refundedCount = 0;
+    let cancelledCount = 0;
+
+    for (const participant of (participants || [])) {
+      if (participant.payment_intent_id) {
+        try {
+          const pi = await stripe.paymentIntents.retrieve(participant.payment_intent_id);
+
+          if (pi.status === 'succeeded') {
+            await stripe.refunds.create({ payment_intent: participant.payment_intent_id });
+            refundedCount++;
+          } else if (['requires_payment_method', 'requires_confirmation', 'requires_action', 'requires_capture'].includes(pi.status)) {
+            await stripe.paymentIntents.cancel(participant.payment_intent_id);
+            cancelledCount++;
+          }
+        } catch (stripeErr) {
+          console.error(`[${requestId}] Error processing participant ${participant.id} payment:`, stripeErr.message);
+        }
+      }
+    }
+
+    await supabase
+      .from('split_participants')
+      .update({ status: 'cancelled' })
+      .eq('split_payment_id', splitId);
+
+    await supabase
+      .from('split_payments')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', splitId);
+
+    await supabase
+      .from('maintenance_packages')
+      .update({ status: 'accepted', updated_at: new Date().toISOString() })
+      .eq('id', splitPayment.package_id);
+
+    const { data: cancelledPkg } = await supabase
+      .from('maintenance_packages')
+      .select('title, accepted_bid_id')
+      .eq('id', splitPayment.package_id)
+      .single();
+
+    if (cancelledPkg?.accepted_bid_id) {
+      const { data: cancelledBid } = await supabase
+        .from('bids')
+        .select('provider_id')
+        .eq('id', cancelledPkg.accepted_bid_id)
+        .single();
+      if (cancelledBid?.provider_id) {
+        await supabase.from('notifications').insert({
+          user_id: cancelledBid.provider_id,
+          type: 'split_payment_cancelled',
+          title: 'Split Payment Cancelled',
+          message: `The split payment for "${cancelledPkg.title || 'a service'}" has been cancelled. The job is still active and awaiting a new payment arrangement.`,
+          entity_type: 'package',
+          entity_id: splitPayment.package_id
+        });
+      }
+    }
+
+    for (const participant of (participants || [])) {
+      if (participant.member_id && participant.member_id !== user.id) {
+        await supabase.from('notifications').insert({
+          user_id: participant.member_id,
+          type: 'split_payment_cancelled',
+          title: 'Split Payment Cancelled',
+          message: 'The split payment has been cancelled. Any charges have been refunded.',
+          entity_type: 'split_payment',
+          entity_id: splitId
+        });
+      }
+
+    for (const participant of (participants || [])) {
+      if (!participant.member_id && participant.email) {
+        try {
+          const resendKey = process.env.RESEND_API_KEY;
+          if (resendKey) {
+            const refundNote = participant.status === 'paid'
+              ? '<p>Your payment of $' + (participant.amount_cents / 100).toFixed(2) + ' has been refunded to your original payment method. Please allow 5-10 business days for the refund to appear.</p>'
+              : '';
+            await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + resendKey, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                from: 'My Car Concierge <noreply@mycarconcierge.com>',
+                to: participant.email,
+                subject: 'Split Payment Cancelled - My Car Concierge',
+                html: '<p>A split payment you were invited to has been cancelled.</p>' + refundNote
+              })
+            });
+          }
+        } catch (emailErr) {
+          console.error(`[${requestId}] Failed to send guest cancel email to ${participant.email}:`, emailErr.message);
+        }
+      }
+    }
+    }
+
+    console.log(`[${requestId}] Cancelled split payment ${splitId}, refunded: ${refundedCount}, cancelled: ${cancelledCount}`);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      refundedCount,
+      cancelledCount,
+      message: 'Split payment cancelled successfully'
+    }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Split cancel error:`, error);
+    const safeMsg = safeError(error, requestId);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: safeMsg }));
+  }
+}
+
+async function handleSplitReactivate(req, res, requestId, splitId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  if (!isValidUUID(splitId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid split payment ID' }));
+    return;
+  }
+
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+
+  req.on('end', async () => {
+    try {
+      const { participants } = JSON.parse(body);
+
+      if (!participants || !Array.isArray(participants) || participants.length < 2) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'At least 2 participants are required' }));
+        return;
+      }
+
+      for (const p of participants) {
+        if (!p.email || !p.amount_cents || typeof p.amount_cents !== 'number' || p.amount_cents < 50) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Each participant must contribute at least $0.50' }));
+          return;
+        }
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      const { data: splitPayment, error: splitError } = await supabase
+        .from('split_payments')
+        .select('*')
+        .eq('id', splitId)
+        .single();
+
+      if (splitError || !splitPayment) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Split payment not found' }));
+        return;
+      }
+
+      if (splitPayment.created_by !== user.id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Only the creator can reactivate a split payment' }));
+        return;
+      }
+
+      if (!['expired', 'cancelled'].includes(splitPayment.status)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Cannot reactivate split payment in ${splitPayment.status} status. Only expired or cancelled splits can be reactivated.` }));
+        return;
+      }
+
+      const participantTotal = participants.reduce((sum, p) => sum + p.amount_cents, 0);
+      if (participantTotal !== splitPayment.total_amount_cents) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Participant amounts ($${(participantTotal / 100).toFixed(2)}) must equal split total ($${(splitPayment.total_amount_cents / 100).toFixed(2)})` }));
+        return;
+      }
+
+      const participantEmails = participants.map(p => p.email.toLowerCase());
+      const { data: existingProfiles } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .in('email', participantEmails);
+
+      const profileMap = {};
+      if (existingProfiles) {
+        existingProfiles.forEach(p => { profileMap[p.email.toLowerCase()] = p.id; });
+      }
+
+      const participantRecords = participants.map(p => ({
+        split_payment_id: splitId,
+        member_id: p.is_guest ? null : (profileMap[p.email.toLowerCase()] || null),
+        email: p.email.toLowerCase(),
+        display_name: p.display_name || null,
+        amount_cents: p.amount_cents,
+        status: 'invited',
+        invited_at: new Date().toISOString()
+      }));
+
+      await supabase.from('split_participants').delete().eq('split_payment_id', splitId);
+
+      const { data: createdParticipants, error: partError } = await supabase
+        .from('split_participants')
+        .insert(participantRecords)
+        .select();
+
+      if (partError) {
+        console.error(`[${requestId}] Split reactivate participants creation error:`, partError);
+        await supabase.from('split_payments')
+          .update({ status: splitPayment.status, updated_at: new Date().toISOString() })
+          .eq('id', splitId);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create split participants' }));
+        return;
+      }
+
+      const { data: additionalWorkCheck } = await supabase
+        .from('additional_work_requests')
+        .select('id')
+        .eq('package_id', splitPayment.package_id)
+        .eq('status', 'approved')
+        .limit(1);
+      const isAdditionalWorkSplit = additionalWorkCheck && additionalWorkCheck.length > 0;
+      const durationMs = isAdditionalWorkSplit ? 2 * 60 * 60 * 1000 : 72 * 60 * 60 * 1000;
+
+      const expiresAt = new Date();
+      expiresAt.setTime(expiresAt.getTime() + durationMs);
+      await supabase.from('split_payments')
+        .update({ status: 'pending', expires_at: expiresAt.toISOString(), updated_at: new Date().toISOString() })
+        .eq('id', splitId);
+
+      await supabase
+        .from('maintenance_packages')
+        .update({ status: 'pending_split_payment', updated_at: new Date().toISOString() })
+        .eq('id', splitPayment.package_id);
+
+      const { data: pkgDetails } = await supabase
+        .from('maintenance_packages')
+        .select('title, accepted_bid_id')
+        .eq('id', splitPayment.package_id)
+        .single();
+
+      if (pkgDetails?.accepted_bid_id) {
+        const { data: bid } = await supabase
+          .from('bids')
+          .select('provider_id')
+          .eq('id', pkgDetails.accepted_bid_id)
+          .single();
+
+        if (bid?.provider_id) {
+          await supabase.from('notifications').insert({
+            user_id: bid.provider_id,
+            type: 'split_payment_created',
+            title: 'Split Payment Reactivated',
+            message: `A split payment has been reactivated for "${pkgDetails?.title || 'a service'}". Please do not begin work until all participants have completed payment. You will be notified when everything is ready.`,
+            entity_type: 'package',
+            entity_id: splitPayment.package_id
+          });
+        }
+      }
+
+      for (const participant of createdParticipants) {
+        if (participant.member_id) {
+          await supabase.from('notifications').insert({
+            user_id: participant.member_id,
+            type: 'split_payment_invite',
+            title: 'Split Payment Invitation',
+            message: `You've been invited to share the cost of "${pkgDetails?.title || 'a service'}". Your share: $${(participant.amount_cents / 100).toFixed(2)}`,
+            entity_type: 'split_payment',
+            entity_id: splitId
+          });
+        }
+
+        if (resend && participant.email) {
+          try {
+            const isGuest = !participant.member_id && participants.find(p => p.email.toLowerCase() === participant.email)?.is_guest;
+            const guestToken = isGuest ? generateGuestToken(participant.id) : null;
+            const payLink = isGuest
+              ? `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}&guest=true&token=${guestToken}`
+              : `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}`;
+            const emailHtml = isGuest ? `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                  <h2 style="color:#c9a227;">My Car Concierge - Split Payment</h2>
+                  <p>You've been invited to share the cost of an auto service.</p>
+                  <p><strong>Service:</strong> ${pkgDetails?.title || 'Auto Service'}</p>
+                  <p><strong>Your share:</strong> $${(participant.amount_cents / 100).toFixed(2)}</p>
+                  <p><strong>Total cost:</strong> $${(splitPayment.total_amount_cents / 100).toFixed(2)}</p>
+                  <p style="color:#34d399;font-weight:bold;">No account needed — pay securely as a guest!</p>
+                  <p><a href="${payLink}" style="display:inline-block;background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Pay My Share</a></p>
+                  <p style="color:#666;font-size:0.9em;">This split payment expires on ${expiresAt.toLocaleDateString()}. Your payment is securely processed through Stripe.</p>
+                </div>
+              ` : `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                  <h2 style="color:#c9a227;">My Car Concierge - Split Payment</h2>
+                  <p>You've been invited to share the cost of an auto service.</p>
+                  <p><strong>Service:</strong> ${pkgDetails?.title || 'Auto Service'}</p>
+                  <p><strong>Your share:</strong> $${(participant.amount_cents / 100).toFixed(2)}</p>
+                  <p><strong>Total cost:</strong> $${(splitPayment.total_amount_cents / 100).toFixed(2)}</p>
+                  <p><a href="${payLink}" style="display:inline-block;background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Pay My Share</a></p>
+                  <p style="color:#666;font-size:0.9em;">This split payment expires on ${expiresAt.toLocaleDateString()}.</p>
+                </div>
+              `;
+            await resend.emails.send({
+              from: 'My Car Concierge <noreply@mycarconcierge.com>',
+              to: participant.email,
+              subject: 'You\'ve been invited to split a payment - My Car Concierge',
+              html: emailHtml
+            });
+          } catch (emailErr) {
+            console.error(`[${requestId}] Failed to send split reactivation email to ${participant.email}:`, emailErr.message);
+          }
+        }
+      }
+
+      const { data: updatedSplit } = await supabase
+        .from('split_payments')
+        .select('*')
+        .eq('id', splitId)
+        .single();
+
+      console.log(`[${requestId}] Reactivated split payment ${splitId} for package ${splitPayment.package_id}, ${participants.length} participants, total: $${(splitPayment.total_amount_cents / 100).toFixed(2)}`);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        splitPayment: updatedSplit || splitPayment,
+        participants: createdParticipants
+      }));
+
+    } catch (error) {
+      console.error(`[${requestId}] Split reactivate error:`, error);
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: safeMsg }));
+    }
+  });
 }
 
 // ========== ADDITIONAL WORK REQUESTS API ==========
@@ -11384,7 +17342,7 @@ async function handleConfirmAdditionalWorkAuthorization(req, res, requestId, req
     await supabase.from('notifications').insert({
       user_id: workRequest.provider_id,
       type: 'additional_work_approved',
-      title: 'Additional Work Approved! ✅',
+      title: 'Additional Work Approved!',
       message: `Your additional work request for $${workRequest.estimated_cost.toFixed(2)} has been approved and payment authorized.`,
       entity_type: 'additional_work_request',
       entity_id: requestIdParam
@@ -11545,7 +17503,7 @@ async function handleDiscountOffer(req, res, requestId) {
       await supabase.from('notifications').insert({
         user_id: pkg.member_id,
         type: 'discount_offered',
-        title: 'Discount Offered! 🎉',
+        title: 'Discount Offered!',
         message: `Your provider has offered you a ${discountDisplay} discount.`,
         entity_type: 'provider_discount',
         entity_id: discount.id
@@ -11712,7 +17670,7 @@ async function handleAcceptDiscount(req, res, requestId, discountId) {
     await supabase.from('notifications').insert({
       user_id: discount.provider_id,
       type: 'discount_accepted',
-      title: 'Discount Accepted! ✅',
+      title: 'Discount Accepted!',
       message: `The customer has accepted your ${discountDisplay} discount offer.`,
       entity_type: 'provider_discount',
       entity_id: discountId
@@ -11796,11 +17754,11 @@ async function handleFounderApprovedEmail(req, res, requestId) {
           <p>Share this code with providers and earn commissions!</p>
         </div>
         
-        <h3>💰 How You Earn</h3>
+        <h3>How You Earn</h3>
         <p>You earn <strong>50% commission</strong> on all service credit purchases from providers you refer.</p>
         <p>This is a <strong>lifetime commission</strong> — you'll continue earning on every service credit pack they purchase, forever!</p>
         
-        <h3>📱 Your Personal QR Code</h3>
+        <h3>Your Personal QR Code</h3>
         <p>We've generated a unique QR code for you that makes sharing easy. Providers can simply scan it to sign up with your referral code already applied.</p>
         <p><strong>To find your QR code:</strong></p>
         <ol>
@@ -11809,7 +17767,7 @@ async function handleFounderApprovedEmail(req, res, requestId) {
           <li>Download or share your QR code directly</li>
         </ol>
         
-        <h3>🚀 Get Started</h3>
+        <h3>Get Started</h3>
         <ol>
           <li><strong>Visit your dashboard</strong> to view your referral tools and stats</li>
           <li><strong>Set up your payout method</strong> to receive your commission payments</li>
@@ -11821,7 +17779,7 @@ async function handleFounderApprovedEmail(req, res, requestId) {
           <a href="https://mycarconcierge.com/founder-dashboard.html" class="button">Go to Founder Dashboard</a>
         </p>
         
-        <h3>⚙️ Set Up Your Payout Method</h3>
+        <h3>Set Up Your Payout Method</h3>
         <p>To receive your commission payments, you'll need to connect a payout method:</p>
         <ol>
           <li>Go to your <a href="https://mycarconcierge.com/founder-dashboard.html">Founder Dashboard</a></li>
@@ -11836,7 +17794,7 @@ async function handleFounderApprovedEmail(req, res, requestId) {
       const emailResult = await sendEmailNotification(
         email,
         name,
-        '🎉 Welcome to the My Car Concierge Founder Program!',
+        'Welcome to the My Car Concierge Founder Program!',
         htmlContent
       );
 
@@ -12135,7 +18093,7 @@ async function handleCheckrInitiate(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Checkr initiate error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: error.message || 'Failed to initiate background check' }));
+      res.end(JSON.stringify({ error: 'Failed to initiate background check. Please try again later.' }));
     }
   });
 }
@@ -12592,19 +18550,36 @@ async function handleGetProviderTeam(req, res, requestId, providerId) {
         }, { onConflict: 'provider_id,user_id' });
     }
 
-    const { data: team, error } = await supabase.rpc('get_provider_team', {
-      p_provider_id: providerId
-    });
+    const { data: teamMembers, error: teamError } = await supabase
+      .from('provider_team_members')
+      .select('id, provider_id, user_id, role, status, created_at, updated_at, invited_by')
+      .eq('provider_id', providerId)
+      .eq('status', 'active');
 
-    if (error) {
-      console.error(`[${requestId}] Get provider team error:`, error);
+    if (teamError) {
+      console.error(`[${requestId}] Get provider team error:`, teamError);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Failed to fetch team members' }));
       return;
     }
 
+    const team = teamMembers || [];
+    const enrichedTeam = [];
+    for (const member of team) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', member.user_id)
+        .single();
+      enrichedTeam.push({
+        ...member,
+        full_name: profile?.full_name || null,
+        email: profile?.email || null
+      });
+    }
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ team: team || [] }));
+    res.end(JSON.stringify({ team: enrichedTeam }));
 
   } catch (error) {
     console.error(`[${requestId}] Get provider team error:`, error);
@@ -12821,12 +18796,15 @@ async function handleGetPendingInvitations(req, res, requestId, providerId) {
       return;
     }
 
-    const { data: invitations, error } = await supabase.rpc('get_pending_invitations', {
-      p_provider_id: providerId
-    });
+    const { data: invitations, error: invError } = await supabase
+      .from('provider_invitations')
+      .select('id, provider_id, email, role, token, created_at, expires_at, invited_by')
+      .eq('provider_id', providerId)
+      .is('accepted_at', null)
+      .gt('expires_at', new Date().toISOString());
 
-    if (error) {
-      console.error(`[${requestId}] Get pending invitations error:`, error);
+    if (invError) {
+      console.error(`[${requestId}] Get pending invitations error:`, invError);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Failed to fetch pending invitations' }));
       return;
@@ -13225,58 +19203,75 @@ async function handleAcceptInvitation(req, res, requestId, token) {
       return;
     }
 
-    // Verify email matching for invitation acceptance
-    const { data: invitation } = await supabase
+    const acceptedAt = new Date().toISOString();
+    const { data: inv, error: invError } = await supabase
       .from('provider_invitations')
-      .select('email')
+      .update({ accepted_at: acceptedAt })
       .eq('token', token)
       .is('accepted_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .single();
+      .gt('expires_at', acceptedAt)
+      .select('id, provider_id, email, role, invited_by')
+      .maybeSingle();
 
-    if (invitation && user.email) {
-      const invitationEmail = invitation.email.toLowerCase().trim();
+    if (invError || !inv) {
+      console.error(`[${requestId}] Invitation atomic accept failed:`, invError?.message || 'not found, already used, or expired');
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invitation not found, already used, or expired' }));
+      return;
+    }
+
+    if (user.email && inv.email) {
+      const invitationEmail = inv.email.toLowerCase().trim();
       const userEmail = user.email.toLowerCase().trim();
-      
       if (invitationEmail !== userEmail) {
-        // Log warning but still allow - token is primary security
         console.warn(`[${requestId}] Email mismatch for invitation acceptance: invitation was for ${invitationEmail}, but accepted by ${userEmail}`);
       }
     }
 
-    const { data: result, error: rpcError } = await supabase.rpc('accept_team_invitation', {
-      p_token: token,
-      p_user_id: user.id
-    });
+    const { data: existingMember } = await supabase
+      .from('provider_team_members')
+      .select('id')
+      .eq('provider_id', inv.provider_id)
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-    if (rpcError) {
-      console.error(`[${requestId}] Accept invitation RPC error:`, rpcError);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to accept invitation' }));
+    if (existingMember) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'You are already a member of this team' }));
       return;
     }
 
-    if (!result?.success) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: result?.error || 'Failed to accept invitation' }));
+    const { error: insertError } = await supabase
+      .from('provider_team_members')
+      .insert({
+        provider_id: inv.provider_id,
+        user_id: user.id,
+        role: inv.role || 'employee',
+        status: 'active',
+        invited_by: inv.invited_by || null
+      });
+
+    if (insertError) {
+      console.error(`[${requestId}] Team member insert error:`, insertError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to add team member' }));
       return;
     }
 
     await supabase
       .from('profiles')
-      .update({ team_provider_id: result.provider_id })
+      .update({ team_provider_id: inv.provider_id })
       .eq('id', user.id);
 
-    console.log(`[${requestId}] User ${user.id} accepted invitation and joined provider ${result.provider_id} as ${result.role}`);
+    console.log(`[${requestId}] User ${user.id} accepted invitation and joined provider ${inv.provider_id} as ${inv.role}`);
 
-    // Recalculate background verification badge status (new employee added)
-    await recalculateBackgroundVerified(supabase, result.provider_id);
+    await recalculateBackgroundVerified(supabase, inv.provider_id);
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       success: true,
-      provider_id: result.provider_id,
-      role: result.role
+      provider_id: inv.provider_id,
+      role: inv.role || 'employee'
     }));
 
   } catch (error) {
@@ -13730,7 +19725,7 @@ async function handleCloverConnect(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Clover connect error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: error.message || 'Failed to initiate Clover connection' }));
+      res.end(JSON.stringify({ error: 'Failed to initiate Clover connection. Please try again later.' }));
     }
   });
 }
@@ -13872,7 +19867,7 @@ async function handleCloverCallback(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Clover callback error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: error.message || 'Failed to complete Clover OAuth' }));
+      res.end(JSON.stringify({ error: 'Failed to complete Clover connection. Please try again later.' }));
     }
   });
 }
@@ -13940,7 +19935,7 @@ async function handleCloverDisconnect(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Clover disconnect error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: error.message || 'Failed to disconnect Clover account' }));
+      res.end(JSON.stringify({ error: 'Failed to disconnect Clover account. Please try again later.' }));
     }
   });
 }
@@ -14091,7 +20086,7 @@ async function handleCloverSync(req, res, requestId, providerId) {
     } catch (error) {
       console.error(`[${requestId}] Clover sync error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: error.message || 'Failed to sync Clover transactions' }));
+      res.end(JSON.stringify({ error: 'Failed to sync Clover transactions. Please try again later.' }));
     }
   });
 }
@@ -14340,7 +20335,7 @@ async function handleSquareConnect(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Square connect error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: error.message || 'Failed to initiate Square connection' }));
+      res.end(JSON.stringify({ error: 'Failed to initiate Square connection. Please try again later.' }));
     }
   });
 }
@@ -14512,7 +20507,7 @@ async function handleSquareCallback(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Square callback error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: error.message || 'Failed to complete Square OAuth' }));
+      res.end(JSON.stringify({ error: 'Failed to complete Square connection. Please try again later.' }));
     }
   });
 }
@@ -14581,7 +20576,7 @@ async function handleSquareDisconnect(req, res, requestId) {
     } catch (error) {
       console.error(`[${requestId}] Square disconnect error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: error.message || 'Failed to disconnect Square account' }));
+      res.end(JSON.stringify({ error: 'Failed to disconnect Square account. Please try again later.' }));
     }
   });
 }
@@ -14736,7 +20731,7 @@ async function handleSquareSync(req, res, requestId, providerId) {
     } catch (error) {
       console.error(`[${requestId}] Square sync error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: error.message || 'Failed to sync Square transactions' }));
+      res.end(JSON.stringify({ error: 'Failed to sync Square transactions. Please try again later.' }));
     }
   });
 }
@@ -15141,6 +21136,381 @@ async function handleUnifiedPosTransactions(req, res, requestId, providerId) {
   }
 }
 
+// ==================== PROVIDER BID INSIGHTS API ====================
+
+async function handleProviderBidInsights(req, res, requestId) {
+  setCorsHeaders(res, req);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const providerId = user.id;
+    
+    const profileCheck = await supabase
+      .from('profiles')
+      .select('role, is_also_provider, business_name, full_name')
+      .eq('id', providerId)
+      .single();
+    
+    if (profileCheck.error || !profileCheck.data) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to verify provider status' }));
+      return;
+    }
+    
+    const profile = profileCheck.data;
+    if (profile.role !== 'provider' && !profile.is_also_provider) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden: provider access required' }));
+      return;
+    }
+    
+    const [bidsResult, marketResult] = await Promise.all([
+      supabase
+        .from('bids')
+        .select('id, price, status, created_at, package_id, maintenance_packages!bids_package_id_fkey(title, category, status)')
+        .eq('provider_id', providerId)
+        .order('created_at', { ascending: false })
+        .limit(200),
+      supabase
+        .from('bids')
+        .select('price, status, maintenance_packages!bids_package_id_fkey(category)')
+        .limit(2000)
+    ]);
+    
+    if (bidsResult.error) {
+      console.error(`[${requestId}] Supabase bids query error:`, bidsResult.error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch bid data' }));
+      return;
+    }
+    if (marketResult.error) {
+      console.error(`[${requestId}] Supabase market query error:`, marketResult.error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch market data' }));
+      return;
+    }
+    
+    const providerBids = bidsResult.data || [];
+    const allMarketBids = marketResult.data || [];
+    const providerName = profile.business_name || profile.full_name || 'Provider';
+    
+    if (providerBids.length === 0) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        insights: null,
+        message: 'No bid history available yet. Submit bids to receive AI-powered insights.',
+        stats: { totalBids: 0, wonBids: 0, lostBids: 0, pendingBids: 0, winRate: 0 }
+      }));
+      return;
+    }
+    
+    const wonBids = providerBids.filter(b => b.status === 'accepted');
+    const lostBids = providerBids.filter(b => b.status === 'rejected' || b.status === 'outbid');
+    const pendingBids = providerBids.filter(b => b.status === 'pending');
+    const decidedBids = wonBids.length + lostBids.length;
+    const winRate = decidedBids > 0 ? Math.round((wonBids.length / decidedBids) * 100) : 0;
+    
+    const categoryStats = {};
+    providerBids.forEach(b => {
+      const cat = b.maintenance_packages?.category || 'other';
+      if (!categoryStats[cat]) {
+        categoryStats[cat] = { won: 0, lost: 0, pending: 0, totalPrice: 0, count: 0, prices: [] };
+      }
+      categoryStats[cat].count++;
+      categoryStats[cat].totalPrice += b.price || 0;
+      categoryStats[cat].prices.push(b.price || 0);
+      if (b.status === 'accepted') categoryStats[cat].won++;
+      else if (b.status === 'rejected' || b.status === 'outbid') categoryStats[cat].lost++;
+      else if (b.status === 'pending') categoryStats[cat].pending++;
+    });
+    
+    const marketAverages = {};
+    allMarketBids.forEach(b => {
+      const cat = b.maintenance_packages?.category || 'other';
+      if (!marketAverages[cat]) {
+        marketAverages[cat] = { prices: [], acceptedPrices: [] };
+      }
+      marketAverages[cat].prices.push(b.price || 0);
+      if (b.status === 'accepted') {
+        marketAverages[cat].acceptedPrices.push(b.price || 0);
+      }
+    });
+    
+    const marketSummary = {};
+    for (const [cat, data] of Object.entries(marketAverages)) {
+      const prices = data.prices.filter(p => p > 0);
+      const acceptedPrices = data.acceptedPrices.filter(p => p > 0);
+      if (prices.length > 0) {
+        marketSummary[cat] = {
+          avgPrice: Math.round(prices.reduce((a, b) => a + b, 0) / prices.length),
+          minPrice: Math.min(...prices),
+          maxPrice: Math.max(...prices),
+          acceptedAvg: acceptedPrices.length > 0 ? Math.round(acceptedPrices.reduce((a, b) => a + b, 0) / acceptedPrices.length) : null,
+          acceptedMin: acceptedPrices.length > 0 ? Math.min(...acceptedPrices) : null,
+          acceptedMax: acceptedPrices.length > 0 ? Math.max(...acceptedPrices) : null,
+          totalBids: prices.length
+        };
+      }
+    }
+    
+    const bidTimingData = {};
+    providerBids.forEach(b => {
+      const day = new Date(b.created_at).toLocaleDateString('en-US', { weekday: 'long' });
+      if (!bidTimingData[day]) bidTimingData[day] = { total: 0, won: 0 };
+      bidTimingData[day].total++;
+      if (b.status === 'accepted') bidTimingData[day].won++;
+    });
+    
+    const categoryBreakdown = Object.entries(categoryStats).map(([cat, stats]) => {
+      const decided = stats.won + stats.lost;
+      const catWinRate = decided > 0 ? Math.round((stats.won / decided) * 100) : 0;
+      const avgBid = stats.count > 0 ? Math.round(stats.totalPrice / stats.count) : 0;
+      const market = marketSummary[cat];
+      return {
+        category: cat,
+        winRate: catWinRate,
+        totalBids: stats.count,
+        won: stats.won,
+        lost: stats.lost,
+        pending: stats.pending,
+        avgBidPrice: avgBid,
+        marketAvg: market?.avgPrice || null,
+        acceptedRange: market?.acceptedMin && market?.acceptedMax ? { min: market.acceptedMin, max: market.acceptedMax } : null,
+        priceDiff: market?.acceptedAvg ? Math.round(((avgBid - market.acceptedAvg) / market.acceptedAvg) * 100) : null
+      };
+    });
+    
+    const prompt = `You are an AI bid strategy assistant for an automotive service marketplace. Analyze this provider's bidding data and give concise, actionable recommendations.
+
+Provider: ${providerName}
+Overall Stats: ${providerBids.length} total bids, ${wonBids.length} won, ${lostBids.length} lost, ${pendingBids.length} pending, ${winRate}% win rate
+
+Category Breakdown:
+${categoryBreakdown.map(c => `- ${c.category}: ${c.winRate}% win rate (${c.won}/${c.won + c.lost} decided), avg bid $${c.avgBidPrice}${c.marketAvg ? `, market avg $${c.marketAvg}` : ''}${c.priceDiff !== null ? `, ${c.priceDiff > 0 ? '+' : ''}${c.priceDiff}% vs accepted avg` : ''}`).join('\n')}
+
+Bid Timing:
+${Object.entries(bidTimingData).map(([day, d]) => `- ${day}: ${d.total} bids, ${d.won} won`).join('\n')}
+
+Respond in valid JSON only with this structure:
+{
+  "summary": "A 2-3 sentence overall performance summary",
+  "strengths": ["strength1", "strength2"],
+  "improvements": ["improvement1", "improvement2"],
+  "categoryRecommendations": [
+    {
+      "category": "category_name",
+      "recommendation": "specific advice",
+      "suggestedPriceRange": {"min": number, "max": number} or null,
+      "competitiveness": "strong" | "moderate" | "weak"
+    }
+  ],
+  "timingAdvice": "When they tend to win most bids",
+  "topTip": "Single most impactful piece of advice"
+}`;
+
+    let insights;
+    try {
+      const aiResult = await generateAIContent(prompt, { maxTokens: 1500, preferredProvider: 'gemini' });
+      const jsonText = aiResult.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      insights = JSON.parse(jsonText);
+      if (insights.categoryRecommendations && Array.isArray(insights.categoryRecommendations)) {
+        insights.categoryRecommendations = insights.categoryRecommendations.map(rec => ({
+          ...rec,
+          category: typeof rec.category === 'string' ? rec.category : '',
+          recommendation: typeof rec.recommendation === 'string' ? rec.recommendation : '',
+          suggestedPriceRange: rec.suggestedPriceRange && typeof rec.suggestedPriceRange.min === 'number' && typeof rec.suggestedPriceRange.max === 'number' ? { min: Math.round(rec.suggestedPriceRange.min), max: Math.round(rec.suggestedPriceRange.max) } : null,
+          competitiveness: ['strong', 'moderate', 'weak'].includes(rec.competitiveness) ? rec.competitiveness : 'moderate'
+        }));
+      }
+      if (typeof insights.summary !== 'string') insights.summary = '';
+      if (typeof insights.topTip !== 'string') insights.topTip = '';
+      if (typeof insights.timingAdvice !== 'string') insights.timingAdvice = '';
+    } catch (aiError) {
+      console.error(`[${requestId}] AI generation error for bid insights:`, aiError.message);
+      insights = {
+        summary: `You have submitted ${providerBids.length} bids with a ${winRate}% win rate. ${winRate >= 50 ? 'Your bidding strategy is performing well.' : 'There may be room to improve your bidding strategy.'}`,
+        strengths: winRate >= 30 ? ['Active bidder with consistent submissions'] : ['Getting started with platform bidding'],
+        improvements: winRate < 50 ? ['Consider adjusting prices closer to market averages for categories with low win rates'] : ['Keep maintaining competitive prices'],
+        categoryRecommendations: categoryBreakdown.map(c => ({
+          category: c.category,
+          recommendation: c.priceDiff && c.priceDiff > 15 ? `Your bids are ${c.priceDiff}% above market average. Consider lowering prices.` : c.priceDiff && c.priceDiff < -15 ? `You're pricing competitively below market. Good positioning.` : 'Your pricing is aligned with market rates.',
+          suggestedPriceRange: c.acceptedRange,
+          competitiveness: c.winRate >= 50 ? 'strong' : c.winRate >= 25 ? 'moderate' : 'weak'
+        })),
+        timingAdvice: 'Bid early when packages are posted for best results.',
+        topTip: 'Focus on categories where you have the highest win rate to maximize your bid credits.'
+      };
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      insights,
+      stats: {
+        totalBids: providerBids.length,
+        wonBids: wonBids.length,
+        lostBids: lostBids.length,
+        pendingBids: pendingBids.length,
+        winRate
+      },
+      categoryBreakdown,
+      marketSummary,
+      generatedAt: new Date().toISOString()
+    }));
+    
+  } catch (err) {
+    console.error(`[${requestId}] Bid insights error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to generate bid insights' }));
+  }
+}
+
+async function handleProviderCategoryPriceAdvice(req, res, requestId) {
+  setCorsHeaders(res, req);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const providerId = user.id;
+    
+    const profileCheck = await supabase
+      .from('profiles')
+      .select('role, is_also_provider')
+      .eq('id', providerId)
+      .single();
+    
+    if (profileCheck.error || !profileCheck.data) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to verify provider status' }));
+      return;
+    }
+    if (profileCheck.data.role !== 'provider' && !profileCheck.data.is_also_provider) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden: provider access required' }));
+      return;
+    }
+    
+    const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
+    const category = urlParams.get('category') || '';
+    const packageId = urlParams.get('packageId') || '';
+    
+    if (!category) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Category parameter required' }));
+      return;
+    }
+    
+    const [marketBids, providerBids] = await Promise.all([
+      supabase
+        .from('bids')
+        .select('price, status, maintenance_packages!bids_package_id_fkey(category)')
+        .limit(500),
+      supabase
+        .from('bids')
+        .select('price, status, maintenance_packages!bids_package_id_fkey(category)')
+        .eq('provider_id', providerId)
+        .limit(200)
+    ]);
+    
+    if (marketBids.error) {
+      console.error(`[${requestId}] Supabase market bids query error:`, marketBids.error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch market data' }));
+      return;
+    }
+    if (providerBids.error) {
+      console.error(`[${requestId}] Supabase provider bids query error:`, providerBids.error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch provider data' }));
+      return;
+    }
+    
+    const categoryMarketBids = (marketBids.data || []).filter(b => b.maintenance_packages?.category === category);
+    const categoryProviderBids = (providerBids.data || []).filter(b => b.maintenance_packages?.category === category);
+    
+    const allPrices = categoryMarketBids.map(b => b.price).filter(p => p > 0);
+    const acceptedPrices = categoryMarketBids.filter(b => b.status === 'accepted').map(b => b.price).filter(p => p > 0);
+    const providerWins = categoryProviderBids.filter(b => b.status === 'accepted');
+    const providerLosses = categoryProviderBids.filter(b => b.status === 'rejected' || b.status === 'outbid');
+    
+    let suggestedMin = null, suggestedMax = null;
+    if (acceptedPrices.length >= 2) {
+      acceptedPrices.sort((a, b) => a - b);
+      const q1Idx = Math.floor(acceptedPrices.length * 0.25);
+      const q3Idx = Math.floor(acceptedPrices.length * 0.75);
+      suggestedMin = acceptedPrices[q1Idx];
+      suggestedMax = acceptedPrices[q3Idx];
+    } else if (allPrices.length >= 2) {
+      const avg = allPrices.reduce((a, b) => a + b, 0) / allPrices.length;
+      suggestedMin = Math.round(avg * 0.85);
+      suggestedMax = Math.round(avg * 1.05);
+    }
+    
+    const decided = providerWins.length + providerLosses.length;
+    const providerWinRate = decided > 0 ? Math.round((providerWins.length / decided) * 100) : null;
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      category,
+      aiSuggestedRange: suggestedMin && suggestedMax ? { min: suggestedMin, max: suggestedMax } : null,
+      marketStats: {
+        avgPrice: allPrices.length > 0 ? Math.round(allPrices.reduce((a, b) => a + b, 0) / allPrices.length) : null,
+        minPrice: allPrices.length > 0 ? Math.min(...allPrices) : null,
+        maxPrice: allPrices.length > 0 ? Math.max(...allPrices) : null,
+        acceptedAvg: acceptedPrices.length > 0 ? Math.round(acceptedPrices.reduce((a, b) => a + b, 0) / acceptedPrices.length) : null,
+        totalBids: allPrices.length
+      },
+      providerPerformance: {
+        winRate: providerWinRate,
+        totalBids: categoryProviderBids.length,
+        won: providerWins.length,
+        lost: providerLosses.length
+      }
+    }));
+    
+  } catch (err) {
+    console.error(`[${requestId}] Category price advice error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to get price advice' }));
+  }
+}
+
 // ==================== PROVIDER AVAILABLE PACKAGES API ====================
 
 async function handleProviderAvailablePackages(req, res, requestId) {
@@ -15179,7 +21549,8 @@ async function handleProviderAvailablePackages(req, res, requestId) {
       console.log(`[${requestId}] Using cached provider packages (${packages?.length || 0} items)`);
     } else {
       // Fetch packages first to get IDs for subsequent queries
-      const { data: pkgData, error } = await supabase
+      let pkgData, error;
+      ({ data: pkgData, error } = await supabase
         .from('maintenance_packages')
         .select(`
           *,
@@ -15187,7 +21558,20 @@ async function handleProviderAvailablePackages(req, res, requestId) {
           member:profiles!maintenance_packages_member_id_fkey(id, full_name, platform_fee_exempt, provider_verified, referred_by_provider_id)
         `)
         .eq('status', 'open')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }));
+      
+      if (error && (error.code === '42703' || error.message?.includes('does not exist'))) {
+        console.warn(`[${requestId}] Column missing in packages query, falling back to basic member select:`, error.message);
+        ({ data: pkgData, error } = await supabase
+          .from('maintenance_packages')
+          .select(`
+            *,
+            vehicles(year, make, model, nickname, vin),
+            member:profiles!maintenance_packages_member_id_fkey(id, full_name)
+          `)
+          .eq('status', 'open')
+          .order('created_at', { ascending: false }));
+      }
       
       if (error) {
         console.error(`[${requestId}] Error loading packages:`, error);
@@ -15304,7 +21688,7 @@ async function handleProviderAvailablePackages(req, res, requestId) {
   } catch (error) {
     console.error(`[${requestId}] Provider packages error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Internal server error' }));
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
   }
 }
 
@@ -16172,36 +22556,63 @@ async function handleMemberQrToken(req, res, requestId, memberId) {
       return;
     }
     
+    let qrToken = null;
+    
     const { data: member, error: fetchError } = await supabase
       .from('profiles')
       .select('id, qr_code_token')
       .eq('id', memberId)
       .single();
     
-    if (fetchError || !member) {
+    if (fetchError) {
+      const isColumnError = fetchError.message && (
+        fetchError.message.includes('qr_code_token') || 
+        fetchError.code === '42703'
+      );
+      
+      if (isColumnError) {
+        console.log(`[${requestId}] qr_code_token column not found, generating deterministic token`);
+        const hmac = crypto.createHmac('sha256', process.env.ADMIN_PASSWORD || 'mcc-qr-salt');
+        hmac.update(memberId);
+        qrToken = hmac.digest('hex').substring(0, 32);
+      } else {
+        const { data: basicMember } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', memberId)
+          .single();
+        
+        if (!basicMember) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Member not found' }));
+          return;
+        }
+        console.error(`[${requestId}] Profile fetch error:`, fetchError);
+        const hmac = crypto.createHmac('sha256', process.env.ADMIN_PASSWORD || 'mcc-qr-salt');
+        hmac.update(memberId);
+        qrToken = hmac.digest('hex').substring(0, 32);
+      }
+    } else if (member) {
+      qrToken = member.qr_code_token;
+      
+      if (!qrToken) {
+        qrToken = crypto.randomBytes(16).toString('hex');
+        
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ qr_code_token: qrToken })
+          .eq('id', memberId);
+        
+        if (updateError) {
+          console.warn(`[${requestId}] Failed to persist QR token, using generated:`, updateError);
+        } else {
+          console.log(`[${requestId}] Generated new QR token for member ${memberId}`);
+        }
+      }
+    } else {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Member not found' }));
       return;
-    }
-    
-    let qrToken = member.qr_code_token;
-    
-    if (!qrToken) {
-      qrToken = crypto.randomBytes(16).toString('hex');
-      
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ qr_code_token: qrToken })
-        .eq('id', memberId);
-      
-      if (updateError) {
-        console.error(`[${requestId}] Failed to save QR token:`, updateError);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to generate QR token' }));
-        return;
-      }
-      
-      console.log(`[${requestId}] Generated new QR token for member ${memberId}`);
     }
     
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -16631,7 +23042,7 @@ async function handlePosCheckout(req, res, requestId, sessionId) {
         platformFeeExempt = memberProfile?.platform_fee_exempt === true;
       }
       
-      const platformFeeCents = platformFeeExempt ? 0 : Math.round(totalCents * 0.02);
+      const platformFeeCents = 0;
       
       const stripe = await getStripeClient();
       if (!stripe) {
@@ -17186,7 +23597,7 @@ async function handlePosLinkMarketplaceJob(req, res, requestId, sessionId) {
         platformFeeExempt = memberProfile?.platform_fee_exempt === true;
       }
       
-      const platformFeeCents = platformFeeExempt ? 0 : Math.round(priceCents * 0.02);
+      const platformFeeCents = 0;
       
       const stripe = await getStripeClient();
       if (!stripe) {
@@ -17926,7 +24337,7 @@ async function handleMaintenanceRemindersProcess(req, res, requestId) {
       
       if (reminder.customer_email && canSendEmail) {
         const emailHtml = `
-          <h2>🔔 Service Reminder</h2>
+          <h2>Service Reminder</h2>
           <p>Hi${reminder.customer_name ? ` ${reminder.customer_name.split(' ')[0]}` : ''},</p>
           
           <p>This is a friendly reminder that your <strong>${reminder.reminder_type}</strong> is due!</p>
@@ -18082,16 +24493,16 @@ const SERVICE_TYPE_LABELS = {
 };
 
 const SERVICE_TYPE_ICONS = {
-  'oil_change': '🛢️',
-  'tire_rotation': '🔄',
-  'brake_inspection': '🛑',
-  'air_filter': '💨',
-  'transmission_fluid': '⚙️',
-  'coolant_flush': '❄️',
-  'spark_plugs': '⚡',
-  'timing_belt': '🔧',
-  'state_inspection': '📋',
-  'emissions_test': '🌿'
+  'oil_change': '*',
+  'tire_rotation': '*',
+  'brake_inspection': '*',
+  'air_filter': '*',
+  'transmission_fluid': '*',
+  'coolant_flush': '*',
+  'spark_plugs': '*',
+  'timing_belt': '*',
+  'state_inspection': '*',
+  'emissions_test': '*'
 };
 
 async function createDefaultMaintenanceSchedules(supabase, vehicleId, memberId) {
@@ -18178,7 +24589,7 @@ async function handleGetMaintenanceSchedules(req, res, requestId, memberId) {
     const enrichedSchedules = (schedules || []).map(schedule => ({
       ...schedule,
       service_label: SERVICE_TYPE_LABELS[schedule.service_type] || schedule.service_type,
-      service_icon: SERVICE_TYPE_ICONS[schedule.service_type] || '🔧'
+      service_icon: SERVICE_TYPE_ICONS[schedule.service_type] || '*'
     }));
     
     console.log(`[${requestId}] Fetched ${enrichedSchedules.length} maintenance schedules for member ${memberId}`);
@@ -18525,7 +24936,7 @@ async function checkAndSendMaintenanceReminders() {
         if (!shouldSend) continue;
         
         const serviceLabel = SERVICE_TYPE_LABELS[schedule.service_type] || schedule.service_type;
-        const serviceIcon = SERVICE_TYPE_ICONS[schedule.service_type] || '🔧';
+        const serviceIcon = SERVICE_TYPE_ICONS[schedule.service_type] || '*';
         const vehicleName = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
         
         const appUrl = process.env.REPLIT_DEV_DOMAIN 
@@ -18549,9 +24960,9 @@ async function checkAndSendMaintenanceReminders() {
             <p>Your <strong>${vehicleName}</strong> is ${urgency === 'overdue' ? 'overdue' : 'due soon'} for <strong>${serviceLabel}</strong>.</p>
             <div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin: 16px 0;">
               <p style="margin: 8px 0;"><strong>${serviceIcon} Service:</strong> ${serviceLabel}</p>
-              <p style="margin: 8px 0;"><strong>🚗 Vehicle:</strong> ${vehicleName}</p>
-              <p style="margin: 8px 0;"><strong>📅 Due Date:</strong> ${dueDateFormatted}</p>
-              <p style="margin: 8px 0;"><strong>📏 Due Mileage:</strong> ${dueMileageFormatted} miles</p>
+              <p style="margin: 8px 0;"><strong>Vehicle:</strong> ${vehicleName}</p>
+              <p style="margin: 8px 0;"><strong>Due Date:</strong> ${dueDateFormatted}</p>
+              <p style="margin: 8px 0;"><strong>Due Mileage:</strong> ${dueMileageFormatted} miles</p>
               <p style="margin: 8px 0;"><strong>Current Mileage:</strong> ${currentMileageFormatted} miles</p>
             </div>
             <p><a href="${appUrl}/members.html" class="button">Schedule Service</a></p>
@@ -18573,6 +24984,13 @@ async function checkAndSendMaintenanceReminders() {
           const smsMessage = `My Car Concierge: Your ${vehicleName} is ${urgency === 'overdue' ? 'overdue' : 'due soon'} for ${serviceLabel}. Schedule service at ${appUrl}/members.html`;
           await sendSmsNotification(profile.phone, smsMessage, profile.id, 'maintenance_reminders');
         }
+
+        sendFCMPushNotification(
+          [profile.id],
+          urgency === 'overdue' ? `${serviceLabel} Overdue` : `${serviceLabel} Due Soon`,
+          `Your ${vehicleName} needs ${serviceLabel}. Tap to schedule service.`,
+          { section: 'vehicles' }
+        ).catch(e => console.error('[MaintenanceReminders] FCM push error:', e.message));
         
         await supabase
           .from('maintenance_schedules')
@@ -18805,6 +25223,13 @@ async function sendAppointmentReminders() {
         const message = `My Car Concierge: Reminder - Your ${serviceType} for ${vehicleName} is scheduled tomorrow at ${appointmentTime} with ${providerName}. Reply HELP for assistance.`;
         
         const smsResult = await sendSmsNotification(member.phone, message, member.id, 'maintenance_reminders');
+
+        sendFCMPushNotification(
+          [member.id],
+          'Appointment Reminder',
+          `Your ${serviceType} for ${vehicleName} is scheduled tomorrow at ${appointmentTime} with ${providerName}.`,
+          { section: 'appointments' }
+        ).catch(e => console.error('[AppointmentReminders] FCM push error:', e.message));
         
         if (smsResult.sent) {
           const { error: updateError } = await supabase
@@ -18939,6 +25364,427 @@ function startLoginActivityCleanupScheduler() {
 }
 
 // ==============================================
+// CHRIS AGRAPIDIS ANNIVERSARY REMINDER SYSTEM
+// ==============================================
+
+async function checkAnniversaryReminderSent(partnerName, year) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return false;
+  
+  try {
+    const { data, error } = await supabase
+      .from('anniversary_notifications')
+      .select('id')
+      .eq('partner_name', partnerName)
+      .eq('notification_year', year)
+      .eq('notification_type', 'anniversary_reminder')
+      .maybeSingle();
+    
+    if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
+      console.error('[AnniversaryReminder] Error checking reminder status:', error.message);
+      return false;
+    }
+    
+    return !!data;
+  } catch (err) {
+    console.error('[AnniversaryReminder] Exception checking reminder status:', err.message);
+    return false;
+  }
+}
+
+async function recordAnniversaryReminderSent(partnerName, year, emailsSent) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return false;
+  
+  try {
+    const { error } = await supabase
+      .from('anniversary_notifications')
+      .upsert({
+        partner_name: partnerName,
+        notification_year: year,
+        notification_type: 'anniversary_reminder',
+        emails_sent: emailsSent,
+        sent_at: new Date().toISOString(),
+        notes: `Annual milestone evaluation reminder sent to ${emailsSent} admin(s)`
+      }, { onConflict: 'partner_name,notification_year,notification_type' });
+    
+    if (error) {
+      console.error('[AnniversaryReminder] Error recording reminder:', error.message);
+      return false;
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('[AnniversaryReminder] Exception recording reminder:', err.message);
+    return false;
+  }
+}
+
+async function checkAndSendAnniversaryReminder() {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const partnerName = 'Chris Agrapidis';
+  
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.log('[AnniversaryReminder] Supabase not configured, skipping');
+    return { sent: false, reason: 'no_database' };
+  }
+  
+  // Fetch the founding partner record to get the actual anniversary date
+  const { data: partner, error: partnerError } = await supabase
+    .from('founding_provider_partners')
+    .select('anniversary_date, full_name, status')
+    .eq('full_name', partnerName)
+    .eq('status', 'active')
+    .single();
+  
+  if (partnerError || !partner) {
+    console.log('[AnniversaryReminder] Partner not found or not active - agreement may not be signed yet');
+    return { sent: false, reason: 'partner_not_found' };
+  }
+  
+  // Parse the anniversary date from the database (format: YYYY-MM-DD)
+  const [annYear, annMonth, annDay] = partner.anniversary_date.split('-').map(Number);
+  const anniversaryMonthDay = { month: annMonth - 1, day: annDay }; // JS months are 0-indexed
+  
+  const alreadySent = await checkAnniversaryReminderSent(partnerName, currentYear);
+  if (alreadySent) {
+    console.log('[AnniversaryReminder] Reminder already sent for year ' + currentYear + ' (persisted in database)');
+    return { sent: false, reason: 'already_sent_this_year' };
+  }
+  
+  // Calculate this year's anniversary using the signing date's month/day
+  const anniversaryDate = new Date(currentYear, anniversaryMonthDay.month, anniversaryMonthDay.day);
+  const anniversaryDateStr = `${anniversaryMonthDay.month + 1}/${anniversaryMonthDay.day}`;
+  
+  if (now > anniversaryDate) {
+    const nextYearAnniversary = new Date(currentYear + 1, anniversaryMonthDay.month, anniversaryMonthDay.day);
+    const daysUntilNext = Math.ceil((nextYearAnniversary - now) / (1000 * 60 * 60 * 24));
+    if (daysUntilNext <= 30) {
+      console.log('[AnniversaryReminder] Within 30 days of next year anniversary (' + anniversaryDateStr + ', ' + (currentYear + 1) + ')');
+    } else {
+      console.log('[AnniversaryReminder] Anniversary already passed for ' + currentYear + ', next reminder in ' + daysUntilNext + ' days');
+      return { sent: false, reason: 'anniversary_passed' };
+    }
+  } else {
+    const daysUntil = Math.ceil((anniversaryDate - now) / (1000 * 60 * 60 * 24));
+    if (daysUntil > 30) {
+      console.log('[AnniversaryReminder] Anniversary is ' + daysUntil + ' days away, not within 30-day window');
+      return { sent: false, reason: 'not_within_30_days', daysUntil };
+    }
+    console.log('[AnniversaryReminder] Anniversary is ' + daysUntil + ' days away - within reminder window');
+  }
+  
+  try {
+    const { data: admins, error } = await supabase
+      .from('profiles')
+      .select('id, email, first_name')
+      .eq('role', 'admin');
+    
+    if (error) {
+      console.error('[AnniversaryReminder] Error fetching admins:', error.message);
+      return { sent: false, reason: 'db_error', error: error.message };
+    }
+    
+    if (!admins || admins.length === 0) {
+      console.log('[AnniversaryReminder] No admins found');
+      return { sent: false, reason: 'no_admins' };
+    }
+    
+    const reminderMessage = `Chris Agrapidis Milestone Evaluation Due - Agreement anniversary is ${anniversaryDateStr}. Please review platform revenue and evaluate any newly achieved milestones.`;
+    
+    let emailsSent = 0;
+    let errors = 0;
+    
+    for (const admin of admins) {
+      if (!admin.email) continue;
+      
+      try {
+        const emailResult = await sendEmailNotification(
+          admin.email,
+          admin.first_name || 'Admin',
+          'Milestone Evaluation Reminder - Chris Agrapidis Agreement Anniversary',
+          `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #d4a855, #b8942d); padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                <h1 style="margin: 0; color: #12161c; font-size: 24px;">My Car Concierge</h1>
+              </div>
+              <div style="background: #1a1f28; padding: 30px; color: #f4f4f6;">
+                <h2 style="color: #d4a855; margin-top: 0;">Anniversary Reminder</h2>
+                <p style="font-size: 16px; line-height: 1.6; color: #a0a5b0;">
+                  ${reminderMessage}
+                </p>
+                <div style="background: #242a35; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <p style="margin: 0; color: #f4f4f6;"><strong>Partner:</strong> Chris Agrapidis</p>
+                  <p style="margin: 10px 0 0; color: #f4f4f6;"><strong>Agreement Type:</strong> Founding Provider Partner</p>
+                  <p style="margin: 10px 0 0; color: #f4f4f6;"><strong>Anniversary Date:</strong> ${anniversaryDateStr}</p>
+                </div>
+                <p style="font-size: 14px; color: #6b7280;">
+                  This is an automated annual reminder to ensure timely milestone evaluations.
+                </p>
+              </div>
+              <div style="background: #0d1016; padding: 15px; text-align: center; border-radius: 0 0 8px 8px;">
+                <p style="margin: 0; color: #6b7280; font-size: 12px;">© ${currentYear} My Car Concierge. All rights reserved.</p>
+              </div>
+            </div>
+          `,
+          admin.id,
+          'anniversary_reminder'
+        );
+        
+        if (emailResult) {
+          emailsSent++;
+          console.log('[AnniversaryReminder] Email sent to admin: ' + admin.email);
+        } else {
+          errors++;
+        }
+      } catch (emailErr) {
+        console.error('[AnniversaryReminder] Error sending email to ' + admin.email + ':', emailErr.message);
+        errors++;
+      }
+    }
+    
+    if (emailsSent > 0) {
+      await recordAnniversaryReminderSent(partnerName, currentYear, emailsSent);
+      console.log('[AnniversaryReminder] Reminder sent successfully to ' + emailsSent + ' admin(s) and recorded in database');
+    }
+    
+    return { sent: emailsSent > 0, emailsSent, errors };
+  } catch (err) {
+    console.error('[AnniversaryReminder] Exception:', err.message);
+    return { sent: false, reason: 'exception', error: err.message };
+  }
+}
+
+function startAnniversaryReminderScheduler() {
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  const INITIAL_DELAY = 2 * 60 * 1000;
+  
+  console.log('[Scheduler] Anniversary reminder scheduler is ENABLED');
+  
+  setTimeout(async () => {
+    console.log('[Scheduler] Running initial anniversary reminder check...');
+    try {
+      const result = await checkAndSendAnniversaryReminder();
+      console.log('[Scheduler] Initial anniversary check complete:', JSON.stringify(result));
+    } catch (error) {
+      console.error('[Scheduler] Initial anniversary reminder check failed:', error.message);
+    }
+  }, INITIAL_DELAY);
+  
+  setInterval(async () => {
+    console.log('[Scheduler] Running daily anniversary reminder check...');
+    try {
+      const result = await checkAndSendAnniversaryReminder();
+      console.log('[Scheduler] Daily anniversary check complete:', JSON.stringify(result));
+    } catch (error) {
+      console.error('[Scheduler] Daily anniversary reminder check failed:', error.message);
+    }
+  }, ONE_DAY);
+  
+  console.log('[Scheduler] Scheduled: initial anniversary check in 2min, then every 24 hours');
+}
+
+// ==============================================
+// SPLIT PAYMENT AUTO-EXPIRY SCHEDULER
+// ==============================================
+
+function startSplitPaymentExpiryScheduler() {
+  console.log('[Scheduler] Split payment expiry scheduler is ENABLED');
+  
+  const ONE_HOUR = 60 * 60 * 1000;
+  const INITIAL_DELAY = 3 * 60 * 1000;
+  
+  async function checkExpiredSplitPayments() {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { expired: 0, errors: 0 };
+    
+    const { data: expiredSplits, error } = await supabase
+      .from('split_payments')
+      .select('id, package_id, created_by, total_amount_cents, expires_at')
+      .eq('status', 'pending')
+      .lt('expires_at', new Date().toISOString());
+    
+    if (error || !expiredSplits?.length) return { expired: 0, errors: 0 };
+    
+    let expiredCount = 0;
+    let errorCount = 0;
+    
+    for (const split of expiredSplits) {
+      try {
+        const { data: participants } = await supabase
+          .from('split_participants')
+          .select('*')
+          .eq('split_payment_id', split.id);
+        
+        const refundedParticipantIds = [];
+        const stripe = await getStripeClient();
+        if (stripe) {
+          for (const participant of (participants || [])) {
+            if (participant.payment_intent_id && participant.status === 'paid') {
+              try {
+                await stripe.refunds.create({ payment_intent: participant.payment_intent_id });
+                refundedParticipantIds.push(participant.id);
+              } catch (stripeErr) {
+                console.error(`[Scheduler] Refund error for participant ${participant.id}:`, stripeErr.message);
+              }
+            } else if (participant.payment_intent_id) {
+              try {
+                const pi = await stripe.paymentIntents.retrieve(participant.payment_intent_id);
+                if (['requires_payment_method', 'requires_confirmation', 'requires_action', 'requires_capture'].includes(pi.status)) {
+                  await stripe.paymentIntents.cancel(participant.payment_intent_id);
+                }
+              } catch (stripeErr) {
+                console.error(`[Scheduler] Cancel PI error for participant ${participant.id}:`, stripeErr.message);
+              }
+            }
+          }
+        }
+        
+        if (refundedParticipantIds.length > 0) {
+          await supabase.from('split_participants')
+            .update({ status: 'refunded' })
+            .in('id', refundedParticipantIds);
+        }
+        await supabase.from('split_participants')
+          .update({ status: 'cancelled' })
+          .eq('split_payment_id', split.id)
+          .neq('status', 'refunded');
+        
+        await supabase.from('split_payments')
+          .update({ status: 'expired', updated_at: new Date().toISOString() })
+          .eq('id', split.id);
+        
+        await supabase.from('maintenance_packages')
+          .update({ status: 'accepted', updated_at: new Date().toISOString() })
+          .eq('id', split.package_id);
+        
+        const { data: pkg } = await supabase
+          .from('maintenance_packages')
+          .select('title, accepted_bid_id')
+          .eq('id', split.package_id)
+          .single();
+        
+        await supabase.from('notifications').insert({
+          user_id: split.created_by,
+          type: 'split_payment_expired',
+          title: 'Split Payment Expired',
+          message: `The split payment for "${pkg?.title || 'a service'}" has expired because not all participants completed payment within 72 hours. Any payments have been refunded. You can create a new split payment or pay in full.`,
+          entity_type: 'package',
+          entity_id: split.package_id
+        });
+        
+        for (const participant of (participants || [])) {
+          if (participant.member_id && participant.member_id !== split.created_by) {
+            await supabase.from('notifications').insert({
+              user_id: participant.member_id,
+              type: 'split_payment_expired',
+              title: 'Split Payment Expired',
+              message: `The split payment has expired. Any charges have been refunded.`,
+              entity_type: 'split_payment',
+              entity_id: split.id
+            });
+          }
+          if (participant.email && !participant.member_id && participant.status === 'paid') {
+            try {
+              const resendKey = process.env.RESEND_API_KEY;
+              if (resendKey) {
+                await fetch('https://api.resend.com/emails', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    from: 'My Car Concierge <noreply@mycarconcierge.com>',
+                    to: participant.email,
+                    subject: 'Split Payment Expired - Refund Processed',
+                    html: `<p>The split payment you participated in has expired because not all participants completed their payment within the deadline.</p><p>Your payment of $${(participant.amount_cents / 100).toFixed(2)} has been refunded to your original payment method. Please allow 5-10 business days for the refund to appear.</p>`
+                  })
+                });
+              }
+            } catch (emailErr) {
+              console.error(`[Scheduler] Guest refund email error:`, emailErr.message);
+            }
+          }
+        }
+        
+        if (pkg?.accepted_bid_id) {
+          const { data: bid } = await supabase
+            .from('bids')
+            .select('provider_id')
+            .eq('id', pkg.accepted_bid_id)
+            .single();
+          if (bid?.provider_id) {
+            await supabase.from('notifications').insert({
+              user_id: bid.provider_id,
+              type: 'split_payment_expired',
+              title: 'Split Payment Expired',
+              message: `The split payment for "${pkg.title || 'a service'}" has expired. The job is still active and awaiting a new payment arrangement.`,
+              entity_type: 'package',
+              entity_id: split.package_id
+            });
+          }
+        }
+        
+        expiredCount++;
+        console.log(`[Scheduler] Auto-expired split payment ${split.id}`);
+      } catch (err) {
+        errorCount++;
+        console.error(`[Scheduler] Error expiring split payment ${split.id}:`, err.message);
+      }
+    }
+    
+    console.log(`[Scheduler] Split expiry check complete: ${expiredCount} expired, ${errorCount} errors out of ${expiredSplits.length} total`);
+    
+    if (errorCount > 0) {
+      try {
+        const { data: admins } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('role', 'admin');
+        if (admins && admins.length > 0) {
+          const notifications = admins.map(admin => ({
+            user_id: admin.id,
+            type: 'scheduler_alert',
+            title: 'Split Payment Expiry Errors',
+            message: `${errorCount} error(s) occurred while processing ${expiredSplits.length} expired split payments. Check server logs for details.`,
+            entity_type: 'system'
+          }));
+          await supabase.from('notifications').insert(notifications);
+        }
+      } catch (alertErr) {
+        console.error('[Scheduler] Failed to create admin alert:', alertErr.message);
+      }
+    }
+    
+    return { expired: expiredCount, errors: errorCount };
+  }
+  
+  setTimeout(async () => {
+    console.log('[Scheduler] Running initial split payment expiry check...');
+    try {
+      const result = await checkExpiredSplitPayments();
+      console.log(`[Scheduler] Initial split expiry check: ${result.expired} expired, ${result.errors} errors`);
+    } catch (error) {
+      console.error('[Scheduler] Initial split payment expiry check failed:', error.message);
+    }
+  }, INITIAL_DELAY);
+  
+  setInterval(async () => {
+    console.log('[Scheduler] Running scheduled split payment expiry check...');
+    try {
+      const result = await checkExpiredSplitPayments();
+      if (result.expired > 0 || result.errors > 0) {
+        console.log(`[Scheduler] Split expiry check: ${result.expired} expired, ${result.errors} errors`);
+      }
+    } catch (error) {
+      console.error('[Scheduler] Split payment expiry check failed:', error.message);
+    }
+  }, ONE_HOUR);
+  
+  console.log('[Scheduler] Scheduled: initial split expiry check in 3min, then every hour');
+}
+
+// ==============================================
 // DREAM CAR FINDER EMAIL DIGEST REPORTS
 // ==============================================
 
@@ -18960,7 +25806,16 @@ async function sendDreamCarDigestEmails() {
         user_id, 
         search_name,
         email_report_frequency,
-        last_email_report_at
+        last_email_report_at,
+        market_intel,
+        preferred_makes,
+        preferred_models,
+        min_year,
+        max_year,
+        min_price,
+        max_price,
+        zip_code,
+        max_distance_miles
       `)
       .eq('is_active', true)
       .eq('notify_email', true)
@@ -19005,7 +25860,7 @@ async function sendDreamCarDigestEmails() {
         if (!profile?.email) continue;
         
         const emailHtml = generateDreamCarDigestHtml(search, matches, sinceDate, now);
-        const emailSubject = `Dream Car Finder: ${matches.length} New Match${matches.length === 1 ? '' : 'es'} for "${search.search_name || 'Your Search'}"`;
+        const emailSubject = `Dream Car Finder: Market Intelligence for "${search.search_name || 'Your Search'}"`;
         
         const result = await sendEmailNotification(
           profile.email,
@@ -19063,43 +25918,110 @@ function generateDreamCarDigestHtml(search, matches, sinceDate, now) {
   }[search.email_report_frequency] || 'Periodic';
   
   const dateRange = `${sinceDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-  
-  let matchListHtml = matches.slice(0, 10).map((match, i) => `
-    <div style="background: ${i % 2 === 0 ? '#f8f9fa' : '#fff'}; padding: 16px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e9ecef;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <strong style="color: #1e3a5f; font-size: 1.1em;">${match.year} ${match.make} ${match.model}${match.trim ? ` ${match.trim}` : ''}</strong>
-        <span style="background: ${match.match_score >= 90 ? '#28a745' : match.match_score >= 70 ? '#b8942d' : '#6c757d'}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: 600;">${match.match_score}% Match</span>
+
+  const prices = matches
+    .map(m => parseFloat(m.price))
+    .filter(p => !isNaN(p) && p > 0)
+    .sort((a, b) => a - b);
+
+  let priceRange = { low: null, median: null, high: null };
+  if (prices.length > 0) {
+    priceRange.low = prices[0];
+    priceRange.high = prices[prices.length - 1];
+    const mid = Math.floor(prices.length / 2);
+    priceRange.median = prices.length % 2 === 0
+      ? Math.round((prices[mid - 1] + prices[mid]) / 2)
+      : prices[mid];
+  }
+
+  let trend = 'fair';
+  if (prices.length >= 3) {
+    const medianRatio = priceRange.median / priceRange.high;
+    if (medianRatio > 0.8) trend = 'hot';
+    else if (medianRatio < 0.6) trend = 'soft';
+  }
+
+  const trendLabels = { hot: 'Hot Market \u2191', fair: 'Fair Market \u2194', soft: "Buyer's Market \u2193" };
+  const trendColors = { hot: '#ef5f5f', fair: '#b8942d', soft: '#28a745' };
+  const trendLabel = trendLabels[trend] || trendLabels.fair;
+  const trendColor = trendColors[trend] || trendColors.fair;
+
+  const fmtPrice = (v) => v != null ? '$' + Number(v).toLocaleString() : 'N/A';
+
+  const intel = search.market_intel || {};
+  const searchUrls = intel.searchUrls || buildDreamCarSearchUrls(search);
+  const checklist = intel.buyingChecklist || [];
+
+  let priceHtml = '';
+  if (priceRange.low != null) {
+    priceHtml = `
+      <div style="background: #f8f9fa; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #e9ecef;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
+          <span style="font-size: 0.9em; color: #6c757d;">Price Range (${matches.length} listing${matches.length !== 1 ? 's' : ''} analyzed)</span>
+          <span style="padding: 4px 14px; border-radius: 100px; font-size: 0.85em; font-weight: 600; background: ${trendColor}22; color: ${trendColor};">${trendLabel}</span>
+        </div>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="text-align: left; padding: 8px 0;">
+              <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Low</div>
+              <div style="font-size: 1.3em; font-weight: 700; color: #28a745;">${fmtPrice(priceRange.low)}</div>
+            </td>
+            <td style="text-align: center; padding: 8px 0;">
+              <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Median</div>
+              <div style="font-size: 1.5em; font-weight: 700; color: #b8942d;">${fmtPrice(priceRange.median)}</div>
+            </td>
+            <td style="text-align: right; padding: 8px 0;">
+              <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">High</div>
+              <div style="font-size: 1.3em; font-weight: 700; color: #ef5f5f;">${fmtPrice(priceRange.high)}</div>
+            </td>
+          </tr>
+        </table>
+        <div style="height: 8px; background: linear-gradient(90deg, #28a745, #b8942d, #ef5f5f); border-radius: 4px; margin-top: 12px;"></div>
       </div>
-      <div style="color: #495057; font-size: 0.95em;">
-        <span style="margin-right: 16px;">💰 <strong>$${match.price ? Number(match.price).toLocaleString() : 'N/A'}</strong></span>
-        <span style="margin-right: 16px;">🛣️ ${match.mileage ? Number(match.mileage).toLocaleString() + ' mi' : 'N/A'}</span>
-        ${match.exterior_color ? `<span>🎨 ${match.exterior_color}</span>` : ''}
-      </div>
-      ${match.location ? `<div style="color: #6c757d; font-size: 0.85em; margin-top: 6px;">📍 ${match.location}</div>` : ''}
-    </div>
-  `).join('');
-  
-  if (matches.length > 10) {
-    matchListHtml += `<p style="color: #6c757d; text-align: center; font-style: italic;">...and ${matches.length - 10} more matches. View all in your dashboard.</p>`;
+    `;
+  }
+
+  let checklistHtml = '';
+  if (checklist.length > 0) {
+    checklistHtml = `
+      <h3 style="color: #1e3a5f; margin: 24px 0 16px;">Buying Checklist</h3>
+      ${checklist.map((tip, i) => {
+        const escapedTip = String(tip).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        return `
+        <div style="display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; background: ${i % 2 === 0 ? '#f8f9fa' : '#fff'}; border-radius: 8px; margin-bottom: 8px; border: 1px solid #e9ecef;">
+          <span style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #b8942d; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: 700;">${i + 1}</span>
+          <span style="font-size: 0.95em; color: #495057; line-height: 1.5;">${escapedTip}</span>
+        </div>
+      `;}).join('')}
+    `;
+  }
+
+  let inventoryHtml = '';
+  if (searchUrls) {
+    inventoryHtml = `
+      <h3 style="color: #1e3a5f; margin: 24px 0 16px;">Search Live Inventory</h3>
+      <table style="width: 100%; border-collapse: separate; border-spacing: 8px;">
+        <tr>
+          <td style="text-align: center;"><a href="${searchUrls.autotrader}" style="display: block; padding: 14px 20px; background: #1e3a5f; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600;">Autotrader</a></td>
+          <td style="text-align: center;"><a href="${searchUrls.cargurus}" style="display: block; padding: 14px 20px; background: #1e3a5f; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600;">CarGurus</a></td>
+          <td style="text-align: center;"><a href="${searchUrls.cars_com}" style="display: block; padding: 14px 20px; background: #1e3a5f; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600;">Cars.com</a></td>
+        </tr>
+      </table>
+    `;
   }
   
   return `
     <div style="text-align: center; margin-bottom: 24px;">
-      <h2 style="color: #1e3a5f; margin: 0 0 8px 0;">${frequencyLabel} Dream Car Report</h2>
+      <h2 style="color: #1e3a5f; margin: 0 0 8px 0;">${frequencyLabel} Market Intelligence Report</h2>
       <p style="color: #6c757d; margin: 0; font-size: 0.9em;">Search: "${search.search_name || 'Your Search'}" | ${dateRange}</p>
     </div>
     
-    <div class="alert-box" style="text-align: center;">
-      <div style="font-size: 2em; margin-bottom: 8px;">🚗</div>
-      <div style="font-size: 1.5em; font-weight: bold; color: #1e3a5f;">${matches.length} New Match${matches.length === 1 ? '' : 'es'} Found!</div>
-      <p style="color: #495057; margin: 8px 0 0 0;">We found vehicles matching your dream car criteria.</p>
-    </div>
+    ${priceHtml}
+    ${checklistHtml}
+    ${inventoryHtml}
     
-    <h3 style="color: #1e3a5f; margin: 24px 0 16px;">Top Matches</h3>
-    ${matchListHtml}
-    
-    <div style="text-align: center; margin: 24px 0;">
-      <a href="https://mycarconcierge.io" class="button" style="background: linear-gradient(135deg, #b8942d 0%, #a68428 100%); color: #ffffff !important;">View All Matches in Dashboard</a>
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="https://mycarconcierge.io" class="button" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #b8942d 0%, #a68428 100%); color: #ffffff !important; border-radius: 100px; text-decoration: none; font-weight: 600;">View Full Report in Dashboard</a>
     </div>
     
     <p style="color: #6c757d; font-size: 0.85em; text-align: center;">
@@ -19136,6 +26058,17 @@ function startDreamCarDigestScheduler() {
   }, ONE_HOUR);
   
   console.log('[Scheduler] Scheduled: initial Dream Car digest check in 10min, then every hour');
+
+  startEngineSchedulers(getSupabaseClient);
+  console.log('[Scheduler] Outreach Engine scheduler is ENABLED');
+  setTimeout(async () => {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      await initEngineState(supabase);
+      await supabase.from('engine_state').update({ is_running: true, paused_at: null, paused_by: null, pause_reason: null }).eq('id', 1);
+      console.log('[Scheduler] Outreach Engine auto-started and running');
+    }
+  }, 5000);
 }
 
 async function handleAdminSendBulkWelcomeEmails(req, res, requestId) {
@@ -19251,6 +26184,91 @@ async function handleAdminSendBulkWelcomeEmails(req, res, requestId) {
     console.error(`[${requestId}] Admin bulk welcome emails error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: false, error: 'Failed to send bulk welcome emails' }));
+  }
+}
+
+async function handleProcessCommissionReconciliation(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+  
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+    
+  if (profile?.role !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Admin access required' }));
+    return;
+  }
+  
+  try {
+    const { data: pending } = await supabaseAdmin
+      .from('commission_reconciliation_queue')
+      .select('*')
+      .eq('status', 'pending')
+      .limit(50);
+    
+    let processed = 0;
+    let failed = 0;
+    
+    for (const item of (pending || [])) {
+      const { data: founderData, error: fetchErr } = await supabaseAdmin
+        .from('member_founder_profiles')
+        .select('total_commissions_earned')
+        .eq('id', item.founder_id)
+        .single();
+
+      if (fetchErr || !founderData) {
+        failed++;
+        await supabaseAdmin
+          .from('commission_reconciliation_queue')
+          .update({ error_message: fetchErr?.message || 'Founder profile not found' })
+          .eq('id', item.id);
+      } else {
+        const newTotal = parseFloat(((founderData.total_commissions_earned || 0) + item.amount).toFixed(2));
+        const { error: updateErr } = await supabaseAdmin
+          .from('member_founder_profiles')
+          .update({ total_commissions_earned: newTotal })
+          .eq('id', item.founder_id);
+
+        if (updateErr) {
+          failed++;
+          await supabaseAdmin
+            .from('commission_reconciliation_queue')
+            .update({ error_message: updateErr.message })
+            .eq('id', item.id);
+        } else {
+          processed++;
+          await supabaseAdmin
+            .from('commission_reconciliation_queue')
+            .update({ status: 'processed', processed_at: new Date().toISOString() })
+            .eq('id', item.id);
+        }
+      }
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, processed, failed, total: pending?.length || 0 }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Commission reconciliation error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Failed to process reconciliation' }));
   }
 }
 
@@ -20951,7 +27969,7 @@ async function handleNotifyUrgentUpdate(req, res, requestId) {
       };
       
       const updateTypeLabel = updateTypeLabels[updateType] || 'Update from Provider';
-      const urgentPrefix = isUrgent ? '🚨 URGENT: ' : '';
+      const urgentPrefix = isUrgent ? 'URGENT: ' : '';
       
       const deadlineText = deadlineHours ? `\n\n⏰ Please respond within ${deadlineHours} hours.` : '';
       const smsMessage = `${urgentPrefix}${updateTypeLabel}\n\n${providerName || 'Your provider'} sent an update about "${packageTitle || 'your service'}":\n\n${title}${estimatedCost ? `\n\nNew Total: $${estimatedCost} (all-inclusive)` : ''}${deadlineText}\n\nRespond now: ${dashboardUrl || 'https://mycarconcierge.com/members.html'}`;
@@ -20966,7 +27984,7 @@ async function handleNotifyUrgentUpdate(req, res, requestId) {
         `;
       }
       
-      const urgentBanner = isUrgent ? '<div class="urgent-box"><strong>⚠️ This is an urgent update that requires your immediate attention.</strong></div>' : '';
+      const urgentBanner = isUrgent ? '<div class="urgent-box"><strong>This is an urgent update that requires your immediate attention.</strong></div>' : '';
       
       const deadlineHtml = deadlineHours && updateType === 'cost_increase' ? `
         <div style="background:#fff3cd;border:1px solid #ffc107;padding:12px 16px;border-radius:8px;margin:16px 0;">
@@ -21017,6 +28035,190 @@ async function handleNotifyUrgentUpdate(req, res, requestId) {
       res.end(JSON.stringify({ error: 'Failed to send notifications' }));
     }
   });
+}
+
+async function handlePriceEstimate(req, res, requestId) {
+  const auth = await verifyAuthToken(req);
+  if (!auth.authenticated) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const category = url.searchParams.get('category');
+    const memberZip = url.searchParams.get('zip');
+    const packageId = url.searchParams.get('package_id');
+
+    if (!category) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Category is required' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Service unavailable' }));
+      return;
+    }
+
+    const { data: categoryPackageIds, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('id')
+      .eq('category', category);
+
+    if (pkgError || !categoryPackageIds?.length) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        has_estimate: false,
+        message: 'Not enough local data yet',
+        sample_size: 0
+      }));
+      return;
+    }
+
+    const pkgIds = categoryPackageIds.map(p => p.id);
+    const { data: allBids, error: bidsError } = await supabase
+      .from('bids')
+      .select('price, package_id')
+      .eq('status', 'accepted')
+      .not('price', 'is', null)
+      .in('package_id', pkgIds);
+
+    if (bidsError) {
+      console.error(`[${requestId}] Price estimate query error:`, bidsError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch bid data' }));
+      return;
+    }
+
+    const filteredBids = allBids || [];
+
+    let regionBids = filteredBids;
+    const regionZipPrefix = memberZip ? memberZip.substring(0, 3) : null;
+    if (regionZipPrefix) {
+      const { data: regionPkgs } = await supabase
+        .from('maintenance_packages')
+        .select('id')
+        .eq('category', category)
+        .like('member_zip', `${regionZipPrefix}%`);
+      const regionPkgIds = new Set((regionPkgs || []).map(p => p.id));
+      regionBids = filteredBids.filter(b => regionPkgIds.has(b.package_id));
+    }
+
+    const usedBids = regionBids.length >= 3 ? regionBids : filteredBids;
+    const isLocalData = regionBids.length >= 3;
+
+    if (usedBids.length < 3) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        has_estimate: false,
+        message: 'Not enough local data yet',
+        sample_size: usedBids.length
+      }));
+      return;
+    }
+
+    const prices = usedBids.map(b => Number(b.price)).filter(Number.isFinite).sort((a, b) => a - b);
+    const count = prices.length;
+
+    if (count < 3) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        has_estimate: false,
+        message: 'Not enough valid price data yet',
+        sample_size: count
+      }));
+      return;
+    }
+
+    const sum = prices.reduce((a, b) => a + b, 0);
+    const mean = sum / count;
+    const median = count % 2 === 0
+      ? (prices[count / 2 - 1] + prices[count / 2]) / 2
+      : prices[Math.floor(count / 2)];
+
+    const q1Index = Math.floor(count * 0.25);
+    const q3Index = Math.floor(count * 0.75);
+    const lowEstimate = Math.round(prices[q1Index]);
+    const highEstimate = Math.round(prices[q3Index]);
+    const minPrice = Math.round(prices[0]);
+    const maxPrice = Math.round(prices[count - 1]);
+
+    const locationNote = isLocalData ? 'in your area' : 'across the platform';
+    const fallbackContextNote = highEstimate > lowEstimate * 1.5
+      ? 'Prices vary widely — this may depend on parts quality, vehicle type, or job complexity.'
+      : '';
+    const fallbackMessage = `$${lowEstimate}–$${highEstimate} is typical for this service ${locationNote}`;
+
+    let aiMessage = fallbackMessage;
+    let aiContextNote = fallbackContextNote;
+    try {
+      const spread = ((highEstimate - lowEstimate) / lowEstimate * 100).toFixed(0);
+      const aiPrompt = `You are a friendly automotive pricing advisor for My Car Concierge. Given the following market stats for "${category}" services ${isLocalData ? "in the member's local area" : "across the platform"}, write two short pieces of text.
+
+Stats: typical range $${lowEstimate}–$${highEstimate}, median $${Math.round(median)}, mean $${Math.round(mean)}, lowest seen $${minPrice}, highest seen $${maxPrice}, based on ${count} accepted bids, price spread ${spread}%.
+
+1. MESSAGE (1 sentence, <=120 chars): A concise summary like "$X–$Y is typical for [category] [location context]." Be specific to the category.
+2. CONTEXT (1 sentence, <=150 chars, or empty if spread < 30%): If prices vary a lot, explain possible reasons (parts quality, vehicle type, job complexity). If prices are consistent, leave empty.
+
+Respond in exactly this format:
+MESSAGE: <your message>
+CONTEXT: <your context or empty>`;
+      const aiResult = await generateAIContent(aiPrompt, { maxTokens: 200, preferredProvider: 'gemini' });
+      if (aiResult?.text) {
+        const messageMatch = aiResult.text.match(/MESSAGE:\s*(.+)/i);
+        const contextMatch = aiResult.text.match(/CONTEXT:\s*(.+)/i);
+        if (messageMatch?.[1]?.trim()) {
+          aiMessage = messageMatch[1].trim();
+        }
+        if (contextMatch?.[1]?.trim() && contextMatch[1].trim().toLowerCase() !== 'empty') {
+          aiContextNote = contextMatch[1].trim();
+        } else if (contextMatch) {
+          aiContextNote = '';
+        }
+      }
+    } catch (aiErr) {
+      console.log(`[${requestId}] AI narrative generation failed, using fallback:`, aiErr.message);
+    }
+
+    if (packageId) {
+      try {
+        const { error: updateErr } = await supabase.from('maintenance_packages').update({
+          price_estimate_low: lowEstimate,
+          price_estimate_high: highEstimate
+        }).eq('id', packageId).eq('member_id', auth.user.id);
+        if (updateErr) {
+          console.log(`[${requestId}] Could not save estimate to package:`, updateErr.message);
+        }
+      } catch (e) {
+        console.log(`[${requestId}] Could not save estimate to package:`, e.message);
+      }
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      has_estimate: true,
+      low: lowEstimate,
+      high: highEstimate,
+      median: Math.round(median),
+      mean: Math.round(mean),
+      min: minPrice,
+      max: maxPrice,
+      sample_size: count,
+      is_local: isLocalData,
+      location_note: locationNote,
+      context_note: aiContextNote,
+      message: aiMessage
+    }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Price estimate error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  }
 }
 
 async function handleMemberServiceHistory(req, res, requestId, memberId) {
@@ -21509,6 +28711,743 @@ function getDateRangeFromPeriod(period) {
   return { startDate, groupBy };
 }
 
+/*
+ * ========== REFUNDS TABLE MIGRATION ==========
+ * Run this SQL in Supabase SQL Editor to create the refunds table:
+ *
+ * CREATE TABLE IF NOT EXISTS refunds (
+ *   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ *   package_id uuid REFERENCES maintenance_packages(id),
+ *   payment_intent_id text,
+ *   stripe_refund_id text,
+ *   amount_cents integer NOT NULL,
+ *   refund_type text NOT NULL DEFAULT 'full',
+ *   reason text,
+ *   status text NOT NULL DEFAULT 'requested',
+ *   requested_by uuid REFERENCES auth.users(id),
+ *   approved_by uuid REFERENCES auth.users(id),
+ *   requested_at timestamptz DEFAULT now(),
+ *   approved_at timestamptz,
+ *   processed_at timestamptz,
+ *   created_at timestamptz DEFAULT now()
+ * );
+ *
+ * ALTER TABLE refunds ENABLE ROW LEVEL SECURITY;
+ * CREATE POLICY "Members can view own refunds" ON refunds FOR SELECT USING (auth.uid() = requested_by);
+ * CREATE POLICY "Admins full access refunds" ON refunds FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+ * CREATE POLICY "Service role bypass refunds" ON refunds FOR ALL USING (auth.role() = 'service_role');
+ */
+
+async function handleAdminGetRefunds(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+      return;
+    }
+    
+    const urlObj = new URL(req.url, `http://${req.headers.host}`);
+    const page = parseInt(urlObj.searchParams.get('page')) || 1;
+    const limit = Math.min(parseInt(urlObj.searchParams.get('limit')) || 25, 100);
+    const filter = urlObj.searchParams.get('filter') || 'all';
+    const offset = (page - 1) * limit;
+    
+    let query = supabase
+      .from('refunds')
+      .select('*', { count: 'exact' });
+    
+    if (filter && filter !== 'all') {
+      query = query.eq('status', filter);
+    }
+    
+    const { data, count, error } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    
+    if (error) {
+      console.error(`[${requestId}] Admin refunds error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch refunds' }));
+      return;
+    }
+    
+    const refunds = data || [];
+    const memberIds = [...new Set(refunds.map(r => r.requested_by).filter(Boolean))];
+    const packageIds = [...new Set(refunds.map(r => r.package_id).filter(Boolean))];
+    
+    let memberMap = {};
+    if (memberIds.length > 0) {
+      const { data: members } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', memberIds);
+      (members || []).forEach(m => { memberMap[m.id] = m; });
+    }
+    
+    let packageMap = {};
+    if (packageIds.length > 0) {
+      const { data: pkgs } = await supabase
+        .from('maintenance_packages')
+        .select('id, title, status')
+        .in('id', packageIds);
+      (pkgs || []).forEach(p => { packageMap[p.id] = p; });
+    }
+    
+    const enrichedData = refunds.map(r => ({
+      ...r,
+      member: memberMap[r.requested_by] || null,
+      package: packageMap[r.package_id] || null
+    }));
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      data: enrichedData,
+      total: count || 0,
+      page,
+      totalPages: Math.ceil((count || 0) / limit)
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Admin refunds exception:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function handleAdminProcessRefund(req, res, requestId, refundId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  
+  req.on('end', async () => {
+    try {
+      const { action, amount_cents } = body ? JSON.parse(body) : {};
+      
+      if (!action || !['approve', 'deny'].includes(action)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid action. Must be approve or deny.' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      if (!profile || profile.role !== 'admin') {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Admin access required' }));
+        return;
+      }
+      
+      const { data: refund, error: refundError } = await supabase
+        .from('refunds')
+        .select('*')
+        .eq('id', refundId)
+        .single();
+      
+      if (refundError || !refund) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Refund not found' }));
+        return;
+      }
+      
+      if (refund.status !== 'requested') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: `Refund is already ${refund.status}` }));
+        return;
+      }
+      
+      if (action === 'deny') {
+        await supabase
+          .from('refunds')
+          .update({ status: 'cancelled', approved_by: user.id, approved_at: new Date().toISOString() })
+          .eq('id', refundId);
+        
+        if (refund.requested_by) {
+          await supabase.from('notifications').insert({
+            user_id: refund.requested_by,
+            type: 'refund_denied',
+            title: 'Refund Request Denied',
+            message: 'Your refund request has been reviewed and denied by an administrator.',
+            entity_type: 'refund',
+            entity_id: refundId
+          });
+        }
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, status: 'cancelled', message: 'Refund denied' }));
+        return;
+      }
+      
+      const stripe = await getStripeClient();
+
+      if (refund.package_id) {
+        const { data: adminPkg } = await supabase
+          .from('maintenance_packages')
+          .select('split_payment_id')
+          .eq('id', refund.package_id)
+          .single();
+
+        if (adminPkg?.split_payment_id) {
+          const refundAmountCents = amount_cents || refund.amount_cents;
+          const isPartial = refund.refund_type === 'partial' || (amount_cents && amount_cents < refund.amount_cents);
+          const splitResult = await processSplitPaymentRefund(
+            supabase, stripe, refund.package_id, adminPkg.split_payment_id,
+            isPartial ? 'partial' : 'full', isPartial ? refundAmountCents : null,
+            refund.reason || 'Admin approved refund', user.id, requestId
+          );
+          if (!splitResult.success) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: splitResult.error }));
+            return;
+          }
+
+          await supabase
+            .from('refunds')
+            .update({
+              status: 'processed',
+              amount_cents: splitResult.totalRefunded,
+              approved_by: user.id,
+              approved_at: new Date().toISOString(),
+              processed_at: new Date().toISOString()
+            })
+            .eq('id', refundId);
+
+          if (refund.requested_by) {
+            await supabase.from('notifications').insert({
+              user_id: refund.requested_by,
+              type: 'refund_processed',
+              title: 'Refund Processed',
+              message: `Your split payment refund of $${(splitResult.totalRefunded / 100).toFixed(2)} has been processed by an administrator.`,
+              entity_type: 'refund',
+              entity_id: refundId
+            });
+          }
+
+          console.log(`[${requestId}] Admin processed split refund ${refundId}, total: ${splitResult.totalRefunded}, participants: ${splitResult.refundedParticipants.length}`);
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            status: 'processed',
+            split_refund: true,
+            amount_cents: splitResult.totalRefunded,
+            refunded_participants: splitResult.refundedParticipants.length,
+            message: `Split refund of $${(splitResult.totalRefunded / 100).toFixed(2)} processed across ${splitResult.refundedParticipants.length} participants`
+          }));
+          return;
+        }
+      }
+
+      if (!refund.payment_intent_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'No payment intent associated with this refund' }));
+        return;
+      }
+      
+      const refundAmountCents = amount_cents || refund.amount_cents;
+      const isPartial = refund.refund_type === 'partial' || (amount_cents && amount_cents < refund.amount_cents);
+      
+      const refundParams = { payment_intent: refund.payment_intent_id };
+      if (isPartial && refundAmountCents) {
+        refundParams.amount = refundAmountCents;
+      }
+      
+      const stripeRefund = await stripe.refunds.create(refundParams);
+      
+      const newPaymentStatus = isPartial ? 'partially_refunded' : 'refunded';
+      
+      await supabase
+        .from('refunds')
+        .update({
+          status: 'processed',
+          stripe_refund_id: stripeRefund.id,
+          amount_cents: refundAmountCents,
+          approved_by: user.id,
+          approved_at: new Date().toISOString(),
+          processed_at: new Date().toISOString()
+        })
+        .eq('id', refundId);
+      
+      if (refund.package_id) {
+        await supabase
+          .from('payments')
+          .update({
+            status: newPaymentStatus,
+            refunded_at: new Date().toISOString(),
+            refund_amount: refundAmountCents / 100
+          })
+          .eq('package_id', refund.package_id)
+          .in('status', ['held', 'released']);
+        
+        if (!isPartial) {
+          await supabase
+            .from('maintenance_packages')
+            .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+            .eq('id', refund.package_id);
+        }
+      }
+      
+      if (refund.requested_by) {
+        await supabase.from('notifications').insert({
+          user_id: refund.requested_by,
+          type: 'refund_processed',
+          title: 'Refund Processed',
+          message: `Your refund of $${(refundAmountCents / 100).toFixed(2)} has been processed and will be returned to your payment method.`,
+          entity_type: 'refund',
+          entity_id: refundId
+        });
+      }
+      
+      console.log(`[${requestId}] Admin processed refund ${refundId}, amount: ${refundAmountCents}, stripe: ${stripeRefund.id}`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        status: 'processed',
+        stripe_refund_id: stripeRefund.id,
+        amount_cents: refundAmountCents,
+        message: `Refund of $${(refundAmountCents / 100).toFixed(2)} processed successfully`
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Admin process refund error:`, error);
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: safeMsg }));
+    }
+  });
+}
+
+async function handleProviderProcessRefund(req, res, requestId, refundId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  if (!isValidUUID(refundId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Invalid refund ID' }));
+    return;
+  }
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  
+  req.on('end', async () => {
+    try {
+      const { action } = body ? JSON.parse(body) : {};
+      
+      if (!action || !['approve', 'deny'].includes(action)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid action. Must be approve or deny.' }));
+        return;
+      }
+      
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+        return;
+      }
+      
+      const { data: refund, error: refundError } = await supabase
+        .from('refunds')
+        .select('*')
+        .eq('id', refundId)
+        .single();
+      
+      if (refundError || !refund) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Refund not found' }));
+        return;
+      }
+      
+      if (refund.status !== 'requested') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: `Refund is already ${refund.status}` }));
+        return;
+      }
+      
+      const { data: pkg } = await supabase
+        .from('maintenance_packages')
+        .select('accepted_bid_id, member_id, split_payment_id')
+        .eq('id', refund.package_id)
+        .single();
+      
+      if (!pkg || !pkg.accepted_bid_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Package or bid not found' }));
+        return;
+      }
+      
+      const { data: bid } = await supabase
+        .from('bids')
+        .select('provider_id')
+        .eq('id', pkg.accepted_bid_id)
+        .single();
+      
+      if (!bid || bid.provider_id !== user.id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Only the assigned provider can approve or deny this refund' }));
+        return;
+      }
+      
+      if (action === 'deny') {
+        await supabase
+          .from('refunds')
+          .update({ status: 'cancelled', approved_by: user.id, approved_at: new Date().toISOString() })
+          .eq('id', refundId);
+        
+        if (refund.requested_by) {
+          await supabase.from('notifications').insert({
+            user_id: refund.requested_by,
+            type: 'refund_denied',
+            title: 'Refund Request Denied',
+            message: 'Your refund request has been reviewed and denied by the service provider.',
+            entity_type: 'refund',
+            entity_id: refundId
+          });
+        }
+        
+        console.log(`[${requestId}] Provider ${user.id} denied refund ${refundId}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, status: 'cancelled', message: 'Refund denied' }));
+        return;
+      }
+      
+      const stripe = await getStripeClient();
+
+      if (pkg.split_payment_id) {
+        const refundAmountCents = refund.amount_cents;
+        const isPartial = refund.refund_type === 'partial';
+        const splitResult = await processSplitPaymentRefund(
+          supabase, stripe, refund.package_id, pkg.split_payment_id,
+          isPartial ? 'partial' : 'full', isPartial ? refundAmountCents : null,
+          refund.reason || 'Provider approved refund', user.id, requestId
+        );
+        if (!splitResult.success) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: splitResult.error }));
+          return;
+        }
+
+        await supabase
+          .from('refunds')
+          .update({
+            status: 'processed',
+            amount_cents: splitResult.totalRefunded,
+            approved_by: user.id,
+            approved_at: new Date().toISOString(),
+            processed_at: new Date().toISOString()
+          })
+          .eq('id', refundId);
+
+        if (refund.requested_by) {
+          await supabase.from('notifications').insert({
+            user_id: refund.requested_by,
+            type: 'refund_processed',
+            title: 'Refund Approved',
+            message: `Your split payment refund of $${(splitResult.totalRefunded / 100).toFixed(2)} has been approved by the provider.`,
+            entity_type: 'refund',
+            entity_id: refundId
+          });
+        }
+
+        console.log(`[${requestId}] Provider ${user.id} approved split refund ${refundId}, total: ${splitResult.totalRefunded}, participants: ${splitResult.refundedParticipants.length}`);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          status: 'processed',
+          split_refund: true,
+          amount_cents: splitResult.totalRefunded,
+          refunded_participants: splitResult.refundedParticipants.length,
+          message: `Split refund of $${(splitResult.totalRefunded / 100).toFixed(2)} approved and processed across ${splitResult.refundedParticipants.length} participants`
+        }));
+        return;
+      }
+
+      if (!refund.payment_intent_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'No payment intent associated with this refund' }));
+        return;
+      }
+      
+      const refundAmountCents = refund.amount_cents;
+      const isPartial = refund.refund_type === 'partial';
+      
+      const refundParams = { payment_intent: refund.payment_intent_id };
+      if (isPartial && refundAmountCents) {
+        refundParams.amount = refundAmountCents;
+      }
+      
+      const stripeRefund = await stripe.refunds.create(refundParams);
+      
+      const newPaymentStatus = isPartial ? 'partially_refunded' : 'refunded';
+      
+      await supabase
+        .from('refunds')
+        .update({
+          status: 'processed',
+          stripe_refund_id: stripeRefund.id,
+          approved_by: user.id,
+          approved_at: new Date().toISOString(),
+          processed_at: new Date().toISOString()
+        })
+        .eq('id', refundId);
+      
+      if (refund.package_id) {
+        await supabase
+          .from('payments')
+          .update({
+            status: newPaymentStatus,
+            refunded_at: new Date().toISOString(),
+            refund_amount: refundAmountCents / 100
+          })
+          .eq('package_id', refund.package_id)
+          .in('status', ['held', 'released']);
+        
+        if (!isPartial) {
+          await supabase
+            .from('maintenance_packages')
+            .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+            .eq('id', refund.package_id);
+        }
+      }
+      
+      if (refund.requested_by) {
+        await supabase.from('notifications').insert({
+          user_id: refund.requested_by,
+          type: 'refund_processed',
+          title: 'Refund Approved',
+          message: `Your refund of $${(refundAmountCents / 100).toFixed(2)} has been approved by the provider and will be returned to your payment method.`,
+          entity_type: 'refund',
+          entity_id: refundId
+        });
+      }
+      
+      console.log(`[${requestId}] Provider ${user.id} approved refund ${refundId}, amount: ${refundAmountCents}, stripe: ${stripeRefund.id}`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        status: 'processed',
+        stripe_refund_id: stripeRefund.id,
+        amount_cents: refundAmountCents,
+        message: `Refund of $${(refundAmountCents / 100).toFixed(2)} approved and processed`
+      }));
+      
+    } catch (error) {
+      console.error(`[${requestId}] Provider process refund error:`, error);
+      const safeMsg = safeError(error, requestId);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: safeMsg }));
+    }
+  });
+}
+
+async function handleProviderGetRefunds(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: providerBids } = await supabase
+      .from('bids')
+      .select('id, maintenance_packages!inner(id)')
+      .eq('provider_id', user.id)
+      .eq('status', 'accepted');
+    
+    if (!providerBids || providerBids.length === 0) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, data: [], total: 0 }));
+      return;
+    }
+    
+    const packageIds = providerBids.map(b => b.maintenance_packages?.id).filter(Boolean);
+    
+    const { data: refunds, error: refundsError } = await supabase
+      .from('refunds')
+      .select('*, maintenance_packages(id, title, service_type)')
+      .in('package_id', packageIds)
+      .order('requested_at', { ascending: false });
+    
+    if (refundsError) {
+      console.error(`[${requestId}] Provider refunds fetch error:`, refundsError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch refunds' }));
+      return;
+    }
+    
+    const requestedByIds = [...new Set(refunds.map(r => r.requested_by).filter(Boolean))];
+    let memberNames = {};
+    if (requestedByIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', requestedByIds);
+      if (profiles) {
+        profiles.forEach(p => { memberNames[p.id] = p.full_name; });
+      }
+    }
+    
+    const enriched = refunds.map(r => ({
+      ...r,
+      member_name: memberNames[r.requested_by] || 'Unknown'
+    }));
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, data: enriched, total: enriched.length }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Provider refunds exception:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function handleMemberGetRefunds(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
+    return;
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data, error } = await supabase
+      .from('refunds')
+      .select('*')
+      .eq('requested_by', user.id)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error(`[${requestId}] Member refunds error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Failed to fetch refunds' }));
+      return;
+    }
+    
+    const refunds = data || [];
+    const packageIds = [...new Set(refunds.map(r => r.package_id).filter(Boolean))];
+    
+    let packageMap = {};
+    if (packageIds.length > 0) {
+      const { data: pkgs } = await supabase
+        .from('maintenance_packages')
+        .select('id, title, status')
+        .in('id', packageIds);
+      (pkgs || []).forEach(p => { packageMap[p.id] = p; });
+    }
+    
+    const enrichedData = refunds.map(r => ({
+      ...r,
+      package: packageMap[r.package_id] || null
+    }));
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, data: enrichedData }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Member refunds exception:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
 function groupDataByPeriod(data, dateField, valueField, groupBy) {
   const groups = {};
   
@@ -21674,7 +29613,7 @@ async function handleAdminStatsOrders(req, res, requestId) {
     
     const { data: packages, error } = await supabase
       .from('maintenance_packages')
-      .select('created_at, status, category')
+      .select('created_at, status')
       .gte('created_at', startDate.toISOString())
       .order('created_at', { ascending: true });
     
@@ -22132,10 +30071,1008 @@ async function handleConfirmPackageArrival(req, res, requestId, packageId) {
 }
 
 // ========== END QR CHECK-IN API HANDLERS ==========
+// ========== FOUNDING REFERRAL CODE SETUP ==========
+async function handleAdminSetupFoundingReferral(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
 
-const server = http.createServer((req, res) => {
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  req.on('end', async () => {
+    try {
+      const { code, provider_name } = JSON.parse(body);
+
+      if (!code || !provider_name) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'code and provider_name are required' }));
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      const upperCode = code.toUpperCase();
+
+      const { data: existing } = await supabase
+        .from('provider_referral_codes')
+        .select('id, code')
+        .eq('code', upperCode)
+        .single();
+
+      if (existing) {
+        console.log(`[${requestId}] Founding referral code already exists: ${upperCode}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: 'Code already exists', id: existing.id }));
+        return;
+      }
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('provider_referral_codes')
+        .insert({
+          code: upperCode,
+          code_type: 'provider',
+          provider_id: null,
+          skip_identity_verification: true,
+          platform_fee_exempt: true,
+          is_active: true
+        })
+        .select('id')
+        .single();
+
+      if (insertError) {
+        console.error(`[${requestId}] Error creating founding referral code:`, insertError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create referral code: ' + insertError.message }));
+        return;
+      }
+
+      console.log(`[${requestId}] Created founding referral code: ${upperCode} for ${provider_name}`);
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: 'Founding referral code created', id: inserted.id, code: upperCode }));
+    } catch (err) {
+      console.error(`[${requestId}] Setup founding referral error:`, err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+    }
+  });
+}
+// ========== END FOUNDING REFERRAL CODE SETUP ==========
+
+// ========== PROVIDER AVAILABILITY & BOOKING HANDLERS ==========
+
+function timeToMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const parts = timeStr.split(':');
+  return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+}
+
+function minutesToTime(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+async function handleGetProviderAvailability(req, res, requestId, providerId) {
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('provider_working_hours')
+      .select('*')
+      .eq('provider_id', providerId)
+      .order('day_of_week', { ascending: true });
+
+    if (error) {
+      console.error(`[${requestId}] Get provider availability error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch availability' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, hours: data || [] }));
+  } catch (err) {
+    console.error(`[${requestId}] Get provider availability exception:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function handleSaveProviderAvailability(req, res, requestId) {
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'apiAuth');
+  if (!rateLimit.allowed) return;
+
+  const auth = await verifyAuthToken(req);
+  if (!auth.authenticated) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Authentication required' }));
+    return;
+  }
+
+  if (auth.user.role !== 'provider' && auth.user.role !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Provider access required' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+    if (body.length > MAX_BODY_SIZE) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Request too large' }));
+    }
+  });
+
+  req.on('end', async () => {
+    try {
+      const data = JSON.parse(body || '{}');
+      const { hours } = data;
+
+      if (!hours || !Array.isArray(hours)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'hours array is required' }));
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      const providerId = auth.user.id;
+      const upsertRows = hours.map(h => ({
+        provider_id: providerId,
+        day_of_week: h.day_of_week,
+        start_time: h.start_time || '09:00',
+        end_time: h.end_time || '17:00',
+        is_active: h.is_active !== undefined ? h.is_active : true,
+        bay_capacity: h.bay_capacity || 1,
+        updated_at: new Date().toISOString()
+      }));
+
+      const { data: result, error } = await supabase
+        .from('provider_working_hours')
+        .upsert(upsertRows, { onConflict: 'provider_id,day_of_week' })
+        .select();
+
+      if (error) {
+        console.error(`[${requestId}] Save availability error:`, error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to save availability. Please try again later.' }));
+        return;
+      }
+
+      console.log(`[${requestId}] Saved availability for provider ${providerId}: ${upsertRows.length} days`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, hours: result }));
+    } catch (err) {
+      console.error(`[${requestId}] Save availability exception:`, err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+    }
+  });
+}
+
+async function handleGetBlockedTime(req, res, requestId, providerId) {
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'apiAuth');
+  if (!rateLimit.allowed) return;
+
+  const auth = await verifyAuthToken(req);
+  if (!auth.authenticated) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Authentication required' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const startDate = urlObj.searchParams.get('start_date');
+    const endDate = urlObj.searchParams.get('end_date');
+
+    let query = supabase
+      .from('provider_blocked_time')
+      .select('*')
+      .eq('provider_id', providerId)
+      .order('block_date', { ascending: true });
+
+    if (startDate) query = query.gte('block_date', startDate);
+    if (endDate) query = query.lte('block_date', endDate);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error(`[${requestId}] Get blocked time error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch blocked time' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, blocked_time: data || [] }));
+  } catch (err) {
+    console.error(`[${requestId}] Get blocked time exception:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function handleAddBlockedTime(req, res, requestId) {
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'apiAuth');
+  if (!rateLimit.allowed) return;
+
+  const auth = await verifyAuthToken(req);
+  if (!auth.authenticated) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Authentication required' }));
+    return;
+  }
+
+  if (auth.user.role !== 'provider' && auth.user.role !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Provider access required' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+    if (body.length > MAX_BODY_SIZE) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Request too large' }));
+    }
+  });
+
+  req.on('end', async () => {
+    try {
+      const data = JSON.parse(body || '{}');
+      const { block_date, start_time, end_time, reason } = data;
+
+      if (!block_date || !start_time || !end_time) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'block_date, start_time, and end_time are required' }));
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      const { data: result, error } = await supabase
+        .from('provider_blocked_time')
+        .insert({
+          provider_id: auth.user.id,
+          block_date,
+          start_time,
+          end_time,
+          reason: reason || null
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error(`[${requestId}] Add blocked time error:`, error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to add blocked time. Please try again later.' }));
+        return;
+      }
+
+      console.log(`[${requestId}] Added blocked time for provider ${auth.user.id} on ${block_date}`);
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, blocked_time: result }));
+    } catch (err) {
+      console.error(`[${requestId}] Add blocked time exception:`, err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+    }
+  });
+}
+
+async function handleDeleteBlockedTime(req, res, requestId, blockId) {
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'apiAuth');
+  if (!rateLimit.allowed) return;
+
+  const auth = await verifyAuthToken(req);
+  if (!auth.authenticated) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Authentication required' }));
+    return;
+  }
+
+  if (auth.user.role !== 'provider' && auth.user.role !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Provider access required' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: existing, error: fetchError } = await supabase
+      .from('provider_blocked_time')
+      .select('id, provider_id')
+      .eq('id', blockId)
+      .single();
+
+    if (fetchError || !existing) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Blocked time entry not found' }));
+      return;
+    }
+
+    if (existing.provider_id !== auth.user.id && auth.user.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized to delete this entry' }));
+      return;
+    }
+
+    const { error } = await supabase
+      .from('provider_blocked_time')
+      .delete()
+      .eq('id', blockId);
+
+    if (error) {
+      console.error(`[${requestId}] Delete blocked time error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to delete blocked time' }));
+      return;
+    }
+
+    console.log(`[${requestId}] Deleted blocked time ${blockId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+  } catch (err) {
+    console.error(`[${requestId}] Delete blocked time exception:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function handleGetAvailableSlots(req, res, requestId, providerId) {
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'apiAuth');
+  if (!rateLimit.allowed) return;
+
+  const auth = await verifyAuthToken(req);
+  if (!auth.authenticated) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Authentication required' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const dateStr = urlObj.searchParams.get('date');
+
+    if (!dateStr) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'date query parameter is required (YYYY-MM-DD)' }));
+      return;
+    }
+
+    const targetDate = new Date(dateStr + 'T00:00:00');
+    const dayOfWeek = targetDate.getDay();
+
+    const { data: workingHours, error: whError } = await supabase
+      .from('provider_working_hours')
+      .select('*')
+      .eq('provider_id', providerId)
+      .eq('day_of_week', dayOfWeek)
+      .single();
+
+    if (whError && whError.code !== 'PGRST116') {
+      console.error(`[${requestId}] Get working hours error:`, whError);
+    }
+
+    if (!workingHours || !workingHours.is_active) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        available: false,
+        working_hours: null,
+        slots: [],
+        bay_capacity: 0,
+        message: 'Provider is not available on this day'
+      }));
+      return;
+    }
+
+    const [blockedResult, bookingsResult] = await Promise.all([
+      supabase
+        .from('provider_blocked_time')
+        .select('*')
+        .eq('provider_id', providerId)
+        .or(`block_date.eq.${dateStr},and(is_recurring.eq.true,recurring_day_of_week.eq.${dayOfWeek})`),
+      supabase
+        .from('slot_bookings')
+        .select('*')
+        .eq('provider_id', providerId)
+        .eq('booking_date', dateStr)
+        .eq('status', 'booked')
+    ]);
+
+    const blockedTimes = blockedResult.data || [];
+    const existingBookings = bookingsResult.data || [];
+
+    const bayCapacity = workingHours.bay_capacity || 1;
+    const workStart = timeToMinutes(workingHours.start_time);
+    const workEnd = timeToMinutes(workingHours.end_time);
+
+    const slots = [];
+    let currentSlotStart = null;
+    let currentBays = 0;
+
+    for (let t = workStart; t < workEnd; t += 30) {
+      const slotEnd = t + 30;
+
+      let isBlocked = false;
+      for (const block of blockedTimes) {
+        const blockStart = timeToMinutes(block.start_time);
+        const blockEnd = timeToMinutes(block.end_time);
+        if (t < blockEnd && slotEnd > blockStart) {
+          isBlocked = true;
+          break;
+        }
+      }
+
+      if (isBlocked) {
+        if (currentSlotStart !== null) {
+          slots.push({
+            start_time: minutesToTime(currentSlotStart),
+            end_time: minutesToTime(t),
+            available_bays: currentBays
+          });
+          currentSlotStart = null;
+        }
+        continue;
+      }
+
+      let overlappingBookings = 0;
+      for (const booking of existingBookings) {
+        const bStart = timeToMinutes(booking.start_time);
+        const bEnd = timeToMinutes(booking.end_time);
+        if (t < bEnd && slotEnd > bStart) {
+          overlappingBookings++;
+        }
+      }
+
+      const availableBays = bayCapacity - overlappingBookings;
+
+      if (availableBays <= 0) {
+        if (currentSlotStart !== null) {
+          slots.push({
+            start_time: minutesToTime(currentSlotStart),
+            end_time: minutesToTime(t),
+            available_bays: currentBays
+          });
+          currentSlotStart = null;
+        }
+        continue;
+      }
+
+      if (currentSlotStart === null) {
+        currentSlotStart = t;
+        currentBays = availableBays;
+      } else if (availableBays !== currentBays) {
+        slots.push({
+          start_time: minutesToTime(currentSlotStart),
+          end_time: minutesToTime(t),
+          available_bays: currentBays
+        });
+        currentSlotStart = t;
+        currentBays = availableBays;
+      }
+    }
+
+    if (currentSlotStart !== null) {
+      slots.push({
+        start_time: minutesToTime(currentSlotStart),
+        end_time: minutesToTime(workEnd),
+        available_bays: currentBays
+      });
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      available: slots.length > 0,
+      working_hours: {
+        start_time: workingHours.start_time,
+        end_time: workingHours.end_time,
+        day_of_week: workingHours.day_of_week
+      },
+      slots,
+      bay_capacity: bayCapacity
+    }));
+  } catch (err) {
+    console.error(`[${requestId}] Get available slots exception:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function handleCreateBooking(req, res, requestId) {
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'apiAuth');
+  if (!rateLimit.allowed) return;
+
+  const auth = await verifyAuthToken(req);
+  if (!auth.authenticated) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Authentication required' }));
+    return;
+  }
+
+  if (auth.user.role !== 'member' && auth.user.role !== 'admin') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Member access required' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+    if (body.length > MAX_BODY_SIZE) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Request too large' }));
+    }
+  });
+
+  req.on('end', async () => {
+    try {
+      const data = JSON.parse(body || '{}');
+      const { provider_id, package_id, booking_date, start_time, end_time, duration_minutes, service_location, member_notes } = data;
+
+      if (!provider_id || !booking_date || !start_time || !end_time || !duration_minutes) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'provider_id, booking_date, start_time, end_time, and duration_minutes are required' }));
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      const targetDate = new Date(booking_date + 'T00:00:00');
+      const dayOfWeek = targetDate.getDay();
+
+      const { data: workingHours } = await supabase
+        .from('provider_working_hours')
+        .select('*')
+        .eq('provider_id', provider_id)
+        .eq('day_of_week', dayOfWeek)
+        .single();
+
+      if (!workingHours || !workingHours.is_active) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Provider is not available on this day' }));
+        return;
+      }
+
+      const bayCapacity = workingHours.bay_capacity || 1;
+      const reqStart = timeToMinutes(start_time);
+      const reqEnd = timeToMinutes(end_time);
+      const workStart = timeToMinutes(workingHours.start_time);
+      const workEnd = timeToMinutes(workingHours.end_time);
+
+      if (reqStart < workStart || reqEnd > workEnd) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Requested time is outside working hours' }));
+        return;
+      }
+
+      const [blockedResult, bookingsResult] = await Promise.all([
+        supabase
+          .from('provider_blocked_time')
+          .select('*')
+          .eq('provider_id', provider_id)
+          .or(`block_date.eq.${booking_date},and(is_recurring.eq.true,recurring_day_of_week.eq.${dayOfWeek})`),
+        supabase
+          .from('slot_bookings')
+          .select('*')
+          .eq('provider_id', provider_id)
+          .eq('booking_date', booking_date)
+          .eq('status', 'booked')
+      ]);
+
+      const blockedTimes = blockedResult.data || [];
+      const existingBookings = bookingsResult.data || [];
+
+      for (const block of blockedTimes) {
+        const blockStart = timeToMinutes(block.start_time);
+        const blockEnd = timeToMinutes(block.end_time);
+        if (reqStart < blockEnd && reqEnd > blockStart) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Requested time overlaps with a blocked period' }));
+          return;
+        }
+      }
+
+      for (let t = reqStart; t < reqEnd; t += 30) {
+        let overlapping = 0;
+        for (const booking of existingBookings) {
+          const bStart = timeToMinutes(booking.start_time);
+          const bEnd = timeToMinutes(booking.end_time);
+          if (t < bEnd && (t + 30) > bStart) {
+            overlapping++;
+          }
+        }
+        if (overlapping >= bayCapacity) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'No available bays for the requested time slot' }));
+          return;
+        }
+      }
+
+      const { data: booking, error: bookingError } = await supabase
+        .from('slot_bookings')
+        .insert({
+          provider_id,
+          member_id: auth.user.id,
+          package_id: package_id || null,
+          booking_date,
+          start_time,
+          end_time,
+          duration_minutes,
+          service_location: service_location || 'on_site',
+          status: 'booked',
+          member_notes: member_notes || null
+        })
+        .select()
+        .single();
+
+      if (bookingError) {
+        console.error(`[${requestId}] Create booking error:`, bookingError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create booking. Please try again later.' }));
+        return;
+      }
+
+      try {
+        await supabase.from('notifications').insert({
+          user_id: provider_id,
+          type: 'booking_created',
+          title: 'New Booking',
+          message: `New booking on ${booking_date} from ${start_time} to ${end_time}`,
+          link: '/provider-dashboard.html#jobs'
+        });
+      } catch (notifErr) {
+        console.error(`[${requestId}] Notification insert error:`, notifErr);
+      }
+
+      try {
+        const { error: saError } = await supabase.from('service_appointments').insert({
+          provider_id,
+          member_id: auth.user.id,
+          package_id: package_id || null,
+          scheduled_date: booking_date,
+          scheduled_time: start_time,
+          status: 'scheduled',
+          service_location: service_location || 'on_site',
+          notes: member_notes || null
+        });
+        if (saError) {
+          console.log(`[${requestId}] service_appointments insert skipped (table may not exist): ${saError.message}`);
+        }
+      } catch (saErr) {
+        console.log(`[${requestId}] service_appointments integration skipped`);
+      }
+
+      console.log(`[${requestId}] Created booking ${booking.id} for member ${auth.user.id} with provider ${provider_id}`);
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, booking }));
+    } catch (err) {
+      console.error(`[${requestId}] Create booking exception:`, err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+    }
+  });
+}
+
+async function handleCancelBooking(req, res, requestId) {
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'apiAuth');
+  if (!rateLimit.allowed) return;
+
+  const auth = await verifyAuthToken(req);
+  if (!auth.authenticated) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Authentication required' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+    if (body.length > MAX_BODY_SIZE) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Request too large' }));
+    }
+  });
+
+  req.on('end', async () => {
+    try {
+      const data = JSON.parse(body || '{}');
+      const { booking_id, cancel_reason } = data;
+
+      if (!booking_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'booking_id is required' }));
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      const { data: existing, error: fetchError } = await supabase
+        .from('slot_bookings')
+        .select('*')
+        .eq('id', booking_id)
+        .single();
+
+      if (fetchError || !existing) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Booking not found' }));
+        return;
+      }
+
+      const isMember = existing.member_id === auth.user.id;
+      const isProvider = existing.provider_id === auth.user.id;
+      const isAdmin = auth.user.role === 'admin';
+
+      if (!isMember && !isProvider && !isAdmin) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not authorized to cancel this booking' }));
+        return;
+      }
+
+      if (existing.status === 'cancelled') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Booking is already cancelled' }));
+        return;
+      }
+
+      let cancelledBy = 'system';
+      if (isMember) cancelledBy = 'member';
+      else if (isProvider) cancelledBy = 'provider';
+
+      const { data: updated, error: updateError } = await supabase
+        .from('slot_bookings')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          cancel_reason: cancel_reason || null,
+          cancelled_by: cancelledBy,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', booking_id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error(`[${requestId}] Cancel booking error:`, updateError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to cancel booking' }));
+        return;
+      }
+
+      const notifyUserId = isMember ? existing.provider_id : existing.member_id;
+      try {
+        await supabase.from('notifications').insert({
+          user_id: notifyUserId,
+          type: 'booking_cancelled',
+          title: 'Booking Cancelled',
+          message: `Booking on ${existing.booking_date} from ${existing.start_time} to ${existing.end_time} has been cancelled${cancel_reason ? ': ' + cancel_reason : ''}`,
+          link: isMember ? '/provider-dashboard.html#jobs' : '/members.html#appointments'
+        });
+      } catch (notifErr) {
+        console.error(`[${requestId}] Cancel notification error:`, notifErr);
+      }
+
+      console.log(`[${requestId}] Cancelled booking ${booking_id} by ${cancelledBy}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, booking: updated }));
+    } catch (err) {
+      console.error(`[${requestId}] Cancel booking exception:`, err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+    }
+  });
+}
+
+async function handleGetProviderSchedule(req, res, requestId, providerId) {
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'apiAuth');
+  if (!rateLimit.allowed) return;
+
+  const auth = await verifyAuthToken(req);
+  if (!auth.authenticated) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Authentication required' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const weekStartStr = urlObj.searchParams.get('week_start');
+
+    let weekStart;
+    if (weekStartStr) {
+      weekStart = new Date(weekStartStr + 'T00:00:00');
+    } else {
+      weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      weekStart.setHours(0, 0, 0, 0);
+    }
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+
+    const weekStartDate = weekStart.toISOString().split('T')[0];
+    const weekEndDate = weekEnd.toISOString().split('T')[0];
+
+    const [hoursResult, blockedResult, bookingsResult] = await Promise.all([
+      supabase
+        .from('provider_working_hours')
+        .select('*')
+        .eq('provider_id', providerId)
+        .order('day_of_week', { ascending: true }),
+      supabase
+        .from('provider_blocked_time')
+        .select('*')
+        .eq('provider_id', providerId)
+        .gte('block_date', weekStartDate)
+        .lte('block_date', weekEndDate),
+      supabase
+        .from('slot_bookings')
+        .select('*')
+        .eq('provider_id', providerId)
+        .gte('booking_date', weekStartDate)
+        .lte('booking_date', weekEndDate)
+        .neq('status', 'cancelled')
+    ]);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      week_start: weekStartDate,
+      week_end: weekEndDate,
+      working_hours: hoursResult.data || [],
+      blocked_time: blockedResult.data || [],
+      bookings: bookingsResult.data || []
+    }));
+  } catch (err) {
+    console.error(`[${requestId}] Get provider schedule exception:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+async function handleGetBookingByPackage(req, res, requestId, packageId) {
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'apiAuth');
+  if (!rateLimit.allowed) return;
+
+  const auth = await verifyAuthToken(req);
+  if (!auth.authenticated) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Authentication required' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('slot_bookings')
+      .select('*')
+      .eq('package_id', packageId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error(`[${requestId}] Get booking by package error:`, error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch booking' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, booking: data || null }));
+  } catch (err) {
+    console.error(`[${requestId}] Get booking by package exception:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+  }
+}
+
+// ========== END PROVIDER AVAILABILITY & BOOKING HANDLERS ==========
+
+const server = http.createServer(async (req, res) => {
   const requestId = generateRequestId();
-  console.log(`[${requestId}] ${req.method} ${req.url}`);
+  const isApiRequest = req.url.startsWith('/api/');
+  if (isApiRequest) {
+    console.log(`[${requestId}] ${req.method} ${req.url}`);
+  }
   
   setSecurityHeaders(res, req.url.startsWith('/api/'));
   
@@ -22171,7 +31108,7 @@ const server = http.createServer((req, res) => {
   // Note: Unknown origins are not given CORS headers (blocked by browser)
   
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-password, x-admin-token');
   res.setHeader('Access-Control-Max-Age', '86400');
   
   if (req.method === 'OPTIONS') {
@@ -22180,13 +31117,140 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  if (req.url.startsWith('/t/')) {
+    const handled = await handleEmailTracking(req, res, { getSupabaseClient });
+    if (handled) return;
+  }
+
+  if (req.url.startsWith('/unsubscribe')) {
+    await handleUnsubscribe(req, res, { getSupabaseClient, setCorsHeaders });
+    return;
+  }
+
+  if (req.url === '/api/webhooks/resend' && req.method === 'POST') {
+    await handleResendWebhook(req, res, { getSupabaseClient, setCorsHeaders });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/sms/incoming') {
+    try {
+      const body = await new Promise(resolve => {
+        let d = '';
+        req.on('data', c => d += c.toString());
+        req.on('end', () => resolve(d));
+      });
+      const params = new URLSearchParams(body);
+      const msgBody = (params.get('Body') || '').trim().toUpperCase();
+      const fromPhone = params.get('From') || '';
+
+      if (['STOP', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'].includes(msgBody)) {
+        const supabase = getSupabaseClient();
+        if (supabase && fromPhone) {
+          const { data: leads } = await supabase.from('outreach_leads').select('id').eq('phone', fromPhone);
+          for (const lead of (leads || [])) {
+            await supabase.from('outreach_leads').update({ status: 'unsubscribed' }).eq('id', lead.id);
+            await supabase.from('outreach_activity_log').insert({
+              lead_id: lead.id,
+              event_type: 'unsubscribed',
+              metadata: { phone: fromPhone, method: 'sms_stop' }
+            });
+          }
+          console.log(`[SMS] Opt-out processed for ${fromPhone}`);
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'text/xml' });
+      res.end('<Response></Response>');
+    } catch (err) {
+      console.error('[SMS] Incoming message error:', err.message);
+      res.writeHead(200, { 'Content-Type': 'text/xml' });
+      res.end('<Response></Response>');
+    }
+    return;
+  }
+
+  if (req.url.startsWith('/api/admin/outreach')) {
+    await handleOutreachRequest(req, res, { getSupabaseClient, handleAdminAuth, setCorsHeaders, requestId });
+    return;
+  }
+
+  if (req.url.startsWith('/api/car-club/')) {
+    const handled = await handleCarClubRequest(req, res, { getSupabaseClient, sendFCMPushNotification });
+    if (handled) return;
+  }
+
+  if (req.method === 'GET' && req.url.match(/^\/api\/appointments\/[^/]+\/ical$/)) {
+    try {
+      const apptId = req.url.split('/')[3];
+      const authHeader = req.headers['authorization'];
+      if (!authHeader) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser(token);
+      if (authErr || !authUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const { data: appt, error: apptErr } = await supabase
+        .from('service_appointments')
+        .select('*, provider:profiles!service_appointments_provider_id_fkey(full_name, business_name), member:profiles!service_appointments_member_id_fkey(full_name)')
+        .eq('id', apptId)
+        .single();
+      if (apptErr || !appt) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Appointment not found' })); return; }
+      if (appt.member_id !== authUser.id && appt.provider_id !== authUser.id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+      const provName = (appt.provider?.business_name || appt.provider?.full_name || 'Provider').replace(/[\\;,\n]/g, ' ');
+      const memberName = (appt.member?.full_name || 'Member').replace(/[\\;,\n]/g, ' ');
+      const isConfirmed = appt.status === 'confirmed' || appt.status === 'scheduled';
+      const eventDate = isConfirmed ? (appt.confirmed_date || appt.scheduled_date) : appt.scheduled_date;
+      const eventTimeStart = isConfirmed ? (appt.confirmed_time_start || appt.scheduled_time) : appt.scheduled_time;
+      if (!eventDate) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'No scheduled date for this appointment' })); return; }
+      function fmtDT(dateStr, timeStr) {
+        const d = dateStr.replace(/-/g, '');
+        if (!timeStr) return d + 'T120000';
+        const parts = timeStr.split(':');
+        const h = (parts[0] || '12').padStart(2, '0');
+        const m = (parts[1] || '00').padStart(2, '0');
+        const s = (parts[2] || '00').padStart(2, '0');
+        return d + 'T' + h + m + s;
+      }
+      const dtStart = fmtDT(eventDate, eventTimeStart);
+      const startHour = parseInt(dtStart.substring(9, 11));
+      const endHour = String(Math.min(startHour + 1, 23)).padStart(2, '0');
+      const dtEnd = dtStart.substring(0, 9) + endHour + dtStart.substring(11);
+      const uid = `mcc-appt-${apptId}@mycarconcierge.com`;
+      const notes = (appt.notes || '').replace(/[\\;,\n]/g, ' ');
+      const descText = `Service appointment with ${provName} for ${memberName}${notes ? '. Notes: ' + notes : ''}`;
+      const ics = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//My Car Concierge//EN',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTART:${dtStart}`,
+        `DTEND:${dtEnd}`,
+        `SUMMARY:Auto Service — ${provName}`,
+        `DESCRIPTION:${descText}`,
+        `STATUS:${isConfirmed ? 'CONFIRMED' : 'TENTATIVE'}`,
+        'END:VEVENT',
+        'END:VCALENDAR'
+      ].join('\r\n');
+      res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': `attachment; filename="mcc-appointment-${apptId}.ics"` });
+      res.end(ics);
+      return;
+    } catch (err) {
+      console.error('[iCal] Error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Server error' })); return;
+    }
+  }
+
   if (req.method === 'GET' && req.url === '/api/config') {
     const siteUrl = process.env.SITE_URL || 'https://mycarconcierge.com';
     const config = {
       siteUrl: siteUrl,
       siteUrlWww: siteUrl.replace('https://', 'https://www.'),
       appName: 'My Car Concierge',
-      supportEmail: 'support@mycarconcierge.com'
+      supportEmail: 'support@mycarconcierge.com',
+      googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY || null
     };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(config));
@@ -22201,6 +31265,66 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  if (req.method === 'GET' && req.url.startsWith('/api/price-estimate')) {
+    await handlePriceEstimate(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/ai/package-suggest') {
+    await handlePackageSuggest(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/ai/bid-strategy') {
+    await handleBidStrategy(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/ai/match-providers') {
+    await handleMatchProviders(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/ai/service-recommendations') {
+    await handleServiceRecommendations(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/ai/describe-to-package') {
+    await handleDescribeToPackage(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/ai/photo-diagnose') {
+    await handlePhotoDiagnose(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/ai/service-history-chat') {
+    await handleServiceHistoryChat(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/ai/appointment-debrief') {
+    await handleAppointmentDebrief(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/ai/save-debrief') {
+    await handleSaveDebrief(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/ai/counter-suggestion') {
+    await handleCounterSuggestion(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'GET' && req.url.startsWith('/api/ai/budget-forecast/')) {
+    await handleBudgetForecast(req, res, requestId);
+    return;
+  }
+
   if (req.method === 'GET' && req.url.startsWith('/api/member/service-history/')) {
     const memberId = req.url.split('/api/member/service-history/')[1]?.split('?')[0];
     handleMemberServiceHistory(req, res, requestId, memberId);
@@ -22236,11 +31360,1285 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  if (req.method === 'GET' && req.url.match(/^\/api\/admin\/agreements\/[^/]+\/pdf/)) {
+    handleAdminGetAgreementPDF(req, res, requestId);
+    return;
+  }
+
   if (req.method === 'GET' && req.url.startsWith('/api/admin/agreements')) {
     handleAdminGetAllAgreements(req, res, requestId);
     return;
   }
   
+  // Admin founder commission rate update
+  if (req.method === 'POST' && req.url.startsWith('/api/admin/founders/') && req.url.endsWith('/commission')) {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleUpdateFounderCommission(req, res, requestId);
+    return;
+  }
+  
+  // Admin founder commission rate history
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/founders/') && req.url.endsWith('/commission-history')) {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleGetFounderCommissionHistory(req, res, requestId);
+    return;
+  }
+  
+  // Admin payout settings
+  if (req.method === 'GET' && req.url === '/api/admin/payout-settings') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleAdminGetPayoutSettings(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/admin/payout-settings') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleAdminSavePayoutSettings(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'OPTIONS' && req.url.startsWith('/api/admin/marketing')) {
+    setCorsHeaders(res, req);
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/marketing/generate') {
+    return handleAdminAuth(req, res, requestId, () => {
+      setCorsHeaders(res, req);
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { type, platform, topic, tone, targetAudience, additionalContext } = data;
+
+          if (!type || !topic) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'type and topic are required' }));
+            return;
+          }
+
+          const brandInfo = 'Brand: "My Car Concierge" - Your complete auto ownership platform. Tagline: "One app. Every auto need. Zero hassle." Four Pillars: Get Quotes, Manage Vehicles, Maintaining Your Ride, Shop Smarter. Website: mycarconcierge.com. Value propositions: connects vehicle owners with vetted service providers, escrow payments for trust and security, Car Club loyalty program with rewards and points, AI-powered diagnostics and maintenance tracking.';
+
+          const toneInstruction = tone ? `Use a ${tone} tone throughout.` : 'Use a professional tone throughout.';
+          const audienceInstruction = targetAudience ? `Target audience: ${targetAudience}.` : 'Target audience: general consumers.';
+          const contextInstruction = additionalContext ? `Additional context: ${additionalContext}` : '';
+          const platformName = platform || 'general';
+
+          const promptTemplates = {
+            social_post: `Create a compelling social media post for ${platformName} about "${topic}" for My Car Concierge. ${brandInfo} ${toneInstruction} ${audienceInstruction} ${contextInstruction}
+
+Platform-specific requirements:
+- Instagram: Up to 2200 characters, use line breaks for readability, include 20-30 relevant hashtags at the end, use emojis strategically, include a clear CTA
+- Twitter/X: Stay within 280 characters, be punchy and engaging, use 2-3 hashtags max, include a link placeholder [LINK]
+- Facebook: 1-3 paragraphs, conversational tone, ask a question to drive engagement, include CTA
+- LinkedIn: Professional tone, 1-3 paragraphs, industry insights angle, include relevant hashtags (5-10)
+
+Provide the post formatted specifically for ${platformName}. Include hashtag suggestions, emoji placement, and a strong call-to-action directing users to mycarconcierge.com.`,
+
+            email_campaign: `Create a complete HTML marketing email about "${topic}" for My Car Concierge. ${brandInfo} ${toneInstruction} ${audienceInstruction} ${contextInstruction}
+
+Generate a full HTML email with:
+- A compelling subject line (provide 3 options)
+- Preview text (50-90 characters)
+- Header section with My Car Concierge branding
+- Hero section with headline and subheadline
+- Body content with 2-3 key sections highlighting benefits
+- A prominent CTA button linking to mycarconcierge.com
+- Social proof section (testimonial placeholder or stats)
+- Footer with company info, social links, and unsubscribe link placeholder
+- Use inline CSS for email compatibility
+- Mobile-responsive design considerations
+- Color scheme: use professional automotive colors (blues, blacks, whites)`,
+
+            ad_copy: `Create advertising copy about "${topic}" for My Car Concierge on ${platformName}. ${brandInfo} ${toneInstruction} ${audienceInstruction} ${contextInstruction}
+
+Generate 3 ad variations, each with:
+- Headline (max 30 characters for Google Ads, 40 for Facebook Ads)
+- Description/Primary text (max 90 characters for Google Ads, 125 for Facebook Ads)
+- Call-to-action text
+- Display URL suggestion
+
+For each variation, use a different angle:
+1. Problem-focused (highlight the pain point)
+2. Solution-focused (highlight the benefit)
+3. Social proof/urgency-focused
+
+Include targeting suggestions: demographics, interests, and keywords for the ${platformName} platform.`,
+
+            blog_outline: `Create a comprehensive blog post outline about "${topic}" for My Car Concierge. ${brandInfo} ${toneInstruction} ${audienceInstruction} ${contextInstruction}
+
+Provide:
+- SEO-optimized title (60 characters max)
+- Meta description (155 characters max)
+- Target keywords (primary + 5 secondary keywords)
+- Introduction hook (2-3 sentences)
+- 5-7 main sections, each with:
+  - H2 heading
+  - 3-5 bullet points of content to cover
+  - Key takeaway for each section
+- Conclusion with CTA to My Car Concierge
+- Internal linking suggestions to mycarconcierge.com pages
+- Suggested word count: 1500-2500 words
+- Featured image description suggestion`,
+
+            outreach_email: `Create a personalized outreach email about "${topic}" for My Car Concierge. ${brandInfo} ${toneInstruction} ${audienceInstruction} ${contextInstruction}
+
+Generate:
+- 3 subject line options (keep under 50 characters, avoid spam triggers)
+- Personalized opening line with [NAME] and [COMPANY] placeholders
+- Value proposition paragraph connecting their needs to My Car Concierge
+- Specific benefit or data point that would interest them
+- Clear, specific CTA (meeting request, demo, partnership discussion)
+- Professional sign-off
+- P.S. line with an additional hook
+
+Also provide:
+- Best send time recommendation
+- Follow-up email timing (suggest 3-5-7 day cadence)
+- Follow-up email brief template`,
+
+            press_release: `Write a professional press release about "${topic}" for My Car Concierge. ${brandInfo} ${toneInstruction} ${audienceInstruction} ${contextInstruction}
+
+Format as a standard press release:
+- "FOR IMMEDIATE RELEASE" header
+- Headline (compelling, newsworthy, under 80 characters)
+- Subheadline
+- Dateline (city, state, date)
+- Opening paragraph (who, what, when, where, why)
+- 2-3 body paragraphs with details, benefits, and market context
+- Quote from CEO/founder (placeholder name: [CEO NAME])
+- Quote from a partner or customer (placeholder)
+- About My Car Concierge boilerplate paragraph
+- Media contact information placeholder
+- Include relevant statistics or market data
+- ### end mark`,
+
+            kickstarter_campaign: `Create a compelling Kickstarter/crowdfunding campaign page about "${topic}" for My Car Concierge. ${brandInfo} ${toneInstruction} ${audienceInstruction} ${contextInstruction}
+
+Generate a complete campaign with:
+- Campaign Title (catchy, clear, under 60 characters)
+- Tagline/subtitle (one sentence value prop)
+- Campaign Story sections:
+  1. THE PROBLEM: Pain points vehicle owners face (2-3 paragraphs)
+  2. OUR SOLUTION: How My Car Concierge solves it (2-3 paragraphs)
+  3. HOW IT WORKS: Step-by-step user journey (3-5 steps with descriptions)
+  4. KEY FEATURES: Bullet list of platform features and benefits
+  5. TRACTION: Placeholder for metrics ([X] users, [Y] providers, etc.)
+  6. TIMELINE/ROADMAP: 6-12 month development milestones
+  7. THE TEAM: Team section placeholder with role descriptions needed
+  8. RISKS & CHALLENGES: Honest assessment with mitigation strategies
+
+- Reward Tier Suggestions (5-7 tiers):
+  Each with name, price point, description, estimated delivery, and limited quantity suggestion
+- Stretch Goals (3-4 milestones)
+- FAQ section (5-7 common questions and answers)`,
+
+            grant_application: `Write a comprehensive grant application about "${topic}" for My Car Concierge. ${brandInfo} ${toneInstruction} ${audienceInstruction} ${contextInstruction}
+
+Generate a complete grant application with:
+- Executive Summary (250 words max): concise overview of the project, need, and expected outcomes
+- Problem Statement: detailed description of the automotive service industry problems being solved, supported by data placeholders
+- Proposed Solution: how My Car Concierge addresses these problems through technology and community
+- Market Opportunity: market size, growth trends, target demographics with placeholder statistics
+- Innovation & Differentiation: what makes this approach unique (escrow payments, Car Club, AI diagnostics)
+- Team & Organizational Capacity: placeholder for team bios with suggested roles and qualifications
+- Project Timeline: 12-month implementation plan with quarterly milestones
+- Budget Breakdown: line-item budget template with categories (development, marketing, operations, personnel)
+- Impact Metrics: specific KPIs for measuring success (users acquired, providers onboarded, revenue generated, jobs created)
+- Sustainability Plan: how the project will sustain itself beyond the grant period
+- Community Impact: social and economic benefits to local communities`,
+
+            investor_pitch: `Create a compelling investor pitch about "${topic}" for My Car Concierge. ${brandInfo} ${toneInstruction} ${audienceInstruction} ${contextInstruction}
+
+Generate a complete investor pitch deck script with:
+- Elevator Pitch (30 seconds, 2-3 sentences)
+- Problem Slide: the $400B+ automotive aftermarket pain points with data
+- Solution Slide: My Car Concierge platform overview and key differentiators
+- Market Size: TAM, SAM, SOM with placeholder numbers and methodology
+- Business Model: revenue streams (transaction fees, bid packs, subscriptions, Car Club, advertising)
+- Product Demo Script: walkthrough of key features (Get Quotes, Vehicle Management, Car Club)
+- Traction Slide: key metrics placeholders (users, providers, revenue, growth rate)
+- Competitive Landscape: positioning vs competitors with differentiation matrix
+- Go-to-Market Strategy: customer acquisition channels and costs
+- Financial Projections: 3-5 year revenue projections template
+- Team Slide: key roles and what to highlight for each
+- The Ask: funding amount, use of funds breakdown, milestones the funding will achieve
+- Closing: vision statement and call to action`,
+
+            funding_research: `Research and list relevant funding opportunities for "${topic}" related to My Car Concierge. ${brandInfo} ${toneInstruction} ${audienceInstruction} ${contextInstruction}
+
+Provide a list of 10 relevant funding opportunities, each with:
+1. Funding Source Name
+2. Type (grant, accelerator, VC fund, angel network, competition, government program)
+3. Description (2-3 sentences about the program)
+4. Typical Funding Amount (range)
+5. Application Deadline (suggest "Rolling" or "Annual - check website" if unknown)
+6. Eligibility Requirements (key criteria)
+7. Fit Analysis for My Car Concierge (why this is a good match, score 1-10)
+8. Website/URL placeholder
+9. Key contact or application tips
+
+Focus on opportunities relevant to:
+- Automotive technology startups
+- Marketplace/platform businesses
+- Consumer technology
+- Small business / minority-owned business grants
+- Technology innovation programs
+- State and federal small business programs (SBIR, STTR)
+
+Rank them by fit score from highest to lowest.`,
+
+            campaign_strategy: `Develop a comprehensive marketing campaign strategy about "${topic}" for My Car Concierge. ${brandInfo} ${toneInstruction} ${audienceInstruction} ${contextInstruction}
+
+Create a detailed multi-phase marketing strategy:
+
+PHASE 1 - FOUNDATION (Weeks 1-4):
+- Brand awareness tactics
+- Content calendar framework
+- Social media setup and strategy
+- Email list building approach
+- KPIs and measurement setup
+
+PHASE 2 - GROWTH (Weeks 5-8):
+- Paid advertising strategy with budget allocation
+- Influencer/partnership outreach plan
+- Content marketing acceleration
+- Community building tactics
+- Referral program design
+
+PHASE 3 - SCALE (Weeks 9-12):
+- Performance optimization based on data
+- Advanced targeting and retargeting
+- Strategic partnerships and co-marketing
+- PR and media outreach
+- Event marketing opportunities
+
+For each tactic include:
+- Specific action items
+- Estimated budget allocation (percentage)
+- Expected timeline
+- KPIs to track
+- Tools and platforms to use
+
+Provide overall budget allocation recommendation and ROI projections.`
+          };
+
+          const prompt = promptTemplates[type] || `Create ${type} content about "${topic}" for My Car Concierge. ${brandInfo} ${toneInstruction} ${audienceInstruction} ${contextInstruction} Make the content detailed, professional, and ready to use.`;
+
+          const result = await generateAIContent(prompt, { maxTokens: 2048, preferredProvider: 'anthropic' });
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, content: result.text, type, platform: platformName }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/marketing/send-email') {
+    return handleAdminAuth(req, res, requestId, () => {
+      setCorsHeaders(res, req);
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { to, subject, html, fromName } = data;
+
+          if (!to || !Array.isArray(to) || to.length === 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'to must be a non-empty array of email addresses' }));
+            return;
+          }
+
+          if (!subject || !html) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'subject and html are required' }));
+            return;
+          }
+
+          if (to.length > 50) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Maximum 50 recipients per call' }));
+            return;
+          }
+
+          if (!resend) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Email service not configured' }));
+            return;
+          }
+
+          const senderName = fromName || 'My Car Concierge';
+          const result = await resend.emails.send({
+            from: `${senderName} <no-reply@mycarconcierge.com>`,
+            to: to,
+            subject: subject,
+            html: html
+          });
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, sent: to.length }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/marketing/strategy') {
+    return handleAdminAuth(req, res, requestId, () => {
+      setCorsHeaders(res, req);
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { goal, budget, timeline, channels } = data;
+
+          if (!goal) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'goal is required' }));
+            return;
+          }
+
+          const brandInfo = 'Brand: "My Car Concierge" - Your complete auto ownership platform. Tagline: "One app. Every auto need. Zero hassle." Four Pillars: Get Quotes, Manage Vehicles, Maintaining Your Ride, Shop Smarter. Website: mycarconcierge.com. Value propositions: connects vehicle owners with vetted service providers, escrow payments, Car Club loyalty program, AI-powered diagnostics.';
+
+          const channelList = channels && channels.length > 0 ? channels.join(', ') : 'social media, email, content marketing, paid advertising, partnerships';
+
+          const prompt = `Develop a comprehensive, actionable marketing strategy for My Car Concierge. ${brandInfo}
+
+Goal: ${goal}
+Budget: ${budget || 'Not specified - provide recommendations for multiple budget levels'}
+Timeline: ${timeline || '3 months'}
+Channels to focus on: ${channelList}
+
+Create a detailed strategy document with the following structure:
+
+1. EXECUTIVE SUMMARY
+- Strategy overview and key objectives
+- Expected outcomes and ROI projections
+
+2. TARGET AUDIENCE ANALYSIS
+- Primary audience segments with demographics and psychographics
+- Customer personas relevant to the goal
+- Pain points and motivations
+
+3. CHANNEL STRATEGY
+For each channel (${channelList}), provide:
+- Specific tactics and campaigns
+- Content themes and messaging
+- Posting/send frequency
+- Budget allocation percentage
+- Expected metrics and KPIs
+
+4. PHASED IMPLEMENTATION PLAN
+- Phase 1 (Month 1): Foundation and launch
+- Phase 2 (Month 2): Growth and optimization
+- Phase 3 (Month 3): Scale and iterate
+Include specific weekly action items for each phase
+
+5. BUDGET ALLOCATION
+- Detailed breakdown by channel and tactic
+- Tool and platform costs
+- Content creation costs
+- Paid media spend recommendations
+
+6. KPIs AND MEASUREMENT
+- Primary KPIs tied to the goal
+- Secondary metrics to track
+- Reporting cadence and tools
+- Success benchmarks and milestones
+
+7. RISK ASSESSMENT
+- Potential challenges and mitigation strategies
+- Contingency plans
+- A/B testing opportunities`;
+
+          const result = await generateAIContent(prompt, { maxTokens: 4096, preferredProvider: 'anthropic' });
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, strategy: result.text }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    });
+  }
+
+  if (req.method === 'GET' && req.url === '/api/admin/marketing/saved-campaigns') {
+    return handleAdminAuth(req, res, requestId, () => {
+      setCorsHeaders(res, req);
+      const campaigns = [];
+      for (const [id, campaign] of marketingCampaigns) {
+        campaigns.push({ id, ...campaign });
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, campaigns }));
+    });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/marketing/save-campaign') {
+    return handleAdminAuth(req, res, requestId, () => {
+      setCorsHeaders(res, req);
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { title, type, content, metadata } = data;
+
+          if (!title || !content) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'title and content are required' }));
+            return;
+          }
+
+          const id = campaignIdCounter++;
+          marketingCampaigns.set(id, {
+            title,
+            type: type || 'general',
+            content,
+            metadata: metadata || {},
+            createdAt: new Date().toISOString()
+          });
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, id }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/marketing/research') {
+    setCorsHeaders(res, req);
+    return handleAdminAuth(req, res, requestId, () => {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { category, focus, customQuery } = data;
+
+          if (!category) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Category is required' }));
+            return;
+          }
+
+          const searchQueries = {
+            grants: `Find current grants, funding programs, and financial assistance for automotive technology startups and car service marketplace platforms in 2025-2026. Include grant names, amounts, deadlines, eligibility, and application URLs. Focus on: small business grants, tech startup grants, transportation innovation grants, minority business grants, SBA grants. ${focus || ''}`,
+            investors: `Find angel investors, venture capital firms, and investment groups actively investing in automotive technology, marketplace platforms, and car service startups in 2025-2026. Include investor names, firm names, investment focus, typical check sizes, contact information or website, and recent automotive/marketplace investments. ${focus || ''}`,
+            accelerators: `Find startup accelerators, incubators, and entrepreneurship programs accepting applications for automotive technology, marketplace platforms, or car service startups in 2025-2026. Include program names, application deadlines, benefits (funding, mentorship, equity taken), location, and application URLs. ${focus || ''}`,
+            partnerships: `Find potential business partnership opportunities for an automotive service marketplace platform. Look for auto parts companies, insurance companies, fleet management companies, car dealerships, automotive associations, and roadside assistance companies that have partnership programs or business development contacts. Include company names, partnership types, contact methods. ${focus || ''}`,
+            media: `Find automotive industry journalists, tech bloggers, podcast hosts, and media outlets that cover automotive technology, car service startups, or marketplace platforms. Include their names, publication/outlet, contact email or social media, and recent relevant articles they've written. ${focus || ''}`,
+            competitions: `Find startup competitions, pitch events, business plan contests, and innovation challenges for automotive technology or marketplace startups in 2025-2026. Include event names, prize amounts, deadlines, eligibility, and how to apply. ${focus || ''}`
+          };
+
+          const searchQuery = customQuery || searchQueries[category] || searchQueries.grants;
+
+          const searchResult = await searchWithGrounding(searchQuery);
+
+          const parsePrompt = `You are a business development assistant for "My Car Concierge" (mycarconcierge.com), an automotive service marketplace that connects vehicle owners with vetted service providers.
+
+Based on the following research results, extract and organize the opportunities into a structured list. For EACH opportunity found, provide:
+1. Organization/Contact Name
+2. Type (grant, investor, accelerator, partnership, media, competition)
+3. Description (2-3 sentences)
+4. Potential Value (funding amount, exposure level, etc.)
+5. Contact Method (email, website, application URL)
+6. Deadline or Timing (if applicable)
+7. Relevance Score (1-10, how relevant to an automotive service marketplace)
+8. A personalized outreach email draft (subject line + body) tailored to this specific contact/organization, explaining what My Car Concierge is and why we'd be a good fit
+
+My Car Concierge details for the emails:
+- Platform: Automotive service marketplace connecting vehicle owners with vetted service providers
+- Features: AI-powered diagnostics, escrow payments, Car Club loyalty program, appointment scheduling
+- Website: mycarconcierge.com
+- Investment page: https://wefunder.com/my.car.concierge (include this link for investor/funding outreach emails)
+- Tagline: "One app. Every auto need. Zero hassle."
+
+Research results:
+${searchResult.text}
+
+Format the response as a JSON array of objects with these fields: name, type, description, value, contactMethod, deadline, relevanceScore, email (object with subject and body fields).
+Return ONLY the JSON array, no other text.`;
+
+          const aiResult = await generateAIContent(parsePrompt, { maxTokens: 4096, preferredProvider: 'gemini' });
+
+          let opportunities = [];
+          try {
+            let jsonText = aiResult.text.trim();
+            const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) jsonText = jsonMatch[0];
+            opportunities = JSON.parse(jsonText);
+          } catch (parseErr) {
+            opportunities = [{ name: 'Research Results', type: category, description: aiResult.text, value: 'See details', contactMethod: 'See description', deadline: 'N/A', relevanceScore: 5, email: { subject: '', body: '' } }];
+          }
+
+          const researchId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+          const queueItems = opportunities.map(opp => {
+            const id = outreachIdCounter++;
+            const item = {
+              id,
+              researchId,
+              category,
+              name: opp.name || 'Unknown',
+              type: opp.type || category,
+              description: opp.description || '',
+              value: opp.value || '',
+              contactMethod: opp.contactMethod || '',
+              deadline: opp.deadline || '',
+              relevanceScore: opp.relevanceScore || 5,
+              emailSubject: opp.email?.subject || '',
+              emailBody: opp.email?.body || '',
+              status: 'draft',
+              createdAt: new Date().toISOString(),
+              sentAt: null
+            };
+            outreachQueue.set(id, item);
+            return item;
+          });
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            researchId,
+            opportunities: queueItems,
+            sources: searchResult.sources,
+            searchQueries: searchResult.searchQueries
+          }));
+        } catch (err) {
+          console.error('Research error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    });
+  }
+
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/marketing/outreach-queue')) {
+    setCorsHeaders(res, req);
+    return handleAdminAuth(req, res, requestId, () => {
+      const items = Array.from(outreachQueue.values()).sort((a, b) => b.id - a.id);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, items }));
+    });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/marketing/outreach-send') {
+    setCorsHeaders(res, req);
+    return handleAdminAuth(req, res, requestId, () => {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { id, to, subject, body: emailBody } = data;
+
+          if (!to || !subject || !emailBody) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing to, subject, or body' }));
+            return;
+          }
+
+          if (!resend) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Email service not configured' }));
+            return;
+          }
+
+          const htmlBody = emailBody.replace(/\n/g, '<br>');
+          const result = await resend.emails.send({
+            from: 'My Car Concierge <no-reply@mycarconcierge.com>',
+            to: [to],
+            subject: subject,
+            html: htmlBody
+          });
+
+          if (result.error) {
+            throw new Error(result.error.message || 'Email send failed');
+          }
+
+          if (id && outreachQueue.has(id)) {
+            const item = outreachQueue.get(id);
+            item.status = 'sent';
+            item.sentAt = new Date().toISOString();
+            item.sentTo = to;
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, messageId: result.data?.id }));
+        } catch (err) {
+          console.error('Outreach send error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/marketing/outreach-update') {
+    setCorsHeaders(res, req);
+    return handleAdminAuth(req, res, requestId, () => {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          const { id, emailSubject, emailBody, status } = data;
+
+          if (!id || !outreachQueue.has(id)) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Item not found' }));
+            return;
+          }
+
+          const item = outreachQueue.get(id);
+          if (emailSubject !== undefined) item.emailSubject = emailSubject;
+          if (emailBody !== undefined) item.emailBody = emailBody;
+          if (status !== undefined) item.status = status;
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, item }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    });
+  }
+
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/marketing/outreach-leads')) {
+    setCorsHeaders(res, req);
+    return handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Database not configured' }));
+          return;
+        }
+
+        const urlObj = new URL(req.url, `http://${req.headers.host}`);
+        const type = urlObj.searchParams.get('type');
+        const status = urlObj.searchParams.get('status');
+        const minScore = urlObj.searchParams.get('min_score');
+        const source = urlObj.searchParams.get('source');
+        const limit = parseInt(urlObj.searchParams.get('limit') || '100', 10);
+
+        let query = supabase.from('outreach_leads').select('*');
+        if (type) query = query.eq('type', type);
+        if (status) query = query.eq('status', status);
+        if (minScore) query = query.gte('score', parseInt(minScore, 10));
+        if (source) query = query.eq('source', source);
+        query = query.order('score', { ascending: false }).limit(limit);
+
+        const { data, error } = await query;
+        if (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: error.message }));
+          return;
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, leads: data || [], total: (data || []).length }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+  }
+
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/marketing/pipeline-metrics')) {
+    setCorsHeaders(res, req);
+    return handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Database not configured' }));
+          return;
+        }
+
+        const { data: leads, error: leadsErr } = await supabase.from('outreach_leads').select('*');
+        if (leadsErr) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: leadsErr.message }));
+          return;
+        }
+
+        const allLeads = leads || [];
+        const total_leads = allLeads.length;
+
+        const leads_by_type = {};
+        const leads_by_source = {};
+        const leads_by_status = {};
+        const regionMap = {};
+
+        for (const l of allLeads) {
+          leads_by_type[l.type || 'unknown'] = (leads_by_type[l.type || 'unknown'] || 0) + 1;
+          leads_by_source[l.source || 'unknown'] = (leads_by_source[l.source || 'unknown'] || 0) + 1;
+          leads_by_status[l.status || 'unknown'] = (leads_by_status[l.status || 'unknown'] || 0) + 1;
+          if (l.city || l.state) {
+            const regionKey = [l.city, l.state].filter(Boolean).join(', ');
+            regionMap[regionKey] = (regionMap[regionKey] || 0) + 1;
+          }
+        }
+
+        const top_regions = Object.entries(regionMap)
+          .map(([region, count]) => ({ region, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 20);
+
+        const { data: messages, error: msgsErr } = await supabase.from('outreach_messages').select('id, channel, status');
+        if (msgsErr) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: msgsErr.message }));
+          return;
+        }
+
+        const allMsgs = messages || [];
+        const total_messages_sent = allMsgs.filter(m => m.status === 'sent' || m.status === 'delivered').length;
+        const messages_by_channel = {};
+        let respondedCount = 0;
+        for (const m of allMsgs) {
+          messages_by_channel[m.channel || 'unknown'] = (messages_by_channel[m.channel || 'unknown'] || 0) + 1;
+          if (m.status === 'responded') respondedCount++;
+        }
+        const response_rate = allMsgs.length > 0 ? Math.round((respondedCount / allMsgs.length) * 10000) / 100 : 0;
+
+        const { data: pipeline, error: pipeErr } = await supabase.from('outreach_pipeline').select('stage');
+        const allPipeline = pipeline || [];
+        const stageCount = {};
+        for (const p of allPipeline) {
+          stageCount[p.stage || 'unknown'] = (stageCount[p.stage || 'unknown'] || 0) + 1;
+        }
+
+        const conversion_funnel = {
+          discovered: leads_by_status['discovered'] || leads_by_status['new'] || total_leads,
+          scored: allPipeline.length,
+          drafted: allMsgs.filter(m => m.status === 'draft').length,
+          sent: total_messages_sent,
+          responded: respondedCount,
+          converted: stageCount['converted'] || stageCount['closed'] || 0
+        };
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          metrics: {
+            total_leads,
+            leads_by_type,
+            leads_by_source,
+            leads_by_status,
+            total_messages_sent,
+            messages_by_channel,
+            response_rate,
+            top_regions,
+            conversion_funnel
+          }
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/marketing/campaign-to-leads') {
+    setCorsHeaders(res, req);
+    return handleAdminAuth(req, res, requestId, () => {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { subject, html, lead_ids, fromName } = data;
+
+          if (!subject || !html || !lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'subject, html, and lead_ids (non-empty array) are required' }));
+            return;
+          }
+
+          if (lead_ids.length > 100) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Maximum 100 leads per campaign send' }));
+            return;
+          }
+
+          if (!resend) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Email service not configured' }));
+            return;
+          }
+
+          const supabase = getSupabaseClient();
+          if (!supabase) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Database not configured' }));
+            return;
+          }
+
+          const { data: leads, error: leadsErr } = await supabase
+            .from('outreach_leads')
+            .select('id, name, email')
+            .in('id', lead_ids);
+
+          if (leadsErr) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: leadsErr.message }));
+            return;
+          }
+
+          const senderName = fromName || 'My Car Concierge';
+          const results = { sent: 0, skipped: 0, failed: 0, details: [] };
+
+          for (const lead of (leads || [])) {
+            if (!lead.email) {
+              results.skipped++;
+              results.details.push({ lead_id: lead.id, status: 'skipped', reason: 'no email' });
+              continue;
+            }
+
+            try {
+              const emailResult = await resend.emails.send({
+                from: `${senderName} <no-reply@mycarconcierge.com>`,
+                to: [lead.email],
+                subject: subject,
+                html: html
+              });
+
+              if (emailResult.error) {
+                results.failed++;
+                results.details.push({ lead_id: lead.id, status: 'failed', reason: emailResult.error.message });
+                continue;
+              }
+
+              await supabase.from('outreach_messages').insert({
+                lead_id: lead.id,
+                channel: 'email',
+                subject: subject,
+                body: html,
+                status: 'sent',
+                sent_at: new Date().toISOString()
+              });
+
+              results.sent++;
+              results.details.push({ lead_id: lead.id, status: 'sent', email: lead.email });
+            } catch (sendErr) {
+              results.failed++;
+              results.details.push({ lead_id: lead.id, status: 'failed', reason: sendErr.message });
+            }
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, ...results }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/marketing/check-dedup') {
+    setCorsHeaders(res, req);
+    return handleAdminAuth(req, res, requestId, () => {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { emails } = data;
+
+          if (!emails || !Array.isArray(emails) || emails.length === 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'emails must be a non-empty array' }));
+            return;
+          }
+
+          const supabase = getSupabaseClient();
+          if (!supabase) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Database not configured' }));
+            return;
+          }
+
+          const normalizedEmails = emails.map(e => e.toLowerCase().trim());
+
+          const { data: existingLeads, error: leadsErr } = await supabase
+            .from('outreach_leads')
+            .select('email')
+            .in('email', normalizedEmails);
+
+          if (leadsErr) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: leadsErr.message }));
+            return;
+          }
+
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+          const { data: recentMessages, error: msgsErr } = await supabase
+            .from('outreach_messages')
+            .select('lead_id, sent_at')
+            .gte('sent_at', thirtyDaysAgo)
+            .eq('channel', 'email');
+
+          let recentlyContactedEmails = new Set();
+          if (!msgsErr && recentMessages && recentMessages.length > 0) {
+            const recentLeadIds = [...new Set(recentMessages.map(m => m.lead_id))];
+            const { data: contactedLeads } = await supabase
+              .from('outreach_leads')
+              .select('email')
+              .in('id', recentLeadIds);
+            if (contactedLeads) {
+              for (const cl of contactedLeads) {
+                if (cl.email) recentlyContactedEmails.add(cl.email.toLowerCase().trim());
+              }
+            }
+          }
+
+          const leadEmailSet = new Set((existingLeads || []).map(l => l.email?.toLowerCase().trim()).filter(Boolean));
+
+          const duplicates = [];
+          for (const email of normalizedEmails) {
+            const inLeads = leadEmailSet.has(email);
+            const recentlyContacted = recentlyContactedEmails.has(email);
+            if (inLeads || recentlyContacted) {
+              duplicates.push({
+                email,
+                in_outreach_leads: inLeads,
+                recently_contacted: recentlyContacted
+              });
+            }
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            total_checked: normalizedEmails.length,
+            duplicates_found: duplicates.length,
+            duplicates
+          }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    });
+  }
+
+  if (req.method === 'OPTIONS' && (req.url === '/api/analytics/track' || req.url.startsWith('/api/analytics/data'))) {
+    setCorsHeaders(res, req);
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/analytics/track') {
+    setCorsHeaders(res, req);
+
+    const ip = getClientIP(req);
+    const now = Date.now();
+    const rlKey = `analytics:${ip}`;
+    let rlEntry = analyticsRateLimit.get(rlKey);
+    if (!rlEntry || rlEntry.resetTime <= now) {
+      rlEntry = { count: 1, resetTime: now + 60000 };
+      analyticsRateLimit.set(rlKey, rlEntry);
+    } else {
+      rlEntry.count++;
+      if (rlEntry.count > 100) {
+        res.writeHead(429, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Too many requests' }));
+        return;
+      }
+    }
+
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+      if (body.length > 5000) {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Request too large' }));
+        return;
+      }
+    });
+
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const { page, referrer, device, visitorId } = data;
+
+        if (!page || typeof page !== 'string' || page.length > 500) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid page parameter' }));
+          return;
+        }
+
+        if (visitorId) {
+          analyticsData.activeVisitors.set(visitorId, Date.now());
+        }
+
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          try {
+            await supabase.from('page_views').insert({
+              page: page.substring(0, 500),
+              referrer: (referrer || '').substring(0, 500),
+              device: (device || 'unknown').substring(0, 50),
+              visitor_id: (visitorId || 'anonymous').substring(0, 100)
+            });
+          } catch (dbErr) {
+            console.error('[Analytics] Supabase insert error:', dbErr.message);
+          }
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && req.url.startsWith('/api/analytics/data')) {
+    setCorsHeaders(res, req);
+
+    const adminPassword = req.headers['x-admin-password'];
+    const adminToken = req.headers['x-admin-token'];
+    let authorized = false;
+    if (adminPassword && adminPassword === process.env.ADMIN_PASSWORD) authorized = true;
+    if (adminToken && adminSessions && adminSessions.has(adminToken)) {
+      const session = adminSessions.get(adminToken);
+      if (session && Date.now() - session.createdAt <= 24 * 60 * 60 * 1000) {
+        authorized = true;
+      }
+    }
+    if (!authorized) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    try {
+      const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+      const days = parseInt(urlObj.searchParams.get('days')) || 30;
+      const supabase = getSupabaseClient();
+
+      const now = new Date();
+      const startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - days);
+      const startISO = startDate.toISOString();
+
+      let dailyViews = [];
+      let topPages = [];
+      let deviceAgg = { ios_app: 0, android_app: 0, desktop_web: 0, mobile_web: 0, unknown: 0 };
+      let referralSources = [];
+      let totalViews = 0;
+      let totalVisitors = 0;
+
+      if (supabase) {
+        const { data: rows, error: dbErr } = await supabase
+          .from('page_views')
+          .select('page, referrer, device, visitor_id, created_at')
+          .gte('created_at', startISO)
+          .order('created_at', { ascending: true });
+
+        if (dbErr) {
+          console.error('[Analytics] Supabase query error:', dbErr.message);
+        }
+
+        const pvRows = rows || [];
+        const dailyMap = {};
+        const dailyVisitorMap = {};
+        const pageMap = {};
+        const deviceMap = {};
+        const refMap = {};
+
+        for (const row of pvRows) {
+          const dk = row.created_at.substring(0, 10);
+          dailyMap[dk] = (dailyMap[dk] || 0) + 1;
+          if (!dailyVisitorMap[dk]) dailyVisitorMap[dk] = new Set();
+          dailyVisitorMap[dk].add(row.visitor_id);
+          pageMap[row.page] = (pageMap[row.page] || 0) + 1;
+          const dev = (row.device || 'unknown').toLowerCase().replace(/\s+/g, '_');
+          if (deviceAgg.hasOwnProperty(dev)) {
+            deviceAgg[dev]++;
+          } else {
+            deviceAgg.unknown++;
+          }
+          const ref = row.referrer || 'direct';
+          refMap[ref] = (refMap[ref] || 0) + 1;
+        }
+
+        const dateKeys = [];
+        for (let i = 0; i < days; i++) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i);
+          dateKeys.push(getDateKey(d));
+        }
+        dailyViews = dateKeys.map(dk => ({
+          date: dk,
+          views: dailyMap[dk] || 0,
+          visitors: dailyVisitorMap[dk] ? dailyVisitorMap[dk].size : 0
+        })).reverse();
+
+        topPages = Object.entries(pageMap)
+          .map(([page, views]) => ({ page, views }))
+          .sort((a, b) => b.views - a.views)
+          .slice(0, 20);
+
+        referralSources = Object.entries(refMap)
+          .map(([source, count]) => ({ source, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10);
+
+        for (const dv of dailyViews) {
+          totalViews += dv.views;
+          totalVisitors += dv.visitors;
+        }
+      }
+
+      const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+      let activeNow = 0;
+      for (const [, ts] of analyticsData.activeVisitors) {
+        if (ts > fiveMinAgo) activeNow++;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        dailyViews,
+        topPages,
+        deviceBreakdown: deviceAgg,
+        referralSources,
+        totalViews,
+        totalVisitors,
+        activeNow
+      }));
+    } catch (err) {
+      console.error('[Analytics] Data retrieval error:', err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to load analytics data' }));
+    }
+    return;
+  }
+
+  if (req.method === 'OPTIONS' && req.url === '/api/contact') {
+    setCorsHeaders(res, req);
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/contact') {
+    setCorsHeaders(res, req);
+
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+      if (body.length > MAX_BODY_SIZE) {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Request too large' }));
+      }
+    });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const { name, company, email, phone, topic, message, formType } = data;
+
+        if (!name || !email || !topic || !message || !formType) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Name, email, topic, message, and form type are required.' }));
+          return;
+        }
+
+        if (!['provider', 'member', 'general'].includes(formType)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid form type.' }));
+          return;
+        }
+
+        const emailKey = `contact:${email.toLowerCase()}`;
+        const now = Date.now();
+        let entry = rateLimitStore.get(emailKey);
+        if (!entry || entry.resetTime <= now) {
+          entry = { count: 1, resetTime: now + 3600000 };
+          rateLimitStore.set(emailKey, entry);
+        } else {
+          entry.count++;
+          if (entry.count > 3) {
+            res.writeHead(429, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Too many submissions. Please try again later.' }));
+            return;
+          }
+        }
+
+        const safeName = (name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeCompany = (company || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeEmail = (email || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safePhone = (phone || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeTopic = (topic || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeMessage = (message || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+
+        const subject = `[${formType.toUpperCase()}] Contact Form: ${topic}`;
+        const htmlBody = `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+            <h2 style="color:#1a1f28;border-bottom:2px solid #c9a227;padding-bottom:12px;">New Contact Form Submission</h2>
+            <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+              <tr><td style="padding:10px 12px;font-weight:bold;color:#555;width:140px;border-bottom:1px solid #eee;">Form Type</td><td style="padding:10px 12px;border-bottom:1px solid #eee;">${formType.charAt(0).toUpperCase() + formType.slice(1)}</td></tr>
+              <tr><td style="padding:10px 12px;font-weight:bold;color:#555;border-bottom:1px solid #eee;">Name</td><td style="padding:10px 12px;border-bottom:1px solid #eee;">${safeName}</td></tr>
+              ${safeCompany ? '<tr><td style="padding:10px 12px;font-weight:bold;color:#555;border-bottom:1px solid #eee;">Company</td><td style="padding:10px 12px;border-bottom:1px solid #eee;">' + safeCompany + '</td></tr>' : ''}
+              <tr><td style="padding:10px 12px;font-weight:bold;color:#555;border-bottom:1px solid #eee;">Email</td><td style="padding:10px 12px;border-bottom:1px solid #eee;"><a href="mailto:${safeEmail}">${safeEmail}</a></td></tr>
+              ${safePhone ? '<tr><td style="padding:10px 12px;font-weight:bold;color:#555;border-bottom:1px solid #eee;">Phone</td><td style="padding:10px 12px;border-bottom:1px solid #eee;">' + safePhone + '</td></tr>' : ''}
+              <tr><td style="padding:10px 12px;font-weight:bold;color:#555;border-bottom:1px solid #eee;">Topic</td><td style="padding:10px 12px;border-bottom:1px solid #eee;">${safeTopic}</td></tr>
+              <tr><td style="padding:10px 12px;font-weight:bold;color:#555;vertical-align:top;">Message</td><td style="padding:10px 12px;">${safeMessage}</td></tr>
+            </table>
+            <p style="margin-top:24px;font-size:12px;color:#999;">Sent from mycarconcierge.com contact form</p>
+          </div>`;
+
+        if (resend) {
+          await resend.emails.send({
+            from: 'My Car Concierge <noreply@mycarconcierge.com>',
+            to: 'jordan@mycarconcierge.com',
+            subject: subject,
+            html: htmlBody
+          });
+          console.log(`[CONTACT] Email sent: ${formType} from ${email} - ${topic}`);
+        } else {
+          console.log(`[CONTACT] Resend not configured. Form submission logged: ${formType} from ${email} - ${topic}`);
+          console.log(`[CONTACT] Name: ${name}, Company: ${company || 'N/A'}, Phone: ${phone || 'N/A'}`);
+          console.log(`[CONTACT] Message: ${message}`);
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        console.error(`[${requestId}] Contact form error:`, err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+      }
+    });
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/api/chat') {
     const rateLimit = applyRateLimit(req, res, 'public');
     if (!rateLimit.allowed) return;
@@ -22249,12 +32647,89 @@ const server = http.createServer((req, res) => {
   }
   
   if (req.method === 'POST' && req.url === '/api/helpdesk') {
-    const rateLimit = applyRateLimit(req, res, 'public');
+    const rateLimit = applyRateLimit(req, res, 'helpdesk');
     if (!rateLimit.allowed) return;
     handleHelpdeskRequest(req, res, requestId);
     return;
   }
+
+  if (req.method === 'POST' && req.url === '/api/helpdesk-email') {
+    const rateLimit = applyRateLimit(req, res, 'helpdesk');
+    if (!rateLimit.allowed) return;
+    
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { email, name, conversation, mode } = JSON.parse(body);
+        if (!email || !conversation) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Email and conversation required' }));
+          return;
+        }
+        const modeLabels = { driver: 'Car Expert', provider: 'Provider Support', education: 'Car Academy' };
+        const modeLabel = modeLabels[mode] || 'Chat';
+        const messagesHtml = conversation.map(m => {
+          const bgColor = m.role === 'user' ? '#f0f0f0' : '#fff3cd';
+          const safeContent = (m.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/\n/g, '<br>');
+          const safeName = (name || 'You').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return `<div style="background:${bgColor};padding:12px 16px;border-radius:8px;margin-bottom:8px;"><strong>${m.role === 'user' ? safeName : 'My Car Concierge'}:</strong><br>${safeContent}</div>`;
+        }).join('');
+        const htmlContent = `
+          <p>Hi ${name || 'there'},</p>
+          <p>Here's your saved conversation from <strong>My Car Concierge ${modeLabel}</strong>:</p>
+          <div style="margin:20px 0;">${messagesHtml}</div>
+          <p style="color:#6c757d;font-size:12px;">Exported on ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        `;
+        const result = await sendEmailNotification(email, name || 'Member', `Your ${modeLabel} Conversation - My Car Concierge`, htmlContent);
+        if (result.sent) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } else {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to send email' }));
+        }
+      } catch (err) {
+        console.error('Helpdesk email error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Server error' }));
+      }
+    });
+    return;
+  }
   
+  if (req.method === 'GET' && req.url === '/api/admin/chat-insights') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleAdminAuth(req, res, requestId, () => {
+      let totalSessions = helpdeskConversations.size;
+      let totalMessages = 0;
+      let modeCount = { driver: 0, provider: 0, education: 0 };
+      let recentActivity = [];
+      
+      for (const [convId, messages] of helpdeskConversations.entries()) {
+        totalMessages += messages.length;
+        const mode = convId.includes('driver') ? 'driver' : convId.includes('provider') ? 'provider' : convId.includes('education') ? 'education' : 'driver';
+        modeCount[mode] = (modeCount[mode] || 0) + 1;
+        if (messages.length > 0) {
+          recentActivity.push({
+            conversationId: convId,
+            messageCount: messages.length,
+            lastMessage: messages[messages.length - 1]?.content?.substring(0, 100) || '',
+            mode: mode
+          });
+        }
+      }
+      
+      recentActivity.sort((a, b) => b.messageCount - a.messageCount);
+      recentActivity = recentActivity.slice(0, 20);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ totalSessions, totalMessages, modeCount, recentActivity }));
+    }, 'ai-chat-insights');
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/api/diagnostics/generate') {
     const rateLimit = applyRateLimit(req, res, 'public');
     if (!rateLimit.allowed) return;
@@ -22262,6 +32737,53 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  // OBD Diagnostic Scan Routes
+  if (req.method === 'POST' && req.url === '/api/obd/scan') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleOBDScanSubmit(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/obd/scan-ocr') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleOBDScanOCR(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/obd/interpret') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleOBDInterpret(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.match(/^\/api\/obd\/scans\/[^/]+$/)) {
+    const vehicleId = req.url.split('/').pop();
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleGetVehicleDiagnosticScans(req, res, requestId, vehicleId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/vehicles\/[^/]+\/compute-health$/)) {
+    handleComputeVehicleHealth(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'GET' && req.url.match(/^\/api\/vehicles\/[^/]+\/maintenance-forecast$/)) {
+    handleMaintenanceForecast(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/bids') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleSubmitBid(req, res, requestId);
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/api/create-bid-checkout') {
     const rateLimit = applyRateLimit(req, res, 'apiAuth');
     if (!rateLimit.allowed) return;
@@ -22280,7 +32802,660 @@ const server = http.createServer((req, res) => {
     handleAdminPasswordVerify(req, res, requestId);
     return;
   }
-  
+
+
+// Admin users stored in local JSON file (avoids Supabase PostgREST schema cache issues)
+const ADMIN_USERS_FILE = path.join(__dirname, 'data', 'admin-users.json');
+
+function loadAdminUsers() {
+  try {
+    const dir = path.dirname(ADMIN_USERS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(ADMIN_USERS_FILE)) { fs.writeFileSync(ADMIN_USERS_FILE, '[]'); return []; }
+    return JSON.parse(fs.readFileSync(ADMIN_USERS_FILE, 'utf8'));
+  } catch { return []; }
+}
+
+function saveAdminUsers(users) {
+  const dir = path.dirname(ADMIN_USERS_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const tmpFile = ADMIN_USERS_FILE + '.tmp';
+  fs.writeFileSync(tmpFile, JSON.stringify(users, null, 2));
+  fs.renameSync(tmpFile, ADMIN_USERS_FILE);
+}
+
+const ADMIN_INVITES_FILE = path.join(__dirname, 'data', 'admin-invites.json');
+
+function loadAdminInvites() {
+  try {
+    const dir = path.dirname(ADMIN_INVITES_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(ADMIN_INVITES_FILE)) { fs.writeFileSync(ADMIN_INVITES_FILE, '[]'); return []; }
+    return JSON.parse(fs.readFileSync(ADMIN_INVITES_FILE, 'utf8'));
+  } catch { return []; }
+}
+
+function saveAdminInvites(invites) {
+  const dir = path.dirname(ADMIN_INVITES_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const tmpFile = ADMIN_INVITES_FILE + '.tmp';
+  fs.writeFileSync(tmpFile, JSON.stringify(invites, null, 2));
+  fs.renameSync(tmpFile, ADMIN_INVITES_FILE);
+}
+
+  if (req.method === 'OPTIONS' && (req.url.startsWith('/api/admin/') || req.url === '/api/verify-admin-password')) {
+    setCorsHeaders(res, req);
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/team-login') {
+    const rateLimit = applyRateLimit(req, res, 'adminVerify');
+    if (!rateLimit.allowed) return;
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        if (!data.email || !data.password) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Email and password required' }));
+          return;
+        }
+        const svc = getServiceRoleSupabaseClient();
+        if (!svc) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Service unavailable' }));
+          return;
+        }
+        const allUsers = loadAdminUsers();
+        const userByEmail = allUsers.find(u => u.email === data.email.toLowerCase().trim()) || null;
+        if (!userByEmail) {
+          console.log(`[${requestId}] Admin team login failed for: ${data.email}`);
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid email or password' }));
+          return;
+        }
+        if (userByEmail.status !== 'active') {
+          console.log(`[${requestId}] Admin team login denied (${userByEmail.status}) for: ${data.email}`);
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Account is deactivated' }));
+          return;
+        }
+        const user = userByEmail;
+        const inputHash = crypto.createHash('sha256').update(data.password).digest('hex');
+        if (inputHash !== user.password_hash) {
+          console.log(`[${requestId}] Admin team login wrong password for: ${data.email}`);
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid email or password' }));
+          return;
+        }
+        const token = generateAdminToken();
+        adminSessions.set(token, {
+          userId: user.id,
+          email: user.email,
+          displayName: user.display_name,
+          role: user.role,
+          createdAt: Date.now()
+        });
+        const allUsersLogin = loadAdminUsers();
+        const loginIdx = allUsersLogin.findIndex(u => u.id === user.id);
+        if (loginIdx >= 0) { allUsersLogin[loginIdx].last_login = new Date().toISOString(); saveAdminUsers(allUsersLogin); }
+        console.log(`[${requestId}] Admin team login success: ${user.email} (${user.role})`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          token,
+          user: { id: user.id, email: user.email, displayName: user.display_name, role: user.role },
+          permissions: ADMIN_ROLE_PERMISSIONS[user.role] || []
+        }));
+      } catch (err) {
+        console.error(`[${requestId}] Admin team login error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Login failed' }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/api/admin/session-info') {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    const session = getAdminSessionFromReq(req);
+    if (session) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        authenticated: true,
+        authType: 'team',
+        role: session.role,
+        user: { email: session.email, displayName: session.displayName, role: session.role },
+        permissions: ADMIN_ROLE_PERMISSIONS[session.role] || []
+      }));
+      return;
+    }
+    const adminPw = req.headers['x-admin-password'];
+    const envPw = process.env.ADMIN_PASSWORD;
+    if (envPw && adminPw === envPw) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        authenticated: true,
+        authType: 'super_admin',
+        role: 'super_admin',
+        user: { email: 'admin', displayName: 'Super Admin', role: 'super_admin' },
+        permissions: ADMIN_ROLE_PERMISSIONS.super_admin
+      }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ authenticated: false }));
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/api/admin/role-permissions') {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    handleAdminAuth(req, res, requestId, () => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(ADMIN_ROLE_PERMISSIONS));
+    }, 'team-management');
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/api/admin/team-members') {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const svc = getServiceRoleSupabaseClient();
+        const allMembers = loadAdminUsers().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        const safeMembers = allMembers.map(u => ({ id: u.id, email: u.email, display_name: u.display_name, role: u.role, status: u.status, last_login: u.last_login, created_at: u.created_at }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(safeMembers));
+      } catch (err) {
+        console.error(`[${requestId}] Get team members error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to fetch team members' }));
+      }
+    }, 'team-management');
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/team-members') {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    handleAdminAuth(req, res, requestId, async () => {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const displayName = data.display_name || data.displayName;
+          if (!data.email || !data.password || !displayName || !data.role) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Email, password, display name, and role are required' }));
+            return;
+          }
+          const validRoles = ['super_admin', 'crm_manager', 'marketing', 'operations', 'finance', 'support'];
+          if (!validRoles.includes(data.role)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid role' }));
+            return;
+          }
+          const passwordHash = crypto.createHash('sha256').update(data.password).digest('hex');
+          const svc = getServiceRoleSupabaseClient();
+          const allUsersCheck = loadAdminUsers();
+          const existing = allUsersCheck.find(u => u.email === data.email.toLowerCase().trim()) || null;
+          if (existing) {
+            res.writeHead(409, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'A team member with this email already exists' }));
+            return;
+          }
+          const allUsersInsert = loadAdminUsers();
+          const newUser = {
+            id: crypto.randomUUID(),
+            email: data.email.toLowerCase().trim(),
+            password_hash: passwordHash,
+            display_name: displayName,
+            role: data.role,
+            status: 'active',
+            last_login: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          allUsersInsert.push(newUser);
+          saveAdminUsers(allUsersInsert);
+          const error = null;
+          if (error) throw error;
+          console.log(`[${requestId}] Admin team member created: ${data.email} (${data.role})`);
+          res.writeHead(201, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ id: newUser.id, email: newUser.email, display_name: newUser.display_name, role: newUser.role, status: newUser.status }));
+        } catch (err) {
+          console.error(`[${requestId}] Create team member error:`, err.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to create team member' }));
+        }
+      });
+    }, 'team-management');
+    return;
+  }
+
+  if (req.method === 'PUT' && req.url.startsWith('/api/admin/team-members/')) {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    const memberId = req.url.split('/api/admin/team-members/')[1];
+    handleAdminAuth(req, res, requestId, async () => {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const updates = {};
+          if (data.role) {
+            const validRoles = ['super_admin', 'crm_manager', 'marketing', 'operations', 'finance', 'support'];
+            if (!validRoles.includes(data.role)) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Invalid role' }));
+              return;
+            }
+            updates.role = data.role;
+          }
+          if (data.display_name || data.displayName) updates.display_name = data.display_name || data.displayName;
+          if (data.status && ['active', 'disabled', 'inactive'].includes(data.status)) updates.status = data.status;
+          if (data.password) updates.password_hash = crypto.createHash('sha256').update(data.password).digest('hex');
+          updates.updated_at = new Date().toISOString();
+          const svc = getServiceRoleSupabaseClient();
+          const allUsersUpdate = loadAdminUsers();
+          const updateIdx = allUsersUpdate.findIndex(u => u.id === memberId);
+          if (updateIdx >= 0) {
+            Object.assign(allUsersUpdate[updateIdx], updates);
+            saveAdminUsers(allUsersUpdate);
+          }
+          const error = null;
+          if (error) throw error;
+          for (const [token, session] of adminSessions) {
+            if (session.userId === memberId) {
+              if (updates.status === 'disabled') { adminSessions.delete(token); }
+              else if (updates.role) { session.role = updates.role; }
+              if (updates.display_name) { session.displayName = updates.display_name; }
+            }
+          }
+          console.log(`[${requestId}] Admin team member updated: ${memberId}`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } catch (err) {
+          console.error(`[${requestId}] Update team member error:`, err.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to update team member' }));
+        }
+      });
+    }, 'team-management');
+    return;
+  }
+
+  if (req.method === 'DELETE' && req.url.startsWith('/api/admin/team-members/')) {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    const memberId = req.url.split('/api/admin/team-members/')[1];
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const svc = getServiceRoleSupabaseClient();
+        const allUsersDel = loadAdminUsers();
+        const filtered = allUsersDel.filter(u => u.id !== memberId);
+        saveAdminUsers(filtered);
+        const error = null;
+        if (error) throw error;
+        for (const [token, session] of adminSessions) {
+          if (session.userId === memberId) adminSessions.delete(token);
+        }
+        console.log(`[${requestId}] Admin team member deleted: ${memberId}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        console.error(`[${requestId}] Delete team member error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to delete team member' }));
+      }
+    }, 'team-management');
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/team-logout') {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    const token = req.headers['x-admin-token'];
+    if (token) adminSessions.delete(token);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+    return;
+  }
+
+  // ========== TEAM INVITE ENDPOINTS ==========
+
+  if (req.method === 'POST' && req.url === '/api/admin/team-invites') {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const body = await getRequestBody(req);
+        const { email, role } = body;
+        if (!email || !role) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Email and role are required' }));
+          return;
+        }
+        const validRoles = Object.keys(ADMIN_ROLE_PERMISSIONS);
+        if (!validRoles.includes(role)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid role' }));
+          return;
+        }
+        const normalizedEmail = email.toLowerCase().trim();
+        const existingUsers = loadAdminUsers();
+        if (existingUsers.find(u => u.email === normalizedEmail)) {
+          res.writeHead(409, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'A user with this email already exists' }));
+          return;
+        }
+        const invites = loadAdminInvites();
+        if (invites.find(i => i.email === normalizedEmail && i.status === 'pending')) {
+          res.writeHead(409, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'A pending invite already exists for this email' }));
+          return;
+        }
+        const session = getAdminSessionFromReq(req);
+        const invitedBy = session ? session.userId : 'super_admin';
+        const now = new Date();
+        const invite = {
+          id: crypto.randomUUID(),
+          token: crypto.randomBytes(32).toString('hex'),
+          email: normalizedEmail,
+          role,
+          invited_by: invitedBy,
+          created_at: now.toISOString(),
+          expires_at: new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString(),
+          status: 'pending'
+        };
+        invites.push(invite);
+        saveAdminInvites(invites);
+        const inviteUrl = `https://mycarconcierge.com/admin-invite.html?token=${invite.token}`;
+        console.log(`[${requestId}] Admin invite created for ${normalizedEmail} (${role}) by ${invitedBy}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          invite: { id: invite.id, token: invite.token, email: invite.email, role: invite.role, expires_at: invite.expires_at },
+          inviteUrl
+        }));
+      } catch (err) {
+        console.error(`[${requestId}] Create invite error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create invite' }));
+      }
+    }, 'team-management');
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/api/admin/team-invites') {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const invites = loadAdminInvites();
+        const sanitized = invites.map(i => ({
+          id: i.id, email: i.email, role: i.role, status: i.status, token: i.token,
+          created_at: i.created_at, expires_at: i.expires_at, invited_by: i.invited_by
+        }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(sanitized));
+      } catch (err) {
+        console.error(`[${requestId}] List invites error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to list invites' }));
+      }
+    }, 'team-management');
+    return;
+  }
+
+  if (req.method === 'POST' && req.url.match(/^\/api\/admin\/team-invites\/[^/]+\/send-email$/)) {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    const inviteId = req.url.split('/api/admin/team-invites/')[1].split('/send-email')[0];
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const invites = loadAdminInvites();
+        const invite = invites.find(i => i.id === inviteId);
+        if (!invite) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invite not found' }));
+          return;
+        }
+        if (!resend) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Email service not configured' }));
+          return;
+        }
+        const inviteUrl = `https://mycarconcierge.com/admin-invite.html?token=${invite.token}`;
+        const roleLabel = (invite.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        await resend.emails.send({
+          from: 'My Car Concierge <noreply@mycarconcierge.com>',
+          to: invite.email,
+          subject: 'You\'re Invited to Join the My Car Concierge Admin Team',
+          html: `
+            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#12161c;color:#f5f5f7;padding:40px;border-radius:16px;">
+              <div style="text-align:center;margin-bottom:32px;">
+                <h1 style="color:#c9a84c;margin:0;font-size:24px;">My Car Concierge</h1>
+                <p style="color:#a0a8b8;margin-top:8px;">Admin Team Invitation</p>
+              </div>
+              <p style="font-size:16px;line-height:1.6;">You've been invited to join the My Car Concierge admin team as a <strong style="color:#c9a84c;">${roleLabel}</strong>.</p>
+              <p style="font-size:14px;line-height:1.6;color:#a0a8b8;">Click the button below to set up your account. This invite expires in 48 hours.</p>
+              <div style="text-align:center;margin:32px 0;">
+                <a href="${inviteUrl}" style="display:inline-block;padding:14px 32px;background:#c9a84c;color:#12161c;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">Complete Setup</a>
+              </div>
+              <p style="font-size:12px;color:#6b7280;text-align:center;">If the button doesn't work, copy and paste this link:<br>${inviteUrl}</p>
+            </div>
+          `
+        });
+        console.log(`[${requestId}] Invite email sent to ${invite.email}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        console.error(`[${requestId}] Send invite email error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to send email' }));
+      }
+    }, 'team-management');
+    return;
+  }
+
+  if (req.method === 'POST' && req.url.match(/^\/api\/admin\/team-invites\/[^/]+\/send-sms$/)) {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    const inviteId = req.url.split('/api/admin/team-invites/')[1].split('/send-sms')[0];
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', async () => {
+          try {
+            const data = JSON.parse(body || '{}');
+            const phone = data.phone || data.phone_number;
+            const invites = loadAdminInvites();
+            const invite = invites.find(i => i.id === inviteId);
+            if (!invite) {
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Invite not found' }));
+              return;
+            }
+            if (!phone) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Phone number is required' }));
+              return;
+            }
+            const inviteUrl = `https://mycarconcierge.com/admin-invite.html?token=${invite.token}`;
+            const roleLabel = (invite.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const smsMessage = `My Car Concierge: You've been invited to join the admin team as ${roleLabel}. Set up your account here: ${inviteUrl} (Expires in 48hrs)`;
+            const smsResult = await sendSmsNotification(phone, smsMessage);
+            if (smsResult.sent) {
+              console.log(`[${requestId}] Invite SMS sent to ${phone} for invite ${inviteId}`);
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true }));
+            } else {
+              console.error(`[${requestId}] Failed to send invite SMS:`, smsResult.reason);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Failed to send SMS', reason: smsResult.reason }));
+            }
+          } catch (parseErr) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid request body' }));
+          }
+        });
+      } catch (err) {
+        console.error(`[${requestId}] Send invite SMS error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to send SMS' }));
+      }
+    }, 'team-management');
+    return;
+  }
+
+  if (req.method === 'DELETE' && req.url.startsWith('/api/admin/team-invites/')) {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    const inviteId = req.url.split('/api/admin/team-invites/')[1];
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const invites = loadAdminInvites();
+        const filtered = invites.filter(i => i.id !== inviteId);
+        saveAdminInvites(filtered);
+        console.log(`[${requestId}] Admin invite revoked: ${inviteId}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        console.error(`[${requestId}] Revoke invite error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to revoke invite' }));
+      }
+    }, 'team-management');
+    return;
+  }
+
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/invite-validate')) {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    const rateLimit = applyRateLimit(req, res, 'adminVerify');
+    if (!rateLimit.allowed) return;
+    try {
+      const urlObj = new URL(req.url, `http://${req.headers.host}`);
+      const token = urlObj.searchParams.get('token');
+      if (!token) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ valid: false, reason: 'Token is required' }));
+        return;
+      }
+      const invites = loadAdminInvites();
+      const invite = invites.find(i => i.token === token);
+      if (!invite) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ valid: false, reason: 'Invalid invite token' }));
+        return;
+      }
+      if (invite.status !== 'pending') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ valid: false, reason: `Invite has already been ${invite.status}` }));
+        return;
+      }
+      if (new Date(invite.expires_at) < new Date()) {
+        invite.status = 'expired';
+        saveAdminInvites(invites);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ valid: false, reason: 'Invite has expired' }));
+        return;
+      }
+      console.log(`[${requestId}] Invite validated for ${invite.email}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ valid: true, email: invite.email, role: invite.role }));
+    } catch (err) {
+      console.error(`[${requestId}] Validate invite error:`, err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ valid: false, reason: 'Server error' }));
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/invite-accept') {
+    setCorsHeaders(res);
+    setSecurityHeaders(res, true);
+    const rateLimit = applyRateLimit(req, res, 'adminVerify');
+    if (!rateLimit.allowed) return;
+    (async () => {
+    try {
+      const body = await getRequestBody(req);
+      const { token, displayName, password } = body;
+      if (!token || !displayName || !password) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Token, display name, and password are required' }));
+        return;
+      }
+      if (password.length < 8) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Password must be at least 8 characters' }));
+        return;
+      }
+      const invites = loadAdminInvites();
+      const invite = invites.find(i => i.token === token);
+      if (!invite) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid invite token' }));
+        return;
+      }
+      if (invite.status !== 'pending') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Invite has already been ${invite.status}` }));
+        return;
+      }
+      if (new Date(invite.expires_at) < new Date()) {
+        invite.status = 'expired';
+        saveAdminInvites(invites);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invite has expired' }));
+        return;
+      }
+      const existingUsers = loadAdminUsers();
+      if (existingUsers.find(u => u.email === invite.email)) {
+        res.writeHead(409, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'A user with this email already exists' }));
+        return;
+      }
+      const newUser = {
+        id: crypto.randomUUID(),
+        email: invite.email,
+        display_name: displayName.trim(),
+        password_hash: crypto.createHash('sha256').update(password).digest('hex'),
+        role: invite.role,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        last_login: null
+      };
+      existingUsers.push(newUser);
+      saveAdminUsers(existingUsers);
+      invite.status = 'accepted';
+      saveAdminInvites(invites);
+      console.log(`[${requestId}] Invite accepted: ${invite.email} created as ${invite.role}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, email: invite.email, role: invite.role }));
+    } catch (err) {
+      console.error(`[${requestId}] Accept invite error:`, err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to accept invite' }));
+    }
+    })();
+    return;
+  }
+
+  // ========== END TEAM INVITE ENDPOINTS ==========
+
   if (req.method === 'POST' && req.url === '/api/founder/connect-onboard') {
     handleFounderConnectOnboard(req, res, requestId);
     return;
@@ -22293,6 +33468,11 @@ const server = http.createServer((req, res) => {
   
   if (req.method === 'POST' && req.url === '/api/admin/process-founder-payout') {
     handleAdminProcessFounderPayout(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/admin/process-bulk-payouts') {
+    handleAdminProcessBulkPayouts(req, res, requestId);
     return;
   }
   
@@ -22312,6 +33492,633 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  if (req.method === 'GET' && req.url?.startsWith('/api/founder/campaign-link-stats')) {
+    setSecurityHeaders(res, false);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+    try {
+      const urlParams = new URL(req.url, 'https://localhost').searchParams;
+      const code = urlParams.get('code') || '';
+      let total = 0;
+      let recent = 0;
+      if (code) {
+        const db = getLocalPool();
+        const totalRes = await db.query('SELECT COUNT(*) AS cnt FROM founder_campaign_clicks WHERE founder_code = $1', [code]);
+        total = parseInt(totalRes.rows[0]?.cnt || 0, 10);
+        const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        const recentRes = await db.query('SELECT COUNT(*) AS cnt FROM founder_campaign_clicks WHERE founder_code = $1 AND clicked_at >= $2', [code, since7d]);
+        recent = parseInt(recentRes.rows[0]?.cnt || 0, 10);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ total_clicks: total, clicks_last_7d: recent }));
+    } catch (err) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ total_clicks: 0, clicks_last_7d: 0 }));
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && req.url?.startsWith('/api/founder/campaign-link')) {
+    setSecurityHeaders(res, false);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    const urlParams = new URL(req.url, 'https://localhost').searchParams;
+    const code = urlParams.get('code') || '';
+    const campaignUrl = code
+      ? `https://wefunder.com/my.car.concierge?utm_source=mcc_founder&utm_medium=referral&utm_campaign=wefunder&utm_content=${encodeURIComponent(code)}`
+      : 'https://wefunder.com/my.car.concierge';
+    if (code) {
+      getLocalPool().query(
+        'INSERT INTO founder_campaign_clicks (founder_code, user_id, clicked_at, ip) VALUES ($1, $2, NOW(), $3)',
+        [code, user?.id || null, req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null]
+      ).catch(() => {});
+    }
+    res.writeHead(302, { Location: campaignUrl });
+    res.end();
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/notifications/bid-accepted-push') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await enforce2fa(req, res, requestId);
+    if (!user) return;
+    let body = '';
+    req.on('data', c => { body += c.toString(); });
+    req.on('end', async () => {
+      try {
+        const { provider_id, package_title, bid_amount } = JSON.parse(body);
+        if (!provider_id) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'provider_id required' }));
+          return;
+        }
+        const title = 'Your Bid Was Accepted!';
+        const pushBody = bid_amount && package_title
+          ? `$${parseFloat(bid_amount).toFixed(2)} bid on "${package_title}" accepted — get in touch with the member to schedule work.`
+          : 'A member accepted your bid. Log in to view details.';
+        sendFCMPushNotification([provider_id], title, pushBody, { section: 'bids' })
+          .catch(err => console.error(`[BidAcceptedPush] FCM error:`, err.message));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+      }
+    });
+    return;
+  }
+
+  // ========== CROWD-FUNDED COMMUNITY BOARD ==========
+  // SQL migration required in Supabase Dashboard:
+  // ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS funding_goal_cents INTEGER;
+  // CREATE TABLE IF NOT EXISTS crowd_fund_contributions (
+  //   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //   package_id UUID NOT NULL REFERENCES maintenance_packages(id) ON DELETE CASCADE,
+  //   contributor_id UUID NOT NULL REFERENCES profiles(id),
+  //   amount_cents INTEGER NOT NULL CHECK (amount_cents >= 100),
+  //   status TEXT NOT NULL DEFAULT 'completed',
+  //   payment_intent_id TEXT,
+  //   message TEXT,
+  //   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  // );
+  // ALTER TABLE crowd_fund_contributions ADD COLUMN IF NOT EXISTS payment_intent_id TEXT;
+  // ALTER TABLE crowd_fund_contributions ENABLE ROW LEVEL SECURITY;
+  // CREATE POLICY "members can view contributions" ON crowd_fund_contributions FOR SELECT USING (auth.uid() = contributor_id OR auth.uid() = (SELECT member_id FROM maintenance_packages WHERE id = package_id));
+  // CREATE POLICY "members can contribute" ON crowd_fund_contributions FOR INSERT WITH CHECK (auth.uid() = contributor_id);
+
+  if (req.method === 'GET' && req.url === '/api/community-board') {
+    setSecurityHeaders(res, false);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+    try {
+      const supabase = getSupabaseClient();
+      const { data: pkgs, error } = await supabase
+        .from('maintenance_packages')
+        .select('id, title, description, member_id, created_at, status, funding_goal_cents, profiles!maintenance_packages_member_id_fkey(full_name)')
+        .eq('crowd_funded', true)
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      const packageIds = (pkgs || []).map(p => p.id);
+      let contributionMap = {};
+      if (packageIds.length > 0) {
+        const { data: contribs } = await supabase
+          .from('crowd_fund_contributions')
+          .select('package_id, amount_cents, contributor_id')
+          .in('package_id', packageIds)
+          .eq('status', 'completed');
+        if (contribs) {
+          for (const c of contribs) {
+            if (!contributionMap[c.package_id]) contributionMap[c.package_id] = { total: 0, contributors: new Set() };
+            contributionMap[c.package_id].total += c.amount_cents;
+            contributionMap[c.package_id].contributors.add(c.contributor_id);
+          }
+        }
+      }
+      const packages = (pkgs || []).map(p => {
+        const cm = contributionMap[p.id] || { total: 0, contributors: new Set() };
+        return {
+          id: p.id,
+          title: p.title,
+          description: p.description,
+          member_id: p.member_id,
+          member_name: p.profiles?.full_name || 'Community Member',
+          created_at: p.created_at,
+          funding_goal_cents: p.funding_goal_cents || null,
+          raised_cents: cm.total,
+          contributor_count: cm.contributors.size
+        };
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ packages }));
+    } catch (err) {
+      console.error('[CommunityBoard] Error:', err.message);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ packages: [] }));
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && req.url?.match(/^\/api\/packages\/[^/]+\/contributions$/)) {
+    setSecurityHeaders(res, false);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+    const packageId = req.url.split('/')[3];
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('crowd_fund_contributions')
+        .select('amount_cents, contributor_id')
+        .eq('package_id', packageId)
+        .eq('status', 'completed');
+      if (error) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ total_cents: 0, count: 0 }));
+        return;
+      }
+      const total_cents = (data || []).reduce((sum, c) => sum + (c.amount_cents || 0), 0);
+      const uniqueContributors = new Set((data || []).map(c => c.contributor_id));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ total_cents, count: uniqueContributors.size }));
+    } catch (err) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ total_cents: 0, count: 0 }));
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url?.match(/^\/api\/packages\/[^/]+\/contribute\/intent$/)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await enforce2fa(req, res, requestId);
+    if (!user) return;
+    const packageId = req.url.split('/')[3];
+    let body = '';
+    req.on('data', c => { body += c.toString(); });
+    req.on('end', async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { amount_cents } = JSON.parse(body);
+        if (!amount_cents || amount_cents < 100) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Minimum contribution is $1.00' }));
+          return;
+        }
+        if (amount_cents > 500000) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Maximum contribution is $5,000' }));
+          return;
+        }
+        const { data: pkg, error: pkgErr } = await supabase
+          .from('maintenance_packages')
+          .select('id, title, member_id, crowd_funded, status')
+          .eq('id', packageId)
+          .single();
+        if (pkgErr || !pkg) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Package not found' }));
+          return;
+        }
+        if (!pkg.crowd_funded) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'This package is not accepting community contributions' }));
+          return;
+        }
+        if (pkg.status !== 'open') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'This request is no longer accepting contributions' }));
+          return;
+        }
+        if (pkg.member_id === user.id) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'You cannot contribute to your own package' }));
+          return;
+        }
+        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount_cents,
+          currency: 'usd',
+          metadata: {
+            type: 'crowd_fund_contribution',
+            package_id: packageId,
+            contributor_id: user.id,
+            package_title: pkg.title.substring(0, 200)
+          },
+          description: `Community contribution for "${pkg.title}"`
+        });
+        console.log(`[${requestId}] Created contribution PaymentIntent ${paymentIntent.id} for package ${packageId}, amount: $${(amount_cents / 100).toFixed(2)}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ client_secret: paymentIntent.client_secret }));
+      } catch (err) {
+        console.error('[ContributeIntent] Error:', err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create payment. Please try again.' }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url?.match(/^\/api\/packages\/[^/]+\/contribute$/)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await enforce2fa(req, res, requestId);
+    if (!user) return;
+    const packageId = req.url.split('/')[3];
+    let body = '';
+    req.on('data', c => { body += c.toString(); });
+    req.on('end', async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { payment_intent_id, amount_cents, message } = JSON.parse(body);
+        if (!payment_intent_id) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Payment verification required' }));
+          return;
+        }
+        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+        const paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
+        if (paymentIntent.status !== 'succeeded') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Payment has not been completed' }));
+          return;
+        }
+        if (paymentIntent.metadata?.package_id !== packageId || paymentIntent.metadata?.contributor_id !== user.id) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Payment verification failed' }));
+          return;
+        }
+        const verifiedAmountCents = paymentIntent.amount;
+        const { data: pkg, error: pkgErr } = await supabase
+          .from('maintenance_packages')
+          .select('id, title, member_id, crowd_funded, status')
+          .eq('id', packageId)
+          .single();
+        if (pkgErr || !pkg) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Package not found' }));
+          return;
+        }
+        if (!pkg.crowd_funded) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'This package is not accepting community contributions' }));
+          return;
+        }
+        if (pkg.status !== 'open') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'This request is no longer accepting contributions' }));
+          return;
+        }
+        const { data: existing } = await supabase
+          .from('crowd_fund_contributions')
+          .select('id')
+          .eq('payment_intent_id', payment_intent_id)
+          .maybeSingle();
+        if (existing) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, id: existing.id, already_recorded: true }));
+          return;
+        }
+        const { data: contrib, error: contribErr } = await supabase
+          .from('crowd_fund_contributions')
+          .insert({
+            package_id: packageId,
+            contributor_id: user.id,
+            amount_cents: verifiedAmountCents,
+            status: 'completed',
+            payment_intent_id,
+            message: message || null
+          })
+          .select()
+          .single();
+        if (contribErr) {
+          console.error('[Contribute] Insert error:', contribErr.message);
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Contributions are temporarily unavailable. The database migration may still be pending.' }));
+          return;
+        }
+        try {
+          const { data: contribProfile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
+          const contribName = contribProfile?.full_name || 'A community member';
+          const amountDollars = (verifiedAmountCents / 100).toFixed(2);
+          await sendEmailNotification(pkg.member_id, 'Community Contribution Received', `${contribName} contributed $${amountDollars} toward your service request "${pkg.title}". Check your Community Board for updates.`);
+          sendFCMPushNotification([pkg.member_id], 'Someone Contributed to Your Repair!', `${contribName} chipped in $${amountDollars} toward "${pkg.title}".`, { section: 'packages' })
+            .catch(() => {});
+        } catch {}
+        console.log(`[${requestId}] Contribution recorded: PI ${payment_intent_id}, package ${packageId}, $${(verifiedAmountCents / 100).toFixed(2)}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, id: contrib.id }));
+      } catch (err) {
+        console.error('[Contribute] Error:', err.message);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid request' }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url?.match(/^\/api\/packages\/[^/]+\/share-with-car-club$/)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+    const packageId = req.url.split('/')[3];
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data: pkg, error: pkgErr } = await supabase
+        .from('maintenance_packages')
+        .select('id, title, member_id, crowd_funded, status')
+        .eq('id', packageId)
+        .single();
+
+      if (pkgErr || !pkg) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package not found' }));
+        return;
+      }
+      if (pkg.member_id !== user.id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not authorized' }));
+        return;
+      }
+      if (!pkg.crowd_funded) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package is not crowd-funded' }));
+        return;
+      }
+      if (pkg.status !== 'open') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package is no longer open' }));
+        return;
+      }
+
+      const { data: existing } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact' })
+        .eq('entity_id', packageId)
+        .eq('type', 'community_board_car_club')
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        const { count: existingCount } = await supabase
+          .from('notifications')
+          .select('*', { count: 'exact', head: true })
+          .eq('entity_id', packageId)
+          .eq('type', 'community_board_car_club');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ notified: existingCount || 0, already_shared: true }));
+        return;
+      }
+
+      const { data: memberships } = await supabase
+        .from('club_memberships')
+        .select('club_id')
+        .eq('member_id', user.id)
+        .eq('is_active', true);
+
+      if (!memberships || memberships.length === 0) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ notified: 0, no_clubs: true }));
+        return;
+      }
+
+      const clubIds = memberships.map(m => m.club_id);
+
+      const { data: fellowMembers } = await supabase
+        .from('club_memberships')
+        .select('member_id')
+        .in('club_id', clubIds)
+        .eq('is_active', true)
+        .neq('member_id', user.id);
+
+      if (!fellowMembers || fellowMembers.length === 0) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ notified: 0 }));
+        return;
+      }
+
+      const uniqueIds = [...new Set(fellowMembers.map(m => m.member_id))];
+      const notifications = uniqueIds.map(uid => ({
+        user_id: uid,
+        type: 'community_board_car_club',
+        title: 'Help a Fellow Member',
+        message: `A fellow Car Club member needs community support for: "${pkg.title}". Chip in on the Community Board.`,
+        entity_type: 'package',
+        entity_id: packageId
+      }));
+
+      await supabase.from('notifications').insert(notifications);
+
+      sendFCMPushNotification(
+        uniqueIds,
+        'Help a Fellow Member',
+        `A Car Club member needs support for: "${pkg.title}". Check the Community Board.`,
+        { section: 'packages' }
+      ).catch(() => {});
+
+      console.log(`[${requestId}] Car Club share: notified ${uniqueIds.length} members for package ${packageId}`);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ notified: uniqueIds.length }));
+    } catch (err) {
+      console.error(`[${requestId}] Share with car club error:`, err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/api/wefunder/stats') {
+    const now = Date.now();
+    const CACHE_TTL = 60 * 60 * 1000;
+    if (wefunderStatsCache && (now - wefunderStatsCache.ts) < CACHE_TTL) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(wefunderStatsCache.data));
+      return;
+    }
+    try {
+      const wfRes = await fetch('https://wefunder.com/my.car.concierge', {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; MyCar/1.0)',
+          'Accept': 'text/html,application/xhtml+xml'
+        }
+      });
+      const html = await wfRes.text();
+      let stats = { raised: 0, investors: 0, goal: 0, valuation: null, daysLeft: null, campaignUrl: 'https://wefunder.com/my.car.concierge', live: false };
+      const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+      if (nextDataMatch) {
+        try {
+          const nd = JSON.parse(nextDataMatch[1]);
+          const pp = nd?.props?.pageProps || {};
+          const c = pp.campaign || pp.Company || pp.company || {};
+          stats.raised = parseFloat(c.amount_raised || c.amountRaised || c.total_raised || 0);
+          stats.investors = parseInt(c.num_investors || c.numInvestors || c.investor_count || 0, 10);
+          stats.goal = parseFloat(c.maximum_goal || c.goal_amount || c.minimum_goal || c.goal || 0);
+          stats.valuation = c.valuation || c.pre_money_valuation || null;
+          if (c.deadline_date || c.deadline || c.closes_at) {
+            const deadline = new Date(c.deadline_date || c.deadline || c.closes_at);
+            stats.daysLeft = Math.max(0, Math.ceil((deadline - new Date()) / 86400000));
+          }
+          stats.live = stats.raised > 0 || stats.investors > 0;
+        } catch {}
+      }
+      if (!stats.live) {
+        const raisedMatch = html.match(/\$([0-9,]+(?:\.[0-9]+)?[KkMm]?)\s*(?:raised|committed)/i);
+        if (raisedMatch) {
+          const raw = raisedMatch[1].replace(/,/g, '');
+          stats.raised = raw.endsWith('K') || raw.endsWith('k') ? parseFloat(raw) * 1000 : raw.endsWith('M') || raw.endsWith('m') ? parseFloat(raw) * 1000000 : parseFloat(raw);
+        }
+        const invMatch = html.match(/([0-9,]+)\s+investors?/i);
+        if (invMatch) stats.investors = parseInt(invMatch[1].replace(/,/g, ''), 10);
+        stats.live = stats.raised > 0 || stats.investors > 0;
+      }
+      wefunderStatsCache = { ts: now, data: stats };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(stats));
+    } catch (err) {
+      console.error('[Wefunder] Stats fetch error:', err.message);
+      const fallback = { raised: 0, investors: 0, goal: 0, valuation: null, daysLeft: null, campaignUrl: 'https://wefunder.com/my.car.concierge', live: false, error: true };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(fallback));
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && req.url.startsWith('/api/founder/payout-receipt/')) {
+    const payoutId = req.url.split('/api/founder/payout-receipt/')[1]?.split('?')[0];
+    handleFounderPayoutReceipt(req, res, requestId, payoutId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/jobs/complete') {
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', async () => {
+      try {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader?.replace('Bearer ', '');
+        if (!token) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Authentication required' }));
+          return;
+        }
+        const { data: { user }, error: authError } = await getSupabaseClient().auth.getUser(token);
+        if (authError || !user) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+          return;
+        }
+        const { package_id, completion_notes } = JSON.parse(body);
+        if (!package_id) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'package_id is required' }));
+          return;
+        }
+        const supabase = getSupabaseClient();
+
+        const { data: bid, error: bidError } = await supabase
+          .from('bids')
+          .select('id, package_id, provider_id')
+          .eq('package_id', package_id)
+          .eq('provider_id', user.id)
+          .eq('status', 'accepted')
+          .single();
+        if (bidError || !bid) {
+          console.log(`[${requestId}] Unauthorized job complete attempt by ${user.id} for package ${package_id}`);
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'You are not authorized to complete this job' }));
+          return;
+        }
+
+        const { data: pkg, error: pkgError } = await supabase
+          .from('maintenance_packages')
+          .select('*')
+          .eq('id', package_id)
+          .single();
+        if (pkgError || !pkg) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Package not found' }));
+          return;
+        }
+        if (pkg.status === 'pending_split_payment') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Cannot complete job: split payment is still pending. All participants must pay before work can begin.' }));
+          return;
+        }
+        const { error: updateError } = await supabase
+          .from('maintenance_packages')
+          .update({
+            status: 'provider_completed',
+            completion_notes: completion_notes || '',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', package_id);
+        if (updateError) {
+          console.error(`[${requestId}] Error updating package:`, updateError);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to update package' }));
+          return;
+        }
+        await supabase.from('notifications').insert({
+          user_id: pkg.member_id,
+          type: 'job_completed',
+          title: 'Job Completed',
+          message: 'Your provider has marked the job as complete. Please review and confirm.',
+          entity_type: 'package',
+          entity_id: package_id
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        console.error(`[${requestId}] Jobs complete error:`, err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
+      }
+    });
+    return;
+  }
+
   // Provider Stripe Connect Onboarding
   if (req.method === 'POST' && req.url === '/api/provider/connect-onboard') {
     handleProviderConnectOnboard(req, res, requestId);
@@ -22402,6 +34209,63 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  // Provider Availability & Booking API
+  if (req.method === 'GET' && req.url.startsWith('/api/provider/availability/')) {
+    const providerId = req.url.split('/api/provider/availability/')[1]?.split('?')[0];
+    handleGetProviderAvailability(req, res, requestId, providerId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/provider/availability') {
+    handleSaveProviderAvailability(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/provider/blocked-time/')) {
+    const providerId = req.url.split('/api/provider/blocked-time/')[1]?.split('?')[0];
+    handleGetBlockedTime(req, res, requestId, providerId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/provider/blocked-time') {
+    handleAddBlockedTime(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'DELETE' && req.url.startsWith('/api/provider/blocked-time/')) {
+    const blockId = req.url.split('/api/provider/blocked-time/')[1]?.split('?')[0];
+    handleDeleteBlockedTime(req, res, requestId, blockId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/provider/available-slots/')) {
+    const providerId = req.url.split('/api/provider/available-slots/')[1]?.split('?')[0];
+    handleGetAvailableSlots(req, res, requestId, providerId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/booking/create') {
+    handleCreateBooking(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/booking/cancel') {
+    handleCancelBooking(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/provider/schedule/')) {
+    const providerId = req.url.split('/api/provider/schedule/')[1]?.split('?')[0];
+    handleGetProviderSchedule(req, res, requestId, providerId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/booking/package/')) {
+    const packageId = req.url.split('/api/booking/package/')[1]?.split('?')[0];
+    handleGetBookingByPackage(req, res, requestId, packageId);
+    return;
+  }
+  
   // Square POS Integration API
   if (req.method === 'POST' && req.url === '/api/square/connect') {
     handleSquareConnect(req, res, requestId);
@@ -22454,6 +34318,33 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  // Provider Bid Insights API
+  if (req.method === 'GET' && req.url.startsWith('/api/provider/bid-price-signal')) {
+    handleBidPriceSignal(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/ai/draft-bid') {
+    handleDraftBid(req, res, requestId);
+    return;
+  }
+
+  const aiMediationMatch = req.url.match(/^\/api\/packages\/([^/]+)\/ai-mediation$/);
+  if (aiMediationMatch && (req.method === 'POST' || req.method === 'GET')) {
+    handleAiMediation(req, res, requestId, aiMediationMatch[1]);
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/api/provider/bid-insights') {
+    handleProviderBidInsights(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'GET' && req.url.startsWith('/api/provider/category-price-advice')) {
+    handleProviderCategoryPriceAdvice(req, res, requestId);
+    return;
+  }
+
   // Provider Available Packages API (server-side filtering for exclusive/private jobs)
   if (req.method === 'GET' && req.url === '/api/provider/packages') {
     handleProviderAvailablePackages(req, res, requestId);
@@ -22754,7 +34645,62 @@ const server = http.createServer((req, res) => {
     handlePushUnsubscribe(req, res, requestId);
     return;
   }
-  
+
+  if (req.method === 'POST' && req.url === '/api/push/register-device') {
+    const user = await enforce2fa(req, res, requestId);
+    if (!user) return;
+    try {
+      const body = await parseBody(req);
+      const { token, platform } = body;
+      if (!token || typeof token !== 'string' || token.length < 20) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid token' }));
+        return;
+      }
+      const supabase = getSupabaseClient();
+      const { error } = await supabase.from('device_push_tokens').upsert(
+        { member_id: user.id, token, platform: platform || 'unknown', active: true, updated_at: new Date().toISOString() },
+        { onConflict: 'token' }
+      );
+      if (error && error.code !== '42P01') {
+        console.error(`[${requestId}] FCM token save error:`, error.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to save token' }));
+        return;
+      }
+      console.log(`[${requestId}] FCM device token registered for ${user.id} (${platform || 'unknown'})`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error(`[${requestId}] register-device error:`, err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal error' }));
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/push/unregister-device') {
+    const user = await enforce2fa(req, res, requestId);
+    if (!user) return;
+    try {
+      const body = await parseBody(req);
+      const { token } = body;
+      const supabase = getSupabaseClient();
+      if (token) {
+        await supabase.from('device_push_tokens').update({ active: false }).eq('token', token).eq('member_id', user.id);
+      } else {
+        await supabase.from('device_push_tokens').update({ active: false }).eq('member_id', user.id);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error(`[${requestId}] unregister-device error:`, err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal error' }));
+    }
+    return;
+  }
+
   // Provider Push Notification API Routes
   if (req.method === 'POST' && req.url === '/api/provider/push/subscribe') {
     handleProviderPushSubscribe(req, res, requestId);
@@ -22901,6 +34847,140 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url.match(/^\/api\/escrow\/status\/[^/]+$/)) {
     const packageId = req.url.split('/api/escrow/status/')[1]?.split('?')[0];
     handleEscrowStatus(req, res, requestId, packageId);
+    return;
+  }
+  
+  // Split Payment API Routes
+  if (req.method === 'POST' && req.url === '/api/split/create-additional') {
+    handleSplitCreateAdditional(req, res, requestId);
+    return;
+  }
+  if (req.method === 'GET' && req.url === '/api/split/my-splits') {
+    const user = await enforce2fa(req, res, requestId);
+    if (!user) return;
+    try {
+      const supabase = getSupabaseClient();
+      const [createdRes, participantRes] = await Promise.all([
+        supabase
+          .from('split_payments')
+          .select(`
+            id, status, total_amount_cents, expires_at, created_at,
+            package_id,
+            maintenance_packages!inner (
+              id, title, description, service_type, status, member_zip
+            ),
+            split_participants (
+              id, email, display_name, amount_cents, status, paid_at, member_id
+            )
+          `)
+          .eq('created_by', user.id)
+          .order('created_at', { ascending: false })
+          .limit(25),
+        supabase
+          .from('split_participants')
+          .select(`
+            id, email, display_name, amount_cents, status, paid_at, invited_at, stripe_client_secret,
+            split_payment_id,
+            split_payments!inner (
+              id, status, total_amount_cents, expires_at, created_at, package_id,
+              maintenance_packages (
+                id, title, service_type, status, member_zip
+              )
+            )
+          `)
+          .eq('member_id', user.id)
+          .order('invited_at', { ascending: false })
+          .limit(25)
+      ]);
+      const organized = (createdRes.data || []).map(s => ({
+        ...s,
+        pkg: s.maintenance_packages,
+        participants: s.split_participants || []
+      }));
+      const invited = (participantRes.data || []).map(p => ({
+        ...p,
+        split: p.split_payments,
+        pkg: p.split_payments?.maintenance_packages
+      }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ organized, invited }));
+    } catch (err) {
+      console.error('[split/my-splits]', err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to load splits' }));
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/split/create') {
+    handleSplitCreate(req, res, requestId);
+    return;
+  }
+  if (req.method === 'GET' && req.url.match(/^\/api\/split\/status\/[^/]+$/)) {
+    const packageId = req.url.split('/api/split/status/')[1]?.split('?')[0];
+    handleSplitStatus(req, res, requestId, packageId);
+    return;
+  }
+  if (req.method === 'POST' && req.url.startsWith('/api/split/guest-pay/')) {
+    const participantId = req.url.split('/api/split/guest-pay/')[1]?.split('?')[0];
+    handleSplitGuestPay(req, res, requestId, participantId);
+    return;
+  }
+  if (req.method === 'POST' && req.url.startsWith('/api/split/guest-confirm/')) {
+    const participantId = req.url.split('/api/split/guest-confirm/')[1]?.split('?')[0];
+    handleSplitGuestPayConfirm(req, res, requestId, participantId);
+    return;
+  }
+  if (req.method === 'POST' && req.url.startsWith('/api/split/guest-details/')) {
+    const participantId = req.url.split('/api/split/guest-details/')[1]?.split('?')[0];
+    handleSplitGuestDetails(req, res, requestId, participantId);
+    return;
+  }
+  if (req.method === 'POST' && req.url.match(/^\/api\/split\/pay\/[^/]+$/)) {
+    const participantId = req.url.split('/api/split/pay/')[1]?.split('?')[0];
+    handleSplitPay(req, res, requestId, participantId);
+    return;
+  }
+  if (req.method === 'POST' && req.url.match(/^\/api\/split\/confirm\/[^/]+$/)) {
+    const participantId = req.url.split('/api/split/confirm/')[1]?.split('?')[0];
+    handleSplitConfirm(req, res, requestId, participantId);
+    return;
+  }
+  if (req.method === 'POST' && req.url.match(/^\/api\/split\/reactivate\/[^/]+$/)) {
+    const splitId = req.url.split('/api/split/reactivate/')[1]?.split('?')[0];
+    handleSplitReactivate(req, res, requestId, splitId);
+    return;
+  }
+  if (req.method === 'POST' && req.url.match(/^\/api\/split\/cancel\/[^/]+$/)) {
+    const splitId = req.url.split('/api/split/cancel/')[1]?.split('?')[0];
+    handleSplitCancel(req, res, requestId, splitId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/admin\/refunds\/[^/]+\/process$/)) {
+    const refundId = req.url.split('/api/admin/refunds/')[1]?.split('/')[0];
+    handleAdminProcessRefund(req, res, requestId, refundId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/refunds')) {
+    handleAdminGetRefunds(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/provider\/refunds\/[^/]+\/process$/)) {
+    const refundId = req.url.split('/api/provider/refunds/')[1]?.split('/')[0];
+    handleProviderProcessRefund(req, res, requestId, refundId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/provider/refunds')) {
+    handleProviderGetRefunds(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/member/refunds')) {
+    handleMemberGetRefunds(req, res, requestId);
     return;
   }
   
@@ -23058,6 +35138,38 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  if (req.method === 'POST' && req.url === '/api/admin/process-commission-reconciliation') {
+    handleProcessCommissionReconciliation(req, res, requestId);
+    return;
+  }
+  
+  // Milestone and Bonus Reserve Admin Endpoints
+  if (req.method === 'GET' && req.url === '/api/admin/milestones') {
+    handleAdminGetMilestones(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'GET' && req.url === '/api/admin/bonus-reserve') {
+    handleAdminGetBonusReserve(req, res, requestId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url.match(/^\/api\/admin\/milestones\/[^/]+\/pay$/)) {
+    const milestoneId = req.url.split('/api/admin/milestones/')[1]?.split('/')[0];
+    handleAdminPayMilestone(req, res, requestId, milestoneId);
+    return;
+  }
+  
+  if (req.method === 'POST' && req.url === '/api/admin/bonus-reserve/adjust') {
+    handleAdminAdjustBonusReserve(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/setup-founding-referral') {
+    handleAdminSetupFoundingReferral(req, res, requestId);
+    return;
+  }
+  
   // Dream Car Finder AI Search API Routes
   if (req.method === 'POST' && req.url === '/api/dream-car/searches') {
     handleDreamCarCreateSearch(req, res, requestId);
@@ -23105,6 +35217,30 @@ const server = http.createServer((req, res) => {
   }
   
   // Config endpoint for Stripe publishable key
+  if (req.method === 'GET' && req.url?.startsWith('/api/vin-proxy')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
+    const vin = parsedUrl.searchParams.get('vin');
+    if (!vin || vin.length !== 17) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Please provide a valid 17-character VIN' }));
+      return;
+    }
+    try {
+      const nhtsa = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${encodeURIComponent(vin)}?format=json`);
+      if (!nhtsa.ok) throw new Error(`NHTSA API error: ${nhtsa.status}`);
+      const data = await nhtsa.json();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data));
+    } catch (err) {
+      console.error(`[${requestId}] VIN proxy error:`, err.message);
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unable to reach NHTSA. Please try again.' }));
+    }
+    return;
+  }
+
   if (req.method === 'GET' && req.url === '/api/config/stripe') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ 
@@ -23285,6 +35421,12 @@ const server = http.createServer((req, res) => {
     handleAcknowledgeRecall(req, res, requestId, recallId);
     return;
   }
+
+  if (req.method === 'POST' && req.url.match(/^\/api\/recalls\/[^/]+\/enrich$/)) {
+    const recallId = req.url.split('/api/recalls/')[1]?.split('/')[0];
+    handleEnrichRecall(req, res, requestId, recallId);
+    return;
+  }
   
   // Printful Admin API Endpoints (require admin role)
   if (req.method === 'GET' && req.url === '/api/admin/printful/catalog') {
@@ -23362,6 +35504,692 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  // HubSpot CRM API endpoints
+  if (req.method === 'GET' && req.url === '/api/admin/hubspot/contacts') {
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const hubspot = await getHubSpotClient();
+        const response = await hubspot.crm.contacts.basicApi.getPage(100, undefined, ['firstname', 'lastname', 'email', 'phone', 'company', 'lifecyclestage', 'createdate']);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ contacts: response.results }));
+      } catch (err) {
+        console.error(`[${requestId}] HubSpot contacts error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to fetch HubSpot contacts' }));
+      }
+    }, 'crm');
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/hubspot/contacts') {
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const body = await parseBody(req);
+        if (!body.email) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Email is required' }));
+          return;
+        }
+        const hubspot = await getHubSpotClient();
+        const contact = await hubspot.crm.contacts.basicApi.create({
+          properties: {
+            firstname: body.firstname || '',
+            lastname: body.lastname || '',
+            email: body.email,
+            phone: body.phone || '',
+            company: body.company || '',
+            lifecyclestage: body.lifecyclestage || 'lead'
+          }
+        });
+        res.writeHead(201, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ contact }));
+      } catch (err) {
+        console.error(`[${requestId}] HubSpot create contact error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create HubSpot contact' }));
+      }
+    }, 'crm');
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/api/admin/hubspot/deals') {
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const hubspot = await getHubSpotClient();
+        const response = await hubspot.crm.deals.basicApi.getPage(100, undefined, ['dealname', 'amount', 'dealstage', 'pipeline', 'closedate', 'createdate']);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ deals: response.results }));
+      } catch (err) {
+        console.error(`[${requestId}] HubSpot deals error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to fetch HubSpot deals' }));
+      }
+    }, 'crm');
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/hubspot/deals') {
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const body = await parseBody(req);
+        if (!body.dealname) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Deal name is required' }));
+          return;
+        }
+        const hubspot = await getHubSpotClient();
+        const deal = await hubspot.crm.deals.basicApi.create({
+          properties: {
+            dealname: body.dealname,
+            amount: body.amount || '',
+            dealstage: body.dealstage || 'appointmentscheduled',
+            pipeline: body.pipeline || 'default',
+            closedate: body.closedate || ''
+          }
+        });
+        res.writeHead(201, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ deal }));
+      } catch (err) {
+        console.error(`[${requestId}] HubSpot create deal error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create HubSpot deal' }));
+      }
+    }, 'crm');
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/api/admin/hubspot/companies') {
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const hubspot = await getHubSpotClient();
+        const response = await hubspot.crm.companies.basicApi.getPage(100, undefined, ['name', 'domain', 'industry', 'phone', 'city', 'state', 'createdate']);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ companies: response.results }));
+      } catch (err) {
+        console.error(`[${requestId}] HubSpot companies error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to fetch HubSpot companies' }));
+      }
+    }, 'crm');
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/hubspot/companies') {
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const body = await parseBody(req);
+        if (!body.name) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Company name is required' }));
+          return;
+        }
+        const hubspot = await getHubSpotClient();
+        const company = await hubspot.crm.companies.basicApi.create({
+          properties: {
+            name: body.name,
+            domain: body.domain || '',
+            industry: body.industry || '',
+            phone: body.phone || '',
+            city: body.city || '',
+            state: body.state || ''
+          }
+        });
+        res.writeHead(201, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ company }));
+      } catch (err) {
+        console.error(`[${requestId}] HubSpot create company error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to create HubSpot company' }));
+      }
+    }, 'crm');
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/hubspot/sync-members') {
+    handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Database not available' }));
+          return;
+        }
+        const { data: profiles, error: profileErr } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, role, phone')
+          .order('created_at', { ascending: false })
+          .limit(500);
+        if (profileErr) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to fetch profiles' }));
+          return;
+        }
+        let synced = 0;
+        let skipped = 0;
+        for (const p of profiles || []) {
+          if (!p.email) { skipped++; continue; }
+          const nameParts = (p.full_name || '').split(' ');
+          const firstname = nameParts[0] || '';
+          const lastname = nameParts.slice(1).join(' ') || '';
+          const result = await syncContactToHubSpot(p.email, firstname, lastname, p.role, p.phone);
+          if (result) synced++;
+          else skipped++;
+        }
+        console.log(`[${requestId}] HubSpot sync complete: ${synced} synced, ${skipped} skipped`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ synced, skipped, total: (profiles || []).length }));
+      } catch (err) {
+        console.error(`[${requestId}] HubSpot sync-members error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to sync members to HubSpot' }));
+      }
+    }, 'crm');
+    return;
+  }
+
+
+  // AI Smart Bid Analyzer - rank bids for a package
+  if (req.method === 'POST' && req.url === '/api/ai/rank-bids') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Authentication required' }));
+      return;
+    }
+
+    try {
+      const body = await getRequestBody(req, MAX_BODY_SIZE);
+      const { bids } = body;
+
+      if (!bids || !Array.isArray(bids) || bids.length < 2) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'At least 2 bids required for analysis' }));
+        return;
+      }
+
+      const bidSummaries = bids.map((b, i) => {
+        const parts = [];
+        parts.push(`Bid ${i + 1}: $${(b.price || 0).toFixed(2)}`);
+        if (b.rating && b.rating !== 'New') parts.push(`Rating: ${b.rating}/5`);
+        if (b.jobs_completed) parts.push(`${b.jobs_completed} jobs completed`);
+        if (b.on_time_rate) parts.push(`${b.on_time_rate}% on-time`);
+        if (b.overall_score) parts.push(`Performance score: ${b.overall_score}`);
+        if (b.tier) parts.push(`Tier: ${b.tier}`);
+        if (b.is_verified) parts.push('Concierge Verified');
+        if (b.is_background_verified) parts.push('Background Verified');
+        if (b.years_in_business) parts.push(`${b.years_in_business} years in business`);
+        if (b.estimated_duration) parts.push(`Est. duration: ${b.estimated_duration}`);
+        if (b.badges && b.badges.length) parts.push(`Badges: ${b.badges.join(', ')}`);
+        if (b.response_time) parts.push(`Response time: ${b.response_time}`);
+        return parts.join(' | ');
+      });
+
+      const prompt = `You are an automotive service advisor helping a car owner choose the best bid for their vehicle maintenance/repair job.
+
+Here are the bids received:
+${bidSummaries.map(s => `- ${s}`).join('\n')}
+
+Analyze these bids and rank them from best to worst. Consider:
+1. Value for money (not just cheapest - balance price with quality)
+2. Provider reputation (rating, jobs completed, on-time rate)
+3. Provider verification status and experience
+4. Performance tier and badges
+
+Return your response as valid JSON with this exact structure (no markdown, no code blocks):
+{
+  "ranked_indices": [0, 2, 1],
+  "top_pick_rationale": "One or two sentences explaining why the top pick is recommended, in plain friendly English. Reference specific stats.",
+  "rankings": [
+    {"index": 0, "score": 95, "brief": "Short one-line reason"},
+    {"index": 2, "score": 82, "brief": "Short one-line reason"},
+    {"index": 1, "score": 70, "brief": "Short one-line reason"}
+  ]
+}
+
+The indices correspond to the bid numbers (0-based). Keep rationale concise and jargon-free.`;
+
+      const aiResult = await generateAIContent(prompt, { maxTokens: 1024, preferredProvider: 'gemini' });
+      
+      let parsed;
+      try {
+        let text = aiResult.text.trim();
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) text = jsonMatch[0];
+        parsed = JSON.parse(text);
+      } catch (parseErr) {
+        console.error(`[${requestId}] AI bid ranking parse error:`, parseErr.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to parse AI response' }));
+        return;
+      }
+
+      if (!Array.isArray(parsed.ranked_indices) || typeof parsed.top_pick_rationale !== 'string') {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid AI response structure' }));
+        return;
+      }
+      const validIndices = parsed.ranked_indices.filter(i => typeof i === 'number' && i >= 0 && i < bids.length);
+      const uniqueIndices = [...new Set(validIndices)];
+      if (uniqueIndices.length === 0) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'AI returned invalid bid indices' }));
+        return;
+      }
+      parsed.ranked_indices = uniqueIndices;
+      if (Array.isArray(parsed.rankings)) {
+        parsed.rankings = parsed.rankings.filter(r => typeof r.index === 'number' && r.index >= 0 && r.index < bids.length);
+      }
+
+      console.log(`[${requestId}] AI bid ranking completed for ${bids.length} bids via ${aiResult.provider}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        ranked_indices: parsed.ranked_indices,
+        top_pick_rationale: String(parsed.top_pick_rationale).slice(0, 500),
+        rankings: parsed.rankings,
+        provider: aiResult.provider
+      }));
+    } catch (error) {
+      console.error(`[${requestId}] AI bid ranking error:`, error.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'AI analysis unavailable' }));
+    }
+    return;
+  }
+
+  // OPTIONS preflight for AI rank-bids
+  if (req.method === 'OPTIONS' && req.url === '/api/ai/rank-bids') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+
+  // ========== PROVIDER PUBLIC DIRECTORY ==========
+  // Migration SQL (run in Supabase):
+  // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS directory_slug TEXT UNIQUE;
+  // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS directory_opt_in BOOLEAN DEFAULT false;
+  // CREATE INDEX IF NOT EXISTS idx_profiles_directory_opt_in ON profiles (directory_opt_in) WHERE directory_opt_in = true;
+  // CREATE INDEX IF NOT EXISTS idx_profiles_directory_slug ON profiles (directory_slug) WHERE directory_slug IS NOT NULL;
+
+  if (req.method === 'GET' && req.url.startsWith('/api/directory/providers')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const rateLimit = applyRateLimit(req, res, 'public');
+    if (!rateLimit.allowed) return;
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    try {
+      const urlObj = new URL(req.url, `http://${req.headers.host}`);
+      const pathParts = urlObj.pathname.replace('/api/directory/providers', '').split('/').filter(Boolean);
+
+      if (pathParts.length === 1) {
+        const slug = decodeURIComponent(pathParts[0]);
+        const { data: provider, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('directory_slug', slug)
+          .eq('directory_opt_in', true)
+          .eq('role', 'provider')
+          .single();
+
+        if (error || !provider) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Provider not found' }));
+          return;
+        }
+
+        const { data: reviews } = await supabase
+          .from('reviews')
+          .select('id, rating, comment, created_at, quality_rating, communication_rating, timeliness_rating, value_rating, member_id')
+          .eq('provider_id', provider.id)
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        const { data: reviewProfiles } = reviews && reviews.length > 0
+          ? await supabase
+              .from('profiles')
+              .select('id, full_name')
+              .in('id', reviews.map(r => r.member_id).filter(Boolean))
+          : { data: [] };
+
+        const profileMap = {};
+        (reviewProfiles || []).forEach(p => { profileMap[p.id] = p.full_name; });
+
+        const reviewList = (reviews || []).map(r => ({
+          rating: r.rating,
+          comment: r.comment,
+          created_at: r.created_at,
+          quality_rating: r.quality_rating,
+          communication_rating: r.communication_rating,
+          timeliness_rating: r.timeliness_rating,
+          value_rating: r.value_rating,
+          reviewer_name: profileMap[r.member_id] ? profileMap[r.member_id].split(' ')[0] + ' ' + (profileMap[r.member_id].split(' ')[1] || '').charAt(0) + '.' : 'Member'
+        }));
+
+        const totalRating = reviewList.reduce((sum, r) => sum + (r.rating || 0), 0);
+        const avgRating = reviewList.length > 0 ? (totalRating / reviewList.length).toFixed(1) : null;
+
+        const { count: completedJobs } = await supabase
+          .from('bids')
+          .select('id', { count: 'exact', head: true })
+          .eq('provider_id', provider.id)
+          .eq('status', 'completed');
+
+        const { data: gallery } = await supabase
+          .from('provider_gallery')
+          .select('id, image_url, caption')
+          .eq('provider_id', provider.id)
+          .order('created_at', { ascending: false })
+          .limit(12);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          business_name: provider.business_name,
+          city: provider.city,
+          state: provider.state,
+          description: provider.description,
+          services: provider.services || [],
+          certifications: provider.certifications || [],
+          other_certifications: provider.other_certifications,
+          years_in_business: provider.years_in_business,
+          slug: provider.directory_slug,
+          avatar_url: provider.avatar_url,
+          member_since: provider.created_at,
+          emergency_enabled: provider.emergency_enabled,
+          is_24_seven: provider.is_24_seven,
+          can_tow: provider.can_tow,
+          avg_rating: avgRating,
+          review_count: reviewList.length,
+          completed_jobs: completedJobs || 0,
+          reviews: reviewList,
+          gallery: gallery || []
+        }));
+        return;
+      }
+
+      const category = urlObj.searchParams.get('category');
+      const city = urlObj.searchParams.get('city');
+      const page = parseInt(urlObj.searchParams.get('page')) || 1;
+      const limit = Math.min(parseInt(urlObj.searchParams.get('limit')) || 24, 50);
+      const offset = (page - 1) * limit;
+
+      let query = supabase
+        .from('profiles')
+        .select('*', { count: 'exact' })
+        .eq('directory_opt_in', true)
+        .eq('role', 'provider')
+        .not('directory_slug', 'is', null);
+
+      if (city) {
+        query = query.ilike('city', `%${city}%`);
+      }
+      if (category) {
+        query = query.contains('services', [category]);
+      }
+
+      query = query.order('business_name', { ascending: true }).range(offset, offset + limit - 1);
+
+      const { data: providers, error, count } = await query;
+      if (error) throw error;
+
+      const providerIds = (providers || []).map(p => p.id);
+      let ratingsMap = {};
+      if (providerIds.length > 0) {
+        const { data: allReviews } = await supabase
+          .from('reviews')
+          .select('provider_id, rating')
+          .in('provider_id', providerIds);
+
+        (allReviews || []).forEach(r => {
+          if (!ratingsMap[r.provider_id]) ratingsMap[r.provider_id] = { total: 0, count: 0 };
+          ratingsMap[r.provider_id].total += r.rating;
+          ratingsMap[r.provider_id].count++;
+        });
+      }
+
+      const results = (providers || []).map(p => ({
+        business_name: p.business_name,
+        city: p.city,
+        state: p.state,
+        description: p.description ? (p.description.length > 120 ? p.description.substring(0, 120) + '...' : p.description) : null,
+        services: p.services || [],
+        certifications: p.certifications || [],
+        slug: p.directory_slug,
+        avatar_url: p.avatar_url,
+        years_in_business: p.years_in_business,
+        emergency_enabled: p.emergency_enabled,
+        avg_rating: ratingsMap[p.id] ? (ratingsMap[p.id].total / ratingsMap[p.id].count).toFixed(1) : null,
+        review_count: ratingsMap[p.id] ? ratingsMap[p.id].count : 0
+      }));
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ providers: results, total: count || 0, page, limit }));
+    } catch (err) {
+      if (err.message && err.message.includes('does not exist')) {
+        console.log(`[${requestId}] Directory columns not yet migrated, returning empty`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ providers: [], total: 0, page: 1, limit: 24 }));
+      } else {
+        console.error(`[${requestId}] Directory providers error:`, err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to load providers' }));
+      }
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/provider/profile/save') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    try {
+      const body = await getRequestBody(req);
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, role, directory_slug')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile || (profile.role !== 'provider' && profile.role !== 'pending_provider')) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Only providers can save profiles' }));
+        return;
+      }
+
+      const allowedFields = ['business_name', 'phone', 'address', 'city', 'state', 'zip_code', 'bio', 'hourly_rate',
+        'services', 'certifications', 'description', 'years_in_business', 'service_radius'];
+      const updateData = {};
+      for (const key of allowedFields) {
+        if (body[key] !== undefined) updateData[key] = body[key];
+      }
+      updateData.updated_at = new Date().toISOString();
+
+      if (!profile.directory_slug && (body.business_name || updateData.business_name)) {
+        const name = body.business_name || updateData.business_name;
+        let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        if (slug.length >= 3) {
+          const { data: existing } = await supabase.from('profiles').select('id').eq('directory_slug', slug).neq('id', user.id);
+          if (existing && existing.length > 0) slug = slug + '-' + Date.now().toString(36);
+          updateData.directory_slug = slug;
+        }
+      }
+
+      const { error } = await supabase.from('profiles').update(updateData).eq('id', user.id);
+      if (error) throw error;
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, slug: updateData.directory_slug || profile.directory_slug }));
+    } catch (err) {
+      if (err.message && err.message.includes('does not exist')) {
+        const basicFields = ['phone', 'bio', 'hourly_rate'];
+        const basicUpdate = {};
+        for (const key of basicFields) {
+          if (body[key] !== undefined) basicUpdate[key] = body[key];
+        }
+        if (Object.keys(basicUpdate).length > 0) {
+          await supabase.from('profiles').update(basicUpdate).eq('id', user.id).catch(() => {});
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, slug: null }));
+      } else {
+        console.error('Provider profile save error:', err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to save profile' }));
+      }
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/provider/profile/publish') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    try {
+      const body = await getRequestBody(req);
+      const optIn = body.opt_in === true;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, role, business_name, directory_slug, directory_opt_in')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile || (profile.role !== 'provider' && profile.role !== 'pending_provider')) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Only providers can publish profiles' }));
+        return;
+      }
+
+      let slug = profile.directory_slug;
+      if (optIn && !slug && profile.business_name) {
+        slug = profile.business_name
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .substring(0, 60);
+
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('directory_slug', slug)
+          .neq('id', user.id)
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          slug = slug + '-' + Math.random().toString(36).substring(2, 6);
+        }
+      }
+
+      const updateData = { directory_opt_in: optIn };
+      if (slug && !profile.directory_slug) {
+        updateData.directory_slug = slug;
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updateData)
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: true, 
+        directory_opt_in: optIn, 
+        directory_slug: slug || profile.directory_slug,
+        profile_url: slug ? `/p/${slug}` : null
+      }));
+
+    } catch (err) {
+      console.error(`[${requestId}] Publish profile error:`, err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to update profile' }));
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/sitemap-providers.xml') {
+    setSecurityHeaders(res, false);
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500);
+      res.end('Database not configured');
+      return;
+    }
+
+    try {
+      const { data: providers } = await supabase
+        .from('profiles')
+        .select('directory_slug, updated_at')
+        .eq('directory_opt_in', true)
+        .eq('role', 'provider')
+        .not('directory_slug', 'is', null);
+
+      const baseUrl = 'https://mycarconcierge.com';
+      let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+      xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+      xml += `  <url>\n    <loc>${baseUrl}/providers</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
+
+      (providers || []).forEach(p => {
+        const lastmod = p.updated_at ? new Date(p.updated_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+        xml += `  <url>\n    <loc>${baseUrl}/p/${p.directory_slug}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>\n`;
+      });
+
+      xml += '</urlset>';
+
+      res.writeHead(200, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=3600' });
+      res.end(xml);
+    } catch (err) {
+      console.error(`[${requestId}] Sitemap providers error:`, err.message);
+      res.writeHead(500);
+      res.end('Error generating sitemap');
+    }
+    return;
+  }
+
+  // ========== END PROVIDER PUBLIC DIRECTORY ==========
+
   // Apple Pay domain verification file
   if (req.method === 'GET' && req.url === '/.well-known/apple-developer-merchantid-domain-association') {
     const verificationFile = './.well-known/apple-developer-merchantid-domain-association';
@@ -23387,7 +36215,8 @@ const server = http.createServer((req, res) => {
     '/founder-provider': '/provider-pilot.html',
     '/founding-member': '/member-founder.html',
     '/founding-provider': '/provider-pilot.html',
-    '/provider-founder.html': '/provider-pilot.html'
+    '/provider-founder.html': '/provider-pilot.html',
+    '/providers': '/providers-directory.html'
   };
   
   const urlPath = req.url.split('?')[0];
@@ -23401,6 +36230,10 @@ const server = http.createServer((req, res) => {
   
   if (filePath === './') {
     filePath = './index.html';
+  }
+
+  if (urlPath.startsWith('/p/') && urlPath.split('/p/')[1] && !urlPath.split('/p/')[1].includes('.html')) {
+    filePath = './p.html';
   }
   
   // Serve rideshare calculator from www/rideshare folder
@@ -23477,14 +36310,2513 @@ const server = http.createServer((req, res) => {
   });
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[SERVER] Port ${PORT} is already in use. Retrying in 3 seconds...`);
+    setTimeout(() => {
+      server.close();
+      server.listen(PORT, '0.0.0.0');
+    }, 3000);
+  } else {
+    console.error('[SERVER] Server error:', err);
+    process.exit(1);
+  }
+});
+
+async function handlePackageSuggest(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'helpdesk');
+  if (!rateLimit.allowed) return;
+
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  req.on('end', async () => {
+    try {
+      const { description, category, vehicle, vehicle_year, vehicle_make, vehicle_model } = JSON.parse(body || '{}');
+
+      if (!description || description.trim().length < 10) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Description too short' }));
+        return;
+      }
+
+      const vehicleInfo = vehicle || [vehicle_year, vehicle_make, vehicle_model].filter(Boolean).join(' ') || 'unknown vehicle';
+      const categoryList = 'maintenance (Maintenance & Mechanical), manufacturer_service (Manufacturer Service Packages), detailing (Detailing & Cleaning), cosmetic (Cosmetic & Body), accident_repair (Accident / Insurance Repair), performance (Performance & Modifications), audio_electronics (Audio & Electronics), lighting (Lighting & Accessories), interior (Interior & Upholstery), offroad (Off-Road & Specialty), ev_hybrid (EV & Hybrid Services), classic_vintage (Classic & Vintage Cars), fleet_graphics (Fleet & Commercial Graphics), premium_protection (Premium Protection PPF/Coating), convertible_specialty (Convertible & Specialty), motorcycle (Motorcycle Services), rv_camper (RV & Camper Services), boat_marine (Boat & Marine Services), snow_removal (Snow Removal Services), other (Other)';
+
+      const prompt = `You are an automotive service assistant. A customer is creating a service request on My Car Concierge.
+
+Vehicle: ${vehicleInfo}
+Selected category: ${category || 'none'}
+Description: "${description.trim()}"
+
+Analyze the description and return a JSON object with these fields:
+- "suggested_category": the exact key (before the parenthesis) from this list that best matches the request: ${categoryList}. Return null if the current category is already correct. Only return one of these exact keys, nothing else.
+- "suggested_title": a concise 5-8 word service title that captures the core request (e.g. "Brake pad replacement and rotor inspection"). Return null if description is already clear.
+- "missing_fields": array of strings — each a short label for information the customer should add to get better bids. Examples: "current mileage", "which tires (all 4 or specific ones?)", "year of last brake service", "warning light code". Return empty array if nothing is missing.
+- "clarifying_question": a single friendly question to help clarify an ambiguous request. Return null if the description is already clear.
+
+Return ONLY valid JSON, no markdown.`;
+
+      let result;
+      try {
+        result = await generateAIContent(prompt, { maxTokens: 512, preferredProvider: 'gemini' });
+        const text = result.text.replace(/```json\n?|\n?```/g, '').trim();
+        const parsed = JSON.parse(text);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          suggested_category: parsed.suggested_category || null,
+          suggested_title: parsed.suggested_title || null,
+          missing_fields: Array.isArray(parsed.missing_fields) ? parsed.missing_fields.slice(0, 4) : [],
+          clarifying_question: parsed.clarifying_question || null
+        }));
+      } catch (aiErr) {
+        console.error(`[${requestId}] Package suggest AI error:`, aiErr.message);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ suggested_category: null, suggested_title: null, missing_fields: [], clarifying_question: null }));
+      }
+    } catch (err) {
+      console.error(`[${requestId}] Package suggest error:`, err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
+  });
+}
+
+async function handleBidStrategy(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'helpdesk');
+  if (!rateLimit.allowed) return;
+
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Service unavailable' }));
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, is_also_provider, business_name')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || (profile.role !== 'provider' && !profile.is_also_provider)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Provider account required' }));
+      return;
+    }
+
+    const { data: myBids } = await supabase
+      .from('bids')
+      .select('price, status, created_at, maintenance_packages!bids_package_id_fkey(category)')
+      .eq('provider_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (!myBids || myBids.length === 0) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        has_data: false,
+        message: 'Submit a few bids first — your personalized insights will appear here.'
+      }));
+      return;
+    }
+
+    const statsByCategory = {};
+    for (const bid of myBids) {
+      const cat = bid.maintenance_packages?.category || 'general';
+      if (!statsByCategory[cat]) statsByCategory[cat] = { total: 0, won: 0, prices: [] };
+      statsByCategory[cat].total++;
+      if (bid.status === 'accepted') statsByCategory[cat].won++;
+      if (bid.price) statsByCategory[cat].prices.push(Number(bid.price));
+    }
+
+    const categoryLines = Object.entries(statsByCategory)
+      .filter(([, s]) => s.total >= 2)
+      .map(([cat, s]) => {
+        const winRate = Math.round((s.won / s.total) * 100);
+        const avgPrice = s.prices.length ? Math.round(s.prices.reduce((a, b) => a + b, 0) / s.prices.length) : null;
+        return `${cat}: ${s.total} bids, ${winRate}% win rate${avgPrice ? `, avg bid $${avgPrice}` : ''}`;
+      }).join('\n');
+
+    if (!categoryLines) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        has_data: false,
+        message: 'Keep bidding — you\'ll need a few more bids per category for meaningful insights.'
+      }));
+      return;
+    }
+
+    const prompt = `You are an automotive marketplace bid strategy advisor. Analyze this provider's bidding performance and give actionable advice.
+
+Provider: ${profile.business_name || 'Provider'}
+Bid performance by category:
+${categoryLines}
+
+Return a JSON object with:
+- "summary": 2-3 sentence overall assessment of their bidding performance
+- "insights": array of up to 4 objects, each with:
+  - "category": the service category name (human-readable, e.g. "Oil Change" not "oil_change")
+  - "win_rate": integer percentage
+  - "tip": one actionable sentence of advice for this category
+- "top_recommendation": the single most impactful change they can make to win more bids (1-2 sentences)
+- "strong_categories": array of category name strings where they are most competitive
+
+Return ONLY valid JSON, no markdown.`;
+
+    try {
+      const aiResult = await generateAIContent(prompt, { maxTokens: 800, preferredProvider: 'gemini' });
+      const text = aiResult.text.replace(/```json\n?|\n?```/g, '').trim();
+      const parsed = JSON.parse(text);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        has_data: true,
+        summary: parsed.summary || '',
+        insights: Array.isArray(parsed.insights) ? parsed.insights.slice(0, 4) : [],
+        top_recommendation: parsed.top_recommendation || '',
+        strong_categories: Array.isArray(parsed.strong_categories) ? parsed.strong_categories : []
+      }));
+    } catch (aiErr) {
+      console.error(`[${requestId}] Bid strategy AI error:`, aiErr.message);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        has_data: true,
+        summary: `You have placed ${myBids.length} bids across ${Object.keys(statsByCategory).length} service categories.`,
+        insights: [],
+        top_recommendation: 'Keep bidding to unlock AI-powered insights on your optimal pricing strategy.',
+        strong_categories: []
+      }));
+    }
+  } catch (err) {
+    console.error(`[${requestId}] Bid strategy error:`, err.message);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  }
+}
+
+async function handleMatchProviders(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'apiAuth');
+  if (!rateLimit.allowed) return;
+
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  req.on('end', async () => {
+    try {
+      const { package_id } = JSON.parse(body || '{}');
+      if (!package_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'package_id required' }));
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Service unavailable' }));
+        return;
+      }
+
+      const { data: pkg } = await supabase
+        .from('maintenance_packages')
+        .select('id, title, service_type, member_id, member_zip, member_state, crowd_funded')
+        .eq('id', package_id)
+        .single();
+
+      if (!pkg) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package not found' }));
+        return;
+      }
+
+      if (pkg.member_id !== user.id) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not authorized' }));
+        return;
+      }
+
+      const isCommunityBoard = pkg.crowd_funded === true;
+      const zipPrefix = pkg.member_zip ? pkg.member_zip.substring(0, 3) : null;
+
+      const { data: providers } = await supabase
+        .from('profiles')
+        .select('id, full_name, business_name, zip_code, state, rating, tier, role, is_also_provider')
+        .or('role.eq.provider,is_also_provider.eq.true')
+        .not('is_suspended', 'eq', true)
+        .limit(100);
+
+      if (!providers || providers.length === 0) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ matched: 0 }));
+        return;
+      }
+
+      const providerIds = providers.map(p => p.id);
+      const { data: bidHistory } = await supabase
+        .from('bids')
+        .select('provider_id, status, maintenance_packages!bids_package_id_fkey(service_type)')
+        .in('provider_id', providerIds);
+
+      const providerStats = {};
+      for (const bid of bidHistory || []) {
+        const pid = bid.provider_id;
+        const cat = bid.maintenance_packages?.service_type;
+        if (!providerStats[pid]) providerStats[pid] = { categories: {}, total: 0, won: 0 };
+        providerStats[pid].total++;
+        if (bid.status === 'accepted') providerStats[pid].won++;
+        if (cat) {
+          providerStats[pid].categories[cat] = (providerStats[pid].categories[cat] || 0) + 1;
+        }
+      }
+
+      const scored = providers.map(p => {
+        const stats = providerStats[p.id] || { categories: {}, total: 0, won: 0 };
+        const categoryMatch = (stats.categories[pkg.service_type] || 0) > 0 ? 30 : 0;
+        const providerZip = p.zip_code || '';
+        const geoScore = zipPrefix && providerZip.startsWith(zipPrefix) ? 25 :
+          (p.state && p.state === pkg.member_state ? 10 : 0);
+        const ratingScore = Math.min((p.rating || 3) / 5 * 20, 20);
+        const winRate = stats.total > 0 ? stats.won / stats.total : 0;
+        const winScore = Math.round(winRate * 15);
+        const tierScore = p.tier === 'founding' ? 10 : p.tier === 'verified' ? 5 : 0;
+        return { ...p, score: categoryMatch + geoScore + ratingScore + winScore + tierScore };
+      }).sort((a, b) => b.score - a.score).slice(0, 5);
+
+      const categoryLabel = pkg.service_type?.replace(/_/g, ' ') || 'service';
+      const notifTitle = isCommunityBoard
+        ? 'Community-funded request near you'
+        : 'New job matched for you';
+      const notifMessage = isCommunityBoard
+        ? `New community-funded request for ${categoryLabel} near you — "${pkg.title}"`
+        : `A new ${categoryLabel} request near you is looking for bids: "${pkg.title}"`;
+      const notifType = isCommunityBoard ? 'community_board_match' : 'matched_package';
+      const deepLinkSection = isCommunityBoard ? 'community-board' : 'packages';
+
+      const notifications = scored.map(p => ({
+        user_id: p.id,
+        type: notifType,
+        title: notifTitle,
+        message: notifMessage,
+        entity_type: 'package',
+        entity_id: package_id
+      }));
+
+      if (notifications.length > 0) {
+        await supabase.from('notifications').insert(notifications);
+        const scoredIds = scored.map(p => p.id);
+        sendFCMPushNotification(
+          scoredIds,
+          notifTitle,
+          notifMessage,
+          { section: deepLinkSection, package_id }
+        ).catch(() => {});
+      }
+
+      console.log(`[${requestId}] Provider matching: sent ${notifications.length} invites for package ${package_id}${isCommunityBoard ? ' (community board)' : ''}`);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ matched: notifications.length }));
+    } catch (err) {
+      console.error(`[${requestId}] Match providers error:`, err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
+  });
+}
+
+function gracefulShutdown(signal) {
+  console.log(`[SERVER] Received ${signal}. Graceful shutdown starting...`);
+  server.close(() => {
+    console.log('[SERVER] HTTP server closed.');
+    process.exit(0);
+  });
+  setTimeout(() => {
+    console.error('[SERVER] Forced shutdown after timeout.');
+    process.exit(1);
+  }, 10000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running at http://0.0.0.0:${PORT}/`);
   console.log('PWA-enabled My Car Concierge is ready!');
   console.log('AI Assistant connected and ready to help!');
   
+  runRecallsAiMigration();
   startMaintenanceReminderScheduler();
   startWeeklyRecallCheckScheduler();
   startAppointmentReminderScheduler();
   startLoginActivityCleanupScheduler();
   startDreamCarDigestScheduler();
+  startAnniversaryReminderScheduler();
+  startSplitPaymentExpiryScheduler();
+  startBidDeadlineScheduler();
 });
+
+const _warnedPackageIds = new Set();
+
+async function enforceBidDeadlines() {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { closed: 0, warned: 0 };
+  let closed = 0, warned = 0;
+  try {
+    const now = new Date().toISOString();
+    const { data: expiredPkgs } = await supabase
+      .from('maintenance_packages')
+      .select('id, title, member_id, bidding_deadline')
+      .eq('status', 'open')
+      .lt('bidding_deadline', now)
+      .not('bidding_deadline', 'is', null);
+    for (const pkg of (expiredPkgs || [])) {
+      try {
+        await supabase
+          .from('maintenance_packages')
+          .update({ status: 'bidding_closed', updated_at: now })
+          .eq('id', pkg.id);
+        const { count: bidCount } = await supabase
+          .from('bids')
+          .select('id', { count: 'exact', head: true })
+          .eq('package_id', pkg.id);
+        const numBids = bidCount || 0;
+        let msg, emailBody;
+        if (numBids > 0) {
+          msg = `Bidding on "${pkg.title}" has closed with ${numBids} bid${numBids === 1 ? '' : 's'}. Review your bids and choose a provider.`;
+          emailBody = `<h2 style="margin:0 0 16px;color:#d4a855;">Bidding Closed</h2><p>Your service request "<strong>${pkg.title}</strong>" has reached its deadline.</p><p>You received <strong>${numBids} bid${numBids === 1 ? '' : 's'}</strong>. Log in to review them and accept the best offer.</p><a href="https://mycarconcierge.com/members.html" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#d4a855;color:#0a0a0f;font-weight:600;border-radius:8px;text-decoration:none;">Review Bids</a>`;
+        } else {
+          msg = `Bidding on "${pkg.title}" has closed with no bids. You can repost with a new deadline or try the Community Board for help.`;
+          emailBody = `<h2 style="margin:0 0 16px;color:#d4a855;">Bidding Closed — No Bids Received</h2><p>Your service request "<strong>${pkg.title}</strong>" reached its deadline but no providers submitted bids.</p><p>You can:</p><ul><li><strong>Repost</strong> your request with a longer deadline to reach more providers</li><li><strong>Post to the Community Board</strong> for crowd-funded help from fellow members</li></ul><a href="https://mycarconcierge.com/members.html" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#d4a855;color:#0a0a0f;font-weight:600;border-radius:8px;text-decoration:none;">View Your Packages</a>`;
+        }
+        await supabase.from('notifications').insert({
+          user_id: pkg.member_id,
+          type: 'bidding_closed',
+          title: 'Bidding Deadline Reached',
+          message: msg,
+          entity_type: 'package',
+          entity_id: pkg.id
+        });
+        const { data: memberProfile } = await supabase.from('profiles').select('email, full_name').eq('id', pkg.member_id).single();
+        if (memberProfile?.email) {
+          sendEmailNotification(memberProfile.email, memberProfile.full_name || 'Member', `Bidding Closed: "${pkg.title}"`, emailBody, pkg.member_id, 'bid_alerts').catch(() => {});
+        }
+        sendFCMPushNotification(
+          [pkg.member_id],
+          'Bidding Deadline Reached',
+          numBids > 0 ? `"${pkg.title}" closed with ${numBids} bid${numBids === 1 ? '' : 's'}. Tap to review.` : `"${pkg.title}" closed with no bids. Repost or try Community Board.`,
+          { section: 'packages', package_id: pkg.id }
+        ).catch(() => {});
+        closed++;
+      } catch (pkgErr) {
+        console.error(`[BidDeadline] Error closing package ${pkg.id}:`, pkgErr.message);
+      }
+    }
+    const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    let warningPkgs = null;
+    let warningResult = await supabase
+      .from('maintenance_packages')
+      .select('id, title, member_id, bidding_deadline, is_private_job, exclusive_provider_id, exclusive_until, service_type, member_zip, member_state')
+      .eq('status', 'open')
+      .gt('bidding_deadline', now)
+      .lt('bidding_deadline', twoHoursFromNow)
+      .not('bidding_deadline', 'is', null)
+      .or('deadline_warning_sent.is.null,deadline_warning_sent.eq.false');
+    if (warningResult.error && (warningResult.error.code === '42703' || warningResult.error.message?.includes('deadline_warning_sent'))) {
+      console.warn('[BidDeadline] deadline_warning_sent column missing — run: ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE;');
+      warningResult = await supabase
+        .from('maintenance_packages')
+        .select('id, title, member_id, bidding_deadline, is_private_job, exclusive_provider_id, exclusive_until, service_type, member_zip, member_state')
+        .eq('status', 'open')
+        .gt('bidding_deadline', now)
+        .lt('bidding_deadline', twoHoursFromNow)
+        .not('bidding_deadline', 'is', null);
+    }
+    warningPkgs = (warningResult.data || []).filter(p => !_warnedPackageIds.has(p.id));
+    for (const pkg of warningPkgs) {
+      try {
+        if (pkg.is_private_job && pkg.exclusive_provider_id) {
+          const { data: existingBid } = await supabase
+            .from('bids')
+            .select('id')
+            .eq('package_id', pkg.id)
+            .eq('provider_id', pkg.exclusive_provider_id)
+            .maybeSingle();
+          if (!existingBid) {
+            const deadline = new Date(pkg.bidding_deadline);
+            const timeStr = deadline.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            sendFCMPushNotification(
+              [pkg.exclusive_provider_id],
+              'Last Chance to Bid!',
+              `"${pkg.title}" closes today at ${timeStr}. Submit your bid before the deadline.`,
+              { section: 'packages', package_id: pkg.id }
+            ).catch(() => {});
+          }
+          const { error: flagErr1 } = await supabase.from('maintenance_packages').update({ deadline_warning_sent: true }).eq('id', pkg.id);
+          if (flagErr1) console.warn(`[BidDeadline] Could not set deadline_warning_sent for ${pkg.id}: ${flagErr1.message}`);
+          _warnedPackageIds.add(pkg.id);
+          warned++;
+          continue;
+        }
+        const isExclusiveWindow = pkg.exclusive_until && new Date(pkg.exclusive_until) > new Date();
+        if (isExclusiveWindow && pkg.exclusive_provider_id) {
+          const { data: existingBid } = await supabase
+            .from('bids')
+            .select('id')
+            .eq('package_id', pkg.id)
+            .eq('provider_id', pkg.exclusive_provider_id)
+            .maybeSingle();
+          if (!existingBid) {
+            const deadline = new Date(pkg.bidding_deadline);
+            const timeStr = deadline.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            sendFCMPushNotification(
+              [pkg.exclusive_provider_id],
+              'Last Chance to Bid!',
+              `"${pkg.title}" closes today at ${timeStr}. Submit your bid before the deadline.`,
+              { section: 'packages', package_id: pkg.id }
+            ).catch(() => {});
+          }
+          const { error: flagErr2 } = await supabase.from('maintenance_packages').update({ deadline_warning_sent: true }).eq('id', pkg.id);
+          if (flagErr2) console.warn(`[BidDeadline] Could not set deadline_warning_sent for ${pkg.id}: ${flagErr2.message}`);
+          _warnedPackageIds.add(pkg.id);
+          warned++;
+          continue;
+        }
+        const { data: existingBids } = await supabase
+          .from('bids')
+          .select('provider_id')
+          .eq('package_id', pkg.id);
+        const bidderIds = new Set((existingBids || []).map(b => b.provider_id));
+        const { data: allProviders } = await supabase
+          .from('profiles')
+          .select('id, zip_code, state, rating, tier, role, is_also_provider')
+          .or('role.eq.provider,role.eq.pending_provider,is_also_provider.eq.true')
+          .not('is_suspended', 'eq', true);
+        const zipPrefix = pkg.member_zip ? pkg.member_zip.substring(0, 3) : null;
+        const providerIds = (allProviders || []).map(p => p.id);
+        const { data: bidHistory } = await supabase
+          .from('bids')
+          .select('provider_id, status, maintenance_packages!bids_package_id_fkey(service_type)')
+          .in('provider_id', providerIds.slice(0, 500));
+        const providerStats = {};
+        for (const bid of bidHistory || []) {
+          const pid = bid.provider_id;
+          const cat = bid.maintenance_packages?.service_type;
+          if (!providerStats[pid]) providerStats[pid] = { categories: {}, total: 0, won: 0 };
+          providerStats[pid].total++;
+          if (bid.status === 'accepted') providerStats[pid].won++;
+          if (cat) providerStats[pid].categories[cat] = (providerStats[pid].categories[cat] || 0) + 1;
+        }
+        const scored = (allProviders || [])
+          .filter(p => !bidderIds.has(p.id) && p.id !== pkg.member_id)
+          .map(p => {
+            const stats = providerStats[p.id] || { categories: {}, total: 0, won: 0 };
+            const categoryMatch = (stats.categories[pkg.service_type] || 0) > 0 ? 30 : 0;
+            const providerZip = p.zip_code || '';
+            const geoScore = zipPrefix && providerZip.startsWith(zipPrefix) ? 25 : (p.state && p.state === pkg.member_state ? 10 : 0);
+            const ratingScore = Math.min((p.rating || 3) / 5 * 20, 20);
+            const winRate = stats.total > 0 ? stats.won / stats.total : 0;
+            const winScore = Math.round(winRate * 15);
+            const tierScore = p.tier === 'founding' ? 10 : p.tier === 'verified' ? 5 : 0;
+            return { id: p.id, score: categoryMatch + geoScore + ratingScore + winScore + tierScore };
+          })
+          .filter(p => p.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 20);
+        if (scored.length > 0) {
+          const deadline = new Date(pkg.bidding_deadline);
+          const timeStr = deadline.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          sendFCMPushNotification(
+            scored.map(p => p.id),
+            'Last Chance to Bid!',
+            `"${pkg.title}" closes today at ${timeStr}. Submit your bid before the deadline.`,
+            { section: 'packages', package_id: pkg.id }
+          ).catch(() => {});
+        }
+        const { error: flagErr3 } = await supabase.from('maintenance_packages').update({ deadline_warning_sent: true }).eq('id', pkg.id);
+        if (flagErr3) console.warn(`[BidDeadline] Could not set deadline_warning_sent for ${pkg.id}: ${flagErr3.message}`);
+        _warnedPackageIds.add(pkg.id);
+        warned++;
+      } catch (warnErr) {
+        console.error(`[BidDeadline] Warning error for package ${pkg.id}:`, warnErr.message);
+      }
+    }
+  } catch (err) {
+    console.error('[BidDeadline] Scheduler error:', err.message);
+  }
+  return { closed, warned };
+}
+
+async function ensureDeadlineWarningColumn() {
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { error } = await supabase.rpc('exec_sql', {
+      query: 'ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE'
+    });
+    if (error) {
+      const { error: testErr } = await supabase
+        .from('maintenance_packages')
+        .select('deadline_warning_sent')
+        .limit(1);
+      if (testErr) {
+        console.warn('[BidDeadline] deadline_warning_sent column not available — run migration: ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE;');
+      }
+    }
+  } catch (e) {
+    console.warn('[BidDeadline] Column check skipped:', e.message);
+  }
+}
+
+function startBidDeadlineScheduler() {
+  const enabled = process.env.ENABLE_BID_DEADLINE_ENFORCEMENT !== 'false';
+  if (!enabled) {
+    console.log('[Scheduler] Bid deadline enforcement is DISABLED');
+    return;
+  }
+  console.log('[Scheduler] Bid deadline enforcement is ENABLED');
+  ensureDeadlineWarningColumn();
+  const FIFTEEN_MINUTES = 15 * 60 * 1000;
+  const INITIAL_DELAY = 90 * 1000;
+  setTimeout(async () => {
+    try {
+      const result = await enforceBidDeadlines();
+      console.log(`[Scheduler] Initial bid deadline check: ${result.closed} closed, ${result.warned} warned`);
+    } catch (e) { console.error('[Scheduler] Initial bid deadline check failed:', e.message); }
+  }, INITIAL_DELAY);
+  setInterval(async () => {
+    try {
+      const result = await enforceBidDeadlines();
+      if (result.closed > 0 || result.warned > 0) {
+        console.log(`[Scheduler] Bid deadline check: ${result.closed} closed, ${result.warned} warned`);
+      }
+    } catch (e) { console.error('[Scheduler] Bid deadline check failed:', e.message); }
+  }, FIFTEEN_MINUTES);
+  console.log('[Scheduler] Scheduled: initial bid deadline check in 90s, then every 15 minutes');
+}
+
+// SQL migration for deadline_warning_sent:
+// ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE;
+
+async function handleServiceRecommendations(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const rateLimit = applyRateLimit(req, res, 'helpdesk');
+  if (!rateLimit.allowed) return;
+
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  req.on('end', async () => {
+    try {
+      const { year, make, model, mileage, fuel_type, last_service_dates } = JSON.parse(body || '{}');
+
+      if (!make || !model) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'make and model are required' }));
+        return;
+      }
+
+      const vehicleLabel = [year, make, model].filter(Boolean).join(' ');
+      const mileageStr = mileage ? `${Number(mileage).toLocaleString()} miles` : 'unknown mileage';
+      const fuelStr = fuel_type || 'gasoline';
+      const dates = last_service_dates || {};
+
+      const serviceLines = [
+        `Oil Change: ${dates.oil_change || 'NO RECORD (assume never done)'}`,
+        `Tire Rotation: ${dates.tire_rotation || 'NO RECORD (assume never done)'}`,
+        `Brake Service: ${dates.brake_service || 'NO RECORD (assume never done)'}`,
+        `Transmission Service: ${dates.transmission_service || 'NO RECORD (assume never done)'}`,
+        `Coolant Flush: ${dates.coolant_flush || 'NO RECORD (assume never done)'}`
+      ].join('\n');
+
+      const categoryList = 'maintenance, manufacturer_service, detailing, cosmetic, accident_repair, performance, audio_electronics, lighting, interior, offroad, ev_hybrid, classic_vintage, fleet_graphics, premium_protection, convertible_specialty, motorcycle, rv_camper, boat_marine, snow_removal, other';
+
+      const prompt = `You are an expert automotive service advisor for My Car Concierge. A member wants to know what services their vehicle needs right now.
+
+Vehicle: ${vehicleLabel}
+Mileage: ${mileageStr}
+Fuel type: ${fuelStr}
+
+Last service history:
+${serviceLines}
+
+IMPORTANT RULES:
+1. Services marked "NO RECORD (assume never done)" should be treated as NEVER performed and ranked HIGHEST urgency.
+2. Consider the vehicle's make, model, year, and mileage. Include any known model-specific common issues (e.g., timing belt for certain Honda models, DSG service for VW, carbon buildup for direct-injection engines).
+3. Return exactly up to 5 service recommendations, ordered by urgency (most urgent first).
+4. Each recommendation must use one of these exact category values: ${categoryList}
+
+Return a JSON array of objects with these fields:
+- "title": short service name (e.g., "Oil Change", "Timing Belt Replacement")
+- "reason": one-line explanation why this is needed now (include "No service history on file" for never-done items, or "Last done X months/years ago" for overdue items, or the model-specific reason)
+- "category": one of the exact category values listed above
+- "never_done": boolean true if this service has no record and is assumed never done, false otherwise
+
+Return ONLY valid JSON array, no markdown.`;
+
+      let recommendations = [];
+
+      try {
+        const aiResult = await generateAIContent(prompt, { maxTokens: 800, preferredProvider: 'gemini' });
+        const text = aiResult.text.replace(/```json\n?|\n?```/g, '').trim();
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) {
+          const validCategories = new Set(['maintenance', 'manufacturer_service', 'detailing', 'cosmetic', 'accident_repair', 'performance', 'audio_electronics', 'lighting', 'interior', 'offroad', 'ev_hybrid', 'classic_vintage', 'fleet_graphics', 'premium_protection', 'convertible_specialty', 'motorcycle', 'rv_camper', 'boat_marine', 'snow_removal', 'other']);
+          recommendations = parsed.slice(0, 5).map(r => ({
+            title: r.title || 'Service',
+            reason: r.reason || '',
+            category: validCategories.has(r.category) ? r.category : 'maintenance',
+            never_done: !!r.never_done
+          }));
+        }
+      } catch (aiErr) {
+        console.error(`[${requestId}] Service recommendations AI error:`, aiErr.message);
+      }
+
+      if (recommendations.length === 0) {
+        const fallback = [];
+        if (!dates.oil_change) fallback.push({ title: 'Oil Change', reason: 'No service history on file — recommended every 6 months or 7,500 miles', category: 'maintenance', never_done: true });
+        if (!dates.tire_rotation) fallback.push({ title: 'Tire Rotation', reason: 'No service history on file — recommended every 6,000 miles', category: 'maintenance', never_done: true });
+        if (!dates.brake_service) fallback.push({ title: 'Brake Inspection', reason: 'No service history on file — important safety check', category: 'maintenance', never_done: true });
+        if (!dates.transmission_service && mileage > 30000) fallback.push({ title: 'Transmission Fluid Service', reason: 'No service history on file — recommended at your mileage', category: 'maintenance', never_done: true });
+        if (!dates.coolant_flush && mileage > 50000) fallback.push({ title: 'Coolant Flush', reason: 'No service history on file — prevents overheating', category: 'maintenance', never_done: true });
+        if (fallback.length === 0) {
+          fallback.push({ title: 'Multi-Point Inspection', reason: `Keep your ${vehicleLabel} running great — get a comprehensive check`, category: 'maintenance', never_done: false });
+        }
+        recommendations = fallback.slice(0, 5);
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ recommendations }));
+    } catch (err) {
+      console.error(`[${requestId}] Service recommendations error:`, err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
+  });
+}
+
+async function handleDescribeToPackage(req, res, requestId) {
+  try {
+    const rl = applyRateLimit(req, res, 'helpdesk');
+    if (!rl.allowed) return;
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Unauthorized' }));
+    }
+
+    const body = await getRequestBody(req);
+    const { text, vehicle } = body;
+    if (!text || typeof text !== 'string' || text.trim().length < 5) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Please provide a longer description.' }));
+    }
+
+    const validCategories = [
+      'maintenance','manufacturer_service','detailing','cosmetic','accident_repair',
+      'performance','audio_electronics','lighting','interior','offroad','ev_hybrid',
+      'classic_vintage','fleet_graphics','premium_protection','convertible_specialty',
+      'motorcycle','rv_camper','boat_marine','snow_removal','other'
+    ];
+    const validUrgencies = ['low','medium','high','urgent'];
+
+    let vehicleContext = '';
+    if (vehicle && vehicle.make) {
+      vehicleContext = `\nVehicle: ${vehicle.year || ''} ${vehicle.make} ${vehicle.model || ''}${vehicle.trim ? ' ' + vehicle.trim : ''}`.trim();
+    }
+
+    const prompt = `You are a concierge for an automotive service marketplace called My Car Concierge.
+
+A member described their need in plain language. Based on their description, generate structured package details.
+${vehicleContext}
+
+Member says: "${text.trim().substring(0, 500)}"
+
+Respond with ONLY valid JSON (no markdown, no code fences):
+{
+  "category": one of [${validCategories.map(c => '"' + c + '"').join(', ')}],
+  "title": a short, professional title for the service request (max 80 chars),
+  "description": a detailed but concise description for providers to understand the work needed (2-4 sentences, max 300 chars),
+  "urgency": one of ["low", "medium", "high", "urgent"]
+}
+
+Rules:
+- Pick the single best-fitting category.
+- The title should be specific (not generic like "Car service").
+- The description should expand on symptoms, concerns, and desired outcome — written as if the member is explaining to a mechanic or service provider.
+- If the member mentions a vehicle, reference it naturally.
+- For urgency: "urgent" = safety issue or undrivable, "high" = soon/important, "medium" = routine but needed, "low" = optional or cosmetic.
+- Do NOT include pricing or time estimates.`;
+
+    const message = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 512,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    const aiText = message.content[0]?.text || '';
+
+    let parsed;
+    try {
+      const cleaned = aiText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error(`[${requestId}] AI describe-to-package parse error:`, parseErr.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'AI response could not be parsed' }));
+    }
+
+    if (parsed.category && !validCategories.includes(parsed.category)) {
+      parsed.category = 'other';
+    }
+    if (parsed.urgency && !validUrgencies.includes(parsed.urgency)) {
+      parsed.urgency = 'medium';
+    }
+
+    console.log(`[${requestId}] AI describe-to-package: "${text.substring(0, 60)}..." -> category=${parsed.category}, urgency=${parsed.urgency}, title="${parsed.title}"`);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      category: parsed.category || 'other',
+      title: (parsed.title || '').substring(0, 80),
+      description: (parsed.description || '').substring(0, 500),
+      urgency: parsed.urgency || 'medium'
+    }));
+  } catch (err) {
+    console.error(`[${requestId}] describe-to-package error:`, err.message);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to process description' }));
+  }
+}
+
+async function handleServiceHistoryChat(req, res, requestId) {
+  try {
+    const rl = applyRateLimit(req, res, 'helpdesk');
+    if (!rl.allowed) return;
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const body = await parseBody(req);
+    const question = (body.question || '').trim();
+    if (!question) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'question is required' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    const [{ data: vehicles }, { data: packages }] = await Promise.all([
+      supabase.from('vehicles').select('id, nickname, year, make, model, mileage').eq('owner_id', user.id),
+      supabase.from('maintenance_packages').select('title, category, status, created_at').eq('member_id', user.id).in('status', ['completed', 'in_progress']).order('created_at', { ascending: false }).limit(20)
+    ]);
+
+    const vehicleIds = (vehicles || []).map(v => v.id);
+    let history = [];
+    if (vehicleIds.length) {
+      const { data: histData } = await supabase.from('service_history')
+        .select('service_date, service_type, service_category, total_cost, provider_name, notes, vehicle_id')
+        .in('vehicle_id', vehicleIds)
+        .order('service_date', { ascending: false })
+        .limit(50);
+      history = histData || [];
+    }
+
+    const vehicleList = (vehicles || []).map(v =>
+      `${v.year || ''} ${v.make || ''} ${v.model || ''} ${v.nickname ? `(${v.nickname})` : ''}${v.mileage ? ` — ${v.mileage.toLocaleString()} miles` : ''}`.trim()
+    ).join('\n');
+
+    const historyList = history.map(h =>
+      `${h.service_date ? new Date(h.service_date).toLocaleDateString() : 'Unknown date'}: ${h.service_type || h.service_category || 'Service'} — $${(h.total_cost || 0).toFixed(2)}${h.provider_name ? ` (${h.provider_name})` : ''}${h.notes ? ` — ${h.notes}` : ''}`
+    ).join('\n');
+
+    const packageList = (packages || []).map(p =>
+      `${new Date(p.created_at).toLocaleDateString()}: ${p.title} [${p.status}]`
+    ).join('\n');
+
+    const prompt = `You are a helpful automotive service advisor for My Car Concierge. Answer the member's question based solely on their actual service history records below. Be conversational, specific, and concise (2–4 sentences max). If the answer isn't in the records, say so honestly.
+
+MEMBER'S VEHICLES:
+${vehicleList || 'No vehicles on file'}
+
+SERVICE HISTORY (most recent first):
+${historyList || 'No service history on file'}
+
+COMPLETED/IN-PROGRESS PACKAGES:
+${packageList || 'None'}
+
+MEMBER'S QUESTION: ${question}`;
+
+    const result = await generateAIContent(prompt, { maxTokens: 300, preferredProvider: 'anthropic' });
+    const answer = result?.text?.trim() || 'I couldn\'t generate a response. Please try again.';
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ answer }));
+  } catch (err) {
+    console.error(`[${requestId}] Service history chat error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  }
+}
+
+async function handleAppointmentDebrief(req, res, requestId) {
+  try {
+    const rl = applyRateLimit(req, res, 'helpdesk');
+    if (!rl.allowed) return;
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const body = await parseBody(req);
+    const packageId = (body.package_id || '').trim();
+    if (!packageId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'package_id is required' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    const [{ data: pkg }, { data: bid }] = await Promise.all([
+      supabase.from('maintenance_packages')
+        .select('id, title, category, description, member_id, status, created_at, work_completed_at')
+        .eq('id', packageId)
+        .single(),
+      supabase.from('bids')
+        .select('price, notes, provider_id, profiles(provider_alias, business_name)')
+        .eq('package_id', packageId)
+        .eq('status', 'accepted')
+        .maybeSingle()
+    ]);
+
+    if (!pkg) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package not found' }));
+      return;
+    }
+
+    const isMember = pkg.member_id === user.id;
+    const isProvider = bid && bid.provider_id === user.id;
+    if (!isMember && !isProvider) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden' }));
+      return;
+    }
+
+    const providerName = bid?.profiles?.provider_alias || bid?.profiles?.business_name || 'the provider';
+    const price = bid?.price ? `$${Number(bid.price).toFixed(2)}` : 'not specified';
+    const providerNotes = bid?.notes || '';
+    const completedDate = pkg.work_completed_at ? new Date(pkg.work_completed_at).toLocaleDateString() : 'recently';
+
+    const prompt = `You are an automotive service writer for My Car Concierge. Generate a professional plain-English service summary for this completed job. Include: what was done, any notable items, warranty notes if applicable, and 1–2 recommended follow-up services. Keep it under 200 words. Use a professional but friendly tone.
+
+SERVICE DETAILS:
+- Service: ${pkg.title}
+- Category: ${pkg.category || 'General'}
+- Description: ${pkg.description || 'Not provided'}
+- Provider: ${providerName}
+- Amount: ${price}
+- Completed: ${completedDate}
+- Provider notes: ${providerNotes || 'None provided'}
+
+Write the summary as if you are the service advisor summarizing the visit for the customer's records.`;
+
+    const result = await generateAIContent(prompt, { maxTokens: 350, preferredProvider: 'anthropic' });
+    const summary = result?.text?.trim() || 'Service summary could not be generated. Please try again.';
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ summary }));
+  } catch (err) {
+    console.error(`[${requestId}] Appointment debrief error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  }
+}
+
+async function handleSaveDebrief(req, res, requestId) {
+  try {
+    const rl = applyRateLimit(req, res, 'helpdesk');
+    if (!rl.allowed) return;
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const body = await parseBody(req);
+    const packageId = (body.package_id || '').trim();
+    const summaryText = (body.summary || '').trim();
+    if (!packageId || !summaryText) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'package_id and summary are required' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    const [{ data: pkg }, { data: bid }] = await Promise.all([
+      supabase.from('maintenance_packages')
+        .select('id, title, category, member_id, status, vehicle_id')
+        .eq('id', packageId)
+        .single(),
+      supabase.from('bids')
+        .select('provider_id, price')
+        .eq('package_id', packageId)
+        .eq('status', 'accepted')
+        .maybeSingle()
+    ]);
+
+    if (!pkg) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package not found' }));
+      return;
+    }
+
+    const isProvider = bid && bid.provider_id === user.id;
+    if (!isProvider) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden' }));
+      return;
+    }
+
+    const { error: pkgUpdateErr } = await supabase.from('maintenance_packages')
+      .update({ completion_notes: summaryText })
+      .eq('id', packageId);
+    if (pkgUpdateErr) {
+      console.error(`[${requestId}] Save debrief pkg update error:`, pkgUpdateErr);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to save summary to package' }));
+      return;
+    }
+
+    if (pkg.vehicle_id) {
+      const { data: existing } = await supabase.from('service_history')
+        .select('id')
+        .eq('package_id', packageId)
+        .maybeSingle();
+
+      if (!existing) {
+        const { error: histInsertErr } = await supabase.from('service_history').insert({
+          vehicle_id: pkg.vehicle_id,
+          package_id: packageId,
+          provider_id: bid?.provider_id || null,
+          service_type: pkg.title || 'Service completed',
+          service_category: pkg.category || 'General',
+          description: pkg.title || 'Service completed',
+          notes: summaryText,
+          service_date: new Date().toISOString().split('T')[0],
+          total_cost: bid?.price || null,
+          created_at: new Date().toISOString()
+        });
+        if (histInsertErr) {
+          console.error(`[${requestId}] Save debrief history insert error:`, histInsertErr);
+        }
+      } else {
+        const { error: histUpdateErr } = await supabase.from('service_history')
+          .update({ notes: summaryText })
+          .eq('id', existing.id);
+        if (histUpdateErr) {
+          console.error(`[${requestId}] Save debrief history update error:`, histUpdateErr);
+        }
+      }
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+  } catch (err) {
+    console.error(`[${requestId}] Save debrief error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  }
+}
+
+async function handleCounterSuggestion(req, res, requestId) {
+  try {
+    const rl = applyRateLimit(req, res, 'helpdesk');
+    if (!rl.allowed) return;
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const body = await parseBody(req);
+    const bidId = (body.bid_id || '').trim();
+    if (!bidId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'bid_id is required' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    const { data: bid } = await supabase.from('bids')
+      .select('id, price, package_id, maintenance_packages(title, category, member_id, member_zip, price_estimate_low, price_estimate_high)')
+      .eq('id', bidId)
+      .single();
+
+    if (!bid || bid.maintenance_packages?.member_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden or bid not found' }));
+      return;
+    }
+
+    const pkg = bid.maintenance_packages;
+    const bidPrice = Number(bid.price);
+    let estLow = pkg.price_estimate_low;
+    let estHigh = pkg.price_estimate_high;
+
+    if (!estHigh && pkg.category) {
+      const zipPrefix = (pkg.member_zip || '').substring(0, 3);
+      const { data: historicalBids } = await supabase
+        .from('bids')
+        .select('price, maintenance_packages!inner(category, member_zip, status)')
+        .eq('status', 'accepted')
+        .eq('maintenance_packages.category', pkg.category)
+        .not('maintenance_packages.member_zip', 'is', null)
+        .gte('created_at', new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString())
+        .limit(50);
+
+      const relevant = (historicalBids || []).filter(b => {
+        const bZip = (b.maintenance_packages?.member_zip || '').substring(0, 3);
+        return bZip === zipPrefix || !zipPrefix;
+      });
+
+      if (relevant.length >= 3) {
+        const prices = relevant.map(b => Number(b.price)).sort((a, z) => a - z);
+        const q1Idx = Math.floor(prices.length * 0.25);
+        const q3Idx = Math.floor(prices.length * 0.75);
+        estLow = prices[q1Idx];
+        estHigh = prices[Math.min(q3Idx, prices.length - 1)];
+      }
+    }
+
+    if (!estHigh || bidPrice <= estHigh) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ has_suggestion: false, reason: 'Bid is within market range' }));
+      return;
+    }
+
+    const midpoint = Math.round((estLow + estHigh) / 2);
+    const suggestedCounter = Math.round(midpoint * 1.05);
+
+    const prompt = `You are a negotiation advisor for My Car Concierge. A member is considering a counter-offer for an auto service bid. Write exactly one sentence (under 120 characters) explaining why ${suggestedCounter} is a reasonable counter-offer. Be direct and confident.
+
+Service: ${pkg.title || pkg.category}
+Provider's bid: $${bidPrice.toFixed(2)}
+Market range: $${estLow}–$${estHigh} (based on accepted bids)
+Suggested counter: $${suggestedCounter}`;
+
+    const result = await generateAIContent(prompt, { maxTokens: 80, preferredProvider: 'gemini' });
+    const rationale = result?.text?.trim() || `Market data shows $${estLow}–$${estHigh} is typical for this service, making $${suggestedCounter} a fair counter.`;
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      has_suggestion: true,
+      suggested_counter: suggestedCounter,
+      market_low: estLow,
+      market_high: estHigh,
+      bid_price: bidPrice,
+      rationale
+    }));
+  } catch (err) {
+    console.error(`[${requestId}] Counter suggestion error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  }
+}
+
+const _budgetForecastCache = new Map();
+
+async function handleBudgetForecast(req, res, requestId) {
+  try {
+    const rl = applyRateLimit(req, res, 'helpdesk');
+    if (!rl.allowed) return;
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    const vehicleId = req.url.split('/api/ai/budget-forecast/')[1]?.split('?')[0];
+    if (!vehicleId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'vehicle_id is required' }));
+      return;
+    }
+
+    const cacheKey = `${user.id}:${vehicleId}`;
+    const cached = _budgetForecastCache.get(cacheKey);
+    if (cached && (Date.now() - cached.ts) < 7 * 24 * 60 * 60 * 1000) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ...cached.data, cached: true }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    const { data: vehicle } = await supabase.from('vehicles').select('id, year, make, model, mileage, owner_id').eq('id', vehicleId).single();
+
+    if (!vehicle || vehicle.owner_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden or vehicle not found' }));
+      return;
+    }
+
+    const { data: histData } = await supabase.from('service_history')
+      .select('service_date, service_type, service_category, total_cost')
+      .eq('vehicle_id', vehicleId)
+      .order('service_date', { ascending: false })
+      .limit(30);
+    const history = histData || [];
+
+    const historyList = history.map(h =>
+      `${h.service_date ? new Date(h.service_date).toLocaleDateString() : 'Unknown'}: ${h.service_type || h.service_category || 'Service'} — $${(h.total_cost || 0).toFixed(2)}`
+    ).join('\n');
+
+    const vehicleAge = vehicle.year ? (new Date().getFullYear() - vehicle.year) : null;
+
+    const prompt = `You are an automotive cost forecasting expert for My Car Concierge. Based on this member's vehicle and service history, generate a 12-month cost forecast. Return ONLY a JSON object with this exact structure, no markdown:
+
+{"narrative":"A 1-2 sentence plain-English summary of the forecast mentioning the vehicle and key costs","items":[{"service":"Service name","estimated_month":"Month YYYY","low_cents":integer,"high_cents":integer,"reason":"1 short reason"}]}
+
+Include 3–5 service items most likely needed in the next 12 months based on vehicle age, mileage, and history gaps. Use realistic cost ranges in cents.
+
+VEHICLE:
+- ${vehicle.year || 'Unknown year'} ${vehicle.make || ''} ${vehicle.model || ''}
+- Mileage: ${vehicle.mileage ? vehicle.mileage.toLocaleString() + ' miles' : 'Unknown'}
+- Age: ${vehicleAge !== null ? vehicleAge + ' years' : 'Unknown'}
+
+RECENT SERVICE HISTORY:
+${historyList || 'No history on file — assume typical maintenance gaps for vehicle age/mileage'}`;
+
+    const result = await generateAIContent(prompt, { maxTokens: 600, preferredProvider: 'anthropic' });
+    let forecast = { narrative: '', items: [] };
+    try {
+      const text = result?.text?.trim() || '{}';
+      const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      forecast = JSON.parse(cleaned);
+    } catch (e) {
+      console.log(`[${requestId}] Budget forecast parse error:`, e.message);
+      forecast.narrative = result?.text?.substring(0, 200) || 'Could not generate forecast.';
+    }
+
+    const responseData = {
+      vehicle: { year: vehicle.year, make: vehicle.make, model: vehicle.model, mileage: vehicle.mileage },
+      ...forecast,
+      generated_at: new Date().toISOString()
+    };
+
+    _budgetForecastCache.set(cacheKey, { data: responseData, ts: Date.now() });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(responseData));
+  } catch (err) {
+    console.error(`[${requestId}] Budget forecast error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  }
+}
+
+async function handlePhotoDiagnose(req, res, requestId) {
+  try {
+    const rl = applyRateLimit(req, res, 'helpdesk');
+    if (!rl.allowed) return;
+
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Unauthorized' }));
+    }
+
+    const body = await getRequestBody(req, 15 * 1024 * 1024);
+    const { image, vehicle } = body;
+    if (!image || typeof image !== 'string' || image.length < 100) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'A valid image is required.' }));
+    }
+
+    let imageContent = image;
+    if (imageContent.includes(',')) imageContent = imageContent.split(',')[1];
+
+    const apiKey = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Image analysis service not configured' }));
+    }
+
+    console.log(`[${requestId}] Calling Google Vision API for photo diagnosis...`);
+    const visionResponse = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requests: [{
+          image: { content: imageContent },
+          features: [
+            { type: 'LABEL_DETECTION', maxResults: 15 },
+            { type: 'OBJECT_LOCALIZATION', maxResults: 10 },
+            { type: 'TEXT_DETECTION' }
+          ]
+        }]
+      })
+    });
+
+    const visionData = await visionResponse.json();
+    if (!visionResponse.ok) {
+      console.error(`[${requestId}] Vision API error:`, visionData);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Image analysis failed', details: visionData.error?.message }));
+    }
+
+    const response = visionData.responses?.[0] || {};
+    const labels = (response.labelAnnotations || []).map(l => ({ description: l.description, score: l.score }));
+    const objects = (response.localizedObjectAnnotations || []).map(o => ({ name: o.name, score: o.score }));
+    const textContent = response.fullTextAnnotation?.text || '';
+
+    const autoRelated = labels.some(l =>
+      ['car', 'vehicle', 'automobile', 'tire', 'wheel', 'engine', 'dashboard', 'bumper', 'headlight',
+       'brake', 'exhaust', 'windshield', 'hood', 'fender', 'door', 'mirror', 'paint', 'dent', 'scratch',
+       'warning light', 'gauge', 'speedometer', 'odometer', 'rust', 'leak', 'fluid', 'motor'].some(
+        keyword => l.description.toLowerCase().includes(keyword)
+      ) && l.score > 0.5
+    );
+
+    const topScore = labels.length > 0 ? Math.max(...labels.map(l => l.score)) : 0;
+
+    if (!autoRelated && topScore < 0.6) {
+      console.log(`[${requestId}] Photo diagnosis low confidence - no auto-related content detected`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        lowConfidence: true,
+        explanation: 'We could not identify a clear vehicle issue in this photo. Try taking a closer photo of the problem area, or describe the issue in the text box instead.'
+      }));
+    }
+
+    const validCategories = [
+      'maintenance','manufacturer_service','detailing','cosmetic','accident_repair',
+      'performance','audio_electronics','lighting','interior','offroad','ev_hybrid',
+      'classic_vintage','fleet_graphics','premium_protection','convertible_specialty',
+      'motorcycle','rv_camper','boat_marine','snow_removal','other'
+    ];
+
+    let vehicleContext = '';
+    if (vehicle && vehicle.make) {
+      vehicleContext = `\nVehicle: ${vehicle.year || ''} ${vehicle.make} ${vehicle.model || ''}${vehicle.trim ? ' ' + vehicle.trim : ''}`.trim();
+    }
+
+    const visionSummary = `Labels detected: ${labels.slice(0, 10).map(l => l.description + ' (' + Math.round(l.score * 100) + '%)').join(', ')}
+Objects detected: ${objects.slice(0, 8).map(o => o.name + ' (' + Math.round(o.score * 100) + '%)').join(', ') || 'none'}
+Text found in image: ${textContent.substring(0, 300) || 'none'}`;
+
+    const prompt = `You are an automotive diagnostic expert for a service marketplace called My Car Concierge.
+
+A member uploaded a photo of their vehicle. Google Vision detected the following:
+${visionSummary}
+${vehicleContext}
+
+Based on the visual analysis, determine:
+1. What issue or need is shown in the photo
+2. The best service category for this issue
+3. A clear title and description for a service request
+
+Respond with ONLY valid JSON (no markdown, no code fences):
+{
+  "category": one of [${validCategories.map(c => '"' + c + '"').join(', ')}],
+  "title": a short, professional title for the service request (max 80 chars),
+  "description": a detailed description for providers (2-4 sentences, max 300 chars),
+  "confidence": "high" or "medium" or "low",
+  "explanation": a plain-language explanation for the member of what was detected and why this service is recommended (1-2 sentences)
+}
+
+Rules:
+- If the image shows a warning light or dashboard indicator, identify it and recommend the appropriate diagnostic or repair service.
+- If the image shows physical damage (dent, scratch, crack), recommend body/cosmetic work.
+- If the image shows a leak, fluid stain, or mechanical issue, recommend maintenance/repair.
+- Pick the single best-fitting category.
+- The explanation should be friendly and reassuring, helping the member understand what they are looking at.
+- Do NOT include pricing.`;
+
+    console.log(`[${requestId}] Calling Claude for photo diagnosis interpretation...`);
+    const message = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 512,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    const aiText = message.content[0]?.text || '';
+
+    let parsed;
+    try {
+      const cleaned = aiText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error(`[${requestId}] AI photo-diagnose parse error:`, parseErr.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'AI response could not be parsed' }));
+    }
+
+    if (parsed.category && !validCategories.includes(parsed.category)) parsed.category = 'other';
+
+    if (parsed.confidence === 'low') {
+      console.log(`[${requestId}] Photo diagnosis: low confidence result`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        lowConfidence: true,
+        explanation: parsed.explanation || 'The image was not clear enough to identify a specific issue. Please describe your concern in the text box instead.'
+      }));
+    }
+
+    console.log(`[${requestId}] Photo diagnosis: category=${parsed.category}, confidence=${parsed.confidence}, title="${parsed.title}"`);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      category: parsed.category || 'other',
+      title: (parsed.title || '').substring(0, 80),
+      description: (parsed.description || '').substring(0, 500),
+      confidence: parsed.confidence || 'medium',
+      explanation: (parsed.explanation || '').substring(0, 300),
+      lowConfidence: false
+    }));
+  } catch (err) {
+    console.error(`[${requestId}] photo-diagnose error:`, err.message);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to analyze photo' }));
+  }
+}
+
+async function handleComputeVehicleHealth(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  const vehicleId = req.url.split('/api/vehicles/')[1]?.split('/')[0];
+  if (!isValidUUID(vehicleId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid vehicle ID' }));
+    return;
+  }
+
+  const rl = applyRateLimit(req, res, 'helpdesk');
+  if (!rl.allowed) return;
+
+
+
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: vehicle, error: vErr } = await supabase
+      .from('vehicles')
+      .select('id, owner_id, year, make, model, mileage, vin, created_at')
+      .eq('id', vehicleId)
+      .single();
+
+    if (vErr || !vehicle) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Vehicle not found' }));
+      return;
+    }
+
+    if (vehicle.owner_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Access denied' }));
+      return;
+    }
+
+    const { data: scans } = await supabase
+      .from('diagnostic_scans')
+      .select('id, codes, severity, created_at')
+      .eq('vehicle_id', vehicleId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    const { data: history } = await supabase
+      .from('service_history')
+      .select('id, service_type, service_category, service_date, mileage_at_service')
+      .eq('vehicle_id', vehicleId)
+      .order('service_date', { ascending: false })
+      .limit(20);
+
+    let schedules = [];
+    try {
+      const { data: sched } = await supabase
+        .from('maintenance_schedules')
+        .select('service_type, interval_miles, interval_months, last_service_date, last_service_mileage')
+        .eq('vehicle_id', vehicleId)
+        .eq('is_active', true);
+      schedules = sched || [];
+    } catch (e) {}
+
+    const { data: completedPkgs } = await supabase
+      .from('maintenance_packages')
+      .select('id, status, category, created_at')
+      .eq('vehicle_id', vehicleId)
+      .eq('status', 'completed');
+
+    const { data: allPkgs } = await supabase
+      .from('maintenance_packages')
+      .select('id, status')
+      .eq('vehicle_id', vehicleId);
+
+    const currentYear = new Date().getFullYear();
+    const vehicleAge = vehicle.year ? currentYear - vehicle.year : null;
+    const mileage = vehicle.mileage || 0;
+    const completedCount = completedPkgs?.length || 0;
+    const totalCount = allPkgs?.length || 0;
+    const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 100;
+
+    const activeCodes = [];
+    if (scans?.length > 0) {
+      const latestScan = scans[0];
+      if (latestScan.codes?.length > 0) {
+        activeCodes.push(...latestScan.codes);
+      }
+    }
+
+    const overdueServices = [];
+    const now = new Date();
+    schedules.forEach(s => {
+      let overdue = false;
+      if (s.last_service_date && s.interval_months) {
+        const lastDate = new Date(s.last_service_date);
+        lastDate.setMonth(lastDate.getMonth() + s.interval_months);
+        if (lastDate < now) overdue = true;
+      }
+      if (s.last_service_mileage && s.interval_miles && mileage) {
+        if (mileage >= s.last_service_mileage + s.interval_miles) overdue = true;
+      }
+      if (overdue) overdueServices.push(SERVICE_TYPE_LABELS[s.service_type] || s.service_type);
+    });
+
+    const prompt = `You are an automotive health assessment AI. Compute a vehicle health score (0-100) based on this data:
+
+Vehicle: ${vehicle.year} ${vehicle.make} ${vehicle.model}
+Age: ${vehicleAge !== null ? vehicleAge + ' years' : 'Unknown'}
+Mileage: ${mileage > 0 ? mileage.toLocaleString() + ' miles' : 'Unknown'}
+Active OBD codes: ${activeCodes.length > 0 ? activeCodes.join(', ') : 'None'}
+Recent OBD scans: ${scans?.length || 0} (severities: ${scans?.map(s => s.severity).filter(Boolean).join(', ') || 'none'})
+Service history entries: ${history?.length || 0}
+Completed jobs: ${completedCount} out of ${totalCount} total (${completionRate}% completion)
+Overdue services: ${overdueServices.length > 0 ? overdueServices.join(', ') : 'None'}
+Maintenance schedules tracked: ${schedules.length}
+
+Return ONLY valid JSON:
+{
+  "score": <0-100>,
+  "factors": {
+    "positive": ["factor1", "factor2"],
+    "negative": ["factor1", "factor2"]
+  },
+  "summary": "One sentence health summary"
+}
+
+Scoring guidance:
+- Start at 85 base
+- Active OBD codes: -5 to -25 depending on severity
+- Overdue maintenance: -5 per overdue item
+- High mileage (>100k): -5, (>150k): -10, (>200k): -15
+- Good service completion rate (>80%): +5
+- Regular service history: +5
+- No data (new vehicle, no history): default 90
+- Vehicle age >15 years: -5`;
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      const fallbackScore = Math.max(50, 85 - (activeCodes.length * 10) - (overdueServices.length * 5) - (vehicleAge > 15 ? 5 : 0));
+      const factors = { positive: [], negative: [] };
+      if (activeCodes.length === 0) factors.positive.push('No active diagnostic trouble codes');
+      if (completionRate >= 80) factors.positive.push('Good service completion rate');
+      if (activeCodes.length > 0) factors.negative.push(`${activeCodes.length} active OBD code(s)`);
+      if (overdueServices.length > 0) factors.negative.push(`${overdueServices.length} overdue service(s)`);
+      if (factors.positive.length === 0) factors.positive.push('Vehicle registered on platform');
+
+      await supabase.from('vehicles').update({ health_score: fallbackScore }).eq('id', vehicleId);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, score: fallbackScore, factors, summary: 'Health score computed from available data.' }));
+      return;
+    }
+
+    const https = require('https');
+    const aiBody = JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 512,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const aiReq = https.request({
+      hostname: 'api.anthropic.com',
+      path: '/v1/messages',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      }
+    }, (aiRes) => {
+      let data = '';
+      aiRes.on('data', chunk => data += chunk);
+      aiRes.on('end', async () => {
+        try {
+          const parsed = JSON.parse(data);
+          const text = parsed.content?.[0]?.text || '';
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          let result = { score: 85, factors: { positive: ['Vehicle registered'], negative: [] }, summary: 'Default health assessment' };
+          if (jsonMatch) {
+            result = JSON.parse(jsonMatch[0]);
+          }
+
+          const score = Math.max(0, Math.min(100, Math.round(result.score || 85)));
+          await supabase.from('vehicles').update({ health_score: score }).eq('id', vehicleId);
+
+          console.log(`[${requestId}] Computed health score ${score} for vehicle ${vehicleId}`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            score,
+            factors: result.factors || { positive: [], negative: [] },
+            summary: result.summary || ''
+          }));
+        } catch (parseErr) {
+          console.error(`[${requestId}] Health score AI parse error:`, parseErr);
+          await supabase.from('vehicles').update({ health_score: 85 }).eq('id', vehicleId);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, score: 85, factors: { positive: ['Vehicle registered'], negative: [] }, summary: 'Default score applied' }));
+        }
+      });
+    });
+
+    aiReq.on('error', (err) => {
+      console.error(`[${requestId}] Health score AI request error:`, err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'AI service unavailable' }));
+    });
+
+    aiReq.write(aiBody);
+    aiReq.end();
+
+  } catch (error) {
+    console.error(`[${requestId}] Compute health error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to compute health score' }));
+  }
+}
+
+async function handleMaintenanceForecast(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  const vehicleId = req.url.split('/api/vehicles/')[1]?.split('/')[0];
+  if (!isValidUUID(vehicleId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid vehicle ID' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: vehicle, error: vErr } = await supabase
+      .from('vehicles')
+      .select('id, owner_id, year, make, model, mileage')
+      .eq('id', vehicleId)
+      .single();
+
+    if (vErr || !vehicle) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Vehicle not found' }));
+      return;
+    }
+
+    if (vehicle.owner_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Access denied' }));
+      return;
+    }
+
+    let schedules = [];
+    try {
+      const { data: sched } = await supabase
+        .from('maintenance_schedules')
+        .select('*')
+        .eq('vehicle_id', vehicleId)
+        .eq('is_active', true);
+      schedules = sched || [];
+    } catch (e) {}
+
+    if (schedules.length === 0) {
+      schedules = DEFAULT_MAINTENANCE_SCHEDULES.map(s => ({
+        ...s,
+        vehicle_id: vehicleId,
+        last_service_date: null,
+        last_service_mileage: null
+      }));
+    }
+
+    const { data: history } = await supabase
+      .from('service_history')
+      .select('service_type, service_category, service_date, mileage_at_service')
+      .eq('vehicle_id', vehicleId)
+      .order('service_date', { ascending: false });
+
+    const mileage = vehicle.mileage || 0;
+    const avgMilesPerMonth = 1000;
+    const now = new Date();
+
+    const forecast = schedules.map(schedule => {
+      const label = SERVICE_TYPE_LABELS[schedule.service_type] || schedule.service_type;
+
+      let lastServiceDate = schedule.last_service_date ? new Date(schedule.last_service_date) : null;
+      let lastServiceMileage = schedule.last_service_mileage || null;
+
+      if (!lastServiceDate && history?.length) {
+        const match = history.find(h =>
+          (h.service_type || '').toLowerCase().includes(schedule.service_type.replace(/_/g, ' ')) ||
+          (h.service_category || '').toLowerCase().includes(schedule.service_type.replace(/_/g, ' '))
+        );
+        if (match) {
+          lastServiceDate = new Date(match.service_date);
+          lastServiceMileage = match.mileage_at_service || lastServiceMileage;
+        }
+      }
+
+      let dueDateEst = null;
+      let dueMileageEst = null;
+      let urgency = 'low';
+      let milesRemaining = null;
+      let daysRemaining = null;
+
+      if (schedule.interval_months) {
+        if (lastServiceDate) {
+          dueDateEst = new Date(lastServiceDate);
+          dueDateEst.setMonth(dueDateEst.getMonth() + schedule.interval_months);
+        } else {
+          dueDateEst = new Date(now);
+          dueDateEst.setMonth(dueDateEst.getMonth() + Math.floor(schedule.interval_months / 2));
+        }
+        daysRemaining = Math.round((dueDateEst - now) / (1000 * 60 * 60 * 24));
+      }
+
+      if (schedule.interval_miles && mileage > 0) {
+        if (lastServiceMileage) {
+          dueMileageEst = lastServiceMileage + schedule.interval_miles;
+        } else {
+          dueMileageEst = mileage + Math.floor(schedule.interval_miles / 2);
+        }
+        milesRemaining = dueMileageEst - mileage;
+
+        const monthsToMiles = milesRemaining > 0 ? milesRemaining / avgMilesPerMonth : 0;
+        const mileageDate = new Date(now);
+        mileageDate.setMonth(mileageDate.getMonth() + Math.round(monthsToMiles));
+        if (!dueDateEst || mileageDate < dueDateEst) {
+          dueDateEst = mileageDate;
+          daysRemaining = Math.round((dueDateEst - now) / (1000 * 60 * 60 * 24));
+        }
+      }
+
+      if (daysRemaining !== null) {
+        if (daysRemaining <= 0 || (milesRemaining !== null && milesRemaining <= 0)) {
+          urgency = 'overdue';
+        } else if (daysRemaining <= 30 || (milesRemaining !== null && milesRemaining <= 500)) {
+          urgency = 'high';
+        } else if (daysRemaining <= 90 || (milesRemaining !== null && milesRemaining <= 2000)) {
+          urgency = 'medium';
+        }
+      }
+
+      return {
+        service_type: schedule.service_type,
+        label,
+        due_date: dueDateEst ? dueDateEst.toISOString().split('T')[0] : null,
+        due_mileage: dueMileageEst,
+        miles_remaining: milesRemaining,
+        days_remaining: daysRemaining,
+        urgency,
+        last_service_date: lastServiceDate ? lastServiceDate.toISOString().split('T')[0] : null,
+        last_service_mileage: lastServiceMileage
+      };
+    });
+
+    forecast.sort((a, b) => {
+      const urgencyOrder = { overdue: 0, high: 1, medium: 2, low: 3 };
+      const ua = urgencyOrder[a.urgency] ?? 4;
+      const ub = urgencyOrder[b.urgency] ?? 4;
+      if (ua !== ub) return ua - ub;
+      return (a.days_remaining || 999) - (b.days_remaining || 999);
+    });
+
+    console.log(`[${requestId}] Generated maintenance forecast with ${forecast.length} items for vehicle ${vehicleId}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, forecast, vehicle: { year: vehicle.year, make: vehicle.make, model: vehicle.model, mileage } }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Maintenance forecast error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to generate forecast' }));
+  }
+}
+
+function recomputeVehicleHealthBackground(vehicleId, requestId) {
+  setTimeout(async () => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+
+      const { data: vehicle } = await supabase
+        .from('vehicles')
+        .select('id, owner_id, year, make, model, mileage')
+        .eq('id', vehicleId)
+        .single();
+      if (!vehicle) return;
+
+      const { data: scans } = await supabase
+        .from('diagnostic_scans')
+        .select('codes, severity')
+        .eq('vehicle_id', vehicleId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      const { data: completedPkgs } = await supabase
+        .from('maintenance_packages')
+        .select('id')
+        .eq('vehicle_id', vehicleId)
+        .eq('status', 'completed');
+
+      const { data: allPkgs } = await supabase
+        .from('maintenance_packages')
+        .select('id')
+        .eq('vehicle_id', vehicleId);
+
+      let schedules = [];
+      try {
+        const { data: sched } = await supabase
+          .from('maintenance_schedules')
+          .select('service_type, interval_miles, interval_months, last_service_date, last_service_mileage')
+          .eq('vehicle_id', vehicleId)
+          .eq('is_active', true);
+        schedules = sched || [];
+      } catch (e) {}
+
+      const currentYear = new Date().getFullYear();
+      const vehicleAge = vehicle.year ? currentYear - vehicle.year : 0;
+      const mileage = vehicle.mileage || 0;
+      const completedCount = completedPkgs?.length || 0;
+      const totalCount = allPkgs?.length || 0;
+      const completionRate = totalCount > 0 ? (completedCount / totalCount) : 1;
+
+      const activeCodes = scans?.[0]?.codes || [];
+      let overdueCount = 0;
+      const now = new Date();
+      schedules.forEach(s => {
+        if (s.last_service_date && s.interval_months) {
+          const d = new Date(s.last_service_date);
+          d.setMonth(d.getMonth() + s.interval_months);
+          if (d < now) overdueCount++;
+        }
+        if (s.last_service_mileage && s.interval_miles && mileage >= s.last_service_mileage + s.interval_miles) {
+          overdueCount++;
+        }
+      });
+
+      let score = 85;
+      if (activeCodes.length > 0) score -= Math.min(25, activeCodes.length * 8);
+      if (overdueCount > 0) score -= overdueCount * 5;
+      if (mileage > 200000) score -= 15;
+      else if (mileage > 150000) score -= 10;
+      else if (mileage > 100000) score -= 5;
+      if (vehicleAge > 15) score -= 5;
+      if (completionRate >= 0.8 && totalCount > 0) score += 5;
+      if (completedCount > 3) score += 5;
+      score = Math.max(10, Math.min(100, score));
+
+      await supabase.from('vehicles').update({ health_score: score }).eq('id', vehicleId);
+      console.log(`[${requestId}] Background health recompute: vehicle ${vehicleId} -> score ${score}`);
+    } catch (err) {
+      console.error(`[${requestId}] Background health recompute error:`, err.message);
+    }
+  }, 2000);
+}
+
+async function handleBidPriceSignal(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const category = url.searchParams.get('category');
+  const zip = url.searchParams.get('zip');
+  const amount = parseFloat(url.searchParams.get('amount'));
+
+  if (!category || !amount || isNaN(amount) || amount <= 0) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'category and valid amount are required' }));
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const catLabel = category.replace(/_/g, ' ');
+    let prices = [];
+    let regional = true;
+
+    if (zip) {
+      const zipPrefix = zip.substring(0, 3);
+      const { data: regionalBids, error: rErr } = await supabase
+        .from('bids')
+        .select('price, maintenance_packages!bids_package_id_fkey(category, member_zip)')
+        .eq('status', 'accepted')
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (!rErr && regionalBids) {
+        prices = regionalBids
+          .filter(b => {
+            const pkg = b.maintenance_packages;
+            if (!pkg || pkg.category !== category) return false;
+            if (pkg.member_zip) {
+              return (pkg.member_zip || '').substring(0, 3) === zipPrefix;
+            }
+            return false;
+          })
+          .map(b => b.price)
+          .sort((a, b) => a - b);
+      }
+    }
+
+    if (prices.length < 3) {
+      regional = false;
+      const { data: catBids, error: cErr } = await supabase
+        .from('bids')
+        .select('price, maintenance_packages!bids_package_id_fkey(category)')
+        .eq('status', 'accepted')
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (!cErr && catBids) {
+        prices = catBids
+          .filter(b => b.maintenance_packages?.category === category)
+          .map(b => b.price)
+          .sort((a, b) => a - b);
+      }
+    }
+
+    if (prices.length < 3) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ signal: null, reason: 'insufficient_data' }));
+      return;
+    }
+
+    const belowCount = prices.filter(p => p <= amount).length;
+    const percentile = Math.round((belowCount / prices.length) * 100);
+    const median = prices[Math.floor(prices.length / 2)];
+    const p25 = Math.round(prices[Math.floor(prices.length * 0.25)]);
+    const p75 = Math.round(prices[Math.floor(prices.length * 0.75)]);
+    const regionNote = regional ? ' in your area' : '';
+
+    let signal, direction;
+
+    if (percentile <= 20) {
+      signal = `Your bid is in the bottom ${percentile}% of accepted bids for ${catLabel}${regionNote} ($${p25}\u2013$${p75} typical range) \u2014 you have room to price higher`;
+      direction = 'below';
+    } else if (percentile >= 80) {
+      signal = `Your bid is higher than ${percentile}% of accepted bids for ${catLabel}${regionNote} ($${p25}\u2013$${p75} typical range) \u2014 consider reducing to stay competitive`;
+      direction = 'above';
+    } else if (percentile >= 40 && percentile <= 60) {
+      signal = `Right in the middle of accepted bids for ${catLabel}${regionNote} (${percentile}th percentile, $${p25}\u2013$${p75} typical) \u2014 solid pricing`;
+      direction = 'in-range';
+    } else if (percentile < 40) {
+      signal = `Below average (${percentile}th percentile) for ${catLabel}${regionNote} ($${p25}\u2013$${p75} typical) \u2014 competitive pricing`;
+      direction = 'in-range';
+    } else {
+      signal = `Above average (${percentile}th percentile) for ${catLabel}${regionNote} ($${p25}\u2013$${p75} typical) \u2014 still within range`;
+      direction = 'in-range';
+    }
+
+    console.log(`[${requestId}] Bid price signal: $${amount} = ${percentile}th pctile (median $${median}) for ${category}, n=${prices.length}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ signal, direction, percentile, median: Math.round(median), p25: Math.round(p25), p75: Math.round(p75), sampleSize: prices.length }));
+
+  } catch (error) {
+    console.error(`[${requestId}] Bid price signal error:`, error);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ signal: null }));
+  }
+}
+
+async function handleDraftBid(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+
+  const rl = applyRateLimit(req, res, 'helpdesk');
+  if (!rl.allowed) return;
+
+  try {
+    const body = await getRequestBody(req);
+    const { title, category, description, vehicle, providerName } = body;
+
+    if (!title) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'title is required' }));
+      return;
+    }
+
+    let providerSnippet = providerName || '';
+    if (!providerSnippet) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, provider_alias')
+          .eq('id', user.id)
+          .single();
+        if (profile) {
+          providerSnippet = profile.provider_alias || profile.full_name || '';
+        }
+      }
+    }
+
+    const prompt = `You are writing a bid message for an automotive service provider on My Car Concierge. Write a professional, friendly 2-4 sentence pitch for the member. Include:
+1. A brief mention of timeline/approach
+2. A quality or warranty statement
+3. Why the provider is the right choice for this job
+
+Job details:
+- Title: ${title}
+- Category: ${category || 'General'}
+- Description: ${description || 'Not provided'}
+${vehicle ? `- Vehicle: ${vehicle}` : ''}
+${providerSnippet ? `- Provider name: ${providerSnippet}` : ''}
+
+Write ONLY the pitch text, no JSON, no quotes, no labels. Keep it natural and conversational. Do not use placeholder brackets.`;
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ draft: `I'd be happy to take care of your ${title.toLowerCase()} service. I take pride in quality work and stand behind my results. I can get started this week — let me know what works best for your schedule.` }));
+      return;
+    }
+
+    const https = require('https');
+    const aiBody = JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 256,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const aiReq = https.request({
+      hostname: 'api.anthropic.com',
+      path: '/v1/messages',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      }
+    }, (aiRes) => {
+      let data = '';
+      aiRes.on('data', chunk => data += chunk);
+      aiRes.on('end', () => {
+        try {
+          if (aiRes.statusCode !== 200) {
+            console.error(`[${requestId}] AI draft bid non-200: ${aiRes.statusCode}`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ draft: `I'd be happy to take care of your ${title.toLowerCase()} service. I bring quality workmanship and stand behind my results. I can get started this week.` }));
+            return;
+          }
+          const parsed = JSON.parse(data);
+          const draft = (parsed.content?.[0]?.text || '').trim();
+          if (!draft) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ draft: `I'd be happy to take care of your ${title.toLowerCase()} service. I bring quality workmanship and stand behind my results. I can get started this week.` }));
+            return;
+          }
+          console.log(`[${requestId}] Generated bid draft for "${title}"`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ draft }));
+        } catch (e) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ draft: `I'd be happy to take care of your ${title.toLowerCase()} service. I bring quality workmanship and stand behind my results. I can get started this week.` }));
+        }
+      });
+    });
+
+    aiReq.on('error', () => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'AI service unavailable' }));
+    });
+
+    aiReq.write(aiBody);
+    aiReq.end();
+
+  } catch (error) {
+    console.error(`[${requestId}] Draft bid error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to generate draft' }));
+  }
+}
+
+async function handleAiMediation(req, res, requestId, packageId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await authenticateRequest(req);
+  if (!user) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+
+  const rl = applyRateLimit(req, res, 'helpdesk');
+  if (!rl.allowed) return;
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: pkg, error: pkgErr } = await supabase
+      .from('maintenance_packages')
+      .select('id, title, description, category, status, work_completed_at, member_confirmed_at, member_id, created_at, vehicles(year, make, model)')
+      .eq('id', packageId)
+      .single();
+
+    if (pkgErr || !pkg) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package not found' }));
+      return;
+    }
+
+    const isMember = (user.id === pkg.member_id);
+    let isProvider = false;
+    if (!isMember) {
+      const { data: bid } = await supabase
+        .from('bids')
+        .select('provider_id')
+        .eq('package_id', packageId)
+        .eq('status', 'accepted')
+        .single();
+
+      isProvider = (bid && bid.provider_id === user.id);
+      if (!isProvider) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not authorized for this package' }));
+        return;
+      }
+    }
+
+    if (req.method === 'POST' && !isMember) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Only the member can request AI mediation' }));
+      return;
+    }
+
+    if (req.method === 'POST') {
+      if (!pkg.work_completed_at || pkg.member_confirmed_at) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Mediation is only available when work is marked complete but payment has not been released' }));
+        return;
+      }
+    }
+
+    if (req.method === 'GET') {
+      const { data: existing } = await supabase
+        .from('ai_mediations')
+        .select('id, package_id, summary, discrepancies, recommendation, confidence, created_at')
+        .eq('package_id', packageId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (existing) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ mediation: existing, cached: true }));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ mediation: null }));
+      return;
+    }
+
+    const { data: existingMediation } = await supabase
+      .from('ai_mediations')
+      .select('id, created_at')
+      .eq('package_id', packageId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (existingMediation) {
+      const ageMs = Date.now() - new Date(existingMediation.created_at).getTime();
+      if (ageMs < 3600000) {
+        const { data: cached } = await supabase
+          .from('ai_mediations')
+          .select('id, package_id, summary, discrepancies, recommendation, confidence, created_at')
+          .eq('id', existingMediation.id)
+          .single();
+
+        if (cached) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ mediation: cached, cached: true }));
+          return;
+        }
+      }
+    }
+
+    const { data: acceptedBid } = await supabase
+      .from('bids')
+      .select('price, notes, provider_id, profiles!bids_provider_id_fkey(full_name, provider_alias)')
+      .eq('package_id', packageId)
+      .eq('status', 'accepted')
+      .single();
+
+    const { data: payment } = await supabase
+      .from('payments')
+      .select('status, amount_total, escrow_captured, created_at')
+      .eq('package_id', packageId)
+      .single();
+
+    const { data: appointments } = await supabase
+      .from('service_appointments')
+      .select('appointment_date, confirmed_time_start, confirmed_time_end, status, notes')
+      .eq('package_id', packageId)
+      .limit(10);
+
+    const { data: disputes } = await supabase
+      .from('disputes')
+      .select('reason, description, status, created_at, resolution')
+      .eq('package_id', packageId)
+      .limit(5);
+
+    const { data: messages } = await supabase
+      .from('messages')
+      .select('content, sender_id, created_at')
+      .eq('package_id', packageId)
+      .order('created_at', { ascending: true })
+      .limit(20);
+
+    let checkinSessions = [];
+    try {
+      const { data } = await supabase
+        .from('checkin_sessions')
+        .select('status, check_in_time, check_out_time, notes, vehicle_condition_notes')
+        .eq('package_id', packageId)
+        .order('created_at', { ascending: true })
+        .limit(10);
+      if (data) checkinSessions = data;
+    } catch (e) {}
+
+    let upsellRequests = [];
+    try {
+      const { data } = await supabase
+        .from('upsell_requests')
+        .select('description, estimated_cost, status, member_response, created_at')
+        .eq('package_id', packageId)
+        .order('created_at', { ascending: true })
+        .limit(10);
+      if (data) upsellRequests = data;
+    } catch (e) {}
+
+    let photoEvidence = [];
+    try {
+      const { data } = await supabase
+        .from('package_photos')
+        .select('photo_url, photo_type, description, uploaded_by, created_at')
+        .eq('package_id', packageId)
+        .order('created_at', { ascending: true })
+        .limit(20);
+      if (data) photoEvidence = data;
+    } catch (e) {}
+
+    let keyExchangeLogs = [];
+    try {
+      const { data } = await supabase
+        .from('key_exchange_log')
+        .select('action, actor_role, notes, created_at')
+        .eq('package_id', packageId)
+        .order('created_at', { ascending: true })
+        .limit(10);
+      if (data) keyExchangeLogs = data;
+    } catch (e) {}
+
+    let timelineEvents = [];
+    try {
+      const { data } = await supabase
+        .from('package_timeline')
+        .select('event_type, description, created_at, actor_role')
+        .eq('package_id', packageId)
+        .order('created_at', { ascending: true })
+        .limit(20);
+      if (data) timelineEvents = data;
+    } catch (e) {}
+
+    const vehicle = pkg.vehicles;
+    const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() : 'Unknown vehicle';
+    const providerName = acceptedBid?.profiles?.provider_alias || acceptedBid?.profiles?.full_name || 'Provider';
+
+    let evidenceLines = [];
+    evidenceLines.push(`Package: "${pkg.title}" (${pkg.category || 'General'})`);
+    evidenceLines.push(`Vehicle: ${vehicleName}`);
+    evidenceLines.push(`Created: ${new Date(pkg.created_at).toLocaleDateString()}`);
+    if (pkg.description) evidenceLines.push(`Description: ${pkg.description}`);
+    if (acceptedBid) {
+      evidenceLines.push(`Accepted bid: $${acceptedBid.price} by ${providerName}`);
+      if (acceptedBid.notes) evidenceLines.push(`Provider bid notes: ${acceptedBid.notes}`);
+    }
+    if (pkg.work_completed_at) evidenceLines.push(`Work marked complete: ${new Date(pkg.work_completed_at).toLocaleDateString()}`);
+    if (pkg.member_confirmed_at) evidenceLines.push(`Member confirmed: ${new Date(pkg.member_confirmed_at).toLocaleDateString()}`);
+    if (payment) {
+      evidenceLines.push(`Payment: $${payment.amount_total || 0}, status: ${payment.status}, escrow captured: ${payment.escrow_captured}`);
+    }
+
+    if (appointments && appointments.length > 0) {
+      evidenceLines.push(`\nAppointments:`);
+      appointments.forEach(a => {
+        evidenceLines.push(`  - ${a.appointment_date || 'No date'}, status: ${a.status}${a.notes ? `, notes: ${a.notes}` : ''}`);
+      });
+    }
+
+    if (disputes && disputes.length > 0) {
+      evidenceLines.push(`\nDisputes filed:`);
+      disputes.forEach(d => {
+        evidenceLines.push(`  - Reason: ${d.reason}, Status: ${d.status}${d.description ? `, Details: ${d.description}` : ''}`);
+      });
+    }
+
+    if (messages && messages.length > 0) {
+      evidenceLines.push(`\nConversation between member and provider (${messages.length} messages):`);
+      messages.slice(-10).forEach(m => {
+        const role = m.sender_id === pkg.member_id ? 'Member' : 'Provider';
+        evidenceLines.push(`  [${role}]: ${m.content}`);
+      });
+    }
+
+    if (checkinSessions.length > 0) {
+      evidenceLines.push(`\nCheck-in sessions:`);
+      checkinSessions.forEach(s => {
+        evidenceLines.push(`  - Status: ${s.status}${s.check_in_time ? `, checked in: ${new Date(s.check_in_time).toLocaleDateString()}` : ''}${s.check_out_time ? `, checked out: ${new Date(s.check_out_time).toLocaleDateString()}` : ''}${s.vehicle_condition_notes ? `, condition notes: ${s.vehicle_condition_notes}` : ''}${s.notes ? `, notes: ${s.notes}` : ''}`);
+      });
+    }
+
+    if (upsellRequests.length > 0) {
+      evidenceLines.push(`\nAdditional work requests:`);
+      upsellRequests.forEach(u => {
+        evidenceLines.push(`  - "${u.description}", estimated: $${u.estimated_cost || 0}, status: ${u.status}, member response: ${u.member_response || 'pending'}`);
+      });
+    }
+
+    if (photoEvidence.length > 0) {
+      evidenceLines.push(`\nPhoto evidence (${photoEvidence.length} photos):`);
+      photoEvidence.forEach(p => {
+        evidenceLines.push(`  - Type: ${p.photo_type || 'general'}, URL: ${p.photo_url || 'N/A'}, uploaded by: ${p.uploaded_by === pkg.member_id ? 'Member' : 'Provider'}${p.description ? `, description: ${p.description}` : ''}, date: ${new Date(p.created_at).toLocaleDateString()}`);
+      });
+    }
+
+    if (keyExchangeLogs.length > 0) {
+      evidenceLines.push(`\nKey exchange log:`);
+      keyExchangeLogs.forEach(k => {
+        evidenceLines.push(`  - ${k.action} by ${k.actor_role}${k.notes ? `, notes: ${k.notes}` : ''}, date: ${new Date(k.created_at).toLocaleDateString()}`);
+      });
+    }
+
+    if (timelineEvents.length > 0) {
+      evidenceLines.push(`\nTimeline events:`);
+      timelineEvents.forEach(t => {
+        evidenceLines.push(`  - ${t.event_type}: ${t.description || ''} (${t.actor_role || ''}, ${new Date(t.created_at).toLocaleDateString()})`);
+      });
+    }
+
+    const prompt = `You are an impartial AI mediator for My Car Concierge, an automotive service marketplace. A member has requested mediation for a service package. Review ALL available evidence below and provide a neutral, fair assessment.
+
+EVIDENCE:
+${evidenceLines.join('\n')}
+
+Provide your assessment in this EXACT JSON format (no markdown, no code blocks, just raw JSON):
+{
+  "summary": "A 2-3 sentence neutral summary of what the evidence shows about this service job",
+  "discrepancies": ["List any concerning discrepancies, timeline gaps, or issues found in the evidence. If none found, use an empty array."],
+  "recommendation": "Your suggested resolution based on the evidence. Be specific (e.g., 'Evidence supports work completion — recommend releasing payment' or 'Timeline inconsistency suggests further review — recommend contacting support')",
+  "confidence": "high, medium, or low — based on how much evidence was available to review"
+}
+
+Rules:
+- Be neutral — do not favor the member or provider
+- Base your assessment ONLY on the evidence provided
+- If evidence is insufficient, say so and recommend human review
+- Never recommend automatic payment actions — only advisory suggestions
+- Keep the summary factual and concise`;
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        mediation: {
+          summary: 'AI mediation is temporarily unavailable. Please contact support for assistance.',
+          discrepancies: [],
+          recommendation: 'Please contact My Car Concierge support for manual review.',
+          confidence: 'low'
+        },
+        cached: false
+      }));
+      return;
+    }
+
+    const aiResponse = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const aiText = aiResponse.content?.[0]?.text || '';
+    let assessment;
+    try {
+      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+      assessment = JSON.parse(jsonMatch ? jsonMatch[0] : aiText);
+    } catch (parseErr) {
+      assessment = {
+        summary: aiText.substring(0, 500),
+        discrepancies: [],
+        recommendation: 'Could not parse structured assessment. Please contact support.',
+        confidence: 'low'
+      };
+    }
+
+    const mediationRecord = {
+      package_id: packageId,
+      requested_by: user.id,
+      summary: assessment.summary || '',
+      discrepancies: assessment.discrepancies || [],
+      recommendation: assessment.recommendation || '',
+      confidence: assessment.confidence || 'low',
+      evidence_snapshot: evidenceLines.join('\n')
+    };
+
+    const { data: saved, error: saveErr } = await supabase
+      .from('ai_mediations')
+      .insert(mediationRecord)
+      .select()
+      .single();
+
+    if (saveErr) {
+      console.error(`[${requestId}] Failed to save mediation:`, saveErr.message);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ mediation: { ...mediationRecord, id: 'temp', created_at: new Date().toISOString() }, cached: false }));
+      return;
+    }
+
+    console.log(`[${requestId}] AI mediation generated for package ${packageId}`);
+    const { evidence_snapshot, ...cleanSaved } = saved;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ mediation: cleanSaved, cached: false }));
+
+  } catch (error) {
+    console.error(`[${requestId}] AI mediation error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to generate mediation' }));
+  }
+}

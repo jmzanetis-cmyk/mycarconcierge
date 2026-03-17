@@ -449,8 +449,8 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
           );
           const multiplier = activePromo.rows.length > 0 ? (parseInt(activePromo.rows[0].punch_multiplier) || 1) : 1;
           const effectiveQty = qty * multiplier;
-          const newPunchCount = (balance.punch_count || 0) + effectiveQty;
-          await db.query('UPDATE member_club_balances SET punch_count = $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2', [newPunchCount, balance.id]);
+          const punchUpdateResult = await db.query('UPDATE member_club_balances SET punch_count = punch_count + $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2 RETURNING punch_count', [effectiveQty, balance.id]);
+          const newPunchCount = punchUpdateResult.rows[0]?.punch_count || 0;
           const punchesRequired = Math.max(parseInt(rewardRule.parameters.punches_required) || 1, 1);
           const threshold75 = Math.ceil(punchesRequired * 0.75);
           if (newPunchCount >= threshold75 && newPunchCount < punchesRequired) {
@@ -503,11 +503,9 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
             }
           }
         } else if (rewardRule.template_slug === 'spend_discount') {
-          const newSpend = parseFloat(balance.total_spend || 0) + parseFloat(body.amount || 0);
-          await db.query('UPDATE member_club_balances SET total_spend = $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2', [newSpend, balance.id]);
+          await db.query('UPDATE member_club_balances SET total_spend = total_spend + $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2', [parseFloat(body.amount || 0), balance.id]);
         } else if (rewardRule.template_slug === 'visit_milestone') {
-          const newVisitCount = (balance.visit_count || 0) + qty;
-          await db.query('UPDATE member_club_balances SET visit_count = $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2', [newVisitCount, balance.id]);
+          await db.query('UPDATE member_club_balances SET visit_count = visit_count + $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2', [qty, balance.id]);
         } else {
           await db.query('UPDATE member_club_balances SET last_activity_at = NOW(), updated_at = NOW() WHERE id = $1', [balance.id]);
         }

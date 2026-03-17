@@ -1,0 +1,2454 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Car Club Management – My Car Concierge</title>
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css?v=20260213">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-bronze: #cd7f32;
+      --accent-bronze-soft: rgba(205, 127, 50, 0.15);
+      --accent-teal: #22d3ee;
+      --accent-teal-soft: rgba(34, 211, 238, 0.12);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
+      --accent-green: #34d399;
+      --accent-green-soft: rgba(52, 211, 153, 0.12);
+      --accent-red: #f87171;
+      --accent-red-soft: rgba(248, 113, 113, 0.15);
+      --accent-orange: #fb923c;
+      --accent-orange-soft: rgba(251, 146, 60, 0.15);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --border-focus: rgba(56, 189, 248, 0.5);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #f3f4f6;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-input: #f0f1f3;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --border-subtle: rgba(30, 58, 95, 0.10);
+      --border-medium: rgba(30, 58, 95, 0.18);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+    }
+
+    [data-theme="light"] .sidebar {
+      background: linear-gradient(180deg, #ffffff 0%, #f3f4f6 100%);
+      border-right: 1px solid rgba(30, 58, 95, 0.1);
+    }
+    [data-theme="light"] .sidebar-footer {
+      background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.95));
+    }
+    [data-theme="light"] .nav-item:hover {
+      background: rgba(30, 58, 95, 0.06);
+      border-color: rgba(30, 58, 95, 0.15);
+    }
+    [data-theme="light"] .nav-item.active {
+      background: linear-gradient(135deg, rgba(184, 148, 45, 0.15), rgba(184, 148, 45, 0.08));
+      color: #1e3a5f;
+      border-color: rgba(184, 148, 45, 0.4);
+    }
+
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+    }
+
+    .theme-toggle-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      transition: all 0.3s ease;
+    }
+    .theme-toggle-btn:hover {
+      background: var(--accent-gold-soft);
+      border-color: var(--accent-gold);
+      color: var(--accent-gold);
+      transform: scale(1.02);
+      box-shadow: 0 0 20px rgba(201, 162, 39, 0.2);
+    }
+    .theme-icon-dark, .theme-icon-light { font-size: 1.2rem; transition: transform 0.3s ease; }
+    [data-theme="dark"] .theme-icon-light { display: none; }
+    [data-theme="light"] .theme-icon-dark { display: none; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; scrollbar-width: thin; scrollbar-color: var(--border-medium) var(--bg-deep); }
+    body { min-height: 100vh; font-family: 'Outfit', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); display: flex; overflow-x: hidden; }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-deep); }
+    ::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    .sidebar { width: 260px; background: linear-gradient(180deg, rgba(18, 18, 28, 0.98) 0%, rgba(12, 12, 20, 0.99) 100%); border-right: 1px solid var(--border-subtle); padding: 20px 12px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; backdrop-filter: blur(20px); scrollbar-width: none; -ms-overflow-style: none; }
+    .sidebar::-webkit-scrollbar { display: none; }
+    .sidebar-brand { display: flex; align-items: center; justify-content: center; padding: 8px 12px 20px; border-bottom: 1px solid rgba(148, 148, 168, 0.08); margin-bottom: 20px; text-decoration: none; }
+    .sidebar-brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: brightness(1.1) contrast(1.05) drop-shadow(0 4px 16px rgba(212, 168, 85, 0.35)); transition: all 0.3s ease; }
+    .sidebar-brand:hover .sidebar-brand-icon { filter: brightness(1.15) contrast(1.1) drop-shadow(0 8px 32px rgba(212, 168, 85, 0.6)); transform: scale(1.03); }
+    .nav-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); padding: 16px 14px 8px; margin-bottom: 4px; font-weight: 600; opacity: 0.7; }
+    .nav-label:first-of-type { margin-top: 0; padding-top: 0; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 10px; cursor: pointer; font-size: 0.88rem; color: var(--text-secondary); transition: all 0.2s ease; margin-bottom: 2px; border: 1px solid transparent; font-weight: 450; }
+    .nav-item:hover { background: rgba(74, 124, 255, 0.08); color: var(--text-primary); border-color: rgba(74, 124, 255, 0.12); }
+    .nav-item.active { background: linear-gradient(135deg, rgba(74, 124, 255, 0.15), rgba(74, 124, 255, 0.08)); color: var(--accent-blue); border-color: rgba(74, 124, 255, 0.25); font-weight: 500; }
+    .sidebar-footer { margin-top: auto; padding: 16px; border-top: 1px solid rgba(148, 148, 168, 0.08); background: linear-gradient(180deg, transparent, rgba(18, 18, 28, 0.5)); }
+
+    .main { flex: 1; margin-left: 260px; padding: 32px 40px 100px; min-height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .page-header { margin-bottom: 32px; }
+    .page-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 500; margin-bottom: 8px; }
+    .page-subtitle { color: var(--text-secondary); font-size: 0.95rem; }
+
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.88rem; margin-bottom: 20px; transition: color 0.2s; }
+    .back-link:hover { color: var(--accent-gold); }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .btn-metallic { background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze)); color: #12161c; font-weight: 600; box-shadow: 0 2px 12px rgba(201, 162, 39, 0.3); }
+    .btn-metallic:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201, 162, 39, 0.4); }
+
+    .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 24px; transition: all 0.3s; }
+    .toggle-slider::before { content: ''; position: absolute; height: 18px; width: 18px; left: 2px; bottom: 2px; background: var(--text-muted); border-radius: 50%; transition: all 0.3s; }
+    .toggle-switch input:checked + .toggle-slider { background: var(--accent-green-soft); border-color: var(--accent-green); }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); background: var(--accent-green); }
+
+    .reward-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px; margin-bottom: 12px; transition: all 0.2s; }
+    .reward-card:hover { border-color: var(--border-medium); }
+    .reward-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .reward-card-name { font-size: 1rem; font-weight: 600; }
+    .reward-card-actions { display: flex; gap: 8px; align-items: center; }
+    .reward-card-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-secondary); }
+    .reward-card-meta span { display: flex; align-items: center; gap: 5px; }
+
+    .member-row { display: grid; grid-template-columns: 1fr 120px 140px 120px 80px; gap: 16px; align-items: center; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; font-size: 0.9rem; transition: all 0.2s; }
+    .member-row:hover { border-color: var(--border-medium); }
+    .member-name { font-weight: 500; }
+    .member-date { color: var(--text-secondary); font-size: 0.82rem; }
+    .member-progress { display: flex; align-items: center; gap: 8px; }
+    .punch-bar { flex: 1; height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden; }
+    .punch-fill { height: 100%; background: linear-gradient(90deg, var(--accent-gold), var(--accent-green)); border-radius: 3px; transition: width 0.3s; }
+    .punch-text { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+
+    .activity-item { display: flex; gap: 16px; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; align-items: flex-start; transition: all 0.2s; }
+    .activity-item:hover { border-color: var(--border-medium); }
+    .activity-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; }
+    .activity-icon.punch { background: var(--accent-gold-soft); color: var(--accent-gold); }
+    .activity-icon.visit { background: var(--accent-blue-soft); color: var(--accent-blue); }
+    .activity-icon.reward { background: var(--accent-green-soft); color: var(--accent-green); }
+    .activity-icon.spend { background: var(--accent-teal-soft); color: var(--accent-teal); }
+    .activity-content { flex: 1; }
+    .activity-title { font-weight: 500; font-size: 0.9rem; margin-bottom: 2px; }
+    .activity-desc { font-size: 0.82rem; color: var(--text-secondary); }
+    .activity-time { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+
+    .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+    .filter-bar .form-input { max-width: 180px; padding: 8px 12px; font-size: 0.85rem; }
+
+    .credit-batch { display: grid; grid-template-columns: 1fr 1fr 100px 120px; gap: 16px; align-items: center; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; font-size: 0.88rem; transition: all 0.2s; }
+    .credit-batch:hover { border-color: var(--border-medium); }
+
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #authLoadingOverlay { position: fixed; inset: 0; background: rgba(18, 22, 28, 0.95); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(2px); }
+    #authLoadingOverlay.hidden { display: none; }
+    .auth-loading-content { text-align: center; }
+    .auth-loading-spinner { width: 48px; height: 48px; border: 3px solid rgba(201, 162, 39, 0.2); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 20px; }
+    .auth-loading-text { color: var(--text-secondary); font-size: 0.95rem; }
+
+    .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 49; }
+    .mobile-header { display: none; position: fixed; top: 0; left: 0; right: 0; height: 56px; background: var(--bg-elevated); border-bottom: 1px solid var(--border-subtle); z-index: 48; padding: 0 16px; align-items: center; gap: 12px; }
+    .hamburger { background: none; border: none; color: var(--text-primary); cursor: pointer; padding: 8px; }
+
+    .note-text { font-size: 0.82rem; color: var(--text-muted); margin-top: 8px; }
+
+    .how-it-works { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 24px; overflow: hidden; }
+    .how-it-works-toggle { width: 100%; display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: transparent; border: none; color: var(--accent-gold); font-family: inherit; font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+    .how-it-works-toggle:hover { background: var(--accent-gold-soft); }
+    .how-it-works-body { padding: 0 20px 20px; display: none; }
+    .how-it-works-body.open { display: block; }
+    .how-it-works-section { margin-bottom: 16px; }
+    .how-it-works-section:last-child { margin-bottom: 0; }
+    .how-it-works-section h3 { font-size: 0.9rem; font-weight: 600; color: var(--accent-gold); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+    .how-it-works-section p { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; }
+
+    .logo-upload-area {
+      position: relative;
+      border: 2px dashed var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: var(--bg-input);
+    }
+    .logo-upload-area:hover {
+      border-color: var(--accent-blue);
+      background: rgba(56, 189, 248, 0.05);
+    }
+    .logo-upload-area #logo-upload-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+    }
+    .logo-upload-area .upload-hint {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .logo-preview-img {
+      width: 80px;
+      height: 80px;
+      border-radius: var(--radius-md);
+      object-fit: cover;
+      border: 2px solid var(--border-subtle);
+    }
+    .logo-remove-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(239, 68, 68, 0.9);
+      border: none;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: white;
+      transition: all 0.2s;
+    }
+    .logo-remove-btn:hover {
+      background: rgba(239, 68, 68, 1);
+      transform: scale(1.1);
+    }
+    .upload-progress-bar {
+      height: 4px;
+      background: var(--border-subtle);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 4px;
+    }
+    .upload-progress-fill {
+      height: 100%;
+      background: var(--accent-blue);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .upload-progress-text {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .products-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .product-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    .product-card:hover {
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+    }
+    .product-card-img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      background: var(--bg-input);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+    }
+    .product-card-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .product-card-body {
+      padding: 14px;
+    }
+    .product-card-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+    .product-card-price {
+      color: var(--accent-gold);
+      font-weight: 600;
+      font-size: 1rem;
+    }
+    .product-card-price .compare-price {
+      color: var(--text-muted);
+      text-decoration: line-through;
+      font-weight: 400;
+      font-size: 0.85rem;
+      margin-left: 8px;
+    }
+    .product-card-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .product-card-actions {
+      display: flex;
+      gap: 8px;
+      padding: 0 14px 14px;
+    }
+    .product-card-actions .btn-sm {
+      padding: 6px 12px;
+      font-size: 0.8rem;
+    }
+    .product-images-preview {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .product-image-thumb {
+      position: relative;
+      width: 64px;
+      height: 64px;
+      border-radius: var(--radius-sm, 8px);
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+    }
+    .product-image-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .product-image-thumb .remove-img {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      background: rgba(239, 68, 68, 0.9);
+      border: none;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: white;
+      font-size: 12px;
+      line-height: 1;
+    }
+    .product-inactive {
+      opacity: 0.6;
+    }
+    .order-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .order-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .order-items-list {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+    .order-items-list div {
+      padding: 4px 0;
+    }
+    .order-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .modal-content {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .btn-outline {
+      padding: 10px 20px;
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-outline:hover {
+      border-color: var(--text-primary);
+      color: var(--text-primary);
+    }
+    .btn-icon {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .btn-icon:hover {
+      color: var(--text-primary);
+      background: rgba(255,255,255,0.05);
+    }
+
+    .empty-state-circle { width: 80px; height: 80px; border-radius: 50%; background: var(--accent-gold-soft); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+    .empty-state-circle svg { width: 36px; height: 36px; color: var(--accent-gold); stroke: var(--accent-gold); opacity: 0.8; }
+    .empty-state-title { font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+    .empty-state-desc { font-size: 0.88rem; color: var(--text-muted); max-width: 360px; margin: 0 auto 16px; line-height: 1.5; }
+    .empty-state-cta { display: inline-block; padding: 8px 20px; background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #12161c; font-weight: 600; border-radius: 100px; text-decoration: none; font-size: 0.85rem; cursor: pointer; border: none; transition: all 0.2s; }
+    .empty-state-cta:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    @media (max-width: 900px) {
+      .sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-overlay.active { display: block; }
+      .mobile-header { display: flex; }
+      .main { margin-left: 0; padding: 72px 16px 100px; }
+      .member-row { grid-template-columns: 1fr; gap: 8px; }
+      .credit-batch { grid-template-columns: 1fr 1fr; }
+      .filter-bar .form-input { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+  <div class="mobile-header">
+    <button class="hamburger" onclick="toggleSidebar()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <span style="font-weight:600;font-size:1rem;">Car Club</span>
+  </div>
+
+  <aside class="sidebar" id="sidebar">
+    <a href="/providers.html" class="sidebar-brand">
+      <img src="/logo.png" alt="My Car Concierge" class="sidebar-brand-icon" />
+    </a>
+    <div class="nav-label">Car Club</div>
+    <div class="nav-item active" onclick="showSection('setup')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Club Setup
+    </div>
+    <div class="nav-item" onclick="showSection('rewards')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      Reward Rules
+    </div>
+    <div class="nav-item" onclick="showSection('members')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Members
+    </div>
+    <div class="nav-item" onclick="showSection('activity')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Activity Log
+    </div>
+    <div class="nav-item" onclick="showSection('freebids')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+      Free Bids
+    </div>
+    <div class="nav-item" onclick="showSection('leaderboard')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10l-1 9H8L7 4z"/><path d="M7 4c0 0-3 1-3 4s3 3 3 3"/><path d="M17 4c0 0 3 1 3 4s-3 3-3 3"/></svg>
+      Leaderboard
+    </div>
+    <div class="nav-item" onclick="showSection('promotions')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="12" y1="6" x2="12" y2="12"/></svg>
+      Promotions
+    </div>
+    <div class="nav-item" onclick="showSection('store')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      Store
+    </div>
+    <div class="nav-item" onclick="showSection('orders')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Orders
+    </div>
+    <div class="nav-item" onclick="showSection('analytics')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Analytics
+    </div>
+    <div class="sidebar-footer">
+      <button class="theme-toggle-btn" onclick="toggleTheme()">
+        <span class="theme-icon-dark">🔆</span>
+        <span class="theme-icon-light">🌙</span>
+        <span class="theme-label">Toggle Theme</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <a href="/providers.html" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back to Dashboard
+    </a>
+    <div class="page-header">
+      <h1 class="page-title">Car Club Management</h1>
+      <p class="page-subtitle">Build loyalty and reward your best customers</p>
+    </div>
+
+    <div class="how-it-works" id="howItWorks">
+      <button class="how-it-works-toggle" onclick="toggleHowItWorks()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        How It Works
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="howItWorksChevron" style="margin-left:auto;transition:transform 0.2s;"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="how-it-works-body" id="howItWorksBody">
+        <div class="how-it-works-section">
+          <h3>🏁 How Your Club Works</h3>
+          <p>Members auto-join your club after their first completed job with you. They earn punches with each visit and unlock rewards once they hit your set threshold.</p>
+        </div>
+        <div class="how-it-works-section">
+          <h3>⭐ Setting Up Rewards</h3>
+          <p>Create punch cards (up to 3 active at a time), set the number of punches required, and choose what members earn when they complete a card.</p>
+        </div>
+        <div class="how-it-works-section">
+          <h3>👥 What Members See</h3>
+          <p>Members can see their punch progress, view available rewards, and browse or join your club directly from their dashboard.</p>
+        </div>
+        <div class="how-it-works-section">
+          <h3>💡 Tips for Success</h3>
+          <p>Set achievable punch counts (5–10 is ideal), offer meaningful rewards that keep customers coming back, and engage with your club members regularly.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="authLoadingOverlay">
+      <div class="auth-loading-content">
+        <div class="auth-loading-spinner"></div>
+        <div class="auth-loading-text">Verifying authentication...</div>
+      </div>
+    </div>
+
+    <div id="section-setup" class="section active">
+      <div id="setup-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:40px;margin-bottom:12px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:80px;margin-bottom:12px;"></div>
+        <div class="skeleton skeleton-text" style="width:30%;height:36px;"></div>
+      </div>
+      <div id="setup-create" class="card" style="display:none;">
+        <div style="text-align:center;padding:40px 20px;">
+          <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">🏁</div>
+          <h2 style="font-size:1.3rem;font-weight:600;margin-bottom:8px;">Create Your Car Club</h2>
+          <p style="color:var(--text-secondary);font-size:0.92rem;margin-bottom:24px;max-width:400px;margin-left:auto;margin-right:auto;">Start a loyalty program to reward your customers and grow your business.</p>
+          <div style="max-width:500px;margin:0 auto;text-align:left;">
+            <div class="form-group">
+              <label class="form-label">Club Name</label>
+              <input type="text" class="form-input" id="create-name" maxlength="100" placeholder="e.g. Mike's Auto Rewards" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea class="form-textarea" id="create-description" placeholder="Tell members about your club..." rows="3"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Welcome Message</label>
+              <textarea class="form-textarea" id="create-welcome" placeholder="Message shown when members join" rows="2"></textarea>
+            </div>
+            <button class="btn btn-metallic" style="width:100%" onclick="createClub()" id="create-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Create Car Club
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="setup-edit" class="card" style="display:none;">
+        <div class="card-header">
+          <h2 class="card-title">Club Settings</h2>
+          <span class="badge" id="club-status-badge"></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Club Name</label>
+          <input type="text" class="form-input" id="edit-name" maxlength="100" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-textarea" id="edit-description" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Welcome Message</label>
+          <textarea class="form-textarea" id="edit-welcome" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Club Logo</label>
+          <div id="logo-upload-area" class="logo-upload-area">
+            <div id="logo-preview" style="display:none;">
+              <img id="logo-preview-img" src="" alt="Club logo" class="logo-preview-img" />
+              <button type="button" class="logo-remove-btn" onclick="removeLogo()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div id="logo-upload-placeholder">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Click to upload logo</span>
+              <span class="upload-hint">PNG, JPG or WebP, max 2MB</span>
+            </div>
+            <input type="file" id="logo-file-input" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleLogoUpload(this)" />
+          </div>
+          <div id="logo-upload-progress" style="display:none;margin-top:8px;">
+            <div class="upload-progress-bar"><div class="upload-progress-fill" id="logo-progress-fill"></div></div>
+            <span class="upload-progress-text" id="logo-progress-text">Uploading...</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-check" style="cursor:pointer;">
+            <input type="checkbox" id="edit-active" />
+            <span>Club is active and accepting members</span>
+          </label>
+        </div>
+        <button class="btn btn-metallic" onclick="saveClub()" id="save-btn">
+          Save Changes
+        </button>
+      </div>
+    </div>
+
+    <div id="section-rewards" class="section">
+      <div id="rewards-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:80px;margin-bottom:12px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:80px;"></div>
+      </div>
+      <div id="rewards-content" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <h2 class="card-title">Reward Rules</h2>
+          <div>
+            <button class="btn btn-metallic" onclick="openRewardModal()" id="add-reward-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Reward
+            </button>
+            <p class="note-text" id="max-rewards-note" style="display:none;">Maximum 3 active rewards</p>
+          </div>
+        </div>
+        <div id="rewards-list"></div>
+        <div id="rewards-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+          <div class="empty-state-title">No Reward Rules Yet</div>
+          <p class="empty-state-desc">Create your first reward rule to start building customer loyalty. Set up punch cards, visit rewards, or spending milestones.</p>
+          <button class="empty-state-cta" onclick="openRewardModal()">Create First Reward</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-members" class="section">
+      <div id="members-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:56px;margin-bottom:8px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:56px;margin-bottom:8px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:56px;"></div>
+      </div>
+      <div id="members-content" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h2 class="card-title">Club Members</h2>
+          <span id="member-count" style="color:var(--text-muted);font-size:0.88rem;"></span>
+        </div>
+        <div id="members-header" class="member-row" style="background:transparent;border:none;font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;padding:8px 20px;margin-bottom:4px;">
+          <span>Member</span><span>Joined</span><span>Punch Progress</span><span>Last Activity</span><span></span>
+        </div>
+        <div id="members-list"></div>
+        <div id="members-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <div class="empty-state-title">No Members Yet</div>
+          <p class="empty-state-desc">Members will automatically join your club when they complete a job with you. Share your profile to attract new customers.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-activity" class="section">
+      <div id="activity-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:56px;margin-bottom:8px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:56px;margin-bottom:8px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:56px;"></div>
+      </div>
+      <div id="activity-content" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+          <h2 class="card-title">Activity Log</h2>
+          <button class="btn btn-metallic btn-sm" onclick="openLogActivityModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Log Activity
+          </button>
+        </div>
+        <div class="filter-bar">
+          <input type="date" class="form-input" id="filter-start" onchange="loadActivity()" />
+          <span style="color:var(--text-muted);">to</span>
+          <input type="date" class="form-input" id="filter-end" onchange="loadActivity()" />
+        </div>
+        <div id="activity-list"></div>
+        <div id="activity-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+          <div class="empty-state-title">No Activity Yet</div>
+          <p class="empty-state-desc">Activity will appear here as members earn punches, visit your shop, and redeem rewards.</p>
+          <button class="empty-state-cta" onclick="openLogActivityModal()">Log First Activity</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-freebids" class="section">
+      <div id="freebids-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+          <div class="skeleton" style="height:100px;border-radius:var(--radius-md);"></div>
+          <div class="skeleton" style="height:100px;border-radius:var(--radius-md);"></div>
+          <div class="skeleton" style="height:100px;border-radius:var(--radius-md);"></div>
+        </div>
+      </div>
+      <div id="freebids-content" style="display:none;">
+        <h2 class="card-title" style="margin-bottom:20px;">Free Bid Credits</h2>
+        <div class="stats-grid" id="freebids-stats"></div>
+        <div id="freebids-list"></div>
+        <div id="freebids-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+          <div class="empty-state-title">No Free Bids Yet</div>
+          <p class="empty-state-desc">Earn free bid credits when your Car Club members book services with you. Grow your club to unlock more rewards.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-leaderboard" class="section">
+      <div id="leaderboard-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:40px;margin-bottom:8px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:40px;margin-bottom:8px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:40px;"></div>
+      </div>
+      <div id="leaderboard-content" style="display:none;">
+        <h2 class="card-title" style="margin-bottom:20px;">Member Leaderboard</h2>
+        <div id="leaderboard-list"></div>
+        <div id="leaderboard-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 9 7 9 7"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 15 7 15 7"/><rect x="4" y="9" width="16" height="6" rx="1"/><rect x="6" y="15" width="12" height="6" rx="1"/><line x1="12" y1="9" x2="12" y2="21"/></svg></div>
+          <div class="empty-state-title">Leaderboard Coming Soon</div>
+          <p class="empty-state-desc">Your leaderboard will populate as members earn punches and engage with your club. Top members will be highlighted here.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-promotions" class="section">
+      <div id="promotions-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:80px;margin-bottom:12px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:80px;"></div>
+      </div>
+      <div id="promotions-content" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <h2 class="card-title">Promotions</h2>
+          <div>
+            <button class="btn btn-metallic" onclick="openPromoModal()" id="add-promo-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Promotion
+            </button>
+            <p class="note-text" id="max-promos-note" style="display:none;">Maximum 3 active promotions</p>
+          </div>
+        </div>
+        <div id="promotions-list"></div>
+        <div id="promotions-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+          <div class="empty-state-title">No Promotions Yet</div>
+          <p class="empty-state-desc">Create a promotion to boost member engagement with double or triple punch multipliers for a limited time.</p>
+          <button class="empty-state-cta" onclick="openPromoModal()">Create First Promotion</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="section-store" class="section">
+      <div id="store-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+          <div class="skeleton" style="height:200px;border-radius:var(--radius-md);"></div>
+          <div class="skeleton" style="height:200px;border-radius:var(--radius-md);"></div>
+          <div class="skeleton" style="height:200px;border-radius:var(--radius-md);"></div>
+        </div>
+      </div>
+      <div id="store-content" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <h2 class="card-title" style="margin-bottom:0;">Club Store</h2>
+          <button class="btn btn-metallic btn-sm" onclick="showAddProductModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Product
+          </button>
+        </div>
+        <div id="store-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+          <div class="empty-state-title">No Products Yet</div>
+          <p class="empty-state-desc">Add your first product to start selling exclusive merchandise to your club members.</p>
+          <button class="empty-state-cta" onclick="showAddProductModal()">Add Your First Product</button>
+        </div>
+        <div id="store-products" class="products-grid"></div>
+      </div>
+    </div>
+
+    <div id="section-orders" class="section">
+      <div id="orders-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:60px;margin-bottom:8px;"></div>
+        <div class="skeleton skeleton-text" style="width:100%;height:60px;margin-bottom:8px;"></div>
+      </div>
+      <div id="orders-content" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <h2 class="card-title" style="margin-bottom:0;">Orders</h2>
+          <select id="orders-filter" class="form-input" style="width:auto;padding:8px 12px;font-size:0.85rem;" onchange="loadOrders()">
+            <option value="">All Orders</option>
+            <option value="paid">Paid</option>
+            <option value="processing">Processing</option>
+            <option value="shipped">Shipped</option>
+            <option value="delivered">Delivered</option>
+          </select>
+        </div>
+        <div id="orders-empty" class="empty-state" style="display:none;">
+          <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
+          <div class="empty-state-title">No Orders Yet</div>
+          <p class="empty-state-desc">Orders will appear here when club members purchase from your store. Add products to get started.</p>
+          <button class="empty-state-cta" onclick="showSection('store')">Set Up Store</button>
+        </div>
+        <div id="orders-list"></div>
+      </div>
+    </div>
+
+    <div id="section-analytics" class="section">
+      <div id="analytics-loading" class="card">
+        <div class="skeleton skeleton-text" style="width:40%;height:24px;margin-bottom:16px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;">
+          <div class="skeleton" style="height:100px;border-radius:var(--radius-md);"></div>
+          <div class="skeleton" style="height:100px;border-radius:var(--radius-md);"></div>
+          <div class="skeleton" style="height:100px;border-radius:var(--radius-md);"></div>
+          <div class="skeleton" style="height:100px;border-radius:var(--radius-md);"></div>
+        </div>
+      </div>
+      <div id="analytics-content" style="display:none;">
+        <h2 class="card-title" style="margin-bottom:20px;">Club Analytics</h2>
+        <div class="stats-grid" id="analytics-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px;"></div>
+        <div class="card" style="margin-bottom:24px;">
+          <h3 style="font-size:1rem;font-weight:600;margin-bottom:16px;">Retention & Growth</h3>
+          <div id="analytics-retention" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;"></div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:1rem;font-weight:600;margin-bottom:16px;">Monthly Activity Trend</h3>
+          <div id="analytics-trend"></div>
+          <div id="analytics-trend-empty" class="empty-state" style="display:none;">
+            <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+            <div class="empty-state-title">No Activity Data</div>
+            <p class="empty-state-desc">Activity trend data will appear here once members start engaging with your club.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="product-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width:560px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+          <h3 id="product-modal-title" style="font-family:'Playfair Display',serif;font-size:1.2rem;">Add Product</h3>
+          <button class="btn-icon" onclick="closeProductModal()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Product Name *</label>
+          <input type="text" class="form-input" id="product-name" placeholder="e.g. Shop T-Shirt" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-textarea" id="product-description" rows="3" placeholder="Describe your product..."></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="form-group">
+            <label class="form-label">Price ($) *</label>
+            <input type="number" class="form-input" id="product-price" placeholder="29.99" min="0.01" step="0.01" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Compare At Price ($)</label>
+            <input type="number" class="form-input" id="product-compare-price" placeholder="39.99" min="0" step="0.01" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select class="form-input" id="product-category">
+              <option value="general">General</option>
+              <option value="apparel">Apparel</option>
+              <option value="accessories">Accessories</option>
+              <option value="parts">Parts</option>
+              <option value="tools">Tools</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">SKU</label>
+            <input type="text" class="form-input" id="product-sku" placeholder="Optional" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Inventory Count</label>
+          <input type="number" class="form-input" id="product-inventory" placeholder="Leave blank for unlimited" min="0" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Product Images</label>
+          <div id="product-images-preview" class="product-images-preview"></div>
+          <div class="logo-upload-area" style="padding:16px;" onclick="document.getElementById('product-image-input').click()">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--text-secondary);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span style="font-size:0.85rem;">Click to add images</span>
+            </div>
+            <input type="file" id="product-image-input" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleProductImageUpload(this)" multiple />
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:24px;">
+          <button class="btn btn-metallic" id="product-save-btn" onclick="saveProduct()" style="flex:1;">Save Product</button>
+          <button class="btn btn-outline" onclick="closeProductModal()" style="flex:0 0 auto;">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal-backdrop" id="rewardModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="reward-modal-title">Add Reward Rule</h3>
+        <button class="modal-close" onclick="closeRewardModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">What do you want to call this reward?</label>
+          <input type="text" class="form-input" id="reward-name" placeholder="e.g. Oil Change Punch Card" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-textarea" id="reward-description" rows="2" placeholder="Describe how this reward works"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Punches Required</label>
+            <input type="number" class="form-input" id="reward-punches" min="2" max="50" value="10" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Reward Value ($)</label>
+            <input type="number" class="form-input" id="reward-value" min="0" step="0.01" placeholder="Approximate value" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">What does the member get?</label>
+          <input type="text" class="form-input" id="reward-reward-desc" placeholder="Free oil change" />
+        </div>
+        <div class="form-group">
+          <label class="form-check">
+            <input type="checkbox" id="reward-auto-reset" checked />
+            <span>Reset punch count after reward?</span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expiration Date (optional)</label>
+          <input type="date" class="form-input" id="reward-expiration" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeRewardModal()">Cancel</button>
+        <button class="btn btn-metallic" onclick="saveReward()" id="reward-save-btn">Save Reward</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="adjustModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Adjust Punches</h3>
+        <button class="modal-close" onclick="closeAdjustModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px;" id="adjust-member-name"></p>
+        <div class="form-group">
+          <label class="form-label">Reward Rule</label>
+          <select class="form-input" id="adjust-rule"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Punches to Add (negative to remove)</label>
+          <input type="number" class="form-input" id="adjust-quantity" value="1" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reason</label>
+          <input type="text" class="form-input" id="adjust-reason" placeholder="Manual adjustment reason" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAdjustModal()">Cancel</button>
+        <button class="btn btn-metallic" onclick="submitAdjust()" id="adjust-save-btn">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="logActivityModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Log Activity</h3>
+        <button class="modal-close" onclick="closeLogActivityModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Member</label>
+          <select class="form-input" id="log-member"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reward Rule</label>
+          <select class="form-input" id="log-rule"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Activity Type</label>
+          <select class="form-input" id="log-type">
+            <option value="punch">Punch</option>
+            <option value="visit">Visit</option>
+            <option value="spend">Spend</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Quantity</label>
+            <input type="number" class="form-input" id="log-quantity" value="1" min="1" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Amount ($)</label>
+            <input type="number" class="form-input" id="log-amount" step="0.01" placeholder="Optional" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <input type="text" class="form-input" id="log-desc" placeholder="Optional note" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeLogActivityModal()">Cancel</button>
+        <button class="btn btn-metallic" onclick="submitLogActivity()" id="log-save-btn">Log Activity</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="promoModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="promo-modal-title">Add Promotion</h3>
+        <button class="modal-close" onclick="closePromoModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Promotion Name</label>
+          <input type="text" class="form-input" id="promo-name" placeholder="e.g. Double Punch Weekend" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-textarea" id="promo-description" rows="2" placeholder="Describe the promotion"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Punch Multiplier</label>
+          <select class="form-input" id="promo-multiplier">
+            <option value="2">2x Punches</option>
+            <option value="3">3x Punches</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Start Date</label>
+            <input type="date" class="form-input" id="promo-start" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">End Date</label>
+            <input type="date" class="form-input" id="promo-end" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closePromoModal()">Cancel</button>
+        <button class="btn btn-metallic" onclick="savePromo()" id="promo-save-btn">Save Promotion</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js?v=20260213"></script>
+  <script src="mcc-config.js?v=20260213"></script>
+  <script>
+    function toggleHowItWorks() {
+      const body = document.getElementById('howItWorksBody');
+      const chevron = document.getElementById('howItWorksChevron');
+      body.classList.toggle('open');
+      chevron.style.transform = body.classList.contains('open') ? 'rotate(180deg)' : '';
+    }
+
+    let clubData = null;
+    let membersData = [];
+    let activityData = [];
+    let editingRewardId = null;
+    let adjustMemberId = null;
+    let templateId = null;
+
+    function getApiBase() {
+      return (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+    }
+
+    function getClient() {
+      return window.supabaseClient || null;
+    }
+
+    async function getToken() {
+      try {
+        const client = getClient();
+        if (!client) return null;
+        const { data: { session } } = await client.auth.getSession();
+        if (session?.access_token) return session.access_token;
+        await new Promise(r => setTimeout(r, 1000));
+        const retry = await client.auth.getSession();
+        return retry?.data?.session?.access_token || null;
+      } catch(e) { return null; }
+    }
+
+    let sessionExpiredShown = false;
+    async function apiFetch(path, opts = {}) {
+      const token = await getToken();
+      if (!token) {
+        if (!sessionExpiredShown) {
+          sessionExpiredShown = true;
+          const msg = document.createElement('div');
+          msg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg-card);border:1px solid var(--border-medium);border-radius:var(--radius-md);padding:32px;text-align:center;z-index:101;max-width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.5);';
+          msg.innerHTML = `<div style="font-size:1.1rem;font-weight:600;margin-bottom:12px;">Session Expired</div><p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:24px;">Your session has expired. Please log in again to continue.</p><a href="/login.html" class="btn btn-metallic" style="display:inline-block;padding:10px 24px;text-decoration:none;border-radius:var(--radius-sm);">Log In</a>`;
+          document.body.appendChild(msg);
+        }
+        return null;
+      }
+      const base = getApiBase();
+      const res = await fetch(`${base}${path}`, {
+        ...opts,
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    function formatDate(d) {
+      if (!d) return '—';
+      const date = new Date(d);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatDateTime(d) {
+      if (!d) return '—';
+      const date = new Date(d);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    }
+
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<span>${msg}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.animation = 'toastOut 0.3s ease forwards'; setTimeout(() => toast.remove(), 300); }, 4000);
+    }
+
+    function showSection(name) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.getElementById(`section-${name}`).classList.add('active');
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      const navItems = document.querySelectorAll('.nav-item');
+      const map = { setup: 0, rewards: 1, members: 2, activity: 3, freebids: 4, leaderboard: 5, promotions: 6, store: 7, orders: 8, analytics: 9 };
+      if (map[name] !== undefined && navItems[map[name]]) navItems[map[name]].classList.add('active');
+      if (name === 'rewards') loadRewards();
+      else if (name === 'members') loadMembers();
+      else if (name === 'activity') loadActivity();
+      else if (name === 'freebids') loadFreeBids();
+      else if (name === 'leaderboard') loadLeaderboard();
+      else if (name === 'promotions') loadPromotions();
+      else if (name === 'store') loadProducts();
+      else if (name === 'orders') loadOrders();
+      else if (name === 'analytics') loadAnalytics();
+      if (window.innerWidth <= 900) toggleSidebar();
+    }
+
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('open');
+      document.getElementById('sidebarOverlay').classList.toggle('active');
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      html.classList.add('theme-transition');
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      setTimeout(() => html.classList.remove('theme-transition'), 400);
+    }
+
+    async function loadClub() {
+      try {
+        const data = await apiFetch('/api/car-club/my-club');
+        if (!data) return;
+        clubData = data.club;
+        document.getElementById('setup-loading').style.display = 'none';
+        if (!clubData) {
+          document.getElementById('setup-create').style.display = '';
+          document.getElementById('setup-edit').style.display = 'none';
+        } else {
+          document.getElementById('setup-create').style.display = 'none';
+          document.getElementById('setup-edit').style.display = '';
+          document.getElementById('edit-name').value = clubData.name || '';
+          document.getElementById('edit-description').value = clubData.description || '';
+          document.getElementById('edit-welcome').value = clubData.welcome_message || '';
+          window.currentLogoUrl = clubData.logo_url || '';
+          const logoPreview = document.getElementById('logo-preview');
+          const logoImg = document.getElementById('logo-preview-img');
+          const logoPlaceholder = document.getElementById('logo-upload-placeholder');
+          if (clubData.logo_url) {
+            logoImg.src = clubData.logo_url;
+            logoPreview.style.display = '';
+            logoPlaceholder.style.display = 'none';
+          } else {
+            logoPreview.style.display = 'none';
+            logoPlaceholder.style.display = '';
+          }
+          document.getElementById('edit-active').checked = clubData.is_active !== false;
+          const badge = document.getElementById('club-status-badge');
+          if (clubData.is_active !== false) {
+            badge.className = 'badge badge-success';
+            badge.textContent = 'Active';
+          } else {
+            badge.className = 'badge badge-warning';
+            badge.textContent = 'Inactive';
+          }
+        }
+      } catch(e) {
+        document.getElementById('setup-loading').style.display = 'none';
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function createClub() {
+      const btn = document.getElementById('create-btn');
+      const name = document.getElementById('create-name').value.trim();
+      if (!name) { showToast('Club name is required', 'error'); return; }
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Creating...';
+      try {
+        await apiFetch('/api/car-club/create', {
+          method: 'POST',
+          body: JSON.stringify({
+            name,
+            description: document.getElementById('create-description').value.trim(),
+            welcome_message: document.getElementById('create-welcome').value.trim()
+          })
+        });
+        showToast('Car Club created!', 'success');
+        await loadClub();
+      } catch(e) {
+        showToast(e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Create Car Club';
+      }
+    }
+
+    async function saveClub() {
+      const btn = document.getElementById('save-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving...';
+      try {
+        await apiFetch('/api/car-club/update', {
+          method: 'PUT',
+          body: JSON.stringify({
+            name: document.getElementById('edit-name').value.trim(),
+            description: document.getElementById('edit-description').value.trim(),
+            welcome_message: document.getElementById('edit-welcome').value.trim(),
+            logo_url: window.currentLogoUrl || '',
+            is_active: document.getElementById('edit-active').checked
+          })
+        });
+        showToast('Club settings saved', 'success');
+        await loadClub();
+      } catch(e) {
+        showToast(e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
+      }
+    }
+
+    async function handleLogoUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        showToast('Invalid file type. Use PNG, JPG, or WebP.', 'error');
+        input.value = '';
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        showToast('File too large. Maximum size is 2MB.', 'error');
+        input.value = '';
+        return;
+      }
+      const progressEl = document.getElementById('logo-upload-progress');
+      const progressFill = document.getElementById('logo-progress-fill');
+      const progressText = document.getElementById('logo-progress-text');
+      progressEl.style.display = '';
+      progressFill.style.width = '30%';
+      progressText.textContent = 'Uploading...';
+      try {
+        const token = await getToken();
+        if (!token) { showToast('Session expired', 'error'); return; }
+        const formData = new FormData();
+        formData.append('file', file);
+        progressFill.style.width = '60%';
+        const base = getApiBase();
+        const res = await fetch(`${base}/api/car-club/upload-logo`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        progressFill.style.width = '100%';
+        progressText.textContent = 'Upload complete!';
+        window.currentLogoUrl = data.logo_url || '';
+        const logoPreview = document.getElementById('logo-preview');
+        const logoImg = document.getElementById('logo-preview-img');
+        const logoPlaceholder = document.getElementById('logo-upload-placeholder');
+        logoImg.src = data.logo_url;
+        logoPreview.style.display = '';
+        logoPlaceholder.style.display = 'none';
+        showToast('Logo uploaded successfully', 'success');
+        setTimeout(() => { progressEl.style.display = 'none'; progressFill.style.width = '0%'; }, 2000);
+      } catch(e) {
+        showToast(e.message || 'Upload failed', 'error');
+        progressFill.style.width = '0%';
+        progressEl.style.display = 'none';
+      }
+      input.value = '';
+    }
+
+    async function removeLogo() {
+      try {
+        await apiFetch('/api/car-club/update-logo', {
+          method: 'PUT',
+          body: JSON.stringify({ logo_url: '' })
+        });
+        window.currentLogoUrl = '';
+        document.getElementById('logo-preview').style.display = 'none';
+        document.getElementById('logo-upload-placeholder').style.display = '';
+        document.getElementById('logo-file-input').value = '';
+        showToast('Logo removed', 'success');
+      } catch(e) {
+        showToast(e.message || 'Failed to remove logo', 'error');
+      }
+    }
+
+    async function loadTemplates() {
+      try {
+        const data = await apiFetch('/api/car-club/reward-templates');
+        if (data && data.templates && data.templates.length > 0) {
+          const pc = data.templates.find(t => t.slug === 'punch_card');
+          if (pc) templateId = pc.id;
+          else templateId = data.templates[0].id;
+        }
+      } catch(e) {}
+    }
+
+    async function loadRewards() {
+      document.getElementById('rewards-loading').style.display = '';
+      document.getElementById('rewards-content').style.display = 'none';
+      try {
+        if (!clubData) await loadClub();
+        if (!clubData) {
+          document.getElementById('rewards-loading').style.display = 'none';
+          document.getElementById('rewards-content').style.display = '';
+          document.getElementById('rewards-list').innerHTML = '';
+          document.getElementById('rewards-empty').style.display = '';
+          return;
+        }
+        const data = await apiFetch('/api/car-club/my-club');
+        clubData = data.club;
+        const rules = clubData.reward_rules || [];
+        document.getElementById('rewards-loading').style.display = 'none';
+        document.getElementById('rewards-content').style.display = '';
+        const activeCount = rules.filter(r => r.is_active).length;
+        const addBtn = document.getElementById('add-reward-btn');
+        const note = document.getElementById('max-rewards-note');
+        if (activeCount >= 3) {
+          addBtn.disabled = true;
+          note.style.display = '';
+        } else {
+          addBtn.disabled = false;
+          note.style.display = 'none';
+        }
+        if (rules.length === 0) {
+          document.getElementById('rewards-list').innerHTML = '';
+          document.getElementById('rewards-empty').style.display = '';
+        } else {
+          document.getElementById('rewards-empty').style.display = 'none';
+          document.getElementById('rewards-list').innerHTML = rules.map(r => {
+            const params = typeof r.parameters === 'string' ? JSON.parse(r.parameters) : (r.parameters || {});
+            return `<div class="reward-card">
+              <div class="reward-card-header">
+                <div>
+                  <div class="reward-card-name">${escHtml(r.name)}</div>
+                  <span class="badge ${r.is_active ? 'badge-success' : 'badge-warning'}" style="margin-top:4px;">${r.is_active ? 'Active' : 'Inactive'}</span>
+                </div>
+                <div class="reward-card-actions">
+                  <button class="btn btn-secondary btn-sm" onclick="editReward('${r.id}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Edit
+                  </button>
+                  <button class="btn ${r.is_active ? 'btn-danger' : 'btn-success'} btn-sm" onclick="toggleReward('${r.id}', ${r.is_active})">
+                    ${r.is_active ? 'Deactivate' : 'Activate'}
+                  </button>
+                </div>
+              </div>
+              <div class="reward-card-meta">
+                <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6"/></svg> ${r.template_slug || 'punch_card'}</span>
+                <span>🎯 ${params.punches_required || '—'} punches</span>
+                ${params.reward_description ? `<span>🎁 ${escHtml(params.reward_description)}</span>` : ''}
+                ${params.reward_value ? `<span>💰 $${params.reward_value}</span>` : ''}
+                <span>${params.auto_reset !== false ? '🔄 Auto-reset' : '🚫 No reset'}</span>
+                ${r.valid_until ? `<span>📅 Expires: ${new Date(r.valid_until).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>` : ''}
+              </div>
+            </div>`;
+          }).join('');
+        }
+      } catch(e) {
+        document.getElementById('rewards-loading').style.display = 'none';
+        document.getElementById('rewards-content').style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    function openRewardModal(ruleId) {
+      editingRewardId = ruleId || null;
+      document.getElementById('reward-modal-title').textContent = ruleId ? 'Edit Reward Rule' : 'Add Reward Rule';
+      if (ruleId && clubData && clubData.reward_rules) {
+        const r = clubData.reward_rules.find(x => x.id === ruleId);
+        if (r) {
+          const params = typeof r.parameters === 'string' ? JSON.parse(r.parameters) : (r.parameters || {});
+          document.getElementById('reward-name').value = r.name || '';
+          document.getElementById('reward-description').value = r.description || '';
+          document.getElementById('reward-punches').value = params.punches_required || 10;
+          document.getElementById('reward-reward-desc').value = params.reward_description || '';
+          document.getElementById('reward-value').value = params.reward_value || '';
+          document.getElementById('reward-auto-reset').checked = params.auto_reset !== false;
+          document.getElementById('reward-expiration').value = r.valid_until ? r.valid_until.substring(0, 10) : '';
+        }
+      } else {
+        document.getElementById('reward-name').value = '';
+        document.getElementById('reward-description').value = '';
+        document.getElementById('reward-punches').value = 10;
+        document.getElementById('reward-reward-desc').value = '';
+        document.getElementById('reward-value').value = '';
+        document.getElementById('reward-auto-reset').checked = true;
+        document.getElementById('reward-expiration').value = '';
+      }
+      document.getElementById('rewardModal').classList.add('active');
+    }
+
+    function editReward(id) { openRewardModal(id); }
+    function closeRewardModal() { document.getElementById('rewardModal').classList.remove('active'); }
+
+    async function saveReward() {
+      const btn = document.getElementById('reward-save-btn');
+      const name = document.getElementById('reward-name').value.trim();
+      if (!name) { showToast('Reward name is required', 'error'); return; }
+      const punches = parseInt(document.getElementById('reward-punches').value) || 10;
+      if (punches < 2 || punches > 50) { showToast('Punches must be between 2 and 50', 'error'); return; }
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving...';
+      const params = {
+        punches_required: punches,
+        reward_description: document.getElementById('reward-reward-desc').value.trim(),
+        reward_value: parseFloat(document.getElementById('reward-value').value) || 0,
+        auto_reset: document.getElementById('reward-auto-reset').checked
+      };
+      try {
+        const expirationVal = document.getElementById('reward-expiration').value;
+        const rewardBody = { name, description: document.getElementById('reward-description').value.trim(), parameters: params };
+        if (expirationVal) rewardBody.valid_until = expirationVal;
+        if (editingRewardId) {
+          await apiFetch(`/api/car-club/rewards/${editingRewardId}`, {
+            method: 'PUT',
+            body: JSON.stringify(rewardBody)
+          });
+          showToast('Reward updated', 'success');
+        } else {
+          if (!templateId) await loadTemplates();
+          rewardBody.template_id = templateId;
+          await apiFetch('/api/car-club/rewards', {
+            method: 'POST',
+            body: JSON.stringify(rewardBody)
+          });
+          showToast('Reward created', 'success');
+        }
+        closeRewardModal();
+        await loadRewards();
+      } catch(e) {
+        showToast(e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Reward';
+      }
+    }
+
+    async function toggleReward(id, isActive) {
+      try {
+        if (isActive) {
+          await apiFetch(`/api/car-club/rewards/${id}`, { method: 'DELETE' });
+          showToast('Reward deactivated', 'success');
+        } else {
+          await apiFetch(`/api/car-club/rewards/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: true }) });
+          showToast('Reward activated', 'success');
+        }
+        await loadRewards();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    async function loadMembers() {
+      document.getElementById('members-loading').style.display = '';
+      document.getElementById('members-content').style.display = 'none';
+      try {
+        if (!clubData) await loadClub();
+        if (!clubData) {
+          document.getElementById('members-loading').style.display = 'none';
+          document.getElementById('members-content').style.display = '';
+          document.getElementById('members-list').innerHTML = '';
+          document.getElementById('members-empty').style.display = '';
+          return;
+        }
+        const data = await apiFetch('/api/car-club/members');
+        membersData = data.members || [];
+        document.getElementById('members-loading').style.display = 'none';
+        document.getElementById('members-content').style.display = '';
+        document.getElementById('member-count').textContent = `${membersData.length} member${membersData.length !== 1 ? 's' : ''}`;
+        if (membersData.length === 0) {
+          document.getElementById('members-list').innerHTML = '';
+          document.getElementById('members-empty').style.display = '';
+          document.getElementById('members-header').style.display = 'none';
+        } else {
+          document.getElementById('members-empty').style.display = 'none';
+          document.getElementById('members-header').style.display = '';
+          document.getElementById('members-list').innerHTML = membersData.map(m => {
+            const balances = m.balances || [];
+            let punchCount = 0, punchesReq = 10, lastAct = null;
+            balances.forEach(b => {
+              if (b.punch_count > punchCount) punchCount = b.punch_count;
+              if (b.last_activity_at && (!lastAct || new Date(b.last_activity_at) > new Date(lastAct))) lastAct = b.last_activity_at;
+            });
+            if (clubData.reward_rules && clubData.reward_rules.length > 0) {
+              const params = typeof clubData.reward_rules[0].parameters === 'string' ? JSON.parse(clubData.reward_rules[0].parameters) : (clubData.reward_rules[0].parameters || {});
+              punchesReq = params.punches_required || 10;
+            }
+            const pct = Math.min((punchCount / punchesReq) * 100, 100);
+            return `<div class="member-row">
+              <div class="member-name">${escHtml(m.member_id.substring(0, 8))}...</div>
+              <div class="member-date">${formatDate(m.joined_at)}</div>
+              <div class="member-progress"><div class="punch-bar"><div class="punch-fill" style="width:${pct}%"></div></div><span class="punch-text">${punchCount}/${punchesReq}</span></div>
+              <div class="member-date">${lastAct ? formatDate(lastAct) : '—'}</div>
+              <div><button class="btn btn-secondary btn-sm" onclick="openAdjustModal('${m.member_id}')">Adjust</button></div>
+            </div>`;
+          }).join('');
+        }
+      } catch(e) {
+        document.getElementById('members-loading').style.display = 'none';
+        document.getElementById('members-content').style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    function openAdjustModal(memberId) {
+      adjustMemberId = memberId;
+      document.getElementById('adjust-member-name').textContent = `Member: ${memberId.substring(0, 8)}...`;
+      const select = document.getElementById('adjust-rule');
+      select.innerHTML = '';
+      if (clubData && clubData.reward_rules) {
+        clubData.reward_rules.filter(r => r.is_active).forEach(r => {
+          select.innerHTML += `<option value="${r.id}">${escHtml(r.name)}</option>`;
+        });
+      }
+      document.getElementById('adjust-quantity').value = 1;
+      document.getElementById('adjust-reason').value = '';
+      document.getElementById('adjustModal').classList.add('active');
+    }
+
+    function closeAdjustModal() { document.getElementById('adjustModal').classList.remove('active'); }
+
+    async function submitAdjust() {
+      const btn = document.getElementById('adjust-save-btn');
+      const ruleId = document.getElementById('adjust-rule').value;
+      const qty = parseInt(document.getElementById('adjust-quantity').value) || 1;
+      const reason = document.getElementById('adjust-reason').value.trim();
+      if (!ruleId) { showToast('Select a reward rule', 'error'); return; }
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Applying...';
+      try {
+        await apiFetch('/api/car-club/log-activity', {
+          method: 'POST',
+          body: JSON.stringify({ member_id: adjustMemberId, reward_rule_id: ruleId, activity_type: 'punch', quantity: qty, description: reason || 'Manual adjustment' })
+        });
+        showToast('Punches adjusted', 'success');
+        closeAdjustModal();
+        await loadMembers();
+      } catch(e) { showToast(e.message, 'error'); }
+      finally { btn.disabled = false; btn.textContent = 'Apply'; }
+    }
+
+    async function loadActivity() {
+      document.getElementById('activity-loading').style.display = '';
+      document.getElementById('activity-content').style.display = 'none';
+      try {
+        if (!clubData) await loadClub();
+        if (!clubData) {
+          document.getElementById('activity-loading').style.display = 'none';
+          document.getElementById('activity-content').style.display = '';
+          document.getElementById('activity-list').innerHTML = '';
+          document.getElementById('activity-empty').style.display = '';
+          return;
+        }
+        const data = await apiFetch('/api/car-club/activity');
+        activityData = data.activity || [];
+        const start = document.getElementById('filter-start').value;
+        const end = document.getElementById('filter-end').value;
+        let filtered = activityData;
+        if (start) filtered = filtered.filter(a => new Date(a.created_at) >= new Date(start));
+        if (end) { const endDate = new Date(end); endDate.setHours(23, 59, 59); filtered = filtered.filter(a => new Date(a.created_at) <= endDate); }
+        document.getElementById('activity-loading').style.display = 'none';
+        document.getElementById('activity-content').style.display = '';
+        if (filtered.length === 0) {
+          document.getElementById('activity-list').innerHTML = '';
+          document.getElementById('activity-empty').style.display = '';
+        } else {
+          document.getElementById('activity-empty').style.display = 'none';
+          document.getElementById('activity-list').innerHTML = filtered.map(a => {
+            const iconClass = a.activity_type === 'punch' ? 'punch' : a.activity_type === 'visit' ? 'visit' : a.activity_type === 'reward' ? 'reward' : 'spend';
+            const iconEmoji = a.activity_type === 'punch' ? '👊' : a.activity_type === 'visit' ? '📍' : a.activity_type === 'reward' ? '🎁' : '💳';
+            return `<div class="activity-item">
+              <div class="activity-icon ${iconClass}">${iconEmoji}</div>
+              <div class="activity-content">
+                <div class="activity-title">${escHtml(a.activity_type)} ${a.quantity ? `× ${a.quantity}` : ''} ${a.amount ? `— $${parseFloat(a.amount).toFixed(2)}` : ''}</div>
+                <div class="activity-desc">${escHtml(a.description || '')}</div>
+              </div>
+              <div class="activity-time">${formatDateTime(a.created_at)}</div>
+            </div>`;
+          }).join('');
+        }
+      } catch(e) {
+        document.getElementById('activity-loading').style.display = 'none';
+        document.getElementById('activity-content').style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    function openLogActivityModal() {
+      const memberSelect = document.getElementById('log-member');
+      memberSelect.innerHTML = '';
+      membersData.forEach(m => {
+        memberSelect.innerHTML += `<option value="${m.member_id}">${m.member_id.substring(0, 8)}...</option>`;
+      });
+      const ruleSelect = document.getElementById('log-rule');
+      ruleSelect.innerHTML = '';
+      if (clubData && clubData.reward_rules) {
+        clubData.reward_rules.filter(r => r.is_active).forEach(r => {
+          ruleSelect.innerHTML += `<option value="${r.id}">${escHtml(r.name)}</option>`;
+        });
+      }
+      document.getElementById('log-quantity').value = 1;
+      document.getElementById('log-amount').value = '';
+      document.getElementById('log-desc').value = '';
+      document.getElementById('log-type').value = 'punch';
+      document.getElementById('logActivityModal').classList.add('active');
+    }
+
+    function closeLogActivityModal() { document.getElementById('logActivityModal').classList.remove('active'); }
+
+    async function submitLogActivity() {
+      const btn = document.getElementById('log-save-btn');
+      const memberId = document.getElementById('log-member').value;
+      const ruleId = document.getElementById('log-rule').value;
+      const type = document.getElementById('log-type').value;
+      if (!memberId || !ruleId) { showToast('Select a member and reward rule', 'error'); return; }
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Logging...';
+      try {
+        await apiFetch('/api/car-club/log-activity', {
+          method: 'POST',
+          body: JSON.stringify({
+            member_id: memberId,
+            reward_rule_id: ruleId,
+            activity_type: type,
+            quantity: parseInt(document.getElementById('log-quantity').value) || 1,
+            amount: parseFloat(document.getElementById('log-amount').value) || null,
+            description: document.getElementById('log-desc').value.trim() || null
+          })
+        });
+        showToast('Activity logged', 'success');
+        closeLogActivityModal();
+        await loadActivity();
+      } catch(e) { showToast(e.message, 'error'); }
+      finally { btn.disabled = false; btn.textContent = 'Log Activity'; }
+    }
+
+    async function loadLeaderboard() {
+      document.getElementById('leaderboard-loading').style.display = '';
+      document.getElementById('leaderboard-content').style.display = 'none';
+      try {
+        if (!clubData) await loadClub();
+        const data = await apiFetch('/api/car-club/leaderboard');
+        document.getElementById('leaderboard-loading').style.display = 'none';
+        document.getElementById('leaderboard-content').style.display = '';
+        const list = data.leaderboard || [];
+        if (list.length === 0) {
+          document.getElementById('leaderboard-empty').style.display = '';
+          document.getElementById('leaderboard-list').innerHTML = '';
+        } else {
+          document.getElementById('leaderboard-empty').style.display = 'none';
+          const medals = ['🥇', '🥈', '🥉'];
+          document.getElementById('leaderboard-list').innerHTML = `<div class="card" style="overflow:auto;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead>
+                <tr style="text-align:left;border-bottom:2px solid var(--border-color);">
+                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Rank</th>
+                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Member</th>
+                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Punches</th>
+                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Visits</th>
+                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Joined</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${list.map((m, i) => `<tr style="border-bottom:1px solid var(--border-color);">
+                  <td style="padding:10px 12px;font-size:1.1rem;">${i < 3 ? medals[i] : (i + 1)}</td>
+                  <td style="padding:10px 12px;font-family:monospace;font-size:0.85rem;">${escHtml((m.member_id || '').substring(0, 8))}</td>
+                  <td style="padding:10px 12px;font-weight:600;">${parseInt(m.total_punches) || 0}</td>
+                  <td style="padding:10px 12px;">${parseInt(m.total_visits) || 0}</td>
+                  <td style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+        }
+      } catch(e) {
+        document.getElementById('leaderboard-loading').style.display = 'none';
+        document.getElementById('leaderboard-content').style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadFreeBids() {
+      document.getElementById('freebids-loading').style.display = '';
+      document.getElementById('freebids-content').style.display = 'none';
+      try {
+        const data = await apiFetch('/api/car-club/free-bids');
+        document.getElementById('freebids-loading').style.display = 'none';
+        document.getElementById('freebids-content').style.display = '';
+        const earned = parseInt(data.total_earned) || 0;
+        const used = parseInt(data.total_used) || 0;
+        const remaining = parseInt(data.remaining) || 0;
+        document.getElementById('freebids-stats').innerHTML = `
+          <div class="stat-card">
+            <div class="stat-icon gold">🏆</div>
+            <div class="stat-value">${earned}</div>
+            <div class="stat-label">Total Earned</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon blue">📤</div>
+            <div class="stat-value">${used}</div>
+            <div class="stat-label">Total Used</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green">✨</div>
+            <div class="stat-value">${remaining}</div>
+            <div class="stat-label">Current Balance</div>
+          </div>`;
+        if (earned === 0 && used === 0 && remaining === 0) {
+          document.getElementById('freebids-empty').style.display = '';
+          document.getElementById('freebids-list').innerHTML = '';
+        } else {
+          document.getElementById('freebids-empty').style.display = 'none';
+        }
+      } catch(e) {
+        document.getElementById('freebids-loading').style.display = 'none';
+        document.getElementById('freebids-content').style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    function escHtml(str) {
+      if (!str) return '';
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    let promotionsData = [];
+    let editingPromoId = null;
+
+    async function loadPromotions() {
+      document.getElementById('promotions-loading').style.display = '';
+      document.getElementById('promotions-content').style.display = 'none';
+      try {
+        if (!clubData) await loadClub();
+        if (!clubData) {
+          document.getElementById('promotions-loading').style.display = 'none';
+          document.getElementById('promotions-content').style.display = '';
+          document.getElementById('promotions-list').innerHTML = '';
+          document.getElementById('promotions-empty').style.display = '';
+          return;
+        }
+        const data = await apiFetch('/api/car-club/promotions');
+        promotionsData = data.promotions || [];
+        document.getElementById('promotions-loading').style.display = 'none';
+        document.getElementById('promotions-content').style.display = '';
+        const activeCount = promotionsData.filter(p => p.is_active).length;
+        const addBtn = document.getElementById('add-promo-btn');
+        const note = document.getElementById('max-promos-note');
+        if (activeCount >= 3) {
+          addBtn.disabled = true;
+          note.style.display = '';
+        } else {
+          addBtn.disabled = false;
+          note.style.display = 'none';
+        }
+        if (promotionsData.length === 0) {
+          document.getElementById('promotions-list').innerHTML = '';
+          document.getElementById('promotions-empty').style.display = '';
+        } else {
+          document.getElementById('promotions-empty').style.display = 'none';
+          const now = new Date();
+          document.getElementById('promotions-list').innerHTML = promotionsData.map(p => {
+            const start = new Date(p.starts_at);
+            const end = new Date(p.ends_at);
+            const isCurrentlyActive = p.is_active && now >= start && now <= end;
+            const isPast = now > end;
+            let statusBadge = '';
+            if (!p.is_active) statusBadge = '<span class="badge badge-warning">Inactive</span>';
+            else if (isCurrentlyActive) statusBadge = '<span class="badge badge-success">Active Now</span>';
+            else if (isPast) statusBadge = '<span class="badge badge-warning">Ended</span>';
+            else statusBadge = '<span class="badge badge-info" style="background:var(--accent-blue-soft);color:var(--accent-blue);">Upcoming</span>';
+            return `<div class="reward-card">
+              <div class="reward-card-header">
+                <div>
+                  <div class="reward-card-name">${escHtml(p.name)}</div>
+                  <div style="margin-top:4px;">${statusBadge}</div>
+                </div>
+                <div class="reward-card-actions">
+                  <button class="btn btn-secondary btn-sm" onclick="editPromo('${p.id}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Edit
+                  </button>
+                  ${p.is_active ? `<button class="btn btn-danger btn-sm" onclick="deletePromo('${p.id}')">Deactivate</button>` : ''}
+                </div>
+              </div>
+              <div class="reward-card-meta">
+                ${p.description ? `<span>📝 ${escHtml(p.description)}</span>` : ''}
+                <span>🔥 ${p.punch_multiplier}x Punches</span>
+                <span>📅 ${formatDate(p.starts_at)} — ${formatDate(p.ends_at)}</span>
+              </div>
+            </div>`;
+          }).join('');
+        }
+      } catch(e) {
+        document.getElementById('promotions-loading').style.display = 'none';
+        document.getElementById('promotions-content').style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    function openPromoModal(promoId) {
+      editingPromoId = promoId || null;
+      document.getElementById('promo-modal-title').textContent = promoId ? 'Edit Promotion' : 'Add Promotion';
+      if (promoId) {
+        const p = promotionsData.find(x => x.id === promoId);
+        if (p) {
+          document.getElementById('promo-name').value = p.name || '';
+          document.getElementById('promo-description').value = p.description || '';
+          document.getElementById('promo-multiplier').value = p.punch_multiplier || 2;
+          document.getElementById('promo-start').value = p.starts_at ? p.starts_at.substring(0, 10) : '';
+          document.getElementById('promo-end').value = p.ends_at ? p.ends_at.substring(0, 10) : '';
+        }
+      } else {
+        document.getElementById('promo-name').value = '';
+        document.getElementById('promo-description').value = '';
+        document.getElementById('promo-multiplier').value = '2';
+        document.getElementById('promo-start').value = '';
+        document.getElementById('promo-end').value = '';
+      }
+      document.getElementById('promoModal').classList.add('active');
+    }
+
+    function editPromo(id) { openPromoModal(id); }
+    function closePromoModal() { document.getElementById('promoModal').classList.remove('active'); }
+
+    async function savePromo() {
+      const btn = document.getElementById('promo-save-btn');
+      const name = document.getElementById('promo-name').value.trim();
+      if (!name) { showToast('Promotion name is required', 'error'); return; }
+      const startsAt = document.getElementById('promo-start').value;
+      const endsAt = document.getElementById('promo-end').value;
+      if (!startsAt || !endsAt) { showToast('Start and end dates are required', 'error'); return; }
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving...';
+      const promoBody = {
+        name,
+        description: document.getElementById('promo-description').value.trim(),
+        punch_multiplier: parseInt(document.getElementById('promo-multiplier').value) || 2,
+        starts_at: startsAt,
+        ends_at: endsAt
+      };
+      try {
+        if (editingPromoId) {
+          await apiFetch(`/api/car-club/promotions/${editingPromoId}`, {
+            method: 'PUT',
+            body: JSON.stringify(promoBody)
+          });
+          showToast('Promotion updated', 'success');
+        } else {
+          await apiFetch('/api/car-club/promotions', {
+            method: 'POST',
+            body: JSON.stringify(promoBody)
+          });
+          showToast('Promotion created', 'success');
+        }
+        closePromoModal();
+        await loadPromotions();
+      } catch(e) {
+        showToast(e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Promotion';
+      }
+    }
+
+    async function deletePromo(id) {
+      if (!confirm('Deactivate this promotion?')) return;
+      try {
+        await apiFetch(`/api/car-club/promotions/${id}`, { method: 'DELETE' });
+        showToast('Promotion deactivated', 'success');
+        await loadPromotions();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    async function loadAnalytics() {
+      document.getElementById('analytics-loading').style.display = '';
+      document.getElementById('analytics-content').style.display = 'none';
+      try {
+        if (!clubData) await loadClub();
+        if (!clubData) {
+          document.getElementById('analytics-loading').style.display = 'none';
+          document.getElementById('analytics-content').style.display = '';
+          return;
+        }
+        const data = await apiFetch('/api/car-club/analytics');
+        const a = data.analytics;
+        document.getElementById('analytics-loading').style.display = 'none';
+        document.getElementById('analytics-content').style.display = '';
+        document.getElementById('analytics-stats').innerHTML = `
+          <div class="stat-card">
+            <div class="stat-icon gold">👥</div>
+            <div class="stat-value">${a.active_members}</div>
+            <div class="stat-label">Total Members</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green">🎁</div>
+            <div class="stat-value">${a.rewards_redeemed}</div>
+            <div class="stat-label">Rewards Redeemed</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon blue">👊</div>
+            <div class="stat-value">${a.total_punches}</div>
+            <div class="stat-label">Active Punches</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon gold">📈</div>
+            <div class="stat-value">${a.activity_30d}</div>
+            <div class="stat-label">30-Day Activity</div>
+          </div>`;
+        document.getElementById('analytics-retention').innerHTML = `
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;text-align:center;">
+            <div style="font-size:1.5rem;font-weight:700;color:var(--accent-green);">${a.new_members_30d}</div>
+            <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;">New Members (30d)</div>
+          </div>
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;text-align:center;">
+            <div style="font-size:1.5rem;font-weight:700;color:var(--accent-teal);">${a.retention_rate}%</div>
+            <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;">Retention Rate</div>
+          </div>
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;text-align:center;">
+            <div style="font-size:1.5rem;font-weight:700;color:var(--accent-gold);">${a.avg_punches_per_member}</div>
+            <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;">Avg Punches / Member</div>
+          </div>`;
+        const trend = a.monthly_trend || [];
+        if (trend.length === 0) {
+          document.getElementById('analytics-trend').innerHTML = '';
+          document.getElementById('analytics-trend-empty').style.display = '';
+        } else {
+          document.getElementById('analytics-trend-empty').style.display = 'none';
+          const maxCount = Math.max(...trend.map(t => parseInt(t.count) || 0), 1);
+          const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          document.getElementById('analytics-trend').innerHTML = trend.map(t => {
+            const count = parseInt(t.count) || 0;
+            const pct = Math.max((count / maxCount) * 100, 2);
+            const parts = t.month.split('-');
+            const label = monthNames[parseInt(parts[1]) - 1] + ' ' + parts[0];
+            return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+              <div style="width:70px;font-size:0.82rem;color:var(--text-secondary);text-align:right;flex-shrink:0;">${escHtml(label)}</div>
+              <div style="flex:1;height:28px;background:var(--bg-input);border-radius:6px;overflow:hidden;">
+                <div style="height:100%;width:${pct}%;background:linear-gradient(90deg, var(--accent-gold), var(--accent-bronze));border-radius:6px;transition:width 0.5s ease;"></div>
+              </div>
+              <div style="width:40px;font-size:0.85rem;font-weight:600;color:var(--text-primary);flex-shrink:0;">${count}</div>
+            </div>`;
+          }).join('');
+        }
+      } catch(e) {
+        document.getElementById('analytics-loading').style.display = 'none';
+        document.getElementById('analytics-content').style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function init() {
+      await loadClub();
+      await loadTemplates();
+      document.getElementById('logo-upload-area').addEventListener('click', function(e) {
+        if (e.target.closest('.logo-remove-btn')) return;
+        document.getElementById('logo-file-input').click();
+      });
+    }
+
+    function hideAuthLoading() {
+      const overlay = document.getElementById('authLoadingOverlay');
+      if (overlay) overlay.classList.add('hidden');
+    }
+
+    function waitForSupabase() {
+      return new Promise((resolve) => {
+        if (window.supabaseClient) return resolve(window.supabaseClient);
+        let attempts = 0;
+        const check = setInterval(() => {
+          attempts++;
+          if (window.supabaseClient) {
+            clearInterval(check);
+            resolve(window.supabaseClient);
+          } else if (attempts >= 50) {
+            clearInterval(check);
+            resolve(null);
+          }
+        }, 100);
+      });
+    }
+
+    async function initAuthListener() {
+      const client = await waitForSupabase();
+      if (!client) {
+        hideAuthLoading();
+        showToast('Unable to connect. Please refresh the page.', 'error');
+        return;
+      }
+
+      let done = false;
+      let timeoutId = null;
+
+      function ready() {
+        if (done) return;
+        done = true;
+        if (timeoutId) clearTimeout(timeoutId);
+        hideAuthLoading();
+        init().catch(err => {
+          showToast(err.message || 'Failed to load data', 'error');
+        });
+      }
+
+      const { data } = client.auth.onAuthStateChange((event, session) => {
+        if (done) return;
+        if (data && data.subscription) {
+          try { data.subscription.unsubscribe(); } catch(e) {}
+        }
+        ready();
+      });
+
+      timeoutId = setTimeout(ready, 5000);
+    }
+
+    let editingProductId = null;
+    let productImages = [];
+
+    async function loadProducts() {
+      const loading = document.getElementById('store-loading');
+      const content = document.getElementById('store-content');
+      loading.style.display = '';
+      content.style.display = 'none';
+      try {
+        const data = await apiFetch('/api/car-club/products');
+        loading.style.display = 'none';
+        content.style.display = '';
+        const products = data.products || [];
+        const grid = document.getElementById('store-products');
+        const empty = document.getElementById('store-empty');
+        if (products.length === 0) {
+          empty.style.display = '';
+          grid.innerHTML = '';
+          return;
+        }
+        empty.style.display = 'none';
+        grid.innerHTML = products.map(p => {
+          const img = (p.images && p.images.length > 0) ? p.images[0].image_url : '';
+          const priceStr = '$' + (p.price / 100).toFixed(2);
+          const compareStr = p.compare_at_price ? '<span class="compare-price">$' + (p.compare_at_price / 100).toFixed(2) + '</span>' : '';
+          const inv = p.inventory_count !== null && p.inventory_count !== undefined ? p.inventory_count + ' in stock' : 'Unlimited';
+          const cat = p.category || 'general';
+          const inactive = p.is_active === false ? ' product-inactive' : '';
+          const statusBadge = p.is_active === false ? '<span class="badge badge-warning" style="font-size:0.7rem;">Inactive</span>' : '';
+          return '<div class="product-card' + inactive + '">' +
+            '<div class="product-card-img">' + (img ? '<img src="' + escHtml(img) + '" alt="' + escHtml(p.name) + '" loading="lazy" />' : '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>') + '</div>' +
+            '<div class="product-card-body">' +
+              '<div class="product-card-name">' + escHtml(p.name) + ' ' + statusBadge + '</div>' +
+              '<div class="product-card-price">' + priceStr + ' ' + compareStr + '</div>' +
+              '<div class="product-card-meta"><span>' + escHtml(cat) + '</span><span>' + inv + '</span></div>' +
+            '</div>' +
+            '<div class="product-card-actions">' +
+              '<button class="btn btn-metallic btn-sm" onclick="editProduct(\'' + p.id + '\')">Edit</button>' +
+              '<button class="btn btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red-soft);" onclick="deleteProduct(\'' + p.id + '\',\'' + escHtml(p.name).replace(/'/g, "\\'") + '\')">Delete</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      } catch(e) {
+        loading.style.display = 'none';
+        content.style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    function showAddProductModal() {
+      editingProductId = null;
+      productImages = [];
+      document.getElementById('product-modal-title').textContent = 'Add Product';
+      document.getElementById('product-name').value = '';
+      document.getElementById('product-description').value = '';
+      document.getElementById('product-price').value = '';
+      document.getElementById('product-compare-price').value = '';
+      document.getElementById('product-category').value = 'general';
+      document.getElementById('product-sku').value = '';
+      document.getElementById('product-inventory').value = '';
+      document.getElementById('product-images-preview').innerHTML = '';
+      document.getElementById('product-modal').style.display = 'flex';
+    }
+
+    function closeProductModal() {
+      document.getElementById('product-modal').style.display = 'none';
+      editingProductId = null;
+      productImages = [];
+    }
+
+    async function editProduct(productId) {
+      try {
+        const data = await apiFetch('/api/car-club/products');
+        const product = (data.products || []).find(p => p.id === productId);
+        if (!product) { showToast('Product not found', 'error'); return; }
+        editingProductId = productId;
+        productImages = product.images || [];
+        document.getElementById('product-modal-title').textContent = 'Edit Product';
+        document.getElementById('product-name').value = product.name || '';
+        document.getElementById('product-description').value = product.description || '';
+        document.getElementById('product-price').value = product.price ? (product.price / 100).toFixed(2) : '';
+        document.getElementById('product-compare-price').value = product.compare_at_price ? (product.compare_at_price / 100).toFixed(2) : '';
+        document.getElementById('product-category').value = product.category || 'general';
+        document.getElementById('product-sku').value = product.sku || '';
+        document.getElementById('product-inventory').value = product.inventory_count !== null && product.inventory_count !== undefined ? product.inventory_count : '';
+        renderProductImagePreviews();
+        document.getElementById('product-modal').style.display = 'flex';
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    function renderProductImagePreviews() {
+      const container = document.getElementById('product-images-preview');
+      container.innerHTML = productImages.map(img =>
+        '<div class="product-image-thumb">' +
+          '<img src="' + escHtml(img.image_url) + '" alt="" />' +
+          '<button class="remove-img" onclick="removeProductImage(\'' + img.id + '\')">&times;</button>' +
+        '</div>'
+      ).join('');
+    }
+
+    async function handleProductImageUpload(input) {
+      if (!input.files || input.files.length === 0) return;
+      if (!editingProductId) {
+        showToast('Please save the product first, then add images', 'warning');
+        input.value = '';
+        return;
+      }
+      for (const file of input.files) {
+        if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+          showToast('Only PNG, JPG, WebP images allowed', 'error');
+          continue;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+          showToast('Image must be under 2MB', 'error');
+          continue;
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          const resp = await fetch(getApiBase() + '/api/car-club/products/' + editingProductId + '/images', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + session.access_token },
+            body: formData
+          });
+          const result = await resp.json();
+          if (!resp.ok) { showToast(result.error || 'Upload failed', 'error'); continue; }
+          productImages.push(result.image);
+          renderProductImagePreviews();
+        } catch(e) {
+          showToast('Image upload failed', 'error');
+        }
+      }
+      input.value = '';
+    }
+
+    async function removeProductImage(imageId) {
+      if (!editingProductId) return;
+      try {
+        await apiFetch('/api/car-club/products/' + editingProductId + '/images/' + imageId, { method: 'DELETE' });
+        productImages = productImages.filter(i => i.id !== imageId);
+        renderProductImagePreviews();
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function saveProduct() {
+      const name = document.getElementById('product-name').value.trim();
+      const priceVal = parseFloat(document.getElementById('product-price').value);
+      if (!name) { showToast('Product name is required', 'error'); return; }
+      if (!priceVal || priceVal <= 0) { showToast('Price must be greater than $0', 'error'); return; }
+
+      const comparePriceVal = parseFloat(document.getElementById('product-compare-price').value);
+      const inventoryVal = document.getElementById('product-inventory').value;
+
+      const body = {
+        name,
+        description: document.getElementById('product-description').value.trim(),
+        price: Math.round(priceVal * 100),
+        category: document.getElementById('product-category').value,
+        sku: document.getElementById('product-sku').value.trim() || null
+      };
+      if (comparePriceVal > 0) body.compare_at_price = Math.round(comparePriceVal * 100);
+      if (inventoryVal !== '') body.inventory_count = parseInt(inventoryVal);
+
+      const btn = document.getElementById('product-save-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving...';
+
+      try {
+        if (editingProductId) {
+          await apiFetch('/api/car-club/products/' + editingProductId, {
+            method: 'PUT',
+            body: JSON.stringify(body)
+          });
+          showToast('Product updated', 'success');
+        } else {
+          const result = await apiFetch('/api/car-club/products', {
+            method: 'POST',
+            body: JSON.stringify(body)
+          });
+          editingProductId = result.product.id;
+          showToast('Product created! You can now add images.', 'success');
+          document.getElementById('product-modal-title').textContent = 'Edit Product';
+        }
+        await loadProducts();
+      } catch(e) {
+        showToast(e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Product';
+      }
+    }
+
+    async function deleteProduct(productId, productName) {
+      if (!confirm('Delete "' + productName + '"? This cannot be undone.')) return;
+      try {
+        await apiFetch('/api/car-club/products/' + productId, { method: 'DELETE' });
+        showToast('Product deleted', 'success');
+        await loadProducts();
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadOrders() {
+      const loading = document.getElementById('orders-loading');
+      const content = document.getElementById('orders-content');
+      loading.style.display = '';
+      content.style.display = 'none';
+      try {
+        const filter = document.getElementById('orders-filter').value;
+        const url = '/api/car-club/orders' + (filter ? '?status=' + filter : '');
+        const data = await apiFetch(url);
+        loading.style.display = 'none';
+        content.style.display = '';
+        const orders = data.orders || [];
+        const container = document.getElementById('orders-list');
+        const empty = document.getElementById('orders-empty');
+        if (orders.length === 0) {
+          empty.style.display = '';
+          container.innerHTML = '';
+          return;
+        }
+        empty.style.display = 'none';
+        container.innerHTML = orders.map(o => {
+          const items = o.items || [];
+          const itemsHtml = items.map(i => '<div>' + escHtml(i.product_name) + ' x' + i.quantity + ' — $' + (i.product_price / 100).toFixed(2) + '</div>').join('');
+          const total = '$' + (o.total / 100).toFixed(2);
+          const fee = '$' + ((o.platform_fee || 0) / 100).toFixed(2);
+          const date = new Date(o.created_at).toLocaleDateString();
+          const statusClass = o.status === 'paid' ? 'badge-success' : o.status === 'shipped' ? 'badge-info' : o.status === 'delivered' ? 'badge-success' : o.status === 'cancelled' || o.status === 'refunded' ? 'badge-warning' : 'badge-info';
+
+          let actionsHtml = '';
+          if (o.status === 'paid') {
+            actionsHtml = '<button class="btn btn-metallic btn-sm" onclick="updateOrderStatus(\'' + o.id + '\', \'processing\')">Mark Processing</button>';
+          } else if (o.status === 'processing') {
+            actionsHtml = '<input type="text" class="form-input" id="tracking-' + o.id + '" placeholder="Tracking number" style="width:160px;padding:6px 10px;font-size:0.82rem;" />' +
+              '<button class="btn btn-metallic btn-sm" onclick="shipOrder(\'' + o.id + '\')">Mark Shipped</button>';
+          } else if (o.status === 'shipped') {
+            actionsHtml = '<button class="btn btn-metallic btn-sm" onclick="updateOrderStatus(\'' + o.id + '\', \'delivered\')">Mark Delivered</button>';
+          }
+          if (o.tracking_number) {
+            actionsHtml += '<span style="font-size:0.8rem;color:var(--text-muted);">Tracking: ' + escHtml(o.tracking_number) + '</span>';
+          }
+
+          return '<div class="order-card">' +
+            '<div class="order-card-header">' +
+              '<div><strong>Order #' + o.id.substring(0, 8) + '</strong> <span style="font-size:0.82rem;color:var(--text-muted);">' + date + '</span></div>' +
+              '<div style="display:flex;align-items:center;gap:8px;"><span class="badge ' + statusClass + '">' + o.status + '</span><span style="font-weight:600;">' + total + '</span></div>' +
+            '</div>' +
+            '<div class="order-items-list">' + itemsHtml + '</div>' +
+            (o.shipping_name ? '<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px;">Ship to: ' + escHtml(o.shipping_name) + (o.shipping_city ? ', ' + escHtml(o.shipping_city) : '') + (o.shipping_state ? ', ' + escHtml(o.shipping_state) : '') + '</div>' : '') +
+            '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:8px;">Platform fee: ' + fee + '</div>' +
+            '<div class="order-actions">' + actionsHtml + '</div>' +
+          '</div>';
+        }).join('');
+      } catch(e) {
+        loading.style.display = 'none';
+        content.style.display = '';
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function updateOrderStatus(orderId, newStatus) {
+      try {
+        await apiFetch('/api/car-club/orders/' + orderId, {
+          method: 'PUT',
+          body: JSON.stringify({ status: newStatus })
+        });
+        showToast('Order updated', 'success');
+        await loadOrders();
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function shipOrder(orderId) {
+      const trackingInput = document.getElementById('tracking-' + orderId);
+      const tracking = trackingInput ? trackingInput.value.trim() : '';
+      try {
+        await apiFetch('/api/car-club/orders/' + orderId, {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'shipped', tracking_number: tracking || null })
+        });
+        showToast('Order marked as shipped', 'success');
+        await loadOrders();
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => initAuthListener());
+    } else {
+      initAuthListener();
+    }
+  </script>
+</body>
+</html>

@@ -1,7 +1,12 @@
     let currentStep = 1;
-    let uploadedFiles = { license: [], insurance: [], certs: [], portfolio: [] };
+    let uploadedFiles = { license: [], certs: [], portfolio: [] };
     let userId = null;
     let providerReferralData = null;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const isFoundingProvider = urlParams.get('founding_provider') === 'true';
+    const foundingProviderName = urlParams.get('name') || '';
+    const foundingAgreementId = urlParams.get('agreement_id') || '';
 
     // ========== SIGNATURE PAD ==========
     let signaturePad = null;
@@ -111,46 +116,21 @@
     // ========== PROVIDER REFERRAL HANDLING ==========
     async function lookupProviderReferral(refCode) {
       try {
-        const { data, error } = await supabaseClient
-          .from('provider_referrals')
-          .select(`
-            id,
-            referral_code,
-            provider_id,
-            profiles!provider_referrals_provider_id_fkey (
-              id,
-              full_name,
-              business_name
-            )
-          `)
-          .eq('referral_code', refCode.toUpperCase())
-          .eq('is_active', true)
-          .single();
+        var response = await fetch('/api/provider-referral/lookup/' + encodeURIComponent(refCode));
+        var result = await response.json();
 
-        if (error || !data) {
-          // Try looking up from provider's referral code directly
-          const { data: profileData, error: profileError } = await supabaseClient
-            .from('profiles')
-            .select('id, full_name, business_name')
-            .eq('referral_code', refCode.toUpperCase())
-            .eq('role', 'provider')
-            .single();
-
-          if (profileError || !profileData) {
-            return null;
-          }
-
-          return {
-            provider_id: profileData.id,
-            provider_name: profileData.business_name || profileData.full_name,
-            referral_code: refCode.toUpperCase()
-          };
+        if (!response.ok || !result.success) {
+          return null;
         }
 
         return {
-          provider_id: data.provider_id,
-          provider_name: data.profiles?.business_name || data.profiles?.full_name || 'Referrer Provider',
-          referral_code: data.referral_code
+          provider_id: result.provider_id || null,
+          provider_name: result.provider_name || 'Referrer',
+          referral_code: refCode.toUpperCase(),
+          code_type: result.code_type,
+          is_founding_provider: result.is_founding_provider || false,
+          skip_identity_verification: result.skip_identity_verification || false,
+          platform_fee_exempt: result.platform_fee_exempt || false
         };
       } catch (err) {
         console.error('Provider referral lookup error:', err);
@@ -180,9 +160,8 @@
             banner.classList.add('show');
           }
           
-          // Store in hidden fields
           document.getElementById('provider-referral-code').value = data.referral_code;
-          document.getElementById('provider-referral-id').value = data.provider_id;
+          document.getElementById('provider-referral-id').value = data.provider_id || '';
           
           // Auto-fill the referral code field
           document.getElementById('referral-code').value = data.referral_code;
@@ -198,6 +177,18 @@
       initializeProviderReferral();
     }
     // ========== END PROVIDER REFERRAL HANDLING ==========
+
+    // ========== FOUNDING PROVIDER HANDLING ==========
+    if (isFoundingProvider) {
+      
+      if (foundingProviderName) {
+        const contactNameField = document.getElementById('contact-name');
+        if (contactNameField) {
+          contactNameField.value = foundingProviderName;
+        }
+      }
+    }
+    // ========== END FOUNDING PROVIDER HANDLING ==========
 
     // Checkbox toggle for service/brand selection checkboxes
     document.querySelectorAll('.checkbox-group .checkbox-item').forEach(item => {
@@ -252,8 +243,8 @@
         learnMoreLink.style.display = step === 1 ? 'block' : 'none';
       }
       
-      // Initialize signature pad when reaching step 6
-      if (step === 6) {
+      // Initialize signature pad when reaching step 3 (agreement)
+      if (step === 3) {
         setTimeout(() => initSignaturePad(), 100);
       }
     }
@@ -295,7 +286,7 @@
           }
           userId = signInData.user?.id;
         } else if (error) {
-          return showMessage(error.message);
+          return showMessage('Unable to create your account. Please try again.');
         } else {
           userId = data.user?.id;
           
@@ -329,7 +320,7 @@
 
           if (updateError) {
             console.error('Profile update error:', updateError);
-            return showMessage('Profile error: ' + updateError.message);
+            return showMessage('Something went wrong updating your profile. Please try again.');
           }
           showMessage('Account updated! You can now apply as a provider.', 'success');
         } else {
@@ -343,7 +334,7 @@
 
           if (profileError) {
             console.error('Profile creation error:', profileError);
-            return showMessage('Profile error: ' + profileError.message);
+            return showMessage('Something went wrong creating your profile. Please try again.');
           }
           showMessage('Account created!', 'success');
         }
@@ -378,9 +369,8 @@
             // Continue anyway - referral is optional
           }
         }
-      }
 
-      if (current === 2) {
+        // Validate business info (same step now)
         const businessName = document.getElementById('business-name').value.trim();
         const contactName = document.getElementById('contact-name').value.trim();
         const businessType = document.getElementById('business-type').value;
@@ -389,27 +379,21 @@
         const serviceArea = document.getElementById('service-area').value.trim();
 
         if (!businessName || !contactName || !businessType || !city || !state || !serviceArea) {
-          return showMessage('Please fill in all required fields.');
+          return showMessage('Please fill in all required business information fields.');
         }
       }
 
-      if (current === 3) {
+      if (current === 2) {
         const years = document.getElementById('years-business').value;
         if (!years) return showMessage('Please enter years in business.');
         
         const services = Array.from(document.querySelectorAll('#services-checkboxes input:checked')).map(c => c.value);
         if (services.length === 0) return showMessage('Please select at least one service you offer.');
-      }
 
-      if (current === 4) {
         if (uploadedFiles.license.length === 0) return showMessage('Please upload your business license.');
-        if (uploadedFiles.insurance.length === 0) return showMessage('Please upload your insurance certificate.');
-      }
+        if (!document.getElementById('insurance-acknowledgment')?.checked) return showMessage('Please confirm that you maintain sufficient insurance coverage.');
 
-      // Step 5 doesn't require validation - references are optional
-      
-      // When moving to step 6 (legal agreement), populate the date
-      if (current === 5) {
+        // Populate the agreement date for step 3
         const today = new Date().toLocaleDateString('en-US', { 
           year: 'numeric', 
           month: 'long', 
@@ -438,7 +422,7 @@
       const container = document.getElementById(`files-${type}`);
       container.innerHTML = uploadedFiles[type].map((file, i) => `
         <div class="uploaded-file">
-          <span>📄 ${file.name}</span>
+          <span>${mccIcon('file-text', 16)} ${file.name}</span>
           <button onclick="removeFile('${type}', ${i})">×</button>
         </div>
       `).join('');
@@ -507,7 +491,6 @@
       const legalName = document.getElementById('legal-name').value.trim();
       const agreeRead = document.getElementById('agree-read').checked;
       const agreeCircumvention = document.getElementById('agree-circumvention').checked;
-      const agreeAnonymous = document.getElementById('agree-anonymous').checked;
       const agreeBinding = document.getElementById('agree-binding').checked;
       const agreeTerms = document.getElementById('agree-terms').checked;
 
@@ -522,19 +505,16 @@
       }
 
       if (!agreeRead) {
-        return showMessage('Please confirm you have read the Provider Service Agreement.');
+        return showMessage('Please confirm you have read the Provider Partnership Agreement.');
       }
       if (!agreeCircumvention) {
-        return showMessage('Please acknowledge the non-circumvention clause.');
-      }
-      if (!agreeAnonymous) {
-        return showMessage('Please acknowledge the anonymous operation requirement.');
+        return showMessage('Please agree to complete platform-booked jobs through MCC.');
       }
       if (!agreeBinding) {
-        return showMessage('Please acknowledge this is a legally binding agreement.');
+        return showMessage('Please acknowledge this is a binding agreement.');
       }
       if (!agreeTerms) {
-        return showMessage('Please agree to the Terms of Service and Provider Agreement.');
+        return showMessage('Please agree to the Terms of Service and Provider Partnership Agreement.');
       }
 
       showMessage('Submitting your application...', 'info');
@@ -598,6 +578,8 @@
           pickup_radius_miles: document.getElementById('pickup-radius').value ? parseInt(document.getElementById('pickup-radius').value) : null,
           pickup_fee_type: document.getElementById('pickup-fee').value,
           pickup_fee_amount: document.getElementById('pickup-fee-amount').value ? parseFloat(document.getElementById('pickup-fee-amount').value) : null,
+          is_founding_provider: isFoundingProvider || false,
+          founding_agreement_id: foundingAgreementId || null,
           status: 'approved' // Auto-approve providers who complete all requirements
         }).select().single();
 
@@ -606,7 +588,7 @@
         const appId = app.id;
 
         // Upload documents
-        for (const type of ['license', 'insurance', 'certs', 'portfolio']) {
+        for (const type of ['license', 'certs', 'portfolio']) {
           for (const file of uploadedFiles[type]) {
             const ext = file.name.split('.').pop();
             const filename = `${userId}/${type}_${Date.now()}.${ext}`;
@@ -621,7 +603,7 @@
               await supabaseClient.from('provider_documents').insert({
                 application_id: appId,
                 provider_id: userId,
-                document_type: type === 'license' ? 'business_license' : type === 'insurance' ? 'insurance_certificate' : type === 'certs' ? 'certification' : 'portfolio',
+                document_type: type === 'license' ? 'business_license' : type === 'certs' ? 'certification' : 'portfolio',
                 document_name: file.name,
                 file_url: urlData.publicUrl
               });
@@ -671,27 +653,31 @@
           state: document.getElementById('state').value.trim(),
           service_area: document.getElementById('service-area').value.trim(),
           services_offered: services,
-          free_trial_bids: 3, // Give 3 free bids to start
+          free_trial_bids: isFoundingProvider ? 999999 : 3,
           bid_credits: 0,
           total_bids_purchased: 0,
           total_bids_used: 0,
+          is_founding_provider: isFoundingProvider || false,
           sms_consent: smsConsent,
           sms_consent_date: smsConsent ? new Date().toISOString() : null
         }).eq('id', userId);
 
-        // Track provider-to-provider referral if one was used
-        if (providerReferralData && providerReferralData.provider_id) {
+        if (providerReferralData && providerReferralData.referral_code) {
           try {
-            // Create a provider referral record to track that this provider was referred by another provider
-            await supabaseClient.from('provider_referrals').insert({
-              provider_id: providerReferralData.provider_id,
-              referred_user_id: userId,
-              referral_type: 'provider',
-              referral_code: providerReferralData.referral_code
+            var processResponse = await fetch('/api/provider-referral/process', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                user_id: userId,
+                referral_code: providerReferralData.referral_code
+              })
             });
+            var processResult = await processResponse.json();
+            if (processResult && processResult.success) {
+              console.log('Provider referral processed: ' + providerReferralData.provider_name);
+            }
           } catch (refError) {
             console.log('Note: Could not log provider referral usage, but signup completed successfully:', refError);
-            // Don't fail the signup if referral tracking fails
           }
         }
 

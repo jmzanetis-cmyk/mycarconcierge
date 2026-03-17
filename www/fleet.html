@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -45,7 +46,7 @@
 
     /* Light mode sidebar */
     [data-theme="light"] .sidebar {
-      background: linear-gradient(180deg, #ffffff 0%, #fefdfb 100%);
+      background: linear-gradient(180deg, #ffffff 0%, #f3f4f6 100%);
       border-right: 1px solid rgba(30, 58, 95, 0.1);
     }
     [data-theme="light"] .nav-item:hover {
@@ -53,7 +54,7 @@
     }
     @media (max-width: 768px) {
       [data-theme="light"] .sidebar {
-        background: linear-gradient(180deg, #ffffff 0%, #fefdfb 100%);
+        background: linear-gradient(180deg, #ffffff 0%, #f3f4f6 100%);
       }
     }
 
@@ -63,7 +64,8 @@
 
     /* Sidebar */
     .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 20px; text-decoration: none; border-bottom: 1px solid var(--border-subtle); }
-    .brand-icon { height: 120px; width: auto; border-radius: var(--radius-sm); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+    .brand-icon { height: 120px; width: auto; border-radius: var(--radius-sm); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25)); transition: filter 0.3s ease; }
+    .sidebar-brand:hover .brand-icon { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.4)); }
     .brand-text-sm { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--text-primary); }
     .brand-fleet { font-size: 0.75rem; color: var(--accent-gold); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
 
@@ -182,6 +184,8 @@
       .form-row { grid-template-columns: 1fr; }
     }
     @media (min-width: 901px) { .mobile-header { display: none; } }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
   <script src="/i18n.js"></script>
 </head>
@@ -193,18 +197,18 @@
     <div id="language-switcher" style="padding:0 20px 16px;"></div>
 
     <div class="nav-label">Dashboard</div>
-    <div class="nav-item active" data-section="overview">📊 Overview</div>
-    <div class="nav-item" data-section="vehicles">🚗 Fleet Vehicles <span class="nav-badge" id="vehicle-count">0</span></div>
-    <div class="nav-item" data-section="drivers">👥 Drivers</div>
+    <div class="nav-item active" data-section="overview"><span class="icon-inline" data-icon="bar-chart"></span> Overview</div>
+    <div class="nav-item" data-section="vehicles"><span class="icon-inline" data-icon="car"></span> Fleet Vehicles <span class="nav-badge" id="vehicle-count">0</span></div>
+    <div class="nav-item" data-section="drivers"><span class="icon-inline" data-icon="users"></span> Drivers</div>
     
     <div class="nav-label">Services</div>
-    <div class="nav-item" data-section="services">🔧 Active Services <span class="nav-badge" id="active-service-count" style="display:none;">0</span></div>
-    <div class="nav-item" data-section="approvals">✓ Pending Approvals <span class="nav-badge" id="approval-count" style="background:var(--accent-orange);display:none;">0</span></div>
-    <div class="nav-item" data-section="history">📜 Service History</div>
+    <div class="nav-item" data-section="services"><span class="icon-inline" data-icon="wrench"></span> Active Services <span class="nav-badge" id="active-service-count" style="display:none;">0</span></div>
+    <div class="nav-item" data-section="approvals"<span class="icon-inline" data-icon="check"></span> Pending Approvals <span class="nav-badge" id="approval-count" style="background:var(--accent-orange);display:none;">0</span></div>
+    <div class="nav-item" data-section="history"><span class="icon-inline" data-icon="file-text"></span> Service History</div>
     
     <div class="nav-label">Reports</div>
-    <div class="nav-item" data-section="spending">💰 Spending</div>
-    <div class="nav-item" data-section="maintenance">📅 Maintenance Schedule</div>
+    <div class="nav-item" data-section="spending"><span class="icon-inline" data-icon="dollar-sign"></span> Spending</div>
+    <div class="nav-item" data-section="maintenance"><span class="icon-inline" data-icon="calendar"></span> Maintenance Schedule</div>
 
     <div class="sidebar-footer">
       <div class="user-info">
@@ -214,13 +218,13 @@
           <div class="user-email" id="fleet-name">Company Fleet</div>
         </div>
       </div>
-      <div class="nav-item" onclick="logout()">🚪 Log Out</div>
+      <div class="nav-item" onclick="logout()"><span class="icon-inline" data-icon="log-out"></span> Log Out</div>
     </div>
   </aside>
 
   <main class="main">
     <div class="mobile-header">
-      <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+      <button class="mobile-menu-btn" onclick="toggleSidebar()"><span class="icon-inline" data-icon="list-ordered"></span></button>
       <span style="font-weight:600;">Fleet Dashboard</span>
     </div>
 
@@ -232,27 +236,27 @@
       </div>
 
       <div id="budget-alert" class="alert-banner warning" style="display:none;">
-        ⚠️ <span id="budget-alert-text">You've used 80% of your monthly maintenance budget.</span>
+        <span class="icon-inline" data-icon="alert-triangle"></span> <span id="budget-alert-text">You've used 80% of your monthly maintenance budget.</span>
       </div>
 
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon blue">🚗</div>
+          <div class="stat-icon blue"><span class="icon-inline" data-icon="car"></span></div>
           <div class="stat-value" id="stat-total-vehicles">0</div>
           <div class="stat-label">Total Vehicles</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon green">✓</div>
+          <div class="stat-icon green"><span class="icon-inline" data-icon="check"></span></div>
           <div class="stat-value" id="stat-active-vehicles">0</div>
           <div class="stat-label">Active</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon orange">🔧</div>
+          <div class="stat-icon orange"><span class="icon-inline" data-icon="wrench"></span></div>
           <div class="stat-value" id="stat-in-maintenance">0</div>
           <div class="stat-label">In Maintenance</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon gold">💰</div>
+          <div class="stat-icon gold"><span class="icon-inline" data-icon="dollar-sign"></span></div>
           <div class="stat-value" id="stat-monthly-spend">$0</div>
           <div class="stat-label">This Month</div>
           <div class="stat-change up" id="stat-spend-change">↑ 12% vs last month</div>
@@ -267,7 +271,7 @@
           </div>
           <div id="upcoming-maintenance">
             <div class="empty-state">
-              <div class="empty-state-icon">📅</div>
+              <div class="empty-state-icon"><span class="icon-inline" data-icon="calendar"></span></div>
               <p>No upcoming maintenance scheduled.</p>
             </div>
           </div>
@@ -285,19 +289,19 @@
           </div>
           <div style="font-size:0.88rem;">
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span><span style="color:var(--accent-blue);">●</span> Maintenance</span>
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-blue);"></span> Maintenance</span>
               <span id="cat-maintenance">$0</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span><span style="color:var(--accent-green);">●</span> Repairs</span>
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);"></span> Repairs</span>
               <span id="cat-repairs">$0</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span><span style="color:var(--accent-orange);">●</span> Detailing</span>
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-orange);"></span> Detailing</span>
               <span id="cat-detailing">$0</span>
             </div>
             <div style="display:flex;justify-content:space-between;">
-              <span><span style="color:var(--accent-gold);">●</span> Other</span>
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-gold);"></span> Other</span>
               <span id="cat-other">$0</span>
             </div>
           </div>
@@ -311,7 +315,7 @@
         </div>
         <div id="pending-approvals-preview">
           <div class="empty-state">
-            <div class="empty-state-icon">✓</div>
+            <div class="empty-state-icon"><span class="icon-inline" data-icon="check"></span></div>
             <p>No pending approvals.</p>
           </div>
         </div>
@@ -327,7 +331,7 @@
 
       <div style="display:flex;gap:12px;margin-bottom:24px;">
         <button class="btn btn-primary" onclick="openAddVehicleModal()">+ Add Vehicle</button>
-        <button class="btn btn-secondary">📥 Import CSV</button>
+        <button class="btn btn-secondary"><span class="icon-inline" data-icon="download"></span> Import CSV</button>
       </div>
 
       <div class="card">
@@ -392,7 +396,7 @@
       <div class="card">
         <div id="active-services-list">
           <div class="empty-state">
-            <div class="empty-state-icon">🔧</div>
+            <div class="empty-state-icon"><span class="icon-inline" data-icon="wrench"></span></div>
             <p>No active services.</p>
           </div>
         </div>
@@ -407,13 +411,13 @@
       </div>
 
       <div class="alert-banner info">
-        💡 Services under <strong>$<span id="auto-approve-amount">100</span></strong> are automatically approved based on your settings.
+        <span class="icon-inline" data-icon="lightbulb"></span> Services under <strong>$<span id="auto-approve-amount">100</span></strong> are automatically approved based on your settings.
       </div>
 
       <div class="card">
         <div id="approval-list">
           <div class="empty-state">
-            <div class="empty-state-icon">✓</div>
+            <div class="empty-state-icon"><span class="icon-inline" data-icon="check"></span></div>
             <p>No pending approvals. All caught up!</p>
           </div>
         </div>
@@ -441,7 +445,7 @@
             <option value="all">All Time</option>
           </select>
         </div>
-        <button class="btn btn-secondary">📤 Export CSV</button>
+        <button class="btn btn-secondary"><span class="icon-inline" data-icon="upload"></span> Export CSV</button>
       </div>
 
       <div class="card">
@@ -480,27 +484,27 @@
             <option value="year">This Year</option>
           </select>
         </div>
-        <button class="btn btn-secondary">📤 Export Report</button>
+        <button class="btn btn-secondary"><span class="icon-inline" data-icon="upload"></span> Export Report</button>
       </div>
 
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon gold">💰</div>
+          <div class="stat-icon gold"><span class="icon-inline" data-icon="dollar-sign"></span></div>
           <div class="stat-value" id="spend-total">$0</div>
           <div class="stat-label">Total Spending</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon blue">📊</div>
+          <div class="stat-icon blue"><span class="icon-inline" data-icon="bar-chart"></span></div>
           <div class="stat-value" id="spend-per-vehicle">$0</div>
           <div class="stat-label">Avg per Vehicle</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon green">🔧</div>
+          <div class="stat-icon green"><span class="icon-inline" data-icon="wrench"></span></div>
           <div class="stat-value" id="spend-services">0</div>
           <div class="stat-label">Services Completed</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon orange">💵</div>
+          <div class="stat-icon orange"><span class="icon-inline" data-icon="dollar-sign"></span></div>
           <div class="stat-value" id="spend-savings">$0</div>
           <div class="stat-label">Est. Savings via MCC</div>
         </div>
@@ -511,7 +515,7 @@
           <h2 class="card-title">Spending Trend</h2>
         </div>
         <div class="chart-placeholder">
-          📈 Chart coming soon - spending over time
+          <span class="icon-inline" data-icon="trending-up"></span> Chart coming soon - spending over time
         </div>
       </div>
 
@@ -546,17 +550,17 @@
 
       <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
         <div class="stat-card">
-          <div class="stat-icon red">⚠️</div>
+          <div class="stat-icon red"><span class="icon-inline" data-icon="alert-triangle"></span></div>
           <div class="stat-value" id="maint-overdue">0</div>
           <div class="stat-label">Overdue</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon orange">🔔</div>
+          <div class="stat-icon orange"><span class="icon-inline" data-icon="bell"></span></div>
           <div class="stat-value" id="maint-due-soon">0</div>
           <div class="stat-label">Due This Week</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon green">✓</div>
+          <div class="stat-icon green"><span class="icon-inline" data-icon="check"></span></div>
           <div class="stat-value" id="maint-upcoming">0</div>
           <div class="stat-label">Upcoming (30 days)</div>
         </div>
@@ -729,6 +733,14 @@
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
+    });
+  </script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
     });
   </script>
 </body>

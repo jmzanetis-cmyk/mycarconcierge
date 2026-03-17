@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <script>
@@ -83,17 +84,17 @@
 
     .header { text-align: center; margin-bottom: 40px; }
     .header-brand { display: inline-flex; align-items: center; gap: 14px; text-decoration: none; margin-bottom: 24px; }
-    .header-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; transition: all 0.3s ease; }
+    .header-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25)); transition: all 0.3s ease; }
     .header-brand:hover img { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
     .header h1 { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 12px; }
     .header p { color: var(--text-secondary); font-size: 1rem; max-width: 500px; margin: 0 auto; }
 
-    .benefits { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
-    .benefit { background: linear-gradient(135deg, var(--bg-card) 0%, rgba(212, 168, 85, 0.05) 100%); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; text-align: center; transition: all 0.3s ease; }
-    .benefit:hover { border-color: var(--accent-gold); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
-    .benefit-icon { font-size: 32px; margin-bottom: 14px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
-    .benefit-title { font-family: 'Playfair Display', serif; font-weight: 600; margin-bottom: 6px; font-size: 1.1rem; color: var(--text-primary); }
-    .benefit-desc { font-size: 0.85rem; color: var(--text-muted); letter-spacing: 0.3px; }
+    .benefits { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+    .benefit { background: linear-gradient(135deg, var(--bg-card) 0%, rgba(212, 168, 85, 0.05) 100%); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px 14px; display: flex; align-items: center; gap: 10px; text-align: left; transition: all 0.3s ease; }
+    .benefit:hover { border-color: var(--accent-gold); }
+    .benefit-icon { font-size: 20px; flex-shrink: 0; }
+    .benefit-title { font-weight: 600; font-size: 0.88rem; color: var(--text-primary); line-height: 1.2; }
+    .benefit-desc { font-size: 0.75rem; color: var(--text-muted); }
     .benefit-link:hover .benefit { border-color: var(--accent-gold); }
 
     .form-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); padding: 40px; }
@@ -154,54 +155,6 @@
     .btn-ghost { background: transparent; color: var(--text-secondary); }
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
-    /* Sign in with Apple Button */
-    .social-signin-section { margin-top: 24px; }
-    .social-divider {
-      display: flex;
-      align-items: center;
-      margin-bottom: 16px;
-    }
-    .social-divider::before,
-    .social-divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border-subtle);
-    }
-    .social-divider span {
-      padding: 0 16px;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-    }
-    .btn-apple-signin {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      width: 100%;
-      padding: 14px 24px;
-      background: #000000;
-      border: none;
-      border-radius: var(--radius-lg);
-      color: #ffffff;
-      font-family: inherit;
-      font-size: 0.95rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .btn-apple-signin:hover {
-      background: #1a1a1a;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    }
-    .btn-apple-signin:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-    .btn-apple-signin .apple-icon { flex-shrink: 0; }
-    [data-theme="light"] .btn-apple-signin {
-      background: #000000;
-      color: #ffffff;
-    }
-
     .form-nav { display: flex; justify-content: space-between; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border-subtle); }
 
     .message { padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 0.9rem; display: none; }
@@ -228,12 +181,14 @@
       .form-card { padding: 28px 20px; }
       .benefits { grid-template-columns: 1fr; }
     }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
   <script src="/i18n.js"></script>
 </head>
 <body>
   <button class="theme-toggle-mini" onclick="toggleTheme()" title="Toggle theme" style="position: fixed; top: 20px; right: 20px; z-index: 1000; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 50%; width: 44px; height: 44px; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
-    <span class="theme-icon">🔦</span>
+    <span class="theme-icon"><span class="icon-inline" data-icon="sun"></span></span>
   </button>
   <div class="container">
     <div class="header">
@@ -252,51 +207,55 @@
     <div class="benefits" id="benefits-section">
       <a href="provider-info.html" class="benefit-link" style="text-decoration:none;color:inherit;">
         <div class="benefit">
-          <div class="benefit-icon">💰</div>
-          <div class="benefit-title">Keep 92.5%</div>
-          <div class="benefit-desc">Industry-low 7.5% fee</div>
+          <div class="benefit-icon"><span class="icon-inline" data-icon="dollar-sign"></span></div>
+          <div><div class="benefit-title">Keep 100%</div><div class="benefit-desc">Zero platform usage fees — only standard Stripe processing (2.9% + 30¢ per transaction)</div></div>
         </div>
       </a>
       <a href="provider-info.html" class="benefit-link" style="text-decoration:none;color:inherit;">
         <div class="benefit">
-          <div class="benefit-icon">🛡️</div>
-          <div class="benefit-title">Guaranteed Payment</div>
-          <div class="benefit-desc">Escrow protection</div>
+          <div class="benefit-icon"><span class="icon-inline" data-icon="shield"></span></div>
+          <div><div class="benefit-title">Guaranteed Payment</div><div class="benefit-desc">Funds held in escrow till done</div></div>
         </div>
       </a>
       <a href="provider-info.html" class="benefit-link" style="text-decoration:none;color:inherit;">
         <div class="benefit">
-          <div class="benefit-icon">⭐</div>
-          <div class="benefit-title">Quality Customers</div>
-          <div class="benefit-desc">Vetted members</div>
+          <div class="benefit-icon"><span class="icon-inline" data-icon="star"></span></div>
+          <div><div class="benefit-title">Quality Customers</div><div class="benefit-desc">Vetted members</div></div>
         </div>
       </a>
       <a href="provider-info.html" class="benefit-link" style="text-decoration:none;color:inherit;">
         <div class="benefit">
-          <div class="benefit-icon">📈</div>
-          <div class="benefit-title">Grow Your Business</div>
-          <div class="benefit-desc">Fleet & recurring work</div>
+          <div class="benefit-icon"><span class="icon-inline" data-icon="trending-up"></span></div>
+          <div><div class="benefit-title">Grow Your Business</div><div class="benefit-desc">Fleet & recurring work</div></div>
+        </div>
+      </a>
+      <a href="car-club-provider.html" class="benefit-link" style="text-decoration:none;color:inherit;grid-column:1/-1;">
+        <div class="benefit" style="background:linear-gradient(135deg, rgba(52,211,153,0.08) 0%, rgba(201,162,39,0.1) 100%);border-color:rgba(52,211,153,0.3);padding:16px 20px;">
+          <div class="benefit-icon" style="font-size:24px;">🏆</div>
+          <div style="flex:1;">
+            <div class="benefit-title" style="font-size:0.95rem;color:var(--accent-green);">Your Customers Stay YOUR Customers</div>
+            <div class="benefit-desc" style="font-size:0.8rem;margin-top:2px;">Car Club loyalty program — build loyalty programs, earn free bids, keep your regulars. Your existing clients stay connected to you.</div>
+          </div>
+          <div style="font-size:0.75rem;color:var(--accent-gold);font-weight:600;white-space:nowrap;">Learn More →</div>
         </div>
       </a>
     </div>
     <p id="learn-more-link" style="text-align:center;margin-bottom:24px;"><a href="provider-info.html" style="color:var(--accent-gold);">Learn more about becoming a provider →</a></p>
 
     <div class="form-card">
+      <div id="step-progress-container"></div>
       <div class="step-indicator">
         <div class="step-dot active" data-step="1"></div>
         <div class="step-dot" data-step="2"></div>
         <div class="step-dot" data-step="3"></div>
-        <div class="step-dot" data-step="4"></div>
-        <div class="step-dot" data-step="5"></div>
-        <div class="step-dot" data-step="6"></div>
       </div>
 
       <div class="message" id="message"></div>
 
-      <!-- Step 1: Account -->
+      <!-- Step 1: Account & Business Info -->
       <div class="step active" id="step-1">
-        <h2 class="step-title" data-i18n="auth.createAccount">Create Your Account</h2>
-        <p class="step-subtitle">Let's start with your login credentials.</p>
+        <h2 class="step-title" data-i18n="auth.createAccount">Account & Business Info</h2>
+        <p class="step-subtitle">Set up your login and tell us about your business.</p>
 
         <div class="form-row">
           <div class="form-group">
@@ -328,16 +287,7 @@
         <input type="hidden" id="provider-referral-code" value="">
         <input type="hidden" id="provider-referral-id" value="">
 
-        <div class="form-nav">
-          <div></div>
-          <button class="btn btn-primary" onclick="nextStep(1)">Continue →</button>
-        </div>
-      </div>
-
-      <!-- Step 2: Business Info -->
-      <div class="step" id="step-2">
-        <h2 class="step-title">Business Information</h2>
-        <p class="step-subtitle">Tell us about your business.</p>
+        <hr style="border:none;border-top:1px solid var(--border-subtle);margin:28px 0 20px;">
 
         <div class="form-group">
           <label class="form-label"><span data-i18n="auth.businessName">Business Name</span> <span class="required">*</span></label>
@@ -454,15 +404,15 @@
         </div>
 
         <div class="form-nav">
-          <button class="btn btn-ghost" onclick="prevStep(2)">← Back</button>
-          <button class="btn btn-primary" onclick="nextStep(2)">Continue →</button>
+          <div></div>
+          <button class="btn btn-primary" onclick="nextStep(1)">Continue →</button>
         </div>
       </div>
 
-      <!-- Step 3: Services & Experience -->
-      <div class="step" id="step-3">
-        <h2 class="step-title">Services & Experience</h2>
-        <p class="step-subtitle">What services do you offer?</p>
+      <!-- Step 2: Services, Credentials & Reviews -->
+      <div class="step" id="step-2">
+        <h2 class="step-title">Services, Credentials & Reviews</h2>
+        <p class="step-subtitle">Tell us what you offer and verify your credentials.</p>
 
         <div class="form-section">
           <div class="form-section-title">Services Offered</div>
@@ -527,7 +477,7 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">🚗 Loaner Vehicle Program</div>
+          <div class="form-section-title"><span class="icon-inline" data-icon="car"></span> Loaner Vehicle Program</div>
           <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Do you offer loaner vehicles to customers while their car is being serviced? This is a big differentiator for members!</p>
           
           <div class="form-group">
@@ -580,7 +530,7 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">🚚 Pickup & Delivery Services</div>
+          <div class="form-section-title"><span class="icon-inline" data-icon="car"></span> Pickup & Delivery Services</div>
           <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Can you pick up and/or deliver vehicles? This is essential for the MCC concierge experience.</p>
           
           <div class="form-group">
@@ -616,21 +566,12 @@
           </div>
         </div>
 
-        <div class="form-nav">
-          <button class="btn btn-ghost" onclick="prevStep(3)">← Back</button>
-          <button class="btn btn-primary" onclick="nextStep(3)">Continue →</button>
-        </div>
-      </div>
-
-      <!-- Step 4: Credentials & Documents -->
-      <div class="step" id="step-4">
-        <h2 class="step-title">Credentials & Documents</h2>
-        <p class="step-subtitle">Upload your credentials for verification.</p>
+        <hr style="border:none;border-top:1px solid var(--border-subtle);margin:28px 0 20px;">
 
         <div class="form-section">
           <div class="form-section-title">Business License <span class="required">*</span></div>
           <label class="file-upload" id="upload-license">
-            <div class="file-upload-icon">📄</div>
+            <div class="file-upload-icon"><span class="icon-inline" data-icon="file-text"></span></div>
             <div class="file-upload-text">Click to upload business license</div>
             <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleFileUpload(this, 'license')">
           </label>
@@ -638,20 +579,17 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">Insurance Certificate <span class="required">*</span></div>
-          <label class="file-upload" id="upload-insurance">
-            <div class="file-upload-icon">🛡️</div>
-            <div class="file-upload-text">Click to upload liability insurance certificate</div>
-            <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleFileUpload(this, 'insurance')">
+          <div class="form-section-title">Insurance Acknowledgment <span class="required">*</span></div>
+          <label class="checkbox-item" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:16px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);">
+            <input type="checkbox" id="insurance-acknowledgment" style="margin-top:4px;min-width:18px;min-height:18px;accent-color:var(--accent-gold);">
+            <span style="font-size:0.92rem;line-height:1.5;color:var(--text-secondary);">I confirm that I maintain sufficient liability insurance coverage to conduct regular business operations for the services I provide. I understand that I am responsible for keeping my insurance current and adequate at all times while active on the My Car Concierge platform.</span>
           </label>
-          <div class="uploaded-files" id="files-insurance"></div>
-          <div class="form-hint">We require a minimum of $1,000,000 liability coverage.</div>
         </div>
 
         <div class="form-section">
           <div class="form-section-title">Certifications (optional but recommended)</div>
           <label class="file-upload" id="upload-certs">
-            <div class="file-upload-icon">🏆</div>
+            <div class="file-upload-icon"><span class="icon-inline" data-icon="trophy"></span></div>
             <div class="file-upload-text">Upload ASE, I-CAR, or other certifications</div>
             <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onchange="handleFileUpload(this, 'certs')">
           </label>
@@ -662,23 +600,14 @@
         <div class="form-section">
           <div class="form-section-title">Portfolio / Work Samples (optional)</div>
           <label class="file-upload" id="upload-portfolio">
-            <div class="file-upload-icon">📸</div>
+            <div class="file-upload-icon"><span class="icon-inline" data-icon="camera"></span></div>
             <div class="file-upload-text">Upload photos of your work (before/after)</div>
             <input type="file" accept=".jpg,.jpeg,.png" multiple onchange="handleFileUpload(this, 'portfolio')">
           </label>
           <div class="uploaded-files" id="files-portfolio"></div>
         </div>
 
-        <div class="form-nav">
-          <button class="btn btn-ghost" onclick="prevStep(4)">← Back</button>
-          <button class="btn btn-primary" onclick="nextStep(4)">Continue →</button>
-        </div>
-      </div>
-
-      <!-- Step 5: Reviews & References -->
-      <div class="step" id="step-5">
-        <h2 class="step-title">Reviews & References</h2>
-        <p class="step-subtitle">Help us verify your reputation.</p>
+        <hr style="border:none;border-top:1px solid var(--border-subtle);margin:28px 0 20px;">
 
         <div class="form-section">
           <div class="form-section-title">External Reviews</div>
@@ -748,84 +677,84 @@
         </div>
 
         <div class="form-nav">
-          <button class="btn btn-ghost" onclick="prevStep(5)">← Back</button>
-          <button class="btn btn-primary" onclick="nextStep(5)">Continue to Agreement →</button>
+          <button class="btn btn-ghost" onclick="prevStep(2)">← Back</button>
+          <button class="btn btn-primary" onclick="nextStep(2)">Continue to Agreement →</button>
         </div>
       </div>
 
-      <!-- Step 6: Legal Agreement -->
-      <div class="step" id="step-6">
-        <h2 class="step-title">Provider Service Agreement</h2>
-        <p class="step-subtitle">Please review and accept our terms to complete your application.</p>
+      <!-- Step 3: Legal Agreement -->
+      <div class="step" id="step-3">
+        <h2 class="step-title">Provider Partnership Agreement</h2>
+        <p class="step-subtitle">Review our partnership terms — we're here to help you grow your business.</p>
 
         <div class="agreement-container" style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:24px;max-height:400px;overflow-y:auto;margin-bottom:24px;font-size:0.9rem;line-height:1.7;">
-          <h3 style="margin-bottom:16px;color:var(--accent-gold);">MY CAR CONCIERGE PROVIDER SERVICE AGREEMENT</h3>
+          <h3 style="margin-bottom:16px;color:var(--accent-gold);">MY CAR CONCIERGE PROVIDER PARTNERSHIP AGREEMENT</h3>
           
           <p style="margin-bottom:16px;"><strong>Effective Date:</strong> Upon acceptance of this agreement</p>
           
-          <p style="margin-bottom:16px;">This Provider Service Agreement ("Agreement") is entered into between My Car Concierge, LLC ("MCC," "Company," "we," or "us") and the undersigned service provider ("Provider," "you," or "your").</p>
+          <p style="margin-bottom:16px;">This Provider Partnership Agreement ("Agreement") is entered into between My Car Concierge, LLC ("MCC," "Company," "we," or "us") and the undersigned service provider ("Provider," "you," or "your").</p>
 
-          <h4 style="margin:20px 0 12px;color:var(--text-primary);">1. PLATFORM EXCLUSIVITY & NON-CIRCUMVENTION</h4>
-          <p style="margin-bottom:12px;">1.1. <strong>Exclusive Engagement:</strong> You agree that all customer relationships initiated through the MCC platform shall be conducted exclusively through MCC for a period of twenty-four (24) months from the date of first contact.</p>
-          <p style="margin-bottom:12px;">1.2. <strong>Non-Circumvention:</strong> You explicitly agree NOT to:</p>
+          <p style="margin-bottom:16px;padding:16px;background:rgba(201, 162, 39, 0.08);border-left:3px solid var(--accent-gold);border-radius:4px;"><strong>Our mission is simple:</strong> MCC connects you with quality customers who need your expertise. We handle the marketing, booking, and payment processing so you can focus on what you do best — delivering great automotive service. Think of MCC as your customer acquisition partner, not a middleman.</p>
+
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">1. WHAT MCC PROVIDES YOU</h4>
+          <p style="margin-bottom:12px;">As an MCC provider, you receive:</p>
           <ul style="margin-left:24px;margin-bottom:12px;color:var(--text-secondary);">
-            <li>Solicit, contact, or conduct business with any MCC customer outside of the MCC platform</li>
-            <li>Provide your personal contact information, business address, phone number, email, or social media to MCC customers for the purpose of conducting business outside MCC</li>
-            <li>Accept payment from MCC customers outside of the MCC payment system</li>
-            <li>Encourage, suggest, or facilitate any transaction that bypasses MCC</li>
-            <li>Offer discounts or incentives for customers to contact you directly</li>
+            <li>Access to a growing base of verified vehicle owners actively seeking services</li>
+            <li>A professional provider profile with ratings and reviews that build your reputation</li>
+            <li>Secure payment processing with escrow protection for both you and the customer</li>
+            <li>Booking management, appointment scheduling, and customer communication tools</li>
+            <li>Exposure to customers you might not reach through your own marketing</li>
           </ul>
-          <p style="margin-bottom:12px;">1.3. <strong>Anonymous Operation:</strong> You understand and agree that your identity will be anonymized on the platform. Members will see only your MCC-assigned provider alias (e.g., "AutoPro #XXXX") and aggregated ratings. Your actual business name and contact information will not be disclosed to members.</p>
+          <p style="margin-bottom:12px;">You are free to operate your own business independently. MCC is a tool to help you grow — not a restriction on how you run your shop.</p>
 
-          <h4 style="margin:20px 0 12px;color:var(--text-primary);">2. PENALTIES FOR VIOLATION</h4>
-          <p style="margin-bottom:12px;">2.1. <strong>Monetary Damages:</strong> Any violation of Section 1 shall result in liquidated damages of:</p>
-          <ul style="margin-left:24px;margin-bottom:12px;color:var(--text-secondary);">
-            <li>The greater of $500 or three times (3x) the MCC platform fee that would have been earned on the circumvented transaction</li>
-            <li>Plus 200% of any revenue generated from circumvented transactions</li>
-            <li>Plus all legal fees and costs incurred by MCC in enforcement</li>
-          </ul>
-          <p style="margin-bottom:12px;">2.2. <strong>Immediate Termination:</strong> Any violation shall result in immediate and permanent termination of your provider account with forfeiture of any pending payments.</p>
-          <p style="margin-bottom:12px;">2.3. <strong>Legal Action:</strong> MCC reserves the right to pursue all available legal remedies, including but not limited to injunctive relief, actual damages, and statutory damages under applicable unfair business practices laws.</p>
-          <p style="margin-bottom:12px;">2.4. <strong>Industry Reporting:</strong> Violations may be reported to relevant industry associations, licensing boards, and business rating services.</p>
-          <p style="margin-bottom:12px;">2.5. <strong>Member Reporting Incentive:</strong> You acknowledge that MCC offers financial incentives to members who report circumvention attempts. Members who provide evidence of a provider attempting to conduct business outside the MCC platform may receive a reward of up to 25% of any damages recovered from the violating provider. This incentive program is designed to protect the integrity of the platform and you agree not to contest any such rewards paid to reporting members.</p>
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">2. PLATFORM-BOOKED JOBS</h4>
+          <p style="margin-bottom:12px;">2.1. <strong>Complete What You Start:</strong> Jobs that are booked and paid for through MCC should be completed and managed through the MCC platform. This ensures both you and the customer have payment protection, communication records, and dispute resolution support.</p>
+          <p style="margin-bottom:12px;">2.2. <strong>Fair Use:</strong> We ask that you not redirect MCC customers to pay outside the platform for jobs that originated on MCC. This is how we keep the lights on and continue sending you new business.</p>
+          <p style="margin-bottom:12px;">2.3. <strong>Your Business Is Yours:</strong> Nothing in this Agreement prevents you from serving your own customers, advertising your business, working with other platforms, or building relationships in your community. MCC only applies to jobs booked through our platform.</p>
 
-          <h4 style="margin:20px 0 12px;color:var(--text-primary);">3. MONITORING & ENFORCEMENT</h4>
-          <p style="margin-bottom:12px;">3.1. You acknowledge that MCC monitors platform communications and may investigate suspected violations.</p>
-          <p style="margin-bottom:12px;">3.2. You agree to cooperate fully with any investigation into potential circumvention.</p>
-          <p style="margin-bottom:12px;">3.3. MCC may use technology, customer feedback, and other methods to detect circumvention attempts.</p>
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">3. PAYMENTS</h4>
+          <p style="margin-bottom:12px;">3.1. There are no platform fees. You keep 100% of what you earn on completed jobs.</p>
+          <p style="margin-bottom:12px;">3.2. Payments are held in escrow until the customer confirms the job is complete, protecting both parties.</p>
+          <p style="margin-bottom:12px;">3.3. Your earnings are processed within 3–5 business days after the customer approves the completed work.</p>
 
-          <h4 style="margin:20px 0 12px;color:var(--text-primary);">4. COMMISSION & PAYMENT TERMS</h4>
-          <p style="margin-bottom:12px;">4.1. MCC charges a platform fee of 7.5% on all completed transactions.</p>
-          <p style="margin-bottom:12px;">4.2. Payments are held in escrow until job completion is confirmed by the customer.</p>
-          <p style="margin-bottom:12px;">4.3. Provider payments are processed within 3-5 business days of release from escrow.</p>
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">4. BUILDING YOUR REPUTATION</h4>
+          <p style="margin-bottom:12px;">4.1. Every job you complete on MCC builds your provider profile with verified reviews and ratings from real customers.</p>
+          <p style="margin-bottom:12px;">4.2. Providers with strong ratings earn priority placement, trust badges, and increased visibility to new customers.</p>
+          <p style="margin-bottom:12px;">4.3. We encourage you to deliver your best work — great reviews mean more customers finding you through MCC.</p>
 
           <h4 style="margin:20px 0 12px;color:var(--text-primary);">5. SERVICE STANDARDS</h4>
-          <p style="margin-bottom:12px;">5.1. You agree to maintain all required licenses, insurance, and certifications.</p>
+          <p style="margin-bottom:12px;">5.1. You agree to maintain all required licenses, insurance, and certifications for the services you offer.</p>
           <p style="margin-bottom:12px;">5.2. You agree to provide services in a professional, timely, and workmanlike manner.</p>
-          <p style="margin-bottom:12px;">5.3. You agree to communicate promptly and professionally with customers through the MCC platform.</p>
+          <p style="margin-bottom:12px;">5.3. You agree to communicate promptly and professionally with customers through the MCC platform for platform-booked jobs.</p>
+          <p style="margin-bottom:12px;">5.4. Providers who maintain strong ratings demonstrate the quality that keeps MCC members coming back to your services.</p>
 
-          <h4 style="margin:20px 0 12px;color:var(--text-primary);">6. TERM & TERMINATION</h4>
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">6. ACCOUNT & TERMINATION</h4>
           <p style="margin-bottom:12px;">6.1. This Agreement remains in effect for as long as you maintain an active provider account.</p>
-          <p style="margin-bottom:12px;">6.2. The non-circumvention obligations in Section 1 survive termination for twenty-four (24) months.</p>
+          <p style="margin-bottom:12px;">6.2. <strong>You can leave anytime.</strong> If MCC isn't working for you, you can deactivate your account after completing any in-progress jobs. There are no long-term commitments or exit penalties.</p>
+          <p style="margin-bottom:12px;">6.3. MCC may suspend or terminate accounts for serious issues such as fraud, safety concerns, repeated customer complaints, or failure to maintain required credentials.</p>
+          <p style="margin-bottom:12px;">6.4. Upon termination, any completed jobs will be paid out as normal. We don't hold your earned money.</p>
 
-          <h4 style="margin:20px 0 12px;color:var(--text-primary);">7. GOVERNING LAW & DISPUTE RESOLUTION</h4>
-          <p style="margin-bottom:12px;">7.1. This Agreement shall be governed by the laws of the State of New Jersey.</p>
-          <p style="margin-bottom:12px;">7.2. Any disputes shall be resolved through binding arbitration in Essex County, New Jersey.</p>
-          <p style="margin-bottom:12px;">7.3. The prevailing party in any dispute shall be entitled to recover reasonable attorney's fees.</p>
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">7. LIABILITY & RESPONSIBILITY</h4>
+          <p style="margin-bottom:12px;">7.1. You are responsible for the quality and safety of the services you provide. MCC connects customers with providers but does not supervise or guarantee the work performed.</p>
+          <p style="margin-bottom:12px;">7.2. You agree to carry appropriate insurance for your trade and maintain compliance with all applicable laws and regulations.</p>
 
-          <h4 style="margin:20px 0 12px;color:var(--text-primary);">8. ACKNOWLEDGMENT</h4>
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">8. GOVERNING LAW</h4>
+          <p style="margin-bottom:12px;">8.1. This Agreement shall be governed by the laws of the State of New Jersey.</p>
+          <p style="margin-bottom:12px;">8.2. We prefer to resolve disagreements through direct conversation first. If we can't work it out, disputes will be resolved through arbitration in Essex County, New Jersey.</p>
+
+          <h4 style="margin:20px 0 12px;color:var(--text-primary);">9. ACKNOWLEDGMENT</h4>
           <p style="margin-bottom:12px;">By signing below, you acknowledge that:</p>
           <ul style="margin-left:24px;margin-bottom:12px;color:var(--text-secondary);">
-            <li>You have read and understand this entire Agreement</li>
-            <li>You have had the opportunity to consult with legal counsel</li>
+            <li>You have read and understand this Agreement</li>
             <li>You are entering into this Agreement voluntarily</li>
-            <li>You understand the serious consequences of violating this Agreement</li>
+            <li>You understand MCC is a customer acquisition tool designed to help grow your business</li>
+            <li>You agree to complete platform-booked jobs through the MCC platform</li>
           </ul>
         </div>
 
         <!-- Scroll indicator -->
         <div style="text-align:center;padding:16px;background:var(--accent-gold-soft);border:1px solid var(--accent-gold);border-radius:var(--radius-md);margin-bottom:20px;">
-          <span style="font-size:24px;">👇</span>
+          <span style="font-size:24px;"><span class="icon-inline" data-icon="chevron-right"></span></span>
           <p style="color:var(--accent-gold);font-weight:600;margin:8px 0 0 0;">Scroll down to sign the agreement</p>
         </div>
 
@@ -855,27 +784,22 @@
           <div class="agreement-checkboxes" style="margin-top:20px;">
             <label style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;cursor:pointer;">
               <input type="checkbox" id="agree-read" style="width:20px;height:20px;min-width:20px;cursor:pointer;accent-color:var(--accent-gold);margin-top:2px;">
-              <span>I have read and understand the entire Provider Service Agreement above</span>
+              <span>I have read and understand the Provider Partnership Agreement above</span>
             </label>
 
             <label style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;cursor:pointer;">
               <input type="checkbox" id="agree-circumvention" style="width:20px;height:20px;min-width:20px;cursor:pointer;accent-color:var(--accent-gold);margin-top:2px;">
-              <span>I understand that circumventing the MCC platform is strictly prohibited and will result in legal action and monetary penalties</span>
-            </label>
-
-            <label style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;cursor:pointer;">
-              <input type="checkbox" id="agree-anonymous" style="width:20px;height:20px;min-width:20px;cursor:pointer;accent-color:var(--accent-gold);margin-top:2px;">
-              <span>I understand my identity will be anonymized and I will not attempt to reveal my identity to MCC customers</span>
+              <span>I agree to complete platform-booked jobs through My Car Concierge</span>
             </label>
 
             <label style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;cursor:pointer;">
               <input type="checkbox" id="agree-binding" style="width:20px;height:20px;min-width:20px;cursor:pointer;accent-color:var(--accent-gold);margin-top:2px;">
-              <span>I understand this is a legally binding agreement and my electronic signature has the same legal effect as a handwritten signature</span>
+              <span>I understand this is a binding agreement and my electronic signature has the same legal effect as a handwritten signature</span>
             </label>
 
             <label style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);cursor:pointer;">
               <input type="checkbox" id="agree-terms" required style="width:20px;height:20px;min-width:20px;cursor:pointer;accent-color:var(--accent-gold);margin-top:2px;">
-              <span>I agree to the <a href="/terms.html" target="_blank" style="color:var(--accent-gold)">Terms of Service</a>, <a href="/privacy.html" target="_blank" style="color:var(--accent-gold)">Privacy Policy</a>, and this Provider Service Agreement <span style="color: var(--accent-gold);">*</span></span>
+              <span>I agree to the <a href="/terms.html" target="_blank" style="color:var(--accent-gold)">Terms of Service</a>, <a href="/privacy.html" target="_blank" style="color:var(--accent-gold)">Privacy Policy</a>, and this Provider Partnership Agreement <span style="color: var(--accent-gold);">*</span></span>
             </label>
           </div>
         </div>
@@ -890,7 +814,7 @@
         </div>
 
         <div class="form-nav">
-          <button class="btn btn-ghost" onclick="prevStep(6)">← Back</button>
+          <button class="btn btn-ghost" onclick="prevStep(3)">← Back</button>
           <button id="submit-btn" class="btn btn-primary" onclick="submitApplication()">Sign & Submit Application</button>
         </div>
       </div>
@@ -898,12 +822,12 @@
       <!-- Success Screen -->
       <div class="step" id="step-success">
         <div class="success-screen">
-          <div class="success-icon">🎉</div>
+          <div class="success-icon"><span class="icon-inline" data-icon="party-popper"></span></div>
           <h2 class="success-title">Welcome to My Car Concierge!</h2>
           <h3 style="color:var(--accent-gold);margin-bottom:16px;">You're Approved!</h3>
           <p class="success-text">Congratulations! Your provider account is now active.</p>
           <div style="background:var(--accent-gold-soft);border:1px solid var(--accent-gold);border-radius:var(--radius-md);padding:20px;margin:24px 0;text-align:center;">
-            <p style="font-size:1.1rem;margin-bottom:8px;"><strong>🎟️ You have 3 FREE bids to get started!</strong></p>
+            <p style="font-size:1.1rem;margin-bottom:8px;"><strong><span class="icon-inline" data-icon="ticket"></span> You have 3 FREE bids to get started!</strong></p>
             <p style="color:var(--text-secondary);font-size:0.9rem;">Use them to bid on service requests and win your first jobs.</p>
           </div>
           <div style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;margin:24px 0;text-align:left;">
@@ -922,19 +846,6 @@
       </div>
     </div>
 
-    <!-- Sign in with Apple Option -->
-    <div class="social-signin-section">
-      <div class="social-divider">
-        <span data-i18n="auth.orContinueWith">or continue with</span>
-      </div>
-      <button type="button" class="btn-apple-signin" id="apple-signin-btn" onclick="signInWithApple()">
-        <svg class="apple-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-          <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-        </svg>
-        <span data-i18n="auth.continueWithApple">Continue with Apple</span>
-      </button>
-    </div>
-
     <div class="footer">
       <span data-i18n="auth.hasAccount">Already have an account?</span> <a href="login.html" data-i18n="auth.signIn">Sign in</a>
     </div>
@@ -948,6 +859,7 @@
   <script src="supabaseclient.js"></script>
   <script src="signup-provider.js"></script>
   <script src="/footer.js"></script>
+  <script src="/utils.js"></script>
   <script src="/pwa-init.js?v=20260202"></script>
   <script>
     function toggleTheme() {
@@ -958,50 +870,26 @@
       html.setAttribute('data-theme', newTheme);
       localStorage.setItem('theme', newTheme);
       const icon = document.querySelector('.theme-icon');
-      if (icon) icon.textContent = newTheme === 'dark' ? '🔦' : '🌙';
+      if (icon) icon.innerHTML = newTheme === 'dark' ? '<span class="icon-inline" data-icon="sun"></span>' : '<span class="icon-inline" data-icon="moon"></span>';
       const metaTheme = document.querySelector('meta[name="theme-color"]');
       if (metaTheme) metaTheme.content = newTheme === 'dark' ? '#12161c' : '#ffffff';
       setTimeout(() => html.classList.remove('theme-transition'), 300);
     }
     document.addEventListener('DOMContentLoaded', async () => {
       const icon = document.querySelector('.theme-icon');
-      if (icon) icon.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '🔦' : '🌙';
+      if (icon) icon.innerHTML = document.documentElement.getAttribute('data-theme') === 'dark' ? '<span class="icon-inline" data-icon="sun"></span>' : '<span class="icon-inline" data-icon="moon"></span>';
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
     });
 
-    async function signInWithApple() {
-      const appleBtn = document.getElementById('apple-signin-btn');
-      if (appleBtn) {
-        appleBtn.disabled = true;
-        appleBtn.innerHTML = '<span class="spinner"></span>Connecting...';
-      }
-      
-      try {
-        const { data, error } = await supabaseClient.auth.signInWithOAuth({
-          provider: 'apple',
-          options: {
-            redirectTo: window.location.origin + '/login.html?oauth=apple',
-            scopes: 'name email'
-          }
-        });
-        
-        if (error) {
-          console.error('Apple Sign In error:', error);
-          if (appleBtn) {
-            appleBtn.disabled = false;
-            appleBtn.innerHTML = '<svg class="apple-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg><span data-i18n="auth.continueWithApple">Continue with Apple</span>';
-          }
-        }
-        // If successful, user will be redirected to Apple
-      } catch (err) {
-        console.error('Apple Sign In exception:', err);
-        if (appleBtn) {
-          appleBtn.disabled = false;
-          appleBtn.innerHTML = '<svg class="apple-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg><span data-i18n="auth.continueWithApple">Continue with Apple</span>';
-        }
-      }
-    }
+  </script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
   </script>
 </body>
 </html>

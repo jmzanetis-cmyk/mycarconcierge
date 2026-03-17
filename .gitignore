@@ -6,3 +6,6 @@ node_modules
 # Playwright
 .playwright
 test-results
+
+# Replit attached assets (scratch files, not for repo)
+attached_assets/

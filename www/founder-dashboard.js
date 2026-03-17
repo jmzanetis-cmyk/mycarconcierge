@@ -1238,6 +1238,7 @@
       if (linkEl) linkEl.textContent = personalUrl;
       const investEl = document.getElementById('wefunder-invest-link');
       if (investEl) investEl.href = personalUrl;
+      loadWefunderClickStats().catch(() => {});
 
       try {
         const res = await fetch('/api/wefunder/stats');
@@ -1289,7 +1290,28 @@
     function getPersonalWefunderLink() {
       const code = founderProfile?.referral_code || founderProfile?.id || '';
       if (!code) return 'https://wefunder.com/my.car.concierge';
-      return `https://wefunder.com/my.car.concierge?utm_source=mcc_founder&utm_medium=referral&utm_campaign=wefunder&utm_content=${encodeURIComponent(code)}`;
+      return `${window.location.origin}/api/founder/campaign-link?code=${encodeURIComponent(code)}`;
+    }
+
+    async function loadWefunderClickStats() {
+      const code = founderProfile?.referral_code || founderProfile?.id || '';
+      if (!code) return;
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const res = await fetch(`/api/founder/campaign-link-stats?code=${encodeURIComponent(code)}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const statsEl = document.getElementById('wefunder-click-stats');
+        const totalEl = document.getElementById('wefunder-click-total');
+        const weekEl = document.getElementById('wefunder-click-7d');
+        if (statsEl && totalEl && weekEl) {
+          totalEl.textContent = data.total_clicks || 0;
+          weekEl.textContent = data.clicks_last_7d || 0;
+          statsEl.style.display = 'block';
+        }
+      } catch {}
     }
 
     function copyWefunderLink() {
