@@ -32663,6 +32663,11 @@ Return ONLY the JSON array, no other text.`;
         req.on('end', async () => {
           try {
             const { action, notes } = JSON.parse(body || '{}');
+            if (!['approve', 'override'].includes(action)) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'action must be approve or override' }));
+              return;
+            }
             const { error } = await supabase.from('ai_escalations').update({
               status: action === 'approve' ? 'approved' : 'overridden',
               admin_decision: action,

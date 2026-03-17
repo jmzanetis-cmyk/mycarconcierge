@@ -32611,6 +32611,7 @@ Return ONLY the JSON array, no other text.`;
         let body = ''; req.on('data', c => { body += c.toString(); }); req.on('end', async () => {
           try {
             const { action, notes } = JSON.parse(body || '{}');
+            if (!['approve', 'override'].includes(action)) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'action must be approve or override' })); return; }
             const { error } = await supabase.from('ai_escalations').update({ status: action === 'approve' ? 'approved' : 'overridden', admin_decision: action, admin_notes: notes || '', resolved_at: new Date().toISOString() }).eq('id', escId);
             if (error) throw error; res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true }));
           } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
