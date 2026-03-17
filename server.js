@@ -37040,25 +37040,25 @@ async function createAiOpsTablesIfNeeded() {
   try {
     const { error: logErr } = await supabase.from('ai_action_log').select('id').limit(1);
     if (logErr && (logErr.code === '42P01' || logErr.message?.includes('does not exist'))) {
-      await supabase.rpc('exec_sql', { sql: `CREATE TABLE IF NOT EXISTS ai_action_log (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), module text NOT NULL, action_type text, target_id text, decision jsonb, confidence float DEFAULT 0, auto_executed boolean DEFAULT false, escalated boolean DEFAULT false, outcome text DEFAULT 'pending', error_details text, execution_time_ms int DEFAULT 0, created_at timestamptz DEFAULT now()); CREATE INDEX IF NOT EXISTS ai_action_log_module_idx ON ai_action_log(module); CREATE INDEX IF NOT EXISTS ai_action_log_created_idx ON ai_action_log(created_at DESC);` });
+      await supabase.rpc('exec_sql', { query: `CREATE TABLE IF NOT EXISTS ai_action_log (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), module text NOT NULL, action_type text, target_id text, decision jsonb, confidence float DEFAULT 0, auto_executed boolean DEFAULT false, escalated boolean DEFAULT false, outcome text DEFAULT 'pending', error_details text, execution_time_ms int DEFAULT 0, created_at timestamptz DEFAULT now()); CREATE INDEX IF NOT EXISTS ai_action_log_module_idx ON ai_action_log(module); CREATE INDEX IF NOT EXISTS ai_action_log_created_idx ON ai_action_log(created_at DESC);` });
     }
   } catch {}
   try {
     const { error: escErr } = await supabase.from('ai_escalations').select('id').limit(1);
     if (escErr && (escErr.code === '42P01' || escErr.message?.includes('does not exist'))) {
-      await supabase.rpc('exec_sql', { sql: `CREATE TABLE IF NOT EXISTS ai_escalations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), module text NOT NULL, target_id text, recommendation jsonb, confidence float DEFAULT 0, status text DEFAULT 'pending', admin_decision text, admin_notes text, resolved_at timestamptz, created_at timestamptz DEFAULT now()); CREATE INDEX IF NOT EXISTS ai_escalations_status_idx ON ai_escalations(status);` });
+      await supabase.rpc('exec_sql', { query: `CREATE TABLE IF NOT EXISTS ai_escalations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), module text NOT NULL, target_id text, recommendation jsonb, confidence float DEFAULT 0, status text DEFAULT 'pending', admin_decision text, admin_notes text, resolved_at timestamptz, created_at timestamptz DEFAULT now()); CREATE INDEX IF NOT EXISTS ai_escalations_status_idx ON ai_escalations(status);` });
     }
   } catch {}
   try {
     const { error: digErr } = await supabase.from('ai_daily_digests').select('id').limit(1);
     if (digErr && (digErr.code === '42P01' || digErr.message?.includes('does not exist'))) {
-      await supabase.rpc('exec_sql', { sql: `CREATE TABLE IF NOT EXISTS ai_daily_digests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), date date UNIQUE NOT NULL, narrative text, stats jsonb, sent_sms boolean DEFAULT false, created_at timestamptz DEFAULT now());` });
+      await supabase.rpc('exec_sql', { query: `CREATE TABLE IF NOT EXISTS ai_daily_digests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), date date UNIQUE NOT NULL, narrative text, stats jsonb, sent_sms boolean DEFAULT false, created_at timestamptz DEFAULT now());` });
     }
   } catch {}
   try {
     const { error: setErr } = await supabase.from('ai_ops_settings').select('key').limit(1);
     if (setErr && (setErr.code === '42P01' || setErr.message?.includes('does not exist'))) {
-      await supabase.rpc('exec_sql', { sql: `CREATE TABLE IF NOT EXISTS ai_ops_settings (key text PRIMARY KEY, value text, updated_at timestamptz DEFAULT now());` });
+      await supabase.rpc('exec_sql', { query: `CREATE TABLE IF NOT EXISTS ai_ops_settings (key text PRIMARY KEY, value text, updated_at timestamptz DEFAULT now());` });
     }
     const { data: settingsRows } = await supabase.from('ai_ops_settings').select('key,value');
     if (settingsRows) {
