@@ -1012,16 +1012,16 @@
         if (data.user) {
           userId = data.user.id;
 
-          const { error: profileError } = await supabaseClient.from('profiles').insert({
+          const { error: profileError } = await supabaseClient.from('profiles').upsert({
             id: userId,
             email: formData.email,
             role: 'member',
             full_name: formData.name,
             phone: formData.phone || null,
             sms_consent: formData.smsConsent || false
-          });
+          }, { onConflict: 'id' });
 
-          if (profileError) console.error('Profile insert error:', profileError);
+          if (profileError) console.error('Profile upsert error:', profileError);
 
           if (formData.referral) {
             try {

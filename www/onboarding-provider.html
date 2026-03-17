@@ -1362,7 +1362,7 @@
         if (data.user) {
           userId = data.user.id;
 
-          const { error: profileError } = await supabaseClient.from('profiles').insert({
+          const { error: profileError } = await supabaseClient.from('profiles').upsert({
             id: userId,
             email: formData.email,
             role: 'pending_provider',
@@ -1374,9 +1374,9 @@
             state: formData.state,
             services_offered: formData.services,
             free_trial_bids: 1
-          });
+          }, { onConflict: 'id' });
 
-          if (profileError) console.error('Profile insert error:', profileError);
+          if (profileError) console.error('Profile upsert error:', profileError);
 
           const { data: appData, error: appError } = await supabaseClient.from('provider_applications').insert({
             user_id: userId,

@@ -11749,29 +11749,39 @@ async function handleHelpdeskRequest(req, res, requestId) {
       ];
 
       let reply;
+      let usedProvider = null;
       if (process.env.ANTHROPIC_API_KEY) {
-        const anthropicResponse = await anthropicClient.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 600,
-          system: systemPrompt,
-          messages: messages
-        });
-        reply = anthropicResponse.content && anthropicResponse.content[0] && anthropicResponse.content[0].text
-          ? anthropicResponse.content[0].text
-          : 'I apologize, but I was unable to generate a response.';
-      } else {
-        const openaiMessages = [
-          { role: 'system', content: systemPrompt },
-          ...messages
-        ];
-        const openaiResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: openaiMessages,
-          max_completion_tokens: 600,
-          temperature: 0.4,
-        });
-        reply = openaiResponse.choices[0]?.message?.content || 'I apologize, but I was unable to generate a response.';
+        try {
+          const anthropicResponse = await anthropicClient.messages.create({
+            model: 'claude-opus-4-5',
+            max_tokens: 600,
+            system: systemPrompt,
+            messages: messages
+          });
+          reply = anthropicResponse.content && anthropicResponse.content[0] && anthropicResponse.content[0].text
+            ? anthropicResponse.content[0].text
+            : null;
+          if (reply) usedProvider = 'anthropic';
+        } catch (anthropicErr) {
+          console.warn(`[${requestId}] Anthropic helpdesk error, falling back to Gemini:`, anthropicErr.message);
+        }
       }
+      if (!reply && geminiClient) {
+        try {
+          const geminiModel = geminiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
+          const fullPrompt = `${systemPrompt}\n\nConversation history:\n${messages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n')}\n\nPlease respond to the latest user message.`;
+          const geminiResponse = await geminiModel.generateContent(fullPrompt);
+          reply = geminiResponse.response.text();
+          if (reply) usedProvider = 'gemini';
+        } catch (geminiErr) {
+          console.warn(`[${requestId}] Gemini helpdesk error:`, geminiErr.message);
+        }
+      }
+      if (!reply) {
+        reply = 'I apologize, but I was unable to generate a response at this time. Please try again.';
+      }
+      console.log(`[${requestId}] Helpdesk request (mode: ${mode}, provider: ${usedProvider || 'none'})`);
+
 
       history.push({ role: 'user', content: sanitizedMessage });
       history.push({ role: 'assistant', content: reply });
@@ -11780,7 +11790,6 @@ async function handleHelpdeskRequest(req, res, requestId) {
         history.splice(0, 2);
       }
 
-      console.log(`[${requestId}] Helpdesk request completed (mode: ${mode})`);
       res.writeHead(200, { 
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache'
