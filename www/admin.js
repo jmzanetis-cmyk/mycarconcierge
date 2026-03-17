@@ -508,9 +508,9 @@
           supabaseClient.from('provider_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved'),
           supabaseClient.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
-          supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open').catch(() => ({ count: 0 })),
-          supabaseClient.from('violation_reports').select('*', { count: 'exact', head: true }).eq('status', 'pending').catch(() => ({ count: 0 })),
-          supabaseClient.from('completed_activity_reviews').select('*', { count: 'exact', head: true }).eq('status', 'pending').catch(() => ({ count: 0 })),
+          Promise.resolve(supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open')).catch(() => ({ count: 0 })),
+          Promise.resolve(supabaseClient.from('violation_reports').select('*', { count: 'exact', head: true }).eq('status', 'pending')).catch(() => ({ count: 0 })),
+          Promise.resolve(supabaseClient.from('completed_activity_reviews').select('*', { count: 'exact', head: true }).eq('status', 'pending')).catch(() => ({ count: 0 })),
           supabaseClient.from('pilot_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('member_founder_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('founder_payouts').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -1766,7 +1766,7 @@
           supabaseClient.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
           supabaseClient.from('payments').select('amount_mcc_fee').eq('status', 'released'),
           supabaseClient.from('maintenance_packages').select('*', { count: 'exact', head: true }).in('status', ['open', 'accepted', 'in_progress']),
-          supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open').catch(() => ({ count: 0 }))
+          Promise.resolve(supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open')).catch(() => ({ count: 0 }))
         ]);
 
         document.getElementById('stat-pending-apps').textContent = pendingAppsCount || 0;
