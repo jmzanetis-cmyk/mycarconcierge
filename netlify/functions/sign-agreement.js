@@ -298,13 +298,16 @@ exports.handler = async function(event) {
     var business_name = data.business_name;
     var ein_last4 = data.ein_last4;
     var email = data.email;
+    var country = data.country;
+    var role_scope = data.role_scope;
+    var website = data.website;
     var signature_data = data.signature_data;
     var signature_type = data.signature_type;
     var acknowledgments = data.acknowledgments;
     var user_id = data.user_id;
 
     var MAX_SIGNATURE_SIZE = 500000;
-    var VALID_AGREEMENT_TYPES = ['founding_partner', 'member_founder', 'provider', 'founding_provider_chris_agrapidis'];
+    var VALID_AGREEMENT_TYPES = ['founding_partner', 'member_founder', 'provider', 'founding_provider_chris_agrapidis', 'contractor', 'designer'];
     var VALID_SIGNATURE_TYPES = ['draw', 'type'];
 
     if (!agreement_type || !full_name || !signature_data) {
@@ -351,6 +354,10 @@ exports.handler = async function(event) {
       business_name: business_name ? business_name.trim() : null,
       signature_data: signature_data,
       ein_last4: ein_last4 || null,
+      country: country ? String(country).trim().substring(0, 255) : null,
+      role_scope: role_scope ? String(role_scope).trim().substring(0, 255) : null,
+      email: email ? String(email).trim().substring(0, 255) : null,
+      website: website ? String(website).trim().substring(0, 500) : null,
       signed_at: signedDate,
       ip_address: ip_address,
       user_agent: user_agent,
