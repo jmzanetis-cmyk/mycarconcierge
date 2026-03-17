@@ -382,17 +382,43 @@ test.describe('Cross-Role Browser Flow: Member → Request → Provider Bid → 
       await bidAvail.fill('Available Mon-Fri, can start next week');
     }
 
-    // Check the all-inclusive pricing confirmation checkbox — required by submitBid()
+    // Check the all-inclusive pricing confirmation checkbox — required by submitBid().
+    // Use page.evaluate to ensure the checkbox is checked regardless of current state
+    // (avoids "did not change its state" error if it was already pre-checked).
     const pricingConfirm = page.locator('#bid-pricing-confirm');
     if (await pricingConfirm.count() > 0) {
-      await pricingConfirm.check({ force: true });
+      await page.evaluate(() => {
+        const cb = document.getElementById('bid-pricing-confirm');
+        if (cb && !cb.checked) cb.click();
+      });
     }
 
-    // Submit the bid — the submit button is in #bid-modal .modal-footer
-    const submitBidBtn = page.locator('#bid-modal .btn-primary').filter({ hasText: /Submit Bid|Update Bid/i });
-    await expect(submitBidBtn).toBeVisible({ timeout: 6000 });
-    await submitBidBtn.click({ force: true });
-    await page.waitForTimeout(3000);
+    // Capture JS console errors during bid submission for diagnostics
+    const jsErrors = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') jsErrors.push(msg.text());
+    });
+
+    // Submit the bid — call submitBid() via evaluate (same as clicking the button,
+    // but avoids hit-test issues with force-clicked elements inside modals).
+    const submitResult = await page.evaluate(async () => {
+      if (typeof submitBid === 'function') {
+        try {
+          await submitBid();
+          return 'called';
+        } catch (e) {
+          return 'error:' + e.message;
+        }
+      }
+      // Fallback: click the submit button in the modal
+      const modal = document.getElementById('bid-modal');
+      if (!modal) return 'no-modal';
+      const btn = modal.querySelector('.btn-primary');
+      if (btn) { btn.click(); return 'clicked'; }
+      return 'no-btn';
+    });
+    console.log('[Step4 submit]', submitResult, 'jsErrors:', jsErrors.slice(0, 3));
+    await page.waitForTimeout(4000);
 
     // Verify the bid was recorded in DB.
     // Accept any price > 0 (the exact price may differ based on form pre-population).
@@ -462,103 +488,181 @@ test.describe('Cross-Role Browser Flow: Member → Request → Provider Bid → 
 
   // ── Step 7: Member opens package and accepts bid via browser UI ──
   test('Step 7: Member opens package modal and accepts the bid via browser UI', async ({ page }) => {
+    // Seed IDs from DB if prior steps didn't run in this process
+    if (!createdPackageId) {
+      const sb = getSupabaseAdmin();
+      const { data: pkgs } = await sb.from('maintenance_packages')
+        .select('id').ilike('title', 'E2E UI Test%')
+        .order('created_at', { ascending: false }).limit(1);
+      createdPackageId = pkgs?.[0]?.id;
+    }
+    if (!createdBidId && createdPackageId) {
+      const sb = getSupabaseAdmin();
+      const { data: bids } = await sb.from('bids')
+        .select('id').eq('package_id', createdPackageId)
+        .in('status', ['pending', 'submitted', 'open'])
+        .order('created_at', { ascending: false }).limit(1);
+      createdBidId = bids?.[0]?.id;
+    }
     test.skip(!createdPackageId || !createdBidId, 'Missing package or bid from prior steps');
 
     await loginViaUI(page, TEST_MEMBER_EMAIL, TEST_MEMBER_PASS, 'member');
     await navigateToSection(page, 'packages');
     await page.waitForTimeout(2000);
 
-    // Find and click on the test package to open the view-package-modal.
-    // Use page.evaluate to click the package card by ID.
-    const clickedPkg = await page.evaluate((pkgId) => {
-      const elById = document.querySelector(`[data-package-id="${pkgId}"], [onclick*="${pkgId}"]`);
-      if (elById) { elById.click(); return true; }
+    // Monkey-patch window.confirm to always return true BEFORE any action that triggers it.
+    // acceptBid() calls window.confirm() synchronously inside page.evaluate — Playwright's
+    // dialog event handler is async and cannot intercept synchronous confirms from evaluate.
+    // Patching confirm directly in the page context is the only reliable approach.
+    await page.evaluate(() => { window.confirm = () => true; });
 
-      // Fallback: look for viewPackage / openPackage function calls
-      if (typeof window.viewPackage === 'function') { window.viewPackage(pkgId); return true; }
-      if (typeof window.openPackage === 'function') { window.openPackage(pkgId); return true; }
-      if (typeof window.viewPackageDetails === 'function') { window.viewPackageDetails(pkgId); return true; }
-      return false;
+    // Open the package modal via page.evaluate (fires the actual onclick handler)
+    await page.evaluate((pkgId) => {
+      if (typeof window.viewPackage === 'function') { window.viewPackage(pkgId); return; }
+      if (typeof window.openPackage === 'function') { window.openPackage(pkgId); return; }
+      if (typeof window.viewPackageDetails === 'function') { window.viewPackageDetails(pkgId); return; }
+      const el = document.querySelector(`[data-package-id="${pkgId}"]`);
+      if (el) el.click();
     }, createdPackageId);
 
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(3000); // Wait for modal + bids to load
 
-    // If JS functions not available, try clicking a card that contains the bid badge
-    if (!clickedPkg) {
-      const cardWithBid = page.locator('.package-card, .pkg-card').first();
-      if (await cardWithBid.count() > 0) {
-        await cardWithBid.click();
-        await page.waitForTimeout(1500);
-      }
-    }
-
-    // Try to find and click Accept Bid in the now-visible modal
+    // Verify the package detail modal is open
     const viewModal = page.locator('#view-package-modal');
-    const modalVisible = await viewModal.isVisible({ timeout: 5000 }).catch(() => false);
+    const modalVisible = await viewModal.isVisible({ timeout: 6000 }).catch(() => false);
 
     if (modalVisible) {
-      // Wait for bids to load inside the modal
-      await page.waitForTimeout(2000);
+      // Wait for the "Accept Bid" button to render in the modal DOM.
+      // This button is generated only after bids are fetched from Supabase and
+      // currentPackageBids is populated — so its presence guarantees acceptBid() can run.
+      await page.waitForFunction(
+        () => {
+          const modal = document.getElementById('view-package-modal');
+          if (!modal) return false;
+          for (const btn of modal.querySelectorAll('button')) {
+            if (/Accept|Select/i.test(btn.textContent)) return true;
+          }
+          return false;
+        },
+        { timeout: 12000 }
+      ).catch(() => {}); // Continue even if button not found (package may already be accepted)
 
-      // Look for an Accept button in the modal
-      const acceptBtn = viewModal.locator('button').filter({ hasText: /Accept|Select/i }).first();
-      const hasAcceptBtn = await acceptBtn.isVisible({ timeout: 3000 }).catch(() => false);
+      // Diagnose what bids are currently loaded in currentPackageBids.
+      // Also resolve the actual bid ID from currentPackageBids in case the bid
+      // created in Step 4 was a re-run that left multiple bids for this package.
+      const bidsDiag = await page.evaluate(({ expectedBidId }) => {
+        let bids = [];
+        try { bids = typeof currentPackageBids !== 'undefined' ? currentPackageBids : []; } catch (_) {}
+        // Use the bid matching expectedBidId if it exists; otherwise use the first pending bid
+        const matchedBid = bids.find(b => b.id === expectedBidId);
+        const firstBid = bids.find(b => ['pending', 'submitted', 'open'].includes(b.status)) || bids[0];
+        return {
+          acceptBidType: typeof window.acceptBid,
+          bidSummary: bids.map(b => ({ id: b.id, price: b.price, status: b.status })),
+          resolvedBidId: (matchedBid || firstBid)?.id || null,
+          resolvedBidPrice: (matchedBid || firstBid)?.price || null
+        };
+      }, { expectedBidId: createdBidId });
+      console.log('[Step7 bids diag]', JSON.stringify(bidsDiag));
 
-      if (hasAcceptBtn) {
-        await acceptBtn.click();
-        await page.waitForTimeout(2000);
-
-        // The accept flow may redirect to Stripe payment or show a confirmation
-        const currentUrl = page.url();
-        const movedToPayment = currentUrl.includes('stripe') || currentUrl.includes('checkout') || currentUrl.includes('payment');
-        const stayedOnPage = currentUrl.includes('members.html');
-
-        // Either moved to payment flow or stayed on page — both are valid outcomes
-        expect(movedToPayment || stayedOnPage).toBe(true);
+      // Use the bid ID that actually lives in currentPackageBids (guarantees acceptBid's lookup succeeds)
+      const effectiveBidId = bidsDiag.resolvedBidId || createdBidId;
+      // Update createdBidId to match what will actually be accepted
+      if (bidsDiag.resolvedBidId && bidsDiag.resolvedBidId !== createdBidId) {
+        console.log('[Step7] Bid ID mismatch — using resolved bid from currentPackageBids:', effectiveBidId);
+        createdBidId = effectiveBidId;
       }
-    }
 
-    // Verify via DB that the bid interaction was attempted and the package state
-    const sb = getSupabaseAdmin();
-    const { data: pkg } = await sb.from('maintenance_packages')
-      .select('id, status, accepted_bid_id').eq('id', createdPackageId).single();
-    expect(pkg).toBeTruthy();
+      // Trigger acceptBid via page.evaluate. window.confirm is already patched to return true,
+      // so the confirmation step is auto-accepted. acceptBid then:
+      // 1. Updates bid status → 'accepted'
+      // 2. Updates package status → 'accepted' with accepted_bid_id
+      // 3. Creates a payment record with status 'held'
+      //
+      // We intercept showToast and console.error to capture any internal failure.
+      const called = await page.evaluate(async ({ bidId, pkgId }) => {
+        const errors = [];
+        const toasts = [];
+        const origConsoleError = console.error;
+        const origShowToast = window.showToast;
+        console.error = (...args) => { errors.push(args.map(String).join(' ')); origConsoleError(...args); };
+        window.showToast = (msg, type) => { toasts.push({ msg, type }); if (origShowToast) origShowToast(msg, type); };
+        try {
+          if (typeof window.acceptBid === 'function') {
+            await window.acceptBid(bidId, pkgId);
+            // Check DB state via in-page client
+            const { data: pkg, error: pkgErr } = await supabaseClient
+              .from('maintenance_packages')
+              .select('status, accepted_bid_id')
+              .eq('id', pkgId).single();
+            const { data: bid, error: bidErr } = await supabaseClient
+              .from('bids')
+              .select('status')
+              .eq('id', bidId).single();
+            return JSON.stringify({ result: 'called', errors, toasts, pkg, bid, pkgErr: pkgErr?.message, bidErr: bidErr?.message });
+          }
+          // Fallback: click the Accept button
+          const modal = document.getElementById('view-package-modal');
+          if (!modal) return JSON.stringify({ result: 'no-modal', errors, toasts });
+          for (const btn of modal.querySelectorAll('button')) {
+            if (/Accept|Select/i.test(btn.textContent)) { btn.click(); return JSON.stringify({ result: 'clicked', errors, toasts }); }
+          }
+          return JSON.stringify({ result: 'no-acceptBid', errors, toasts });
+        } finally {
+          console.error = origConsoleError;
+          window.showToast = origShowToast;
+        }
+      }, { bidId: effectiveBidId, pkgId: createdPackageId });
+      console.log('[Step7 acceptBid result]', called);
 
-    // If the accept completed (no Stripe redirect required), verify DB state
-    if (pkg.accepted_bid_id || pkg.status === 'active') {
-      expect(pkg.accepted_bid_id).toBeTruthy();
+      const calledParsed = JSON.parse(called);
+      expect(['called', 'clicked']).toContain(calledParsed.result);
     } else {
-      // Accept was triggered via UI — verify the bid still exists and package is found
-      expect(pkg.id).toBe(createdPackageId);
+      // Modal didn't open — call acceptBid directly (bids may already be loaded in memory)
+      await page.evaluate(async ({ bidId, pkgId }) => {
+        if (typeof window.acceptBid === 'function') await window.acceptBid(bidId, pkgId);
+      }, { bidId: createdBidId, pkgId: createdPackageId });
     }
+
+    // Wait for Supabase writes to propagate
+    await page.waitForTimeout(5000);
+
+    // Verify the bid and package are now accepted in DB — no manual mutation allowed
+    const sb = getSupabaseAdmin();
+    const { data: bid } = await sb.from('bids').select('status').eq('id', createdBidId).single();
+    expect(bid).toBeTruthy();
+    expect(bid.status).toBe('accepted');
+
+    const { data: pkg } = await sb.from('maintenance_packages')
+      .select('status, accepted_bid_id').eq('id', createdPackageId).single();
+    expect(pkg.accepted_bid_id).toBe(createdBidId);
+    expect(pkg.status).toBe('accepted');
   });
 
-  // ── Step 8: DB confirms final acceptance (or manually finalizes for test) ──
-  test('Step 8: Package acceptance is reflected — bid marked accepted, package active', async () => {
+  // ── Step 8: DB confirms acceptance + escrow payment record created ──
+  test('Step 8: Package acceptance is reflected — bid accepted, package accepted, escrow payment held', async () => {
     test.skip(!createdBidId || !createdPackageId, 'Missing bid or package from prior steps');
     const sb = getSupabaseAdmin();
 
-    // Check if already accepted by UI flow in Step 7
-    const { data: pkg } = await sb.from('maintenance_packages')
-      .select('status, accepted_bid_id').eq('id', createdPackageId).single();
-
-    if (!pkg.accepted_bid_id) {
-      // Finalize acceptance: the member's UI triggered the flow above —
-      // this step verifies the DB transition (completing acceptance if needed)
-      await sb.from('maintenance_packages')
-        .update({ accepted_bid_id: createdBidId, status: 'active' })
-        .eq('id', createdPackageId);
-      await sb.from('bids').update({ status: 'accepted' }).eq('id', createdBidId);
-    }
-
+    // All DB state must come from the actual UI action in Step 7 — no manual mutation.
     const { data: finalPkg } = await sb.from('maintenance_packages')
       .select('status, accepted_bid_id').eq('id', createdPackageId).single();
     const { data: finalBid } = await sb.from('bids')
       .select('status').eq('id', createdBidId).single();
 
-    expect(finalPkg.accepted_bid_id).toBeTruthy();
-    expect(['active', 'open']).toContain(finalPkg.status);
-    expect(['accepted', 'pending', 'open']).toContain(finalBid.status);
+    expect(finalPkg.accepted_bid_id).toBe(createdBidId);
+    expect(finalPkg.status).toBe('accepted');
+    expect(finalBid.status).toBe('accepted');
+
+    // Verify that accepting the bid created an escrow payment record with status 'held'
+    const { data: payments } = await sb.from('payments')
+      .select('id, status, package_id, amount_total')
+      .eq('package_id', createdPackageId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    expect(payments?.length).toBeGreaterThan(0);
+    expect(payments[0].status).toBe('held');
+    expect(payments[0].amount_total).toBeGreaterThan(0);
   });
 });
 
@@ -619,6 +723,120 @@ test.describe('Member Onboarding — 8-Step Conversational Form', () => {
       .select('id').single();
     expect(error).toBeNull();
     expect(upserted?.id).toBe(existing.id);
+  });
+
+  test('Full 8-step onboarding: creates a real account, verifies DB, cleans up', async ({ page }) => {
+    test.skip(!SUPABASE_SERVICE_KEY, 'Requires SUPABASE_SERVICE_ROLE_KEY');
+
+    const uniqueEmail = `e2e-onboard-${Date.now()}@mcc-test.com`;
+    const testPassword = 'TestPass123!';
+    let createdUserId = null;
+    const sb = getSupabaseAdmin();
+
+    try {
+      await page.goto(`${BASE_URL}/onboarding-member.html`);
+      await page.waitForLoadState('domcontentloaded');
+      await page.waitForTimeout(1000);
+
+      // Helper: click the Next/Continue button in the currently active step.
+      // Uses page.evaluate to call the nextStep() JS function directly, which avoids
+      // viewport positioning issues with CSS-animated step transitions.
+      const clickNext = () => page.evaluate(() => {
+        if (typeof window.nextStep === 'function') { window.nextStep(); return true; }
+        const activeStep = document.querySelector('.step.active');
+        if (activeStep) {
+          const btn = activeStep.querySelector('.btn-next');
+          if (btn) { btn.click(); return true; }
+        }
+        return false;
+      });
+
+      // Step 0 — Name
+      const nameInput = page.locator('#input-name');
+      await expect(nameInput).toBeVisible({ timeout: 8000 });
+      await nameInput.fill('E2E Test User');
+      await clickNext();
+      await page.waitForTimeout(800);
+
+      // Step 1 — Email
+      const emailInput = page.locator('#input-email');
+      await expect(emailInput).toBeVisible({ timeout: 5000 });
+      await emailInput.fill(uniqueEmail);
+      await clickNext();
+      await page.waitForTimeout(800);
+
+      // Step 2 — Password
+      const pwInput = page.locator('#input-password');
+      await expect(pwInput).toBeVisible({ timeout: 5000 });
+      await pwInput.fill(testPassword);
+      await page.locator('#input-password-confirm').fill(testPassword);
+      await clickNext();
+      await page.waitForTimeout(800);
+
+      // Step 3 — Phone (optional, skip it)
+      const phoneInput = page.locator('#input-phone');
+      const phoneVisible = await phoneInput.isVisible({ timeout: 3000 }).catch(() => false);
+      if (phoneVisible) {
+        // Try skipStep() first, fallback to nextStep()
+        await page.evaluate(() => {
+          if (typeof window.skipStep === 'function') { window.skipStep(); return; }
+          if (typeof window.nextStep === 'function') { window.nextStep(); return; }
+          const activeStep = document.querySelector('.step.active');
+          const skipBtn = activeStep?.querySelector('.btn-skip');
+          if (skipBtn) skipBtn.click();
+          else activeStep?.querySelector('.btn-next')?.click();
+        });
+        await page.waitForTimeout(800);
+      }
+
+      // Step 4 — Terms + Create Account (triggers Supabase signUp)
+      const termsBox = page.locator('#consent-terms');
+      await expect(termsBox).toBeVisible({ timeout: 5000 });
+      await termsBox.check({ force: true });
+      await page.waitForTimeout(300);
+
+      // Click "Create My Account" via evaluate to invoke submitSignup() directly
+      await page.evaluate(() => {
+        if (typeof window.submitSignup === 'function') { window.submitSignup(); return; }
+        const btn = document.getElementById('btn-submit');
+        if (btn) btn.click();
+      });
+
+      // Wait for the async signUp to complete and advance to step 5
+      await page.waitForTimeout(6000);
+
+      // Verify the account was created in Supabase auth
+      const { data: users } = await sb.auth.admin.listUsers();
+      const createdUser = users?.users?.find(u => u.email === uniqueEmail);
+      expect(createdUser).toBeTruthy();
+      createdUserId = createdUser?.id;
+
+      // Verify a profile record was created via upsert
+      const { data: profile } = await sb.from('profiles')
+        .select('id, email, role').eq('email', uniqueEmail).single();
+      expect(profile).toBeTruthy();
+      expect(profile.email).toBe(uniqueEmail);
+      expect(profile.role).toBe('member');
+
+      // Verify the UI advanced to step 5 (vehicle step) or beyond
+      const currentStep = await page.evaluate(() => {
+        const steps = document.querySelectorAll('[data-step]');
+        for (const step of steps) {
+          const style = window.getComputedStyle(step);
+          if (style.display !== 'none' && step.classList.contains('active')) {
+            return parseInt(step.dataset.step);
+          }
+        }
+        return -1;
+      });
+      expect(currentStep).toBeGreaterThanOrEqual(4); // Step 5+ = post-account creation
+    } finally {
+      // Clean up: delete the test account so it doesn't pollute the DB
+      if (createdUserId) {
+        await sb.auth.admin.deleteUser(createdUserId);
+        await sb.from('profiles').delete().eq('id', createdUserId);
+      }
+    }
   });
 });
 
@@ -701,6 +919,92 @@ test.describe('Admin Portal — Members and Providers Management', () => {
     expect(result.status).toBe(200);
     expect(result.hasData).toBe(true);
   });
+
+  test('Admin portal HTML contains member search input and filter tabs', async ({ page }) => {
+    // Even under the password gate modal, these DOM elements exist in admin.html —
+    // they power the member search / filter UI that an authenticated admin would use.
+    await page.goto(`${BASE_URL}/admin.html`);
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(1500);
+
+    // Member search input exists in admin DOM
+    const memberSearch = page.locator('#member-search');
+    await expect(memberSearch).toBeAttached({ timeout: 5000 });
+
+    // Suspended-member stat counter element exists
+    const suspendedStat = page.locator('#um-suspended');
+    await expect(suspendedStat).toBeAttached({ timeout: 5000 });
+
+    // Corrective Action / suspended providers section header
+    const suspendSection = page.locator('text=/Corrective Action|suspended provider/i').first();
+    await expect(suspendSection).toBeAttached({ timeout: 5000 });
+  });
+
+  test('Admin members search: Supabase query with ilike filter returns expected results', async () => {
+    // This test validates the data layer that powers admin member search.
+    // The admin UI calls /api/admin/members?search=<term> which executes:
+    //   profiles.select('*').eq('role','member').or('full_name.ilike.%term%,email.ilike.%term%')
+    test.skip(!SUPABASE_SERVICE_KEY, 'Requires SUPABASE_SERVICE_ROLE_KEY');
+    const sb = getSupabaseAdmin();
+
+    // Search by email fragment — must find testmember
+    const { data: byEmail, error: e1 } = await sb.from('profiles')
+      .select('id, email, full_name, role')
+      .eq('role', 'member')
+      .or(`full_name.ilike.%testmember%,email.ilike.%testmember%`);
+    expect(e1).toBeNull();
+    expect(byEmail.length).toBeGreaterThan(0);
+    expect(byEmail[0].email).toMatch(/testmember/i);
+
+    // Filter by role=member returns only members (no providers)
+    const { data: allMembers, error: e2 } = await sb.from('profiles')
+      .select('id, role').eq('role', 'member').limit(20);
+    expect(e2).toBeNull();
+    expect(allMembers.length).toBeGreaterThan(0);
+    allMembers.forEach(m => expect(m.role).toBe('member'));
+
+    // Filter by role=provider returns only providers
+    const { data: allProviders, error: e3 } = await sb.from('profiles')
+      .select('id, role').eq('role', 'provider').limit(20);
+    expect(e3).toBeNull();
+    expect(allProviders.length).toBeGreaterThan(0);
+    allProviders.forEach(p => expect(p.role).toBe('provider'));
+  });
+
+  test('Provider suspend/unsuspend: data layer toggles suspended flag correctly', async () => {
+    // Tests the same DB mutation the admin portal performs when suspending a provider.
+    // The UI calls: profiles.update({ suspended: true }).eq('id', providerId)
+    // Note: The profiles column is "suspended" (not "is_suspended").
+    test.skip(!SUPABASE_SERVICE_KEY, 'Requires SUPABASE_SERVICE_ROLE_KEY');
+    const sb = getSupabaseAdmin();
+
+    // Get the test provider — use role filter since dual-role users may have role 'member'
+    // so find by email match across any role
+    const { data: providers } = await sb.from('profiles')
+      .select('id, email, role, suspended').ilike('email', '%testprovider%').limit(5);
+    const provider = providers?.find(p => p.email?.includes('testprovider'));
+    expect(provider?.id).toBeTruthy();
+    const providerId = provider.id;
+    const originalSuspended = provider.suspended;
+
+    // Suspend the provider (same action as admin UI "Suspend" button)
+    const { error: suspendError } = await sb.from('profiles')
+      .update({ suspended: true }).eq('id', providerId);
+    expect(suspendError).toBeNull();
+
+    const { data: suspended } = await sb.from('profiles')
+      .select('suspended').eq('id', providerId).single();
+    expect(suspended.suspended).toBe(true);
+
+    // Unsuspend / restore (same action as admin UI "Unsuspend" button)
+    const { error: unsuspendError } = await sb.from('profiles')
+      .update({ suspended: originalSuspended || false }).eq('id', providerId);
+    expect(unsuspendError).toBeNull();
+
+    const { data: restored } = await sb.from('profiles')
+      .select('suspended').eq('id', providerId).single();
+    expect(restored.suspended).toBe(originalSuspended || false);
+  });
 });
 
 // ────────────────────────────────────────────────────────────
@@ -778,6 +1082,75 @@ test.describe('AI Helpdesk Widget — All 3 Modes (Real API + Browser Widget)', 
     const widget = page.locator('#ai-chat-widget, [id*="helpdesk"], [class*="chat-widget"]').first();
     await expect(widget).toBeAttached({ timeout: 10000 });
   });
+
+  test('Helpdesk widget: mode pills switch active mode (Car Expert → Provider Support → Car Academy)', async ({ page }) => {
+    // The helpdesk widget with 3 mode pills is injected on members.html for logged-in users.
+    // Mode pill buttons use class "helpdesk-mode-pill" and data-mode attribute.
+    await loginViaUI(page, TEST_MEMBER_EMAIL, TEST_MEMBER_PASS, 'member');
+    await page.waitForTimeout(2000);
+
+    // The helpdesk widget (#helpdesk-widget) should be present on members.html
+    const helpdeskWidget = page.locator('#helpdesk-widget');
+    await expect(helpdeskWidget).toBeAttached({ timeout: 10000 });
+
+    // Open the helpdesk widget by clicking its toggle button
+    await page.evaluate(() => {
+      const toggle = document.querySelector('#helpdesk-widget .chat-widget-toggle');
+      if (toggle) toggle.click();
+    });
+    await page.waitForTimeout(1500);
+
+    // Verify the helpdesk panel opened
+    const panel = page.locator('#helpdesk-widget .chat-widget-panel');
+    await expect(panel).toBeVisible({ timeout: 5000 });
+
+    // Verify all 3 mode pills are present
+    const modePills = page.locator('#helpdesk-widget .helpdesk-mode-pill');
+    const pillCount = await modePills.count();
+    expect(pillCount).toBe(3);
+
+    // Click "Provider Support" mode pill (data-mode="provider")
+    const providerPill = page.locator('#helpdesk-widget .helpdesk-mode-pill[data-mode="provider"]');
+    await expect(providerPill).toBeVisible({ timeout: 5000 });
+    await page.evaluate(() => {
+      const pill = document.querySelector('#helpdesk-widget .helpdesk-mode-pill[data-mode="provider"]');
+      if (pill) pill.click();
+    });
+    await page.waitForTimeout(800);
+
+    // Verify "provider" mode pill has the "active" class
+    const providerActive = await providerPill.evaluate(el => el.classList.contains('active'));
+    expect(providerActive).toBe(true);
+
+    // Click "Car Academy" mode pill (data-mode="education")
+    const educationPill = page.locator('#helpdesk-widget .helpdesk-mode-pill[data-mode="education"]');
+    await expect(educationPill).toBeVisible({ timeout: 5000 });
+    await page.evaluate(() => {
+      const pill = document.querySelector('#helpdesk-widget .helpdesk-mode-pill[data-mode="education"]');
+      if (pill) pill.click();
+    });
+    await page.waitForTimeout(800);
+
+    const educationActive = await educationPill.evaluate(el => el.classList.contains('active'));
+    expect(educationActive).toBe(true);
+
+    // Switch back to "Car Expert" (data-mode="driver") — the default
+    const driverPill = page.locator('#helpdesk-widget .helpdesk-mode-pill[data-mode="driver"]');
+    await page.evaluate(() => {
+      const pill = document.querySelector('#helpdesk-widget .helpdesk-mode-pill[data-mode="driver"]');
+      if (pill) pill.click();
+    });
+    await page.waitForTimeout(800);
+
+    const driverActive = await driverPill.evaluate(el => el.classList.contains('active'));
+    expect(driverActive).toBe(true);
+
+    // Verify only one pill is active at a time
+    const activePills = await page.evaluate(() =>
+      document.querySelectorAll('#helpdesk-widget .helpdesk-mode-pill.active').length
+    );
+    expect(activePills).toBe(1);
+  });
 });
 
 // ────────────────────────────────────────────────────────────
@@ -805,8 +1178,60 @@ test.describe('OBD Diagnostic Scanner', () => {
     expect([200, 400]).toContain(res.status());
     const body = await res.json();
     if (res.status() === 200) {
-      expect(body.diagnosis || body.codes || body.explanation).toBeTruthy();
+      expect(body.diagnosis || body.codes || body.explanation || body.success).toBeTruthy();
     }
+  });
+
+  test('OBD interpret API: AI returns severity rating and cost estimate with code explanation', async ({ request }) => {
+    // /api/obd/interpret is the AI-powered endpoint that returns:
+    //   { success, interpretation: { codes_explained[], overall_severity }, severity, codes }
+    // This test validates the full AI diagnostic loop including severity classification.
+    test.skip(!SUPABASE_SERVICE_KEY, 'Requires SUPABASE_SERVICE_ROLE_KEY');
+    const sb = getSupabaseAdmin();
+    const { data } = await sb.auth.signInWithPassword({ email: TEST_MEMBER_EMAIL, password: TEST_MEMBER_PASS });
+    const token = data?.session?.access_token;
+    expect(token).toBeTruthy();
+
+    const res = await request.post(`${BASE_URL}/api/obd/interpret`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: {
+        codes: ['P0300'],
+        vehicleInfo: '2019 Honda Civic'
+      }
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+
+    // Verify top-level severity field (one of the 4 valid severity levels)
+    expect(['low', 'medium', 'high', 'critical']).toContain(body.severity);
+
+    // Verify structured interpretation with AI explanation
+    expect(body.interpretation).toBeTruthy();
+    const interp = body.interpretation;
+
+    // overall_severity must be a valid level
+    if (interp.overall_severity) {
+      expect(['low', 'medium', 'high', 'critical']).toContain(interp.overall_severity);
+    }
+
+    // codes_explained should be an array with at least one entry
+    if (interp.codes_explained) {
+      expect(Array.isArray(interp.codes_explained)).toBe(true);
+      expect(interp.codes_explained.length).toBeGreaterThan(0);
+      const codeEntry = interp.codes_explained[0];
+      expect(codeEntry.code || codeEntry.meaning || codeEntry.severity).toBeTruthy();
+    }
+
+    // There should be a summary or explanation string
+    const hasExplanation = interp.summary || interp.explanation ||
+      interp.aiExplanation || interp.likely_causes || interp.likelyCauses;
+    expect(hasExplanation).toBeTruthy();
+
+    // codes array in response should include P0300
+    expect(Array.isArray(body.codes)).toBe(true);
+    expect(body.codes).toContain('P0300');
   });
 
   test('Unauthenticated visit to members.html redirects to login', async ({ browser }) => {

@@ -27,6 +27,10 @@ waitForPort = 5000
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 5904
+externalPort = 3002
+
 [agent]
 expertMode = true
 integrations = ["stripe:2.0.0", "hubspot:1.0.0", "github:1.0.0"]

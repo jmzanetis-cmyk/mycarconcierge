@@ -6919,8 +6919,7 @@
         // Update package status
         await supabaseClient.from('maintenance_packages').update({ 
           status: 'accepted', 
-          accepted_bid_id: bidId, 
-          accepted_at: new Date().toISOString() 
+          accepted_bid_id: bidId
         }).eq('id', packageId);
 
         // Create payment record (escrow)
