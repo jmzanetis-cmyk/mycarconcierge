@@ -32627,8 +32627,30 @@ Return ONLY the JSON array, no other text.`;
 
       if (req.method === 'GET' && req.url === '/api/admin/ai-ops/settings') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ confidence_threshold: getAiOpsThreshold(), max_auto_refund: getAiOpsMaxRefund(), shadow_mode: getAiOpsThreshold() >= 1.0, env_note: 'Set AI_CONFIDENCE_THRESHOLD and AI_MAX_AUTO_REFUND env vars to change.' }));
+        res.end(JSON.stringify({ confidence_threshold: getAiOpsThreshold(), max_auto_refund: getAiOpsMaxRefund(), shadow_mode: getAiOpsThreshold() >= 1.0, env_note: 'Overrides stored in ai_ops_settings table take precedence over env vars.' }));
         return;
+      }
+
+      if (req.method === 'POST' && req.url === '/api/admin/ai-ops/settings') {
+        let body = ''; req.on('data', c => { body += c.toString(); }); req.on('end', async () => {
+          try {
+            const { confidence_threshold, max_auto_refund } = JSON.parse(body || '{}');
+            if (confidence_threshold !== undefined) {
+              const t = parseFloat(confidence_threshold);
+              if (isNaN(t) || t < 0 || t > 1) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'confidence_threshold must be 0.0–1.0' })); return; }
+              aiOpsSettingsOverride.confidence_threshold = t;
+              try { await supabase.from('ai_ops_settings').upsert({ key: 'confidence_threshold', value: String(t), updated_at: new Date().toISOString() }, { onConflict: 'key' }); } catch {}
+            }
+            if (max_auto_refund !== undefined) {
+              const m = parseFloat(max_auto_refund);
+              if (isNaN(m) || m < 0) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'max_auto_refund must be a positive number' })); return; }
+              aiOpsSettingsOverride.max_auto_refund = m;
+              try { await supabase.from('ai_ops_settings').upsert({ key: 'max_auto_refund', value: String(m), updated_at: new Date().toISOString() }, { onConflict: 'key' }); } catch {}
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, confidence_threshold: getAiOpsThreshold(), max_auto_refund: getAiOpsMaxRefund(), shadow_mode: getAiOpsThreshold() >= 1.0 }));
+          } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
+        }); return;
       }
 
       if (req.method === 'POST' && req.url === '/api/admin/ai-ops/dispute-resolver/trigger') {
@@ -37014,14 +37036,36 @@ async function createAiOpsTablesIfNeeded() {
   if (!supabase) return;
   try {
     const { error: logErr } = await supabase.from('ai_action_log').select('id').limit(1);
-    if (logErr && logErr.code === '42P01') {
-      console.log('[AI_OPS] ai_action_log table not found — run ai-ops-schema.sql in Supabase');
-    } else {
-      console.log('[AI_OPS] Tables verified.');
+    if (logErr && (logErr.code === '42P01' || logErr.message?.includes('does not exist'))) {
+      await supabase.rpc('exec_sql', { sql: `CREATE TABLE IF NOT EXISTS ai_action_log (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), module text NOT NULL, action_type text, target_id text, decision jsonb, confidence float DEFAULT 0, auto_executed boolean DEFAULT false, escalated boolean DEFAULT false, outcome text DEFAULT 'pending', error_details text, execution_time_ms int DEFAULT 0, created_at timestamptz DEFAULT now()); CREATE INDEX IF NOT EXISTS ai_action_log_module_idx ON ai_action_log(module); CREATE INDEX IF NOT EXISTS ai_action_log_created_idx ON ai_action_log(created_at DESC);` });
     }
-  } catch (err) {
-    console.log('[AI_OPS] Table check skipped:', err.message);
-  }
+  } catch {}
+  try {
+    const { error: escErr } = await supabase.from('ai_escalations').select('id').limit(1);
+    if (escErr && (escErr.code === '42P01' || escErr.message?.includes('does not exist'))) {
+      await supabase.rpc('exec_sql', { sql: `CREATE TABLE IF NOT EXISTS ai_escalations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), module text NOT NULL, target_id text, recommendation jsonb, confidence float DEFAULT 0, status text DEFAULT 'pending', admin_decision text, admin_notes text, resolved_at timestamptz, created_at timestamptz DEFAULT now()); CREATE INDEX IF NOT EXISTS ai_escalations_status_idx ON ai_escalations(status);` });
+    }
+  } catch {}
+  try {
+    const { error: digErr } = await supabase.from('ai_daily_digests').select('id').limit(1);
+    if (digErr && (digErr.code === '42P01' || digErr.message?.includes('does not exist'))) {
+      await supabase.rpc('exec_sql', { sql: `CREATE TABLE IF NOT EXISTS ai_daily_digests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), date date UNIQUE NOT NULL, narrative text, stats jsonb, sent_sms boolean DEFAULT false, created_at timestamptz DEFAULT now());` });
+    }
+  } catch {}
+  try {
+    const { error: setErr } = await supabase.from('ai_ops_settings').select('key').limit(1);
+    if (setErr && (setErr.code === '42P01' || setErr.message?.includes('does not exist'))) {
+      await supabase.rpc('exec_sql', { sql: `CREATE TABLE IF NOT EXISTS ai_ops_settings (key text PRIMARY KEY, value text, updated_at timestamptz DEFAULT now());` });
+    }
+    const { data: settingsRows } = await supabase.from('ai_ops_settings').select('key,value');
+    if (settingsRows) {
+      for (const row of settingsRows) {
+        if (row.key === 'confidence_threshold') aiOpsSettingsOverride.confidence_threshold = parseFloat(row.value);
+        if (row.key === 'max_auto_refund') aiOpsSettingsOverride.max_auto_refund = parseFloat(row.value);
+      }
+    }
+  } catch {}
+  console.log('[AI_OPS] Tables verified. threshold=' + getAiOpsThreshold() + ' max_refund=' + getAiOpsMaxRefund());
 }
 
 async function logAiAction({ module, actionType, targetId, decision, confidence = 0, autoExecuted = false, escalated = false, outcome = 'pending', errorDetails = null, executionTimeMs = 0 }) {
@@ -37054,8 +37098,17 @@ async function createAiEscalation({ module, targetId, recommendation, confidence
   }
 }
 
-function getAiOpsThreshold() { return parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0'); }
-function getAiOpsMaxRefund() { return parseFloat(process.env.AI_MAX_AUTO_REFUND || '500'); }
+let aiOpsSettingsOverride = {};
+
+function getAiOpsThreshold() {
+  if (aiOpsSettingsOverride.confidence_threshold !== undefined) return aiOpsSettingsOverride.confidence_threshold;
+  return parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
+}
+
+function getAiOpsMaxRefund() {
+  if (aiOpsSettingsOverride.max_auto_refund !== undefined) return aiOpsSettingsOverride.max_auto_refund;
+  return parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
+}
 
 async function runDisputeResolver(supabase, disputeId, requestId = 'ai-ops') {
   const t0 = Date.now();

@@ -10002,13 +10002,16 @@
         if (pagEl) {
           const total = data.total || 0;
           const totalPages = data.totalPages || 1;
-          pagEl.innerHTML = total > 25 ? renderPaginationControls({ page: aiOpsActivityPage, limit: 25, total, totalPages }, 'd => { aiOpsActivityPage += d; loadAiOpsActivity(); }') : '';
+          pagEl.innerHTML = total > 25 ? renderPaginationControls({ page: aiOpsActivityPage, limit: 25, total, totalPages }, 'changeAiOpsActivityPage') : '';
         }
       } catch (err) {
         listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
       }
     }
     window.loadAiOpsActivity = loadAiOpsActivity;
+
+    function changeAiOpsActivityPage(delta) { aiOpsActivityPage += delta; loadAiOpsActivity(); }
+    window.changeAiOpsActivityPage = changeAiOpsActivityPage;
 
     async function loadAiOpsEscalations() {
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
@@ -10165,22 +10168,34 @@
         const shadowBanner = document.getElementById('ai-ops-shadow-banner');
         if (shadowBanner) shadowBanner.style.display = shadowMode ? 'flex' : 'none';
         contentEl.innerHTML = `
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:20px;">
             <div style="border:1px solid var(--border-subtle);border-radius:10px;padding:16px;">
-              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Confidence Threshold</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Current Confidence Threshold</div>
               <div style="font-size:1.8rem;font-weight:700;color:${shadowMode ? '#a78bfa' : 'var(--accent-blue)'};">${(data.confidence_threshold * 100).toFixed(0)}%</div>
               <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">${shadowMode ? '🛡️ Shadow Mode — nothing auto-executes' : '✓ Autonomous actions enabled'}</div>
-              <div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;">Set via <code>AI_CONFIDENCE_THRESHOLD</code> env var</div>
             </div>
             <div style="border:1px solid var(--border-subtle);border-radius:10px;padding:16px;">
-              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Max Auto-Refund</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Current Max Auto-Refund</div>
               <div style="font-size:1.8rem;font-weight:700;color:var(--accent-green);">$${data.max_auto_refund}</div>
-              <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">Per dispute auto-resolution</div>
-              <div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;">Set via <code>AI_MAX_AUTO_REFUND</code> env var</div>
+              <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">Per dispute auto-resolution ceiling</div>
             </div>
           </div>
-          <div style="margin-top:16px;padding:12px 16px;background:var(--bg-secondary);border-radius:8px;font-size:0.85rem;color:var(--text-secondary);">
-            <strong>Note:</strong> These settings are controlled by environment variables. To change them, update the env vars and restart the server. In shadow mode (threshold = 1.0), all AI decisions are logged and escalated but nothing auto-executes.
+          <div style="border:1px solid var(--border-subtle);border-radius:12px;padding:20px;max-width:480px;">
+            <div style="font-weight:600;margin-bottom:16px;">Override Settings (Session)</div>
+            <div style="margin-bottom:14px;">
+              <label style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">Confidence Threshold (0.0 – 1.0)</label>
+              <input id="ai-ops-threshold-input" type="number" min="0" max="1" step="0.05" value="${data.confidence_threshold}" style="width:100%;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-tertiary);color:var(--text-primary);font-size:0.95rem;">
+              <div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">1.0 = Shadow Mode (recommend for initial setup)</div>
+            </div>
+            <div style="margin-bottom:16px;">
+              <label style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">Max Auto-Refund ($)</label>
+              <input id="ai-ops-max-refund-input" type="number" min="0" max="10000" step="50" value="${data.max_auto_refund}" style="width:100%;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-tertiary);color:var(--text-primary);font-size:0.95rem;">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="saveAiOpsSettings()">Save Settings</button>
+            <div id="ai-ops-settings-save-msg" style="margin-top:10px;font-size:0.85rem;display:none;"></div>
+          </div>
+          <div style="margin-top:16px;padding:12px 16px;background:var(--bg-secondary);border-radius:8px;font-size:0.82rem;color:var(--text-secondary);">
+            <strong>Note:</strong> These overrides are stored in the database and take precedence over environment variables at runtime. For permanent changes, also update <code>AI_CONFIDENCE_THRESHOLD</code> and <code>AI_MAX_AUTO_REFUND</code> env vars.
           </div>
         `;
       } catch (err) {
@@ -10188,6 +10203,32 @@
       }
     }
     window.loadAiOpsSettings = loadAiOpsSettings;
+
+    async function saveAiOpsSettings() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const threshold = parseFloat(document.getElementById('ai-ops-threshold-input')?.value || '1');
+      const maxRefund = parseFloat(document.getElementById('ai-ops-max-refund-input')?.value || '500');
+      const msgEl = document.getElementById('ai-ops-settings-save-msg');
+      if (isNaN(threshold) || threshold < 0 || threshold > 1) { if (window.showToast) showToast('Threshold must be between 0.0 and 1.0', 'error'); return; }
+      if (isNaN(maxRefund) || maxRefund < 0) { if (window.showToast) showToast('Max refund must be a positive number', 'error'); return; }
+      if (msgEl) { msgEl.style.display = 'block'; msgEl.style.color = 'var(--text-muted)'; msgEl.textContent = 'Saving…'; }
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/settings`, {
+          method: 'POST',
+          headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confidence_threshold: threshold, max_auto_refund: maxRefund })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Save failed');
+        if (msgEl) { msgEl.style.color = 'var(--accent-green)'; msgEl.textContent = '✓ Settings saved'; setTimeout(() => { msgEl.style.display = 'none'; }, 3000); }
+        if (window.showToast) showToast('AI Ops settings saved', 'success');
+        setTimeout(loadAiOpsSettings, 500);
+      } catch (err) {
+        if (msgEl) { msgEl.style.color = 'var(--accent-red)'; msgEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Save failed: ' + err.message, 'error');
+      }
+    }
+    window.saveAiOpsSettings = saveAiOpsSettings;
 
     async function triggerDisputeResolver() {
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
