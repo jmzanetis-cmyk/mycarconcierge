@@ -218,9 +218,22 @@ Respond ONLY with valid JSON: {"anomalies":[{"provider_id":"...","reason":"..."}
             payoutsInitiated++;
             // Log per-provider payout for cooldown tracking
             await logAiAction(supabase, { module: 'payment_tracker', actionType: 'payout_initiated', targetId: pid, decision: { provider_id: pid, net_cents: netCents, tier: v.tier, batch_id: batchId }, confidence: 1.0, autoExecuted: true, escalated: false, outcome: 'executed', executionTimeMs: Date.now() - t0 });
-            await supabase.from('packages')
-              .update({ metadata: { ai_reconciled: true, reconciled_at: new Date().toISOString(), payout_batch: batchId } })
-              .in('id', v.orders);
+            // Use RPC to merge reconciliation flags into existing metadata without overwriting other fields
+            for (const orderId of v.orders) {
+              await supabase.rpc('merge_package_metadata', {
+                p_id: orderId,
+                p_metadata: { ai_reconciled: true, reconciled_at: new Date().toISOString(), payout_batch: batchId }
+              }).then(({ error: rpcErr }) => {
+                if (rpcErr) {
+                  // Fallback: fetch existing metadata, merge, then update
+                  return supabase.from('packages').select('metadata').eq('id', orderId).single()
+                    .then(({ data: pkg }) => {
+                      const merged = Object.assign({}, pkg?.metadata || {}, { ai_reconciled: true, reconciled_at: new Date().toISOString(), payout_batch: batchId });
+                      return supabase.from('packages').update({ metadata: merged }).eq('id', orderId);
+                    });
+                }
+              });
+            }
           } catch (payErr) {
             payoutErrors.push({ provider_id: pid, error: payErr.message });
           }

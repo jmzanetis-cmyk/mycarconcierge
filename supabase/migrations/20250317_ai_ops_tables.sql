@@ -86,3 +86,18 @@ BEGIN
     CREATE POLICY "service_role_full_access_ai_ops_settings" ON public.ai_ops_settings FOR ALL TO service_role USING (true) WITH CHECK (true);
   END IF;
 END $$;
+
+-- Helper function: merge JSONB into packages.metadata without overwriting existing fields
+CREATE OR REPLACE FUNCTION public.merge_package_metadata(p_id uuid, p_metadata jsonb)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.packages
+  SET metadata = COALESCE(metadata, '{}'::jsonb) || p_metadata
+  WHERE id = p_id;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.merge_package_metadata(uuid, jsonb) TO service_role;
