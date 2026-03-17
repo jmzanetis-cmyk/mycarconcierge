@@ -14,12 +14,12 @@ exports.handler = async function(event) {
   const errorDescription = params.error_description;
 
   if (errorCode) {
-    console.warn('[StripeConnect] OAuth callback error:', errorCode, errorDescription);
+    console.warn('[StripeConnect] Callback error:', errorCode, errorDescription);
     const encoded = encodeURIComponent(errorDescription || errorCode);
     return {
       statusCode: 302,
       headers: {
-        'Location': `https://mycarconcierge.com/founder-dashboard.html?stripe=error&reason=${encoded}`,
+        'Location': 'https://mycarconcierge.com/founder-dashboard.html?stripe=error&reason=' + encoded,
         'Access-Control-Allow-Origin': '*'
       },
       body: ''
