@@ -1470,10 +1470,11 @@ Include all 7 days with all 4 platforms each.`;
 
   const response = await callAI(prompt, 6000);
   try {
-    const cleaned = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const text = typeof response === 'object' ? (response.text || '') : String(response);
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     return JSON.parse(cleaned);
   } catch (e) {
-    return { raw: response, parse_error: e.message };
+    return { raw: typeof response === 'object' ? response.text : response, parse_error: e.message };
   }
 }
 
@@ -1529,10 +1530,11 @@ Include all 4 categories.`;
 
   const response = await callAI(prompt, 5000);
   try {
-    const cleaned = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const text = typeof response === 'object' ? (response.text || '') : String(response);
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     return JSON.parse(cleaned);
   } catch (e) {
-    return { stats, raw: response, parse_error: e.message };
+    return { stats, raw: typeof response === 'object' ? response.text : response, parse_error: e.message };
   }
 }
 
