@@ -1234,31 +1234,29 @@ async function handleAdminGetAllAgreements(req, res, requestId) {
       return;
     }
 
+    const adminPassHeader = req.headers['x-admin-password'];
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const expectedPass = process.env.ADMIN_PASSWORD;
+
+    if (adminPassHeader && expectedPass && adminPassHeader === expectedPass) {
+      // x-admin-password auth — allow through
+    } else if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !user) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+        return;
+      }
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+      if (!profile || profile.role !== 'admin') {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Admin access required' }));
+        return;
+      }
+    } else {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Authentication required' }));
-      return;
-    }
-    
-    const token = authHeader.split(' ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Invalid or expired token' }));
-      return;
-    }
-    
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-    
-    if (!profile || profile.role !== 'admin') {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Admin access required' }));
       return;
     }
     
@@ -32404,12 +32402,47 @@ Return ONLY the JSON array, no other text.`;
           res.end(JSON.stringify({ error: 'Instantly API key not configured' }));
           return;
         }
-        const resp = await fetch('https://api.instantly.ai/api/v2/campaigns?limit=100', {
-          headers: { Authorization: `Bearer ${apiKey}` }
+        const [campaignsResp, analyticsResp] = await Promise.all([
+          fetch('https://api.instantly.ai/api/v2/campaigns?limit=100', {
+            headers: { Authorization: `Bearer ${apiKey}` }
+          }),
+          fetch('https://api.instantly.ai/api/v2/analytics/campaign/summary?limit=100', {
+            headers: { Authorization: `Bearer ${apiKey}` }
+          }).catch(() => null)
+        ]);
+        const campaignsData = await campaignsResp.json();
+        const campaigns = campaignsData.items || campaignsData.campaigns || (Array.isArray(campaignsData) ? campaignsData : []);
+        let analyticsMap = {};
+        if (analyticsResp && analyticsResp.ok) {
+          const analyticsData = await analyticsResp.json();
+          const analyticsItems = analyticsData.items || analyticsData.data || (Array.isArray(analyticsData) ? analyticsData : []);
+          analyticsItems.forEach(a => { if (a.campaign_id || a.id) analyticsMap[a.campaign_id || a.id] = a; });
+        }
+        const enriched = campaigns.map(c => {
+          const stats = analyticsMap[c.id] || {};
+          return { ...c, emails_sent: stats.emails_sent || stats.total_sent || 0, open_rate: stats.open_rate || stats.unique_open_rate || 0, reply_rate: stats.reply_rate || stats.unique_reply_rate || 0, bounce_rate: stats.bounce_rate || 0 };
         });
-        const data = await resp.json();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ items: enriched, total: enriched.length }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/marketing/outreach-cycle') {
+    setCorsHeaders(res, req);
+    return handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const adminPass = req.headers['x-admin-password'] || '';
+        const resp = await fetch(`http://localhost:${PORT}/api/admin/outreach/engine-cycle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPass }
+        });
+        const result = await resp.json();
         res.writeHead(resp.status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(data));
+        res.end(JSON.stringify(result));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
@@ -32483,14 +32516,8 @@ Return ONLY the JSON array, no other text.`;
           }
           const data = JSON.parse(body || '{}');
           const { campaign_id, min_score } = data;
-          if (!campaign_id) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'campaign_id is required' }));
-            return;
-          }
-          let query = supabase.from('outreach_leads').select('id, name, email, company, location, score')
+          let query = supabase.from('outreach_leads').select('id, name, email, company, location')
             .not('email', 'is', null).neq('status', 'unsubscribed').neq('crm_sync_status', 'duplicate');
-          if (min_score) query = query.gte('score', min_score);
           const { data: leads, error: leadsErr } = await query.limit(500);
           if (leadsErr) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -32509,10 +32536,12 @@ Return ONLY the JSON array, no other text.`;
             company_name: l.company || '',
             custom_variables: { location: l.location || '', mcc_lead_id: l.id }
           }));
+          const leadPayload = { leads: instantlyLeads, skip_if_in_workspace: true };
+          if (campaign_id) leadPayload.campaign_id = campaign_id;
           const resp = await fetch('https://api.instantly.ai/api/v2/lead/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({ campaign_id, leads: instantlyLeads, skip_if_in_workspace: true })
+            body: JSON.stringify(leadPayload)
           });
           const result = await resp.json();
           res.writeHead(resp.status, { 'Content-Type': 'application/json' });

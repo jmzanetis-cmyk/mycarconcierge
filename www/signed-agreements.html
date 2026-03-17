@@ -443,7 +443,7 @@
           try {
             var session = JSON.parse(localStorage.getItem(keys[i]));
             if (session && session.access_token) {
-              return { token: session.access_token };
+              return { token: session.access_token, type: 'bearer' };
             }
           } catch (e) {}
         }
@@ -452,12 +452,17 @@
     }
 
     function checkAdminAuth() {
-      var auth = findSupabaseToken();
-      if (!auth) {
-        window.location.href = 'admin.html';
-        return null;
-      }
-      return auth;
+      var supabaseAuth = findSupabaseToken();
+      if (supabaseAuth) return supabaseAuth;
+      var adminPass = localStorage.getItem('mcc_admin_pass') || sessionStorage.getItem('mcc_admin_pass');
+      if (adminPass) return { adminPass: adminPass, type: 'password' };
+      window.location.href = 'admin.html';
+      return null;
+    }
+
+    function buildAuthHeaders(auth) {
+      if (auth.type === 'password') return { 'x-admin-password': auth.adminPass };
+      return { 'Authorization': 'Bearer ' + auth.token };
     }
 
     function downloadPdf(id, name, btn) {
@@ -469,7 +474,7 @@
       btn.textContent = 'Downloading...';
 
       fetch(apiBase + '/api/admin/agreements/' + id + '/pdf', {
-        headers: { 'Authorization': 'Bearer ' + auth.token }
+        headers: buildAuthHeaders(auth)
       })
       .then(function(r) {
         if (!r.ok) throw new Error('Download failed');
@@ -544,7 +549,7 @@
       if (!auth) return;
 
       fetch(apiBase + '/api/admin/agreements', {
-        headers: { 'Authorization': 'Bearer ' + auth.token }
+        headers: buildAuthHeaders(auth)
       })
       .then(function(r) {
         if (!r.ok) throw new Error('Failed to load agreements');

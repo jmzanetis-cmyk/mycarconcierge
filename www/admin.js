@@ -9684,17 +9684,18 @@
 
     async function syncLeadsToInstantly() {
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-      const campaignId = (document.getElementById('instantly-sync-campaign') || {}).value || '';
+      const campaignId = (document.getElementById('instantly-sync-campaign') || {}).value?.trim() || '';
       const resultEl = document.getElementById('instantly-sync-result');
       const btn = document.getElementById('instantly-sync-btn');
       if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
       if (resultEl) { resultEl.style.display = 'none'; resultEl.innerHTML = ''; }
       try {
-        if (!campaignId) { throw new Error('Campaign ID is required to sync leads'); }
+        const payload = {};
+        if (campaignId) payload.campaign_id = campaignId;
         const res = await fetch(`${apiBase}/api/admin/marketing/instantly-sync`, {
           method: 'POST',
           headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ campaign_id: campaignId })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Sync failed');
