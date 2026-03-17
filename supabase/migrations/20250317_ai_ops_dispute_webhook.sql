@@ -3,14 +3,19 @@
 --
 -- SETUP INSTRUCTIONS:
 -- 1. Run this SQL in your Supabase project's SQL Editor
--- 2. In Supabase Dashboard → Database → Webhooks → Create a new webhook:
+-- 2. Generate a random 32-byte hex secret: openssl rand -hex 32
+-- 3. Set SUPABASE_WEBHOOK_SECRET in Netlify environment variables (same value)
+-- 4. In Supabase Dashboard → Database → Webhooks → Create a new webhook:
 --    - Name: notify_dispute_created
 --    - Table: disputes
 --    - Events: INSERT
 --    - Webhook URL: https://mycarconcierge.com/.netlify/functions/dispute-resolver-background
 --    - HTTP Method: POST
---    - HTTP Headers: { "x-webhook-secret": "<your-webhook-secret>" }
--- 3. Optionally set DISPUTE_WEBHOOK_SECRET env var in Netlify for signature verification
+--    - HTTP Headers: {
+--        "x-webhook-signature": "sha256=<HMAC-SHA256 of payload signed with SUPABASE_WEBHOOK_SECRET>"
+--      }
+-- NOTE: The background function verifies the HMAC-SHA256 signature using SUPABASE_WEBHOOK_SECRET.
+-- Without this env var, all requests are rejected. Set it in Netlify before enabling the webhook.
 
 -- Create the pg_notify trigger function (optional - for real-time listening)
 CREATE OR REPLACE FUNCTION notify_dispute_created()

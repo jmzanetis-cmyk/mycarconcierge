@@ -37034,32 +37034,59 @@ server.listen(PORT, '0.0.0.0', () => {
 
 // ========== AI OPS FOUNDATION ==========
 
+async function runSupabaseSQL(sql) {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) return { error: 'No credentials' };
+  try {
+    const r = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` },
+      body: JSON.stringify({ query: sql })
+    });
+    if (!r.ok) return { error: await r.text() };
+    return { ok: true };
+  } catch (e) { return { error: e.message }; }
+}
+
+function isTableMissingError(err) {
+  if (!err) return false;
+  const msg = err.message || '';
+  return err.code === '42P01' || msg.includes('does not exist') || msg.includes('schema cache') || msg.includes('relation') || msg.includes('Could not find');
+}
+
 async function createAiOpsTablesIfNeeded() {
   const supabase = getSupabaseClient();
   if (!supabase) return;
+
+  const tables = [
+    { name: 'ai_action_log', selectCol: 'id',
+      sql: `CREATE TABLE IF NOT EXISTS public.ai_action_log (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), module text NOT NULL, action_type text, target_id text, decision jsonb, confidence float DEFAULT 0, auto_executed boolean DEFAULT false, escalated boolean DEFAULT false, outcome text DEFAULT 'pending', error_details text, execution_time_ms int DEFAULT 0, created_at timestamptz DEFAULT now()); CREATE INDEX IF NOT EXISTS ai_action_log_module_idx ON public.ai_action_log(module); CREATE INDEX IF NOT EXISTS ai_action_log_created_idx ON public.ai_action_log(created_at DESC); CREATE INDEX IF NOT EXISTS ai_action_log_target_idx ON public.ai_action_log(module, action_type, auto_executed, target_id); ALTER TABLE public.ai_action_log ENABLE ROW LEVEL SECURITY; DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='ai_action_log' AND policyname='service_role_ai_action_log') THEN CREATE POLICY service_role_ai_action_log ON public.ai_action_log FOR ALL TO service_role USING (true) WITH CHECK (true); END IF; END $$;` },
+    { name: 'ai_escalations', selectCol: 'id',
+      sql: `CREATE TABLE IF NOT EXISTS public.ai_escalations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), module text NOT NULL, target_id text, recommendation jsonb, confidence float DEFAULT 0, status text DEFAULT 'pending', admin_decision text, admin_notes text, resolved_at timestamptz, created_at timestamptz DEFAULT now()); CREATE INDEX IF NOT EXISTS ai_escalations_status_idx ON public.ai_escalations(status); ALTER TABLE public.ai_escalations ENABLE ROW LEVEL SECURITY; DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='ai_escalations' AND policyname='service_role_ai_escalations') THEN CREATE POLICY service_role_ai_escalations ON public.ai_escalations FOR ALL TO service_role USING (true) WITH CHECK (true); END IF; END $$;` },
+    { name: 'ai_daily_digests', selectCol: 'id',
+      sql: `CREATE TABLE IF NOT EXISTS public.ai_daily_digests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), date date UNIQUE NOT NULL, narrative text, stats jsonb, sent_sms boolean DEFAULT false, created_at timestamptz DEFAULT now()); ALTER TABLE public.ai_daily_digests ENABLE ROW LEVEL SECURITY; DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='ai_daily_digests' AND policyname='service_role_ai_daily_digests') THEN CREATE POLICY service_role_ai_daily_digests ON public.ai_daily_digests FOR ALL TO service_role USING (true) WITH CHECK (true); END IF; END $$;` },
+    { name: 'ai_ops_settings', selectCol: 'key',
+      sql: `CREATE TABLE IF NOT EXISTS public.ai_ops_settings (key text PRIMARY KEY, value text, updated_at timestamptz DEFAULT now()); ALTER TABLE public.ai_ops_settings ENABLE ROW LEVEL SECURITY; DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='ai_ops_settings' AND policyname='service_role_ai_ops_settings') THEN CREATE POLICY service_role_ai_ops_settings ON public.ai_ops_settings FOR ALL TO service_role USING (true) WITH CHECK (true); END IF; END $$;` }
+  ];
+
+  for (const t of tables) {
+    try {
+      const { error } = await supabase.from(t.name).select(t.selectCol).limit(1);
+      if (error && isTableMissingError(error)) {
+        console.log(`[AI_OPS] Creating ${t.name}...`);
+        const result = await runSupabaseSQL(t.sql);
+        if (result.error) {
+          console.warn(`[AI_OPS] exec_sql failed for ${t.name}: ${result.error} — table must be created manually`);
+        } else {
+          console.log(`[AI_OPS] ${t.name} created.`);
+        }
+      }
+    } catch (e) { console.error(`[AI_OPS] Table check error for ${t.name}:`, e.message); }
+  }
+
+  // Load persisted settings overrides
   try {
-    const { error: logErr } = await supabase.from('ai_action_log').select('id').limit(1);
-    if (logErr && (logErr.code === '42P01' || logErr.message?.includes('does not exist'))) {
-      await supabase.rpc('exec_sql', { query: `CREATE TABLE IF NOT EXISTS ai_action_log (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), module text NOT NULL, action_type text, target_id text, decision jsonb, confidence float DEFAULT 0, auto_executed boolean DEFAULT false, escalated boolean DEFAULT false, outcome text DEFAULT 'pending', error_details text, execution_time_ms int DEFAULT 0, created_at timestamptz DEFAULT now()); CREATE INDEX IF NOT EXISTS ai_action_log_module_idx ON ai_action_log(module); CREATE INDEX IF NOT EXISTS ai_action_log_created_idx ON ai_action_log(created_at DESC);` });
-    }
-  } catch {}
-  try {
-    const { error: escErr } = await supabase.from('ai_escalations').select('id').limit(1);
-    if (escErr && (escErr.code === '42P01' || escErr.message?.includes('does not exist'))) {
-      await supabase.rpc('exec_sql', { query: `CREATE TABLE IF NOT EXISTS ai_escalations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), module text NOT NULL, target_id text, recommendation jsonb, confidence float DEFAULT 0, status text DEFAULT 'pending', admin_decision text, admin_notes text, resolved_at timestamptz, created_at timestamptz DEFAULT now()); CREATE INDEX IF NOT EXISTS ai_escalations_status_idx ON ai_escalations(status);` });
-    }
-  } catch {}
-  try {
-    const { error: digErr } = await supabase.from('ai_daily_digests').select('id').limit(1);
-    if (digErr && (digErr.code === '42P01' || digErr.message?.includes('does not exist'))) {
-      await supabase.rpc('exec_sql', { query: `CREATE TABLE IF NOT EXISTS ai_daily_digests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), date date UNIQUE NOT NULL, narrative text, stats jsonb, sent_sms boolean DEFAULT false, created_at timestamptz DEFAULT now());` });
-    }
-  } catch {}
-  try {
-    const { error: setErr } = await supabase.from('ai_ops_settings').select('key').limit(1);
-    if (setErr && (setErr.code === '42P01' || setErr.message?.includes('does not exist'))) {
-      await supabase.rpc('exec_sql', { query: `CREATE TABLE IF NOT EXISTS ai_ops_settings (key text PRIMARY KEY, value text, updated_at timestamptz DEFAULT now());` });
-    }
     const { data: settingsRows } = await supabase.from('ai_ops_settings').select('key,value');
     if (settingsRows) {
       for (const row of settingsRows) {
@@ -37179,7 +37206,8 @@ Rules: escalate if complex. full_refund if provider clearly failed. partial_refu
     catch { result = { recommendation: 'escalate', confidence: 0, reasoning: 'AI parse failed', member_message: '', provider_message: '' }; }
 
     const confidence = result.confidence || 0;
-    const autoExecute = confidence >= threshold && result.recommendation !== 'escalate';
+    // Shadow mode: threshold >= 1.0 means always escalate regardless of AI confidence
+    const autoExecute = threshold < 1.0 && confidence >= threshold && result.recommendation !== 'escalate';
     const ms = Date.now() - t0;
 
     await logAiAction({
@@ -37288,7 +37316,8 @@ Respond ONLY with valid JSON: {"anomalies":[{"provider_id":"...","reason":"..."}
     catch { result = { anomalies: [], confidence: 0.5, recommendation: 'flag_anomalies', notes: 'Parse error' }; }
 
     const threshold = getAiOpsThreshold();
-    const autoExecute = result.confidence >= threshold && result.recommendation === 'process_all';
+    // Shadow mode: threshold >= 1.0 means always escalate regardless of AI confidence
+    const autoExecute = threshold < 1.0 && result.confidence >= threshold && result.recommendation === 'process_all';
     const anomalousPids = new Set((result.anomalies || []).map(a => a.provider_id));
 
     await logAiAction({
@@ -37314,18 +37343,19 @@ Respond ONLY with valid JSON: {"anomalies":[{"provider_id":"...","reason":"..."}
         const netCents = Math.round(v.total * (1 - v.commission_rate));
         if (netCents < 5000) continue; // min $50
         if (netCents > 100000) continue; // max $1,000 per batch
-        // Check last payout date (14 day cooldown)
-        const { data: lastPayout } = await supabase
+        // Check per-provider last payout date (14-day cooldown)
+        const { data: lastPayoutLog } = await supabase
           .from('ai_action_log')
           .select('created_at')
           .eq('module', 'payment_tracker')
-          .like('decision->>notes', `%payout%${pid}%`)
+          .eq('auto_executed', true)
+          .eq('target_id', pid)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (lastPayout) {
-          const daysSince = (Date.now() - new Date(lastPayout.created_at).getTime()) / 86400000;
-          if (daysSince < 14) continue;
+        if (lastPayoutLog) {
+          const daysSince = (Date.now() - new Date(lastPayoutLog.created_at).getTime()) / 86400000;
+          if (daysSince < 14) { console.log(`[AI_OPS] Payout skipped for ${pid}: last payout ${daysSince.toFixed(1)} days ago`); continue; }
         }
         try {
           const idempotencyKey = `mcc-payout-${pid}-${today}-${batchId}`;
@@ -37336,6 +37366,8 @@ Respond ONLY with valid JSON: {"anomalies":[{"provider_id":"...","reason":"..."}
             metadata: { provider_id: pid, batch_id: batchId, commission_rate: String(v.commission_rate), tier: v.tier }
           }, { idempotencyKey });
           payoutsInitiated++;
+          // Log per-provider payout action for cooldown tracking
+          await logAiAction({ module: 'payment_tracker', actionType: 'payout_initiated', targetId: pid, decision: { provider_id: pid, net_cents: netCents, tier: v.tier, batch_id: batchId }, confidence: 1.0, autoExecuted: true, escalated: false, outcome: 'executed', executionTimeMs: 0 });
           // Mark orders as reconciled
           await supabase.from('packages')
             .update({ metadata: { ai_reconciled: true, reconciled_at: new Date().toISOString(), payout_batch: batchId } })

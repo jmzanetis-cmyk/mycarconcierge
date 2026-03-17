@@ -1,10 +1,31 @@
 const { createClient } = require('@supabase/supabase-js');
+const crypto = require('crypto');
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   return createClient(url, key);
+}
+
+function verifySupabaseWebhookSignature(rawBody, signatureHeader) {
+  const webhookSecret = process.env.SUPABASE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.warn('[DisputeResolver] No SUPABASE_WEBHOOK_SECRET set — rejecting unauthenticated requests');
+    return false;
+  }
+  if (!signatureHeader) return false;
+  try {
+    const expectedSig = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(rawBody)
+      .digest('hex');
+    const providedSig = signatureHeader.replace(/^sha256=/, '');
+    return crypto.timingSafeEqual(
+      Buffer.from(expectedSig, 'hex'),
+      Buffer.from(providedSig, 'hex')
+    );
+  } catch { return false; }
 }
 
 async function aiOpsSendSMS(toPhone, body) {
@@ -69,6 +90,15 @@ exports.handler = async function(event, context) {
   const t0 = Date.now();
   console.log('[DisputeResolver] Background function triggered');
 
+  const rawBody = event.body || '';
+
+  // Verify webhook signature (HMAC-SHA256 from Supabase webhook)
+  const signatureHeader = event.headers?.['x-webhook-signature'] || event.headers?.['x-supabase-signature'];
+  if (!verifySupabaseWebhookSignature(rawBody, signatureHeader)) {
+    console.warn('[DisputeResolver] Webhook signature verification FAILED — rejecting request');
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized: invalid webhook signature' }) };
+  }
+
   const supabase = getSupabase();
   if (!supabase) {
     return { statusCode: 200, body: JSON.stringify({ skipped: true, reason: 'no_database' }) };
@@ -76,8 +106,7 @@ exports.handler = async function(event, context) {
 
   let disputeId;
   try {
-    const body = JSON.parse(event.body || '{}');
-    // Supabase webhook sends the row as `record`
+    const body = JSON.parse(rawBody);
     disputeId = body.record?.id || body.dispute_id || body.id;
   } catch {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid payload' }) };
@@ -131,7 +160,8 @@ Rules: escalate if complex. full_refund if provider clearly failed. partial_refu
     }
 
     const confidence = result.confidence || 0;
-    const autoExecute = confidence >= threshold && result.recommendation !== 'escalate';
+    // Shadow mode: threshold >= 1.0 means always escalate regardless of AI confidence
+    const autoExecute = threshold < 1.0 && confidence >= threshold && result.recommendation !== 'escalate';
     const ms = Date.now() - t0;
 
     await logAiAction(supabase, {
@@ -146,7 +176,7 @@ Rules: escalate if complex. full_refund if provider clearly failed. partial_refu
         recommendation: result, confidence, status: 'pending',
         created_at: new Date().toISOString()
       });
-      console.log(`[DisputeResolver] Dispute ${disputeId} escalated (confidence=${confidence}, threshold=${threshold})`);
+      console.log(`[DisputeResolver] Dispute ${disputeId} escalated (confidence=${confidence}, threshold=${threshold}, shadow=${threshold >= 1.0})`);
       return { statusCode: 200, body: JSON.stringify({ success: true, action: 'escalated', confidence, reasoning: result.reasoning }) };
     }
 
@@ -176,7 +206,6 @@ Rules: escalate if complex. full_refund if provider clearly failed. partial_refu
       }
     }
 
-    // Update dispute record
     await supabase.from('disputes').update({
       status: 'resolved_by_ai',
       resolution: result.reasoning,
@@ -184,7 +213,6 @@ Rules: escalate if complex. full_refund if provider clearly failed. partial_refu
       updated_at: new Date().toISOString()
     }).eq('id', disputeId);
 
-    // Send SMS to both parties
     if (memberProfile.phone && result.member_message) {
       await aiOpsSendSMS(memberProfile.phone, `My Car Concierge: Your dispute has been resolved. ${result.member_message}`);
     }
