@@ -1,5 +1,22 @@
 const { createSupabaseClient } = require('./outreach-engine-core');
 
+async function addToResendSuppressionList(email) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || !email) return;
+  try {
+    await fetch('https://api.resend.com/audiences/suppression', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email })
+    });
+  } catch (err) {
+    console.warn('[Unsubscribe] Resend suppression API error:', err.message);
+  }
+}
+
 exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -65,10 +82,15 @@ button:hover{background:#b8942d;}
     }
 
     if (leadId) {
+      const { data: lead } = await supabase.from('outreach_leads').select('email').eq('id', leadId).maybeSingle();
+      const resolvedEmail = email || lead?.email || '';
       await supabase.from('outreach_leads').update({ status: 'unsubscribed' }).eq('id', leadId);
       await supabase.from('outreach_activity_log').insert({
-        lead_id: leadId, event_type: 'unsubscribed', metadata: { email, method: 'link' }
+        lead_id: leadId, event_type: 'unsubscribed', metadata: { email: resolvedEmail, method: 'link' }
       });
+      if (resolvedEmail) {
+        await addToResendSuppressionList(resolvedEmail);
+      }
     } else if (email) {
       const { data: leads } = await supabase.from('outreach_leads').select('id').eq('email', email);
       for (const lead of (leads || [])) {
@@ -77,6 +99,7 @@ button:hover{background:#b8942d;}
           lead_id: lead.id, event_type: 'unsubscribed', metadata: { email, method: 'link' }
         });
       }
+      await addToResendSuppressionList(email);
     }
 
     return {
