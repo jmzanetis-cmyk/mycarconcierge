@@ -1319,21 +1319,31 @@ async function handleAdminCreateAgreement(req, res, requestId) {
         return;
       }
       const data = JSON.parse(body || '{}');
-      const { full_name, business_name, agreement_type, signed_at, pdf_url } = data;
+      const { full_name, business_name, agreement_type, signed_at, pdf_url, notes } = data;
       if (!full_name || !agreement_type) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'full_name and agreement_type are required' }));
         return;
       }
-      const { data: inserted, error } = await supabase.from('signed_agreements').insert({
+      const insertPayload = {
         full_name,
         business_name: business_name || null,
         agreement_type,
         signed_at: signed_at || new Date().toISOString(),
         signature_data: 'manually_added',
         pdf_url: pdf_url || null,
+        notes: notes || null,
         email_sent: false
-      }).select().single();
+      };
+      const safeSelect = 'id, full_name, business_name, agreement_type, signed_at, signature_data, email_sent, created_at';
+      let inserted, error;
+      ({ data: inserted, error } = await supabase.from('signed_agreements').insert(insertPayload).select(safeSelect).single());
+      if (error && error.message && (error.message.includes("'notes'") || error.message.includes("'pdf_url'"))) {
+        const corePayload = { full_name, business_name: business_name || null, agreement_type, signed_at: insertPayload.signed_at, signature_data: 'manually_added', email_sent: false };
+        const retry = await supabase.from('signed_agreements').insert(corePayload).select(safeSelect).single();
+        inserted = retry.data;
+        error = retry.error;
+      }
       if (error) {
         console.error(`[${requestId}] Create agreement error:`, error);
         res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -31981,10 +31991,29 @@ Return ONLY the JSON array, no other text.`;
 
   if (req.method === 'GET' && req.url.startsWith('/api/admin/marketing/outreach-queue')) {
     setCorsHeaders(res, req);
-    return handleAdminAuth(req, res, requestId, () => {
-      const items = Array.from(outreachQueue.values()).sort((a, b) => b.id - a.id);
+    return handleAdminAuth(req, res, requestId, async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Service unavailable' }));
+        return;
+      }
+      const urlObj = new URL(req.url, `http://localhost`);
+      const status = urlObj.searchParams.get('status') || 'draft';
+      const limit = Math.min(parseInt(urlObj.searchParams.get('limit') || '50'), 200);
+      const { data: items, error } = await supabase
+        .from('outreach_messages')
+        .select('*')
+        .eq('status', status)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (error) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: error.message }));
+        return;
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, items }));
+      res.end(JSON.stringify({ success: true, items: items || [] }));
     });
   }
 
@@ -36898,7 +36927,43 @@ server.listen(PORT, '0.0.0.0', () => {
   startAnniversaryReminderScheduler();
   startSplitPaymentExpiryScheduler();
   startBidDeadlineScheduler();
+  seedFoundingProviderAgreements();
 });
+
+async function seedFoundingProviderAgreements() {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    const { data: existing } = await supabase
+      .from('signed_agreements')
+      .select('id')
+      .eq('full_name', 'Chris Agrapidis')
+      .eq('agreement_type', 'founding_provider')
+      .eq('signature_data', 'manually_added')
+      .limit(1);
+    if (existing && existing.length > 0) return;
+    const seedPayload = {
+      full_name: 'Chris Agrapidis',
+      business_name: 'Agrapidis Auto',
+      agreement_type: 'founding_provider',
+      signed_at: '2025-12-01T00:00:00.000Z',
+      signature_data: 'manually_added',
+      email_sent: false,
+      notes: 'Founding provider agreement — manually entered at server startup'
+    };
+    let { error: seedErr } = await supabase.from('signed_agreements').insert(seedPayload);
+    if (seedErr && seedErr.message && (seedErr.message.includes("'notes'") || seedErr.message.includes("'pdf_url'"))) {
+      delete seedPayload.notes;
+      delete seedPayload.pdf_url;
+      const retry = await supabase.from('signed_agreements').insert(seedPayload);
+      seedErr = retry.error;
+    }
+    if (!seedErr) console.log('[Seed] Chris Agrapidis founding provider agreement ensured.');
+    else console.error('[Seed] Insert error:', seedErr.message);
+  } catch (err) {
+    console.error('[Seed] Error seeding founding provider agreement:', err.message);
+  }
+}
 
 const _warnedPackageIds = new Set();
 

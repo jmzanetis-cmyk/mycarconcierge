@@ -1295,6 +1295,7 @@
       const type = document.getElementById('add-agreement-type')?.value;
       const date = document.getElementById('add-agreement-date')?.value;
       const pdfUrl = document.getElementById('add-agreement-pdf-url')?.value?.trim();
+      const notes = document.getElementById('add-agreement-notes')?.value?.trim();
       const errEl = document.getElementById('add-agreement-error');
       if (errEl) errEl.style.display = 'none';
       if (!name || !type) {
@@ -1309,7 +1310,7 @@
         const res = await fetch(`${apiBase}/api/admin/agreements`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ full_name: name, business_name: business || null, agreement_type: type, signed_at: date ? new Date(date).toISOString() : null, pdf_url: pdfUrl || null })
+          body: JSON.stringify({ full_name: name, business_name: business || null, agreement_type: type, signed_at: date ? new Date(date).toISOString() : null, pdf_url: pdfUrl || null, notes: notes || null })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to save agreement');
@@ -9624,7 +9625,7 @@
       const btn = document.querySelector('[onclick="runCycleNow()"]');
       if (btn) { btn.disabled = true; btn.textContent = 'Running…'; }
       try {
-        const res = await fetch(`${apiBase}/api/admin/outreach/engine-cycle`, {
+        const res = await fetch(`${apiBase}/api/admin/marketing/outreach-cycle`, {
           method: 'POST',
           headers: getMarketingHeaders()
         });

@@ -3766,6 +3766,10 @@
             <label style="font-weight:500;display:block;margin-bottom:6px;">PDF URL <span style="font-size:0.8rem;color:var(--text-muted);">(optional — paste link to signed PDF)</span></label>
             <input type="url" id="add-agreement-pdf-url" class="form-input" style="width:100%;" placeholder="https://…">
           </div>
+          <div>
+            <label style="font-weight:500;display:block;margin-bottom:6px;">Notes <span style="font-size:0.8rem;color:var(--text-muted);">(optional)</span></label>
+            <textarea id="add-agreement-notes" class="form-input" rows="2" style="width:100%;resize:vertical;" placeholder="Any additional notes…"></textarea>
+          </div>
           <div id="add-agreement-error" style="display:none;color:var(--accent-red);font-size:0.9rem;"></div>
         </div>
       </div>
@@ -3876,7 +3880,7 @@
   <script src="mcc-config.js?v=20260204"></script>
   <script src="supabaseclient.js?v=20260122"></script>
   <script src="admin-outreach.js?v=20260317a"></script>
-  <script src="admin.js?v=20260317b"></script>
+  <script src="admin.js?v=20260317c"></script>
   <script src="/pwa-init.js?v=20260202"></script>
   <script>
     function toggleTheme() {
