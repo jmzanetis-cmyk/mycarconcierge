@@ -378,42 +378,71 @@ exports.handler = async function(event) {
 
     var agreementId = result.data.id;
 
-    if (email && resendApiKey) {
+    var agreementPdfData = {
+      full_name: full_name.trim(),
+      reference_id: agreementId,
+      signed_date: signedDateFormatted,
+      ip_address: ip_address,
+      signature_data: signature_data,
+      signature_type: signature_type || 'type'
+    };
+
+    var pdfUrl = null;
+    var emailSent = false;
+
+    try {
+      var pdfBuffer = await generatePDF(agreementPdfData);
+
       try {
-        var agreementPdfData = {
-          full_name: full_name.trim(),
-          reference_id: agreementId,
-          signed_date: signedDateFormatted,
-          ip_address: ip_address,
-          signature_data: signature_data,
-          signature_type: signature_type || 'type'
-        };
+        var fileName = 'agreements/' + agreement_type + '/' + agreementId + '.pdf';
+        var uploadResult = await supabase.storage
+          .from('documents')
+          .upload(fileName, pdfBuffer, { contentType: 'application/pdf', upsert: true });
 
-        var pdfBuffer = await generatePDF(agreementPdfData);
+        if (uploadResult.error) {
+          await supabase.storage.createBucket('documents', { public: true, fileSizeLimit: 10485760 });
+          var retryResult = await supabase.storage
+            .from('documents')
+            .upload(fileName, pdfBuffer, { contentType: 'application/pdf', upsert: true });
+          if (!retryResult.error) {
+            pdfUrl = supabase.storage.from('documents').getPublicUrl(fileName).data?.publicUrl || fileName;
+          }
+        } else {
+          pdfUrl = supabase.storage.from('documents').getPublicUrl(fileName).data?.publicUrl || fileName;
+        }
+      } catch (uploadErr) {
+        console.error('PDF upload failed:', uploadErr);
+      }
+
+      var recipientEmail = email || null;
+      if (!recipientEmail && user_id) {
+        try {
+          var profileResult2 = await supabase.from('profiles').select('email').eq('id', user_id).single();
+          recipientEmail = profileResult2.data?.email || null;
+        } catch (pe) {}
+      }
+
+      if (recipientEmail && resendApiKey) {
         var base64Pdf = pdfBuffer.toString('base64');
-
         var emailHtml = buildEmailHtml(agreementPdfData);
 
         await sendEmailWithResend(resendApiKey, {
           from: 'My Car Concierge <noreply@mycarconcierge.com>',
-          to: [email],
+          to: [recipientEmail],
           subject: 'Your Founding Provider Partner Agreement - My Car Concierge',
           html: emailHtml,
-          attachments: [{
-            filename: 'MCC-Founding-Provider-Agreement.pdf',
-            content: base64Pdf
-          }]
+          attachments: [{ filename: 'MCC-Founding-Provider-Agreement.pdf', content: base64Pdf }]
         });
-
-        await supabase
-          .from('signed_agreements')
-          .update({ email_sent: true })
-          .eq('id', agreementId);
-
-        console.log('Agreement email sent successfully to: ' + email);
-      } catch (emailErr) {
-        console.error('Email send failed:', emailErr);
+        emailSent = true;
+        console.log('Agreement email sent to: ' + recipientEmail);
       }
+
+      await supabase
+        .from('signed_agreements')
+        .update({ pdf_url: pdfUrl || null, email_sent: emailSent })
+        .eq('id', agreementId);
+    } catch (postErr) {
+      console.error('Agreement post-processing failed:', postErr);
     }
 
     if (agreement_type === 'founding_provider_chris_agrapidis') {
