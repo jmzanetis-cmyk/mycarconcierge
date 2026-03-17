@@ -416,6 +416,39 @@ exports.handler = async function(event) {
       }
     }
 
+    if (agreement_type === 'founding_provider_chris_agrapidis') {
+      try {
+        var signingDate = new Date(insertData.signed_at).toISOString().split('T')[0];
+        var partnerEmail = email || null;
+
+        if (!partnerEmail && user_id) {
+          var profileResult = await supabase
+            .from('profiles')
+            .select('email')
+            .eq('id', user_id)
+            .single();
+          partnerEmail = profileResult.data?.email || null;
+        }
+
+        await supabase.from('founding_provider_partners').upsert({
+          user_id: user_id || null,
+          full_name: 'Chris Agrapidis',
+          email: partnerEmail,
+          agreement_date: signingDate,
+          anniversary_date: signingDate,
+          commission_rate: 0.90,
+          milestone_bonus_eligible: true,
+          zero_fees: true,
+          status: 'active',
+          notes: 'Founding Provider Partner Agreement signed ' + signingDate
+        }, { onConflict: 'full_name' });
+
+        console.log('Created founding provider partner record for Chris Agrapidis');
+      } catch (partnerErr) {
+        console.error('Founding provider partner record error:', partnerErr);
+      }
+    }
+
     return {
       statusCode: 200,
       headers: headers,
