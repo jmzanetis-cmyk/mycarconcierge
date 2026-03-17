@@ -32722,13 +32722,15 @@ Return ONLY the JSON array, no other text.`;
               const t = parseFloat(confidence_threshold);
               if (isNaN(t) || t < 0 || t > 1) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'confidence_threshold must be 0.0–1.0' })); return; }
               aiOpsSettingsOverride.confidence_threshold = t;
-              await supabase.from('ai_ops_settings').upsert({ key: 'confidence_threshold', value: String(t), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+              const { error: dbErr1 } = await supabase.from('ai_ops_settings').upsert({ key: 'confidence_threshold', value: String(t), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+              if (dbErr1) { console.error('[AI_OPS] Settings persist error:', dbErr1.message); }
             }
             if (max_auto_refund !== undefined) {
               const m = parseFloat(max_auto_refund);
               if (isNaN(m) || m < 0) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'max_auto_refund must be a positive number' })); return; }
               aiOpsSettingsOverride.max_auto_refund = m;
-              await supabase.from('ai_ops_settings').upsert({ key: 'max_auto_refund', value: String(m), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+              const { error: dbErr2 } = await supabase.from('ai_ops_settings').upsert({ key: 'max_auto_refund', value: String(m), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+              if (dbErr2) { console.error('[AI_OPS] Settings persist error:', dbErr2.message); }
             }
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true, confidence_threshold: getAiOpsThreshold(), max_auto_refund: getAiOpsMaxRefund(), shadow_mode: getAiOpsThreshold() >= 1.0 }));
