@@ -11839,7 +11839,7 @@ function handleAdminAuth(req, res, requestId, callback, requiredSection) {
     if (requiredSection && session.role !== 'super_admin') {
       const perms = ADMIN_ROLE_PERMISSIONS[session.role] || [];
       if (!perms.includes(requiredSection)) {
-        setCorsHeaders(res);
+        setCorsHeaders(res, req);
         res.writeHead(403, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Insufficient permissions for this section' }));
         return;
@@ -11854,7 +11854,7 @@ function handleAdminAuth(req, res, requestId, callback, requiredSection) {
     callback();
     return;
   }
-  setCorsHeaders(res);
+  setCorsHeaders(res, req);
   res.writeHead(401, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Unauthorized' }));
 }
