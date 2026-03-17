@@ -123,6 +123,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/admin/ai-ops/*"
+  to = "/.netlify/functions/ai-ops-admin/:splat"
+  status = 200
+
+[[redirects]]
   from = "/api/admin/outreach/*"
   to = "/.netlify/functions/outreach-admin/:splat"
   status = 200
