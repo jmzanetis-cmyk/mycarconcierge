@@ -2859,7 +2859,7 @@
             </select>
           </div>
           <div>
-            <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-agreement-modal').style.display='flex'"><span class="icon-inline" data-icon="plus"></span> Add Agreement</button>
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-agreement-modal').style.display='flex'"><span class="icon-inline" data-icon="plus"></span> Manually Add Agreement</button>
           </div>
         </div>
       </div>
@@ -3763,8 +3763,8 @@
             <input type="date" id="add-agreement-date" class="form-input" style="width:100%;">
           </div>
           <div>
-            <label style="font-weight:500;display:block;margin-bottom:6px;">Notes</label>
-            <textarea id="add-agreement-notes" class="form-input" rows="3" style="width:100%;resize:vertical;" placeholder="Any additional notes…"></textarea>
+            <label style="font-weight:500;display:block;margin-bottom:6px;">PDF URL <span style="font-size:0.8rem;color:var(--text-muted);">(optional — paste link to signed PDF)</span></label>
+            <input type="url" id="add-agreement-pdf-url" class="form-input" style="width:100%;" placeholder="https://…">
           </div>
           <div id="add-agreement-error" style="display:none;color:var(--accent-red);font-size:0.9rem;"></div>
         </div>

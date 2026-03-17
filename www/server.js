@@ -1321,7 +1321,7 @@ async function handleAdminCreateAgreement(req, res, requestId) {
         return;
       }
       const data = JSON.parse(body || '{}');
-      const { full_name, business_name, agreement_type, signed_at, notes } = data;
+      const { full_name, business_name, agreement_type, signed_at, pdf_url } = data;
       if (!full_name || !agreement_type) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'full_name and agreement_type are required' }));
@@ -1333,6 +1333,7 @@ async function handleAdminCreateAgreement(req, res, requestId) {
         agreement_type,
         signed_at: signed_at || new Date().toISOString(),
         signature_data: 'manually_added',
+        pdf_url: pdf_url || null,
         email_sent: false
       }).select().single();
       if (error) {

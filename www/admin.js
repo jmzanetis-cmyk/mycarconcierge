@@ -1294,7 +1294,7 @@
       const business = document.getElementById('add-agreement-business')?.value?.trim();
       const type = document.getElementById('add-agreement-type')?.value;
       const date = document.getElementById('add-agreement-date')?.value;
-      const notes = document.getElementById('add-agreement-notes')?.value?.trim();
+      const pdfUrl = document.getElementById('add-agreement-pdf-url')?.value?.trim();
       const errEl = document.getElementById('add-agreement-error');
       if (errEl) errEl.style.display = 'none';
       if (!name || !type) {
@@ -1309,7 +1309,7 @@
         const res = await fetch(`${apiBase}/api/admin/agreements`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ full_name: name, business_name: business || null, agreement_type: type, signed_at: date ? new Date(date).toISOString() : null, notes: notes || null })
+          body: JSON.stringify({ full_name: name, business_name: business || null, agreement_type: type, signed_at: date ? new Date(date).toISOString() : null, pdf_url: pdfUrl || null })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to save agreement');
@@ -9662,10 +9662,15 @@
       if (!confirm('Approve all draft messages for sending?')) return;
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       try {
+        const listRes = await fetch(`${apiBase}/api/admin/outreach/messages?status=draft&limit=200`, { headers: getMarketingHeaders() });
+        const listData = await listRes.json();
+        if (!listRes.ok) throw new Error(listData.error || 'Failed to load messages');
+        const messageIds = (listData.data || []).map(m => m.id);
+        if (messageIds.length === 0) { if (window.showToast) showToast('No draft messages to approve', 'error'); return; }
         const res = await fetch(`${apiBase}/api/admin/outreach/messages/approve-bulk`, {
           method: 'POST',
           headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
+          body: JSON.stringify({ message_ids: messageIds })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to approve');
