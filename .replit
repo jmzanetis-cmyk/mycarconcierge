@@ -45,6 +45,7 @@ defaultBucketID = "replit-objstore-970c9ce6-a451-4b77-b216-7f5cdd6ab7c7"
 GLOBAL_2FA_ENABLED = "false"
 RUNNER_BASE_URL = "https://my-car-concierge--jmzanetis.replit.app"
 PRINTFUL_STORE_ID = "17600926"
+ADMIN_PHONE_NUMBER = "8458210804"
 
 [nix]
 channel = "stable-25_05"
