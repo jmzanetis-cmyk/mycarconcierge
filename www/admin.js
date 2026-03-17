@@ -9696,12 +9696,13 @@
     async function syncLeadsToInstantly() {
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       const campaignId = (document.getElementById('instantly-sync-campaign') || {}).value?.trim() || '';
+      const syncLimit = parseInt((document.getElementById('instantly-sync-limit') || {}).value || '500', 10);
       const resultEl = document.getElementById('instantly-sync-result');
       const btn = document.getElementById('instantly-sync-btn');
       if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
       if (resultEl) { resultEl.style.display = 'none'; resultEl.innerHTML = ''; }
       try {
-        const payload = {};
+        const payload = { limit: syncLimit, min_score: 0 };
         if (campaignId) payload.campaign_id = campaignId;
         const res = await fetch(`${apiBase}/api/admin/marketing/instantly-sync`, {
           method: 'POST',
