@@ -95,7 +95,8 @@
       'ai-chat-insights': false,
       crm: false,
       traffic: false,
-      'marketing-outreach': false
+      'marketing-outreach': false,
+      'ai-ops': false
     };
 
     const sectionLoaders = {
@@ -124,7 +125,8 @@
       crm: async () => { await loadCrmData(); },
       'team-management': async () => { await loadTeamMembers(); },
       traffic: async () => { await loadTrafficData(); },
-      'marketing-outreach': async () => { await initMarketingHub(); if (typeof window.initOutreachEngine === 'function') await window.initOutreachEngine(); }
+      'marketing-outreach': async () => { await initMarketingHub(); if (typeof window.initOutreachEngine === 'function') await window.initOutreachEngine(); },
+      'ai-ops': async () => { await initAiOps(); }
     };
 
     function showSectionLoading(sectionId) {
@@ -9921,3 +9923,317 @@
       }).then(r => r.json());
     }
     window.outreachFetch = outreachFetch;
+
+    // ========== AI OPS AGENT ==========
+
+    let aiOpsCurrentTab = 'activity';
+    let aiOpsActivityPage = 1;
+    let aiOpsDigests = [];
+
+    function getAiOpsHeaders() {
+      const headers = {};
+      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
+      else if (adminPasswordVerified) headers['x-admin-password'] = adminPasswordVerified;
+      else { const p = localStorage.getItem('mcc_admin_pass'); if (p) headers['x-admin-password'] = p; }
+      return headers;
+    }
+
+    function switchAiOpsTab(tab) {
+      aiOpsCurrentTab = tab;
+      ['activity', 'escalations', 'digest', 'settings'].forEach(t => {
+        const btn = document.getElementById(`ai-ops-tab-${t}`);
+        const panel = document.getElementById(`ai-ops-panel-${t}`);
+        if (btn) { btn.style.borderBottomColor = t === tab ? 'var(--accent-blue)' : 'transparent'; btn.style.color = t === tab ? 'var(--accent-blue)' : 'var(--text-secondary)'; btn.style.fontWeight = t === tab ? '600' : '400'; }
+        if (panel) panel.style.display = t === tab ? '' : 'none';
+      });
+      if (tab === 'activity') loadAiOpsActivity();
+      else if (tab === 'escalations') loadAiOpsEscalations();
+      else if (tab === 'digest') loadAiOpsDigests();
+      else if (tab === 'settings') loadAiOpsSettings();
+    }
+    window.switchAiOpsTab = switchAiOpsTab;
+
+    async function initAiOps() {
+      await loadAiOpsActivity();
+      loadAiOpsEscalations();
+      loadAiOpsSettings();
+    }
+
+    async function loadAiOpsActivity() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const listEl = document.getElementById('ai-ops-activity-list');
+      const pagEl = document.getElementById('ai-ops-activity-pagination');
+      if (!listEl) return;
+      const mod = document.getElementById('ai-ops-module-filter')?.value || '';
+      listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>';
+      try {
+        const params = new URLSearchParams({ page: aiOpsActivityPage, limit: 25 });
+        if (mod) params.set('module', mod);
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/actions?${params}`, { headers: getAiOpsHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const actions = data.actions || [];
+        if (actions.length === 0) {
+          listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No AI actions logged yet. Run an AI Ops module to see activity here.</div>';
+          if (pagEl) pagEl.innerHTML = '';
+          return;
+        }
+        const confColor = c => c >= 0.9 ? 'var(--accent-green)' : c >= 0.7 ? 'var(--accent-gold)' : 'var(--accent-red)';
+        listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead><tr style="border-bottom:2px solid var(--border-subtle);">
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Module</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Action</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Target</th>
+            <th style="padding:10px 12px;text-align:center;color:var(--text-muted);font-weight:500;">Confidence</th>
+            <th style="padding:10px 12px;text-align:center;color:var(--text-muted);font-weight:500;">Auto</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Outcome</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Time</th>
+          </tr></thead>
+          <tbody>${actions.map(a => `<tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px 12px;"><span style="background:var(--bg-tertiary);padding:2px 8px;border-radius:6px;font-size:0.8rem;font-family:monospace;">${escapeHtml(a.module || '—')}</span></td>
+            <td style="padding:10px 12px;">${escapeHtml(a.action_type || '—')}</td>
+            <td style="padding:10px 12px;color:var(--text-muted);font-size:0.82rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(a.target_id || '')}">${escapeHtml((a.target_id || '—').substring(0, 12))}…</td>
+            <td style="padding:10px 12px;text-align:center;"><span style="color:${confColor(a.confidence || 0)};font-weight:600;">${((a.confidence || 0) * 100).toFixed(0)}%</span></td>
+            <td style="padding:10px 12px;text-align:center;">${a.auto_executed ? '<span style="color:var(--accent-green);">✓</span>' : a.escalated ? '<span style="color:var(--accent-gold);">⬆</span>' : '<span style="color:var(--text-muted);">—</span>'}</td>
+            <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.78rem;background:${a.outcome === 'executed' ? 'var(--accent-green)' : a.outcome === 'escalated' ? '#f59e0b' : a.outcome === 'error' ? 'var(--accent-red)' : 'var(--bg-tertiary)'};color:${a.outcome === 'executed' || a.outcome === 'escalated' || a.outcome === 'error' ? '#fff' : 'var(--text-primary)'};">${escapeHtml(a.outcome || 'pending')}</span></td>
+            <td style="padding:10px 12px;color:var(--text-muted);font-size:0.82rem;">${new Date(a.created_at).toLocaleDateString()} ${new Date(a.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+        if (pagEl) {
+          const total = data.total || 0;
+          const totalPages = data.totalPages || 1;
+          pagEl.innerHTML = total > 25 ? renderPaginationControls({ page: aiOpsActivityPage, limit: 25, total, totalPages }, 'd => { aiOpsActivityPage += d; loadAiOpsActivity(); }') : '';
+        }
+      } catch (err) {
+        listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+    window.loadAiOpsActivity = loadAiOpsActivity;
+
+    async function loadAiOpsEscalations() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const listEl = document.getElementById('ai-ops-escalations-list');
+      if (!listEl) return;
+      listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading escalations…</div>';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/escalations?status=pending`, { headers: getAiOpsHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const escs = data.escalations || [];
+        const badge = document.getElementById('ai-ops-esc-badge');
+        if (badge) { badge.textContent = escs.length; badge.style.display = escs.length > 0 ? 'inline' : 'none'; }
+        if (escs.length === 0) {
+          listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No pending escalations. All clear!</div>';
+          return;
+        }
+        listEl.innerHTML = escs.map(e => {
+          const rec = e.recommendation || {};
+          return `<div style="border:1px solid var(--border-subtle);border-radius:12px;padding:20px;margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+              <div>
+                <span style="background:var(--bg-tertiary);padding:2px 10px;border-radius:6px;font-size:0.8rem;font-family:monospace;">${escapeHtml(e.module || '—')}</span>
+                <span style="margin-left:8px;color:var(--text-muted);font-size:0.85rem;">${new Date(e.created_at).toLocaleDateString()}</span>
+              </div>
+              <span style="color:var(--accent-gold);font-weight:600;font-size:0.85rem;">Confidence: ${((e.confidence || 0) * 100).toFixed(0)}%</span>
+            </div>
+            <div style="margin-bottom:8px;"><strong>Target:</strong> <code style="font-size:0.82rem;background:var(--bg-tertiary);padding:2px 6px;border-radius:4px;">${escapeHtml(e.target_id || '—')}</code></div>
+            <div style="margin-bottom:8px;"><strong>AI Recommendation:</strong> <span style="color:var(--accent-blue);">${escapeHtml(rec.recommendation || '—')}</span></div>
+            ${rec.reasoning ? `<div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:0.88rem;color:var(--text-secondary);">${escapeHtml(rec.reasoning)}</div>` : ''}
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-primary btn-sm" onclick="resolveAiEscalation('${e.id}', 'approve')">✓ Approve AI Recommendation</button>
+              <button class="btn btn-secondary btn-sm" onclick="showEscalationOverride('${e.id}')">↩ Override</button>
+            </div>
+            <div id="esc-override-${e.id}" style="display:none;margin-top:12px;padding:12px;background:var(--bg-secondary);border-radius:8px;">
+              <textarea id="esc-notes-${e.id}" placeholder="Override reason / admin decision…" style="width:100%;padding:8px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-tertiary);color:var(--text-primary);font-size:0.85rem;min-height:60px;resize:vertical;"></textarea>
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <button class="btn btn-secondary btn-sm" onclick="resolveAiEscalation('${e.id}', 'override')">Confirm Override</button>
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('esc-override-${e.id}').style.display='none'">Cancel</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+      } catch (err) {
+        listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+    window.loadAiOpsEscalations = loadAiOpsEscalations;
+
+    function showEscalationOverride(id) {
+      const el = document.getElementById(`esc-override-${id}`);
+      if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+    }
+    window.showEscalationOverride = showEscalationOverride;
+
+    async function resolveAiEscalation(id, action) {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const notes = document.getElementById(`esc-notes-${id}`)?.value || '';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/escalations/${id}/resolve`, {
+          method: 'POST',
+          headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, notes })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        if (window.showToast) showToast(action === 'approve' ? 'AI recommendation approved' : 'Override recorded', 'success');
+        loadAiOpsEscalations();
+      } catch (err) {
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.resolveAiEscalation = resolveAiEscalation;
+
+    async function loadAiOpsDigests() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const contentEl = document.getElementById('ai-ops-digest-content');
+      const selectorEl = document.getElementById('ai-ops-digest-selector');
+      const dateEl = document.getElementById('ai-ops-digest-date');
+      if (!contentEl) return;
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/digests`, { headers: getAiOpsHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        aiOpsDigests = data.digests || [];
+        if (aiOpsDigests.length === 0) {
+          contentEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No digests yet. Click "Generate Now" to create today\'s digest.</div>';
+          if (selectorEl) selectorEl.style.display = 'none';
+          return;
+        }
+        if (dateEl) {
+          dateEl.innerHTML = aiOpsDigests.map(d => `<option value="${d.date}">${new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'})}</option>`).join('');
+        }
+        if (selectorEl) selectorEl.style.display = '';
+        renderSelectedDigest();
+      } catch (err) {
+        contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+    window.loadAiOpsDigests = loadAiOpsDigests;
+
+    function renderSelectedDigest() {
+      const dateEl = document.getElementById('ai-ops-digest-date');
+      const contentEl = document.getElementById('ai-ops-digest-content');
+      if (!contentEl) return;
+      const date = dateEl?.value;
+      const digest = aiOpsDigests.find(d => d.date === date) || aiOpsDigests[0];
+      if (!digest) { contentEl.innerHTML = '<div style="color:var(--text-muted);padding:24px;">No digest found for this date.</div>'; return; }
+      const stats = digest.stats || {};
+      const moduleCount = Object.keys(stats).length;
+      contentEl.innerHTML = `
+        <div style="padding:20px;background:var(--bg-secondary);border-radius:10px;margin-bottom:16px;">
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">${new Date(digest.date + 'T12:00:00').toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'})}</div>
+          <p style="line-height:1.6;color:var(--text-primary);">${escapeHtml(digest.narrative || 'No narrative generated.')}</p>
+        </div>
+        ${moduleCount > 0 ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">
+          ${Object.entries(stats).map(([mod, s]) => `<div style="border:1px solid var(--border-subtle);border-radius:10px;padding:16px;">
+            <div style="font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">${escapeHtml(mod.replace(/_/g,' '))}</div>
+            <div style="font-size:1.6rem;font-weight:700;color:var(--text-primary);">${s.total || 0}</div>
+            <div style="font-size:0.8rem;color:var(--text-secondary);">actions<br>${s.auto_executed || 0} auto · ${s.escalated || 0} escalated</div>
+          </div>`).join('')}
+        </div>` : ''}
+      `;
+    }
+    window.renderSelectedDigest = renderSelectedDigest;
+
+    async function runAiOpsDigest() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const resultEl = document.getElementById('ai-ops-digest-trigger-result');
+      try {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Generating…'; }
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/daily-digest/run`, { method: 'POST', headers: getAiOpsHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        if (window.showToast) showToast('Digest generated successfully', 'success');
+        if (resultEl) { resultEl.style.color = 'var(--accent-green)'; resultEl.textContent = `Generated: ${data.date} (${data.totalActions} actions)`; }
+        if (aiOpsCurrentTab === 'digest') setTimeout(loadAiOpsDigests, 500);
+      } catch (err) {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.runAiOpsDigest = runAiOpsDigest;
+
+    async function loadAiOpsSettings() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const contentEl = document.getElementById('ai-ops-settings-content');
+      if (!contentEl) return;
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/settings`, { headers: getAiOpsHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        const shadowMode = data.shadow_mode;
+        const shadowBanner = document.getElementById('ai-ops-shadow-banner');
+        if (shadowBanner) shadowBanner.style.display = shadowMode ? 'flex' : 'none';
+        contentEl.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;">
+            <div style="border:1px solid var(--border-subtle);border-radius:10px;padding:16px;">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Confidence Threshold</div>
+              <div style="font-size:1.8rem;font-weight:700;color:${shadowMode ? '#a78bfa' : 'var(--accent-blue)'};">${(data.confidence_threshold * 100).toFixed(0)}%</div>
+              <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">${shadowMode ? '🛡️ Shadow Mode — nothing auto-executes' : '✓ Autonomous actions enabled'}</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;">Set via <code>AI_CONFIDENCE_THRESHOLD</code> env var</div>
+            </div>
+            <div style="border:1px solid var(--border-subtle);border-radius:10px;padding:16px;">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Max Auto-Refund</div>
+              <div style="font-size:1.8rem;font-weight:700;color:var(--accent-green);">$${data.max_auto_refund}</div>
+              <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">Per dispute auto-resolution</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;">Set via <code>AI_MAX_AUTO_REFUND</code> env var</div>
+            </div>
+          </div>
+          <div style="margin-top:16px;padding:12px 16px;background:var(--bg-secondary);border-radius:8px;font-size:0.85rem;color:var(--text-secondary);">
+            <strong>Note:</strong> These settings are controlled by environment variables. To change them, update the env vars and restart the server. In shadow mode (threshold = 1.0), all AI decisions are logged and escalated but nothing auto-executes.
+          </div>
+        `;
+      } catch (err) {
+        if (contentEl) contentEl.innerHTML = `<div style="color:var(--text-muted);font-size:0.9rem;">Settings unavailable: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+    window.loadAiOpsSettings = loadAiOpsSettings;
+
+    async function triggerDisputeResolver() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const disputeId = document.getElementById('ai-ops-dispute-id')?.value?.trim();
+      const resultEl = document.getElementById('ai-ops-dispute-result');
+      if (!disputeId) { if (window.showToast) showToast('Enter a dispute ID', 'error'); return; }
+      if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Analyzing dispute…'; }
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/dispute-resolver/trigger`, {
+          method: 'POST',
+          headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dispute_id: disputeId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        if (resultEl) {
+          resultEl.style.color = 'var(--accent-green)';
+          resultEl.textContent = `Action: ${data.action || '—'} | Confidence: ${((data.confidence || 0) * 100).toFixed(0)}% | ${data.reasoning || ''}`;
+        }
+        if (window.showToast) showToast(`Dispute ${data.action || 'analyzed'} (${((data.confidence || 0) * 100).toFixed(0)}% confidence)`, 'success');
+        setTimeout(() => { if (aiOpsCurrentTab === 'activity') loadAiOpsActivity(); else if (aiOpsCurrentTab === 'escalations') loadAiOpsEscalations(); }, 500);
+      } catch (err) {
+        if (resultEl) { resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.triggerDisputeResolver = triggerDisputeResolver;
+
+    async function triggerPaymentTracker() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const resultEl = document.getElementById('ai-ops-payment-result');
+      if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Running payment tracker…'; }
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/payment-tracker/run`, { method: 'POST', headers: getAiOpsHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        if (resultEl) {
+          resultEl.style.color = 'var(--accent-green)';
+          resultEl.textContent = data.message || `Processed ${data.processed || 0} orders, ${data.anomalies || 0} anomalies`;
+        }
+        if (window.showToast) showToast(data.message || `Payment tracker: ${data.processed || 0} orders`, 'success');
+      } catch (err) {
+        if (resultEl) { resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.triggerPaymentTracker = triggerPaymentTracker;
+
+    // ========== END AI OPS AGENT ==========

@@ -11797,7 +11797,7 @@ async function handleHelpdeskRequest(req, res, requestId) {
 }
 
 const ADMIN_ROLE_PERMISSIONS = {
-  super_admin: ['dashboard', 'analytics', 'applications', 'pilot-applications', 'member-founders', 'commission-payouts', 'providers', 'violations', 'car-reviews', 'packages', 'payments', 'disputes', 'refunds', 'registration-verifications', 'tickets', 'ai-chat-insights', 'members', 'user-roles', 'user-management', 'agreements', 'merch-manager', 'crm', 'documents', 'settings', 'team-management', 'marketing-outreach'],
+  super_admin: ['dashboard', 'analytics', 'applications', 'pilot-applications', 'member-founders', 'commission-payouts', 'providers', 'violations', 'car-reviews', 'packages', 'payments', 'disputes', 'refunds', 'registration-verifications', 'tickets', 'ai-chat-insights', 'members', 'user-roles', 'user-management', 'agreements', 'merch-manager', 'crm', 'documents', 'settings', 'team-management', 'marketing-outreach', 'ai-ops'],
   crm_manager: ['dashboard', 'crm'],
   marketing: ['dashboard', 'crm', 'ai-chat-insights', 'analytics', 'merch-manager', 'marketing-outreach'],
   operations: ['dashboard', 'analytics', 'applications', 'providers', 'violations', 'car-reviews', 'packages', 'members', 'user-roles', 'user-management', 'registration-verifications'],
@@ -32451,6 +32451,7 @@ Return ONLY the JSON array, no other text.`;
   if (req.method === 'POST' && req.url === '/api/admin/marketing/outreach-cycle') {
     setCorsHeaders(res, req);
     return handleAdminAuth(req, res, requestId, async () => {
+      const t0 = Date.now();
       try {
         const adminPass = req.headers['x-admin-password'] || '';
         const resp = await fetch(`http://localhost:${PORT}/api/admin/outreach/engine-cycle`, {
@@ -32458,9 +32459,11 @@ Return ONLY the JSON array, no other text.`;
           headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPass }
         });
         const result = await resp.json();
+        await logAiAction({ module: 'outreach_engine', actionType: 'cycle_run', targetId: 'cycle', decision: { leads_discovered: result.discovered || 0, leads_scored: result.scored || 0, drafts_created: result.drafted || 0, auto_sent: result.auto_sent || 0 }, confidence: 0.9, autoExecuted: true, escalated: false, outcome: resp.ok ? 'executed' : 'error', executionTimeMs: Date.now() - t0 });
         res.writeHead(resp.status, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
       } catch (err) {
+        await logAiAction({ module: 'outreach_engine', actionType: 'cycle_run', targetId: 'cycle', decision: { error: err.message }, confidence: 0, outcome: 'error', errorDetails: err.message, executionTimeMs: Date.now() - t0 });
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
       }
@@ -32574,6 +32577,87 @@ Return ONLY the JSON array, no other text.`;
       });
     });
   }
+
+  // ========== AI OPS ENDPOINTS ==========
+  if (req.url.startsWith('/api/admin/ai-ops')) {
+    setCorsHeaders(res, req);
+    if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+    return handleAdminAuth(req, res, requestId, async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+      if (req.method === 'GET' && req.url.startsWith('/api/admin/ai-ops/actions')) {
+        try {
+          const u = new URL(req.url, 'http://localhost'); const page = parseInt(u.searchParams.get('page') || '1'); const limit = Math.min(parseInt(u.searchParams.get('limit') || '25'), 100); const mod = u.searchParams.get('module') || '';
+          let q = supabase.from('ai_action_log').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
+          if (mod) q = q.eq('module', mod);
+          const { data, error, count } = await q; if (error) throw error;
+          res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ actions: data || [], total: count || 0, page, limit, totalPages: Math.ceil((count || 0) / limit) }));
+        } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
+        return;
+      }
+
+      if (req.method === 'GET' && req.url.startsWith('/api/admin/ai-ops/escalations')) {
+        try {
+          const u = new URL(req.url, 'http://localhost'); const status = u.searchParams.get('status') || 'pending';
+          const { data, error } = await supabase.from('ai_escalations').select('*').eq('status', status).order('created_at', { ascending: false }).limit(50);
+          if (error) throw error; res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ escalations: data || [] }));
+        } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
+        return;
+      }
+
+      if (req.method === 'POST' && req.url.match(/\/api\/admin\/ai-ops\/escalations\/([^/]+)\/resolve/)) {
+        const match = req.url.match(/\/api\/admin\/ai-ops\/escalations\/([^/]+)\/resolve/); const escId = match[1];
+        let body = ''; req.on('data', c => { body += c.toString(); }); req.on('end', async () => {
+          try {
+            const { action, notes } = JSON.parse(body || '{}');
+            const { error } = await supabase.from('ai_escalations').update({ status: action === 'approve' ? 'approved' : 'overridden', admin_decision: action, admin_notes: notes || '', resolved_at: new Date().toISOString() }).eq('id', escId);
+            if (error) throw error; res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true }));
+          } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
+        }); return;
+      }
+
+      if (req.method === 'GET' && req.url.startsWith('/api/admin/ai-ops/digests')) {
+        try {
+          const { data, error } = await supabase.from('ai_daily_digests').select('*').order('date', { ascending: false }).limit(30);
+          if (error) throw error; res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ digests: data || [] }));
+        } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/admin/ai-ops/settings') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ confidence_threshold: getAiOpsThreshold(), max_auto_refund: getAiOpsMaxRefund(), shadow_mode: getAiOpsThreshold() >= 1.0, env_note: 'Set AI_CONFIDENCE_THRESHOLD and AI_MAX_AUTO_REFUND env vars to change.' }));
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/api/admin/ai-ops/dispute-resolver/trigger') {
+        let body = ''; req.on('data', c => { body += c.toString(); }); req.on('end', async () => {
+          try {
+            const { dispute_id } = JSON.parse(body || '{}');
+            if (!dispute_id) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'dispute_id required' })); return; }
+            const result = await runDisputeResolver(supabase, dispute_id, requestId);
+            res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(result));
+          } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
+        }); return;
+      }
+
+      if (req.method === 'POST' && req.url === '/api/admin/ai-ops/payment-tracker/run') {
+        try { const result = await runPaymentTracker(supabase, requestId); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(result)); }
+        catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/api/admin/ai-ops/daily-digest/run') {
+        try { const result = await runDailyDigest(supabase, requestId); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(result)); }
+        catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
+        return;
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not found' }));
+    }, 'ai-ops');
+  }
+  // ========== END AI OPS ENDPOINTS ==========
 
   if (req.method === 'OPTIONS' && (req.url === '/api/analytics/track' || req.url.startsWith('/api/analytics/data'))) {
     setCorsHeaders(res, req);
@@ -36920,7 +37004,127 @@ server.listen(PORT, '0.0.0.0', () => {
   startSplitPaymentExpiryScheduler();
   startBidDeadlineScheduler();
   seedFoundingProviderAgreements();
+  createAiOpsTablesIfNeeded();
 });
+
+// ========== AI OPS FOUNDATION ==========
+
+async function createAiOpsTablesIfNeeded() {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    const { error: logErr } = await supabase.from('ai_action_log').select('id').limit(1);
+    if (logErr && logErr.code === '42P01') {
+      console.log('[AI_OPS] ai_action_log table not found — run ai-ops-schema.sql in Supabase');
+    } else {
+      console.log('[AI_OPS] Tables verified.');
+    }
+  } catch (err) {
+    console.log('[AI_OPS] Table check skipped:', err.message);
+  }
+}
+
+async function logAiAction({ module, actionType, targetId, decision, confidence = 0, autoExecuted = false, escalated = false, outcome = 'pending', errorDetails = null, executionTimeMs = 0 }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase.from('ai_action_log').insert({
+      module, action_type: actionType, target_id: String(targetId || ''), decision, confidence, auto_executed: autoExecuted, escalated, outcome, error_details: errorDetails, execution_time_ms: executionTimeMs, created_at: new Date().toISOString()
+    }).select('id').single();
+    if (error) { console.error('[AI_OPS] logAiAction error:', error.message); return null; }
+    return data?.id;
+  } catch (err) {
+    console.error('[AI_OPS] logAiAction exception:', err.message);
+    return null;
+  }
+}
+
+async function createAiEscalation({ module, targetId, recommendation, confidence }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase.from('ai_escalations').insert({
+      module, target_id: String(targetId || ''), recommendation, confidence, status: 'pending', created_at: new Date().toISOString()
+    }).select('id').single();
+    if (error) { console.error('[AI_OPS] createEscalation error:', error.message); return null; }
+    return data?.id;
+  } catch (err) {
+    console.error('[AI_OPS] createEscalation exception:', err.message);
+    return null;
+  }
+}
+
+function getAiOpsThreshold() { return parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0'); }
+function getAiOpsMaxRefund() { return parseFloat(process.env.AI_MAX_AUTO_REFUND || '500'); }
+
+async function runDisputeResolver(supabase, disputeId, requestId = 'ai-ops') {
+  const t0 = Date.now();
+  try {
+    const { data: dispute } = await supabase.from('disputes').select('*, packages(*)').eq('id', disputeId).single();
+    if (!dispute) return { error: 'Dispute not found' };
+    const pkg = dispute.packages || {};
+    const threshold = getAiOpsThreshold();
+    const prompt = `You are the AI Ops Dispute Resolver for My Car Concierge. Analyze this dispute and respond ONLY with valid JSON:
+{"recommendation":"full_refund"|"partial_refund"|"deny_refund"|"escalate","confidence":0.0-1.0,"refund_amount_cents":number,"reasoning":"one sentence","member_message":"brief","provider_message":"brief"}
+DISPUTE: ID=${disputeId}, Reason=${dispute.reason||'N/A'}, Description=${dispute.description||'N/A'}, Service=${pkg.title||'Unknown'}, Amount=$${(pkg.amount||0)/100}
+Rules: escalate if complex. full_refund if provider failed. partial_refund if partial delivery. deny_refund if unfounded. When in doubt, escalate.`;
+    const response = await generateAIContent(prompt, { maxTokens: 512, preferredProvider: 'anthropic' });
+    let result;
+    try { const m = response.text.match(/\{[\s\S]*\}/); result = JSON.parse(m ? m[0] : response.text); }
+    catch { result = { recommendation: 'escalate', confidence: 0, reasoning: 'AI parse failed' }; }
+    const confidence = result.confidence || 0;
+    const autoExecute = confidence >= threshold && result.recommendation !== 'escalate';
+    await logAiAction({ module: 'dispute_resolver', actionType: result.recommendation, targetId: disputeId, decision: result, confidence, autoExecuted: autoExecute, escalated: !autoExecute, outcome: autoExecute ? 'executed' : 'escalated', executionTimeMs: Date.now() - t0 });
+    if (!autoExecute) { await createAiEscalation({ module: 'dispute_resolver', targetId: disputeId, recommendation: result, confidence }); return { success: true, action: 'escalated', confidence, reasoning: result.reasoning }; }
+    await supabase.from('disputes').update({ status: 'resolved_by_ai', resolution: result.reasoning, updated_at: new Date().toISOString() }).eq('id', disputeId);
+    return { success: true, action: result.recommendation, confidence, reasoning: result.reasoning, auto_executed: true };
+  } catch (err) {
+    await logAiAction({ module: 'dispute_resolver', actionType: 'error', targetId: disputeId, decision: { error: err.message }, confidence: 0, outcome: 'error', errorDetails: err.message, executionTimeMs: Date.now() - t0 });
+    return { error: err.message };
+  }
+}
+
+async function runPaymentTracker(supabase, requestId = 'ai-ops') {
+  const t0 = Date.now();
+  try {
+    const { data: orders } = await supabase.from('packages').select('id, provider_id, amount, status, created_at').eq('status', 'completed').is('metadata->>ai_reconciled', null).limit(50);
+    if (!orders || orders.length === 0) return { success: true, message: 'No unreconciled orders', processed: 0 };
+    const byProvider = {};
+    for (const o of orders) { if (!o.provider_id) continue; if (!byProvider[o.provider_id]) byProvider[o.provider_id] = { total: 0, orders: [] }; byProvider[o.provider_id].total += (o.amount || 0); byProvider[o.provider_id].orders.push(o.id); }
+    const summary = Object.entries(byProvider).map(([pid, v]) => ({ provider_id: pid, total_cents: v.total, order_count: v.orders.length }));
+    const prompt = `You are the AI Ops Payment Tracker. Review this batch and flag anomalies. Respond ONLY with valid JSON: {"anomalies":[{"provider_id":"...","reason":"..."}],"confidence":0.0-1.0,"recommendation":"process_all"|"flag_anomalies"|"hold_batch","notes":"brief"}\nBATCH: ${JSON.stringify(summary)}`;
+    const response = await generateAIContent(prompt, { maxTokens: 512, preferredProvider: 'anthropic' });
+    let result;
+    try { const m = response.text.match(/\{[\s\S]*\}/); result = JSON.parse(m ? m[0] : response.text); }
+    catch { result = { anomalies: [], confidence: 0.5, recommendation: 'flag_anomalies', notes: 'Parse error' }; }
+    const threshold = getAiOpsThreshold();
+    const autoExecute = result.confidence >= threshold && result.recommendation === 'process_all';
+    await logAiAction({ module: 'payment_tracker', actionType: result.recommendation, targetId: 'batch', decision: result, confidence: result.confidence || 0, autoExecuted: autoExecute, escalated: (result.anomalies || []).length > 0, outcome: autoExecute ? 'processed' : 'flagged', executionTimeMs: Date.now() - t0 });
+    if ((result.anomalies || []).length > 0) { await createAiEscalation({ module: 'payment_tracker', targetId: 'batch', recommendation: result, confidence: result.confidence || 0 }); }
+    return { success: true, processed: orders.length, anomalies: result.anomalies?.length || 0, recommendation: result.recommendation, notes: result.notes };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+async function runDailyDigest(supabase, requestId = 'ai-ops') {
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: actions } = await supabase.from('ai_action_log').select('module, action_type, outcome, confidence, auto_executed, escalated, created_at').gte('created_at', since);
+    const byModule = {};
+    for (const a of (actions || [])) { if (!byModule[a.module]) byModule[a.module] = { total: 0, auto_executed: 0, escalated: 0, outcomes: {} }; byModule[a.module].total++; if (a.auto_executed) byModule[a.module].auto_executed++; if (a.escalated) byModule[a.module].escalated++; byModule[a.module].outcomes[a.outcome] = (byModule[a.module].outcomes[a.outcome] || 0) + 1; }
+    const totalActions = (actions || []).length;
+    let narrative = `AI Ops Daily Digest — ${new Date().toLocaleDateString()}. Total actions: ${totalActions}`;
+    if (totalActions > 0) {
+      try { const r = await generateAIContent(`Write a 2-3 sentence daily digest for My Car Concierge AI Ops. Stats: ${JSON.stringify(byModule)}. Keep concise and informative for admin.`, { maxTokens: 256, preferredProvider: 'anthropic' }); narrative = r.text; } catch {}
+    }
+    const today = new Date().toISOString().split('T')[0];
+    await supabase.from('ai_daily_digests').upsert({ date: today, narrative, stats: byModule, sent_sms: false, created_at: new Date().toISOString() }, { onConflict: 'date' });
+    return { success: true, date: today, totalActions, narrative };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
 
 async function seedFoundingProviderAgreements() {
   const supabase = getSupabaseClient();

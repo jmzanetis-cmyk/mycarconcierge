@@ -453,16 +453,19 @@
 
     function checkAdminAuth() {
       var supabaseAuth = findSupabaseToken();
-      if (supabaseAuth) return supabaseAuth;
       var adminPass = localStorage.getItem('mcc_admin_pass') || sessionStorage.getItem('mcc_admin_pass');
+      if (supabaseAuth && adminPass) return { token: supabaseAuth.token, adminPass: adminPass, type: 'both' };
+      if (supabaseAuth) return { token: supabaseAuth.token, type: 'bearer' };
       if (adminPass) return { adminPass: adminPass, type: 'password' };
       window.location.href = 'admin.html';
       return null;
     }
 
     function buildAuthHeaders(auth) {
-      if (auth.type === 'password') return { 'x-admin-password': auth.adminPass };
-      return { 'Authorization': 'Bearer ' + auth.token };
+      var headers = {};
+      if (auth.token) headers['Authorization'] = 'Bearer ' + auth.token;
+      if (auth.adminPass) headers['x-admin-password'] = auth.adminPass;
+      return headers;
     }
 
     function downloadPdf(id, name, btn) {
@@ -573,9 +576,8 @@
     }
 
     function init() {
-      var auth = findSupabaseToken();
+      var auth = checkAdminAuth();
       if (!auth) {
-        window.location.href = 'admin.html';
         return;
       }
       if (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl !== undefined) {

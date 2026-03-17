@@ -583,6 +583,9 @@
       <div class="nav-label">Resources</div>
       <div class="nav-item" data-section="documents"><span class="icon-inline" data-icon="file-text"></span> Documents &amp; Resources</div>
       
+      <div class="nav-label">AI Operations</div>
+      <div class="nav-item" data-section="ai-ops"><span class="icon-inline" data-icon="cpu"></span> AI Ops Agent</div>
+
       <div class="nav-label">System</div>
       <div class="nav-item" data-section="team-management"><span class="icon-inline" data-icon="users"></span> Team Management</div>
       <div class="nav-item" data-section="settings"><span class="icon-inline" data-icon="settings"></span> Settings</div>
@@ -3454,6 +3457,180 @@
         </div>
       </div>
     </div>
+
+    <!-- AI Ops Section -->
+    <section id="ai-ops" class="section">
+      <div class="page-header">
+        <button class="back-to-dashboard" onclick="navigateToSection('dashboard')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Dashboard</button>
+        <h1 class="page-title"><span class="icon-inline" data-icon="cpu"></span> AI Ops Agent</h1>
+        <p class="page-subtitle">Autonomous platform operations — dispute resolution, payment tracking, and outreach intelligence</p>
+      </div>
+
+      <!-- Shadow Mode Banner -->
+      <div id="ai-ops-shadow-banner" style="display:none;background:linear-gradient(135deg,#7c3aed22,#4f46e522);border:1px solid #7c3aed55;border-radius:12px;padding:16px 20px;margin-bottom:20px;align-items:center;gap:12px;">
+        <span style="font-size:1.5rem;">🛡️</span>
+        <div>
+          <div style="font-weight:600;color:#a78bfa;">Shadow Mode Active</div>
+          <div style="font-size:0.85rem;color:var(--text-secondary);">Confidence threshold is 1.0 — AI decisions are logged and escalated but nothing auto-executes. Lower <code>AI_CONFIDENCE_THRESHOLD</code> to enable autonomous actions.</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs-container" style="border-bottom:1px solid var(--border-subtle);margin-bottom:20px;">
+        <div style="display:flex;gap:4px;">
+          <button class="tab-btn active" id="ai-ops-tab-activity" onclick="switchAiOpsTab('activity')" style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:0.9rem;color:var(--text-secondary);border-bottom:2px solid transparent;transition:all 0.15s;">Activity Feed</button>
+          <button class="tab-btn" id="ai-ops-tab-escalations" onclick="switchAiOpsTab('escalations')" style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:0.9rem;color:var(--text-secondary);border-bottom:2px solid transparent;transition:all 0.15s;">Escalation Queue <span id="ai-ops-esc-badge" style="display:none;background:var(--accent-red);color:#fff;border-radius:10px;font-size:0.75rem;padding:1px 7px;margin-left:4px;">0</span></button>
+          <button class="tab-btn" id="ai-ops-tab-digest" onclick="switchAiOpsTab('digest')" style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:0.9rem;color:var(--text-secondary);border-bottom:2px solid transparent;transition:all 0.15s;">Daily Digest</button>
+          <button class="tab-btn" id="ai-ops-tab-settings" onclick="switchAiOpsTab('settings')" style="padding:10px 18px;border:none;background:none;cursor:pointer;font-size:0.9rem;color:var(--text-secondary);border-bottom:2px solid transparent;transition:all 0.15s;">Settings</button>
+        </div>
+      </div>
+
+      <!-- Activity Feed -->
+      <div id="ai-ops-panel-activity">
+        <div class="card">
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <h2 class="card-title"><span class="icon-inline" data-icon="activity"></span> AI Action Log</h2>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select id="ai-ops-module-filter" onchange="loadAiOpsActivity()" style="padding:6px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+                <option value="">All Modules</option>
+                <option value="dispute_resolver">Dispute Resolver</option>
+                <option value="payment_tracker">Payment Tracker</option>
+                <option value="outreach_engine">Outreach Engine</option>
+                <option value="daily_digest">Daily Digest</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" onclick="loadAiOpsActivity()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+            </div>
+          </div>
+          <div id="ai-ops-activity-list">
+            <div style="color:var(--text-muted);padding:32px;text-align:center;">Loading activity…</div>
+          </div>
+          <div id="ai-ops-activity-pagination"></div>
+        </div>
+      </div>
+
+      <!-- Escalation Queue -->
+      <div id="ai-ops-panel-escalations" style="display:none;">
+        <div class="card">
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <h2 class="card-title"><span class="icon-inline" data-icon="alert-triangle"></span> Escalation Queue</h2>
+            <button class="btn btn-secondary btn-sm" onclick="loadAiOpsEscalations()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+          </div>
+          <div id="ai-ops-escalations-list">
+            <div style="color:var(--text-muted);padding:32px;text-align:center;">Loading escalations…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily Digest -->
+      <div id="ai-ops-panel-digest" style="display:none;">
+        <div class="card">
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <h2 class="card-title"><span class="icon-inline" data-icon="file-text"></span> Daily Digest</h2>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-secondary btn-sm" onclick="runAiOpsDigest()"><span class="icon-inline" data-icon="zap"></span> Generate Now</button>
+              <button class="btn btn-secondary btn-sm" onclick="loadAiOpsDigests()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+            </div>
+          </div>
+          <div id="ai-ops-digest-selector" style="padding:0 0 16px;display:none;">
+            <select id="ai-ops-digest-date" onchange="renderSelectedDigest()" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);">
+            </select>
+          </div>
+          <div id="ai-ops-digest-content">
+            <div style="color:var(--text-muted);padding:32px;text-align:center;">Loading digest…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div id="ai-ops-panel-settings" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon-inline" data-icon="settings"></span> AI Ops Settings</h2>
+          </div>
+          <div id="ai-ops-settings-content" style="padding:0 0 16px;">
+            <div style="color:var(--text-muted);padding:32px;text-align:center;">Loading settings…</div>
+          </div>
+
+          <div style="padding-top:20px;border-top:1px solid var(--border-subtle);margin-top:8px;">
+            <h3 style="font-size:1rem;margin-bottom:16px;color:var(--text-primary);">Manual Triggers (Shadow Mode Safe)</h3>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:200px;">
+                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Dispute Resolver</div>
+                <div style="display:flex;gap:8px;">
+                  <input type="text" id="ai-ops-dispute-id" placeholder="Dispute ID (UUID)" style="flex:1;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;" />
+                  <button class="btn btn-primary btn-sm" onclick="triggerDisputeResolver()">Analyze</button>
+                </div>
+                <div id="ai-ops-dispute-result" style="margin-top:8px;font-size:0.85rem;display:none;"></div>
+              </div>
+              <div style="flex:1;min-width:200px;">
+                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Payment Tracker</div>
+                <button class="btn btn-primary btn-sm" onclick="triggerPaymentTracker()">Run Now</button>
+                <div id="ai-ops-payment-result" style="margin-top:8px;font-size:0.85rem;display:none;"></div>
+              </div>
+              <div style="flex:1;min-width:200px;">
+                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Daily Digest</div>
+                <button class="btn btn-primary btn-sm" onclick="runAiOpsDigest()">Generate Digest</button>
+                <div id="ai-ops-digest-trigger-result" style="margin-top:8px;font-size:0.85rem;display:none;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="card-header">
+            <h2 class="card-title">Schema Setup</h2>
+          </div>
+          <div style="padding:0 0 16px;">
+            <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:12px;">Run this SQL in Supabase SQL Editor to create the required tables:</p>
+            <pre style="background:var(--bg-tertiary);border:1px solid var(--border-subtle);border-radius:8px;padding:16px;font-size:0.8rem;overflow-x:auto;color:var(--text-primary);">-- AI Ops Schema
+CREATE TABLE IF NOT EXISTS ai_action_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  module TEXT NOT NULL,
+  action_type TEXT NOT NULL,
+  target_id TEXT,
+  decision JSONB,
+  confidence NUMERIC(4,3) DEFAULT 0,
+  auto_executed BOOLEAN DEFAULT false,
+  escalated BOOLEAN DEFAULT false,
+  outcome TEXT DEFAULT 'pending',
+  error_details TEXT,
+  execution_time_ms INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ai_action_log_module_idx ON ai_action_log(module);
+CREATE INDEX IF NOT EXISTS ai_action_log_created_idx ON ai_action_log(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_escalations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  module TEXT NOT NULL,
+  target_id TEXT,
+  recommendation JSONB,
+  confidence NUMERIC(4,3) DEFAULT 0,
+  status TEXT DEFAULT 'pending',
+  admin_decision TEXT,
+  admin_notes TEXT,
+  resolved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ai_escalations_status_idx ON ai_escalations(status);
+
+CREATE TABLE IF NOT EXISTS ai_daily_digests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date DATE UNIQUE NOT NULL,
+  narrative TEXT,
+  stats JSONB,
+  sent_sms BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS (service role bypasses all policies)
+ALTER TABLE ai_action_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_escalations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Settings Section -->
     <section id="settings" class="section">
