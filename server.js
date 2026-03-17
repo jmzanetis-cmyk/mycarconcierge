@@ -32424,7 +32424,12 @@ Return ONLY the JSON array, no other text.`;
         }
         const enriched = campaigns.map(c => {
           const stats = analyticsMap[c.id] || {};
-          return { ...c, emails_sent: stats.emails_sent || stats.total_sent || 0, open_rate: stats.open_rate || stats.unique_open_rate || 0, reply_rate: stats.reply_rate || stats.unique_reply_rate || 0, bounce_rate: stats.bounce_rate || 0 };
+          const emailsSent = stats.emails_sent_count || stats.emails_sent || stats.total_sent || 0;
+          const opens = stats.open_count || stats.unique_opens || Math.round((stats.open_rate || stats.unique_open_rate || 0) * emailsSent / 100);
+          const replies = stats.reply_count || stats.unique_replies || Math.round((stats.reply_rate || stats.unique_reply_rate || 0) * emailsSent / 100);
+          const openRate = stats.open_rate || stats.unique_open_rate || (emailsSent ? (opens / emailsSent * 100) : 0);
+          const replyRate = stats.reply_rate || stats.unique_reply_rate || (emailsSent ? (replies / emailsSent * 100) : 0);
+          return { ...c, emails_sent_count: emailsSent, open_count: opens, reply_count: replies, open_rate: openRate, reply_rate: replyRate, bounce_rate: stats.bounce_rate || 0 };
         });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ items: enriched, total: enriched.length }));
@@ -32519,10 +32524,14 @@ Return ONLY the JSON array, no other text.`;
             return;
           }
           const data = JSON.parse(body || '{}');
-          const { campaign_id, min_score } = data;
-          let query = supabase.from('outreach_leads').select('id, name, email, company, location')
+          const { campaign_id, min_score, limit: reqLimit } = data;
+          const syncLimit = Math.min(parseInt(reqLimit || 500), 2000);
+          let query = supabase.from('outreach_leads').select('id, name, email, company, location, status')
             .not('email', 'is', null).neq('status', 'unsubscribed').neq('crm_sync_status', 'duplicate');
-          const { data: leads, error: leadsErr } = await query.limit(500);
+          if (min_score !== undefined && min_score !== null) {
+            query = query.eq('status', 'scored');
+          }
+          const { data: leads, error: leadsErr } = await query.limit(syncLimit);
           if (leadsErr) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: leadsErr.message }));
@@ -36913,14 +36922,13 @@ async function seedFoundingProviderAgreements() {
       .from('signed_agreements')
       .select('id')
       .eq('full_name', 'Chris Agrapidis')
-      .eq('agreement_type', 'founding_provider')
-      .eq('signature_data', 'manually_added')
+      .eq('agreement_type', 'founding_provider_chris_agrapidis')
       .limit(1);
     if (existing && existing.length > 0) return;
     const seedPayload = {
       full_name: 'Chris Agrapidis',
       business_name: 'Agrapidis Auto',
-      agreement_type: 'founding_provider',
+      agreement_type: 'founding_provider_chris_agrapidis',
       signed_at: '2025-12-01T00:00:00.000Z',
       signature_data: 'manually_added',
       email_sent: false,

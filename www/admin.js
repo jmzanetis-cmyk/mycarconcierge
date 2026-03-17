@@ -6925,11 +6925,21 @@
     });
 
     async function getAdminAuthHeader() {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session?.access_token) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session?.access_token) {
+          return { 'Authorization': `Bearer ${session.access_token}` };
+        }
+      } catch (_) {}
+      const headers = {};
+      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
+      else if (adminPasswordVerified || localStorage.getItem('mcc_admin_pass')) {
+        headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass') || adminPasswordVerified || '';
+      }
+      if (!headers['Authorization'] && !headers['x-admin-token'] && !headers['x-admin-password']) {
         throw new Error('Not authenticated');
       }
-      return { 'Authorization': `Bearer ${session.access_token}` };
+      return headers;
     }
 
     async function loadPrintfulCatalog() {
