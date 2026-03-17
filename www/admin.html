@@ -1072,6 +1072,7 @@
                 <div style="display:flex;gap:8px;align-items:center;">
                   <button class="btn btn-sm" onclick="clearAndRedraft()" style="border-color:var(--accent-orange);color:var(--accent-orange);"><span class="icon-inline" data-icon="refresh-cw"></span> Clear & Re-draft</button>
                   <button class="btn btn-sm btn-primary" onclick="runCycleNow()"><span class="icon-inline" data-icon="zap"></span> Run Cycle Now</button>
+                  <button class="btn btn-sm" id="flush-queue-btn" onclick="flushApprovedQueue()" style="border-color:var(--accent-green);color:var(--accent-green);"><span class="icon-inline" data-icon="send"></span> Send Approved</button>
                   <div id="outreach-bulk-bar" style="display:none;"><button class="btn btn-sm btn-primary" onclick="bulkApproveAll()">Approve & Send All</button></div>
                 </div>
               </div>

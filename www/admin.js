@@ -9653,6 +9653,28 @@
     }
     window.runCycleNow = runCycleNow;
 
+    async function flushApprovedQueue() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const btn = document.getElementById('flush-queue-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/messages/flush-queue`, {
+          method: 'POST',
+          headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ batch_size: 50 })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Flush failed');
+        if (window.showToast) showToast(`Sent ${data.sent} — ${data.skipped} skipped (${data.errors} errors)`, data.sent > 0 ? 'success' : 'info');
+        setTimeout(loadApprovalQueue, 1500);
+      } catch (err) {
+        if (window.showToast) showToast('Flush error: ' + err.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Send Approved'; if (window.renderIcons) renderIcons(btn); }
+      }
+    }
+    window.flushApprovedQueue = flushApprovedQueue;
+
     async function clearAndRedraft() {
       if (!confirm('This will delete all draft/approved messages and run a fresh cycle. Continue?')) return;
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';

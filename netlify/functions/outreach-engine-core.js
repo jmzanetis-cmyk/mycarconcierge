@@ -1246,9 +1246,49 @@ async function runEngineCycle(supabase) {
 
     results.drafted = drafted;
     results.auto_sent = autoSent;
+
+    // Flush approved queue — pick up any messages stuck in 'approved' status
+    // (e.g. from previous cycles where sendMessage failed) and retry them.
+    let queueFlushed = 0;
+    let queueErrors = 0;
+    if (state.auto_send) {
+      try {
+        const { data: approvedMsgs } = await supabase
+          .from('outreach_messages')
+          .select('id')
+          .eq('status', 'approved')
+          .order('created_at', { ascending: true })
+          .limit(15);
+
+        for (const msg of (approvedMsgs || [])) {
+          try {
+            const sr = await sendMessage(supabase, msg.id);
+            if (sr.success) {
+              queueFlushed++;
+              console.log(`[OutreachEngine] Queue flush: sent message ${msg.id}`);
+            } else {
+              queueErrors++;
+              console.log(`[OutreachEngine] Queue flush: skipped message ${msg.id} — ${sr.error}`);
+              if (sr.error && sr.error.includes('Daily send limit')) break;
+            }
+          } catch (sendErr) {
+            queueErrors++;
+            console.error(`[OutreachEngine] Queue flush error for ${msg.id}:`, sendErr.message);
+          }
+          // Small pause between sends to avoid rate-limiting Resend
+          await new Promise(r => setTimeout(r, 600));
+        }
+      } catch (flushErr) {
+        console.error('[OutreachEngine] Queue flush step failed:', flushErr.message);
+      }
+    }
+    results.queue_flushed = queueFlushed;
+    results.queue_errors = queueErrors;
+
     await supabase.from('engine_state').update({
       last_draft_run: now.toISOString(),
       total_messages_drafted: (state.total_messages_drafted || 0) + drafted,
+      total_messages_sent: (state.total_messages_sent || 0) + autoSent + queueFlushed,
       updated_at: now.toISOString()
     }).eq('id', 1);
 

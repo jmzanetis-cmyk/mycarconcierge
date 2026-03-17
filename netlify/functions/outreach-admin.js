@@ -392,6 +392,36 @@ exports.handler = async function(event, context) {
       return jsonResponse(result.error ? 500 : 200, result);
     }
 
+    if (method === 'POST' && path === 'messages/flush-queue') {
+      const batchSize = Math.min(parseInt(body.batch_size || '50', 10), 200);
+      const { data: approvedMsgs } = await supabase
+        .from('outreach_messages')
+        .select('id')
+        .eq('status', 'approved')
+        .order('created_at', { ascending: true })
+        .limit(batchSize);
+      let sent = 0, skipped = 0, errors = 0;
+      for (const msg of (approvedMsgs || [])) {
+        try {
+          const sr = await sendMessage(supabase, msg.id);
+          if (sr.success) { sent++; }
+          else {
+            skipped++;
+            if (sr.error && sr.error.includes('Daily send limit')) break;
+          }
+        } catch (e) { errors++; }
+        await new Promise(r => setTimeout(r, 600));
+      }
+      if (sent > 0) {
+        const { data: st } = await supabase.from('engine_state').select('total_messages_sent').eq('id', 1).single();
+        await supabase.from('engine_state')
+          .update({ total_messages_sent: (st?.total_messages_sent || 0) + sent, updated_at: new Date().toISOString() })
+          .eq('id', 1)
+          .then(() => {}).catch(() => {});
+      }
+      return jsonResponse(200, { success: true, sent, skipped, errors, total_approved: approvedMsgs?.length || 0 });
+    }
+
     if (method === 'POST' && path === 'messages/skip') {
       const { message_id } = body;
       const { error } = await supabase.from('outreach_messages').update({ status: 'skipped' }).eq('id', message_id);
