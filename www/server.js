@@ -32662,7 +32662,7 @@ Return ONLY the JSON array, no other text.`;
         req.on('data', c => { body += c.toString(); });
         req.on('end', async () => {
           try {
-            const { action, notes } = JSON.parse(body || '{}');
+            const { action, notes, admin_decision } = JSON.parse(body || '{}');
             if (!['approve', 'override'].includes(action)) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ error: 'action must be approve or override' }));
@@ -32670,7 +32670,7 @@ Return ONLY the JSON array, no other text.`;
             }
             const { error } = await supabase.from('ai_escalations').update({
               status: action === 'approve' ? 'approved' : 'overridden',
-              admin_decision: action,
+              admin_decision: admin_decision || action,
               admin_notes: notes || '',
               resolved_at: new Date().toISOString()
             }).eq('id', escId);

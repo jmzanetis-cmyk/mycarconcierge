@@ -10047,7 +10047,17 @@
               <button class="btn btn-secondary btn-sm" onclick="showEscalationOverride('${e.id}')">↩ Override</button>
             </div>
             <div id="esc-override-${e.id}" style="display:none;margin-top:12px;padding:12px;background:var(--bg-secondary);border-radius:8px;">
-              <textarea id="esc-notes-${e.id}" placeholder="Override reason / admin decision…" style="width:100%;padding:8px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-tertiary);color:var(--text-primary);font-size:0.85rem;min-height:60px;resize:vertical;"></textarea>
+              <label style="display:block;font-size:0.82rem;color:var(--text-muted);margin-bottom:6px;">Admin Decision</label>
+              <select id="esc-decision-${e.id}" style="width:100%;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-tertiary);color:var(--text-primary);font-size:0.88rem;margin-bottom:8px;">
+                <option value="deny_refund">Deny Refund</option>
+                <option value="full_refund">Issue Full Refund</option>
+                <option value="partial_refund">Issue Partial Refund</option>
+                <option value="escalate_to_support">Escalate to Support Team</option>
+                <option value="no_action">No Action Required</option>
+                <option value="manual_review">Requires Manual Review</option>
+              </select>
+              <label style="display:block;font-size:0.82rem;color:var(--text-muted);margin-bottom:6px;">Override Notes</label>
+              <textarea id="esc-notes-${e.id}" placeholder="Explain your override reason…" style="width:100%;padding:8px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-tertiary);color:var(--text-primary);font-size:0.85rem;min-height:60px;resize:vertical;"></textarea>
               <div style="display:flex;gap:8px;margin-top:8px;">
                 <button class="btn btn-secondary btn-sm" onclick="resolveAiEscalation('${e.id}', 'override')">Confirm Override</button>
                 <button class="btn btn-secondary btn-sm" onclick="document.getElementById('esc-override-${e.id}').style.display='none'">Cancel</button>
@@ -10070,11 +10080,12 @@
     async function resolveAiEscalation(id, action) {
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       const notes = document.getElementById(`esc-notes-${id}`)?.value || '';
+      const adminDecision = action === 'override' ? (document.getElementById(`esc-decision-${id}`)?.value || 'manual_review') : action;
       try {
         const res = await fetch(`${apiBase}/api/admin/ai-ops/escalations/${id}/resolve`, {
           method: 'POST',
           headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, notes })
+          body: JSON.stringify({ action, notes, admin_decision: adminDecision })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed');
