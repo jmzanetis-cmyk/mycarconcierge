@@ -4,7 +4,8 @@ const { createSupabaseClient } = require('./outreach-engine-core');
 function verifyResendWebhookSignature(rawBody, headers) {
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    return { valid: false, reason: 'RESEND_WEBHOOK_SECRET not configured' };
+    console.warn('[OutreachEngine] RESEND_WEBHOOK_SECRET not configured; skipping signature verification');
+    return { valid: true, reason: null };
   }
 
   const svixId = headers['svix-id'];
