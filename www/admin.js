@@ -1289,6 +1289,39 @@
     }
     window.filterAgreementsApi = filterAgreementsApi;
 
+    async function submitAddAgreement() {
+      const name = document.getElementById('add-agreement-name')?.value?.trim();
+      const business = document.getElementById('add-agreement-business')?.value?.trim();
+      const type = document.getElementById('add-agreement-type')?.value;
+      const date = document.getElementById('add-agreement-date')?.value;
+      const notes = document.getElementById('add-agreement-notes')?.value?.trim();
+      const errEl = document.getElementById('add-agreement-error');
+      if (errEl) errEl.style.display = 'none';
+      if (!name || !type) {
+        if (errEl) { errEl.textContent = 'Full Name and Agreement Type are required.'; errEl.style.display = 'block'; }
+        return;
+      }
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (adminPasswordVerified) headers['x-admin-password'] = adminPasswordVerified;
+        else if (localStorage.getItem('mcc_admin_pass')) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass');
+        const res = await fetch(`${apiBase}/api/admin/agreements`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ full_name: name, business_name: business || null, agreement_type: type, signed_at: date ? new Date(date).toISOString() : null, notes: notes || null })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to save agreement');
+        document.getElementById('add-agreement-modal').style.display = 'none';
+        if (window.showToast) showToast('Agreement added successfully', 'success');
+        loadAgreements(1);
+      } catch (err) {
+        if (errEl) { errEl.textContent = 'Error: ' + err.message; errEl.style.display = 'block'; }
+      }
+    }
+    window.submitAddAgreement = submitAddAgreement;
+
     function formatAgreementType(type) {
       const types = {
         'founding_partner': 'Founding Partner',
@@ -9481,3 +9514,392 @@
       }
     }
     window.loadGrowthFunnel = loadGrowthFunnel;
+
+    function switchOutreachTab(tab) {
+      const panels = document.querySelectorAll('.outreach-panel');
+      panels.forEach(p => { p.style.display = 'none'; });
+      const buttons = document.querySelectorAll('.outreach-tab');
+      buttons.forEach(b => b.classList.remove('active'));
+      const activeBtn = document.querySelector(`.outreach-tab[data-tab="${tab}"]`);
+      if (activeBtn) activeBtn.classList.add('active');
+      const panelMap = {
+        pipeline: 'outreach-pipeline', queue: 'outreach-queue', leads: 'outreach-leads',
+        campaigns: 'outreach-campaigns', import: 'outreach-import', analytics: 'outreach-analytics', instantly: 'outreach-instantly'
+      };
+      const panelId = panelMap[tab];
+      if (panelId) {
+        const panel = document.getElementById(panelId);
+        if (panel) panel.style.display = 'block';
+      }
+      if (tab === 'queue') loadApprovalQueue();
+      else if (tab === 'leads') loadOutreachLeads();
+      else if (tab === 'campaigns') loadOutreachCampaigns();
+      else if (tab === 'pipeline') loadOutreachPipeline();
+      else if (tab === 'analytics') { if (window.loadGrowthFunnel) loadGrowthFunnel(); if (window.loadOutreachAnalytics) loadOutreachAnalytics(); }
+      else if (tab === 'instantly') loadInstantlyCampaigns();
+    }
+    window.switchOutreachTab = switchOutreachTab;
+
+    async function loadApprovalQueue() {
+      const listEl = document.getElementById('outreach-queue-list');
+      const bulkBar = document.getElementById('outreach-bulk-bar');
+      if (!listEl) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading approval queue...</div>';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/messages?status=draft&limit=50`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load queue');
+        const messages = data.data || [];
+        if (bulkBar) bulkBar.style.display = messages.length > 0 ? 'block' : 'none';
+        if (messages.length === 0) {
+          listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No messages pending approval. Run a cycle to generate new drafts.</p>';
+          return;
+        }
+        listEl.innerHTML = messages.map(m => {
+          const lead = m.outreach_leads || {};
+          const ch = m.channel === 'email' ? '✉️' : '💬';
+          return `<div id="queue-msg-${m.id}" style="padding:16px;border-bottom:1px solid var(--border-subtle);">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;margin-bottom:2px;">${ch} ${escapeHtml(lead.name || 'Unknown')} <span style="font-size:0.8rem;color:var(--text-muted);font-weight:400;">${escapeHtml(lead.company || lead.type || '')}</span></div>
+                <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${escapeHtml(m.channel === 'email' ? (lead.email || '') : (lead.phone || ''))}</div>
+                ${m.subject ? `<div style="font-size:0.85rem;font-weight:500;margin-bottom:6px;">Subject: ${escapeHtml(m.subject)}</div>` : ''}
+                <div style="font-size:0.9rem;color:var(--text-secondary);white-space:pre-wrap;max-height:120px;overflow:hidden;line-height:1.5;">${escapeHtml((m.body || '').substring(0, 400))}${(m.body || '').length > 400 ? '…' : ''}</div>
+              </div>
+              <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button class="btn btn-sm btn-primary" onclick="approveMessage('${m.id}')"><span class="icon-inline" data-icon="check"></span> Approve</button>
+                <button class="btn btn-sm" onclick="skipMessage('${m.id}')" style="border-color:var(--text-muted);color:var(--text-muted);"><span class="icon-inline" data-icon="x"></span> Skip</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+        if (window.renderIcons) renderIcons(listEl);
+      } catch (err) {
+        listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+    window.loadApprovalQueue = loadApprovalQueue;
+
+    async function approveMessage(messageId) {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/messages/approve`, {
+          method: 'POST',
+          headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message_id: messageId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to approve');
+        const el = document.getElementById(`queue-msg-${messageId}`);
+        if (el) { el.style.opacity = '0.4'; el.style.pointerEvents = 'none'; el.querySelector('.btn.btn-primary').textContent = '✓ Approved'; }
+        if (window.showToast) showToast('Message approved and queued for sending', 'success');
+      } catch (err) {
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.approveMessage = approveMessage;
+
+    async function skipMessage(messageId) {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/messages/skip`, {
+          method: 'POST',
+          headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message_id: messageId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to skip');
+        const el = document.getElementById(`queue-msg-${messageId}`);
+        if (el) el.remove();
+        if (window.showToast) showToast('Message skipped', 'success');
+      } catch (err) {
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.skipMessage = skipMessage;
+
+    async function runCycleNow() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const btn = document.querySelector('[onclick="runCycleNow()"]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Running…'; }
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/engine-cycle`, {
+          method: 'POST',
+          headers: getMarketingHeaders()
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Cycle failed');
+        if (window.showToast) showToast(`Cycle complete — ${data.drafted || 0} drafted, ${data.sent || 0} sent`, 'success');
+        setTimeout(loadApprovalQueue, 1000);
+      } catch (err) {
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Run Cycle Now'; if (window.renderIcons) renderIcons(btn); }
+      }
+    }
+    window.runCycleNow = runCycleNow;
+
+    async function clearAndRedraft() {
+      if (!confirm('This will delete all draft/approved messages and run a fresh cycle. Continue?')) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/clear-and-redraft`, {
+          method: 'POST',
+          headers: getMarketingHeaders()
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        if (window.showToast) showToast(`Cleared ${data.cleared || 0} messages and ran fresh cycle`, 'success');
+        setTimeout(loadApprovalQueue, 1000);
+      } catch (err) {
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.clearAndRedraft = clearAndRedraft;
+
+    async function bulkApproveAll() {
+      if (!confirm('Approve all draft messages for sending?')) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/messages/approve-bulk`, {
+          method: 'POST',
+          headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to approve');
+        if (window.showToast) showToast(`Approved ${data.approved || 0} messages`, 'success');
+        setTimeout(loadApprovalQueue, 800);
+      } catch (err) {
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.bulkApproveAll = bulkApproveAll;
+
+    async function syncLeadsToInstantly() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const campaignId = (document.getElementById('instantly-sync-campaign') || {}).value || '';
+      const resultEl = document.getElementById('instantly-sync-result');
+      const btn = document.getElementById('instantly-sync-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+      if (resultEl) { resultEl.style.display = 'none'; resultEl.innerHTML = ''; }
+      try {
+        if (!campaignId) { throw new Error('Campaign ID is required to sync leads'); }
+        const res = await fetch(`${apiBase}/api/admin/marketing/instantly-sync`, {
+          method: 'POST',
+          headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaign_id: campaignId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Sync failed');
+        if (resultEl) {
+          resultEl.style.display = 'block';
+          resultEl.style.color = 'var(--accent-green)';
+          resultEl.innerHTML = `<strong>Sync complete!</strong><br>Leads synced: ${data.synced || 0}<br>${data.message || ''}`;
+        }
+        if (window.showToast) showToast(`Synced ${data.synced || 0} leads to Instantly.ai`, 'success');
+      } catch (err) {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Sync Leads Now'; if (window.renderIcons) renderIcons(btn); }
+      }
+    }
+    window.syncLeadsToInstantly = syncLeadsToInstantly;
+
+    async function createInstantlyCampaign() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const name = (document.getElementById('instantly-campaign-name') || {}).value?.trim() || '';
+      const resultEl = document.getElementById('instantly-campaign-result');
+      if (!name) { if (window.showToast) showToast('Campaign name is required', 'error'); return; }
+      if (resultEl) { resultEl.style.display = 'none'; resultEl.innerHTML = ''; }
+      try {
+        const res = await fetch(`${apiBase}/api/admin/marketing/instantly-create-campaign`, {
+          method: 'POST',
+          headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, subject: 'Grow your auto service business with My Car Concierge', body: 'Hi {{first_name}},\n\nI wanted to reach out about My Car Concierge — a platform connecting local auto service providers with car owners in your area.\n\nWould you be open to a quick chat?\n\nBest,\nThe My Car Concierge Team' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || JSON.stringify(data));
+        if (resultEl) {
+          resultEl.style.display = 'block';
+          resultEl.style.color = 'var(--accent-green)';
+          resultEl.innerHTML = `<strong>Campaign created!</strong><br>ID: ${data.id || data.campaign_id || 'N/A'}<br>Name: ${escapeHtml(data.name || name)}`;
+        }
+        if (window.showToast) showToast('Instantly campaign created successfully', 'success');
+        setTimeout(loadInstantlyCampaigns, 1000);
+      } catch (err) {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.createInstantlyCampaign = createInstantlyCampaign;
+
+    async function loadInstantlyCampaigns() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const listEl = document.getElementById('instantly-campaigns-list');
+      if (!listEl) return;
+      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:24px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading campaigns…</div>';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/marketing/instantly-campaigns`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const campaigns = data.items || data.campaigns || data.data || [];
+        if (campaigns.length === 0) {
+          listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;">No campaigns found in Instantly.ai.</p>';
+          return;
+        }
+        listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+          <thead><tr style="border-bottom:1px solid var(--border-subtle);">
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Name</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Status</th>
+            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Sent</th>
+            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Opens</th>
+            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Replies</th>
+          </tr></thead>
+          <tbody>${campaigns.map(c => `<tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px 12px;font-weight:500;">${escapeHtml(c.name || 'Unnamed')}</td>
+            <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.8rem;background:${c.status === 'active' ? 'var(--accent-green)' : 'var(--bg-tertiary)'};color:${c.status === 'active' ? '#fff' : 'var(--text-muted)'};">${escapeHtml(c.status || 'draft')}</span></td>
+            <td style="padding:10px 12px;text-align:right;">${(c.emails_sent_count || 0).toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;">${(c.open_count || 0).toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;">${(c.reply_count || 0).toLocaleString()}</td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+      } catch (err) {
+        listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+    window.loadInstantlyCampaigns = loadInstantlyCampaigns;
+
+    async function loadOutreachPipeline() {
+      const listEl = document.getElementById('outreach-pipeline-list');
+      if (!listEl) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const priority = document.getElementById('pipeline-filter-priority')?.value || '';
+      const stage = document.getElementById('pipeline-filter-stage')?.value || '';
+      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading pipeline…</div>';
+      try {
+        const params = new URLSearchParams();
+        if (priority) params.set('priority', priority);
+        if (stage) params.set('stage', stage);
+        const res = await fetch(`${apiBase}/api/admin/outreach/pipeline?${params}`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const rows = Array.isArray(data) ? data : (data.data || []);
+        if (rows.length === 0) {
+          listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No leads in pipeline yet. Score some leads to populate this view.</p>';
+          return;
+        }
+        const priorityColors = { high: 'var(--accent-green)', medium: 'var(--accent-gold)', low: 'var(--text-muted)' };
+        const stageLabels = { new: 'New', draft_ready: 'Draft Ready', message_queued: 'Queued', contacted: 'Contacted', converted: 'Converted' };
+        listEl.innerHTML = rows.map(r => {
+          const lead = r.outreach_leads || {};
+          const score = (r.opportunity_score || 0).toFixed(0);
+          const pColor = priorityColors[r.priority] || 'var(--text-muted)';
+          return `<div style="display:grid;grid-template-columns:60px 1fr 60px 1fr auto 100px 90px auto;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border-subtle);font-size:0.875rem;">
+            <span style="padding:2px 8px;border-radius:20px;background:${pColor};color:#fff;font-size:0.75rem;text-align:center;font-weight:600;">${(r.priority || 'low').toUpperCase()}</span>
+            <div><div style="font-weight:500;">${escapeHtml(lead.name || '—')}</div><div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(lead.company || lead.type || '')}</div></div>
+            <span style="font-weight:700;text-align:center;">${score}</span>
+            <span style="font-size:0.8rem;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml((r.ai_notes || '').substring(0, 60))}${(r.ai_notes || '').length > 60 ? '…' : ''}</span>
+            <span style="font-size:0.8rem;">${r.preferred_channel || 'email'}</span>
+            <span style="padding:2px 8px;border-radius:20px;background:var(--bg-tertiary);font-size:0.75rem;">${stageLabels[r.stage] || r.stage || ''}</span>
+            <span style="font-size:0.75rem;color:var(--text-muted);">${r.added_at ? new Date(r.added_at).toLocaleDateString() : '—'}</span>
+            <button class="btn btn-sm" onclick="window.outreachFetch && outreachFetch('/messages/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:'${lead.id}'})}).then(()=>{showToast('Draft created');loadApprovalQueue();switchOutreachTab('queue');})">Draft</button>
+          </div>`;
+        }).join('');
+      } catch (err) {
+        listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+    window.loadOutreachPipeline = loadOutreachPipeline;
+
+    async function loadOutreachLeads() {
+      const listEl = document.getElementById('outreach-leads-list');
+      if (!listEl) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const search = document.getElementById('leads-search')?.value?.trim() || '';
+      const type = document.getElementById('leads-filter-type')?.value || '';
+      const status = document.getElementById('leads-filter-status')?.value || '';
+      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading leads…</div>';
+      try {
+        const params = new URLSearchParams({ limit: '50' });
+        if (search) params.set('search', search);
+        if (type) params.set('type', type);
+        if (status) params.set('status', status);
+        const res = await fetch(`${apiBase}/api/admin/outreach/leads?${params}`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const leads = data.data || [];
+        if (leads.length === 0) {
+          listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No leads found.</p>';
+          return;
+        }
+        listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+          <thead><tr style="border-bottom:1px solid var(--border-subtle);">
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Name</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Type</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Email</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Location</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Status</th>
+            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Score</th>
+          </tr></thead>
+          <tbody>${leads.map(l => `<tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px 12px;font-weight:500;">${escapeHtml(l.name || '—')}<div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(l.company || '')}</div></td>
+            <td style="padding:10px 12px;text-transform:capitalize;">${escapeHtml(l.type || '—')}</td>
+            <td style="padding:10px 12px;font-size:0.85rem;">${escapeHtml(l.email || '—')}</td>
+            <td style="padding:10px 12px;font-size:0.85rem;">${escapeHtml(l.location || '—')}</td>
+            <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.75rem;background:var(--bg-tertiary);">${escapeHtml(l.status || 'new')}</span></td>
+            <td style="padding:10px 12px;text-align:right;font-weight:600;">${l.score != null ? l.score.toFixed(0) : '—'}</td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+      } catch (err) {
+        listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+    window.loadOutreachLeads = loadOutreachLeads;
+
+    async function loadOutreachCampaigns() {
+      const listEl = document.getElementById('outreach-campaigns-list');
+      if (!listEl) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading campaigns…</div>';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/campaigns`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const campaigns = Array.isArray(data) ? data : (data.data || []);
+        if (campaigns.length === 0) {
+          listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No campaigns yet. Create one to get started.</p>';
+          return;
+        }
+        listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+          <thead><tr style="border-bottom:1px solid var(--border-subtle);">
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Name</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Target</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Channel</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Status</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Auto-Send</th>
+          </tr></thead>
+          <tbody>${campaigns.map(c => `<tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px 12px;font-weight:500;">${escapeHtml(c.name || '—')}</td>
+            <td style="padding:10px 12px;text-transform:capitalize;">${escapeHtml(c.target_type || '—')}</td>
+            <td style="padding:10px 12px;text-transform:capitalize;">${escapeHtml(c.channel || '—')}</td>
+            <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.75rem;background:${c.status === 'active' ? 'var(--accent-green)' : 'var(--bg-tertiary)'};color:${c.status === 'active' ? '#fff' : 'var(--text-primary)'};">${escapeHtml(c.status || 'draft')}</span></td>
+            <td style="padding:10px 12px;">${c.auto_send_followups ? '<span style="color:var(--accent-green);">Yes</span>' : '<span style="color:var(--text-muted);">No</span>'}</td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+      } catch (err) {
+        listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+    window.loadOutreachCampaigns = loadOutreachCampaigns;
+
+    function outreachFetch(pathname, opts) {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      return fetch(`${apiBase}/api/admin/outreach${pathname}`, {
+        ...opts,
+        headers: { ...getMarketingHeaders(), ...(opts && opts.headers ? opts.headers : {}) }
+      }).then(r => r.json());
+    }
+    window.outreachFetch = outreachFetch;

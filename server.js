@@ -1307,6 +1307,50 @@ async function handleAdminGetAllAgreements(req, res, requestId) {
   }
 }
 
+async function handleAdminCreateAgreement(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  let body = '';
+  req.on('data', chunk => { body += chunk.toString(); });
+  req.on('end', async () => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Service unavailable' }));
+        return;
+      }
+      const data = JSON.parse(body || '{}');
+      const { full_name, business_name, agreement_type, signed_at, notes } = data;
+      if (!full_name || !agreement_type) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'full_name and agreement_type are required' }));
+        return;
+      }
+      const { data: inserted, error } = await supabase.from('signed_agreements').insert({
+        full_name,
+        business_name: business_name || null,
+        agreement_type,
+        signed_at: signed_at || new Date().toISOString(),
+        signature_data: 'manually_added',
+        email_sent: false
+      }).select().single();
+      if (error) {
+        console.error(`[${requestId}] Create agreement error:`, error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: error.message }));
+        return;
+      }
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, agreement: inserted }));
+    } catch (err) {
+      console.error(`[${requestId}] Admin create agreement error:`, err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Something went wrong' }));
+    }
+  });
+}
+
 async function handleAdminGetAgreementPDF(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -31344,6 +31388,11 @@ const server = http.createServer(async (req, res) => {
     handleAdminGetAllAgreements(req, res, requestId);
     return;
   }
+
+  if (req.method === 'POST' && req.url === '/api/admin/agreements') {
+    handleAdminAuth(req, res, requestId, () => handleAdminCreateAgreement(req, res, requestId));
+    return;
+  }
   
   // Admin founder commission rate update
   if (req.method === 'POST' && req.url.startsWith('/api/admin/founders/') && req.url.endsWith('/commission')) {
@@ -32311,6 +32360,137 @@ Return ONLY the JSON array, no other text.`;
             duplicates_found: duplicates.length,
             duplicates
           }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    });
+  }
+
+  if (req.method === 'GET' && req.url === '/api/admin/marketing/instantly-campaigns') {
+    setCorsHeaders(res, req);
+    return handleAdminAuth(req, res, requestId, async () => {
+      try {
+        const apiKey = process.env.INSTANTLY_API_KEY;
+        if (!apiKey) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Instantly API key not configured' }));
+          return;
+        }
+        const resp = await fetch('https://api.instantly.ai/api/v2/campaigns?limit=100', {
+          headers: { Authorization: `Bearer ${apiKey}` }
+        });
+        const data = await resp.json();
+        res.writeHead(resp.status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(data));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/marketing/instantly-create-campaign') {
+    setCorsHeaders(res, req);
+    return handleAdminAuth(req, res, requestId, () => {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const apiKey = process.env.INSTANTLY_API_KEY;
+          if (!apiKey) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Instantly API key not configured' }));
+            return;
+          }
+          const data = JSON.parse(body || '{}');
+          const { name, subject, body: emailBody, from_email, from_name, daily_limit } = data;
+          if (!name || !subject || !emailBody) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'name, subject, and body are required' }));
+            return;
+          }
+          const payload = {
+            name,
+            subject,
+            body: emailBody,
+            from_email: from_email || 'hello@mycarconcierge.com',
+            from_name: from_name || 'My Car Concierge',
+            daily_limit: daily_limit || 50,
+            sequences: [{ steps: [{ type: 'email', delay: 0, subject, body: emailBody }] }]
+          };
+          const resp = await fetch('https://api.instantly.ai/api/v2/campaign/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify(payload)
+          });
+          const result = await resp.json();
+          res.writeHead(resp.status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(result));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/admin/marketing/instantly-sync') {
+    setCorsHeaders(res, req);
+    return handleAdminAuth(req, res, requestId, () => {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const apiKey = process.env.INSTANTLY_API_KEY;
+          if (!apiKey) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Instantly API key not configured' }));
+            return;
+          }
+          const supabase = getSupabaseClient();
+          if (!supabase) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Database not configured' }));
+            return;
+          }
+          const data = JSON.parse(body || '{}');
+          const { campaign_id, min_score } = data;
+          if (!campaign_id) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'campaign_id is required' }));
+            return;
+          }
+          let query = supabase.from('outreach_leads').select('id, name, email, company, location, score')
+            .not('email', 'is', null).neq('status', 'unsubscribed').neq('crm_sync_status', 'duplicate');
+          if (min_score) query = query.gte('score', min_score);
+          const { data: leads, error: leadsErr } = await query.limit(500);
+          if (leadsErr) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: leadsErr.message }));
+            return;
+          }
+          if (!leads || leads.length === 0) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, synced: 0, message: 'No eligible leads found' }));
+            return;
+          }
+          const instantlyLeads = leads.map(l => ({
+            email: l.email,
+            first_name: (l.name || '').split(' ')[0] || '',
+            last_name: (l.name || '').split(' ').slice(1).join(' ') || '',
+            company_name: l.company || '',
+            custom_variables: { location: l.location || '', mcc_lead_id: l.id }
+          }));
+          const resp = await fetch('https://api.instantly.ai/api/v2/lead/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({ campaign_id, leads: instantlyLeads, skip_if_in_workspace: true })
+          });
+          const result = await resp.json();
+          res.writeHead(resp.status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: resp.ok, synced: leads.length, instantly_response: result }));
         } catch (err) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: err.message }));
@@ -35403,41 +35583,41 @@ function saveAdminInvites(invites) {
     return;
   }
   
-  // Printful Admin API Endpoints (require admin role)
+  // Printful Admin API Endpoints (use admin password auth so x-admin-password works)
   if (req.method === 'GET' && req.url === '/api/admin/printful/catalog') {
-    requireAuth(handlePrintfulCatalog, 'admin')(req, res, requestId);
+    handleAdminAuth(req, res, requestId, () => handlePrintfulCatalog(req, res, requestId));
     return;
   }
   
   if (req.method === 'GET' && req.url.startsWith('/api/admin/printful/catalog/')) {
     const productId = req.url.split('/api/admin/printful/catalog/')[1]?.split('?')[0];
-    requireAuth((req, res, requestId) => handlePrintfulCatalogProduct(req, res, requestId, productId), 'admin')(req, res, requestId);
+    handleAdminAuth(req, res, requestId, () => handlePrintfulCatalogProduct(req, res, requestId, productId));
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/admin/printful/products') {
-    requireAuth(handleCreatePrintfulProduct, 'admin')(req, res, requestId);
+    handleAdminAuth(req, res, requestId, () => handleCreatePrintfulProduct(req, res, requestId));
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/admin/printful/products/bulk') {
-    requireAuth(handleBulkCreatePrintfulProducts, 'admin')(req, res, requestId);
+    handleAdminAuth(req, res, requestId, () => handleBulkCreatePrintfulProducts(req, res, requestId));
     return;
   }
   
   if (req.method === 'DELETE' && req.url.startsWith('/api/admin/printful/products/')) {
     const productId = req.url.split('/api/admin/printful/products/')[1]?.split('?')[0];
-    requireAuth((req, res, requestId) => handleDeletePrintfulProduct(req, res, requestId, productId), 'admin')(req, res, requestId);
+    handleAdminAuth(req, res, requestId, () => handleDeletePrintfulProduct(req, res, requestId, productId));
     return;
   }
   
   if (req.method === 'GET' && req.url === '/api/admin/printful/store-products') {
-    requireAuth(handleGetPrintfulStoreProducts, 'admin')(req, res, requestId);
+    handleAdminAuth(req, res, requestId, () => handleGetPrintfulStoreProducts(req, res, requestId));
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/admin/printful/mockup') {
-    requireAuth(handlePrintfulMockup, 'admin')(req, res, requestId);
+    handleAdminAuth(req, res, requestId, () => handlePrintfulMockup(req, res, requestId));
     return;
   }
   
