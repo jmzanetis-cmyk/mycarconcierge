@@ -9558,10 +9558,10 @@
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading approval queue...</div>';
       try {
-        const res = await fetch(`${apiBase}/api/admin/outreach/messages?status=draft&limit=50`, { headers: getMarketingHeaders() });
+        const res = await fetch(`${apiBase}/api/admin/marketing/outreach-queue?status=draft&limit=50`, { headers: getMarketingHeaders() });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to load queue');
-        const messages = data.data || [];
+        const messages = data.data || data.items || [];
         if (bulkBar) bulkBar.style.display = messages.length > 0 ? 'block' : 'none';
         if (messages.length === 0) {
           listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No messages pending approval. Run a cycle to generate new drafts.</p>';
@@ -9673,10 +9673,10 @@
       if (!confirm('Approve all draft messages for sending?')) return;
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       try {
-        const listRes = await fetch(`${apiBase}/api/admin/outreach/messages?status=draft&limit=200`, { headers: getMarketingHeaders() });
+        const listRes = await fetch(`${apiBase}/api/admin/marketing/outreach-queue?status=draft&limit=200`, { headers: getMarketingHeaders() });
         const listData = await listRes.json();
         if (!listRes.ok) throw new Error(listData.error || 'Failed to load messages');
-        const messageIds = (listData.data || []).map(m => m.id);
+        const messageIds = (listData.data || listData.items || []).map(m => m.id);
         if (messageIds.length === 0) { if (window.showToast) showToast('No draft messages to approve', 'error'); return; }
         const res = await fetch(`${apiBase}/api/admin/outreach/messages/approve-bulk`, {
           method: 'POST',

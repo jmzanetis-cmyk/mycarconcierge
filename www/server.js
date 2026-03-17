@@ -32001,7 +32001,7 @@ Return ONLY the JSON array, no other text.`;
       const urlObj = new URL(req.url, `http://localhost`);
       const status = urlObj.searchParams.get('status') || 'draft';
       const limit = Math.min(parseInt(urlObj.searchParams.get('limit') || '50'), 200);
-      const { data: items, error } = await supabase
+      const { data: messages, error } = await supabase
         .from('outreach_messages')
         .select('*')
         .eq('status', status)
@@ -32012,8 +32012,16 @@ Return ONLY the JSON array, no other text.`;
         res.end(JSON.stringify({ error: error.message }));
         return;
       }
+      const msgs = messages || [];
+      const leadIds = [...new Set(msgs.map(m => m.lead_id).filter(Boolean))];
+      let leadsMap = {};
+      if (leadIds.length > 0) {
+        const { data: leads } = await supabase.from('outreach_leads').select('id, name, email, phone, company, type, location').in('id', leadIds);
+        (leads || []).forEach(l => { leadsMap[l.id] = l; });
+      }
+      const items = msgs.map(m => ({ ...m, outreach_leads: leadsMap[m.lead_id] || null }));
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, items: items || [] }));
+      res.end(JSON.stringify({ success: true, items, data: items, total: items.length }));
     });
   }
 
