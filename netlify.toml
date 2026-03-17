@@ -8,6 +8,10 @@
   NODE_VERSION = "18"
   SECRETS_SCAN_ENABLED = "false"
 
+[functions]
+  node_bundler = "esbuild"
+  included_files = []
+
 [functions."outreach-cycle"]
   schedule = "*/15 * * * *"
 
