@@ -4,8 +4,7 @@ const { createSupabaseClient } = require('./outreach-engine-core');
 function verifyResendWebhookSignature(rawBody, headers) {
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    console.warn('[OutreachEngine] RESEND_WEBHOOK_SECRET not configured; skipping signature verification');
-    return { valid: true, reason: null };
+    return { valid: false, reason: 'RESEND_WEBHOOK_SECRET not configured' };
   }
 
   const svixId = headers['svix-id'];
@@ -98,6 +97,13 @@ exports.handler = async function(event, context) {
             event_type: 'bounced',
             metadata: { bounce_type: data.bounce?.type, reason: data.bounce?.message }
           });
+          supabase.from('outreach_email_events').insert({
+            message_id: msg.id,
+            lead_id: msg.lead_id,
+            event_type: 'bounced',
+            occurred_at: new Date().toISOString(),
+            metadata: { bounce_type: data.bounce?.type, reason: data.bounce?.message }
+          }).then(() => {}).catch(() => {});
         }
       }
     } else if (eventType === 'email.complained') {
@@ -117,6 +123,12 @@ exports.handler = async function(event, context) {
             event_type: 'complaint',
             metadata: {}
           });
+          supabase.from('outreach_email_events').insert({
+            message_id: msg.id,
+            lead_id: msg.lead_id,
+            event_type: 'complaint',
+            occurred_at: new Date().toISOString()
+          }).then(() => {}).catch(() => {});
         }
       }
     } else if (eventType === 'email.delivered') {
@@ -144,6 +156,12 @@ exports.handler = async function(event, context) {
                 event_type: 'response_detected',
                 metadata: { from: toEmail }
               });
+              supabase.from('outreach_email_events').insert({
+                lead_id: lead.id,
+                event_type: 'response_detected',
+                occurred_at: new Date().toISOString(),
+                metadata: { from: toEmail }
+              }).then(() => {}).catch(() => {});
             }
           }
         }
