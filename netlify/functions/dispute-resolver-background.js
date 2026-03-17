@@ -86,6 +86,23 @@ async function logAiAction(supabase, { module, actionType, targetId, decision, c
   } catch {}
 }
 
+async function getAiOpsSettings(supabase) {
+  const threshold = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
+  const maxRefund = parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
+  try {
+    const { data: rows } = await supabase.from('ai_ops_settings').select('key,value');
+    if (rows) {
+      const s = {};
+      for (const r of rows) {
+        if (r.key === 'confidence_threshold') s.threshold = parseFloat(r.value);
+        if (r.key === 'max_auto_refund') s.maxRefund = parseFloat(r.value);
+      }
+      return { threshold: s.threshold ?? threshold, maxRefundCents: (s.maxRefund ?? maxRefund) * 100 };
+    }
+  } catch {}
+  return { threshold, maxRefundCents: maxRefund * 100 };
+}
+
 exports.handler = async function(event, context) {
   const t0 = Date.now();
   console.log('[DisputeResolver] Background function triggered');
@@ -116,13 +133,13 @@ exports.handler = async function(event, context) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing dispute_id' }) };
   }
 
-  const threshold = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
-  const maxRefundCents = parseFloat(process.env.AI_MAX_AUTO_REFUND || '500') * 100;
+  // Read settings from DB (admin panel overrides) with env var fallback
+  const { threshold, maxRefundCents } = await getAiOpsSettings(supabase);
 
   try {
     const { data: dispute } = await supabase
       .from('disputes')
-      .select('*, packages(*), profiles!disputes_member_id_fkey(email, phone), profiles!disputes_provider_id_fkey(email, phone)')
+      .select('*, packages(*), profiles!disputes_member_id_fkey(id, email, phone, created_at), profiles!disputes_provider_id_fkey(id, email, phone, created_at, bid_credits)')
       .eq('id', disputeId)
       .single();
 
@@ -133,6 +150,19 @@ exports.handler = async function(event, context) {
     const pkg = dispute.packages || {};
     const memberProfile = dispute['profiles!disputes_member_id_fkey'] || {};
     const providerProfile = dispute['profiles!disputes_provider_id_fkey'] || {};
+
+    // Gather provider and member history for richer AI context
+    const [memberHistory, providerHistory] = await Promise.all([
+      memberProfile.id
+        ? supabase.from('packages').select('id, status, amount, created_at').eq('member_id', memberProfile.id).order('created_at', { ascending: false }).limit(5).then(r => r.data || [])
+        : Promise.resolve([]),
+      providerProfile.id
+        ? supabase.from('packages').select('id, status, amount, created_at').eq('provider_id', providerProfile.id).order('created_at', { ascending: false }).limit(5).then(r => r.data || [])
+        : Promise.resolve([])
+    ]);
+
+    const memberPastDisputes = await supabase.from('disputes').select('id, reason, status, created_at').eq('member_id', memberProfile.id || '').limit(5).then(r => r.data || []);
+    const providerPastDisputes = await supabase.from('disputes').select('id, reason, status, created_at').eq('provider_id', providerProfile.id || '').limit(5).then(r => r.data || []);
 
     const prompt = `You are the AI Ops Dispute Resolver for My Car Concierge, an automotive service marketplace.
 Analyze this dispute and provide a resolution recommendation.
@@ -145,10 +175,21 @@ DISPUTE:
 - Service: ${pkg.title || 'Unknown'} — $${((pkg.amount || 0) / 100).toFixed(2)}
 - Created: ${dispute.created_at}
 
+MEMBER HISTORY:
+- Account created: ${memberProfile.created_at || 'unknown'}
+- Recent orders: ${memberHistory.length} (${memberHistory.filter(o => o.status === 'completed').length} completed)
+- Past disputes: ${memberPastDisputes.length} (${memberPastDisputes.filter(d => d.status === 'resolved_by_ai').length} auto-resolved)
+
+PROVIDER HISTORY:
+- Account created: ${providerProfile.created_at || 'unknown'}
+- Bid credits tier: ${providerProfile.bid_credits || 0} credits
+- Recent orders: ${providerHistory.length} (${providerHistory.filter(o => o.status === 'completed').length} completed, ${providerHistory.filter(o => o.status === 'cancelled').length} cancelled)
+- Past disputes: ${providerPastDisputes.length} (${providerPastDisputes.filter(d => ['full_refund','partial_refund'].includes(d.status)).length} resulted in refunds)
+
 Respond ONLY with valid JSON:
 {"recommendation":"full_refund"|"partial_refund"|"deny_refund"|"escalate","confidence":0.0-1.0,"refund_amount_cents":number,"reasoning":"one concise sentence","member_message":"brief message to member","provider_message":"brief message to provider"}
 
-Rules: escalate if complex. full_refund if provider clearly failed. partial_refund if partial delivery. deny_refund if claim is unfounded. When in doubt, escalate.`;
+Rules: escalate if complex or conflicting evidence. full_refund if provider clearly failed. partial_refund if partial delivery. deny_refund if claim is unfounded or member has pattern of abuse. High provider dispute history → escalate. When in doubt, escalate.`;
 
     let result;
     try {

@@ -81,6 +81,23 @@ async function createAiEscalation(supabase, { module, targetId, recommendation, 
   } catch {}
 }
 
+async function getAiOpsSettings(supabase) {
+  const threshold = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
+  const maxRefund = parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
+  try {
+    const { data: rows } = await supabase.from('ai_ops_settings').select('key,value');
+    if (rows) {
+      const s = {};
+      for (const r of rows) {
+        if (r.key === 'confidence_threshold') s.threshold = parseFloat(r.value);
+        if (r.key === 'max_auto_refund') s.maxRefund = parseFloat(r.value);
+      }
+      return { threshold: s.threshold ?? threshold, maxRefund: (s.maxRefund ?? maxRefund) * 100 };
+    }
+  } catch {}
+  return { threshold, maxRefund: maxRefund * 100 };
+}
+
 exports.handler = async function(event, context) {
   console.log('[PaymentTracker] Scheduled run triggered at', new Date().toISOString());
   const t0 = Date.now();
@@ -90,8 +107,8 @@ exports.handler = async function(event, context) {
     return { statusCode: 200, body: JSON.stringify({ skipped: true, reason: 'no_database' }) };
   }
 
-  const threshold = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
-  const maxRefund = parseFloat(process.env.AI_MAX_AUTO_REFUND || '500') * 100;
+  const { threshold, maxRefund } = await getAiOpsSettings(supabase);
+  const maxRefundCents = maxRefund;
 
   try {
     const { data: orders } = await supabase
@@ -143,7 +160,8 @@ Respond ONLY with valid JSON: {"anomalies":[{"provider_id":"...","reason":"..."}
       result = { anomalies: [], confidence: 0.5, recommendation: 'flag_anomalies', notes: 'AI unavailable' };
     }
 
-    const autoExecute = result.confidence >= threshold && result.recommendation === 'process_all';
+    // Shadow mode: threshold >= 1.0 means always escalate regardless of AI confidence
+    const autoExecute = threshold < 1.0 && result.confidence >= threshold && result.recommendation === 'process_all';
     const anomalousPids = new Set((result.anomalies || []).map(a => a.provider_id));
 
     await logAiAction(supabase, {
@@ -175,18 +193,21 @@ Respond ONLY with valid JSON: {"anomalies":[{"provider_id":"...","reason":"..."}
           if (netCents < 5000) continue;
           if (netCents > 100000) continue;
 
-          const { data: lastPayout } = await supabase
+          // Per-provider cooldown: check last payout for THIS specific provider (target_id=pid)
+          const { data: lastPayoutLog } = await supabase
             .from('ai_action_log')
             .select('created_at')
             .eq('module', 'payment_tracker')
+            .eq('action_type', 'payout_initiated')
             .eq('auto_executed', true)
+            .eq('target_id', pid)
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
 
-          if (lastPayout) {
-            const daysSince = (Date.now() - new Date(lastPayout.created_at).getTime()) / 86400000;
-            if (daysSince < 14) continue;
+          if (lastPayoutLog) {
+            const daysSince = (Date.now() - new Date(lastPayoutLog.created_at).getTime()) / 86400000;
+            if (daysSince < 14) { console.log(`[PaymentTracker] Payout skipped for ${pid}: ${daysSince.toFixed(1)} days since last payout`); continue; }
           }
 
           try {
@@ -195,6 +216,8 @@ Respond ONLY with valid JSON: {"anomalies":[{"provider_id":"...","reason":"..."}
               metadata: { provider_id: pid, batch_id: batchId, commission_rate: String(v.commission_rate), tier: v.tier }
             }, { idempotencyKey: `mcc-payout-${pid}-${today}-${batchId}` });
             payoutsInitiated++;
+            // Log per-provider payout for cooldown tracking
+            await logAiAction(supabase, { module: 'payment_tracker', actionType: 'payout_initiated', targetId: pid, decision: { provider_id: pid, net_cents: netCents, tier: v.tier, batch_id: batchId }, confidence: 1.0, autoExecuted: true, escalated: false, outcome: 'executed', executionTimeMs: Date.now() - t0 });
             await supabase.from('packages')
               .update({ metadata: { ai_reconciled: true, reconciled_at: new Date().toISOString(), payout_batch: batchId } })
               .in('id', v.orders);

@@ -1252,12 +1252,129 @@ async function runEngineCycle(supabase) {
       updated_at: now.toISOString()
     }).eq('id', 1);
 
+    // Run AI decision layer after each outreach cycle
+    try {
+      const aiDecision = await runOutreachAiDecisionLayer(supabase);
+      if (aiDecision) results.ai_decision = aiDecision;
+    } catch (aiErr) {
+      console.error('[OutreachEngine] AI decision layer error in cycle:', aiErr.message);
+    }
+
     console.log('[OutreachEngine] Cycle complete:', JSON.stringify(results));
     return { success: true, ...results };
   } catch (err) {
     console.error('[OutreachEngine] Cycle error:', err.message);
     return { error: err.message };
   }
+}
+
+// ========== AI DECISION LAYER ==========
+async function getAiOpsSettings(supabase) {
+  const threshold = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
+  const maxRefund = parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
+  try {
+    const { data: rows } = await supabase.from('ai_ops_settings').select('key,value');
+    if (rows) {
+      const settings = {};
+      for (const r of rows) {
+        if (r.key === 'confidence_threshold') settings.threshold = parseFloat(r.value);
+        if (r.key === 'max_auto_refund') settings.maxRefund = parseFloat(r.value);
+      }
+      return { threshold: settings.threshold ?? threshold, maxRefund: settings.maxRefund ?? maxRefund };
+    }
+  } catch {}
+  return { threshold, maxRefund };
+}
+
+async function sendOutreachSMS(toPhone, body) {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_PHONE_NUMBER;
+  if (!sid || !token || !from || !toPhone) return false;
+  try {
+    const clean = toPhone.replace(/\D/g, '');
+    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
+    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+    const form = new URLSearchParams({ To: to, From: from, Body: body });
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: 'POST',
+      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString()
+    });
+    return r.ok;
+  } catch { return false; }
+}
+
+async function runOutreachAiDecisionLayer(supabase) {
+  const { threshold } = await getAiOpsSettings(supabase);
+  const shadowMode = threshold >= 1.0;
+
+  const staleThreshold = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const inactiveThreshold = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { count: activeProviders } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'provider').eq('is_active', true);
+  const { count: staleApplications } = await supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).eq('type', 'provider').eq('status', 'new').lt('created_at', staleThreshold);
+  const { count: inactiveProviders } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'provider').lt('updated_at', inactiveThreshold);
+
+  const pipelineStats = { active_providers: activeProviders || 0, stale_applications: staleApplications || 0, inactive_providers: inactiveProviders || 0, pipeline_target: 5 };
+
+  const prompt = `You are the AI Ops Outreach Coordinator for My Car Concierge.
+PIPELINE STATS: active_providers=${pipelineStats.active_providers} stale_applications=${pipelineStats.stale_applications} inactive_providers=${pipelineStats.inactive_providers} target=5
+Respond ONLY with valid JSON: {"provider_actions":["follow_up_sms"|"re_engagement"|"enroll_sequence"|"pipeline_alert"],"confidence":0.0-1.0,"priority":"high"|"medium"|"low","reasoning":"one sentence","sms_message":"brief SMS text (required if follow_up_sms or re_engagement)"}
+Rules: pipeline_alert if active<3; follow_up_sms if stale>5; re_engagement if inactive>10; enroll_sequence if stale>0 and active<5; empty array if no issues.`;
+
+  const response = await callAI(prompt, 512);
+  let decision;
+  try { const m = response.text.match(/\{[\s\S]*\}/); decision = JSON.parse(m ? m[0] : response.text); }
+  catch { return null; }
+
+  const actions = decision.provider_actions || [];
+  const aiConfidence = decision.confidence || 0.8;
+  const executedActions = [];
+  const shadowedActions = [];
+
+  for (const action of actions) {
+    if (shadowMode) { shadowedActions.push(action); continue; }
+
+    if (action === 'pipeline_alert') {
+      await supabase.from('ai_escalations').insert({ module: 'outreach_engine', target_id: 'provider_pipeline', recommendation: { action, stats: pipelineStats, reasoning: decision.reasoning }, confidence: aiConfidence, status: 'pending', created_at: new Date().toISOString() });
+      executedActions.push('pipeline_alert_escalated');
+    }
+
+    if ((action === 'follow_up_sms' || action === 're_engagement') && decision.sms_message) {
+      let leadsQuery = supabase.from('outreach_leads').select('id, name, phone').eq('type', 'provider').not('phone', 'is', null).limit(10);
+      if (action === 'follow_up_sms') { leadsQuery = leadsQuery.eq('status', 'new').lt('created_at', staleThreshold); }
+      else { leadsQuery = leadsQuery.in('status', ['contacted', 'responded']); }
+      const { data: leads } = await leadsQuery;
+      let smsSent = 0;
+      for (const lead of (leads || [])) {
+        if (lead.phone && await sendOutreachSMS(lead.phone, `${decision.sms_message} Reply STOP to opt out.`)) smsSent++;
+      }
+      executedActions.push(`${action}:sms_sent=${smsSent}`);
+    }
+
+    if (action === 'enroll_sequence') {
+      const { data: staleLeads } = await supabase.from('outreach_leads').select('id, name, email, location').eq('type', 'provider').eq('status', 'new').lt('created_at', staleThreshold).not('email', 'is', null).limit(20);
+      const instantlyKey = process.env.INSTANTLY_API_KEY;
+      let enrolled = 0;
+      if (instantlyKey && staleLeads) {
+        for (const lead of staleLeads) {
+          if (!lead.email) continue;
+          try {
+            await fetch('https://api.instantly.ai/api/v2/leads', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${instantlyKey}` }, body: JSON.stringify({ email: lead.email, first_name: lead.name, personalization: `Provider opportunity in ${lead.location || 'your area'}` }) });
+            enrolled++;
+          } catch {}
+        }
+      }
+      executedActions.push(`enroll_sequence:enrolled=${enrolled}`);
+    }
+  }
+
+  const outcome = shadowMode ? 'shadow_logged' : (executedActions.length > 0 ? 'executed' : 'no_action');
+  await supabase.from('ai_action_log').insert({ module: 'outreach_engine', action_type: 'ai_decision_layer', target_id: 'pipeline', decision: { ...decision, stats: pipelineStats, executed: executedActions, shadowed: shadowedActions }, confidence: aiConfidence, auto_executed: !shadowMode && executedActions.length > 0, escalated: actions.includes('pipeline_alert'), outcome, execution_time_ms: 0, created_at: new Date().toISOString() }).catch(() => {});
+
+  console.log(`[OutreachEngine] AI decision layer (shadow=${shadowMode}):`, decision.reasoning, '| Actions:', (shadowMode ? shadowedActions : executedActions).join(', ') || 'none');
+  return { actions: shadowMode ? shadowedActions : executedActions, reasoning: decision.reasoning, priority: decision.priority, shadow_mode: shadowMode };
 }
 
 async function runFollowUpDrafts(supabase) {

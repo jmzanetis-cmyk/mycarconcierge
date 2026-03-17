@@ -7,6 +7,23 @@ function getSupabase() {
   return createClient(url, key);
 }
 
+async function getAiOpsSettings(supabase) {
+  const threshold = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
+  const maxRefund = parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
+  try {
+    const { data: rows } = await supabase.from('ai_ops_settings').select('key,value');
+    if (rows) {
+      const s = {};
+      for (const r of rows) {
+        if (r.key === 'confidence_threshold') s.threshold = parseFloat(r.value);
+        if (r.key === 'max_auto_refund') s.maxRefund = parseFloat(r.value);
+      }
+      return { threshold: s.threshold ?? threshold, maxRefund: s.maxRefund ?? maxRefund };
+    }
+  } catch {}
+  return { threshold, maxRefund };
+}
+
 async function aiOpsSendSMS(toPhone, body) {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
@@ -63,6 +80,10 @@ exports.handler = async function(event, context) {
     return { statusCode: 200, body: JSON.stringify({ skipped: true, reason: 'no_database' }) };
   }
 
+  // Read admin-configured settings (overrides env vars)
+  const { threshold: aiThreshold } = await getAiOpsSettings(supabase);
+  const shadowMode = aiThreshold >= 1.0;
+
   try {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: actions } = await supabase
@@ -82,10 +103,10 @@ exports.handler = async function(event, context) {
     const totalActions = (actions || []).length;
     const today = new Date().toISOString().split('T')[0];
 
-    let narrative = `AI Ops Daily Digest — ${today}. Total actions: ${totalActions}`;
+    let narrative = `AI Ops Daily Digest — ${today}. Total actions: ${totalActions}. Mode: ${shadowMode ? 'Shadow (escalate-only)' : 'Active (threshold=' + aiThreshold + ')'}`;
     if (totalActions > 0) {
       try {
-        const r = await callAI(`Write a 2-3 sentence daily digest for My Car Concierge AI Ops. Stats: ${JSON.stringify(byModule)}. Keep concise and informative for the admin.`, 256);
+        const r = await callAI(`Write a 2-3 sentence daily digest for My Car Concierge AI Ops. Stats: ${JSON.stringify(byModule)}. Shadow mode: ${shadowMode}. Keep concise and informative for the admin.`, 256);
         if (r.text) narrative = r.text;
       } catch {}
     }
