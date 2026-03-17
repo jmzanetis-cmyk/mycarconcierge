@@ -21,6 +21,12 @@
 [functions."outreach-cleanup"]
   schedule = "0 0 * * 0"
 
+[functions."payment-tracker-scheduled"]
+  schedule = "0 */6 * * *"
+
+[functions."daily-digest-scheduled"]
+  schedule = "0 1 * * *"
+
 [[redirects]]
   from = "/t/o"
   to = "/.netlify/functions/email-tracking?a=open"

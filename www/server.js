@@ -37250,19 +37250,51 @@ async function createAiEscalation({ module, targetId, recommendation, confidence
   }
 }
 
+// ========== AI OPS HELPERS ==========
+
+async function aiOpsSendSMS(toPhone, body) {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_PHONE_NUMBER;
+  if (!sid || !token || !from || !toPhone) return { sent: false, reason: 'not_configured' };
+  try {
+    const clean = toPhone.replace(/\D/g, '');
+    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
+    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+    const form = new URLSearchParams({ To: to, From: from, Body: body });
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: 'POST', headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString()
+    });
+    return r.ok ? { sent: true } : { sent: false, reason: 'twilio_error' };
+  } catch (e) { return { sent: false, reason: e.message }; }
+}
+
+function getBidCreditTierRate(bidCredits) {
+  if (bidCredits >= 50) return { tier: 'Championship', rate: 0.08 };
+  if (bidCredits >= 25) return { tier: 'Pole Position', rate: 0.10 };
+  if (bidCredits >= 10) return { tier: 'Pit Stop', rate: 0.12 };
+  return { tier: 'Dipstick', rate: 0.15 };
+}
+
 // ========== AI OPS DISPUTE RESOLVER ==========
 
 async function runDisputeResolver(supabase, disputeId, requestId = 'ai-ops') {
   const t0 = Date.now();
   try {
-    const { data: dispute } = await supabase.from('disputes').select('*, packages(*), profiles!disputes_member_id_fkey(email, free_trial_bids), profiles!disputes_provider_id_fkey(email, bid_credits)').eq('id', disputeId).single();
+    const { data: dispute } = await supabase
+      .from('disputes')
+      .select('*, packages(*), profiles!disputes_member_id_fkey(email, phone), profiles!disputes_provider_id_fkey(email, phone)')
+      .eq('id', disputeId)
+      .single();
     if (!dispute) return { error: 'Dispute not found' };
 
     const pkg = dispute.packages || {};
+    const memberProfile = dispute['profiles!disputes_member_id_fkey'] || {};
+    const providerProfile = dispute['profiles!disputes_provider_id_fkey'] || {};
     const threshold = getAiOpsThreshold();
+    const maxRefund = getAiOpsMaxRefund() * 100;
 
     const prompt = `You are the AI Ops Dispute Resolver for My Car Concierge, an automotive service marketplace.
-
 Analyze this dispute and provide a resolution recommendation.
 
 DISPUTE:
@@ -37270,53 +37302,27 @@ DISPUTE:
 - Reason: ${dispute.reason || 'Not specified'}
 - Description: ${dispute.description || 'No description'}
 - Status: ${dispute.status}
-- Package: ${pkg.title || 'Unknown service'} — $${(pkg.amount || 0) / 100}
+- Service: ${pkg.title || 'Unknown'} — $${((pkg.amount || 0) / 100).toFixed(2)}
 - Created: ${dispute.created_at}
 
-CONTEXT:
-- Member has raised this dispute
-- Provider is the respondent
+Respond ONLY with valid JSON:
+{"recommendation":"full_refund"|"partial_refund"|"deny_refund"|"escalate","confidence":0.0-1.0,"refund_amount_cents":number,"reasoning":"one concise sentence","member_message":"brief message to member","provider_message":"brief message to provider"}
 
-Respond ONLY with valid JSON in this exact format:
-{
-  "recommendation": "full_refund" | "partial_refund" | "deny_refund" | "escalate",
-  "confidence": 0.0-1.0,
-  "refund_amount_cents": number (if partial/full refund),
-  "reasoning": "one concise sentence",
-  "member_message": "brief message to send member",
-  "provider_message": "brief message to send provider"
-}
-
-Rules:
-- Use "escalate" if the situation is complex or unclear.
-- full_refund if provider clearly failed to deliver service.
-- partial_refund if partial delivery or disputed quality.
-- deny_refund if member claim is clearly unfounded.
-- Be conservative — when in doubt, escalate.`;
+Rules: escalate if complex. full_refund if provider clearly failed. partial_refund if partial delivery. deny_refund if claim is unfounded. When in doubt, escalate.`;
 
     const response = await generateAIContent(prompt, { maxTokens: 512, preferredProvider: 'anthropic' });
     let result;
-    try {
-      const jsonMatch = response.text.match(/\{[\s\S]*\}/);
-      result = JSON.parse(jsonMatch ? jsonMatch[0] : response.text);
-    } catch {
-      result = { recommendation: 'escalate', confidence: 0, reasoning: 'AI response parse failed', member_message: '', provider_message: '' };
-    }
+    try { const m = response.text.match(/\{[\s\S]*\}/); result = JSON.parse(m ? m[0] : response.text); }
+    catch { result = { recommendation: 'escalate', confidence: 0, reasoning: 'AI parse failed', member_message: '', provider_message: '' }; }
 
     const confidence = result.confidence || 0;
     const autoExecute = confidence >= threshold && result.recommendation !== 'escalate';
     const ms = Date.now() - t0;
 
     await logAiAction({
-      module: 'dispute_resolver',
-      actionType: result.recommendation,
-      targetId: disputeId,
-      decision: result,
-      confidence,
-      autoExecuted: autoExecute,
-      escalated: !autoExecute,
-      outcome: autoExecute ? 'executed' : 'escalated',
-      executionTimeMs: ms
+      module: 'dispute_resolver', actionType: result.recommendation, targetId: disputeId,
+      decision: result, confidence, autoExecuted: autoExecute, escalated: !autoExecute,
+      outcome: autoExecute ? 'executed' : 'escalated', executionTimeMs: ms
     });
 
     if (!autoExecute) {
@@ -37324,8 +37330,45 @@ Rules:
       return { success: true, action: 'escalated', confidence, reasoning: result.reasoning };
     }
 
-    await supabase.from('disputes').update({ status: 'resolved_by_ai', resolution: result.reasoning, updated_at: new Date().toISOString() }).eq('id', disputeId);
-    return { success: true, action: result.recommendation, confidence, reasoning: result.reasoning, auto_executed: true };
+    // Auto-execute: apply refund if applicable
+    let stripeRefundId = null;
+    const refundable = ['full_refund', 'partial_refund'];
+    if (refundable.includes(result.recommendation) && pkg.payment_intent_id) {
+      const refundAmountCents = Math.min(
+        result.refund_amount_cents || (result.recommendation === 'full_refund' ? (pkg.amount || 0) : 0),
+        maxRefund
+      );
+      if (refundAmountCents > 0) {
+        try {
+          const refund = await stripe.refunds.create({
+            payment_intent: pkg.payment_intent_id,
+            amount: refundAmountCents,
+            metadata: { dispute_id: disputeId, resolved_by: 'ai_ops', confidence: String(confidence) }
+          });
+          stripeRefundId = refund.id;
+        } catch (refundErr) {
+          console.error('[AI_OPS] Stripe refund error:', refundErr.message);
+        }
+      }
+    }
+
+    // Update dispute status
+    await supabase.from('disputes').update({
+      status: 'resolved_by_ai',
+      resolution: result.reasoning,
+      metadata: { ai_recommendation: result.recommendation, ai_confidence: confidence, stripe_refund_id: stripeRefundId },
+      updated_at: new Date().toISOString()
+    }).eq('id', disputeId);
+
+    // Send SMS notifications to both parties
+    if (memberProfile.phone && result.member_message) {
+      await aiOpsSendSMS(memberProfile.phone, `My Car Concierge: Your dispute has been resolved. ${result.member_message}`);
+    }
+    if (providerProfile.phone && result.provider_message) {
+      await aiOpsSendSMS(providerProfile.phone, `My Car Concierge: A dispute involving your service has been resolved. ${result.provider_message}`);
+    }
+
+    return { success: true, action: result.recommendation, confidence, reasoning: result.reasoning, auto_executed: true, stripe_refund_id: stripeRefundId };
   } catch (err) {
     console.error('[AI_OPS] Dispute resolver error:', err.message);
     await logAiAction({ module: 'dispute_resolver', actionType: 'error', targetId: disputeId, decision: { error: err.message }, confidence: 0, outcome: 'error', errorDetails: err.message, executionTimeMs: Date.now() - t0 });
@@ -37340,7 +37383,7 @@ async function runPaymentTracker(supabase, requestId = 'ai-ops') {
   try {
     const { data: orders } = await supabase
       .from('packages')
-      .select('id, provider_id, amount, status, created_at, profiles!packages_provider_id_fkey(email, bid_credits)')
+      .select('id, provider_id, amount, status, created_at, payment_intent_id, profiles!packages_provider_id_fkey(id, email, bid_credits, stripe_connect_account_id)')
       .eq('status', 'completed')
       .is('metadata->>ai_reconciled', null)
       .limit(50);
@@ -37350,58 +37393,96 @@ async function runPaymentTracker(supabase, requestId = 'ai-ops') {
     const byProvider = {};
     for (const o of orders) {
       if (!o.provider_id) continue;
-      if (!byProvider[o.provider_id]) byProvider[o.provider_id] = { total: 0, orders: [], email: o.profiles?.email };
+      if (!byProvider[o.provider_id]) {
+        const prof = o['profiles!packages_provider_id_fkey'] || {};
+        const { tier, rate } = getBidCreditTierRate(prof.bid_credits || 0);
+        byProvider[o.provider_id] = {
+          total: 0, orders: [], email: prof.email,
+          bid_credits: prof.bid_credits || 0, tier, commission_rate: rate,
+          stripe_connect_account_id: prof.stripe_connect_account_id
+        };
+      }
       byProvider[o.provider_id].total += (o.amount || 0);
       byProvider[o.provider_id].orders.push(o.id);
     }
 
-    const summary = Object.entries(byProvider).map(([pid, v]) => ({ provider_id: pid, total_cents: v.total, order_count: v.orders.length }));
+    const summary = Object.entries(byProvider).map(([pid, v]) => ({
+      provider_id: pid, total_cents: v.total, order_count: v.orders.length,
+      tier: v.tier, commission_rate: v.commission_rate,
+      commission_cents: Math.round(v.total * v.commission_rate),
+      net_payout_cents: Math.round(v.total * (1 - v.commission_rate)),
+      has_stripe_connect: !!v.stripe_connect_account_id
+    }));
 
-    const prompt = `You are the AI Ops Payment Tracker for My Car Concierge. Review this provider payout batch and flag any anomalies.
-
-BATCH SUMMARY:
-${JSON.stringify(summary, null, 2)}
-
-Respond ONLY with valid JSON:
-{
-  "anomalies": [{"provider_id": "...", "reason": "..."}],
-  "confidence": 0.0-1.0,
-  "recommendation": "process_all" | "flag_anomalies" | "hold_batch",
-  "notes": "brief summary"
-}`;
+    const prompt = `You are the AI Ops Payment Tracker for My Car Concierge. Review this provider payout batch and flag anomalies.
+BATCH: ${JSON.stringify(summary)}
+Respond ONLY with valid JSON: {"anomalies":[{"provider_id":"...","reason":"..."}],"confidence":0.0-1.0,"recommendation":"process_all"|"flag_anomalies"|"hold_batch","notes":"brief summary"}`;
 
     const response = await generateAIContent(prompt, { maxTokens: 512, preferredProvider: 'anthropic' });
     let result;
-    try {
-      const jsonMatch = response.text.match(/\{[\s\S]*\}/);
-      result = JSON.parse(jsonMatch ? jsonMatch[0] : response.text);
-    } catch {
-      result = { anomalies: [], confidence: 0.5, recommendation: 'flag_anomalies', notes: 'Parse error' };
-    }
+    try { const m = response.text.match(/\{[\s\S]*\}/); result = JSON.parse(m ? m[0] : response.text); }
+    catch { result = { anomalies: [], confidence: 0.5, recommendation: 'flag_anomalies', notes: 'Parse error' }; }
 
     const threshold = getAiOpsThreshold();
     const autoExecute = result.confidence >= threshold && result.recommendation === 'process_all';
-    const ms = Date.now() - t0;
+    const anomalousPids = new Set((result.anomalies || []).map(a => a.provider_id));
 
     await logAiAction({
-      module: 'payment_tracker',
-      actionType: result.recommendation,
-      targetId: 'batch',
-      decision: result,
-      confidence: result.confidence || 0,
-      autoExecuted: autoExecute,
-      escalated: (result.anomalies || []).length > 0,
-      outcome: autoExecute ? 'processed' : 'flagged',
-      executionTimeMs: ms
+      module: 'payment_tracker', actionType: result.recommendation, targetId: 'batch',
+      decision: { ...result, summary }, confidence: result.confidence || 0,
+      autoExecuted: autoExecute, escalated: anomalousPids.size > 0,
+      outcome: autoExecute ? 'processed' : 'flagged', executionTimeMs: Date.now() - t0
     });
 
-    if ((result.anomalies || []).length > 0) {
+    if (anomalousPids.size > 0) {
       await createAiEscalation({ module: 'payment_tracker', targetId: 'batch', recommendation: result, confidence: result.confidence || 0 });
     }
 
-    return { success: true, processed: orders.length, anomalies: result.anomalies?.length || 0, recommendation: result.recommendation, notes: result.notes };
+    // Initiate Stripe Connect payouts for eligible providers
+    let payoutsInitiated = 0;
+    const payoutErrors = [];
+    if (autoExecute) {
+      const today = new Date().toISOString().split('T')[0];
+      const batchId = `${Date.now()}`;
+      for (const [pid, v] of Object.entries(byProvider)) {
+        if (anomalousPids.has(pid)) continue;
+        if (!v.stripe_connect_account_id) continue;
+        const netCents = Math.round(v.total * (1 - v.commission_rate));
+        if (netCents < 5000) continue;
+        if (netCents > 100000) continue;
+        const { data: lastPayout } = await supabase
+          .from('ai_action_log')
+          .select('created_at')
+          .eq('module', 'payment_tracker')
+          .like('decision->>notes', `%payout%${pid}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (lastPayout) {
+          const daysSince = (Date.now() - new Date(lastPayout.created_at).getTime()) / 86400000;
+          if (daysSince < 14) continue;
+        }
+        try {
+          const idempotencyKey = `mcc-payout-${pid}-${today}-${batchId}`;
+          await stripe.transfers.create({
+            amount: netCents, currency: 'usd', destination: v.stripe_connect_account_id,
+            metadata: { provider_id: pid, batch_id: batchId, commission_rate: String(v.commission_rate), tier: v.tier }
+          }, { idempotencyKey });
+          payoutsInitiated++;
+          await supabase.from('packages')
+            .update({ metadata: { ai_reconciled: true, reconciled_at: new Date().toISOString(), payout_batch: batchId } })
+            .in('id', v.orders);
+        } catch (payErr) {
+          payoutErrors.push({ provider_id: pid, error: payErr.message });
+          console.error('[AI_OPS] Payout error for', pid, ':', payErr.message);
+        }
+      }
+    }
+
+    return { success: true, processed: orders.length, anomalies: result.anomalies?.length || 0, recommendation: result.recommendation, notes: result.notes, payouts_initiated: payoutsInitiated, payout_errors: payoutErrors };
   } catch (err) {
     console.error('[AI_OPS] Payment tracker error:', err.message);
+    await logAiAction({ module: 'payment_tracker', actionType: 'error', targetId: 'batch', decision: { error: err.message }, confidence: 0, outcome: 'error', errorDetails: err.message, executionTimeMs: Date.now() - t0 });
     return { error: err.message };
   }
 }
@@ -37423,28 +37504,32 @@ async function runDailyDigest(supabase, requestId = 'ai-ops') {
       byModule[a.module].outcomes[a.outcome] = (byModule[a.module].outcomes[a.outcome] || 0) + 1;
     }
 
-    const stats = byModule;
     const totalActions = (actions || []).length;
-
-    let narrative = `AI Ops Daily Digest — ${new Date().toLocaleDateString()}\n\nTotal actions: ${totalActions}`;
+    let narrative = `AI Ops Daily Digest — ${new Date().toLocaleDateString()}. Total actions: ${totalActions}`;
     if (totalActions > 0) {
-      const prompt = `Write a 2-3 sentence daily digest summary for My Car Concierge AI Ops. Stats: ${JSON.stringify(stats)}. Keep it concise and informative for the admin.`;
       try {
-        const r = await generateAIContent(prompt, { maxTokens: 256, preferredProvider: 'anthropic' });
+        const r = await generateAIContent(`Write a 2-3 sentence daily digest for My Car Concierge AI Ops. Stats: ${JSON.stringify(byModule)}. Keep concise and informative for the admin.`, { maxTokens: 256, preferredProvider: 'anthropic' });
         narrative = r.text;
       } catch {}
     }
 
     const today = new Date().toISOString().split('T')[0];
-    await supabase.from('ai_daily_digests').upsert({
-      date: today,
-      narrative,
-      stats,
-      sent_sms: false,
-      created_at: new Date().toISOString()
-    }, { onConflict: 'date' });
+    await supabase.from('ai_daily_digests').upsert({ date: today, narrative, stats: byModule, sent_sms: false, created_at: new Date().toISOString() }, { onConflict: 'date' });
 
-    return { success: true, date: today, totalActions, narrative };
+    // Send SMS summary to admin
+    const adminPhone = process.env.ADMIN_PHONE_NUMBER;
+    let smsSent = false;
+    if (adminPhone) {
+      const escalated = Object.values(byModule).reduce((s, m) => s + (m.escalated || 0), 0);
+      const autoExec = Object.values(byModule).reduce((s, m) => s + (m.auto_executed || 0), 0);
+      const smsBody = `MCC AI Ops | ${today} | Actions: ${totalActions} | Auto-exec: ${autoExec} | Escalated: ${escalated}. ${narrative.slice(0, 100)}`;
+      const smsResult = await aiOpsSendSMS(adminPhone, smsBody);
+      smsSent = smsResult.sent;
+      if (smsSent) await supabase.from('ai_daily_digests').update({ sent_sms: true }).eq('date', today);
+    }
+
+    console.log(`[AI_OPS] Daily digest generated. Actions: ${totalActions}, SMS sent: ${smsSent}`);
+    return { success: true, date: today, totalActions, narrative, sms_sent: smsSent };
   } catch (err) {
     console.error('[AI_OPS] Daily digest error:', err.message);
     return { error: err.message };
