@@ -28682,8 +28682,17 @@ async function handleMemberServiceHistoryExport(req, res, requestId, memberId) {
 
 async function handleAdminStatsOverview(req, res, requestId) {
   setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-  
+  setCorsHeaders(res, req);
+
+  const session = getAdminSessionFromReq(req);
+  const adminPw = req.headers['x-admin-password'];
+  const envPw = process.env.ADMIN_PASSWORD;
+  if (!session && !(envPw && adminPw === envPw)) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Admin authentication required' }));
+    return;
+  }
+
   try {
     // Check cache first
     const cached = getCachedAdminStats('overview');
@@ -29544,8 +29553,17 @@ function groupDataByPeriod(data, dateField, valueField, groupBy) {
 
 async function handleAdminStatsRevenue(req, res, requestId) {
   setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-  
+  setCorsHeaders(res, req);
+
+  const session = getAdminSessionFromReq(req);
+  const adminPw = req.headers['x-admin-password'];
+  const envPw = process.env.ADMIN_PASSWORD;
+  if (!session && !(envPw && adminPw === envPw)) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Admin authentication required' }));
+    return;
+  }
+
   try {
     const supabase = getSupabaseClient();
     if (!supabase) {
@@ -29601,8 +29619,17 @@ async function handleAdminStatsRevenue(req, res, requestId) {
 
 async function handleAdminStatsUsers(req, res, requestId) {
   setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-  
+  setCorsHeaders(res, req);
+
+  const session = getAdminSessionFromReq(req);
+  const adminPw = req.headers['x-admin-password'];
+  const envPw = process.env.ADMIN_PASSWORD;
+  if (!session && !(envPw && adminPw === envPw)) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Admin authentication required' }));
+    return;
+  }
+
   try {
     const supabase = getSupabaseClient();
     if (!supabase) {
@@ -29659,8 +29686,17 @@ async function handleAdminStatsUsers(req, res, requestId) {
 
 async function handleAdminStatsOrders(req, res, requestId) {
   setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-  
+  setCorsHeaders(res, req);
+
+  const session = getAdminSessionFromReq(req);
+  const adminPw = req.headers['x-admin-password'];
+  const envPw = process.env.ADMIN_PASSWORD;
+  if (!session && !(envPw && adminPw === envPw)) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Admin authentication required' }));
+    return;
+  }
+
   try {
     const supabase = getSupabaseClient();
     if (!supabase) {

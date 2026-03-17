@@ -889,11 +889,12 @@
     async function loadDashboardCharts() {
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const statsHeaders = getAdminHeaders();
         const [overviewRes, revenueRes, usersRes, ordersRes] = await Promise.all([
-          fetch(`${apiBase}/api/admin/stats/overview`),
-          fetch(`${apiBase}/api/admin/stats/revenue?period=${dashboardPeriod}`),
-          fetch(`${apiBase}/api/admin/stats/users?period=${dashboardPeriod}`),
-          fetch(`${apiBase}/api/admin/stats/orders?period=${dashboardPeriod}`)
+          fetch(`${apiBase}/api/admin/stats/overview`, { headers: statsHeaders }),
+          fetch(`${apiBase}/api/admin/stats/revenue?period=${dashboardPeriod}`, { headers: statsHeaders }),
+          fetch(`${apiBase}/api/admin/stats/users?period=${dashboardPeriod}`, { headers: statsHeaders }),
+          fetch(`${apiBase}/api/admin/stats/orders?period=${dashboardPeriod}`, { headers: statsHeaders })
         ]);
 
         const [overview, revenue, users, orders] = await Promise.all([
