@@ -9,43 +9,50 @@ exports.handler = async function(event) {
     return utils.errorResponse(405, 'Method not allowed');
   }
 
-  const params = event.queryStringParameters || {};
-  const errorCode = params.error;
-  const errorDescription = params.error_description;
+  var params = event.queryStringParameters || {};
+  var errorCode = params.error;
+  var errorDescription = params.error_description;
 
   if (errorCode) {
     console.warn('[StripeConnect] Callback error:', errorCode, errorDescription);
-    const encoded = encodeURIComponent(errorDescription || errorCode);
+    var encoded = encodeURIComponent(errorDescription || errorCode);
     return {
       statusCode: 302,
-      headers: {
-        'Location': 'https://mycarconcierge.com/founder-dashboard.html?stripe=error&reason=' + encoded,
-        'Access-Control-Allow-Origin': '*'
-      },
+      headers: { 'Location': 'https://mycarconcierge.com/founder-dashboard.html?stripe=error&reason=' + encoded },
       body: ''
     };
   }
 
-  const stateParam = params.state;
-  const code = params.code;
+  var stripeAccountId = params.stripe_account || params.state;
 
-  if (!code && !stateParam) {
-    return {
-      statusCode: 302,
-      headers: {
-        'Location': 'https://mycarconcierge.com/founder-dashboard.html?stripe=error&reason=missing_params',
-        'Access-Control-Allow-Origin': '*'
-      },
-      body: ''
-    };
+  if (stripeAccountId && process.env.STRIPE_SECRET_KEY) {
+    try {
+      var Stripe = require('stripe');
+      var stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+      var account = await stripe.accounts.retrieve(stripeAccountId);
+
+      if (account && account.id) {
+        var supabase = utils.createSupabaseClient();
+        if (supabase) {
+          await supabase
+            .from('member_founder_profiles')
+            .update({
+              stripe_connect_account_id: account.id,
+              payout_method: 'stripe_connect',
+              updated_at: new Date().toISOString()
+            })
+            .eq('stripe_connect_account_id', account.id);
+        }
+        console.log('[StripeConnect] Account verified:', account.id, 'details_submitted:', account.details_submitted);
+      }
+    } catch (verifyErr) {
+      console.warn('[StripeConnect] Account verification skipped:', verifyErr.message);
+    }
   }
 
   return {
     statusCode: 302,
-    headers: {
-      'Location': 'https://mycarconcierge.com/founder-dashboard.html?stripe=success',
-      'Access-Control-Allow-Origin': '*'
-    },
+    headers: { 'Location': 'https://mycarconcierge.com/founder-dashboard.html?stripe=success' },
     body: ''
   };
 };
