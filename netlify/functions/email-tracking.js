@@ -39,23 +39,39 @@ exports.handler = async function(event) {
       var msg = result.data;
 
       if (action === 'open' && msg && !msg.opened_at) {
-        await supabase.from('outreach_messages').update({ opened_at: new Date().toISOString() }).eq('id', msgId);
+        var openedAt = new Date().toISOString();
+        await supabase.from('outreach_messages').update({ opened_at: openedAt }).eq('id', msgId);
         await supabase.from('outreach_activity_log').insert({
           lead_id: msg.lead_id,
           message_id: msgId,
           event_type: 'opened',
           metadata: {}
         });
+        supabase.from('outreach_email_events').insert({
+          message_id: msgId,
+          lead_id: msg.lead_id,
+          event_type: 'opened',
+          occurred_at: openedAt
+        }).then(function() {}).catch(function() {});
       }
 
       if (action === 'click' && msg && !msg.clicked_at) {
-        await supabase.from('outreach_messages').update({ clicked_at: new Date().toISOString() }).eq('id', msgId);
+        var clickedAt = new Date().toISOString();
+        var destination = params.u || 'https://mycarconcierge.com';
+        await supabase.from('outreach_messages').update({ clicked_at: clickedAt }).eq('id', msgId);
         await supabase.from('outreach_activity_log').insert({
           lead_id: msg.lead_id,
           message_id: msgId,
           event_type: 'clicked',
-          metadata: { destination: params.u || 'https://mycarconcierge.com' }
+          metadata: { destination: destination }
         });
+        supabase.from('outreach_email_events').insert({
+          message_id: msgId,
+          lead_id: msg.lead_id,
+          event_type: 'clicked',
+          occurred_at: clickedAt,
+          metadata: { destination: destination }
+        }).then(function() {}).catch(function() {});
       }
     } catch (e) {}
   }
