@@ -13,13 +13,16 @@ function isValidUUID(str) {
   return UUID_REGEX.test(str);
 }
 
-if (!process.env.ADMIN_PASSWORD) {
-  throw new Error('[utils] ADMIN_PASSWORD environment variable is required but not set');
+function getGuestTokenSecret() {
+  var adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    throw new Error('[utils] ADMIN_PASSWORD is required for guest token operations');
+  }
+  return crypto.createHash('sha256').update('mcc-guest-split-' + adminPassword).digest('hex');
 }
-var GUEST_TOKEN_SECRET = crypto.createHash('sha256').update('mcc-guest-split-' + process.env.ADMIN_PASSWORD).digest('hex');
 
 function generateGuestToken(participantId) {
-  return crypto.createHmac('sha256', GUEST_TOKEN_SECRET).update(participantId).digest('hex').substring(0, 32);
+  return crypto.createHmac('sha256', getGuestTokenSecret()).update(participantId).digest('hex').substring(0, 32);
 }
 
 function verifyGuestToken(participantId, token) {
