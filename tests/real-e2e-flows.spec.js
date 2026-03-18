@@ -830,81 +830,169 @@ test.describe('Insurance Card OCR — API extraction and review UI rendering', (
     expect(typeof body.rawText).toBe('string');
   });
 
-  test('Insurance card review UI renders extracted fields into editable form inputs', async ({ page }) => {
+  test('Insurance card review UI: member triggers OCR flow and review form appears with AI-extracted fields', async ({ page }) => {
+    // Full production E2E flow using Playwright network interception:
+    //   1. Member logs in → members.html fully loaded
+    //   2. Playwright intercepts Supabase storage upload → returns fake upload success + public URL
+    //   3. Playwright intercepts /api/insurance/extract → returns known extracted fields
+    //   4. The #insurance-file-input gets a synthetic File via DataTransfer API
+    //   5. The "Extract Info from Image (AI)" button is clicked — onclick fires
+    //      submitInsuranceExtraction(vehicleId) via the production code path
+    //   6. submitInsuranceExtraction uploads file (intercepted) → calls OCR API (intercepted)
+    //      → calls showInsuranceReviewUI(extracted) which renders the review form
+    //   7. We assert #insurance-extraction-status is visible with all 3 input fields populated
+
+    const FAKE_PUBLIC_URL = 'https://fake-supabase.co/storage/v1/object/public/insurance-documents/test.png';
+
+    // ── Log in and wait for members.html to fully initialise ──
     await loginViaUI(page, TEST_MEMBER_EMAIL, TEST_MEMBER_PASS, 'member');
-    await navigateToSection(page, 'insurance');
     await page.waitForTimeout(2000);
 
-    // Open the insurance document modal (the button that triggers it)
-    const addInsuranceBtn = page.locator('button').filter({ hasText: /Add Insurance|Upload Insurance|New Insurance|Add Document/i }).first();
-    const hasAddBtn = await addInsuranceBtn.count() > 0;
+    // ── Intercept /api/insurance/extract → return known extracted fields ──
+    await page.route('**/api/insurance/extract', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          extracted: {
+            insurerName: 'Test State Farm',
+            policyNumber: 'POL-TEST-12345',
+            expirationDate: '12/31/2026',
+          }
+        })
+      });
+    });
 
-    if (!hasAddBtn) {
-      // Navigate to the insurance section and look for the add button
-      const sectionBtn = page.locator('[data-section="insurance"], [onclick*="insurance"], button').filter({ hasText: /insurance/i }).first();
-      if (await sectionBtn.count() > 0) await sectionBtn.click();
-      await page.waitForTimeout(1000);
-    }
-
-    const mockExtracted = {
-      insurerName: 'State Farm Insurance',
-      policyNumber: 'POL-TEST-9876543',
-      expirationDate: '2026-12-31'
-    };
-
-    // First try: call showInsuranceReviewUI directly if it's globally accessible
-    const reviewRendered = await page.evaluate((extracted) => {
-      if (typeof showInsuranceReviewUI === 'function') {
-        showInsuranceReviewUI(extracted, 'test-vehicle-id', { url: 'https://example.com/card.jpg', storagePath: 'test/path.jpg' });
-        const statusEl = document.getElementById('insurance-extraction-status');
-        if (!statusEl) return { mode: 'direct', rendered: false, reason: 'no-status-el' };
-        const providerInput = statusEl.querySelector('#ins-review-provider');
-        const policyInput = statusEl.querySelector('#ins-review-policy');
-        const expiryInput = statusEl.querySelector('#ins-review-expiration');
-        return {
-          mode: 'direct',
-          rendered: true,
-          providerValue: providerInput?.value || null,
-          policyValue: policyInput?.value || null,
-          expiryValue: expiryInput?.value || null
+    // ── Patch supabaseClient.storage to bypass the real Supabase storage upload ──
+    // extractInsuranceCard() calls supabaseClient.storage.from('insurance-documents').upload()
+    // We replace the .from() method to intercept upload() and getPublicUrl() calls.
+    // This approach patches in-memory (doesn't affect network) and is the cleanest way to
+    // short-circuit the storage upload while letting the rest of submitInsuranceExtraction run normally.
+    await page.evaluate((fakeUrl) => {
+      if (window.supabaseClient?.storage) {
+        const originalFrom = window.supabaseClient.storage.from.bind(window.supabaseClient.storage);
+        window.supabaseClient.storage.from = (bucket) => {
+          if (bucket === 'insurance-documents') {
+            return {
+              upload: async (_path, _file, _opts) => ({
+                data: { path: 'test/insurance_test.png' },
+                error: null
+              }),
+              getPublicUrl: (_path) => ({
+                data: { publicUrl: fakeUrl },
+                error: null
+              })
+            };
+          }
+          return originalFrom(bucket);
         };
       }
-      // Fallback: inject the review HTML ourselves to verify #insurance-extraction-status
-      // is wired into the member dashboard DOM as the correct container for the review UI.
-      // This validates the HTML contract even when the function is in a module scope.
-      const statusEl = document.getElementById('insurance-extraction-status');
-      if (statusEl) {
-        // Simulate the review UI render by injecting the expected inputs
-        statusEl.innerHTML = `
-          <input id="ins-review-provider" value="${extracted.insurerName}" />
-          <input id="ins-review-policy" value="${extracted.policyNumber}" />
-          <input id="ins-review-expiration" value="${extracted.expirationDate}" />
-          <button id="ins-review-save">Save Insurance Details</button>
-        `;
-        return {
-          mode: 'injected',
-          rendered: true,
-          hasContainer: true,
-          providerValue: statusEl.querySelector('#ins-review-provider')?.value || null,
-          policyValue: statusEl.querySelector('#ins-review-policy')?.value || null,
-          expiryValue: statusEl.querySelector('#ins-review-expiration')?.value || null
-        };
+    }, FAKE_PUBLIC_URL);
+
+    // ── Open the Add Insurance Document modal ──
+    // openInsuranceDocumentModal is defined in members-extras.js and IS accessible as a global.
+    await page.evaluate(() => {
+      if (typeof openInsuranceDocumentModal === 'function') {
+        openInsuranceDocumentModal();
+      } else {
+        const btn = document.querySelector('[onclick*="openInsuranceDocumentModal"]');
+        if (btn) btn.click();
       }
-      return { mode: 'none', rendered: false, reason: 'showInsuranceReviewUI-not-global-and-no-container' };
-    }, mockExtracted);
+    });
+    await page.waitForTimeout(1500);
 
-    console.log('[Insurance review UI]', JSON.stringify(reviewRendered));
+    // ── Confirm the #insurance-extraction-status container exists in the DOM ──
+    const statusContainer = page.locator('#insurance-extraction-status');
+    await expect(statusContainer, '#insurance-extraction-status must exist in members.html').toBeAttached({ timeout: 8000 });
 
-    if (reviewRendered.rendered) {
-      // Whether direct call or injected fallback, the review form fields must hold the extracted values
-      expect(reviewRendered.providerValue).toBe('State Farm Insurance');
-      expect(reviewRendered.policyValue).toBe('POL-TEST-9876543');
-      expect(reviewRendered.expiryValue).toBe('2026-12-31');
-    } else {
-      // Neither path worked — this means the DOM lacks #insurance-extraction-status
-      // AND showInsuranceReviewUI is not global. The review UI contract is broken.
-      throw new Error(`Insurance review UI unavailable: ${reviewRendered.reason}. The #insurance-extraction-status container must exist in members.html and showInsuranceReviewUI must populate it.`);
-    }
+    // ── Inject a synthetic File into the hidden file input ──
+    // This makes submitInsuranceExtraction find a valid file at:
+    //   const file = fileInput?.files?.[0] || window._pendingInsuranceFile;
+    await page.evaluate(() => {
+      const fileInput = document.getElementById('insurance-file-input');
+      if (fileInput) {
+        // Create a minimal 1x1 PNG as a Uint8Array
+        const pngBytes = new Uint8Array([
+          137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,
+          0,0,0,1,0,0,0,1,8,2,0,0,0,144,119,83,222,0,0,0,
+          12,73,68,65,84,8,215,99,248,15,0,0,1,1,0,5,24,213,
+          78,0,0,0,0,73,69,78,68,174,66,96,130
+        ]);
+        const file = new File([pngBytes], 'insurance_test.png', { type: 'image/png' });
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        Object.defineProperty(fileInput, 'files', { value: dt.files, configurable: true });
+      }
+      // Also show the extract area so the button is visible
+      const extractArea = document.getElementById('insurance-extract-area');
+      if (extractArea) extractArea.style.display = 'block';
+    });
+
+    // ── Click the "Extract Info from Image (AI)" button ──
+    // This fires onclick="submitInsuranceExtraction(vehicleId)" via the production path:
+    //   submitInsuranceExtraction → extractInsuranceCard (storage upload patched)
+    //     → getPublicUrl (patched) → /api/insurance/extract (intercepted)
+    //     → showInsuranceReviewUI(extracted) → renders #insurance-extraction-status
+    const extractBtn = page.locator('#insurance-extract-btn');
+    await expect(extractBtn, '#insurance-extract-btn must be present').toBeAttached({ timeout: 5000 });
+
+    // Monitor for page errors BEFORE clicking
+    const pageErrors = [];
+    const consoleLogs = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error' || msg.text().includes('Insurance') || msg.text().includes('insurance')) {
+        consoleLogs.push(msg.type() + ': ' + msg.text().substring(0, 200));
+      }
+    });
+    page.on('pageerror', err => pageErrors.push(err.message.substring(0, 200)));
+
+    await extractBtn.click({ force: true });
+    await page.waitForTimeout(3000);
+
+    console.log('[Insurance UI] After button click - console logs:', JSON.stringify(consoleLogs));
+    console.log('[Insurance UI] After button click - page errors:', JSON.stringify(pageErrors));
+
+    // ── Check DOM state after button click ──
+    const domState = await page.evaluate(() => ({
+      statusEl: document.getElementById('insurance-extraction-status')?.style.display,
+      hasProviderInput: !!document.getElementById('ins-review-provider'),
+      hasStatusEl: !!document.getElementById('insurance-extraction-status'),
+      statusInnerHTML: document.getElementById('insurance-extraction-status')?.innerHTML?.substring(0, 200) || '',
+    })).catch(() => ({ error: 'page-crashed' }));
+
+    console.log('[Insurance UI] DOM state after click:', JSON.stringify(domState));
+
+    await page.waitForTimeout(1000);
+
+    // ── Assert the review container is visible ──
+    const isVisible = await page.evaluate(() => {
+      const el = document.getElementById('insurance-extraction-status');
+      return el && el.style.display !== 'none' && el.style.display !== '';
+    });
+    expect(isVisible, '#insurance-extraction-status must be visible after production OCR flow').toBe(true);
+
+    // ── Assert all 3 review input fields exist with the correct production IDs ──
+    const providerInput = page.locator('#ins-review-provider');
+    const policyInput = page.locator('#ins-review-policy');
+    const expiryInput = page.locator('#ins-review-expiration');
+    const confirmBtn = page.locator('#ins-review-confirm');
+
+    await expect(providerInput, '#ins-review-provider must exist').toBeAttached({ timeout: 5000 });
+    await expect(policyInput, '#ins-review-policy must exist').toBeAttached({ timeout: 5000 });
+    await expect(expiryInput, '#ins-review-expiration must exist').toBeAttached({ timeout: 5000 });
+    await expect(confirmBtn, '#ins-review-confirm must exist').toBeAttached({ timeout: 5000 });
+
+    // ── Assert fields are pre-filled with the intercepted OCR values ──
+    const providerVal = await providerInput.inputValue();
+    const policyVal = await policyInput.inputValue();
+    const expiryVal = await expiryInput.inputValue();
+
+    expect(providerVal, '#ins-review-provider pre-filled from OCR').toBe('Test State Farm');
+    expect(policyVal, '#ins-review-policy pre-filled from OCR').toBe('POL-TEST-12345');
+    expect(expiryVal, '#ins-review-expiration pre-filled from OCR').toBe('12/31/2026');
+
+    console.log('[Insurance review UI] All fields verified — Provider:', providerVal, '| Policy:', policyVal, '| Expiry:', expiryVal);
   });
 });
 
@@ -1061,7 +1149,7 @@ test.describe('Member Onboarding — 8-Step Conversational Form', () => {
       expect(profile.role).toBe('member');
 
       // Verify the UI advanced to step 5 (vehicle step) or beyond
-      const currentStep = await page.evaluate(() => {
+      const getActiveStep = () => page.evaluate(() => {
         const steps = document.querySelectorAll('[data-step]');
         for (const step of steps) {
           const style = window.getComputedStyle(step);
@@ -1069,9 +1157,87 @@ test.describe('Member Onboarding — 8-Step Conversational Form', () => {
             return parseInt(step.dataset.step);
           }
         }
+        // Fallback: check currentStep JS variable
+        if (typeof currentStep !== 'undefined') return currentStep;
         return -1;
       });
-      expect(currentStep).toBeGreaterThanOrEqual(4); // Step 5+ = post-account creation
+
+      let stepNum = await getActiveStep();
+      expect(stepNum).toBeGreaterThanOrEqual(4); // Step 5+ = post-account creation
+
+      // ── Step 5: Vehicle ── fill in year/make/model and skip
+      if (stepNum === 4 || stepNum === 5) {
+        const carYear = page.locator('#input-car-year');
+        const carMake = page.locator('#input-car-make');
+        const carModel = page.locator('#input-car-model');
+        if (await carYear.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await carYear.fill('2019');
+          await carMake.fill('Honda');
+          await carModel.fill('Civic');
+          // Click "I'll add my car later" (skip) to avoid real Supabase insert for test vehicle
+          await page.evaluate(() => {
+            if (typeof skipVehicle === 'function') { skipVehicle(); return; }
+            const skip = document.querySelector('[data-step="5"] .btn-skip');
+            if (skip) skip.click();
+          });
+          await page.waitForTimeout(1000);
+          stepNum = await getActiveStep();
+        }
+      }
+
+      // ── Step 6: Service category ── select a category and continue
+      if (stepNum === 5 || stepNum === 6) {
+        const categoryGrid = page.locator('#category-grid');
+        if (await categoryGrid.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await page.evaluate(() => {
+            const card = document.querySelector('.category-card[data-category="maintenance"]');
+            if (card) card.click();
+          });
+          await page.waitForTimeout(500);
+          await page.evaluate(() => {
+            if (typeof skipRequest === 'function') { skipRequest(); return; }
+            const skip = document.querySelector('[data-step="6"] .btn-skip');
+            if (skip) skip.click();
+            else {
+              const next = document.querySelector('[data-step="6"] .btn-next');
+              if (next) next.click();
+            }
+          });
+          await page.waitForTimeout(1000);
+          stepNum = await getActiveStep();
+        }
+      }
+
+      // ── Step 7: Service request description ── skip or fill and submit
+      if (stepNum === 6 || stepNum === 7) {
+        const reqTitle = page.locator('#input-request-title');
+        if (await reqTitle.isVisible({ timeout: 3000 }).catch(() => false)) {
+          // Skip the request creation in test to avoid polluting the DB
+          await page.evaluate(() => {
+            if (typeof skipRequest === 'function') { skipRequest(); return; }
+            const skip = document.querySelector('[data-step="7"] .btn-skip');
+            if (skip) skip.click();
+            else {
+              // If no skip button, go directly to step 8
+              if (typeof nextStep === 'function') nextStep();
+            }
+          });
+          await page.waitForTimeout(1000);
+          stepNum = await getActiveStep();
+        }
+      }
+
+      // ── Step 8: Success screen ── hard-assert the completion screen is visible
+      const successTitle = page.locator('#success-title, .success-screen h2, .success-icon');
+      await expect(
+        successTitle.first(),
+        'Onboarding success screen must be visible at step 8 — onboarding is complete'
+      ).toBeVisible({ timeout: 8000 });
+      console.log('[Onboarding] Reached step 8 success screen — onboarding complete ✓');
+
+      // Final assertion: must have reached step 8 (full completion)
+      const finalStep = await getActiveStep();
+      expect(finalStep).toBeGreaterThanOrEqual(8);
     } finally {
       // Clean up: delete the test account so it doesn't pollute the DB
       if (createdUserId) {
@@ -1247,6 +1413,123 @@ test.describe('Admin Portal — Members and Providers Management', () => {
       .select('suspended').eq('id', providerId).single();
     expect(restored.suspended).toBe(originalSuspended || false);
   });
+
+  test('Admin browser flow: admin can view real user data and toggle member suspension via Supabase state change', async ({ page }) => {
+    test.skip(!ADMIN_PASSWORD || !SUPABASE_SERVICE_KEY, 'ADMIN_PASSWORD and SUPABASE_SERVICE_ROLE_KEY required');
+
+    const supabase = getSupabaseAdmin();
+
+    // ── Resolve testmember's real Supabase ID for the suspend toggle ──
+    const { data: memberProfile, error: profileErr } = await supabase
+      .from('profiles')
+      .select('id, full_name, suspended')
+      .eq('email', TEST_MEMBER_EMAIL)
+      .single();
+    expect(profileErr, 'Must resolve testmember profile from Supabase').toBeNull();
+    const memberId = memberProfile.id;
+    const originalSuspended = memberProfile.suspended || false;
+
+    // ── Step 1: Real suspend state change via Supabase (before browser) ──
+    // Toggle to suspended=true, record before state for cleanup
+    const { error: suspendErr } = await supabase
+      .from('profiles')
+      .update({ suspended: true })
+      .eq('id', memberId);
+    expect(suspendErr, 'Supabase suspend update must succeed').toBeNull();
+
+    // Verify the DB shows suspended=true
+    const { data: afterSuspend } = await supabase
+      .from('profiles')
+      .select('suspended')
+      .eq('id', memberId)
+      .single();
+    expect(afterSuspend?.suspended, 'Profile must show suspended=true after Supabase update').toBe(true);
+
+    // ── Step 2: Navigate to admin portal in browser ──
+    await page.goto(`${BASE_URL}/admin.html`);
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(1500);
+
+    // ── Step 3: Handle password gate (if shown) ──
+    const modal = page.locator('#admin-password-modal');
+    const modalVisible = await modal.isVisible({ timeout: 5000 }).catch(() => false);
+
+    if (modalVisible) {
+      const passwordInput = page.locator('#admin-password-input');
+      await passwordInput.fill(ADMIN_PASSWORD, { force: true }).catch(async () => {
+        await page.evaluate((pass) => {
+          const el = document.getElementById('admin-password-input');
+          if (el) { el.value = pass; el.dispatchEvent(new Event('input', { bubbles: true })); }
+        }, ADMIN_PASSWORD);
+      });
+      await page.evaluate(() => {
+        if (typeof verifyAdminPassword === 'function') verifyAdminPassword();
+        else {
+          const el = document.getElementById('admin-password-input');
+          if (el) el.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
+        }
+      });
+      await page.waitForTimeout(3000);
+      const isHidden = await modal.evaluate(el => el.style.display === 'none' || !el.offsetParent).catch(() => true);
+      expect(isHidden, 'Admin password gate modal must be dismissed after correct password').toBe(true);
+    }
+
+    // ── Step 4: Navigate to User Management section and load data ──
+    await page.evaluate(() => {
+      const navItem = document.querySelector('[data-section="user-management"]');
+      if (navItem) { navItem.click(); return; }
+      const all = document.querySelectorAll('.nav-item, [data-section]');
+      for (const el of all) {
+        if (/User Management/i.test(el.textContent)) { el.click(); return; }
+      }
+    });
+    await page.waitForTimeout(2000);
+
+    // Call refreshUserManagement() to trigger real data load from Supabase
+    const loaded = await page.evaluate(async () => {
+      if (typeof refreshUserManagement === 'function') {
+        await refreshUserManagement();
+        return 'called';
+      }
+      return 'not-found';
+    });
+    // If refreshUserManagement not found, call loadUserManagement
+    if (loaded === 'not-found') {
+      await page.evaluate(async () => {
+        if (typeof loadUserManagement === 'function') await loadUserManagement();
+        else if (typeof window.initUserManagement === 'function') await window.initUserManagement();
+      });
+    }
+    await page.waitForTimeout(3000); // Allow async data load to complete
+
+    // ── Step 5: Assert User Management stat counters have loaded real data ──
+    const totalUsersEl = page.locator('#um-total-users');
+    await expect(totalUsersEl, '#um-total-users stat must be in User Management DOM').toBeAttached({ timeout: 5000 });
+
+    const suspendedStatEl = page.locator('#um-suspended');
+    await expect(suspendedStatEl, '#um-suspended stat counter must exist in admin UI').toBeAttached({ timeout: 5000 });
+
+    // ── Step 6: Also verify member-search DOM element and provider-search DOM element exist ──
+    const memberSearch = page.locator('#member-search');
+    expect(await memberSearch.count() > 0, '#member-search must exist in admin DOM').toBe(true);
+
+    const providerSearch = page.locator('#provider-search');
+    expect(await providerSearch.count() > 0, '#provider-search must exist in admin DOM').toBe(true);
+
+    // ── Step 7: Unsuspend testmember — verify state is restored ──
+    const { error: unsuspendErr } = await supabase
+      .from('profiles')
+      .update({ suspended: originalSuspended })
+      .eq('id', memberId);
+    expect(unsuspendErr, 'Supabase unsuspend update must succeed').toBeNull();
+
+    const { data: restored } = await supabase
+      .from('profiles')
+      .select('suspended')
+      .eq('id', memberId)
+      .single();
+    expect(restored?.suspended, 'Profile must be restored to original suspended value').toBe(originalSuspended);
+  });
 });
 
 // ────────────────────────────────────────────────────────────
@@ -1392,6 +1675,76 @@ test.describe('AI Helpdesk Widget — All 3 Modes (Real API + Browser Widget)', 
       document.querySelectorAll('#helpdesk-widget .helpdesk-mode-pill.active').length
     );
     expect(activePills).toBe(1);
+  });
+
+  test('Helpdesk widget: send a real message in each of the 3 modes and verify AI response renders', async ({ page }) => {
+    // This drives the actual widget UI end-to-end: mode switch → type message → send → response appears.
+    // Requires the Anthropic API key to be configured. If API fails the response text assertion
+    // still catches it (error text pattern check).
+    await loginViaUI(page, TEST_MEMBER_EMAIL, TEST_MEMBER_PASS, 'member');
+    await page.waitForTimeout(2000);
+
+    const helpdeskWidget = page.locator('#helpdesk-widget');
+    await expect(helpdeskWidget).toBeAttached({ timeout: 10000 });
+
+    // Open the widget
+    await page.evaluate(() => {
+      const toggle = document.querySelector('#helpdesk-widget .chat-widget-toggle');
+      if (toggle) toggle.click();
+    });
+    const panel = page.locator('#helpdesk-widget .chat-widget-panel');
+    await expect(panel).toBeVisible({ timeout: 5000 });
+
+    const widgetModes = [
+      { dataMode: 'driver', question: 'What does check engine light mean?' },
+      { dataMode: 'provider', question: 'How should I price my bid competitively?' },
+      { dataMode: 'education', question: 'Explain engine oil viscosity in simple terms.' }
+    ];
+
+    for (const { dataMode, question } of widgetModes) {
+      // Switch to this mode by clicking the pill
+      const pill = page.locator(`#helpdesk-widget .helpdesk-mode-pill[data-mode="${dataMode}"]`);
+      if (await pill.count() > 0) {
+        await page.evaluate((m) => {
+          const p = document.querySelector(`#helpdesk-widget .helpdesk-mode-pill[data-mode="${m}"]`);
+          if (p) p.click();
+        }, dataMode);
+        await page.waitForTimeout(500);
+        const isActive = await pill.evaluate(el => el.classList.contains('active')).catch(() => false);
+        expect(isActive, `Mode pill "${dataMode}" must be active after clicking`).toBe(true);
+      }
+
+      // Count messages before sending
+      const beforeCount = await page.locator('#helpdesk-widget .chat-widget-message').count();
+
+      // Type and send the question
+      const chatInput = page.locator('#helpdesk-widget .chat-widget-input, #helpdesk-widget textarea, #helpdesk-widget input[type="text"]').first();
+      await expect(chatInput).toBeVisible({ timeout: 5000 });
+      await chatInput.fill(question);
+      await page.waitForTimeout(200);
+
+      const sendBtn = page.locator('#helpdesk-widget .chat-widget-send, #helpdesk-widget button[type="submit"]').first();
+      if (await sendBtn.count() > 0) {
+        await sendBtn.click();
+      } else {
+        await chatInput.press('Enter');
+      }
+
+      // Wait for the AI response (real API call — may take a few seconds)
+      await page.waitForTimeout(10000);
+
+      // Verify at least one new message appeared in the chat
+      const afterCount = await page.locator('#helpdesk-widget .chat-widget-message').count();
+      expect(afterCount, `Mode "${dataMode}": at least 1 new message should appear after sending`).toBeGreaterThan(beforeCount);
+
+      // The last message should contain real content (not empty, not just the user's question)
+      const lastMsg = page.locator('#helpdesk-widget .chat-widget-message').last();
+      const lastMsgText = (await lastMsg.textContent()) || '';
+      expect(lastMsgText.trim().length, `Mode "${dataMode}": response message must have content`).toBeGreaterThan(10);
+      expect(lastMsgText, `Mode "${dataMode}": response must not be a critical error`).not.toMatch(/critical error|service unavailable|500/i);
+
+      console.log(`[Helpdesk mode "${dataMode}"] response snippet: "${lastMsgText.trim().substring(0, 80)}"`);
+    }
   });
 });
 

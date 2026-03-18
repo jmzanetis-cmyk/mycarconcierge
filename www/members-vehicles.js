@@ -1,6 +1,7 @@
 // ========== MY CAR CONCIERGE - VEHICLES MODULE ==========
 // Vehicle management, recalls, registration verification, vehicle details
 
+
     // ========== VEHICLE RECALLS FUNCTIONS ==========
     
     async function fetchVehicleRecalls(vehicleId, refresh = false) {
@@ -852,6 +853,7 @@
         }
       }
     }
+    window.submitInsuranceExtraction = submitInsuranceExtraction;
     
     function showInsuranceReviewUI(extracted, vehicleId, uploadResult) {
       const extractionStatus = document.getElementById('insurance-extraction-status');
@@ -877,7 +879,7 @@
         ${iField('Expiration Date', extracted.expirationDate, 'ins-review-expiration')}
         
         <div style="display:flex;gap:10px;margin-top:14px;">
-          <button class="btn btn-gold" onclick="confirmInsuranceExtraction('${vehicleId}', '${uploadResult?.url || ''}', '${uploadResult?.storagePath || ''}')" style="flex:1;">
+          <button id="ins-review-confirm" class="btn btn-gold" onclick="confirmInsuranceExtraction('${vehicleId}', '${uploadResult?.url || ''}', '${uploadResult?.storagePath || ''}')" style="flex:1;">
             ${mccIcon('check-circle', 14)} Confirm & Save
           </button>
           <button class="btn btn-secondary" onclick="document.getElementById('insurance-extraction-status').style.display='none'" style="flex:0 0 auto;">
@@ -885,8 +887,9 @@
           </button>
         </div>
       `;
-      
+      extractionStatus.style.display = 'block';
     }
+    window.showInsuranceReviewUI = showInsuranceReviewUI;
     
     async function confirmInsuranceExtraction(vehicleId, fileUrl, storagePath) {
       const provider = document.getElementById('ins-review-provider')?.value?.trim() || '';
@@ -917,6 +920,7 @@
       document.getElementById('insurance-extraction-status').style.display = 'none';
       showToast('Fields pre-filled! Review and save the document.', 'success');
     }
+    window.confirmInsuranceExtraction = confirmInsuranceExtraction;
     
     // ========== END INSURANCE CARD EXTRACTION ==========
 
@@ -1922,120 +1926,3 @@
       updateStats();
     }
 
-    // ========== AI PREDICTIVE MAINTENANCE ==========
-
-    let vehiclePredictions = {};
-
-    async function fetchVehiclePredictions(vehicleId) {
-      try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) return null;
-
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/vehicle/${vehicleId}/predictions`, {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        });
-        const data = await response.json();
-
-        if (data.success) {
-          vehiclePredictions[vehicleId] = {
-            health_summary: data.health_summary,
-            predictions: data.predictions || [],
-            generated_at: data.generated_at,
-            cached: data.cached
-          };
-          return vehiclePredictions[vehicleId];
-        }
-        return null;
-      } catch (error) {
-        console.error('Error fetching predictions:', error);
-        return null;
-      }
-    }
-
-    async function loadAllVehiclePredictions() {
-      if (_predictionsLoading) return;
-      _predictionsLoading = true;
-      try {
-        const promises = vehicles.map(v => fetchVehiclePredictions(v.id));
-        await Promise.allSettled(promises);
-        renderVehicles();
-      } finally {
-        _predictionsLoading = false;
-      }
-    }
-
-    function getUrgencyConfig(urgency) {
-      const configs = {
-        critical: { label: 'Critical', color: 'var(--accent-red)', bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.3)', icon: 'alert-triangle' },
-        soon: { label: 'Soon', color: 'var(--accent-orange)', bg: 'var(--accent-orange-soft)', border: 'rgba(251,146,60,0.3)', icon: 'clock' },
-        upcoming: { label: 'Upcoming', color: 'var(--accent-blue)', bg: 'var(--accent-blue-soft)', border: 'rgba(56,189,248,0.3)', icon: 'calendar' },
-        routine: { label: 'Routine', color: 'var(--accent-green)', bg: 'var(--accent-green-soft)', border: 'rgba(52,211,153,0.3)', icon: 'check-circle' }
-      };
-      return configs[urgency] || configs.routine;
-    }
-
-    function renderPredictionsSection(vehicleId) {
-      const predData = vehiclePredictions[vehicleId];
-      if (!predData) {
-        return `<div class="predictions-section predictions-loading" id="predictions-${vehicleId}">
-          <div class="predictions-header">
-            <span class="predictions-title">${mccIcon('cpu', 14)} AI Maintenance Forecast</span>
-          </div>
-          <div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.82rem;">Analyzing vehicle data...</div>
-        </div>`;
-      }
-
-      const predictions = predData.predictions || [];
-      if (predictions.length === 0 && !predData.health_summary) {
-        return '';
-      }
-
-      let predictionsHtml = predictions.slice(0, 4).map((p, idx) => {
-        const config = getUrgencyConfig(p.urgency);
-        const milesText = p.estimated_miles ? `~${p.estimated_miles.toLocaleString()} mi` : '';
-        const dateText = p.estimated_date ? new Date(p.estimated_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
-        const timeInfo = [milesText, dateText].filter(Boolean).join(' · ');
-
-        return `<div class="prediction-item" data-vehicle-id="${vehicleId}" data-prediction-idx="${idx}" data-prediction-title="${escapeHtml(p.title)}">
-          <div class="prediction-item-left">
-            <span class="prediction-urgency-dot" style="background:${config.color};"></span>
-            <div>
-              <div class="prediction-item-title">${escapeHtml(p.title)}</div>
-              <div class="prediction-item-meta">${timeInfo ? timeInfo + ' — ' : ''}${escapeHtml(p.reason)}</div>
-            </div>
-          </div>
-          <div class="prediction-item-right">
-            <span class="prediction-urgency-badge" style="background:${config.bg};color:${config.color};border:1px solid ${config.border};">${config.label}</span>
-            <span class="prediction-action-icon">${mccIcon('package', 14)}</span>
-          </div>
-        </div>`;
-      }).join('');
-
-      return `<div class="predictions-section" id="predictions-${vehicleId}">
-        <div class="predictions-header">
-          <span class="predictions-title">${mccIcon('cpu', 14)} AI Maintenance Forecast</span>
-        </div>
-        ${predData.health_summary ? `<div class="predictions-health-summary">${escapeHtml(predData.health_summary)}</div>` : ''}
-        ${predictionsHtml ? `<div class="predictions-list">${predictionsHtml}</div>` : ''}
-      </div>`;
-    }
-
-    function createPackageFromPrediction(vehicleId, title) {
-      openPackageModal();
-      document.getElementById('p-vehicle').value = vehicleId;
-      document.getElementById('p-title').value = title;
-    }
-
-    let _predictionsLoading = false;
-
-    document.addEventListener('click', function(e) {
-      const item = e.target.closest('.prediction-item[data-vehicle-id]');
-      if (item) {
-        const vehicleId = item.getAttribute('data-vehicle-id');
-        const title = item.getAttribute('data-prediction-title') || '';
-        const decoded = document.createElement('textarea');
-        decoded.innerHTML = title;
-        createPackageFromPrediction(vehicleId, decoded.value);
-      }
-    });

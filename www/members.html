@@ -7468,6 +7468,12 @@
   <script src="members-core.js?v=20260213"></script>
   <script src="members-extras.js?v=20260213"></script>
   <script src="members-vehicles.js?v=20260213"></script>
+  <script>
+    // Expose members-vehicles.js functions that need global window access
+    if (typeof showInsuranceReviewUI === 'function') {
+      window.showInsuranceReviewUI = showInsuranceReviewUI;
+    }
+  </script>
   <script src="members-packages.js?v=20260213"></script>
   <script src="members-push.js?v=20260213"></script>
   <script src="/pwa-init.js?v=20260213"></script>
