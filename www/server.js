@@ -4832,6 +4832,220 @@ async function handleOBDScanOCR(req, res, requestId) {
   }
 }
 
+// ── SSRF guard helpers ──
+const _dnsModule = require('dns').promises;
+
+// Returns true if the IPv4/IPv6 address string falls in any non-public range.
+// Covers: loopback, private, link-local, CGNAT, IPv6 ULA, link-local (fe80::/10),
+// IPv4-mapped IPv6 (::ffff:), unspecified, and GCP/AWS metadata endpoints.
+// Node's URL parser includes brackets in hostname for IPv6 literals (e.g. "[::1]"); strip them.
+function _isPrivateIp(ip) {
+  const normalised = ip.toLowerCase().trim().replace(/^\[|\]$/g, ''); // strip IPv6 brackets
+
+  // ── IPv4 patterns ──
+  const v4Patterns = [
+    /^0\./, // 0.0.0.0/8 "this" network
+    /^127\./, // loopback
+    /^10\./, // RFC 1918 class A
+    /^172\.(1[6-9]|2\d|3[01])\./, // RFC 1918 class B
+    /^192\.168\./, // RFC 1918 class C
+    /^169\.254\./, // link-local (includes 169.254.169.254 metadata)
+    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, // CGNAT 100.64/10
+    /^192\.0\.2\./, // TEST-NET-1 (RFC 5737)
+    /^198\.51\.100\./, // TEST-NET-2
+    /^203\.0\.113\./, // TEST-NET-3
+    /^240\./, // Reserved (Class E)
+    /^255\.255\.255\.255$/ // broadcast
+  ];
+  if (v4Patterns.some((re) => re.test(normalised))) return true;
+
+  // ── IPv6 patterns ──
+  const v6Patterns = [
+    /^::$/, // unspecified
+    /^::1$/, // loopback
+    /^fe[89ab][0-9a-f]:/i, // link-local fe80::/10
+    /^fc[0-9a-f]{2}:/i, // ULA fc00::/7 part 1
+    /^fd[0-9a-f]{2}:/i, // ULA fc00::/7 part 2
+    /^::ffff:/i, // IPv4-mapped IPv6 (::ffff:x.x.x.x)
+    /^64:ff9b:/i, // IPv4/IPv6 translation (RFC 6052)
+    /^2001:db8:/i, // documentation (RFC 3849)
+    /^2001::/i, // Teredo tunnelling
+    /^2002:/i // 6to4
+  ];
+  if (v6Patterns.some((re) => re.test(normalised))) return true;
+
+  // ── IPv4-mapped IPv6: extract IPv4 part and check it ──
+  const mappedV4 = normalised.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  if (mappedV4 && _isPrivateIp(mappedV4[1])) return true;
+
+  return false;
+}
+
+// Pre-flight URL check (pattern only — no DNS). Blocks obvious literals.
+function _isPlausiblyPublicHttpsUrl(rawUrl) {
+  let parsed;
+  try { parsed = new URL(rawUrl); } catch { return false; }
+  if (parsed.protocol !== 'https:') return false;
+  const host = parsed.hostname.toLowerCase();
+  // Reject if the hostname itself looks like a private IP literal
+  if (_isPrivateIp(host)) return false;
+  if (/^localhost$/i.test(host)) return false;
+  if (/^metadata\.google\.internal$/i.test(host)) return false;
+  return true;
+}
+
+// Full SSRF check: pattern pre-flight + DNS resolution → IP range check
+async function assertSafeImageUrl(rawUrl) {
+  if (!_isPlausiblyPublicHttpsUrl(rawUrl)) {
+    throw new Error('Invalid or disallowed image URL');
+  }
+  const parsed = new URL(rawUrl);
+  const hostname = parsed.hostname;
+  // Resolve all A and AAAA records and confirm none are private
+  let addresses = [];
+  try {
+    const v4 = await _dnsModule.resolve4(hostname).catch(() => []);
+    const v6 = await _dnsModule.resolve6(hostname).catch(() => []);
+    addresses = [...v4, ...v6];
+  } catch (_) { addresses = []; }
+  if (addresses.length === 0) {
+    throw new Error('Invalid or disallowed image URL');
+  }
+  for (const addr of addresses) {
+    if (_isPrivateIp(addr)) {
+      throw new Error('Invalid or disallowed image URL');
+    }
+  }
+}
+
+// ==================== INSURANCE CARD OCR EXTRACTION ====================
+async function handleInsuranceExtract(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res, req);
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  try {
+    const body = await getRequestBody(req);
+    const { imageUrl } = body;
+
+    if (!imageUrl) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'imageUrl is required' }));
+      return;
+    }
+
+    // SSRF protection: DNS-resolved IP range check + HTTPS enforcement + no-redirect fetch
+    try {
+      await assertSafeImageUrl(imageUrl);
+    } catch (ssrfErr) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: ssrfErr.message }));
+      return;
+    }
+
+    const apiKey = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'OCR service not configured' }));
+      return;
+    }
+
+    // Fetch and encode image — redirects disabled to prevent redirect-based SSRF pivoting
+    let imageContent;
+    try {
+      const imageResponse = await fetch(imageUrl, { redirect: 'error' });
+      if (!imageResponse.ok) throw new Error('Failed to fetch image from URL');
+      const imageBuffer = await imageResponse.arrayBuffer();
+      if (imageBuffer.byteLength > 10 * 1024 * 1024) throw new Error('Image too large (max 10MB)');
+      imageContent = Buffer.from(imageBuffer).toString('base64');
+    } catch (fetchErr) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: fetchErr.message }));
+      return;
+    }
+
+    console.log(`[${requestId}] Calling Google Vision API for insurance card OCR...`);
+    const visionResponse = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requests: [{
+          image: { content: imageContent },
+          features: [{ type: 'TEXT_DETECTION' }]
+        }]
+      })
+    });
+
+    const visionData = await visionResponse.json();
+    if (!visionResponse.ok) {
+      console.error(`[${requestId}] Vision API error:`, visionData);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'OCR service error', details: visionData.error?.message }));
+      return;
+    }
+
+    const rawText = visionData.responses?.[0]?.fullTextAnnotation?.text || '';
+    console.log(`[${requestId}] Insurance OCR text length: ${rawText.length} chars`);
+
+    // Extract insurance fields via Anthropic (or regex fallback)
+    let extracted = { insurerName: null, policyNumber: null, expirationDate: null };
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+    if (anthropicKey && rawText.length > 0) {
+      try {
+        const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': anthropicKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-3-haiku-20240307',
+            max_tokens: 256,
+            messages: [{
+              role: 'user',
+              content: `Extract insurance card details from this OCR text. Return ONLY valid JSON with keys: insurerName, policyNumber, expirationDate (YYYY-MM-DD or MM/DD/YYYY format, null if not found).\n\nOCR text:\n${rawText.substring(0, 1500)}`
+            }]
+          })
+        });
+        const aiData = await aiResponse.json();
+        const aiText = aiData.content?.[0]?.text || '';
+        const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          extracted = { insurerName: parsed.insurerName || null, policyNumber: parsed.policyNumber || null, expirationDate: parsed.expirationDate || null };
+        }
+      } catch (aiErr) {
+        console.log(`[${requestId}] AI extraction failed, using regex fallback:`, aiErr.message);
+      }
+    }
+
+    // Regex fallback for common insurance card patterns
+    if (!extracted.insurerName) {
+      const insurerMatch = rawText.match(/(?:insurer|insurance company|company|carrier)[:\s]+([A-Z][A-Za-z\s&.]+)/i);
+      if (insurerMatch) extracted.insurerName = insurerMatch[1].trim();
+    }
+    if (!extracted.policyNumber) {
+      const policyMatch = rawText.match(/(?:policy|policy no|policy number|pol)[.#:\s]+([A-Z0-9][-A-Z0-9]{5,20})/i);
+      if (policyMatch) extracted.policyNumber = policyMatch[1].trim();
+    }
+    if (!extracted.expirationDate) {
+      const dateMatch = rawText.match(/(?:exp|expir|expiration|expires?|eff.*to|good through)[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
+      if (dateMatch) extracted.expirationDate = dateMatch[1].trim();
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, extracted, rawText: rawText.substring(0, 300) }));
+  } catch (err) {
+    console.error(`[${requestId}] Insurance extract error:`, err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'Failed to process insurance card' }));
+  }
+}
+
 async function handleOBDInterpret(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -33261,6 +33475,13 @@ Return ONLY the JSON array, no other text.`;
     const rateLimit = applyRateLimit(req, res, 'apiAuth');
     if (!rateLimit.allowed) return;
     handleOBDInterpret(req, res, requestId);
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/insurance/extract') {
+    const rateLimit = applyRateLimit(req, res, 'apiAuth');
+    if (!rateLimit.allowed) return;
+    handleInsuranceExtract(req, res, requestId);
     return;
   }
   
