@@ -1256,17 +1256,38 @@
                   </div>
                 </div>
                 <div style="margin-bottom:14px;">
-                  <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.85rem;">
-                    Admin Notification Phone <span style="color:var(--text-muted);font-weight:400;">(SMS alerts after each cycle &amp; nightly digest)</span>
+                  <label style="font-weight:600;margin-bottom:8px;display:block;font-size:0.9rem;">
+                    <span class="icon-inline" data-icon="bell"></span> SMS Notifications
                   </label>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
+                    <div>
+                      <label style="font-weight:500;margin-bottom:4px;display:block;font-size:0.82rem;">Admin Phone <span style="color:var(--text-muted);font-weight:400;">(E.164 format)</span></label>
+                      <input type="tel" id="admin-notification-phone" class="form-input" style="width:100%;" placeholder="+12015550100">
+                    </div>
+                    <div>
+                      <label style="font-weight:500;margin-bottom:4px;display:block;font-size:0.82rem;">Nightly Digest Time <span style="color:var(--text-muted);font-weight:400;">(UTC hour, 0–23)</span></label>
+                      <select id="digest-hour-utc" class="form-input" style="width:100%;">
+                        <option value="0">00:00 UTC (7 PM ET)</option>
+                        <option value="1" selected>01:00 UTC (8 PM ET)</option>
+                        <option value="2">02:00 UTC (9 PM ET)</option>
+                        <option value="3">03:00 UTC (10 PM ET)</option>
+                        <option value="4">04:00 UTC (11 PM ET)</option>
+                        <option value="5">05:00 UTC (12 AM ET)</option>
+                        <option value="6">06:00 UTC (1 AM ET)</option>
+                        <option value="9">09:00 UTC (4 AM ET)</option>
+                        <option value="12">12:00 UTC (7 AM ET)</option>
+                        <option value="13">13:00 UTC (8 AM ET)</option>
+                        <option value="14">14:00 UTC (9 AM ET)</option>
+                      </select>
+                    </div>
+                  </div>
                   <div style="display:flex;gap:10px;align-items:center;">
-                    <input type="tel" id="admin-notification-phone" class="form-input" style="flex:1;max-width:260px;" placeholder="+12015550100">
                     <button class="btn btn-sm" onclick="saveNotificationConfig()" style="white-space:nowrap;">
-                      <span class="icon-inline" data-icon="save"></span> Save Phone
+                      <span class="icon-inline" data-icon="save"></span> Save Notifications
                     </button>
                     <span id="notification-config-status" style="font-size:0.82rem;color:var(--text-muted);"></span>
                   </div>
-                  <p style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">Leave blank to disable SMS notifications. Must be in E.164 format (+1XXXXXXXXXX).</p>
+                  <p style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">Leave phone blank to disable SMS. Digest fires once per day at the selected time.</p>
                 </div>
                 <div style="display:flex;gap:12px;align-items:center;">
                   <button class="btn btn-primary" onclick="saveApolloConfig()" style="flex:1;max-width:200px;">

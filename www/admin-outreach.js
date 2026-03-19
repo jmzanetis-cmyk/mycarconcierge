@@ -1420,8 +1420,10 @@
       const resp = await fetch('/api/admin/outreach/notification-config', { headers: { 'x-admin-password': adminPassword } });
       if (resp.ok) {
         const data = await resp.json();
-        const el = document.getElementById('admin-notification-phone');
-        if (el && data.admin_notification_phone) el.value = data.admin_notification_phone;
+        const phoneEl = document.getElementById('admin-notification-phone');
+        if (phoneEl && data.admin_notification_phone) phoneEl.value = data.admin_notification_phone;
+        const digestEl = document.getElementById('digest-hour-utc');
+        if (digestEl && typeof data.digest_hour_utc === 'number') digestEl.value = String(data.digest_hour_utc);
       }
     } catch (e) {
       console.error('loadNotificationConfig error:', e);
@@ -1431,14 +1433,17 @@
   async function saveNotificationConfig() {
     const statusEl = document.getElementById('notification-config-status');
     const phoneEl = document.getElementById('admin-notification-phone');
+    const digestEl = document.getElementById('digest-hour-utc');
     if (!phoneEl) return;
     if (statusEl) statusEl.textContent = 'Saving...';
     try {
       const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const payload = { admin_notification_phone: phoneEl.value.trim() || null };
+      if (digestEl) payload.digest_hour_utc = parseInt(digestEl.value, 10);
       const resp = await fetch('/api/admin/outreach/notification-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
-        body: JSON.stringify({ admin_notification_phone: phoneEl.value.trim() || null })
+        body: JSON.stringify(payload)
       });
       const data = await resp.json();
       if (!resp.ok || !data.success) throw new Error('Save failed');

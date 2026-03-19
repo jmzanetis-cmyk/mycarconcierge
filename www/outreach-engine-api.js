@@ -2121,36 +2121,49 @@ function startEngineSchedulers(getSupabaseClient) {
     }
   }, 7 * 24 * 60 * 60 * 1000);
 
-  // ── Nightly admin digest SMS (fires at 01:00 UTC ≈ 8 PM ET) ──
-  function scheduleNightlyDigest() {
+  // ── Nightly admin digest SMS (configurable UTC hour, default 01:00 ≈ 8 PM ET) ──
+  async function scheduleNightlyDigest() {
+    let digestHourUtc = 1; // default
+    try {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { data } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+        const cfg = data?.metadata?.digest_config || {};
+        if (typeof cfg.hour_utc === 'number') digestHourUtc = cfg.hour_utc;
+      }
+    } catch (_) {}
+
     const now = new Date();
-    const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 1, 0, 0, 0));
+    const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), digestHourUtc, 0, 0, 0));
     if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
     const msUntil = target - now;
+
     dailyDigestTimeout = setTimeout(async function runDigest() {
       const supabase = getSupabaseClient();
       if (supabase) {
         try {
           const todayStart = new Date();
           todayStart.setUTCHours(0, 0, 0, 0);
+          const todayISO = todayStart.toISOString();
+
           const [
             { count: totalInvestors },
             { count: pendingDrafts },
             { count: sentToday },
-            { count: leadsToday }
+            { count: providersToday }
           ] = await Promise.all([
             supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).eq('type', 'investor').not('email', 'is', null),
             supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'draft').eq('channel', 'email'),
-            supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'sent').gte('created_at', todayStart.toISOString()),
-            supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).gte('created_at', todayStart.toISOString())
+            supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'sent').gte('sent_at', todayISO),
+            supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).eq('type', 'provider').gte('created_at', todayISO)
           ]);
 
           const msg = [
             `MCC Daily Digest (${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}):`,
             `${totalInvestors || 0} investor leads total`,
             `${pendingDrafts || 0} draft${pendingDrafts !== 1 ? 's' : ''} awaiting approval`,
-            `${sentToday || 0} messages sent today`,
-            `${leadsToday || 0} new leads discovered today`
+            `${sentToday || 0} message${sentToday !== 1 ? 's' : ''} sent today`,
+            `${providersToday || 0} provider lead${providersToday !== 1 ? 's' : ''} discovered today`
           ].join(' | ');
 
           await sendAdminSMS(supabase, msg);
@@ -2159,10 +2172,10 @@ function startEngineSchedulers(getSupabaseClient) {
           console.error('[AdminSMS] Nightly digest error:', err.message);
         }
       }
-      // Schedule next night
-      dailyDigestTimeout = setTimeout(runDigest, 24 * 60 * 60 * 1000);
+      // Reschedule for next night (re-reads config each time to pick up changes)
+      scheduleNightlyDigest();
     }, msUntil);
-    console.log(`[AdminSMS] Nightly digest scheduled in ${Math.round(msUntil / 60000)}min`);
+    console.log(`[AdminSMS] Nightly digest scheduled in ${Math.round(msUntil / 60000)}min (${digestHourUtc}:00 UTC)`);
   }
   scheduleNightlyDigest();
 
@@ -2783,14 +2796,25 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
 
         else if (req.method === 'GET' && pathname === '/notification-config') {
           const phone = await getAdminNotificationPhone(supabase);
-          json(res, 200, { admin_notification_phone: phone || '' });
+          const { data: stateRow } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+          const digestCfg = stateRow?.metadata?.digest_config || {};
+          json(res, 200, {
+            admin_notification_phone: phone || '',
+            digest_hour_utc: typeof digestCfg.hour_utc === 'number' ? digestCfg.hour_utc : 1
+          });
         }
 
         else if (req.method === 'POST' && pathname === '/notification-config') {
           const body = await parseBody(req);
-          const { admin_notification_phone } = body;
-          const ok = await saveAdminNotificationPhone(supabase, admin_notification_phone || null);
-          json(res, ok ? 200 : 500, { success: ok });
+          const { admin_notification_phone, digest_hour_utc } = body;
+          const { data: stateRow } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+          const currentMeta = stateRow?.metadata || {};
+          const updates = { ...currentMeta, admin_notification_phone: admin_notification_phone || null };
+          if (typeof digest_hour_utc === 'number' && digest_hour_utc >= 0 && digest_hour_utc <= 23) {
+            updates.digest_config = { ...currentMeta.digest_config, hour_utc: digest_hour_utc };
+          }
+          const { error: saveErr } = await supabase.from('engine_state').update({ metadata: updates }).eq('id', 1);
+          json(res, saveErr ? 500 : 200, { success: !saveErr });
         }
 
         else if (req.method === 'GET' && pathname === '/wefunder-blast/status') {
