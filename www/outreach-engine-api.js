@@ -1922,7 +1922,9 @@ async function runApolloDiscoveryCycle(supabase) {
                   .from('outreach_messages')
                   .select('id', { count: 'exact', head: true })
                   .eq('lead_id', inserted.id)
-                  .eq('channel', 'email');
+                  .eq('channel', 'email')
+                  .in('status', ['draft', 'approved', 'sent'])
+                  .filter('metadata->>blast_type', 'eq', 'wefunder');
                 if (!existingDraft || existingDraft === 0) {
                   const draft = await draftWefunderBlastEmail({ ...leadData, id: inserted.id });
                   if (draft && !draft.error) {
@@ -2011,11 +2013,14 @@ async function runApolloDiscoveryCycle(supabase) {
     try {
       const newInvestors = leadType === 'investor' ? results.added : 0;
       const newProviders = leadType === 'provider' ? results.added : 0;
-      const parts = [`MCC Outreach Cycle (${profile.name}):`, `+${results.added} leads found in ${city}`];
-      if (newInvestors > 0) parts.push(`${newInvestors} investor${newInvestors !== 1 ? 's' : ''}`);
-      if (newProviders > 0) parts.push(`${newProviders} provider${newProviders !== 1 ? 's' : ''}`);
+      const parts = [
+        `MCC Outreach (${profile.name} · ${city}):`,
+        `+${newInvestors} investor${newInvestors !== 1 ? 's' : ''}`,
+        `+${newProviders} provider${newProviders !== 1 ? 's' : ''}`
+      ];
       if (results.enriched > 0) parts.push(`${results.enriched} enriched`);
-      if (results.wefunder_drafted > 0) parts.push(`${results.wefunder_drafted} Wefunder draft${results.wefunder_drafted !== 1 ? 's' : ''} queued — review in admin Messages tab`);
+      if (results.wefunder_drafted > 0) parts.push(`⚡ ${results.wefunder_drafted} Wefunder draft${results.wefunder_drafted !== 1 ? 's' : ''} queued`);
+      if (results.added === 0 && results.enriched === 0) parts.push('no new leads this cycle');
       await sendAdminSMS(supabase, parts.join(' | '));
     } catch (_) {}
 
