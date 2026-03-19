@@ -188,7 +188,7 @@ exports.handler = async function(event, context) {
       { count: approvedQueue },
       { data: engineState },
       { count: newLeadsToday },
-      { data: draftedTodayRows },
+      { count: draftedToday },
       { count: totalInvestors },
       { count: wefunderPending }
     ] = await Promise.all([
@@ -207,7 +207,7 @@ exports.handler = async function(event, context) {
       totalSent: engineState?.total_messages_sent || 0,
       leadsDiscovered: engineState?.total_leads_discovered || 0,
       newLeadsToday: newLeadsToday || 0,
-      draftedToday: draftedTodayRows || 0,
+      draftedToday: draftedToday || 0,
       totalInvestors: totalInvestors || 0,
       wefunderPending: wefunderPending || 0
     };
