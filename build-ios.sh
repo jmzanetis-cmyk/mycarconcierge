@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCHEME="App"
 WORKSPACE="ios/App/App.xcworkspace"
 ARCHIVE_PATH="build/MyCarConcierge.xcarchive"
@@ -16,20 +17,23 @@ echo "  3. Update REPLACE_WITH_TEAM_ID in ios/ExportOptions.plist with your Appl
 echo "     (find it at https://developer.apple.com/account → Membership Details)"
 echo ""
 
-echo "[1/5] Syncing web assets into iOS project..."
-npx cap sync ios
+echo "[1/6] Syncing and stripping web assets for consumer iOS build..."
+bash "$SCRIPT_DIR/scripts/ios-build.sh"
 
-echo "[2/5] Installing CocoaPods dependencies..."
+echo "[2/6] Installing CocoaPods dependencies..."
 (cd ios/App && pod install)
 
-echo "[3/5] Cleaning build folder..."
+echo "[3/6] Creating build directory..."
+mkdir -p build
+
+echo "[4/6] Cleaning build folder..."
 xcodebuild clean \
   -workspace "$WORKSPACE" \
   -scheme "$SCHEME" \
   -configuration Release \
   -quiet
 
-echo "[4/5] Archiving..."
+echo "[5/6] Archiving..."
 xcodebuild archive \
   -workspace "$WORKSPACE" \
   -scheme "$SCHEME" \
@@ -39,7 +43,7 @@ xcodebuild archive \
   CODE_SIGN_STYLE=Automatic \
   -quiet
 
-echo "[5/5] Exporting IPA for App Store upload..."
+echo "[6/6] Exporting IPA for App Store upload..."
 xcodebuild -exportArchive \
   -archivePath "$ARCHIVE_PATH" \
   -exportPath "$EXPORT_PATH" \
