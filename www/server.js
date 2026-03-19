@@ -33303,33 +33303,27 @@ Return ONLY the JSON array, no other text.`;
                 location: [person.city, person.state].filter(Boolean).join(', ') || null,
                 status: email ? 'new' : 'email_unknown',
                 score: email ? 70 : 30,
+                apollo_id: apolloPersonId || null,
+                linkedin_url: person.linkedin_url || null,
+                website: website || null,
                 metadata
               };
 
-              // Try to include dedicated columns if they exist (graceful)
-              if (person.linkedin_url) leadData.linkedin_url = person.linkedin_url;
-              if (website) leadData.website = website;
-
-              // Upsert into outreach_leads: dedup by apollo_id (in metadata) or email
+              // Upsert into outreach_leads: dedup by dedicated apollo_id column then email
               if (supabase) {
                 let existing = null;
                 if (apolloPersonId) {
-                  const { data: byMeta } = await supabase.from('outreach_leads').select('id, email').contains('metadata', { apollo_id: apolloPersonId }).maybeSingle();
-                  existing = byMeta;
+                  const { data: byId } = await supabase.from('outreach_leads').select('id, email').eq('apollo_id', apolloPersonId).maybeSingle();
+                  existing = byId;
                 }
                 if (!existing && email) {
                   const { data: byEmail } = await supabase.from('outreach_leads').select('id, email').eq('email', email).maybeSingle();
                   existing = byEmail;
                 }
                 if (!existing) {
-                  const { error: insertErr } = await supabase.from('outreach_leads').insert(leadData);
-                  if (insertErr) {
-                    // Retry without optional columns if they don't exist yet
-                    const safeData = { name: leadData.name, email: leadData.email, phone: leadData.phone, company: leadData.company, type: leadData.type, source: leadData.source, location: leadData.location, status: leadData.status, score: leadData.score, metadata };
-                    await supabase.from('outreach_leads').insert(safeData);
-                  }
+                  await supabase.from('outreach_leads').insert(leadData);
                 } else if (email && !existing.email) {
-                  await supabase.from('outreach_leads').update({ email, phone: phone || undefined, status: 'new', score: 70 }).eq('id', existing.id);
+                  await supabase.from('outreach_leads').update({ email, apollo_id: apolloPersonId || undefined, phone: phone || undefined, status: 'new', score: 70 }).eq('id', existing.id);
                 }
               }
 
