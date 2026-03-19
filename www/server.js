@@ -6453,26 +6453,194 @@ async function handleSendWelcomeEmail(req, res, requestId) {
   }
 }
 
+// ========== FCM HTTP v1 OAuth Token Cache ==========
+let _fcmAccessToken = null;
+let _fcmAccessTokenExpiry = 0;
+
+async function getFCMAccessToken() {
+  const now = Date.now();
+  if (_fcmAccessToken && _fcmAccessTokenExpiry > now + 60000) {
+    return _fcmAccessToken;
+  }
+
+  const saJson = process.env.FCM_SERVICE_ACCOUNT_JSON;
+  if (!saJson) {
+    throw new Error('FCM_SERVICE_ACCOUNT_JSON not set');
+  }
+
+  let sa;
+  try {
+    sa = JSON.parse(saJson);
+  } catch {
+    throw new Error('FCM_SERVICE_ACCOUNT_JSON is not valid JSON');
+  }
+
+  const iat = Math.floor(now / 1000);
+  const exp = iat + 3600;
+  const scope = 'https://www.googleapis.com/auth/firebase.messaging';
+
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    iss: sa.client_email,
+    sub: sa.client_email,
+    aud: 'https://oauth2.googleapis.com/token',
+    iat,
+    exp,
+    scope
+  })).toString('base64url');
+
+  const signingInput = `${header}.${payload}`;
+  const privateKey = sa.private_key;
+
+  const sign = crypto.createSign('RSA-SHA256');
+  sign.update(signingInput);
+  const signature = sign.sign(privateKey, 'base64url');
+
+  const jwt = `${signingInput}.${signature}`;
+
+  const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+  });
+  const tokenData = await tokenResp.json();
+  if (!tokenData.access_token) {
+    throw new Error(`FCM OAuth token error: ${JSON.stringify(tokenData)}`);
+  }
+
+  _fcmAccessToken = tokenData.access_token;
+  _fcmAccessTokenExpiry = now + (tokenData.expires_in || 3600) * 1000;
+  return _fcmAccessToken;
+}
+
+async function sendFCMv1Message(token, title, body, data = {}, projectId) {
+  const accessToken = await getFCMAccessToken();
+  const message = {
+    message: {
+      token,
+      notification: { title, body },
+      data: Object.fromEntries(Object.entries({ ...data, title, body }).map(([k, v]) => [k, String(v)])),
+      android: { priority: 'HIGH' },
+      apns: {
+        payload: { aps: { 'content-available': 1, sound: 'default' } }
+      }
+    }
+  };
+  const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+    body: JSON.stringify(message)
+  });
+  return { status: resp.status, body: await resp.json() };
+}
+
+async function checkUserPushPreference(userId, supabase) {
+  try {
+    const { data: memberPref, error: memberErr } = await supabase
+      .from('member_notification_preferences')
+      .select('push_bid_alerts, push_vehicle_status, push_dream_car_matches, push_maintenance_reminders, push_bid_accepted, push_payment_released, push_appointment_reminder, push_ai_match, push_car_club')
+      .eq('member_id', userId)
+      .maybeSingle();
+
+    if (!memberErr && memberPref) {
+      const allDisabled = Object.values(memberPref).every(v => v === false);
+      if (allDisabled) return false;
+      return true;
+    }
+
+    const { data: providerPref, error: providerErr } = await supabase
+      .from('provider_notification_preferences')
+      .select('push_bid_opportunities, push_appointment_reminders, push_payment_received, push_customer_messages, push_bid_accepted, push_ai_match, push_car_club')
+      .eq('provider_id', userId)
+      .maybeSingle();
+
+    if (!providerErr && providerPref) {
+      const allDisabled = Object.values(providerPref).every(v => v === false);
+      if (allDisabled) return false;
+    }
+
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 async function sendFCMPushNotification(memberIds, title, body, data = {}) {
+  const saJson = process.env.FCM_SERVICE_ACCOUNT_JSON;
   const fcmKey = process.env.FCM_SERVER_KEY;
-  if (!fcmKey) {
-    console.log('[FCM] FCM_SERVER_KEY not set — push skipped');
+
+  if (!saJson && !fcmKey) {
+    console.log('[FCM] Neither FCM_SERVICE_ACCOUNT_JSON nor FCM_SERVER_KEY set — push skipped');
     return { sent: false, reason: 'not_configured' };
   }
   if (!memberIds || memberIds.length === 0) return { sent: false, reason: 'no_recipients' };
   const supabase = getSupabaseClient();
   if (!supabase) return { sent: false, reason: 'no_db' };
+
   try {
     const { data: tokenRows } = await supabase
       .from('device_push_tokens')
       .select('token, member_id, platform')
       .in('member_id', memberIds)
       .eq('active', true);
+
     if (!tokenRows || tokenRows.length === 0) {
       console.log(`[FCM] No device tokens for ${memberIds.length} member(s)`);
       return { sent: false, reason: 'no_tokens' };
     }
-    const tokens = tokenRows.map(r => r.token);
+
+    const eligibleTokenRows = [];
+    for (const row of tokenRows) {
+      const allowed = await checkUserPushPreference(row.member_id, supabase);
+      if (allowed) eligibleTokenRows.push(row);
+    }
+
+    if (eligibleTokenRows.length === 0) {
+      console.log('[FCM] All recipients have push disabled — skipping');
+      return { sent: false, reason: 'push_disabled_by_user' };
+    }
+
+    if (saJson) {
+      let projectId;
+      try {
+        projectId = JSON.parse(saJson).project_id;
+      } catch {
+        console.error('[FCM] Invalid FCM_SERVICE_ACCOUNT_JSON');
+        return { sent: false, reason: 'invalid_service_account' };
+      }
+
+      const stale = [];
+      let successCount = 0;
+      let failureCount = 0;
+
+      await Promise.all(eligibleTokenRows.map(async (row) => {
+        try {
+          const result = await sendFCMv1Message(row.token, title, body, data, projectId);
+          if (result.status === 200) {
+            successCount++;
+          } else {
+            failureCount++;
+            const errCode = result.body?.error?.details?.[0]?.errorCode || result.body?.error?.status;
+            if (errCode === 'UNREGISTERED' || errCode === 'INVALID_ARGUMENT') {
+              stale.push(row.token);
+            }
+            console.warn(`[FCM v1] Send failed for token (${row.platform}): ${errCode}`);
+          }
+        } catch (err) {
+          failureCount++;
+          console.error(`[FCM v1] Token send error:`, err.message);
+        }
+      }));
+
+      if (stale.length > 0) {
+        await supabase.from('device_push_tokens').update({ active: false }).in('token', stale);
+        console.log(`[FCM v1] Deactivated ${stale.length} stale token(s)`);
+      }
+      console.log(`[FCM v1] Sent to ${eligibleTokenRows.length} device(s): success=${successCount} failure=${failureCount}`);
+      return { sent: true, success: successCount, failure: failureCount };
+    }
+
+    const tokens = eligibleTokenRows.map(r => r.token);
     const payload = {
       registration_ids: tokens,
       notification: { title, body },
@@ -6486,7 +6654,7 @@ async function sendFCMPushNotification(memberIds, title, body, data = {}) {
       body: JSON.stringify(payload)
     });
     const result = await response.json();
-    console.log(`[FCM] Sent to ${tokens.length} device(s): success=${result.success} failure=${result.failure}`);
+    console.log(`[FCM legacy] Sent to ${tokens.length} device(s): success=${result.success} failure=${result.failure}`);
     if (result.results) {
       const stale = [];
       result.results.forEach((r, i) => {
@@ -6494,7 +6662,7 @@ async function sendFCMPushNotification(memberIds, title, body, data = {}) {
       });
       if (stale.length > 0) {
         await supabase.from('device_push_tokens').update({ active: false }).in('token', stale);
-        console.log(`[FCM] Deactivated ${stale.length} stale token(s)`);
+        console.log(`[FCM legacy] Deactivated ${stale.length} stale token(s)`);
       }
     }
     return { sent: true, success: result.success, failure: result.failure };
@@ -26741,11 +26909,7 @@ async function handleUpdateNotificationPreferences(req, res, requestId, memberId
         urgent_update_emails,
         urgent_update_sms,
         marketing_emails,
-        marketing_sms,
-        push_bid_alerts,
-        push_vehicle_status,
-        push_dream_car_matches,
-        push_maintenance_reminders
+        marketing_sms
       } = body;
       
       const supabase = getSupabaseClient();
@@ -26767,10 +26931,14 @@ async function handleUpdateNotificationPreferences(req, res, requestId, memberId
         updated_at: new Date().toISOString()
       };
       
-      if (push_bid_alerts !== undefined) updateData.push_bid_alerts = push_bid_alerts;
-      if (push_vehicle_status !== undefined) updateData.push_vehicle_status = push_vehicle_status;
-      if (push_dream_car_matches !== undefined) updateData.push_dream_car_matches = push_dream_car_matches;
-      if (push_maintenance_reminders !== undefined) updateData.push_maintenance_reminders = push_maintenance_reminders;
+      const pushFields = [
+        'push_bid_alerts', 'push_vehicle_status', 'push_dream_car_matches', 'push_maintenance_reminders',
+        'push_bid_accepted', 'push_payment_released', 'push_appointment_reminder', 'push_ai_match', 'push_car_club',
+        'push_bid_opportunities', 'push_appointment_reminders', 'push_payment_received', 'push_customer_messages'
+      ];
+      pushFields.forEach(field => {
+        if (body[field] !== undefined) updateData[field] = body[field];
+      });
       
       const { data: existing } = await supabase
         .from('member_notification_preferences')
@@ -35555,6 +35723,18 @@ function saveAdminInvites(invites) {
   if (req.method === 'PUT' && req.url.match(/^\/api\/member\/[^/]+\/notification-preferences$/)) {
     const memberId = req.url.split('/api/member/')[1]?.split('/')[0];
     handleUpdateNotificationPreferences(req, res, requestId, memberId);
+    return;
+  }
+
+  if (req.method === 'GET' && req.url.match(/^\/api\/provider\/[^/]+\/notification-preferences$/)) {
+    const providerId = req.url.split('/api/provider/')[1]?.split('/')[0];
+    handleGetNotificationPreferences(req, res, requestId, providerId);
+    return;
+  }
+
+  if (req.method === 'PUT' && req.url.match(/^\/api\/provider\/[^/]+\/notification-preferences$/)) {
+    const providerId = req.url.split('/api/provider/')[1]?.split('/')[0];
+    handleUpdateNotificationPreferences(req, res, requestId, providerId);
     return;
   }
   

@@ -335,6 +335,9 @@ async function showSection(id) {
   }
   if ((id === 'settings' || id === 'notifications') && typeof loadProviderNotificationSettings === 'function') {
     loadProviderNotificationSettings();
+    if (typeof loadProviderPushPreferences === 'function') {
+      loadProviderPushPreferences();
+    }
   }
 }
 
@@ -930,6 +933,21 @@ async function initProviderPushNotifications() {
 
 // ========== LOGOUT ==========
 async function logout() {
+  try {
+    const storedToken = localStorage.getItem('mcc_fcm_token');
+    if (storedToken) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        await fetch(`${apiBase}/api/push/unregister-device`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ token: storedToken })
+        }).catch(() => {});
+        localStorage.removeItem('mcc_fcm_token');
+      }
+    }
+  } catch {}
   await supabaseClient.auth.signOut();
   window.location.href = 'login.html';
 }

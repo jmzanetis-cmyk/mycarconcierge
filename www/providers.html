@@ -2792,6 +2792,27 @@
                   <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Alerts when customers send you new messages</p>
                 </div>
               </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="provider-push-bid-accepted" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></span> Bid Accepted</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Notified when a customer accepts your submitted bid</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="provider-push-ai-match" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></span> AI Provider Match</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Alerts when AI selects you as a top match for a new request</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="provider-push-car-club" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span> Car Club Activity</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Updates on your loyalty club punches and redeemed rewards</p>
+                </div>
+              </label>
             </div>
             
             <button class="btn btn-secondary" style="margin-top:16px;" onclick="disableProviderPushNotifications()">

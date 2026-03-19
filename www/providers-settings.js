@@ -986,4 +986,57 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
+const PROVIDER_PUSH_PREF_FIELDS = [
+  { id: 'provider-push-bid-opportunities', key: 'push_bid_opportunities' },
+  { id: 'provider-push-appointment-reminders', key: 'push_appointment_reminders' },
+  { id: 'provider-push-payment-received', key: 'push_payment_received' },
+  { id: 'provider-push-customer-messages', key: 'push_customer_messages' },
+  { id: 'provider-push-bid-accepted', key: 'push_bid_accepted' },
+  { id: 'provider-push-ai-match', key: 'push_ai_match' },
+  { id: 'provider-push-car-club', key: 'push_car_club' }
+];
+
+async function loadProviderPushPreferences() {
+  const firstEl = document.getElementById(PROVIDER_PUSH_PREF_FIELDS[0].id);
+  if (!firstEl) return;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const resp = await fetch(`${apiBase}/api/provider/${session.user.id}/notification-preferences`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    const data = await resp.json();
+    const prefs = data.preferences || {};
+    PROVIDER_PUSH_PREF_FIELDS.forEach(({ id, key }) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.checked = prefs[key] !== false;
+        el.addEventListener('change', saveProviderPushPreferences);
+      }
+    });
+  } catch (err) {
+    console.error('[ProviderPush] Failed to load push prefs:', err);
+  }
+}
+
+async function saveProviderPushPreferences() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const preferences = {};
+    PROVIDER_PUSH_PREF_FIELDS.forEach(({ id, key }) => {
+      preferences[key] = document.getElementById(id)?.checked ?? true;
+    });
+    await fetch(`${apiBase}/api/provider/${session.user.id}/notification-preferences`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify(preferences)
+    });
+  } catch (err) {
+    console.error('[ProviderPush] Failed to save push prefs:', err);
+  }
+}
+
 console.log('providers-settings.js loaded');

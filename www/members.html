@@ -3496,6 +3496,41 @@
                   <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Get reminded when service is due for your vehicles</p>
                 </div>
               </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-bid-accepted" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></span> Bid Accepted</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Notified when your accepted bid is confirmed by the provider</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-payment-released" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Payment Released</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Alerts when escrow payment is released after job completion</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-appointment-reminder" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span> Appointment Reminders</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Reminders before your scheduled service appointments</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-ai-match" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></span> AI Provider Matches</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Alerts when AI finds top-matched providers for your requests</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-car-club" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span> Car Club Rewards</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Punch card updates and loyalty reward notifications</p>
+                </div>
+              </label>
             </div>
             
             <button class="btn btn-secondary" style="margin-top:16px;" onclick="disablePushNotifications()">

@@ -68,9 +68,65 @@
   function handleNotificationDeepLink(data) {
     if (!data) return;
     const section = data.section || data.click_action;
-    if (section && typeof window.showSection === 'function') {
-      setTimeout(() => window.showSection(section), 300);
-    }
+    const entityId = data.entity_id;
+    if (!section) return;
+
+    const navigate = () => {
+      if (typeof window.showSection === 'function') {
+        window.showSection(section);
+      }
+      if (!entityId) return;
+      const sec = section.toLowerCase();
+
+      // Bid / quote detail
+      if (sec === 'bids' || sec === 'quotes' || sec === 'bid-detail') {
+        if (typeof window.openBidDetail === 'function') {
+          window.openBidDetail(entityId);
+        } else if (typeof window.showBid === 'function') {
+          window.showBid(entityId);
+        }
+      }
+      // Service request / job
+      else if (sec === 'requests' || sec === 'jobs' || sec === 'job-detail') {
+        if (typeof window.openRequest === 'function') {
+          window.openRequest(entityId);
+        } else if (typeof window.showJob === 'function') {
+          window.showJob(entityId);
+        }
+      }
+      // Service package
+      else if (sec === 'packages' || sec === 'package-detail') {
+        if (typeof window.openPackage === 'function') {
+          window.openPackage(entityId);
+        }
+      }
+      // Car club punch card
+      else if (sec === 'carclub' || sec === 'loyalty' || sec === 'car-club') {
+        if (typeof window.showCarClub === 'function') {
+          window.showCarClub(entityId);
+        }
+      }
+      // Payment / transaction
+      else if (sec === 'payments' || sec === 'payment-detail') {
+        if (typeof window.showPayment === 'function') {
+          window.showPayment(entityId);
+        }
+      }
+      // Vehicle
+      else if (sec === 'vehicles' || sec === 'vehicle-detail') {
+        if (typeof window.showVehicle === 'function') {
+          window.showVehicle(entityId);
+        }
+      }
+      // Appointment
+      else if (sec === 'appointments' || sec === 'appointment-detail') {
+        if (typeof window.showAppointment === 'function') {
+          window.showAppointment(entityId);
+        }
+      }
+    };
+
+    setTimeout(navigate, 300);
   }
 
   // Returns element ID prefixes depending on context (member vs provider)
