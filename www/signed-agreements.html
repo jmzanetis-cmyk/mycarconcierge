@@ -437,16 +437,26 @@
     }
 
     function findSupabaseToken() {
-      var keys = Object.keys(localStorage);
-      for (var i = 0; i < keys.length; i++) {
-        if (keys[i].indexOf('sb-') === 0 && keys[i].indexOf('-auth-token') > 0) {
-          try {
-            var session = JSON.parse(localStorage.getItem(keys[i]));
-            if (session && session.access_token) {
-              return { token: session.access_token, type: 'bearer' };
+      // Search localStorage first (Supabase default)
+      var storages = [localStorage, sessionStorage];
+      for (var s = 0; s < storages.length; s++) {
+        try {
+          var keys = Object.keys(storages[s]);
+          for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            if ((k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0) || k === 'supabase.auth.token' || k === 'supabase-session') {
+              try {
+                var raw = storages[s].getItem(k);
+                var session = JSON.parse(raw);
+                // Supabase v2 stores { access_token, ... } directly or nested under .session
+                var tok = (session && session.access_token) ? session.access_token
+                        : (session && session.session && session.session.access_token) ? session.session.access_token
+                        : null;
+                if (tok) return { token: tok, type: 'bearer' };
+              } catch (e) {}
             }
-          } catch (e) {}
-        }
+          }
+        } catch (e) {}
       }
       return null;
     }
@@ -454,9 +464,10 @@
     function checkAdminAuth() {
       var supabaseAuth = findSupabaseToken();
       var adminPass = localStorage.getItem('mcc_admin_pass') || sessionStorage.getItem('mcc_admin_pass');
-      if (supabaseAuth && adminPass) return { token: supabaseAuth.token, adminPass: adminPass, type: 'both' };
-      if (supabaseAuth) return { token: supabaseAuth.token, type: 'bearer' };
-      if (adminPass) return { adminPass: adminPass, type: 'password' };
+      var adminTeamToken = localStorage.getItem('mcc_admin_team_token') || sessionStorage.getItem('mcc_admin_team_token');
+      if (supabaseAuth || adminPass || adminTeamToken) {
+        return { token: supabaseAuth ? supabaseAuth.token : null, adminPass: adminPass, adminTeamToken: adminTeamToken };
+      }
       window.location.href = 'admin.html';
       return null;
     }
@@ -465,6 +476,7 @@
       var headers = {};
       if (auth.token) headers['Authorization'] = 'Bearer ' + auth.token;
       if (auth.adminPass) headers['x-admin-password'] = auth.adminPass;
+      if (auth.adminTeamToken) headers['x-admin-token'] = auth.adminTeamToken;
       return headers;
     }
 
@@ -555,7 +567,22 @@
         headers: buildAuthHeaders(auth)
       })
       .then(function(r) {
-        if (!r.ok) throw new Error('Failed to load agreements');
+        if (r.status === 401 || r.status === 403) {
+          return r.json().then(function(body) {
+            throw new Error('auth:' + (body.error || 'Authentication failed'));
+          }).catch(function(e) {
+            if (e.message.indexOf('auth:') === 0) throw e;
+            throw new Error('auth:Authentication required — please log in to the admin portal again');
+          });
+        }
+        if (!r.ok) {
+          return r.json().then(function(body) {
+            throw new Error(body.error || ('Server error (' + r.status + ')'));
+          }).catch(function(e) {
+            if (e.message.indexOf('auth:') === 0 || e.message.indexOf('Server error') === 0) throw e;
+            throw new Error('Server error (' + r.status + ')');
+          });
+        }
         return r.json();
       })
       .then(function(data) {
@@ -565,11 +592,16 @@
       .catch(function(err) {
         console.error('Load agreements error:', err);
         var container = document.getElementById('agreements-content');
+        var isAuthError = err.message && err.message.indexOf('auth:') === 0;
+        var msg = isAuthError ? err.message.replace('auth:', '') : (err.message || 'Unknown error');
         container.innerHTML =
           '<div class="error-state">' +
             '<div class="error-icon">&#9888;&#65039;</div>' +
-            '<p style="font-size:1.1rem;margin-bottom:8px;">Failed to load agreements</p>' +
-            '<p style="font-size:0.9rem;margin-bottom:16px;">' + escapeHtml(err.message) + '</p>' +
+            '<p style="font-size:1.1rem;margin-bottom:8px;">' + (isAuthError ? 'Authentication Error' : 'Failed to load agreements') + '</p>' +
+            '<p style="font-size:0.9rem;margin-bottom:16px;">' + escapeHtml(msg) + '</p>' +
+            (isAuthError
+              ? '<a href="admin.html" class="btn btn-primary" style="margin-right:8px;">Go to Login</a>'
+              : '') +
             '<button class="btn btn-secondary" onclick="loadAgreements()">Try Again</button>' +
           '</div>';
       });

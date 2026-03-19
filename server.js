@@ -1235,11 +1235,20 @@ async function handleAdminGetAllAgreements(req, res, requestId) {
     }
 
     const adminPassHeader = req.headers['x-admin-password'];
+    const adminTokenHeader = req.headers['x-admin-token'];
     const authHeader = req.headers.authorization;
     const expectedPass = process.env.ADMIN_PASSWORD;
 
     if (adminPassHeader && expectedPass && adminPassHeader === expectedPass) {
       // x-admin-password auth — allow through
+    } else if (adminTokenHeader) {
+      // x-admin-token (team session) — delegate to shared session validator
+      const session = getAdminSessionFromReq(req);
+      if (!session) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid or expired admin session' }));
+        return;
+      }
     } else if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       const { data: { user }, error: authError } = await supabase.auth.getUser(token);

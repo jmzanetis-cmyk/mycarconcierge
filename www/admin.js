@@ -9799,17 +9799,22 @@
           <thead><tr style="border-bottom:1px solid var(--border-subtle);">
             <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Name</th>
             <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Status</th>
-            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Sent</th>
-            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Opens</th>
-            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Replies</th>
+            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Emails Sent</th>
+            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Open Rate</th>
+            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Reply Rate</th>
           </tr></thead>
-          <tbody>${campaigns.map(c => `<tr style="border-bottom:1px solid var(--border-subtle);">
-            <td style="padding:10px 12px;font-weight:500;">${escapeHtml(c.name || 'Unnamed')}</td>
-            <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.8rem;background:${c.status === 'active' ? 'var(--accent-green)' : 'var(--bg-tertiary)'};color:${c.status === 'active' ? '#fff' : 'var(--text-muted)'};">${escapeHtml(c.status || 'draft')}</span></td>
-            <td style="padding:10px 12px;text-align:right;">${(c.emails_sent_count || 0).toLocaleString()}</td>
-            <td style="padding:10px 12px;text-align:right;">${(c.open_count || 0).toLocaleString()}</td>
-            <td style="padding:10px 12px;text-align:right;">${(c.reply_count || 0).toLocaleString()}</td>
-          </tr>`).join('')}</tbody>
+          <tbody>${campaigns.map(c => {
+            const sent = c.emails_sent_count || 0;
+            const openRate = typeof c.open_rate === 'number' ? c.open_rate.toFixed(1) + '%' : '—';
+            const replyRate = typeof c.reply_rate === 'number' ? c.reply_rate.toFixed(1) + '%' : '—';
+            return `<tr style="border-bottom:1px solid var(--border-subtle);">
+              <td style="padding:10px 12px;font-weight:500;">${escapeHtml(c.name || 'Unnamed')}</td>
+              <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.8rem;background:${c.status === 'active' ? 'var(--accent-green)' : 'var(--bg-tertiary)'};color:${c.status === 'active' ? '#fff' : 'var(--text-muted)'};">${escapeHtml(c.status || 'draft')}</span></td>
+              <td style="padding:10px 12px;text-align:right;">${sent.toLocaleString()}</td>
+              <td style="padding:10px 12px;text-align:right;font-weight:${c.open_rate > 0 ? '600' : '400'};color:${c.open_rate > 20 ? 'var(--accent-green)' : c.open_rate > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${openRate}</td>
+              <td style="padding:10px 12px;text-align:right;font-weight:${c.reply_rate > 0 ? '600' : '400'};color:${c.reply_rate > 5 ? 'var(--accent-green)' : c.reply_rate > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${replyRate}</td>
+            </tr>`;
+          }).join('')}</tbody>
         </table>`;
       } catch (err) {
         listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
