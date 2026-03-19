@@ -34487,7 +34487,7 @@ function saveAdminInvites(invites) {
     return;
   }
   
-  // /api/founder/campaign-stats — 30-min cached Wefunder campaign metrics for authenticated founders
+  // /api/founder/campaign-stats — 30-min cached Wefunder campaign metrics for authenticated founders only
   if (req.method === 'GET' && req.url === '/api/founder/campaign-stats') {
     setSecurityHeaders(res, false);
     setCorsHeaders(res);
@@ -34496,6 +34496,27 @@ function saveAdminInvites(invites) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Unauthorized' }));
       return;
+    }
+    // Require active founder or admin
+    const isAdmin = user.app_metadata?.role === 'admin' || user.user_metadata?.role === 'admin';
+    if (!isAdmin) {
+      try {
+        const { data: fp } = await supabase
+          .from('member_founder_profiles')
+          .select('id')
+          .eq('member_id', user.id)
+          .eq('status', 'active')
+          .maybeSingle();
+        if (!fp) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Founder access required' }));
+          return;
+        }
+      } catch {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Founder access required' }));
+        return;
+      }
     }
     const now = Date.now();
     const CACHE_TTL_30M = 30 * 60 * 1000;
