@@ -124,6 +124,21 @@ function buildEmailHtml(today, outreach, aiOps, narrative) {
     </div>
 
     <div style="margin-bottom:24px;">
+      <div style="font-size:13px;color:#94a3b8;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">💼 Wefunder Investor Pipeline</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="background:#1e293b;border-radius:8px;padding:16px;text-align:center;">
+          <div style="font-size:32px;font-weight:700;color:#818cf8;">${outreach.totalInvestors}</div>
+          <div style="font-size:12px;color:#64748b;margin-top:4px;">Total Investor Leads</div>
+        </div>
+        <div style="background:#1e293b;border-radius:8px;padding:16px;text-align:center;">
+          <div style="font-size:32px;font-weight:700;color:${outreach.wefunderPending > 0 ? '#f59e0b' : '#64748b'};">${outreach.wefunderPending}</div>
+          <div style="font-size:12px;color:#64748b;margin-top:4px;">Wefunder Drafts Pending</div>
+        </div>
+      </div>
+      ${outreach.wefunderPending > 0 ? `<div style="margin-top:8px;background:#1c1a08;border:1px solid #f59e0b;border-radius:6px;padding:10px 14px;font-size:13px;color:#fcd34d;">📬 ${outreach.wefunderPending} Wefunder email draft${outreach.wefunderPending > 1 ? 's' : ''} waiting for your review and approval.</div>` : ''}
+    </div>
+
+    <div style="margin-bottom:24px;">
       <div style="font-size:13px;color:#94a3b8;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">🤖 AI Ops</div>
       <div style="background:#1e293b;border-radius:8px;padding:16px;">
         <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
@@ -173,13 +188,17 @@ exports.handler = async function(event, context) {
       { count: approvedQueue },
       { data: engineState },
       { count: newLeadsToday },
-      { data: draftedTodayRows }
+      { data: draftedTodayRows },
+      { count: totalInvestors },
+      { count: wefunderPending }
     ] = await Promise.all([
       supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'sent').gte('updated_at', since24h),
       supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
       supabase.from('engine_state').select('total_leads_discovered,total_messages_sent,total_messages_drafted').eq('id', 1).single(),
       supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).gte('created_at', since24h),
-      supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).in('status', ['approved', 'sent']).gte('created_at', since24h)
+      supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).in('status', ['approved', 'sent']).gte('created_at', since24h),
+      supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).eq('type', 'investor'),
+      supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'draft').filter('metadata->>blast_type', 'eq', 'wefunder')
     ]);
 
     const outreach = {
@@ -188,7 +207,9 @@ exports.handler = async function(event, context) {
       totalSent: engineState?.total_messages_sent || 0,
       leadsDiscovered: engineState?.total_leads_discovered || 0,
       newLeadsToday: newLeadsToday || 0,
-      draftedToday: draftedTodayRows || 0
+      draftedToday: draftedTodayRows || 0,
+      totalInvestors: totalInvestors || 0,
+      wefunderPending: wefunderPending || 0
     };
 
     // ── AI Ops stats ─────────────────────────────────────────────
@@ -216,6 +237,7 @@ exports.handler = async function(event, context) {
     const narrative = await callAI(
       `Write a 2-sentence daily operations summary for My Car Concierge admin Jordan. ` +
       `Outreach: ${outreach.sentToday} emails sent today, ${outreach.approvedQueue} queued, ${outreach.totalSent} total sent all-time, ${outreach.newLeadsToday} new leads discovered. ` +
+      `Investor pipeline: ${outreach.totalInvestors} investor leads total, ${outreach.wefunderPending} Wefunder drafts pending review. ` +
       `AI Ops: ${aiOps.totalActions} actions, ${aiOps.autoExec} auto-executed, ${aiOps.escalated} escalated. ` +
       `Shadow mode: ${shadowMode}. Keep it brief, concrete, and encouraging.`,
       200
@@ -256,12 +278,20 @@ exports.handler = async function(event, context) {
     }
 
     // ── Send SMS summary via Twilio ──────────────────────────────
-    const adminPhone = process.env.ADMIN_PHONE_NUMBER;
+    // Prefer admin phone saved in engine_state (set via admin panel); fall back to env var
+    let adminPhone = null;
+    try {
+      const { data: esRow } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+      adminPhone = esRow?.metadata?.admin_notification_phone || null;
+    } catch (_) {}
+    if (!adminPhone) adminPhone = process.env.ADMIN_PHONE_NUMBER || null;
+
     let smsSent = false;
     if (adminPhone) {
       const smsLines = [
         `MCC Daily Report — ${today}`,
         `📧 Outreach: ${outreach.sentToday} sent today, ${outreach.approvedQueue} queued, ${outreach.totalSent} all-time`,
+        `💼 Investors: ${outreach.totalInvestors} leads, ${outreach.wefunderPending} Wefunder drafts pending`,
         `🤖 AI Ops: ${aiOps.totalActions} actions, ${aiOps.escalated} escalated`
       ];
       if (aiOps.escalated > 0) smsLines.push(`⚠️ Check dashboard for ${aiOps.escalated} escalated item${aiOps.escalated > 1 ? 's' : ''}`);

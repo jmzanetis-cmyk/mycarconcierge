@@ -1703,6 +1703,433 @@ function createSupabaseClient() {
   return createClient(url, key);
 }
 
+async function getAdminNotificationPhone(supabase) {
+  try {
+    const { data } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    return data?.metadata?.admin_notification_phone || null;
+  } catch (_) { return null; }
+}
+
+async function sendAdminSMS(supabase, message) {
+  try {
+    const phone = await getAdminNotificationPhone(supabase);
+    if (!phone) return false;
+    const ok = await sendOutreachSMS(phone, message);
+    if (ok) console.log('[AdminSMS] Notification sent to admin phone');
+    else console.warn('[AdminSMS] Failed to send notification (Twilio error)');
+    return ok;
+  } catch (err) {
+    console.warn('[AdminSMS] Error:', err.message);
+    return false;
+  }
+}
+
+const DEFAULT_APOLLO_CONFIG = {
+  enabled: false,
+  interval_hours: 6,
+  per_page: 25,
+  auto_enrich: true,
+  enrich_batch: 15,
+  profile_rotation_index: 0,
+  city_rotation_index: 0,
+  page_rotation_index: 1,
+  last_run: null,
+  search_profiles: [
+    {
+      name: 'Providers',
+      lead_type: 'provider',
+      cities: [
+        'Newark, NJ', 'Jersey City, NJ', 'East Rutherford, NJ', 'Paterson, NJ', 'Trenton, NJ',
+        'New York, NY', 'Brooklyn, NY', 'Queens, NY', 'Bronx, NY', 'Staten Island, NY',
+        'Philadelphia, PA', 'Stamford, CT', 'Bridgeport, CT', 'Hartford, CT',
+        'Edison, NJ', 'Hoboken, NJ', 'Elizabeth, NJ', 'Woodbridge, NJ', 'Hackensack, NJ',
+        'Long Island City, NY', 'White Plains, NY', 'Yonkers, NY'
+      ],
+      titles: ['owner', 'co-owner', 'founder', 'president', 'ceo', 'managing partner', 'general manager', 'operator', 'proprietor', 'shop foreman', 'service manager'],
+      industries: ['auto repair', 'automotive', 'car repair', 'auto body', 'tire shop', 'oil change', 'vehicle maintenance', 'collision repair', 'auto detailing', 'car wash']
+    },
+    {
+      name: 'Angel Investors',
+      lead_type: 'investor',
+      cities: [
+        'New York, NY', 'Brooklyn, NY', 'Hoboken, NJ', 'Princeton, NJ', 'Short Hills, NJ',
+        'San Francisco, CA', 'Palo Alto, CA', 'Menlo Park, CA', 'San Jose, CA',
+        'Boston, MA', 'Cambridge, MA',
+        'Austin, TX', 'Chicago, IL', 'Miami, FL', 'Los Angeles, CA',
+        'Atlanta, GA', 'Seattle, WA', 'Denver, CO', 'Nashville, TN'
+      ],
+      titles: [
+        'angel investor', 'active investor', 'general partner', 'managing partner', 'venture partner',
+        'principal', 'investment director', 'managing director', 'chief investment officer',
+        'portfolio manager', 'fund manager', 'founder', 'co-founder', 'partner',
+        'limited partner', 'family office', 'startup advisor', 'board member'
+      ],
+      industries: [
+        'venture capital', 'private equity', 'investment management', 'financial services',
+        'angel investing', 'family office', 'startup', 'automotive', 'marketplace',
+        'mobile applications', 'consumer technology', 'on-demand services'
+      ]
+    }
+  ]
+};
+
+async function getApolloConfig(supabase) {
+  try {
+    const { data } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    const cfg = data?.metadata?.apollo_config || {};
+    return { ...DEFAULT_APOLLO_CONFIG, ...cfg };
+  } catch (_) {
+    return DEFAULT_APOLLO_CONFIG;
+  }
+}
+
+async function saveApolloConfig(supabase, updates) {
+  try {
+    const { data } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    const currentMeta = data?.metadata || {};
+    const currentCfg = currentMeta.apollo_config || {};
+    const newCfg = { ...DEFAULT_APOLLO_CONFIG, ...currentCfg, ...updates, last_saved: new Date().toISOString() };
+    await supabase.from('engine_state').update({ metadata: { ...currentMeta, apollo_config: newCfg } }).eq('id', 1);
+    return newCfg;
+  } catch (err) {
+    throw new Error('Failed to save Apollo config: ' + err.message);
+  }
+}
+
+async function draftWefunderBlastEmail(lead) {
+  const firstName = lead.name?.split(' ')[0] || 'there';
+  const companyCtx = lead.company ? ` at ${lead.company}` : '';
+  const wefunderUrl = `wefunder.com/my.car.concierge?utm_source=email&utm_medium=outreach&utm_campaign=apollo_blast&utm_content=${lead.id}`;
+  const prompt = `You are writing a cold outreach email on behalf of My Car Concierge to ${firstName}${companyCtx} — a potential angel investor or financial professional.
+
+${BRAND_INFO}
+
+My Car Concierge has an active community fundraising campaign live on Wefunder at ${wefunderUrl} — open to everyday investors and professionals alike.
+
+Write a short, direct, warm email introducing My Car Concierge and pointing them to the Wefunder campaign. Keep it to 3–4 short paragraphs:
+1. A brief personalized intro (use their first name; reference their company if available)
+2. What My Car Concierge actually is and what problem it solves for car owners and service providers
+3. That there is an active community funding round on Wefunder they can review at their own pace
+4. A clear, soft CTA — check it out at ${wefunderUrl}, and offer to answer any questions
+
+STRICT RULES:
+- Do NOT make ROI promises, earnings projections, or guaranteed return claims
+- Do NOT imply that investors have already committed funds — you do not know this
+- Stick only to factual descriptions of what the platform does
+- Be concise and respectful — this is an introduction, not a pitch deck
+- Write as Jordan from My Car Concierge
+- Sign off warmly
+
+Write TWO subject line variants on the first two lines:
+Subject A: [subject]
+Subject B: [subject]
+Then a blank line, then the email body starting with "Hi ${firstName},"`;
+
+  try {
+    const anthropic = getAnthropic();
+    if (!anthropic) return { error: 'AI not configured' };
+
+    const resp = await anthropic.messages.create({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 700,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    const text = resp.content[0]?.text || '';
+
+    const lines = text.trim().split('\n');
+    let subject = '', subjectB = '', bodyLines = [], pastHeaders = false;
+    for (const line of lines) {
+      if (!pastHeaders && line.startsWith('Subject A:')) {
+        subject = line.replace('Subject A:', '').trim();
+      } else if (!pastHeaders && line.startsWith('Subject B:')) {
+        subjectB = line.replace('Subject B:', '').trim();
+      } else if (subject && subjectB && line.trim() === '') {
+        pastHeaders = true;
+      } else if (pastHeaders || (subject && line.trim() !== '')) {
+        pastHeaders = true;
+        bodyLines.push(line);
+      }
+    }
+
+    const body = bodyLines.join('\n').trim();
+    const urlPattern = /wefunder\.com\/my\.car\.concierge(?!\?)/g;
+    const finalBody = body.replace(urlPattern, wefunderUrl);
+
+    return {
+      subject: subject || 'My Car Concierge — Community Round Now Live on Wefunder',
+      subjectB: subjectB || null,
+      body: finalBody
+    };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+async function runWefunderBlastForEligible(supabase, { notify = true } = {}) {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600000).toISOString();
+
+  const { data: investorLeads } = await supabase
+    .from('outreach_leads')
+    .select('*')
+    .eq('type', 'investor')
+    .not('email', 'is', null)
+    .neq('status', 'unsubscribed');
+
+  const ids = (investorLeads || []).map(l => l.id);
+  let recentLeadIds = new Set();
+  if (ids.length > 0) {
+    const { data: recent } = await supabase
+      .from('outreach_messages')
+      .select('lead_id')
+      .eq('channel', 'email')
+      .gte('created_at', thirtyDaysAgo)
+      .in('lead_id', ids);
+    recentLeadIds = new Set((recent || []).map(m => m.lead_id));
+  }
+
+  const eligible = (investorLeads || []).filter(l => !recentLeadIds.has(l.id));
+  if (eligible.length === 0) return { drafted: 0, failed: 0, skipped: recentLeadIds.size, total: ids.length };
+
+  let drafted = 0, failed = 0;
+  for (const lead of eligible) {
+    try {
+      const result = await draftWefunderBlastEmail(lead);
+      if (!result || result.error) { failed++; continue; }
+      await supabase.from('outreach_messages').insert({
+        lead_id: lead.id,
+        channel: 'email',
+        subject: result.subject,
+        body: result.body,
+        status: 'draft',
+        metadata: {
+          blast_type: 'wefunder',
+          subject_a: result.subject,
+          subject_b: result.subjectB || null,
+          ab_variant: 'A',
+          auto_drafted: true
+        }
+      });
+      drafted++;
+    } catch (_) { failed++; }
+    await new Promise(r => setTimeout(r, 350));
+  }
+
+  if (notify && drafted > 0) {
+    try {
+      await sendAdminSMS(supabase, `MCC Weekly Blast: ${drafted} new Wefunder draft${drafted !== 1 ? 's' : ''} queued for ${eligible.length} eligible investor leads. Review & approve in the admin Messages tab.`);
+    } catch (_) {}
+  }
+
+  console.log(`[Wefunder] Blast run complete — drafted:${drafted} failed:${failed} eligible:${eligible.length}`);
+  return { drafted, failed, skipped: recentLeadIds.size, total: ids.length };
+}
+
+async function runApolloDiscoveryCycle(supabase) {
+  const apolloKey = process.env.APOLLO_API_KEY;
+  if (!apolloKey) return { skipped: true, reason: 'no_api_key' };
+
+  const cfg = await getApolloConfig(supabase);
+  if (!cfg.enabled) return { skipped: true, reason: 'automation_disabled' };
+
+  const now = new Date();
+  const lastRun = cfg.last_run ? new Date(cfg.last_run) : null;
+  const hoursSinceLast = lastRun ? (now - lastRun) / 3600000 : Infinity;
+  if (hoursSinceLast < cfg.interval_hours) {
+    return { skipped: true, reason: 'not_due', next_run_in_hours: (cfg.interval_hours - hoursSinceLast).toFixed(1) };
+  }
+
+  console.log('[Apollo] Starting automated discovery cycle...');
+  const results = { started_at: now.toISOString(), search_results: 0, with_email: 0, added: 0, enriched: 0, wefunder_drafted: 0, errors: [] };
+
+  const apolloHeaders = { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'X-Api-Key': apolloKey };
+
+  try {
+    const profiles = cfg.search_profiles || DEFAULT_APOLLO_CONFIG.search_profiles;
+    const profileIdx = (cfg.profile_rotation_index || 0) % profiles.length;
+    const profile = profiles[profileIdx];
+    const leadType = profile.lead_type || 'provider';
+
+    const cities = profile.cities;
+    const cityIdx = (cfg.city_rotation_index || 0) % cities.length;
+    const city = cities[cityIdx];
+    const page = cfg.page_rotation_index || 1;
+
+    console.log(`[Apollo] Profile "${profile.name}" — city "${city}" page ${page}...`);
+
+    const searchPayload = {
+      page,
+      per_page: Math.min(cfg.per_page || 25, 100),
+      person_titles: profile.titles,
+      q_organization_keyword_tags: profile.industries,
+      person_locations: [city]
+    };
+
+    const searchResp = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
+      method: 'POST', headers: apolloHeaders, body: JSON.stringify(searchPayload)
+    });
+    const searchData = await searchResp.json();
+    const people = searchData.people || [];
+
+    results.search_results = people.length;
+    results.profile = profile.name;
+    console.log(`[Apollo] Found ${people.length} ${leadType} contacts in "${city}"`);
+
+    const totalPages = Math.ceil((searchData.pagination?.total_entries || 25) / (cfg.per_page || 25));
+    const nextPage = page >= totalPages ? 1 : page + 1;
+    const nextCityIdx = nextPage === 1 ? (cityIdx + 1) % cities.length : cityIdx;
+    const nextProfileIdx = nextPage === 1 && nextCityIdx === 0 ? (profileIdx + 1) % profiles.length : profileIdx;
+
+    for (const person of people) {
+      try {
+        const email = person.email || null;
+        const phone = person.phone_numbers?.[0]?.sanitized_number || null;
+        const org = person.organization || {};
+        const name = person.name || `${person.first_name || ''} ${person.last_name || ''}`.trim() || null;
+        const website = org.website_url || null;
+        const domain = website ? website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : null;
+        const apolloPersonId = person.id || null;
+        const metadata = { title: person.title, industry: org.industry, apollo_org_id: org.id, domain, apollo_id: apolloPersonId, apollo_profile: profile.name };
+
+        const baseScore = leadType === 'investor' ? (email ? 85 : 40) : (email ? 72 : 32);
+
+        const leadData = {
+          name: name || org.name || 'Unknown',
+          email: email || null,
+          phone: phone || org.phone || null,
+          company: org.name || null,
+          type: leadType,
+          source: 'Apollo',
+          location: city,
+          status: email ? 'new' : 'email_unknown',
+          score: baseScore,
+          apollo_id: apolloPersonId || null,
+          linkedin_url: person.linkedin_url || null,
+          website: website || null,
+          metadata
+        };
+
+        let existing = null;
+        if (apolloPersonId) {
+          const { data: byId } = await supabase.from('outreach_leads').select('id,email').eq('apollo_id', apolloPersonId).maybeSingle();
+          existing = byId;
+        }
+        if (!existing && email) {
+          const { data: byEmail } = await supabase.from('outreach_leads').select('id,email').eq('email', email).maybeSingle();
+          existing = byEmail;
+        }
+
+        if (!existing) {
+          const { data: inserted } = await supabase.from('outreach_leads').insert(leadData).select('id').single();
+          results.added++;
+          if (email) {
+            results.with_email++;
+            if (leadType === 'investor' && inserted?.id) {
+              try {
+                const { count: existingDraft } = await supabase
+                  .from('outreach_messages')
+                  .select('id', { count: 'exact', head: true })
+                  .eq('lead_id', inserted.id)
+                  .eq('channel', 'email')
+                  .in('status', ['draft', 'approved', 'sent'])
+                  .filter('metadata->>blast_type', 'eq', 'wefunder');
+                if (!existingDraft || existingDraft === 0) {
+                  const draft = await draftWefunderBlastEmail({ ...leadData, id: inserted.id });
+                  if (draft && !draft.error) {
+                    await supabase.from('outreach_messages').insert({
+                      lead_id: inserted.id,
+                      channel: 'email',
+                      subject: draft.subject,
+                      body: draft.body,
+                      status: 'draft',
+                      metadata: { blast_type: 'wefunder', subject_a: draft.subject, subject_b: draft.subjectB || null, ab_variant: 'A', auto_drafted: true }
+                    });
+                    results.wefunder_drafted++;
+                  }
+                }
+              } catch (_) {}
+              await new Promise(r => setTimeout(r, 350));
+            }
+          }
+        } else if (email && !existing.email) {
+          await supabase.from('outreach_leads').update({ email, apollo_id: apolloPersonId || undefined, status: 'new', score: 72 }).eq('id', existing.id);
+          results.with_email++;
+        }
+      } catch (personErr) {
+        results.errors.push(personErr.message);
+      }
+    }
+
+    if (cfg.auto_enrich) {
+      console.log('[Apollo] Running enrichment on email-less leads...');
+      const { data: toEnrich } = await supabase
+        .from('outreach_leads')
+        .select('id, name, email, company, website, phone, location, linkedin_url, metadata')
+        .is('email', null)
+        .not('company', 'is', null)
+        .neq('status', 'unsubscribed')
+        .neq('status', 'bounced')
+        .order('score', { ascending: false })
+        .limit(cfg.enrich_batch || 15);
+
+      for (const lead of (toEnrich || [])) {
+        try {
+          const domain = lead.website ? lead.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : null;
+          const ap = lead.metadata?.apollo_id;
+          const enrichPayload = { reveal_personal_emails: true };
+          if (ap) enrichPayload.id = ap;
+          if (lead.name) enrichPayload.name = lead.name;
+          if (lead.company) enrichPayload.organization_name = lead.company;
+          if (domain) enrichPayload.domain = domain;
+          if (lead.linkedin_url) enrichPayload.linkedin_url = lead.linkedin_url;
+
+          const er = await fetch('https://api.apollo.io/api/v1/people/match', {
+            method: 'POST', headers: apolloHeaders, body: JSON.stringify(enrichPayload)
+          });
+          if (er.ok) {
+            const ed = await er.json();
+            const foundEmail = ed.person?.email;
+            const foundPhone = ed.person?.phone_numbers?.[0]?.sanitized_number;
+            if (foundEmail) {
+              await supabase.from('outreach_leads').update({ email: foundEmail, phone: foundPhone || lead.phone, status: 'new', score: 75 }).eq('id', lead.id);
+              results.enriched++;
+            }
+          }
+          await new Promise(r => setTimeout(r, 250));
+        } catch (_) {}
+      }
+    }
+
+    await saveApolloConfig(supabase, { last_run: now.toISOString(), city_rotation_index: nextCityIdx, page_rotation_index: nextPage, profile_rotation_index: nextProfileIdx });
+
+    try {
+      await supabase.from('outreach_activity_log').insert({ event_type: 'apollo_discovery_cycle', metadata: { city, page, ...results } });
+    } catch (_) {}
+
+    console.log(`[Apollo] Cycle complete — found:${results.search_results} added:${results.added} enriched:${results.enriched} wefunder_drafted:${results.wefunder_drafted}`);
+
+    try {
+      const newInvestors = leadType === 'investor' ? results.added : 0;
+      const newProviders = leadType === 'provider' ? results.added : 0;
+      const parts = [
+        `MCC Outreach (${profile.name} · ${city}):`,
+        `+${newInvestors} investor${newInvestors !== 1 ? 's' : ''}`,
+        `+${newProviders} provider${newProviders !== 1 ? 's' : ''}`
+      ];
+      if (results.enriched > 0) parts.push(`${results.enriched} enriched`);
+      if (results.wefunder_drafted > 0) parts.push(`⚡ ${results.wefunder_drafted} Wefunder draft${results.wefunder_drafted !== 1 ? 's' : ''} queued`);
+      if (results.added === 0 && results.enriched === 0) parts.push('no new leads this cycle');
+      await sendAdminSMS(supabase, parts.join(' | '));
+    } catch (_) {}
+
+    return { success: true, city, page, ...results };
+
+  } catch (err) {
+    console.error('[Apollo] Discovery cycle error:', err.message);
+    try { await supabase.from('outreach_activity_log').insert({ event_type: 'apollo_discovery_error', metadata: { error: err.message } }); } catch (_) {}
+    return { success: false, error: err.message };
+  }
+}
+
 module.exports = {
   createSupabaseClient,
   initEngineState,
@@ -1730,5 +2157,13 @@ module.exports = {
   BASE_URL,
   UNSUBSCRIBE_URL,
   EMAIL_FOOTER,
-  SMS_OPT_OUT
+  SMS_OPT_OUT,
+  getAdminNotificationPhone,
+  sendAdminSMS,
+  DEFAULT_APOLLO_CONFIG,
+  getApolloConfig,
+  saveApolloConfig,
+  draftWefunderBlastEmail,
+  runWefunderBlastForEligible,
+  runApolloDiscoveryCycle
 };
