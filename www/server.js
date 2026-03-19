@@ -34558,10 +34558,23 @@ function saveAdminInvites(invites) {
       return;
     }
     try {
-      const urlParams = new URL(req.url, 'https://localhost').searchParams;
-      const code = urlParams.get('code') || '';
+      const supabase = getSupabaseClient();
+      // Fetch authenticated founder's own referral_code — ignores user-supplied code param for security
+      const { data: founderRow } = await supabase
+        .from('member_founder_profiles')
+        .select('referral_code, id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single();
+      if (!founderRow) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not an active founder' }));
+        return;
+      }
+      const code = founderRow.referral_code || founderRow.id || '';
       let total = 0;
       let recent = 0;
+      let investments = 0;
       if (code) {
         const db = getLocalPool();
         const totalRes = await db.query('SELECT COUNT(*) AS cnt FROM founder_campaign_clicks WHERE founder_code = $1', [code]);
@@ -34569,12 +34582,63 @@ function saveAdminInvites(invites) {
         const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
         const recentRes = await db.query('SELECT COUNT(*) AS cnt FROM founder_campaign_clicks WHERE founder_code = $1 AND clicked_at >= $2', [code, since7d]);
         recent = parseInt(recentRes.rows[0]?.cnt || 0, 10);
+        // Count attributed investments (logged via /api/founder/campaign-investment webhook)
+        try {
+          const investRes = await db.query('SELECT COUNT(*) AS cnt FROM founder_campaign_investments WHERE founder_code = $1', [code]);
+          investments = parseInt(investRes.rows[0]?.cnt || 0, 10);
+        } catch {}
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ total_clicks: total, clicks_last_7d: recent }));
+      res.end(JSON.stringify({ total_clicks: total, clicks_last_7d: recent, attributed_investments: investments }));
     } catch (err) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ total_clicks: 0, clicks_last_7d: 0 }));
+      res.end(JSON.stringify({ total_clicks: 0, clicks_last_7d: 0, attributed_investments: 0 }));
+    }
+    return;
+  }
+
+  // POST /api/founder/campaign-investment — admin logs an investment attributed to a founder's UTM link
+  if (req.method === 'POST' && req.url === '/api/founder/campaign-investment') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const adminToken = req.headers['x-admin-token'];
+    const adminPwd = process.env.ADMIN_PASSWORD;
+    if (!adminToken || !adminPwd || adminToken !== adminPwd) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Admin access required' }));
+      return;
+    }
+    let body = {};
+    try { body = await getRequestBody(req); } catch {}
+    const { founder_code, amount, investor_email, notes } = body;
+    if (!founder_code) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'founder_code required' }));
+      return;
+    }
+    try {
+      const db = getLocalPool();
+      await db.query(
+        `CREATE TABLE IF NOT EXISTS founder_campaign_investments (
+          id SERIAL PRIMARY KEY,
+          founder_code TEXT NOT NULL,
+          amount NUMERIC(12,2),
+          investor_email TEXT,
+          notes TEXT,
+          invested_at TIMESTAMPTZ DEFAULT NOW()
+        )`,
+        []
+      );
+      await db.query(
+        'INSERT INTO founder_campaign_investments (founder_code, amount, investor_email, notes) VALUES ($1, $2, $3, $4)',
+        [founder_code, amount || null, investor_email || null, notes || null]
+      );
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, founder_code, amount }));
+    } catch (err) {
+      console.error('[FounderCampaign] Investment log error:', err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to log investment' }));
     }
     return;
   }

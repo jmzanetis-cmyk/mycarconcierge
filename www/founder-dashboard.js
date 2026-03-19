@@ -1241,7 +1241,10 @@
       loadWefunderClickStats().catch(() => {});
 
       try {
-        const res = await fetch('/api/wefunder/stats');
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const res = await fetch('/api/founder/campaign-stats', {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
         const s = await res.json();
         const loading = document.getElementById('wefunder-loading');
         const body = document.getElementById('wefunder-body');
@@ -1294,11 +1297,11 @@
     }
 
     async function loadWefunderClickStats() {
-      const code = founderProfile?.referral_code || founderProfile?.id || '';
-      if (!code) return;
       try {
         const token = (await supabase.auth.getSession()).data.session?.access_token;
-        const res = await fetch(`/api/founder/campaign-link-stats?code=${encodeURIComponent(code)}`, {
+        if (!token) return;
+        // Server resolves the authenticated founder's own code — no code param needed
+        const res = await fetch(`/api/founder/campaign-link-stats`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!res.ok) return;
@@ -1311,7 +1314,39 @@
           weekEl.textContent = data.clicks_last_7d || 0;
           statsEl.style.display = 'block';
         }
+        // Render investment pipeline: visits → investments conversion
+        renderInvestmentPipeline(data);
       } catch {}
+    }
+
+    function renderInvestmentPipeline(data) {
+      const pipelineEl = document.getElementById('wefunder-pipeline');
+      if (!pipelineEl) return;
+      const visits = data.total_clicks || 0;
+      const investments = data.attributed_investments || 0;
+      const convRate = visits > 0 ? ((investments / visits) * 100).toFixed(1) : '0.0';
+      pipelineEl.innerHTML = `
+        <div style="margin-top:12px;padding:12px 14px;background:rgba(0,196,140,0.05);border:1px solid rgba(0,196,140,0.15);border-radius:var(--radius-md);">
+          <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:10px;font-weight:600;">Your Referral Pipeline</div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div style="text-align:center;min-width:60px;">
+              <div style="font-size:1.2rem;font-weight:700;color:#00c48c;">${visits.toLocaleString()}</div>
+              <div style="font-size:0.7rem;color:var(--text-muted);">Link Visits</div>
+            </div>
+            <div style="color:var(--text-muted);font-size:0.9rem;">→</div>
+            <div style="text-align:center;min-width:60px;">
+              <div style="font-size:1.2rem;font-weight:700;color:var(--accent-gold);">${investments.toLocaleString()}</div>
+              <div style="font-size:0.7rem;color:var(--text-muted);">Investments</div>
+            </div>
+            <div style="color:var(--text-muted);font-size:0.9rem;">→</div>
+            <div style="text-align:center;min-width:60px;">
+              <div style="font-size:1.2rem;font-weight:700;color:var(--accent-blue);">${convRate}%</div>
+              <div style="font-size:0.7rem;color:var(--text-muted);">Conversion</div>
+            </div>
+          </div>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:8px;">Investment counts updated manually by the MCC team after Wefunder processes contributions.</div>
+        </div>
+      `;
     }
 
     function copyWefunderLink() {
