@@ -62,7 +62,7 @@ test.describe('Member Onboarding — 8-Step Conversational Form', () => {
     expect(upserted?.id).toBe(existing.id);
   });
 
-  test('Full 8-step onboarding: creates account, verifies DB, and redirects to login', async ({ page }) => {
+  test('Full 8-step onboarding: creates account, verifies DB, login redirect, and member dashboard loads', async ({ page }) => {
     test.skip(!SUPABASE_SERVICE_KEY, 'Requires SUPABASE_SERVICE_ROLE_KEY');
     test.setTimeout(90000);
 
@@ -212,14 +212,49 @@ test.describe('Member Onboarding — 8-Step Conversational Form', () => {
 
       console.log('[Onboarding] Reached step 8 success screen — onboarding complete ✓');
 
-      // Assert "Go to Login" button redirects to login.html
+      // Click "Go to Login" — must redirect to login.html
       const goToLoginBtn = page.locator('.btn-next').filter({ hasText: /login/i }).first();
-      if (await goToLoginBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await goToLoginBtn.click();
-        await page.waitForURL(/login\.html/, { timeout: 8000 });
-        expect(page.url()).toMatch(/login\.html/);
-        console.log('[Onboarding] "Go to Login" redirect confirmed → login.html ✓');
+      await expect(goToLoginBtn, '"Go to Login" button must be visible on success screen').toBeVisible({ timeout: 5000 });
+      await goToLoginBtn.click();
+      await page.waitForURL(/login\.html/, { timeout: 8000 });
+      expect(page.url()).toMatch(/login\.html/);
+      console.log('[Onboarding] "Go to Login" redirect confirmed → login.html ✓');
+
+      // Confirm email via admin API so the new account can log in without email verification
+      if (createdUserId) {
+        await sb.auth.admin.updateUserById(createdUserId, { email_confirm: true });
       }
+
+      // Fill in login form and submit — must land on member dashboard (members.html)
+      const emailField = page.locator('#email, input[type="email"]').first();
+      await expect(emailField, 'Email field must be visible on login.html').toBeVisible({ timeout: 6000 });
+      await emailField.fill(uniqueEmail);
+
+      const passField = page.locator('#password, input[type="password"]').first();
+      await expect(passField, 'Password field must be visible on login.html').toBeVisible({ timeout: 3000 });
+      await passField.fill(testPassword);
+
+      const loginBtn = page.locator('button[type="submit"], button').filter({ hasText: /sign in|log in|login/i }).first();
+      await expect(loginBtn, 'Login submit button must be visible').toBeVisible({ timeout: 3000 });
+      await loginBtn.click();
+
+      // A new account may be directed to portal select or directly to members.html
+      await page.waitForURL(/members\.html|portal/, { timeout: 15000 });
+
+      if (page.url().includes('portal') || page.url().includes('login')) {
+        const memberPortal = page.locator('.portal-option, #portal-member').filter({ hasText: /member/i }).first();
+        if (await memberPortal.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await memberPortal.click();
+          await page.waitForURL(/members\.html/, { timeout: 10000 });
+        }
+      }
+
+      expect(page.url(), 'After login, new member must land on member dashboard (members.html)').toMatch(/members\.html/);
+      await expect(
+        page.locator('#home, #packages, #dashboard-section, .member-nav').first(),
+        'Member dashboard section must be visible after login'
+      ).toBeAttached({ timeout: 8000 });
+      console.log('[Onboarding] Member dashboard confirmed after login ✓');
     } finally {
       if (createdUserId) {
         await sb.auth.admin.deleteUser(createdUserId);

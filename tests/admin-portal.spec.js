@@ -361,4 +361,104 @@ test.describe('Admin Portal — Members and Providers Management', () => {
     }, firstDbEmail.split('@')[0]);
     expect(foundInTable, 'Provider from DB must appear in table when searched by name/email fragment').toBe(true);
   });
+
+  test('Admin provider suspend/unsuspend: real UI button click updates provider suspension in DB', async ({ page }) => {
+    test.setTimeout(90000);
+    test.skip(!ADMIN_PASSWORD || !SUPABASE_SERVICE_KEY, 'ADMIN_PASSWORD and SUPABASE_SERVICE_ROLE_KEY required');
+
+    const supabase = getSupabaseAdmin();
+
+    const { data: providerProfile } = await supabase.from('profiles')
+      .select('id, suspension_reason, suspended_at').eq('email', TEST_PROVIDER_EMAIL).single();
+    expect(providerProfile?.id, 'Test provider must exist in profiles').toBeTruthy();
+    const providerId = providerProfile.id;
+    const originalSuspensionReason = providerProfile.suspension_reason;
+    const originalSuspendedAt = providerProfile.suspended_at;
+
+    // Pre-suspend the provider so "Unsuspend Account" button is shown in the edit modal
+    await supabase.from('profiles').update({
+      suspension_reason: 'E2E provider suspension test',
+      suspended_at: new Date().toISOString()
+    }).eq('id', providerId);
+
+    await injectAdminSession(page);
+    await page.goto(`${BASE_URL}/admin.html`);
+    await page.waitForLoadState('domcontentloaded');
+
+    await page.waitForFunction(
+      () => document.getElementById('admin-password-form')?.style.display === 'block',
+      { timeout: 12000 }
+    );
+    await page.evaluate((pass) => {
+      const el = document.getElementById('admin-password-input');
+      if (el) { el.value = pass; el.dispatchEvent(new Event('input', { bubbles: true })); }
+      document.getElementById('admin-modal-btn')?.click();
+    }, ADMIN_PASSWORD);
+    await page.waitForFunction(
+      () => { const m = document.getElementById('admin-password-modal'); return !m || m.style.display === 'none'; },
+      { timeout: 15000 }
+    );
+
+    // Navigate to user-management section to find the provider
+    await page.waitForFunction(
+      () => {
+        const nav = document.querySelector('[data-section="user-management"]');
+        if (nav) nav.click();
+        return document.getElementById('user-management')?.classList.contains('active');
+      },
+      { timeout: 20000, polling: 1000 }
+    );
+
+    await page.waitForFunction(
+      () => document.getElementById('user-management-table')?.querySelectorAll('tr').length > 0,
+      { timeout: 12000 }
+    );
+
+    // Search for the test provider by email
+    await page.locator('#member-search').fill(TEST_PROVIDER_EMAIL);
+    await page.locator('#member-search').dispatchEvent('input');
+
+    await page.waitForFunction(
+      (email) => document.getElementById('user-management-table')?.innerHTML.toLowerCase().includes(email.toLowerCase()),
+      TEST_PROVIDER_EMAIL,
+      { timeout: 8000 }
+    );
+
+    // Click the Edit button for the provider row
+    const editClicked = await page.evaluate((email) => {
+      const rows = document.getElementById('user-management-table')?.querySelectorAll('tr') || [];
+      for (const row of rows) {
+        if (row.textContent.toLowerCase().includes(email.toLowerCase())) {
+          const editBtn = row.querySelector('button[onclick*="openUserEditModal"]');
+          if (editBtn) { editBtn.scrollIntoView({ behavior: 'instant', block: 'center' }); editBtn.click(); return true; }
+        }
+      }
+      return false;
+    }, TEST_PROVIDER_EMAIL);
+    expect(editClicked, 'Edit button must be clickable for provider in user-management table').toBe(true);
+
+    await page.waitForFunction(
+      () => document.getElementById('user-edit-modal')?.classList.contains('active'),
+      { timeout: 8000 }
+    );
+
+    // Real UI click: "Unsuspend Account" button (provider was pre-suspended above)
+    const unsuspendBtn = page.locator('#user-edit-modal button').filter({ hasText: /Unsuspend Account/i }).first();
+    await expect(unsuspendBtn, 'Unsuspend Account button must be visible for suspended provider').toBeVisible({ timeout: 5000 });
+    page.on('dialog', dialog => dialog.accept());
+    await unsuspendBtn.click();
+    await page.waitForTimeout(3000);
+
+    // Verify DB reflects the unsuspend action triggered by the real UI button click
+    const { data: afterUnsuspend } = await supabase.from('profiles')
+      .select('suspension_reason, suspended_at').eq('id', providerId).single();
+    expect(afterUnsuspend.suspension_reason, 'Provider suspension_reason must be cleared after Unsuspend click').toBeNull();
+    expect(afterUnsuspend.suspended_at, 'Provider suspended_at must be cleared after Unsuspend click').toBeNull();
+
+    // Restore original state
+    await supabase.from('profiles').update({
+      suspension_reason: originalSuspensionReason,
+      suspended_at: originalSuspendedAt
+    }).eq('id', providerId);
+  });
 });
