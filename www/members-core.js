@@ -3280,7 +3280,7 @@ async function loadCommunityBoard() {
         <div class="package-header">
           <div>
             <div class="package-title">${escapeHtml(pkg.title)}</div>
-            <div class="package-vehicle" style="color:var(--text-muted);font-size:0.85rem;">${escapeHtml(pkg.member_name || 'Community Member')}</div>
+            <div class="package-vehicle" style="color:var(--text-muted);font-size:0.85rem;">${escapeHtml(pkg.member_first_name || pkg.member_name || 'A member')} needs help${pkg.vehicle_label ? ` · ${escapeHtml(pkg.vehicle_label)}` : ''}${pkg.category ? ` · ${escapeHtml(pkg.category.replace(/_/g, ' '))}` : ''}</div>
           </div>
           <span class="package-status open">Open</span>
         </div>

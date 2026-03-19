@@ -14544,13 +14544,24 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
       }
     }
 
-    // Calculate final capture amount: deduct discounts AND crowd-fund contributions (floor $0.50)
-    const finalCaptureCents = Math.max(50, originalAmountCents - totalDiscountCents - crowdFundedAmountCents);
-    
-    // Capture the main payment (with discount and crowd-fund applied if any)
-    const capturedPayment = await stripe.paymentIntents.capture(pkg.escrow_payment_intent_id, {
-      amount_to_capture: finalCaptureCents
-    });
+    // Calculate net amount member owes after discounts and crowd-fund contributions
+    const netAfterContribsCents = originalAmountCents - totalDiscountCents - crowdFundedAmountCents;
+    // Floor at $0.50 (Stripe minimum) if still positive, otherwise cancel — member owes nothing
+    const finalCaptureCents = netAfterContribsCents > 0 ? Math.max(50, netAfterContribsCents) : 0;
+
+    let capturedPayment;
+    if (finalCaptureCents > 0) {
+      // Capture the main payment (with discount and crowd-fund credits applied)
+      capturedPayment = await stripe.paymentIntents.capture(pkg.escrow_payment_intent_id, {
+        amount_to_capture: finalCaptureCents
+      });
+    } else {
+      // Contributions fully cover the cost — cancel the member's held payment
+      capturedPayment = await stripe.paymentIntents.cancel(pkg.escrow_payment_intent_id, {
+        cancellation_reason: 'duplicate'
+      });
+      console.log(`[${requestId}] Crowd-fund contributions fully covered package ${packageId} — member charge cancelled`);
+    }
     
     // Mark discounts as applied
     if (discounts && discounts.length > 0) {
@@ -14604,10 +14615,10 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
       }
     }
     
-    // Fetch package details for service history
+    // Fetch package details for service history and crowd-fund notifications
     const { data: fullPkg } = await supabase
       .from('maintenance_packages')
-      .select('id, title, service_type, category, vehicle_id')
+      .select('id, title, service_type, category, vehicle_id, crowd_funded')
       .eq('id', packageId)
       .single();
     
@@ -34352,7 +34363,9 @@ function saveAdminInvites(invites) {
       const supabase = getSupabaseClient();
       const { data: pkgs, error } = await supabase
         .from('maintenance_packages')
-        .select('id, title, description, member_id, created_at, status, funding_goal_cents, profiles!maintenance_packages_member_id_fkey(full_name)')
+        .select(`id, title, description, member_id, created_at, status, funding_goal_cents, category, service_type,
+          profiles!maintenance_packages_member_id_fkey(full_name),
+          vehicles(make, model, year, nickname)`)
         .eq('crowd_funded', true)
         .eq('status', 'open')
         .neq('member_id', user.id)
@@ -34377,12 +34390,19 @@ function saveAdminInvites(invites) {
       }
       const packages = (pkgs || []).map(p => {
         const cm = contributionMap[p.id] || { total: 0, contributors: new Set() };
+        const v = p.vehicles;
+        const vehicleLabel = v ? (v.nickname || `${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim()) : null;
+        const memberFirstName = p.profiles?.full_name ? p.profiles.full_name.split(' ')[0] : 'A member';
         return {
           id: p.id,
           title: p.title,
           description: p.description,
           member_id: p.member_id,
           member_name: p.profiles?.full_name || 'Community Member',
+          member_first_name: memberFirstName,
+          vehicle_label: vehicleLabel,
+          category: p.category,
+          service_type: p.service_type,
           created_at: p.created_at,
           funding_goal_cents: p.funding_goal_cents || null,
           raised_cents: cm.total,
