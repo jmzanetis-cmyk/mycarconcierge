@@ -1245,6 +1245,7 @@
         const res = await fetch('/api/founder/campaign-stats', {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {}
         });
+        if (!res.ok) throw new Error(`Campaign stats error: ${res.status}`);
         const s = await res.json();
         const loading = document.getElementById('wefunder-loading');
         const body = document.getElementById('wefunder-body');

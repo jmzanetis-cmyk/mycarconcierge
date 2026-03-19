@@ -34501,6 +34501,7 @@ function saveAdminInvites(invites) {
     const isAdmin = user.app_metadata?.role === 'admin' || user.user_metadata?.role === 'admin';
     if (!isAdmin) {
       try {
+        const supabase = getSupabaseClient();
         const { data: fp } = await supabase
           .from('member_founder_profiles')
           .select('id')
