@@ -14527,10 +14527,27 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
       }
     }
     
-    // Calculate final capture amount (cannot be less than $0.50)
-    const finalCaptureCents = Math.max(50, originalAmountCents - totalDiscountCents);
+    // Sum confirmed crowd-fund contributions for this package
+    let crowdFundedAmountCents = 0;
+    if (pkg.crowd_funded) {
+      try {
+        const { data: contribData } = await supabase
+          .from('crowd_fund_contributions')
+          .select('amount_cents')
+          .eq('package_id', packageId)
+          .eq('status', 'completed');
+        if (contribData && contribData.length > 0) {
+          crowdFundedAmountCents = contribData.reduce((sum, c) => sum + (c.amount_cents || 0), 0);
+        }
+      } catch (cfErr) {
+        console.warn(`[${requestId}] Could not sum crowd fund contributions:`, cfErr.message);
+      }
+    }
+
+    // Calculate final capture amount: deduct discounts AND crowd-fund contributions (floor $0.50)
+    const finalCaptureCents = Math.max(50, originalAmountCents - totalDiscountCents - crowdFundedAmountCents);
     
-    // Capture the main payment (with discount applied if any)
+    // Capture the main payment (with discount and crowd-fund applied if any)
     const capturedPayment = await stripe.paymentIntents.capture(pkg.escrow_payment_intent_id, {
       amount_to_capture: finalCaptureCents
     });
@@ -14627,13 +14644,17 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
       .eq('id', packageId);
     
     // Update payment record
+    const paymentUpdate = {
+      status: 'released',
+      escrow_captured: true,
+      released_at: now
+    };
+    if (crowdFundedAmountCents > 0) {
+      paymentUpdate.crowd_funded_amount_cents = crowdFundedAmountCents;
+    }
     await supabase
       .from('payments')
-      .update({
-        status: 'released',
-        escrow_captured: true,
-        released_at: now
-      })
+      .update(paymentUpdate)
       .eq('package_id', packageId)
       .eq('status', 'held');
     
@@ -34334,6 +34355,7 @@ function saveAdminInvites(invites) {
         .select('id, title, description, member_id, created_at, status, funding_goal_cents, profiles!maintenance_packages_member_id_fkey(full_name)')
         .eq('crowd_funded', true)
         .eq('status', 'open')
+        .neq('member_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -34389,23 +34411,31 @@ function saveAdminInvites(invites) {
     const packageId = req.url.split('/')[3];
     try {
       const supabase = getSupabaseClient();
-      const { data, error } = await supabase
-        .from('crowd_fund_contributions')
-        .select('amount_cents, contributor_id')
-        .eq('package_id', packageId)
-        .eq('status', 'completed');
-      if (error) {
+      const [contribRes, pkgRes] = await Promise.all([
+        supabase
+          .from('crowd_fund_contributions')
+          .select('amount_cents, contributor_id')
+          .eq('package_id', packageId)
+          .eq('status', 'completed'),
+        supabase
+          .from('maintenance_packages')
+          .select('funding_goal_cents')
+          .eq('id', packageId)
+          .single()
+      ]);
+      if (contribRes.error) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ total_cents: 0, count: 0 }));
+        res.end(JSON.stringify({ total_cents: 0, count: 0, goal_cents: null }));
         return;
       }
-      const total_cents = (data || []).reduce((sum, c) => sum + (c.amount_cents || 0), 0);
-      const uniqueContributors = new Set((data || []).map(c => c.contributor_id));
+      const total_cents = (contribRes.data || []).reduce((sum, c) => sum + (c.amount_cents || 0), 0);
+      const uniqueContributors = new Set((contribRes.data || []).map(c => c.contributor_id));
+      const goal_cents = pkgRes.data?.funding_goal_cents || null;
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ total_cents, count: uniqueContributors.size }));
+      res.end(JSON.stringify({ total_cents, count: uniqueContributors.size, goal_cents }));
     } catch (err) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ total_cents: 0, count: 0 }));
+      res.end(JSON.stringify({ total_cents: 0, count: 0, goal_cents: null }));
     }
     return;
   }
@@ -37406,6 +37436,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('AI Assistant connected and ready to help!');
   
   runRecallsAiMigration();
+  runCrowdFundPaymentsMigration();
   startMaintenanceReminderScheduler();
   startWeeklyRecallCheckScheduler();
   startAppointmentReminderScheduler();
@@ -37431,6 +37462,23 @@ function getAiOpsThreshold() {
 function getAiOpsMaxRefund() {
   if (aiOpsSettingsOverride.max_auto_refund !== undefined) return aiOpsSettingsOverride.max_auto_refund;
   return parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
+}
+
+async function runCrowdFundPaymentsMigration() {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from('payments').select('crowd_funded_amount_cents').limit(1);
+    if (error && isTableMissingError(error)) {
+      console.log('[CrowdFund] Adding crowd_funded_amount_cents column to payments...');
+      const result = await runSupabaseSQL('ALTER TABLE payments ADD COLUMN IF NOT EXISTS crowd_funded_amount_cents INTEGER DEFAULT 0');
+      if (result.error) {
+        console.warn('[CrowdFund] Could not auto-add crowd_funded_amount_cents column. Run: ALTER TABLE payments ADD COLUMN IF NOT EXISTS crowd_funded_amount_cents INTEGER DEFAULT 0');
+      } else {
+        console.log('[CrowdFund] crowd_funded_amount_cents column added.');
+      }
+    }
+  } catch (e) { console.warn('[CrowdFund] Migration check error:', e.message); }
 }
 
 async function runSupabaseSQL(sql) {
