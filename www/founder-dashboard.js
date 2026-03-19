@@ -1287,6 +1287,14 @@
         const body = document.getElementById('wefunder-body');
         if (loading) loading.style.display = 'none';
         if (body) body.style.display = 'block';
+        // Show explicit fallback so founders can still reach the campaign
+        const grid = document.getElementById('wefunder-stats-grid');
+        if (grid) {
+          grid.innerHTML = `<div style="grid-column:1/-1;padding:14px;background:rgba(255,180,50,0.07);border:1px solid rgba(255,180,50,0.18);border-radius:var(--radius-md);display:flex;align-items:center;gap:12px;font-size:0.85rem;color:var(--text-muted);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex-shrink:0;color:#f0a500;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>Live campaign stats couldn't be loaded right now. <a href="https://wefunder.com/my.car.concierge" target="_blank" rel="noopener noreferrer" style="color:#00c48c;font-weight:600;text-decoration:none;">View Campaign on Wefunder &rarr;</a></span>
+          </div>`;
+        }
       }
     }
 

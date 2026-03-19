@@ -34504,7 +34504,7 @@ function saveAdminInvites(invites) {
         const { data: fp } = await supabase
           .from('member_founder_profiles')
           .select('id')
-          .eq('member_id', user.id)
+          .eq('user_id', user.id)
           .eq('status', 'active')
           .maybeSingle();
         if (!fp) {
