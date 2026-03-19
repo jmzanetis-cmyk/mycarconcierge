@@ -34479,9 +34479,15 @@ function saveAdminInvites(invites) {
           .eq('id', packageId)
           .single()
       ]);
+      if (pkgRes.error || !pkgRes.data) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Package not found' }));
+        return;
+      }
       if (contribRes.error) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ total_cents: 0, count: 0, goal_cents: null }));
+        console.error('[Contributions] Query error:', contribRes.error.message);
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to retrieve contribution data' }));
         return;
       }
       const total_cents = (contribRes.data || []).reduce((sum, c) => sum + (c.amount_cents || 0), 0);
@@ -34490,8 +34496,9 @@ function saveAdminInvites(invites) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ total_cents, count: uniqueContributors.size, goal_cents }));
     } catch (err) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ total_cents: 0, count: 0, goal_cents: null }));
+      console.error('[Contributions] Unexpected error:', err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
     }
     return;
   }
