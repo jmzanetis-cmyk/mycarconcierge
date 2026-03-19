@@ -2686,7 +2686,48 @@
         </p>
       </div>
 
-      <!-- Push Notification Settings -->
+      <!-- Native App Push Notifications (Capacitor iOS / Android only) -->
+      <div class="card" id="provider-native-push-card" style="margin-top:24px;display:none;">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+            Push Notifications
+          </h2>
+          <p style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">Get instant alerts for new bid opportunities, messages, and job updates.</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+          <span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+          <div style="flex:1;">
+            <div id="provider-native-push-status-text" style="font-weight:600;margin-bottom:2px;">Push Notifications Disabled</div>
+            <div style="font-size:0.85rem;color:var(--text-muted);">Enable to receive instant alerts on this device.</div>
+          </div>
+          <span id="provider-native-push-badge" class="package-badge" style="background:rgba(239,95,95,0.15);color:var(--accent-red);">Off</span>
+        </div>
+        <div id="provider-native-push-enable-section">
+          <button class="btn btn-primary" id="provider-native-push-enable-btn" onclick="requestNativePushPermission('provider')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            Enable Notifications
+          </button>
+        </div>
+        <div id="provider-native-push-enabled-section" style="display:none;">
+          <div style="padding:14px 16px;background:rgba(74,200,140,0.08);border:1px solid rgba(74,200,140,0.25);border-radius:var(--radius-md);margin-bottom:16px;">
+            <div style="font-weight:600;color:var(--accent-green);margin-bottom:2px;">Push Notifications Active</div>
+            <div style="font-size:0.85rem;color:var(--text-secondary);">You'll receive alerts on this device for new bids, messages, job updates, and payment notifications.</div>
+          </div>
+          <button class="btn btn-secondary" onclick="disableNativePush('provider')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            Disable Notifications
+          </button>
+        </div>
+        <div id="provider-native-push-denied-section" style="display:none;">
+          <div style="padding:14px 16px;background:rgba(239,95,95,0.08);border:1px solid rgba(239,95,95,0.25);border-radius:var(--radius-md);">
+            <div style="font-weight:600;color:var(--accent-red);margin-bottom:4px;">Notifications Blocked</div>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">You've blocked notifications for this app. To re-enable them, go to your device Settings and allow notifications for My Car Concierge.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Push Notification Settings (Web) -->
       <div class="card" style="margin-top:24px;">
         <div class="card-header">
           <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span> Notification Settings</h2>
@@ -6241,6 +6282,7 @@
     </div>
   </div>
 
+  <script>window._mccPushContext = 'provider';</script>
   <script src="https://js.stripe.com/v3/"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js?v=20260122"></script>
@@ -6252,6 +6294,7 @@
   <script src="mcc-icons.js?v=20260211"></script>
   <script src="providers-core.js?v=20260202"></script>
   <script src="providers-settings.js?v=20260315"></script>
+  <script src="members-push.js?v=20260319"></script>
   <script src="/pwa-init.js?v=20260202"></script>
   <script src="/chat-widget-base.js?v=20260122"></script>
   <script src="/helpdesk-widget.js?v=20260122"></script>

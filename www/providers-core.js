@@ -333,6 +333,9 @@ async function showSection(id) {
   if (id === 'bids' && typeof loadBidInsights === 'function') {
     loadBidInsights();
   }
+  if ((id === 'settings' || id === 'notifications') && typeof loadProviderNotificationSettings === 'function') {
+    loadProviderNotificationSettings();
+  }
 }
 
 // ========== CORE UTILITY FUNCTIONS ==========
@@ -901,20 +904,27 @@ async function loadCarClubCard() {
 }
 
 async function initProviderPushNotifications() {
+  if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+    if (typeof window.initCapacitorPush === 'function') {
+      await window.initCapacitorPush('provider');
+    }
+    return;
+  }
+
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    console.log('Push notifications not supported');
+    console.log('[ProviderPush] Push notifications not supported');
     return;
   }
   
   try {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
-    
-    if (!subscription) {
-      console.log('No push subscription yet');
+    if (typeof updateProviderWebPushUI === 'function') {
+      updateProviderWebPushUI(!!subscription);
     }
+    console.log('[ProviderPush] Web push subscription:', subscription ? 'active' : 'none');
   } catch (err) {
-    console.log('Push notification setup error:', err);
+    console.log('[ProviderPush] Push notification setup error:', err);
   }
 }
 

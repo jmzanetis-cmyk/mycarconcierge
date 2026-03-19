@@ -1,6 +1,7 @@
 // ========== MY CAR CONCIERGE - CAPACITOR PUSH NOTIFICATIONS ==========
 // Native FCM push via @capacitor/push-notifications
 // Active only inside Capacitor iOS / Android native app
+// Supports both member (members.html) and provider (providers.html) contexts
 
 (function () {
 
@@ -72,14 +73,41 @@
     }
   }
 
-  function updateNativePushUI(enabled, permissionDenied) {
-    const card = document.getElementById('native-push-card');
+  // Returns element ID prefixes depending on context (member vs provider)
+  function getUIIds(context) {
+    if (context === 'provider') {
+      return {
+        card: 'provider-native-push-card',
+        webCard: null,
+        enableSection: 'provider-native-push-enable-section',
+        enabledSection: 'provider-native-push-enabled-section',
+        deniedSection: 'provider-native-push-denied-section',
+        badge: 'provider-native-push-badge',
+        statusText: 'provider-native-push-status-text',
+        enableBtn: 'provider-native-push-enable-btn'
+      };
+    }
+    return {
+      card: 'native-push-card',
+      webCard: 'web-push-card',
+      enableSection: 'native-push-enable-section',
+      enabledSection: 'native-push-enabled-section',
+      deniedSection: 'native-push-denied-section',
+      badge: 'native-push-badge',
+      statusText: 'native-push-status-text',
+      enableBtn: 'native-push-enable-btn'
+    };
+  }
+
+  function updateNativePushUI(enabled, permissionDenied, context) {
+    const ids = getUIIds(context);
+    const card = document.getElementById(ids.card);
     if (!card) return;
-    const enableSection = document.getElementById('native-push-enable-section');
-    const enabledSection = document.getElementById('native-push-enabled-section');
-    const deniedSection = document.getElementById('native-push-denied-section');
-    const badge = document.getElementById('native-push-badge');
-    const statusText = document.getElementById('native-push-status-text');
+    const enableSection = document.getElementById(ids.enableSection);
+    const enabledSection = document.getElementById(ids.enabledSection);
+    const deniedSection = document.getElementById(ids.deniedSection);
+    const badge = document.getElementById(ids.badge);
+    const statusText = document.getElementById(ids.statusText);
 
     if (enableSection) enableSection.style.display = 'none';
     if (enabledSection) enabledSection.style.display = 'none';
@@ -100,13 +128,18 @@
     }
   }
 
-  window.initCapacitorPush = async function () {
+  let _pushListenersAdded = false;
+
+  window.initCapacitorPush = async function (context) {
     if (!isCapacitorNative()) return;
 
-    const nativeCard = document.getElementById('native-push-card');
-    const webPushCard = document.getElementById('web-push-card');
+    const ids = getUIIds(context);
+    const nativeCard = document.getElementById(ids.card);
+    if (ids.webCard) {
+      const webCard = document.getElementById(ids.webCard);
+      if (webCard) webCard.style.display = 'none';
+    }
     if (nativeCard) nativeCard.style.display = 'block';
-    if (webPushCard) webPushCard.style.display = 'none';
 
     const plugin = getPushPlugin();
     if (!plugin) {
@@ -120,40 +153,51 @@
       permissionStatus = receive;
     } catch {}
 
-    updateNativePushUI(permissionStatus === 'granted', permissionStatus === 'denied');
+    updateNativePushUI(permissionStatus === 'granted', permissionStatus === 'denied', context);
 
-    plugin.addListener('registration', async ({ value: token }) => {
-      const platform = window.Capacitor?.getPlatform?.() || 'unknown';
-      await registerDeviceToken(token, platform);
-      updateNativePushUI(true, false);
-      if (typeof window.showToast === 'function') window.showToast('Push notifications enabled!', 'success');
-    });
+    if (!_pushListenersAdded) {
+      _pushListenersAdded = true;
 
-    plugin.addListener('registrationError', (err) => {
-      console.error('[CapacitorPush] Registration error:', err);
-      if (typeof window.showToast === 'function') window.showToast('Failed to register for notifications', 'error');
-    });
+      plugin.addListener('registration', async ({ value: token }) => {
+        const platform = window.Capacitor?.getPlatform?.() || 'unknown';
+        await registerDeviceToken(token, platform);
+        const ctx = window._mccPushContext || context;
+        updateNativePushUI(true, false, ctx);
+        if (typeof window.showToast === 'function') window.showToast('Push notifications enabled!', 'success');
+      });
 
-    plugin.addListener('pushNotificationReceived', (notification) => {
-      showInAppNotification(notification);
-    });
+      plugin.addListener('registrationError', (err) => {
+        console.error('[CapacitorPush] Registration error:', err);
+        if (typeof window.showToast === 'function') window.showToast('Failed to register for notifications', 'error');
+      });
 
-    plugin.addListener('pushNotificationActionPerformed', ({ notification }) => {
-      handleNotificationDeepLink(notification?.data || {});
-    });
+      plugin.addListener('pushNotificationReceived', (notification) => {
+        showInAppNotification(notification);
+      });
+
+      plugin.addListener('pushNotificationActionPerformed', ({ notification }) => {
+        handleNotificationDeepLink(notification?.data || {});
+      });
+    }
+
+    window._mccPushContext = context;
 
     if (permissionStatus === 'granted') {
       try { await plugin.register(); } catch {}
     }
   };
 
-  window.requestNativePushPermission = async function () {
+  window.requestNativePushPermission = async function (context) {
     if (!isCapacitorNative()) return;
     const plugin = getPushPlugin();
     if (!plugin) return;
 
-    const btn = document.getElementById('native-push-enable-btn');
+    const ctx = context || window._mccPushContext || 'member';
+    const ids = getUIIds(ctx);
+    const btn = document.getElementById(ids.enableBtn);
     if (btn) { btn.disabled = true; btn.textContent = 'Enabling…'; }
+
+    const bellIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
 
     try {
       let { receive: status } = await plugin.checkPermissions();
@@ -164,27 +208,29 @@
       if (status === 'granted') {
         await plugin.register();
       } else if (status === 'denied') {
-        updateNativePushUI(false, true);
+        updateNativePushUI(false, true, ctx);
       } else {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg> Enable Notifications'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = `${bellIcon} Enable Notifications`; }
       }
     } catch (err) {
       console.error('[CapacitorPush] Permission error:', err);
       if (typeof window.showToast === 'function') window.showToast('Could not enable notifications', 'error');
-      if (btn) { btn.disabled = false; btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg> Enable Notifications'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = `${bellIcon} Enable Notifications`; }
     }
   };
 
-  window.disableNativePush = async function () {
+  window.disableNativePush = async function (context) {
     if (!isCapacitorNative()) return;
     const plugin = getPushPlugin();
     if (!plugin) return;
+
+    const ctx = context || window._mccPushContext || 'member';
 
     try {
       await plugin.removeAllDeliveredNotifications();
       const stored = localStorage.getItem('mcc_fcm_token');
       if (stored) await unregisterDeviceToken(stored);
-      updateNativePushUI(false, false);
+      updateNativePushUI(false, false, ctx);
       if (typeof window.showToast === 'function') window.showToast('Push notifications disabled', 'success');
     } catch (err) {
       console.error('[CapacitorPush] Disable error:', err);
@@ -200,7 +246,7 @@
       window.showSection = function (sectionId) {
         const result = orig.apply(this, arguments);
         if (sectionId === 'settings' || sectionId === 'notifications') {
-          if (isCapacitorNative()) window.initCapacitorPush();
+          if (isCapacitorNative()) window.initCapacitorPush(window._mccPushContext || 'member');
         }
         return result;
       };
@@ -217,7 +263,7 @@
       if (window.supabaseClient) {
         try {
           const { data: { session } } = await window.supabaseClient.auth.getSession();
-          if (session) await window.initCapacitorPush();
+          if (session) await window.initCapacitorPush(window._mccPushContext || 'member');
         } catch {}
       }
     };
