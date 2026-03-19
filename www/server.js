@@ -33168,6 +33168,281 @@ Return ONLY the JSON array, no other text.`;
     });
   }
 
+  // ========== APOLLO.IO INTEGRATION ==========
+
+  if (req.url.startsWith('/api/admin/apollo')) {
+    setCorsHeaders(res, req);
+    if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+    return handleAdminAuth(req, res, requestId, async () => {
+      const apolloKey = process.env.APOLLO_API_KEY;
+      if (!apolloKey) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'APOLLO_API_KEY not configured' }));
+        return;
+      }
+
+      const apolloHeaders = {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+        'X-Api-Key': apolloKey
+      };
+
+      // GET /api/admin/apollo/status — verify key via a minimal search and read rate-limit headers
+      if (req.method === 'GET' && req.url === '/api/admin/apollo/status') {
+        try {
+          const resp = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
+            method: 'POST',
+            headers: apolloHeaders,
+            body: JSON.stringify({ page: 1, per_page: 1, person_titles: ['owner'], q_organization_keyword_tags: ['auto repair'] })
+          });
+          const text = await resp.text();
+          let data = {};
+          try { data = JSON.parse(text); } catch (_) { data = { raw: text.slice(0, 300) }; }
+
+          // Parse rate-limit headers Apollo exposes
+          const minuteLimit = resp.headers.get('x-minute-requests-left') || resp.headers.get('x-rate-limit-requests-left-minute');
+          const hourLimit = resp.headers.get('x-hour-requests-left') || resp.headers.get('x-rate-limit-requests-left-hour');
+          const dayLimit = resp.headers.get('x-day-requests-left') || resp.headers.get('x-rate-limit-requests-left-day');
+          const credits = resp.headers.get('x-credits-remaining') || data.credits_remaining;
+
+          const statusInfo = {
+            ok: resp.ok,
+            http_status: resp.status,
+            total_results: data.pagination?.total_entries || 0,
+            minute_requests_left: minuteLimit != null ? parseInt(minuteLimit) : undefined,
+            hour_requests_left: hourLimit != null ? parseInt(hourLimit) : undefined,
+            day_requests_left: dayLimit != null ? parseInt(dayLimit) : undefined,
+            credits: credits != null ? parseInt(credits) : undefined,
+            error: resp.ok ? undefined : (data.error || data.message || `HTTP ${resp.status}`)
+          };
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(statusInfo));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
+
+      // POST /api/admin/apollo/search — search Apollo for auto shop contacts + optionally enrich
+      if (req.method === 'POST' && req.url === '/api/admin/apollo/search') {
+        let body = '';
+        req.on('data', c => { body += c; });
+        req.on('end', async () => {
+          try {
+            const { cities = [], titles = ['owner', 'co-owner', 'founder', 'president', 'ceo', 'manager', 'operator', 'proprietor'], industries = ['automotive', 'auto repair', 'car repair'], per_page = 25, page = 1, enrich = false } = JSON.parse(body || '{}');
+            const supabase = getSupabaseClient();
+
+            const searchPayload = {
+              page,
+              per_page: Math.min(per_page, 100),
+              person_titles: titles,
+              q_organization_keyword_tags: industries
+            };
+            if (cities.length > 0) searchPayload.person_locations = cities;
+
+            const searchResp = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
+              method: 'POST',
+              headers: apolloHeaders,
+              body: JSON.stringify(searchPayload)
+            });
+            const searchData = await searchResp.json();
+
+            if (!searchResp.ok) {
+              res.writeHead(searchResp.status, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: searchData.error || 'Apollo search failed' }));
+              return;
+            }
+
+            const people = searchData.people || [];
+            const results = [];
+
+            for (const person of people) {
+              let email = person.email || null;
+              let phone = person.phone_numbers?.[0]?.sanitized_number || null;
+              const org = person.organization || {};
+              const name = person.name || `${person.first_name || ''} ${person.last_name || ''}`.trim() || null;
+              const website = org.website_url || null;
+              const domain = website ? website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : null;
+
+              // Enrich to reveal email if requested and we have an ID or domain
+              if (enrich && !email && (person.id || domain)) {
+                try {
+                  const enrichPayload = {};
+                  if (person.id) enrichPayload.id = person.id;
+                  if (name) { enrichPayload.name = name; }
+                  if (org.name) enrichPayload.organization_name = org.name;
+                  if (domain) enrichPayload.domain = domain;
+                  enrichPayload.reveal_personal_emails = true;
+
+                  const enrichResp = await fetch('https://api.apollo.io/api/v1/people/match', {
+                    method: 'POST',
+                    headers: apolloHeaders,
+                    body: JSON.stringify(enrichPayload)
+                  });
+                  if (enrichResp.ok) {
+                    const enrichData = await enrichResp.json();
+                    email = enrichData.person?.email || email;
+                    phone = phone || enrichData.person?.phone_numbers?.[0]?.sanitized_number;
+                  }
+                } catch (_) {}
+                await new Promise(r => setTimeout(r, 200));
+              }
+
+              const apolloPersonId = person.id || null;
+              const metadata = { title: person.title, industry: org.industry, apollo_org_id: org.id, domain, apollo_id: apolloPersonId };
+
+              const leadData = {
+                name: name || org.name || 'Unknown',
+                email: email || null,
+                phone: phone || org.phone || null,
+                company: org.name || null,
+                type: 'Provider',
+                source: 'Apollo',
+                location: [person.city, person.state].filter(Boolean).join(', ') || null,
+                status: email ? 'new' : 'email_unknown',
+                score: email ? 70 : 30,
+                metadata
+              };
+
+              // Try to include dedicated columns if they exist (graceful)
+              if (person.linkedin_url) leadData.linkedin_url = person.linkedin_url;
+              if (website) leadData.website = website;
+
+              // Upsert into outreach_leads: dedup by apollo_id (in metadata) or email
+              if (supabase) {
+                let existing = null;
+                if (apolloPersonId) {
+                  const { data: byMeta } = await supabase.from('outreach_leads').select('id, email').contains('metadata', { apollo_id: apolloPersonId }).maybeSingle();
+                  existing = byMeta;
+                }
+                if (!existing && email) {
+                  const { data: byEmail } = await supabase.from('outreach_leads').select('id, email').eq('email', email).maybeSingle();
+                  existing = byEmail;
+                }
+                if (!existing) {
+                  const { error: insertErr } = await supabase.from('outreach_leads').insert(leadData);
+                  if (insertErr) {
+                    // Retry without optional columns if they don't exist yet
+                    const safeData = { name: leadData.name, email: leadData.email, phone: leadData.phone, company: leadData.company, type: leadData.type, source: leadData.source, location: leadData.location, status: leadData.status, score: leadData.score, metadata };
+                    await supabase.from('outreach_leads').insert(safeData);
+                  }
+                } else if (email && !existing.email) {
+                  await supabase.from('outreach_leads').update({ email, phone: phone || undefined, status: 'new', score: 70 }).eq('id', existing.id);
+                }
+              }
+
+              results.push({ name: leadData.name, email: email || null, company: leadData.company, title: person.title, location: leadData.location, has_email: !!email });
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: true,
+              found: people.length,
+              with_email: results.filter(r => r.has_email).length,
+              added: results.length,
+              pagination: searchData.pagination || {},
+              results
+            }));
+          } catch (err) {
+            console.error('[Apollo] Search error:', err.message);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+
+      // POST /api/admin/apollo/enrich — enrich existing email-less leads via Apollo people/match
+      if (req.method === 'POST' && req.url === '/api/admin/apollo/enrich') {
+        let body = '';
+        req.on('data', c => { body += c; });
+        req.on('end', async () => {
+          try {
+            const { limit = 10 } = JSON.parse(body || '{}');
+            const supabase = getSupabaseClient();
+            if (!supabase) throw new Error('Database not configured');
+
+            // Fetch leads without emails that have a company name or website
+            const { data: leads } = await supabase
+              .from('outreach_leads')
+              .select('id, name, email, company, website, phone, location, linkedin_url, apollo_id')
+              .is('email', null)
+              .not('company', 'is', null)
+              .neq('status', 'unsubscribed')
+              .neq('status', 'bounced')
+              .order('score', { ascending: false })
+              .limit(Math.min(limit, 25));
+
+            let enriched = 0;
+            let failed = 0;
+            const details = [];
+
+            for (const lead of (leads || [])) {
+              try {
+                const domain = lead.website ? lead.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : null;
+                const enrichPayload = { reveal_personal_emails: true };
+                if (lead.apollo_id) enrichPayload.id = lead.apollo_id;
+                if (lead.name) enrichPayload.name = lead.name;
+                if (lead.company) enrichPayload.organization_name = lead.company;
+                if (domain) enrichPayload.domain = domain;
+                if (lead.linkedin_url) enrichPayload.linkedin_url = lead.linkedin_url;
+
+                const enrichResp = await fetch('https://api.apollo.io/api/v1/people/match', {
+                  method: 'POST',
+                  headers: apolloHeaders,
+                  body: JSON.stringify(enrichPayload)
+                });
+
+                if (enrichResp.ok) {
+                  const enrichData = await enrichResp.json();
+                  const email = enrichData.person?.email;
+                  const phone = enrichData.person?.phone_numbers?.[0]?.sanitized_number;
+                  const apolloId = enrichData.person?.id;
+
+                  if (email) {
+                    await supabase.from('outreach_leads').update({
+                      email,
+                      phone: phone || lead.phone || null,
+                      apollo_id: apolloId || lead.apollo_id || null,
+                      status: 'new',
+                      score: 75
+                    }).eq('id', lead.id);
+                    enriched++;
+                    details.push({ lead: lead.name || lead.company, email, status: 'enriched' });
+                  } else {
+                    failed++;
+                    details.push({ lead: lead.name || lead.company, status: 'no_email_found' });
+                  }
+                } else {
+                  failed++;
+                  details.push({ lead: lead.name || lead.company, status: 'api_error' });
+                }
+
+                await new Promise(r => setTimeout(r, 300));
+              } catch (leadErr) {
+                failed++;
+                details.push({ lead: lead.name || lead.company, status: 'error', error: leadErr.message });
+              }
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, total: (leads || []).length, enriched, failed, details }));
+          } catch (err) {
+            console.error('[Apollo] Enrich error:', err.message);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unknown Apollo endpoint' }));
+    });
+  }
+
   // ========== AI OPS ENDPOINTS ==========
 
   if (req.url.startsWith('/api/admin/ai-ops')) {

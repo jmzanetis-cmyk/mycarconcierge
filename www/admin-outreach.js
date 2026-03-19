@@ -252,6 +252,7 @@
       case 'campaigns': await loadCampaigns(); break;
       case 'analytics': await loadAnalytics(); break;
       case 'instantly': await loadInstantlyCampaigns(); break;
+      case 'apollo': await loadApolloStatus(); break;
     }
   }
 
@@ -1302,6 +1303,188 @@
   window.clearAndRedraft = clearAndRedraft;
   window.runCycleNow = runCycleNow;
   window.toggleOutreachEngine = toggleOutreachEngine;
+  // ========== APOLLO.IO ==========
+
+  async function loadApolloStatus() {
+    const bar = document.getElementById('apollo-status-bar');
+    if (!bar) return;
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/status', { headers: { 'x-admin-password': adminPassword } });
+      const data = await resp.json();
+      if (!resp.ok || data.error) {
+        bar.innerHTML = `<span style="color:var(--error);font-size:0.88rem;">⚠️ ${data.error || 'Apollo API error'}</span><button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Retry</button>`;
+        return;
+      }
+      const minute = data.minute_requests_left !== undefined ? `<span style="margin-right:16px;"><strong>${data.minute_requests_left ?? '—'}</strong> <span style="color:var(--text-muted)">req/min left</span></span>` : '';
+      const hour = data.hour_requests_left !== undefined ? `<span style="margin-right:16px;"><strong>${data.hour_requests_left ?? '—'}</strong> <span style="color:var(--text-muted)">req/hr left</span></span>` : '';
+      const day = data.day_requests_left !== undefined ? `<span style="margin-right:16px;"><strong>${data.day_requests_left ?? '—'}</strong> <span style="color:var(--text-muted)">req/day left</span></span>` : '';
+      const credits = data.credits !== undefined ? `<span style="margin-right:16px;"><strong>${data.credits ?? '—'}</strong> <span style="color:var(--text-muted)">export credits</span></span>` : '';
+      bar.innerHTML = `
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+          <span style="margin-right:12px;font-weight:700;color:var(--success);">✓ Apollo Connected</span>
+          ${minute}${hour}${day}${credits}
+        </div>
+        <button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>`;
+    } catch (e) {
+      bar.innerHTML = `<span style="color:var(--error);font-size:0.88rem;">⚠️ Could not reach Apollo API</span><button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Retry</button>`;
+    }
+  }
+
+  async function apolloSearch() {
+    const btn = document.getElementById('apollo-search-btn');
+    const resultEl = document.getElementById('apollo-search-result');
+    const listEl = document.getElementById('apollo-results-list');
+    const countEl = document.getElementById('apollo-results-count');
+
+    const citiesRaw = document.getElementById('apollo-cities')?.value || '';
+    const cities = citiesRaw.split('\n').map(s => s.trim()).filter(Boolean);
+    const titlesRaw = document.getElementById('apollo-titles')?.value || '';
+    const titles = titlesRaw.split(',').map(s => s.trim()).filter(Boolean);
+    const industriesRaw = document.getElementById('apollo-industries')?.value || '';
+    const industries = industriesRaw.split(',').map(s => s.trim()).filter(Boolean);
+    const per_page = parseInt(document.getElementById('apollo-per-page')?.value || '25');
+    const page = parseInt(document.getElementById('apollo-page')?.value || '1');
+    const enrich = document.getElementById('apollo-enrich')?.checked || false;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span style="opacity:0.7">Searching Apollo...</span>';
+    resultEl.style.display = 'none';
+    listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">Searching Apollo database...</div>';
+
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify({ cities, titles, industries, per_page, page, enrich })
+      });
+      const data = await resp.json();
+
+      if (!resp.ok || data.error) {
+        listEl.innerHTML = `<div style="padding:20px;color:var(--error);text-align:center;">${data.error || 'Search failed'}</div>`;
+        return;
+      }
+
+      const withEmail = data.results.filter(r => r.has_email);
+      resultEl.style.display = 'block';
+      resultEl.style.background = 'var(--bg-elevated)';
+      resultEl.style.border = '1px solid var(--border-subtle)';
+      resultEl.innerHTML = `
+        <div style="display:flex;gap:20px;flex-wrap:wrap;">
+          <span>Found: <strong>${data.found}</strong></span>
+          <span style="color:var(--success);">With email: <strong>${data.with_email}</strong></span>
+          <span style="color:var(--text-muted);">Added to leads: <strong>${data.added}</strong></span>
+          ${data.pagination?.total_entries ? `<span style="color:var(--text-muted);">Total available: <strong>${data.pagination.total_entries.toLocaleString()}</strong></span>` : ''}
+        </div>`;
+
+      countEl.textContent = `${data.results.length} results`;
+
+      if (data.results.length === 0) {
+        listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">No results found. Try different cities or titles.</div>';
+      } else {
+        listEl.innerHTML = `
+          <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border-subtle);text-align:left;">
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Name</th>
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Title</th>
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Company</th>
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Location</th>
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.results.map(r => `
+                <tr style="border-bottom:1px solid var(--border-subtle);">
+                  <td style="padding:10px 12px;">${r.name || '<span style="color:var(--text-muted)">—</span>'}</td>
+                  <td style="padding:10px 12px;color:var(--text-secondary);">${r.title || '—'}</td>
+                  <td style="padding:10px 12px;">${r.company || '—'}</td>
+                  <td style="padding:10px 12px;color:var(--text-secondary);">${r.location || '—'}</td>
+                  <td style="padding:10px 12px;">${r.has_email ? `<span style="color:var(--success);font-weight:600;">${r.email}</span>` : '<span style="color:var(--text-muted);font-size:0.82rem;">Needs enrichment</span>'}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`;
+      }
+    } catch (e) {
+      listEl.innerHTML = `<div style="padding:20px;color:var(--error);text-align:center;">Error: ${e.message}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="icon-inline" data-icon="search"></span> Search Apollo';
+      if (typeof initInlineIcons !== 'undefined') initInlineIcons(document.getElementById('apollo-search-btn'));
+    }
+  }
+
+  async function checkApolloEnrichQueue() {
+    const statsEl = document.getElementById('apollo-enrich-stats');
+    if (!statsEl) return;
+    statsEl.innerHTML = 'Checking...';
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/outreach/leads?per_page=1&no_email=true', { headers: { 'x-admin-password': adminPassword } });
+      const data = await resp.json();
+      const count = data.total || data.count || (Array.isArray(data) ? data.length : 0);
+      statsEl.innerHTML = `<span style="font-size:1rem;font-weight:700;color:var(--accent-gold);">${count.toLocaleString()}</span> leads without email addresses — ready to enrich via Apollo.`;
+    } catch (e) {
+      statsEl.innerHTML = `<span style="color:var(--error);">Error checking queue: ${e.message}</span>`;
+    }
+  }
+
+  async function apolloEnrich() {
+    const btn = document.getElementById('apollo-enrich-btn');
+    const resultEl = document.getElementById('apollo-enrich-result');
+    const limit = parseInt(document.getElementById('apollo-enrich-limit')?.value || '10');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span style="opacity:0.7">Enriching leads...</span>';
+    resultEl.style.display = 'none';
+
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify({ limit })
+      });
+      const data = await resp.json();
+
+      resultEl.style.display = 'block';
+      if (!resp.ok || data.error) {
+        resultEl.style.background = 'rgba(239,68,68,0.1)';
+        resultEl.innerHTML = `<span style="color:var(--error);">Error: ${data.error}</span>`;
+        return;
+      }
+
+      resultEl.style.background = 'var(--bg-elevated)';
+      resultEl.style.border = '1px solid var(--border-subtle)';
+      resultEl.innerHTML = `
+        <div style="margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap;">
+          <span>Processed: <strong>${data.total}</strong></span>
+          <span style="color:var(--success);">Enriched: <strong>${data.enriched}</strong></span>
+          <span style="color:var(--text-muted);">No match: <strong>${data.failed}</strong></span>
+        </div>
+        ${data.details?.length ? `<div style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;">
+          ${data.details.map(d => `<div style="display:flex;gap:8px;align-items:center;"><span style="color:${d.status==='enriched'?'var(--success)':'var(--text-muted)'};">●</span><span>${d.lead}</span>${d.email?`<span style="color:var(--success);margin-left:auto;font-size:0.82rem;">${d.email}</span>`:''}</div>`).join('')}
+        </div>` : ''}`;
+
+      if (data.enriched > 0 && typeof showToast !== 'undefined') showToast(`Enriched ${data.enriched} leads with verified emails!`, 'success');
+      await checkApolloEnrichQueue();
+    } catch (e) {
+      resultEl.style.display = 'block';
+      resultEl.style.background = 'rgba(239,68,68,0.1)';
+      resultEl.innerHTML = `<span style="color:var(--error);">Error: ${e.message}</span>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Enrich Leads Now';
+      if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn);
+    }
+  }
+
+  window.loadApolloStatus = loadApolloStatus;
+  window.apolloSearch = apolloSearch;
+  window.checkApolloEnrichQueue = checkApolloEnrichQueue;
+  window.apolloEnrich = apolloEnrich;
+
   window.runManualCycle = runManualCycle;
   window.showEngineSettings = showEngineSettings;
   window.saveEngineSettings = saveEngineSettings;

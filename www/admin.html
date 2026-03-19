@@ -1041,6 +1041,7 @@
               <button class="btn btn-sm outreach-tab" data-tab="import" onclick="switchOutreachTab('import')"><span class="icon-inline" data-icon="download"></span> Import</button>
               <button class="btn btn-sm outreach-tab" data-tab="analytics" onclick="switchOutreachTab('analytics')"><span class="icon-inline" data-icon="bar-chart"></span> Analytics</button>
               <button class="btn btn-sm outreach-tab" data-tab="instantly" onclick="switchOutreachTab('instantly')"><span class="icon-inline" data-icon="send"></span> Instantly.ai</button>
+              <button class="btn btn-sm outreach-tab" data-tab="apollo" onclick="switchOutreachTab('apollo')"><span class="icon-inline" data-icon="search"></span> Apollo.io</button>
             </div>
           </div>
 
@@ -1170,6 +1171,90 @@
               </div>
             </div>
           </div>
+
+          <div id="outreach-apollo" class="outreach-panel" style="display:none;">
+            <div id="apollo-status-bar" style="margin-bottom:16px;padding:12px 16px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+              <span style="font-size:0.88rem;color:var(--text-muted);">Loading Apollo status...</span>
+              <button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh Status</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+              <div class="card">
+                <div class="card-header"><h2 class="card-title"><span class="icon-inline" data-icon="search"></span> Discover New Leads</h2></div>
+                <div style="display:flex;flex-direction:column;gap:14px;padding:4px 0;">
+                  <p style="color:var(--text-secondary);font-size:0.88rem;">Search Apollo's database of 220M+ contacts for auto shop owners and managers in your target markets.</p>
+                  <div>
+                    <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.9rem;">Target Cities <span style="color:var(--text-muted);font-weight:400;">(one per line)</span></label>
+                    <textarea id="apollo-cities" class="form-input" style="width:100%;min-height:90px;font-size:0.88rem;" placeholder="New York, New York, United States&#10;Newark, New Jersey, United States&#10;Jersey City, New Jersey, United States"></textarea>
+                  </div>
+                  <div>
+                    <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.9rem;">Job Titles</label>
+                    <input type="text" id="apollo-titles" class="form-input" style="width:100%;" value="owner, co-owner, founder, president, ceo, manager, operator" placeholder="owner, manager, president...">
+                  </div>
+                  <div>
+                    <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.9rem;">Industry Keywords</label>
+                    <input type="text" id="apollo-industries" class="form-input" style="width:100%;" value="auto repair, automotive" placeholder="auto repair, automotive...">
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div>
+                      <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.9rem;">Results Per Page</label>
+                      <select id="apollo-per-page" class="form-input" style="width:100%;">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.9rem;">Page</label>
+                      <input type="number" id="apollo-page" class="form-input" style="width:100%;" value="1" min="1">
+                    </div>
+                  </div>
+                  <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-sm);">
+                    <input type="checkbox" id="apollo-enrich" style="width:16px;height:16px;">
+                    <span style="font-size:0.9rem;"><strong>Auto-enrich emails</strong> <span style="color:var(--text-muted);font-size:0.82rem;">(uses export credits)</span></span>
+                  </label>
+                  <button class="btn btn-primary" id="apollo-search-btn" onclick="apolloSearch()" style="width:100%;">
+                    <span class="icon-inline" data-icon="search"></span> Search Apollo
+                  </button>
+                  <div id="apollo-search-result" style="display:none;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);font-size:0.88rem;"></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header"><h2 class="card-title"><span class="icon-inline" data-icon="zap"></span> Enrich Existing Leads</h2></div>
+                <div style="display:flex;flex-direction:column;gap:14px;padding:4px 0;">
+                  <p style="color:var(--text-secondary);font-size:0.88rem;">Find verified email addresses for existing leads that were discovered without contact info (e.g., from Google Places).</p>
+                  <div style="padding:14px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                    <div id="apollo-enrich-stats" style="color:var(--text-muted);font-size:0.88rem;">Click "Check Queue" to see how many leads need enrichment.</div>
+                  </div>
+                  <div>
+                    <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.9rem;">Batch Size <span style="color:var(--text-muted);font-weight:400;">(leads per run)</span></label>
+                    <select id="apollo-enrich-limit" class="form-input" style="width:100%;">
+                      <option value="5">5 leads</option>
+                      <option value="10" selected>10 leads</option>
+                      <option value="25">25 leads</option>
+                    </select>
+                  </div>
+                  <button class="btn btn-sm" onclick="checkApolloEnrichQueue()" style="width:100%;">
+                    <span class="icon-inline" data-icon="list"></span> Check Queue
+                  </button>
+                  <button class="btn btn-primary" id="apollo-enrich-btn" onclick="apolloEnrich()" style="width:100%;background:var(--accent-teal,var(--accent-blue));">
+                    <span class="icon-inline" data-icon="zap"></span> Enrich Leads Now
+                  </button>
+                  <div id="apollo-enrich-result" style="display:none;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);font-size:0.88rem;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="margin-top:20px;">
+              <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <h2 class="card-title"><span class="icon-inline" data-icon="list"></span> Search Results</h2>
+                <span id="apollo-results-count" style="font-size:0.85rem;color:var(--text-muted);"></span>
+              </div>
+              <div id="apollo-results-list" style="min-height:80px;">
+                <p style="color:var(--text-muted);text-align:center;padding:30px;font-size:0.9rem;">Run a search above to see results here. Contacts with emails are automatically added to your outreach leads.</p>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
