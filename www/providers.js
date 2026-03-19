@@ -5476,75 +5476,110 @@
 
     // ========== BACKGROUND CHECKS ==========
     async function loadBackgroundCheckStatus() {
-      const container = document.getElementById('bg-check-status-container');
-      if (!container) return;
+      const providerContainer = document.getElementById('provider-check-content');
+      const teamContainer = document.getElementById('team-checks-list');
+      const legacyContainer = document.getElementById('bg-check-status-container');
 
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        const headers = session?.access_token 
-          ? { 'Authorization': `Bearer ${session.access_token}` } 
+        const headers = session?.access_token
+          ? { 'Authorization': `Bearer ${session.access_token}` }
           : {};
-        
-        const response = await fetch(`/api/background-check-status?provider_id=${currentUser.id}`, { headers });
-        if (!response.ok) {
-          throw new Error('Failed to fetch background check status');
-        }
+
+        const response = await fetch(`/api/bgcheck/status/${currentUser.id}`, { headers });
+        if (!response.ok) throw new Error('Failed to fetch background check status');
         const data = await response.json();
 
-        if (!data.checks || data.checks.length === 0) {
-          container.innerHTML = `
-            <div style="text-align:center;padding:20px;color:var(--text-muted);">
-              <div style="font-size:2rem;margin-bottom:12px;">${mccIcon('clipboard-list', 32)}</div>
-              <p>No background checks on file</p>
-              <p style="font-size:0.85rem;">Initiate a background check to verify your credentials</p>
-            </div>
-          `;
-          return;
+        function statusBadge(status) {
+          const map = {
+            initiated: ['var(--text-muted)', 'Initiated'],
+            pending: ['var(--accent-gold)', 'Pending'],
+            processing: ['var(--accent-blue)', 'Processing'],
+            invitation_sent: ['var(--accent-blue)', 'Invite Sent'],
+            invitation_expired: ['var(--error)', 'Invite Expired'],
+            eligible: ['var(--success)', 'Cleared'],
+            clear: ['var(--success)', 'Cleared'],
+            needs_review: ['var(--warning)', 'Needs Review'],
+            suspended: ['var(--error)', 'Suspended'],
+            canceled: ['var(--text-muted)', 'Canceled'],
+            not_eligible: ['var(--error)', 'Not Eligible'],
+            disputed: ['var(--warning)', 'Disputed'],
+            complete: ['var(--success)', 'Complete']
+          };
+          const [color, label] = map[status] || ['var(--text-muted)', status || 'Unknown'];
+          return `<span style="font-size:0.78rem;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.05em;">${label}</span>`;
         }
 
-        container.innerHTML = data.checks.map(check => {
-          const statusColors = {
-            'pending': 'var(--accent-gold)',
-            'clear': 'var(--success)',
-            'consider': 'var(--warning)',
-            'suspended': 'var(--error)',
-            'dispute': 'var(--accent-blue)'
-          };
-          const statusIcons = {
-            'pending': '⏳',
-            'clear': '✅',
-            'consider': '⚠️',
-            'suspended': mccIcon('x', 16),
-            'dispute': mccIcon('file-text', 16)
-          };
-          const statusColor = statusColors[check.status] || 'var(--text-muted)';
-          const statusIcon = statusIcons[check.status] || mccIcon('clipboard-list', 16);
-          const checkDate = new Date(check.created_at).toLocaleDateString();
+        function renderCheck(check) {
+          const checkDate = check.created_at ? new Date(check.created_at).toLocaleDateString() : '—';
+          const cleared = check.status === 'eligible' || check.status === 'clear' || check.status === 'complete';
+          const borderColor = cleared ? 'var(--success)' : (check.status === 'needs_review' || check.status === 'not_eligible') ? 'var(--error)' : 'var(--border-subtle)';
 
-          return `
-            <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:16px;margin-bottom:12px;border-left:3px solid ${statusColor};">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <div style="font-weight:600;">${statusIcon} ${check.subject_type === 'employee' ? 'Employee: ' + (check.team_member_name || 'Team Member') : 'Provider Check'}</div>
-                <span style="font-size:0.85rem;color:${statusColor};text-transform:uppercase;">${check.status}</span>
+          return `<div style="background:var(--bg-input);border-radius:var(--radius-md);padding:16px;margin-bottom:12px;border-left:3px solid ${borderColor};">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:600;font-size:0.95rem;margin-bottom:4px;">
+                  ${check.subject_first_name || ''} ${check.subject_last_name || ''}
+                  ${check.subject_type === 'employee' ? '<span style="font-size:0.75rem;background:var(--accent-gold-soft);color:var(--accent-gold);padding:2px 7px;border-radius:20px;margin-left:6px;">Employee</span>' : ''}
+                </div>
+                <div style="font-size:0.82rem;color:var(--text-muted);">${check.subject_email || ''}</div>
               </div>
-              <div style="font-size:0.85rem;color:var(--text-muted);">
-                <div>Package: Standard + MVR</div>
-                <div>Initiated: ${checkDate}</div>
-                ${check.completed_at ? `<div>Completed: ${new Date(check.completed_at).toLocaleDateString()}</div>` : ''}
-              </div>
+              ${statusBadge(check.status)}
             </div>
-          `;
-        }).join('');
+            <div style="font-size:0.82rem;color:var(--text-muted);margin-top:10px;display:flex;flex-wrap:wrap;gap:12px;">
+              <span>Package: Standard Criminal + MVR</span>
+              <span>Initiated: ${checkDate}</span>
+              ${check.completed_at ? `<span>Completed: ${new Date(check.completed_at).toLocaleDateString()}</span>` : ''}
+            </div>
+            ${check.invitation_url ? `<div style="margin-top:10px;"><a href="${check.invitation_url}" target="_blank" class="btn btn-secondary btn-sm">${mccIcon('external-link', 14)} Applicant Portal</a></div>` : ''}
+            ${check.report_widget_url && (cleared || check.status === 'needs_review') ? `<div style="margin-top:10px;"><button class="btn btn-primary btn-sm" onclick="openBgCheckReportWidget('${check.report_widget_url}')">${mccIcon('file-text', 14)} View Report</button></div>` : ''}
+          </div>`;
+        }
+
+        const empty = `<div class="empty-state" style="padding:24px 0;"><div class="empty-state-icon">${mccIcon('shield', 40)}</div><p>No background checks on file yet.</p><p style="font-size:0.85rem;">Use the button above to initiate a check.</p></div>`;
+
+        if (providerContainer) {
+          providerContainer.innerHTML = data.providerCheck ? renderCheck(data.providerCheck) : empty;
+        }
+        if (teamContainer) {
+          teamContainer.innerHTML = data.employeeChecks?.length
+            ? data.employeeChecks.map(renderCheck).join('')
+            : empty;
+        }
+        if (legacyContainer) {
+          const all = [data.providerCheck, ...(data.employeeChecks || [])].filter(Boolean);
+          legacyContainer.innerHTML = all.length ? all.map(renderCheck).join('') : empty;
+        }
+
+        if (!data.apiConfigured) {
+          const notice = document.createElement('div');
+          notice.style.cssText = 'font-size:0.8rem;color:var(--text-muted);padding:8px 12px;background:var(--bg-input);border-radius:var(--radius-sm);margin-top:8px;';
+          notice.innerHTML = `${mccIcon('info', 14)} BackgroundChecks.com API not yet configured — requests are saved and will be processed once activated.`;
+          if (providerContainer) providerContainer.appendChild(notice);
+        }
+
       } catch (err) {
         console.error('Error loading background check status:', err);
-        container.innerHTML = `
-          <div style="text-align:center;padding:20px;color:var(--text-muted);">
-            <div style="font-size:2rem;margin-bottom:12px;">${mccIcon('clipboard-list', 32)}</div>
-            <p>Background check status unavailable</p>
-            <p style="font-size:0.85rem;">Please try again later</p>
-          </div>
-        `;
+        const fallbackHtml = `<div style="text-align:center;padding:20px;color:var(--text-muted);">${mccIcon('clipboard-list', 32)}<p>Status unavailable. Please try again later.</p></div>`;
+        if (providerContainer) providerContainer.innerHTML = fallbackHtml;
+        if (teamContainer) teamContainer.innerHTML = fallbackHtml;
+        if (legacyContainer) legacyContainer.innerHTML = fallbackHtml;
       }
+    }
+
+    function openBgCheckReportWidget(widgetUrl) {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:16px;';
+      modal.innerHTML = `
+        <div style="background:var(--bg-card);border-radius:var(--radius-lg);width:100%;max-width:900px;height:80vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border-subtle);">
+          <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border-subtle);">
+            <span style="font-weight:700;">${mccIcon('file-text', 18)} Background Check Report</span>
+            <button onclick="this.closest('[style]').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.5rem;line-height:1;">&times;</button>
+          </div>
+          <iframe src="${widgetUrl}" style="flex:1;border:none;width:100%;" title="Background Check Report"></iframe>
+          <div style="padding:10px 20px;font-size:0.78rem;color:var(--text-muted);border-top:1px solid var(--border-subtle);">Powered by BackgroundChecks.com &middot; FCRA-compliant</div>
+        </div>`;
+      document.body.appendChild(modal);
     }
 
     function openBackgroundCheckModal() {
@@ -5596,15 +5631,27 @@
       }
 
       try {
-        const response = await fetch('/api/initiate-background-check', {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const authHeaders = { 'Content-Type': 'application/json' };
+        if (session?.access_token) authHeaders['Authorization'] = `Bearer ${session.access_token}`;
+
+        const teamMember = teamMemberId ? teamMembers?.find(m => m.id === teamMemberId) : null;
+        const [firstName, ...lastParts] = (teamMember?.name || `${currentUser.user_metadata?.first_name || ''} ${currentUser.user_metadata?.last_name || ''}`.trim() || email.split('@')[0]).split(' ');
+        const lastName = lastParts.join(' ') || firstName;
+
+        const response = await fetch('/api/bgcheck/initiate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders,
           body: JSON.stringify({
-            provider_id: currentUser.id,
-            subject_type: type,
-            team_member_id: type === 'employee' ? teamMemberId : null,
+            providerId: currentUser.id,
+            subjectType: type,
+            employeeId: type === 'employee' ? teamMemberId : null,
             email: email,
-            package_type: 'standard_mvr'
+            firstName: firstName || 'Unknown',
+            lastName: lastName || 'Unknown',
+            state: currentUser.user_metadata?.state || 'FL',
+            providerEmail: currentUser.email,
+            providerName: currentUser.user_metadata?.business_name || currentUser.user_metadata?.full_name || currentUser.email
           })
         });
 
@@ -5614,7 +5661,11 @@
           throw new Error(data.error || 'Failed to initiate background check');
         }
 
-        showToast('Background check initiated! An invitation has been sent.', 'success');
+        if (data.applicantUrl) {
+          showToast('Background check initiated! Invitation sent — subject will receive an email to complete it.', 'success');
+        } else {
+          showToast('Background check request submitted. You will be notified when it is processed.', 'success');
+        }
         closeModal('background-check-modal');
         await loadBackgroundCheckStatus();
       } catch (err) {

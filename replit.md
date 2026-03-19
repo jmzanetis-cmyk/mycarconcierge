@@ -77,3 +77,4 @@ Key architectural patterns and features include:
 - **HubSpot**: CRM integration.
 - **Google Places API**: Used by AI Outreach Engine for provider discovery and contact enrichment.
 - **Instantly.ai**: Cold email outreach platform for campaign delivery, warmup, A/B testing, and deliverability, integrating with the Outreach Engine via API v2.
+- **BackgroundChecks.com**: Platform integration for provider and employee background screening (criminal check + MVR). MCC acts as a platform customer; providers get sub-accounts; employees receive applicant portal links. Requires `BACKGROUNDCHECKS_TOKEN` and optionally `BACKGROUNDCHECKS_ENV` (sandbox|production). Report viewing uses BackgroundChecks Connect Widget embedded in-app. API routes: `POST /api/bgcheck/initiate`, `GET /api/bgcheck/status/:providerId`, `GET /api/bgcheck/report-url/:checkId`, `POST /webhook/bgcheck`.

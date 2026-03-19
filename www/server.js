@@ -18467,50 +18467,95 @@ async function recalculateBackgroundVerified(supabase, providerId) {
   }
 }
 
-// ========== CHECKR BACKGROUND CHECK API ==========
+// ========== BACKGROUNDCHECKS.COM API ==========
+// Platform Integration: MCC is the platform, providers are customers,
+// their employees are the background check subjects.
+// Docs: https://backgroundchecks.com/developers/api
+// Auth: BACKGROUNDCHECKS_TOKEN env var (api_token query param)
+// Set BACKGROUNDCHECKS_ENV=production for live checks (default: sandbox)
 
-const CHECKR_API_URL = process.env.CHECKR_ENVIRONMENT === 'production' 
-  ? 'https://api.checkr.com/v1/' 
-  : 'https://api.checkr-staging.com/v1/';
-
-function getCheckrAuthHeader() {
-  const apiKey = process.env.CHECKR_API_KEY;
-  if (!apiKey) return null;
-  return 'Basic ' + Buffer.from(apiKey + ':').toString('base64');
+function getBgChecksBaseUrl() {
+  const env = process.env.BACKGROUNDCHECKS_ENV || 'sandbox';
+  return env === 'production'
+    ? 'https://www.backgroundchecks.com'
+    : 'https://sandbox.backgroundchecks.com';
 }
 
-async function checkrApiRequest(endpoint, method = 'GET', body = null) {
-  const authHeader = getCheckrAuthHeader();
-  if (!authHeader) {
-    throw new Error('CHECKR_API_KEY not configured');
+function getBgChecksToken() {
+  return process.env.BACKGROUNDCHECKS_TOKEN || null;
+}
+
+async function bgChecksRequest(endpoint, method = 'GET', body = null) {
+  const token = getBgChecksToken();
+  if (!token) {
+    throw new Error('BACKGROUNDCHECKS_TOKEN not configured');
   }
+
+  const baseUrl = getBgChecksBaseUrl();
+  const sep = endpoint.includes('?') ? '&' : '?';
+  const url = `${baseUrl}/api/fact_token/${token}/${endpoint}${sep}app_token=${token}`;
 
   const options = {
     method,
-    headers: {
-      'Authorization': authHeader,
-      'Content-Type': 'application/json'
-    }
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
   };
 
   if (body && method !== 'GET') {
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetch(CHECKR_API_URL + endpoint, options);
-  const data = await response.json();
+  const response = await fetch(url, options);
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
 
   if (!response.ok) {
-    throw new Error(data.error || `Checkr API error: ${response.status}`);
+    throw new Error(data.message || data.error || `BackgroundChecks.com API error: ${response.status}`);
   }
 
   return data;
 }
 
-async function handleCheckrInitiate(req, res, requestId) {
+// Ensure the provider has a BackgroundChecks.com customer account.
+// Stores the account_id in provider_background_check_accounts table (or returns cached).
+async function ensureBgChecksAccount(supabase, providerId, providerEmail, providerName) {
+  const { data: existing } = await supabase
+    .from('provider_background_check_accounts')
+    .select('bgchecks_account_id')
+    .eq('provider_id', providerId)
+    .single();
+
+  if (existing?.bgchecks_account_id) {
+    return existing.bgchecks_account_id;
+  }
+
+  const accountData = await bgChecksRequest('platform/accounts', 'POST', {
+    email: providerEmail,
+    name: providerName,
+    external_id: `mcc_provider_${providerId}`
+  });
+
+  const accountId = accountData.id || accountData.account_id;
+  if (!accountId) {
+    throw new Error('BackgroundChecks.com did not return an account ID');
+  }
+
+  await supabase.from('provider_background_check_accounts').upsert({
+    provider_id: providerId,
+    bgchecks_account_id: accountId,
+    created_at: new Date().toISOString()
+  }, { onConflict: 'provider_id' });
+
+  return accountId;
+}
+
+async function handleBgChecksInitiate(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
-  
+
   const user = await enforce2fa(req, res, requestId);
   if (!user) return;
 
@@ -18520,7 +18565,7 @@ async function handleCheckrInitiate(req, res, requestId) {
   req.on('end', async () => {
     try {
       const parsed = JSON.parse(body);
-      const { providerId, firstName, lastName, email, phone, city, state, zipcode, subjectType, employeeId } = parsed;
+      const { providerId, firstName, lastName, email, phone, city, state, zipcode, subjectType, employeeId, providerEmail, providerName } = parsed;
 
       if (!providerId || !firstName || !lastName || !email || !state) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -18535,9 +18580,9 @@ async function handleCheckrInitiate(req, res, requestId) {
         return;
       }
 
-      // Check if Checkr API key is configured
-      if (!process.env.CHECKR_API_KEY) {
-        // Store the request but don't send to Checkr yet
+      const apiToken = getBgChecksToken();
+
+      if (!apiToken) {
         const { data: bgCheck, error: insertError } = await supabase
           .from('provider_background_checks')
           .insert({
@@ -18546,11 +18591,12 @@ async function handleCheckrInitiate(req, res, requestId) {
             subject_first_name: firstName,
             subject_last_name: lastName,
             subject_email: email,
-            subject_type: subjectType || 'provider',
+            subject_type: subjectType || 'employee',
             work_location_state: state,
             work_location_city: city || null,
             status: 'initiated',
-            package_slug: 'standard_package_with_mvr'
+            package_slug: 'standard_criminal_mvr',
+            api_provider: 'backgroundchecks'
           })
           .select()
           .single();
@@ -18558,99 +18604,98 @@ async function handleCheckrInitiate(req, res, requestId) {
         if (insertError) {
           console.error(`[${requestId}] Failed to store background check:`, insertError);
           res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Failed to initiate background check' }));
+          res.end(JSON.stringify({ error: 'Failed to save background check request' }));
           return;
         }
 
-        console.log(`[${requestId}] Background check initiated (pending API key): ${bgCheck.id}`);
+        console.log(`[${requestId}] Background check queued (BACKGROUNDCHECKS_TOKEN not set): ${bgCheck.id}`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-          success: true, 
+        res.end(JSON.stringify({
+          success: true,
           checkId: bgCheck.id,
           status: 'initiated',
-          message: 'Background check request saved. Checkr API integration pending configuration.'
+          message: 'Background check request saved. BackgroundChecks.com API key pending configuration.',
+          apiConfigured: false
         }));
         return;
       }
 
-      // Create candidate in Checkr
-      const candidateData = {
+      let bgchecksAccountId = null;
+      try {
+        bgchecksAccountId = await ensureBgChecksAccount(
+          supabase, providerId,
+          providerEmail || `provider_${providerId}@mcc.internal`,
+          providerName || `Provider ${providerId}`
+        );
+        console.log(`[${requestId}] BackgroundChecks.com account: ${bgchecksAccountId}`);
+      } catch (accErr) {
+        console.error(`[${requestId}] Failed to get/create BgChecks account:`, accErr);
+      }
+
+      const orderPayload = {
         first_name: firstName,
         last_name: lastName,
         email: email,
         phone: phone || undefined,
-        zipcode: zipcode || undefined,
-        custom_id: `${subjectType || 'provider'}_${providerId}${employeeId ? '_' + employeeId : ''}`,
-        copy_requested: true,
-        work_locations: [{
-          country: 'US',
-          state: state,
-          city: city || undefined
-        }]
+        zip: zipcode || undefined,
+        state: state,
+        city: city || undefined,
+        package: 'standard_criminal_mvr',
+        external_id: `mcc_${subjectType || 'employee'}_${providerId}${employeeId ? '_' + employeeId : ''}`,
+        copy_requested: true
       };
 
-      const candidate = await checkrApiRequest('candidates', 'POST', candidateData);
-      console.log(`[${requestId}] Created Checkr candidate: ${candidate.id}`);
+      const orderEndpoint = bgchecksAccountId
+        ? `platform/accounts/${bgchecksAccountId}/orders`
+        : 'orders';
 
-      // Create invitation
-      const invitationData = {
-        candidate_id: candidate.id,
-        package: 'standard_package_with_mvr',
-        work_locations: [{
-          country: 'US',
-          state: state,
-          city: city || undefined
-        }]
-      };
+      const order = await bgChecksRequest(orderEndpoint, 'POST', orderPayload);
+      console.log(`[${requestId}] BackgroundChecks.com order created: ${order.id}`);
 
-      const invitation = await checkrApiRequest('invitations', 'POST', invitationData);
-      console.log(`[${requestId}] Created Checkr invitation: ${invitation.id}`);
-
-      // Store in database
       const { data: bgCheck, error: insertError } = await supabase
         .from('provider_background_checks')
         .insert({
           provider_id: providerId,
           employee_id: employeeId || null,
-          checkr_candidate_id: candidate.id,
-          checkr_invitation_id: invitation.id,
-          invitation_url: invitation.invitation_url,
           subject_first_name: firstName,
           subject_last_name: lastName,
           subject_email: email,
-          subject_type: subjectType || 'provider',
+          subject_type: subjectType || 'employee',
           work_location_state: state,
           work_location_city: city || null,
-          status: 'invitation_sent',
-          invitation_sent_at: new Date().toISOString(),
-          package_slug: 'standard_package_with_mvr'
+          status: order.status || 'pending',
+          package_slug: 'standard_criminal_mvr',
+          api_provider: 'backgroundchecks',
+          external_order_id: order.id,
+          invitation_url: order.applicant_url || order.invitation_url || null,
+          invitation_sent_at: new Date().toISOString()
         })
         .select()
         .single();
 
       if (insertError) {
-        console.error(`[${requestId}] Failed to store background check:`, insertError);
+        console.error(`[${requestId}] Failed to store background check record:`, insertError);
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ 
-        success: true, 
+      res.end(JSON.stringify({
+        success: true,
         checkId: bgCheck?.id,
-        candidateId: candidate.id,
-        invitationId: invitation.id,
-        invitationUrl: invitation.invitation_url,
-        status: 'invitation_sent'
+        orderId: order.id,
+        status: order.status || 'pending',
+        applicantUrl: order.applicant_url || order.invitation_url || null,
+        apiConfigured: true
       }));
 
     } catch (error) {
-      console.error(`[${requestId}] Checkr initiate error:`, error);
+      console.error(`[${requestId}] BackgroundChecks initiate error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Failed to initiate background check. Please try again later.' }));
     }
   });
 }
 
-async function handleCheckrWebhook(req, res, requestId) {
+async function handleBgChecksWebhook(req, res, requestId) {
   setSecurityHeaders(res, true);
 
   const chunks = [];
@@ -18658,23 +18703,22 @@ async function handleCheckrWebhook(req, res, requestId) {
 
   req.on('end', async () => {
     const rawBody = Buffer.concat(chunks).toString();
-    
+
     try {
       const event = JSON.parse(rawBody);
-      
-      // Basic validation - ensure required fields exist
-      if (!event || !event.type) {
-        console.warn(`[${requestId}] Invalid Checkr webhook: missing type`);
+
+      if (!event || !event.event) {
+        console.warn(`[${requestId}] Invalid BackgroundChecks webhook: missing event`);
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid webhook payload' }));
         return;
       }
-      
-      const eventId = event.id;
-      const eventType = event.type;
-      const eventData = event.data?.object || {};
 
-      console.log(`[${requestId}] Received Checkr webhook: ${eventType}`);
+      const eventType = event.event;
+      const eventData = event.data || {};
+      const orderId = eventData.id || eventData.order_id;
+
+      console.log(`[${requestId}] BackgroundChecks.com webhook: ${eventType}, order: ${orderId}`);
 
       const supabase = getSupabaseClient();
       if (!supabase) {
@@ -18683,138 +18727,58 @@ async function handleCheckrWebhook(req, res, requestId) {
         return;
       }
 
-      // Store webhook event
-      await supabase.from('checkr_webhook_events').insert({
-        event_id: eventId,
-        event_type: eventType,
-        object_id: eventData.id,
-        object_type: eventData.object,
-        payload: event
-      });
-
-      // Process event based on type
       let updateData = {};
-      let lookupField = null;
-      let lookupValue = null;
 
       switch (eventType) {
-        case 'invitation.created':
-          lookupField = 'checkr_invitation_id';
-          lookupValue = eventData.id;
-          updateData = { status: 'invitation_sent', invitation_sent_at: new Date().toISOString() };
+        case 'order.created':
+        case 'order.pending':
+          updateData = { status: 'pending' };
           break;
-
-        case 'invitation.completed':
-          lookupField = 'checkr_invitation_id';
-          lookupValue = eventData.id;
-          updateData = { status: 'pending', invitation_completed_at: new Date().toISOString() };
-          break;
-
-        case 'invitation.expired':
-          lookupField = 'checkr_invitation_id';
-          lookupValue = eventData.id;
-          updateData = { status: 'invitation_expired' };
-          break;
-
-        case 'invitation.deleted':
-          lookupField = 'checkr_invitation_id';
-          lookupValue = eventData.id;
-          updateData = { status: 'canceled' };
-          break;
-
-        case 'report.created':
-          lookupField = 'checkr_candidate_id';
-          lookupValue = eventData.candidate_id;
-          updateData = { 
-            checkr_report_id: eventData.id,
-            status: 'processing',
-            report_created_at: new Date().toISOString(),
-            eta: eventData.eta || null
-          };
-          break;
-
-        case 'report.completed':
-          lookupField = 'checkr_report_id';
-          lookupValue = eventData.id;
-          const result = eventData.result;
-          const assessment = eventData.assessment;
-          let finalStatus = 'complete';
-          
-          if (assessment === 'eligible' || result === 'clear') {
-            finalStatus = eventData.includes_canceled ? 'clear' : 'eligible';
-          } else if (result === 'consider') {
-            finalStatus = 'needs_review';
-          }
-          
-          updateData = { 
-            status: finalStatus,
-            result: result,
-            assessment: assessment,
-            includes_canceled: eventData.includes_canceled || false,
-            completed_at: new Date().toISOString()
-          };
-          break;
-
-        case 'report.suspended':
-          lookupField = 'checkr_report_id';
-          lookupValue = eventData.id;
-          updateData = { status: 'suspended' };
-          break;
-
-        case 'report.resumed':
-          lookupField = 'checkr_report_id';
-          lookupValue = eventData.id;
+        case 'order.processing':
           updateData = { status: 'processing' };
           break;
-
-        case 'report.canceled':
-          lookupField = 'checkr_report_id';
-          lookupValue = eventData.id;
+        case 'order.complete':
+        case 'order.completed': {
+          const bgResult = eventData.result || eventData.status_detail;
+          let finalStatus = 'complete';
+          if (bgResult === 'clear' || bgResult === 'eligible') finalStatus = 'eligible';
+          else if (bgResult === 'consider' || bgResult === 'needs_review') finalStatus = 'needs_review';
+          else if (bgResult === 'suspended') finalStatus = 'suspended';
+          updateData = {
+            status: finalStatus,
+            result: bgResult || null,
+            completed_at: new Date().toISOString(),
+            report_url: eventData.report_url || eventData.report_widget_url || null
+          };
+          break;
+        }
+        case 'order.cancelled':
+        case 'order.canceled':
           updateData = { status: 'canceled' };
           break;
-
-        case 'report.engaged':
-          lookupField = 'checkr_report_id';
-          lookupValue = eventData.id;
-          updateData = { status: 'eligible', adjudication_status: 'engaged' };
-          break;
-
-        case 'report.pre_adverse_action':
-          lookupField = 'checkr_report_id';
-          lookupValue = eventData.id;
-          updateData = { adjudication_status: 'pre_adverse_action' };
-          break;
-
-        case 'report.post_adverse_action':
-          lookupField = 'checkr_report_id';
-          lookupValue = eventData.id;
-          updateData = { status: 'not_eligible', adjudication_status: 'post_adverse_action' };
-          break;
-
-        case 'report.disputed':
-          lookupField = 'checkr_report_id';
-          lookupValue = eventData.id;
+        case 'order.disputed':
           updateData = { status: 'disputed' };
+          break;
+        case 'order.adverse_action':
+          updateData = { status: 'not_eligible', adjudication_status: 'adverse_action' };
           break;
       }
 
-      // Update background check record
-      if (lookupField && lookupValue && Object.keys(updateData).length > 0) {
+      if (orderId && Object.keys(updateData).length > 0) {
         updateData.updated_at = new Date().toISOString();
-        
+
         const { data: updated, error: updateError } = await supabase
           .from('provider_background_checks')
           .update(updateData)
-          .eq(lookupField, lookupValue)
+          .eq('external_order_id', orderId)
           .select()
           .single();
 
         if (updateError) {
           console.error(`[${requestId}] Failed to update background check:`, updateError);
-        } else {
-          console.log(`[${requestId}] Updated background check ${updated.id} to status: ${updateData.status || 'unchanged'}`);
-          
-          // If cleared, update provider profile
+        } else if (updated) {
+          console.log(`[${requestId}] Updated background check ${updated.id} → ${updateData.status || 'unchanged'}`);
+
           if (updateData.status === 'eligible' || updateData.status === 'clear') {
             if (updated.subject_type === 'provider') {
               await supabase
@@ -18827,35 +18791,28 @@ async function handleCheckrWebhook(req, res, requestId) {
                 .eq('id', updated.provider_id);
             }
           }
-          
-          // Recalculate background verification badge status
+
           if (updated.provider_id) {
             await recalculateBackgroundVerified(supabase, updated.provider_id);
           }
         }
-
-        // Mark webhook as processed
-        await supabase
-          .from('checkr_webhook_events')
-          .update({ processed: true, processed_at: new Date().toISOString() })
-          .eq('event_id', eventId);
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ received: true }));
 
     } catch (error) {
-      console.error(`[${requestId}] Checkr webhook error:`, error);
+      console.error(`[${requestId}] BackgroundChecks webhook error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Webhook processing failed' }));
     }
   });
 }
 
-async function handleCheckrStatus(req, res, requestId, providerId) {
+async function handleBgChecksStatus(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
-  
+
   const user = await enforce2fa(req, res, requestId);
   if (!user) return;
 
@@ -18867,32 +18824,98 @@ async function handleCheckrStatus(req, res, requestId, providerId) {
       return;
     }
 
-    // Get all background checks for this provider
     const { data: checks, error } = await supabase
       .from('provider_background_checks')
       .select('*')
       .eq('provider_id', providerId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
-    const providerCheck = checks.find(c => c.subject_type === 'provider');
-    const employeeChecks = checks.filter(c => c.subject_type === 'employee');
+    const apiToken = getBgChecksToken();
+    const baseUrl = getBgChecksBaseUrl();
+
+    const enriched = (checks || []).map(c => ({
+      ...c,
+      report_widget_url: c.external_order_id && apiToken
+        ? `${baseUrl}/connect/report/${c.external_order_id}?app_token=${apiToken}`
+        : c.report_url || null,
+      api_configured: !!apiToken
+    }));
+
+    const providerCheck = enriched.find(c => c.subject_type === 'provider');
+    const employeeChecks = enriched.filter(c => c.subject_type !== 'provider');
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       providerCheck: providerCheck || null,
-      employeeChecks: employeeChecks,
-      totalChecks: checks.length,
-      clearedCount: checks.filter(c => c.status === 'eligible' || c.status === 'clear').length
+      employeeChecks,
+      totalChecks: enriched.length,
+      clearedCount: enriched.filter(c => c.status === 'eligible' || c.status === 'clear').length,
+      apiConfigured: !!apiToken
     }));
 
   } catch (error) {
-    console.error(`[${requestId}] Checkr status error:`, error);
+    console.error(`[${requestId}] BgChecks status error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Failed to fetch background check status' }));
+  }
+}
+
+async function handleBgChecksReportUrl(req, res, requestId, checkId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+
+    const { data: check, error } = await supabase
+      .from('provider_background_checks')
+      .select('id, external_order_id, provider_id, report_url, status')
+      .eq('id', checkId)
+      .single();
+
+    if (error || !check) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Background check not found' }));
+      return;
+    }
+
+    if (check.provider_id !== user.id) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized' }));
+      return;
+    }
+
+    const apiToken = getBgChecksToken();
+    const baseUrl = getBgChecksBaseUrl();
+
+    let reportUrl = check.report_url;
+    if (!reportUrl && check.external_order_id && apiToken) {
+      reportUrl = `${baseUrl}/connect/report/${check.external_order_id}?app_token=${apiToken}`;
+    }
+
+    if (!reportUrl) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Report not yet available. Check status must be complete.' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ reportUrl, checkId, status: check.status }));
+
+  } catch (error) {
+    console.error(`[${requestId}] BgChecks report URL error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to get report URL' }));
   }
 }
 
@@ -35448,20 +35471,26 @@ function saveAdminInvites(invites) {
     return;
   }
   
-  // Checkr Background Check API
-  if (req.method === 'POST' && req.url === '/api/checkr/initiate') {
-    handleCheckrInitiate(req, res, requestId);
+  // BackgroundChecks.com API
+  if (req.method === 'POST' && req.url === '/api/bgcheck/initiate') {
+    handleBgChecksInitiate(req, res, requestId);
     return;
   }
-  
-  if (req.method === 'POST' && req.url === '/webhook/checkr') {
-    handleCheckrWebhook(req, res, requestId);
+
+  if (req.method === 'POST' && req.url === '/webhook/bgcheck') {
+    handleBgChecksWebhook(req, res, requestId);
     return;
   }
-  
-  if (req.method === 'GET' && req.url.startsWith('/api/checkr/status/')) {
-    const providerId = req.url.split('/api/checkr/status/')[1]?.split('?')[0];
-    handleCheckrStatus(req, res, requestId, providerId);
+
+  if (req.method === 'GET' && req.url.startsWith('/api/bgcheck/status/')) {
+    const providerId = req.url.split('/api/bgcheck/status/')[1]?.split('?')[0];
+    handleBgChecksStatus(req, res, requestId, providerId);
+    return;
+  }
+
+  if (req.method === 'GET' && req.url.startsWith('/api/bgcheck/report-url/')) {
+    const checkId = req.url.split('/api/bgcheck/report-url/')[1]?.split('?')[0];
+    handleBgChecksReportUrl(req, res, requestId, checkId);
     return;
   }
   
