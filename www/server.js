@@ -14559,8 +14559,9 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
 
     // Calculate net amount member owes after discounts and crowd-fund contributions
     const netAfterContribsCents = originalAmountCents - totalDiscountCents - crowdFundedAmountCents;
-    // Floor at $0.50 (Stripe minimum) if still positive, otherwise cancel — member owes nothing
-    const finalCaptureCents = netAfterContribsCents > 0 ? Math.max(50, netAfterContribsCents) : 0;
+    // If residual is positive but below Stripe's $0.50 minimum, waive it (treat as $0) rather than
+    // rounding up — this ensures members are never overcharged due to contribution rounding.
+    const finalCaptureCents = netAfterContribsCents >= 50 ? netAfterContribsCents : 0;
 
     let capturedPayment;
     if (finalCaptureCents > 0) {
@@ -34516,6 +34517,7 @@ function saveAdminInvites(invites) {
         if (!amount_cents || amount_cents < 100) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Minimum contribution is $1.00' }));
+          // Note: unified /contribute endpoint uses the same $1.00 minimum
           return;
         }
         if (amount_cents > 500000) {
@@ -34593,9 +34595,9 @@ function saveAdminInvites(invites) {
         const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
         // Mode A: create PaymentIntent (amount_cents provided, no payment_intent_id)
         if (!payment_intent_id && amount_cents) {
-          if (!Number.isInteger(amount_cents) || amount_cents < 50) {
+          if (!Number.isInteger(amount_cents) || amount_cents < 100) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Minimum contribution is $0.50' }));
+            res.end(JSON.stringify({ error: 'Minimum contribution is $1.00' }));
             return;
           }
           const { data: pkg, error: pkgErr } = await supabase
