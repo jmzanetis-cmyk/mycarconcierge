@@ -14333,7 +14333,8 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
         escrow_amount, 
         escrow_captured,
         accepted_bid_id,
-        split_payment_id
+        split_payment_id,
+        crowd_funded
       `)
       .eq('id', packageId)
       .single();
