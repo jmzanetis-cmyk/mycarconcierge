@@ -1332,6 +1332,32 @@
                 </div>
               </div>
             </div>
+            <div class="card" style="margin-top:20px;border:1px solid var(--accent-gold,#c9a84c);">
+              <div class="card-header" style="display:flex;align-items:center;gap:10px;">
+                <h2 class="card-title" style="flex:1;"><span class="icon-inline" data-icon="zap"></span> Wefunder Investor Blast</h2>
+                <span style="font-size:0.72rem;padding:3px 10px;border-radius:20px;background:var(--accent-gold,#c9a84c);color:#000;font-weight:700;letter-spacing:0.04em;">LIVE CAMPAIGN</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:14px;padding:4px 0;">
+                <p style="color:var(--text-secondary);font-size:0.88rem;">Send a personalized Wefunder campaign email to all eligible investor leads in your database. All emails go to your draft queue for review before sending — nothing goes out without your approval.</p>
+                <div id="wefunder-blast-stats" style="padding:14px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                  <span style="color:var(--text-muted);font-size:0.88rem;">Click "Check Eligible Leads" to see how many investors are ready to contact.</span>
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                  <button class="btn btn-sm" onclick="loadWefunderBlastStatus()" style="flex:1;">
+                    <span class="icon-inline" data-icon="list"></span> Check Eligible Leads
+                  </button>
+                  <button class="btn btn-sm" onclick="launchWefunderBlast(true)" style="flex:1;background:var(--bg-elevated);">
+                    <span class="icon-inline" data-icon="eye"></span> Preview (Dry Run)
+                  </button>
+                </div>
+                <button class="btn btn-primary" id="wefunder-blast-btn" onclick="launchWefunderBlast(false)" style="width:100%;background:var(--accent-gold,#c9a84c);color:#000;">
+                  <span class="icon-inline" data-icon="send"></span> Generate Wefunder Blast Drafts
+                </button>
+                <div id="wefunder-blast-result" style="display:none;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);font-size:0.88rem;line-height:1.6;"></div>
+                <p style="font-size:0.78rem;color:var(--text-muted);margin-top:-4px;">Drafts are saved to the <strong>Messages</strong> tab for review. Eligible = has email, not contacted in the last 30 days, not unsubscribed.</p>
+              </div>
+            </div>
+
             <div class="card" style="margin-top:20px;">
               <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
                 <h2 class="card-title"><span class="icon-inline" data-icon="list"></span> Search Results</h2>

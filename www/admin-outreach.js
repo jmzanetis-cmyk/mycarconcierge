@@ -1601,6 +1601,74 @@
     }
   }
 
+  async function loadWefunderBlastStatus() {
+    const statsEl = document.getElementById('wefunder-blast-stats');
+    if (statsEl) statsEl.innerHTML = '<span style="color:var(--text-muted);font-size:0.88rem;">Checking...</span>';
+    try {
+      const resp = await fetch('/api/admin/outreach/wefunder-blast/status', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || ''}` }
+      });
+      const data = await resp.json();
+      if (statsEl) {
+        if (data.eligible === 0) {
+          statsEl.innerHTML = `<span style="color:var(--text-muted);font-size:0.88rem;">No eligible investor leads at this time. Total investor leads: <strong>${data.total_investor_leads}</strong> · Recently contacted (30d): <strong>${data.recently_contacted}</strong></span>`;
+        } else {
+          statsEl.innerHTML = `
+            <div style="display:flex;gap:20px;flex-wrap:wrap;">
+              <div><div style="font-size:1.6rem;font-weight:700;color:var(--accent-gold,#c9a84c);">${data.eligible}</div><div style="font-size:0.78rem;color:var(--text-muted);">Eligible to contact</div></div>
+              <div><div style="font-size:1.6rem;font-weight:700;">${data.total_investor_leads}</div><div style="font-size:0.78rem;color:var(--text-muted);">Total investor leads</div></div>
+              <div><div style="font-size:1.6rem;font-weight:700;">${data.recently_contacted}</div><div style="font-size:0.78rem;color:var(--text-muted);">Contacted last 30d</div></div>
+            </div>`;
+        }
+      }
+    } catch (e) {
+      if (statsEl) statsEl.innerHTML = `<span style="color:var(--error);font-size:0.88rem;">Error: ${e.message}</span>`;
+    }
+  }
+
+  async function launchWefunderBlast(dryRun = false) {
+    const resultEl = document.getElementById('wefunder-blast-result');
+    const btn = document.getElementById('wefunder-blast-btn');
+    if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = dryRun ? 'Checking eligible leads...' : 'Generating drafts — this may take a minute...'; }
+    if (!dryRun && btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
+    try {
+      const resp = await fetch('/api/admin/outreach/wefunder-blast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token') || ''}` },
+        body: JSON.stringify({ dry_run: dryRun })
+      });
+      const data = await resp.json();
+      if (resultEl) {
+        if (dryRun) {
+          const sampleHtml = (data.sample_leads || []).map(l =>
+            `<div style="padding:6px 0;border-bottom:1px solid var(--border-subtle);font-size:0.85rem;"><strong>${l.name || 'Unknown'}</strong>${l.company ? ` · ${l.company}` : ''}<span style="color:var(--text-muted);margin-left:8px;">${l.email || ''}</span>${l.location ? ` · ${l.location}` : ''}</div>`
+          ).join('');
+          resultEl.innerHTML = `
+            <strong style="color:var(--accent-gold,#c9a84c);">Dry Run Preview</strong><br>
+            <span>${data.eligible} eligible investor leads would receive a Wefunder campaign email.</span>
+            <span style="color:var(--text-muted);"> (${data.recently_contacted} skipped — contacted in last 30 days)</span>
+            ${sampleHtml ? `<div style="margin-top:10px;"><strong style="font-size:0.82rem;">Sample leads:</strong>${sampleHtml}</div>` : ''}`;
+        } else if (data.started) {
+          resultEl.innerHTML = `<span style="color:var(--success);">✓ Blast started — drafting emails for <strong>${data.eligible}</strong> investor leads in the background. Check the <strong>Messages</strong> tab in a minute to review and approve before they send.</span>`;
+          loadWefunderBlastStatus();
+        } else if (data.drafted !== undefined) {
+          resultEl.innerHTML = `<span style="color:var(--success);">✓ ${data.drafted} drafts created.</span> ${data.failed ? `<span style="color:var(--error);">${data.failed} failed.</span>` : ''} <br>${data.message || ''}`;
+          loadWefunderBlastStatus();
+        } else {
+          resultEl.innerHTML = `<span style="color:var(--text-muted);">${data.message || JSON.stringify(data)}</span>`;
+        }
+      }
+    } catch (e) {
+      if (resultEl) resultEl.innerHTML = `<span style="color:var(--error);">Error: ${e.message}</span>`;
+    } finally {
+      if (!dryRun && btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Generate Wefunder Blast Drafts';
+        if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn);
+      }
+    }
+  }
+
   window.loadApolloStatus = loadApolloStatus;
   window.loadApolloConfig = loadApolloConfig;
   window.saveApolloConfig = saveApolloConfig;
@@ -1608,6 +1676,8 @@
   window.apolloSearch = apolloSearch;
   window.checkApolloEnrichQueue = checkApolloEnrichQueue;
   window.apolloEnrich = apolloEnrich;
+  window.loadWefunderBlastStatus = loadWefunderBlastStatus;
+  window.launchWefunderBlast = launchWefunderBlast;
 
   window.runManualCycle = runManualCycle;
   window.showEngineSettings = showEngineSettings;

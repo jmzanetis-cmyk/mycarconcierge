@@ -1656,6 +1656,70 @@ async function saveApolloConfig(supabase, updates) {
   }
 }
 
+async function draftWefunderBlastEmail(lead) {
+  const firstName = lead.name?.split(' ')[0] || 'there';
+  const companyCtx = lead.company ? ` at ${lead.company}` : '';
+  const prompt = `You are writing a cold outreach email on behalf of My Car Concierge to ${firstName}${companyCtx} — a potential angel investor or financial professional.
+
+${BRAND_INFO}
+
+My Car Concierge has an active community fundraising campaign live on Wefunder at wefunder.com/my.car.concierge — open to everyday investors and professionals alike.
+
+Write a short, direct, warm email introducing My Car Concierge and pointing them to the Wefunder campaign. Keep it to 3–4 short paragraphs:
+1. A brief personalized intro (use their first name; reference their company if available)
+2. What My Car Concierge actually is and what problem it solves for car owners and service providers
+3. That there is an active community funding round on Wefunder they can review at their own pace
+4. A clear, soft CTA — check it out at wefunder.com/my.car.concierge, and offer to answer any questions
+
+STRICT RULES:
+- Do NOT make ROI promises, earnings projections, or guaranteed return claims
+- Do NOT imply that investors have already committed funds — you do not know this
+- Stick only to factual descriptions of what the platform does
+- Be concise and respectful — this is an introduction, not a pitch deck
+- Write as Jordan from My Car Concierge
+- Sign off warmly
+
+Write TWO subject line variants on the first two lines:
+Subject A: [subject]
+Subject B: [subject]
+Then a blank line, then the email body starting with "Hi ${firstName},"`;
+
+  try {
+    const anthropic = getAnthropic();
+    if (!anthropic) return { error: 'AI not configured' };
+
+    const resp = await anthropic.messages.create({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 700,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    const text = resp.content[0]?.text || '';
+
+    const lines = text.trim().split('\n');
+    let subject = '', subjectB = '', bodyLines = [], pastHeaders = false;
+    for (const line of lines) {
+      if (!pastHeaders && line.startsWith('Subject A:')) {
+        subject = line.replace('Subject A:', '').trim();
+      } else if (!pastHeaders && line.startsWith('Subject B:')) {
+        subjectB = line.replace('Subject B:', '').trim();
+      } else if (subject && subjectB && line.trim() === '') {
+        pastHeaders = true;
+      } else if (pastHeaders || (subject && line.trim() !== '')) {
+        pastHeaders = true;
+        bodyLines.push(line);
+      }
+    }
+
+    return {
+      subject: subject || 'My Car Concierge — Community Round Now Live on Wefunder',
+      subjectB: subjectB || null,
+      body: bodyLines.join('\n').trim()
+    };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 async function runApolloDiscoveryCycle(supabase) {
   const apolloKey = process.env.APOLLO_API_KEY;
   if (!apolloKey) return { skipped: true, reason: 'no_api_key' };
@@ -2500,6 +2564,112 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
           const rows = lead_ids.map(lid => ({ campaign_id: campaignId, lead_id: lid }));
           const { error } = await supabase.from('campaign_leads').upsert(rows, { onConflict: 'campaign_id,lead_id', ignoreDuplicates: true });
           json(res, 200, { success: !error, added: lead_ids.length });
+        }
+
+        else if (req.method === 'GET' && pathname === '/wefunder-blast/status') {
+          const { data: investorLeads } = await supabase
+            .from('outreach_leads')
+            .select('id')
+            .eq('type', 'investor')
+            .not('email', 'is', null)
+            .neq('status', 'unsubscribed');
+
+          const ids = (investorLeads || []).map(l => l.id);
+          let recentLeadIds = new Set();
+          if (ids.length > 0) {
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600000).toISOString();
+            const { data: recent } = await supabase
+              .from('outreach_messages')
+              .select('lead_id')
+              .eq('channel', 'email')
+              .gte('created_at', thirtyDaysAgo)
+              .in('lead_id', ids);
+            recentLeadIds = new Set((recent || []).map(m => m.lead_id));
+          }
+
+          json(res, 200, {
+            total_investor_leads: ids.length,
+            eligible: ids.filter(id => !recentLeadIds.has(id)).length,
+            recently_contacted: recentLeadIds.size
+          });
+        }
+
+        else if (req.method === 'POST' && pathname === '/wefunder-blast') {
+          const body = await parseBody(req);
+          const { dry_run } = body;
+
+          const { data: investorLeads } = await supabase
+            .from('outreach_leads')
+            .select('*')
+            .eq('type', 'investor')
+            .not('email', 'is', null)
+            .neq('status', 'unsubscribed');
+
+          const ids = (investorLeads || []).map(l => l.id);
+          let recentLeadIds = new Set();
+          if (ids.length > 0) {
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600000).toISOString();
+            const { data: recent } = await supabase
+              .from('outreach_messages')
+              .select('lead_id')
+              .eq('channel', 'email')
+              .gte('created_at', thirtyDaysAgo)
+              .in('lead_id', ids);
+            recentLeadIds = new Set((recent || []).map(m => m.lead_id));
+          }
+
+          const eligible = (investorLeads || []).filter(l => !recentLeadIds.has(l.id));
+
+          if (dry_run) {
+            json(res, 200, {
+              dry_run: true,
+              eligible: eligible.length,
+              recently_contacted: recentLeadIds.size,
+              sample_leads: eligible.slice(0, 5).map(l => ({ name: l.name, company: l.company, email: l.email, location: l.location }))
+            });
+            resolve(true);
+            return;
+          }
+
+          if (eligible.length === 0) {
+            json(res, 200, { drafted: 0, skipped: 0, message: 'No eligible investor leads found' });
+            resolve(true);
+            return;
+          }
+
+          // Start drafting — respond immediately with job started, process async
+          json(res, 202, { started: true, eligible: eligible.length, message: `Drafting ${eligible.length} Wefunder blast emails in background — check the Messages tab shortly.` });
+          resolve(true);
+
+          // Process in background
+          let drafted = 0, failed = 0;
+          for (const lead of eligible) {
+            try {
+              const result = await draftWefunderBlastEmail(lead);
+              if (!result || result.error) { failed++; continue; }
+
+              await supabase.from('outreach_messages').insert({
+                lead_id: lead.id,
+                channel: 'email',
+                subject: result.subject,
+                body: result.body,
+                status: 'draft',
+                metadata: {
+                  blast_type: 'wefunder',
+                  subject_a: result.subject,
+                  subject_b: result.subjectB || null,
+                  ab_variant: 'A'
+                }
+              });
+              drafted++;
+            } catch (_) { failed++; }
+            await new Promise(r => setTimeout(r, 350));
+          }
+
+          await supabase.from('outreach_activity_log').insert({
+            event_type: 'wefunder_blast_launched',
+            metadata: { drafted, failed, eligible: eligible.length }
+          }).catch(() => {});
         }
 
         else if (req.method === 'POST' && pathname === '/convert-lead') {
