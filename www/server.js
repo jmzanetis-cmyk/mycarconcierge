@@ -14682,9 +14682,13 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
       .eq('package_id', packageId)
       .eq('status', 'held');
     
-    // Calculate final total (original - discount + additional work)
+    // Provider receives full service value (original minus accepted discounts) plus additional work.
+    // Crowd-fund contributions reduce what the MEMBER pays, not what the PROVIDER earns.
+    const providerPayoutTotal = (originalAmountCents - totalDiscountCents) / 100 + additionalWorkTotal;
+    // finalTotal for response = what member was actually charged + additional work
     const finalTotal = (finalCaptureCents / 100) + additionalWorkTotal;
     const discountApplied = totalDiscountCents / 100;
+    const crowdFundedDollars = crowdFundedAmountCents / 100;
     
     // Create service history record
     if (fullPkg?.vehicle_id) {
@@ -14702,7 +14706,7 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
         service_category: fullPkg.category,
         description: fullPkg.title,
         mileage_at_service: vehicleMileage,
-        total_cost: finalTotal,
+        total_cost: providerPayoutTotal,
         provider_name: providerName
       });
 
@@ -14711,9 +14715,12 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
     
     // Notify provider
     if (bid?.provider_id) {
-      let paymentMsg = `Payment of $${finalTotal.toFixed(2)} has been released for your completed service.`;
+      let paymentMsg = `Payment of $${providerPayoutTotal.toFixed(2)} has been released for your completed service.`;
       if (discountApplied > 0) {
         paymentMsg += ` (Discount of $${discountApplied.toFixed(2)} applied)`;
+      }
+      if (crowdFundedDollars > 0) {
+        paymentMsg += ` (Includes $${crowdFundedDollars.toFixed(2)} from community contributions)`;
       }
       if (additionalWorkTotal > 0) {
         paymentMsg += ` (Includes $${additionalWorkTotal.toFixed(2)} for additional work)`;
@@ -14768,21 +14775,24 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
 
     console.log(`[${requestId}] Escrow released for package ${packageId}, captured ${capturedPayment.id}, total: $${finalTotal.toFixed(2)}, discount: $${discountApplied.toFixed(2)}, additional: $${additionalWorkTotal.toFixed(2)}`);
     
-    // Track completed job as HubSpot deal (async, non-blocking)
+    // Track completed job as HubSpot deal (async, non-blocking) — use full provider payout value
     createHubSpotDeal(
       `Completed Job - ${fullPkg?.title || packageId}`,
-      finalTotal,
+      providerPayoutTotal,
       'closedwon',
       { description: `Service: ${fullPkg?.service_type || 'N/A'} | Category: ${fullPkg?.category || 'N/A'}` }
     ).catch(err => console.error(`[${requestId}] HubSpot job deal error:`, err.message));
     
+    console.log(`[${requestId}] Escrow released — member charged $${(finalCaptureCents / 100).toFixed(2)}, crowd-fund covered $${crowdFundedDollars.toFixed(2)}, provider payout $${providerPayoutTotal.toFixed(2)}`);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       success: true,
       status: 'completed',
       capturedAmount: finalCaptureCents / 100,
+      crowdFundedAmount: crowdFundedDollars,
       additionalWorkAmount: additionalWorkTotal,
       discountApplied: discountApplied,
+      providerPayout: providerPayoutTotal,
       totalAmount: finalTotal,
       message: 'Payment has been released to the service provider',
       provider_id: bid?.provider_id,
@@ -34619,6 +34629,15 @@ function saveAdminInvites(invites) {
             payment_method_types: ['card'],
             metadata: { package_id: packageId, contributor_id: user.id, type: 'crowd_fund_contribution' }
           });
+          // Create pending contribution row immediately so the record exists at intent-creation time
+          await supabase.from('crowd_fund_contributions').insert({
+            package_id: packageId,
+            contributor_id: user.id,
+            amount_cents: amount_cents,
+            status: 'pending',
+            payment_intent_id: paymentIntent.id,
+            message: message || null
+          });
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ client_secret: paymentIntent.client_secret, payment_intent_id: paymentIntent.id }));
           return;
@@ -34661,33 +34680,53 @@ function saveAdminInvites(invites) {
           res.end(JSON.stringify({ error: 'This request is no longer accepting contributions' }));
           return;
         }
-        const { data: existing } = await supabase
+        // Try to update an existing pending row to completed (lifecycle: pending → completed)
+        const { data: existingPending } = await supabase
           .from('crowd_fund_contributions')
-          .select('id')
+          .select('id, status')
           .eq('payment_intent_id', payment_intent_id)
           .maybeSingle();
-        if (existing) {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: true, id: existing.id, already_recorded: true }));
-          return;
-        }
-        const { data: contrib, error: contribErr } = await supabase
-          .from('crowd_fund_contributions')
-          .insert({
-            package_id: packageId,
-            contributor_id: user.id,
-            amount_cents: verifiedAmountCents,
-            status: 'completed',
-            payment_intent_id,
-            message: message || null
-          })
-          .select()
-          .single();
-        if (contribErr) {
-          console.error('[Contribute] Insert error:', contribErr.message);
-          res.writeHead(503, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Contributions are temporarily unavailable. The database migration may still be pending.' }));
-          return;
+        let contrib;
+        if (existingPending) {
+          if (existingPending.status === 'completed') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, id: existingPending.id, already_recorded: true }));
+            return;
+          }
+          const { data: updatedContrib, error: updateErr } = await supabase
+            .from('crowd_fund_contributions')
+            .update({ status: 'completed', amount_cents: verifiedAmountCents })
+            .eq('id', existingPending.id)
+            .select()
+            .single();
+          if (updateErr) {
+            console.error('[Contribute] Update error:', updateErr.message);
+            res.writeHead(503, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Failed to confirm contribution' }));
+            return;
+          }
+          contrib = updatedContrib;
+        } else {
+          // Fallback: insert directly if no pending row exists (e.g., from legacy /contribute/intent flow)
+          const { data: newContrib, error: contribErr } = await supabase
+            .from('crowd_fund_contributions')
+            .insert({
+              package_id: packageId,
+              contributor_id: user.id,
+              amount_cents: verifiedAmountCents,
+              status: 'completed',
+              payment_intent_id,
+              message: message || null
+            })
+            .select()
+            .single();
+          if (contribErr) {
+            console.error('[Contribute] Insert error:', contribErr.message);
+            res.writeHead(503, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Contributions are temporarily unavailable. The database migration may still be pending.' }));
+            return;
+          }
+          contrib = newContrib;
         }
         try {
           const { data: contribProfile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
