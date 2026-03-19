@@ -17437,6 +17437,103 @@ See you there!`);
       if (preview) preview.style.display = 'none';
     }
 
+    async function submitInsuranceExtraction(vehicleId) {
+      const fileInput = document.getElementById('insurance-file-input');
+      const file = selectedInsuranceFile || (fileInput?.files?.[0]);
+      const statusEl = document.getElementById('insurance-extraction-status');
+
+      if (!file) { showToast('Please select an insurance card image first', 'error'); return; }
+      if (!statusEl) return;
+
+      statusEl.style.display = 'block';
+      statusEl.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">Extracting insurance details via AI…</p>';
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+
+        let publicUrl = null;
+        try {
+          const path = `${currentUser.id}/${Date.now()}_${file.name}`;
+          const { error: uploadErr } = await supabaseClient.storage.from('insurance-documents').upload(path, file, { upsert: true });
+          if (!uploadErr) {
+            const { data: urlData } = supabaseClient.storage.from('insurance-documents').getPublicUrl(path);
+            publicUrl = urlData?.publicUrl;
+          }
+        } catch (storageErr) {
+          console.log('[Insurance] Storage upload skipped:', storageErr.message);
+        }
+
+        if (!publicUrl) {
+          const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          publicUrl = dataUrl;
+        }
+
+        const res = await fetch('/api/insurance/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ imageUrl: publicUrl })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Extraction failed');
+
+        const ext = data.extracted || {};
+        const rawDate = ext.expirationDate || '';
+        const formattedDate = rawDate.includes('/') ? rawDate : (() => {
+          const d = new Date(rawDate);
+          if (!rawDate || isNaN(d)) return rawDate;
+          const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const dy = String(d.getUTCDate()).padStart(2, '0');
+          return `${m}/${dy}/${d.getUTCFullYear()}`;
+        })();
+
+        statusEl.innerHTML = `
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;margin-top:8px;">
+            <p style="font-weight:600;margin:0 0 12px;font-size:0.95rem;">Review Extracted Information</p>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label class="form-label" style="font-size:0.82rem;">Insurance Provider</label>
+              <input type="text" id="ins-review-provider" class="form-input" value="${ext.insurerName || ''}" placeholder="Insurance provider name">
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label class="form-label" style="font-size:0.82rem;">Policy Number</label>
+              <input type="text" id="ins-review-policy" class="form-input" value="${ext.policyNumber || ''}" placeholder="Policy number">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label class="form-label" style="font-size:0.82rem;">Expiration Date (MM/DD/YYYY)</label>
+              <input type="text" id="ins-review-expiration" class="form-input" value="${formattedDate}" placeholder="MM/DD/YYYY">
+            </div>
+            <button type="button" id="ins-review-confirm" class="btn btn-primary btn-sm" style="width:100%;">Confirm &amp; Auto-fill Form</button>
+          </div>`;
+
+        document.getElementById('ins-review-confirm')?.addEventListener('click', () => {
+          const provider = document.getElementById('ins-review-provider')?.value || '';
+          const policy = document.getElementById('ins-review-policy')?.value || '';
+          const expiry = document.getElementById('ins-review-expiration')?.value || '';
+          const providerField = document.getElementById('insurance-doc-provider');
+          const policyField = document.getElementById('insurance-doc-policy-number');
+          const endDateField = document.getElementById('insurance-doc-end-date');
+          if (providerField) providerField.value = provider;
+          if (policyField) policyField.value = policy;
+          if (endDateField && expiry) {
+            const parts = expiry.split('/');
+            if (parts.length === 3) {
+              endDateField.value = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+            }
+          }
+          showToast('Form auto-filled from insurance card', 'success');
+        });
+
+      } catch (err) {
+        statusEl.innerHTML = `<p style="color:var(--accent-red);font-size:0.88rem;">Extraction failed: ${err.message}. Please fill in details manually.</p>`;
+      }
+    }
+
     async function saveInsuranceDocument(event) {
       event.preventDefault();
       
