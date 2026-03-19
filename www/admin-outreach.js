@@ -371,15 +371,20 @@
       body: JSON.stringify({ message_id: msgId, edited_body: body, edited_subject: subject })
     });
     if (res.ok) {
-      const sendRes = await outreachFetch('/messages/send', {
-        method: 'POST',
-        body: JSON.stringify({ message_id: msgId })
-      });
-      const sendData = await sendRes.json();
-      if (sendData.success) {
+      const approveData = await res.json();
+      if (approveData.sent) {
         if (typeof showToast !== 'undefined') showToast('Message edited, approved, and sent');
       } else {
-        if (typeof showToast !== 'undefined') showToast('Approved but send failed: ' + (sendData.error || 'Unknown error'), 'error');
+        const sendRes = await outreachFetch('/messages/send', {
+          method: 'POST',
+          body: JSON.stringify({ message_id: msgId })
+        });
+        const sendData = await sendRes.json();
+        if (sendData.success) {
+          if (typeof showToast !== 'undefined') showToast('Message edited, approved, and sent');
+        } else {
+          if (typeof showToast !== 'undefined') showToast('Approved — awaiting flush', 'info');
+        }
       }
       await loadMessageQueue();
       await loadEngineState();
@@ -395,16 +400,22 @@
       if (typeof showToast !== 'undefined') showToast('Failed to approve message', 'error');
       return;
     }
-    const sendRes = await outreachFetch('/messages/send', {
-      method: 'POST',
-      body: JSON.stringify({ message_id: msgId })
-    });
-    const sendData = await sendRes.json();
-    if (sendData.success) {
+    const approveData = await res.json();
+    if (approveData.sent) {
       if (typeof showToast !== 'undefined') showToast('Message approved and sent');
       document.getElementById('queue-card-' + msgId)?.remove();
     } else {
-      if (typeof showToast !== 'undefined') showToast('Approved but send failed: ' + (sendData.error || 'Unknown'), 'error');
+      const sendRes = await outreachFetch('/messages/send', {
+        method: 'POST',
+        body: JSON.stringify({ message_id: msgId })
+      });
+      const sendData = await sendRes.json();
+      if (sendData.success) {
+        if (typeof showToast !== 'undefined') showToast('Message approved and sent');
+        document.getElementById('queue-card-' + msgId)?.remove();
+      } else {
+        if (typeof showToast !== 'undefined') showToast('Approved — awaiting flush', 'info');
+      }
     }
     await loadEngineState();
   }
@@ -423,22 +434,22 @@
     if (!confirm(`Approve and send all ${outreachMessages.length} messages?`)) return;
     const ids = outreachMessages.map(m => m.id);
 
-    await outreachFetch('/messages/approve-bulk', {
+    const bulkRes = await outreachFetch('/messages/approve-bulk', {
       method: 'POST',
       body: JSON.stringify({ message_ids: ids })
     });
+    const bulkData = await bulkRes.json();
+    const autoSent = bulkData.sent || 0;
+    const approved = bulkData.approved || ids.length;
 
-    let sent = 0;
-    for (const id of ids) {
-      const sendRes = await outreachFetch('/messages/send', {
-        method: 'POST',
-        body: JSON.stringify({ message_id: id })
-      });
-      const data = await sendRes.json();
-      if (data.success) sent++;
+    if (autoSent > 0 && autoSent >= approved) {
+      if (typeof showToast !== 'undefined') showToast(`${autoSent} of ${approved} messages approved and sent`);
+    } else if (autoSent > 0) {
+      if (typeof showToast !== 'undefined') showToast(`${autoSent} sent immediately; ${approved - autoSent} approved — awaiting flush (investor messages require manual review)`);
+    } else {
+      if (typeof showToast !== 'undefined') showToast(`${approved} messages approved — awaiting flush`);
     }
 
-    if (typeof showToast !== 'undefined') showToast(`${sent} of ${ids.length} messages sent`);
     await loadMessageQueue();
     await loadEngineState();
   }

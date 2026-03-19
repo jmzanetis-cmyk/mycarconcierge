@@ -372,7 +372,19 @@ exports.handler = async function(event, context) {
       await supabase.from('outreach_activity_log').insert({
         lead_id: msg.lead_id, message_id: msg.id, event_type: 'approved'
       });
-      return jsonResponse(200, msg);
+
+      const leadType = msg.outreach_leads?.type;
+      let sent = false;
+      if (leadType !== 'investor') {
+        try {
+          const sendResult = await sendMessage(supabase, msg.id);
+          sent = !!sendResult?.success;
+        } catch (e) {
+          sent = false;
+        }
+      }
+
+      return jsonResponse(200, { ...msg, sent });
     }
 
     if (method === 'POST' && path === 'messages/approve-bulk') {
@@ -381,8 +393,21 @@ exports.handler = async function(event, context) {
 
       const { data, error } = await supabase.from('outreach_messages')
         .update({ status: 'approved', approved_by: 'admin', approved_at: new Date().toISOString() })
-        .in('id', message_ids).eq('status', 'draft').select();
-      return jsonResponse(200, { approved: data?.length || 0 });
+        .in('id', message_ids).eq('status', 'draft').select('*, outreach_leads(*)');
+
+      let sent = 0;
+      for (const msg of (data || [])) {
+        const leadType = msg.outreach_leads?.type;
+        if (leadType !== 'investor') {
+          try {
+            const sr = await sendMessage(supabase, msg.id);
+            if (sr?.success) sent++;
+          } catch (e) {}
+          await new Promise(r => setTimeout(r, 300));
+        }
+      }
+
+      return jsonResponse(200, { approved: data?.length || 0, sent });
     }
 
     if (method === 'POST' && path === 'messages/send') {

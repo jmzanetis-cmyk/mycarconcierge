@@ -2669,7 +2669,18 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
             event_type: 'approved'
           });
 
-          json(res, 200, msg);
+          const leadType = msg.outreach_leads?.type;
+          let sent = false;
+          if (leadType !== 'investor') {
+            try {
+              const sendResult = await sendMessage(supabase, msg.id);
+              sent = !!sendResult?.success;
+            } catch (e) {
+              sent = false;
+            }
+          }
+
+          json(res, 200, { ...msg, sent });
         }
 
         else if (req.method === 'POST' && pathname === '/messages/approve-bulk') {
@@ -2685,9 +2696,21 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
             .update({ status: 'approved', approved_by: 'admin', approved_at: new Date().toISOString() })
             .in('id', message_ids)
             .eq('status', 'draft')
-            .select();
+            .select('*, outreach_leads(*)');
 
-          json(res, 200, { approved: data?.length || 0 });
+          let sent = 0;
+          for (const msg of (data || [])) {
+            const leadType = msg.outreach_leads?.type;
+            if (leadType !== 'investor') {
+              try {
+                const sr = await sendMessage(supabase, msg.id);
+                if (sr?.success) sent++;
+              } catch (e) {}
+              await new Promise(r => setTimeout(r, 300));
+            }
+          }
+
+          json(res, 200, { approved: data?.length || 0, sent });
         }
 
         else if (req.method === 'POST' && pathname === '/messages/send') {
