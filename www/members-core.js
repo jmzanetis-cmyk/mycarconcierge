@@ -2986,6 +2986,14 @@ function openPackageModal() {
   pendingPackagePhotos = [];
   document.getElementById('package-photo-previews').innerHTML = '';
   
+  // Reset crowd-funded controls
+  const crowdFundedCheckbox = document.getElementById('p-crowd-funded');
+  const crowdFundedInfo = document.getElementById('crowd-funded-info');
+  const fundingGoalInput = document.getElementById('p-funding-goal');
+  if (crowdFundedCheckbox) crowdFundedCheckbox.checked = false;
+  if (crowdFundedInfo) crowdFundedInfo.style.display = 'none';
+  if (fundingGoalInput) fundingGoalInput.value = '';
+
   // Handle private job section
   const privateJobSection = document.getElementById('private-job-section');
   const privateJobCheckbox = document.getElementById('p-private-job');
