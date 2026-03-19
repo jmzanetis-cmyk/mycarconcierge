@@ -1314,6 +1314,28 @@
         </div>
       </div>
 
+      <div id="budget-forecast-card" style="display:none;margin-bottom:20px;">
+        <div style="border:1px solid rgba(201,162,39,0.25);border-radius:var(--radius-lg);background:linear-gradient(135deg,rgba(201,162,39,0.06),rgba(201,162,39,0.02));">
+          <button onclick="toggleBudgetForecast()" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:18px 24px;background:none;border:none;cursor:pointer;font-family:inherit;color:var(--text-primary);">
+            <span style="display:flex;align-items:center;gap:10px;font-size:1rem;font-weight:600;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+              12-Month Cost Forecast
+            </span>
+            <span style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:0.72rem;color:var(--text-muted);background:var(--bg-input);padding:3px 8px;border-radius:100px;">AI-powered</span>
+              <span id="forecast-chevron" style="color:var(--text-muted);font-size:1.1rem;transition:transform 0.2s;">▾</span>
+            </span>
+          </button>
+          <div id="budget-forecast-body" style="display:none;padding:0 24px 20px;">
+            <div id="budget-forecast-content">
+              <div style="text-align:center;padding:20px;color:var(--text-muted);">
+                <button class="btn btn-secondary btn-sm" onclick="loadBudgetForecast()">Generate Forecast</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="card" id="recommendations-card">
         <div class="card-header">
           <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Recommended Services</h2>
@@ -2977,6 +2999,23 @@
       <div id="history-pagination" style="display:none;text-align:center;margin-top:24px;">
         <button class="btn btn-secondary" id="load-more-history" onclick="loadMoreHistory()">Load More</button>
       </div>
+
+      <div class="card" style="margin-top:28px;background:linear-gradient(135deg,rgba(56,189,248,0.06),rgba(34,211,238,0.04));border-color:rgba(56,189,248,0.2);">
+        <div class="card-header" style="margin-bottom:14px;">
+          <h3 class="card-title" style="display:flex;align-items:center;gap:8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+            Ask About My Service History
+          </h3>
+          <span style="font-size:0.72rem;color:var(--text-muted);background:var(--bg-input);padding:3px 8px;border-radius:100px;">AI-powered</span>
+        </div>
+        <p style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:14px;">Ask questions like "When did I last change my oil?" or "What have I spent on brakes total?"</p>
+        <div style="display:flex;gap:10px;margin-bottom:12px;">
+          <input type="text" id="history-chat-input" class="form-input" placeholder="Ask a question about your service history…" style="flex:1;" onkeydown="if(event.key==='Enter')askServiceHistoryChat()" maxlength="300">
+          <button class="btn btn-primary" onclick="askServiceHistoryChat()" id="history-chat-btn" style="flex-shrink:0;">Ask AI</button>
+        </div>
+        <div id="history-chat-response" style="display:none;padding:14px 16px;background:var(--bg-input);border-radius:var(--radius-md);font-size:0.9rem;line-height:1.6;color:var(--text-secondary);">
+        </div>
+      </div>
     </section>
 
     <!-- Spending Analytics Section -->
@@ -3455,6 +3494,41 @@
                 <div>
                   <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Maintenance Reminders</span>
                   <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Get reminded when service is due for your vehicles</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-bid-accepted" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></span> Bid Accepted</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Notified when your accepted bid is confirmed by the provider</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-payment-released" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Payment Released</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Alerts when escrow payment is released after job completion</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-appointment-reminder" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span> Appointment Reminders</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Reminders before your scheduled service appointments</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-ai-match" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></span> AI Provider Matches</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Alerts when AI finds top-matched providers for your requests</p>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                <input type="checkbox" id="push-car-club" checked>
+                <div>
+                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span> Car Club Rewards</span>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Punch card updates and loyalty reward notifications</p>
                 </div>
               </label>
             </div>
@@ -7429,6 +7503,12 @@
   <script src="members-core.js?v=20260213"></script>
   <script src="members-extras.js?v=20260213"></script>
   <script src="members-vehicles.js?v=20260213"></script>
+  <script>
+    // Expose members-vehicles.js functions that need global window access
+    if (typeof showInsuranceReviewUI === 'function') {
+      window.showInsuranceReviewUI = showInsuranceReviewUI;
+    }
+  </script>
   <script src="members-packages.js?v=20260213"></script>
   <script src="members-push.js?v=20260213"></script>
   <script src="/pwa-init.js?v=20260213"></script>

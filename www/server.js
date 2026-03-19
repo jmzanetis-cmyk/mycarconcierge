@@ -6534,7 +6534,34 @@ async function sendFCMv1Message(token, title, body, data = {}, projectId) {
   return { status: resp.status, body: await resp.json() };
 }
 
-async function checkUserPushPreference(userId, supabase) {
+// Canonical push category key mapping (DB column name → categories that gate it)
+// Keys must match DB column names in member_notification_preferences /
+// provider_notification_preferences tables.
+const PUSH_CATEGORY_MEMBER_KEYS = {
+  'bid_alert':          'push_bid_alerts',
+  'new_bid':            'push_bid_alerts',
+  'bid_accepted':       'push_bid_accepted',
+  'payment_released':   'push_payment_released',
+  'appointment':        'push_appointment_reminder',
+  'vehicle_status':     'push_vehicle_status',
+  'maintenance':        'push_maintenance_reminders',
+  'dream_car':          'push_dream_car_matches',
+  'ai_match':           'push_ai_match',
+  'car_club':           'push_car_club'
+};
+
+const PUSH_CATEGORY_PROVIDER_KEYS = {
+  'new_bid':            'push_bid_opportunities',
+  'bid_opportunity':    'push_bid_opportunities',
+  'bid_accepted':       'push_bid_accepted',
+  'appointment':        'push_appointment_reminders',
+  'payment_received':   'push_payment_received',
+  'customer_message':   'push_customer_messages',
+  'ai_match':           'push_ai_match',
+  'car_club':           'push_car_club'
+};
+
+async function checkUserPushPreference(userId, supabase, category = null) {
   try {
     const { data: memberPref, error: memberErr } = await supabase
       .from('member_notification_preferences')
@@ -6543,8 +6570,13 @@ async function checkUserPushPreference(userId, supabase) {
       .maybeSingle();
 
     if (!memberErr && memberPref) {
-      const allDisabled = Object.values(memberPref).every(v => v === false);
-      if (allDisabled) return false;
+      if (category) {
+        const colKey = PUSH_CATEGORY_MEMBER_KEYS[category];
+        if (colKey && memberPref[colKey] === false) return false;
+      } else {
+        const allDisabled = Object.values(memberPref).every(v => v === false);
+        if (allDisabled) return false;
+      }
       return true;
     }
 
@@ -6555,8 +6587,13 @@ async function checkUserPushPreference(userId, supabase) {
       .maybeSingle();
 
     if (!providerErr && providerPref) {
-      const allDisabled = Object.values(providerPref).every(v => v === false);
-      if (allDisabled) return false;
+      if (category) {
+        const colKey = PUSH_CATEGORY_PROVIDER_KEYS[category];
+        if (colKey && providerPref[colKey] === false) return false;
+      } else {
+        const allDisabled = Object.values(providerPref).every(v => v === false);
+        if (allDisabled) return false;
+      }
     }
 
     return true;
@@ -6565,7 +6602,7 @@ async function checkUserPushPreference(userId, supabase) {
   }
 }
 
-async function sendFCMPushNotification(memberIds, title, body, data = {}) {
+async function sendFCMPushNotification(memberIds, title, body, data = {}, category = null) {
   const saJson = process.env.FCM_SERVICE_ACCOUNT_JSON;
   const fcmKey = process.env.FCM_SERVER_KEY;
 
@@ -6591,7 +6628,7 @@ async function sendFCMPushNotification(memberIds, title, body, data = {}) {
 
     const eligibleTokenRows = [];
     for (const row of tokenRows) {
-      const allowed = await checkUserPushPreference(row.member_id, supabase);
+      const allowed = await checkUserPushPreference(row.member_id, supabase, category);
       if (allowed) eligibleTokenRows.push(row);
     }
 
@@ -11163,7 +11200,8 @@ async function sendBidNotifications(supabase, packageId, newBidId, bidPrice, req
       [pkg.member_id],
       'New Bid Received',
       `$${bidPrice.toFixed(2)} bid on "${pkg.title}" — tap to review.`,
-      { section: 'packages', package_id: packageId }
+      { section: 'packages', entity_id: packageId },
+      'bid_alert'
     ).catch(err => console.error(`[${requestId}] FCM bid push error:`, err.message));
   }
 
@@ -11211,7 +11249,8 @@ async function sendBidNotifications(supabase, packageId, newBidId, bidPrice, req
       [cb.provider_id],
       'Competing Bid Alert',
       `Another provider just bid on "${pkg.title}" — review and update your bid.`,
-      { section: 'bids' }
+      { section: 'bids' },
+      'bid_opportunity'
     ).catch(() => {});
   }
 }
@@ -14302,7 +14341,8 @@ async function handleEscrowCreate(req, res, requestId) {
         [bid.provider_id],
         'Your Bid Was Accepted!',
         `$${parseFloat(bid.price).toFixed(2)} bid on "${pkg.title}" accepted — get in touch with the member to schedule work.`,
-        { section: 'bids', package_id: package_id }
+        { section: 'bids', entity_id: package_id },
+        'bid_accepted'
       ).catch(err => console.error(`[${requestId}] FCM bid accepted push error:`, err.message));
       
       console.log(`[${requestId}] Created escrow PaymentIntent ${paymentIntent.id} for package ${package_id}, amount: $${bid.price}`);
@@ -14909,7 +14949,8 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
         [bid.provider_id],
         'Payment Released!',
         paymentMsg,
-        { section: 'jobs', package_id: packageId }
+        { section: 'jobs', entity_id: packageId },
+        'payment_received'
       ).catch(err => console.error(`[${requestId}] FCM payment release push error:`, err.message));
     }
     
@@ -14935,7 +14976,8 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
             uniqueIds,
             'Crowd-Funded Job Completed!',
             `"${fullPkg.title}" is done — your contribution helped make it happen!`,
-            { section: 'packages', package_id: packageId }
+            { section: 'packages', entity_id: packageId },
+            'payment_released'
           ).catch(() => {});
         }
       } catch (cfErr) {
@@ -25490,7 +25532,8 @@ async function checkAndSendMaintenanceReminders() {
           [profile.id],
           urgency === 'overdue' ? `${serviceLabel} Overdue` : `${serviceLabel} Due Soon`,
           `Your ${vehicleName} needs ${serviceLabel}. Tap to schedule service.`,
-          { section: 'vehicles' }
+          { section: 'vehicles' },
+          'maintenance'
         ).catch(e => console.error('[MaintenanceReminders] FCM push error:', e.message));
         
         await supabase
@@ -25729,7 +25772,8 @@ async function sendAppointmentReminders() {
           [member.id],
           'Appointment Reminder',
           `Your ${serviceType} for ${vehicleName} is scheduled tomorrow at ${appointmentTime} with ${providerName}.`,
-          { section: 'appointments' }
+          { section: 'appointments' },
+          'appointment'
         ).catch(e => console.error('[AppointmentReminders] FCM push error:', e.message));
         
         if (smsResult.sent) {
@@ -34513,7 +34557,7 @@ function saveAdminInvites(invites) {
         const pushBody = bid_amount && package_title
           ? `$${parseFloat(bid_amount).toFixed(2)} bid on "${package_title}" accepted — get in touch with the member to schedule work.`
           : 'A member accepted your bid. Log in to view details.';
-        sendFCMPushNotification([provider_id], title, pushBody, { section: 'bids' })
+        sendFCMPushNotification([provider_id], title, pushBody, { section: 'bids' }, 'bid_accepted')
           .catch(err => console.error(`[BidAcceptedPush] FCM error:`, err.message));
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
@@ -34927,7 +34971,7 @@ function saveAdminInvites(invites) {
             const emailHtml = `<p>Hi ${ownerName},</p><p>${notifMessage}</p><p>Check your Community Board in the app for updates and to see your total funding progress.</p>`;
             await sendEmailNotification(ownerEmail, ownerName, 'Community Contribution Received', emailHtml, pkg.member_id, 'bid_alerts');
           }
-          sendFCMPushNotification([pkg.member_id], 'Someone Contributed to Your Repair!', `${contribName} chipped in $${amountDollars} toward "${pkg.title}".`, { section: 'packages' })
+          sendFCMPushNotification([pkg.member_id], 'Someone Contributed to Your Repair!', `${contribName} chipped in $${amountDollars} toward "${pkg.title}".`, { section: 'packages', entity_id: packageId }, 'payment_released')
             .catch(() => {});
         } catch (notifErr) {
           console.error('[Contribute] Notification error:', notifErr.message);
@@ -35050,7 +35094,8 @@ function saveAdminInvites(invites) {
         uniqueIds,
         'Help a Fellow Member',
         `A Car Club member needs support for: "${pkg.title}". Check the Community Board.`,
-        { section: 'packages' }
+        { section: 'packages', entity_id: packageId },
+        'car_club'
       ).catch(() => {});
 
       console.log(`[${requestId}] Car Club share: notified ${uniqueIds.length} members for package ${packageId}`);
@@ -37751,7 +37796,8 @@ async function handleMatchProviders(req, res, requestId) {
           scoredIds,
           notifTitle,
           notifMessage,
-          { section: deepLinkSection, package_id }
+          { section: deepLinkSection, entity_id: package_id },
+          'ai_match'
         ).catch(() => {});
       }
 
@@ -38430,7 +38476,8 @@ async function enforceBidDeadlines() {
           [pkg.member_id],
           'Bidding Deadline Reached',
           numBids > 0 ? `"${pkg.title}" closed with ${numBids} bid${numBids === 1 ? '' : 's'}. Tap to review.` : `"${pkg.title}" closed with no bids. Repost or try Community Board.`,
-          { section: 'packages', package_id: pkg.id }
+          { section: 'packages', entity_id: pkg.id },
+          'bid_alert'
         ).catch(() => {});
         closed++;
       } catch (pkgErr) {
@@ -38474,7 +38521,8 @@ async function enforceBidDeadlines() {
               [pkg.exclusive_provider_id],
               'Last Chance to Bid!',
               `"${pkg.title}" closes today at ${timeStr}. Submit your bid before the deadline.`,
-              { section: 'packages', package_id: pkg.id }
+              { section: 'packages', entity_id: pkg.id },
+              'bid_opportunity'
             ).catch(() => {});
           }
           const { error: flagErr1 } = await supabase.from('maintenance_packages').update({ deadline_warning_sent: true }).eq('id', pkg.id);
@@ -38498,7 +38546,8 @@ async function enforceBidDeadlines() {
               [pkg.exclusive_provider_id],
               'Last Chance to Bid!',
               `"${pkg.title}" closes today at ${timeStr}. Submit your bid before the deadline.`,
-              { section: 'packages', package_id: pkg.id }
+              { section: 'packages', entity_id: pkg.id },
+              'bid_opportunity'
             ).catch(() => {});
           }
           const { error: flagErr2 } = await supabase.from('maintenance_packages').update({ deadline_warning_sent: true }).eq('id', pkg.id);
@@ -38555,7 +38604,8 @@ async function enforceBidDeadlines() {
             scored.map(p => p.id),
             'Last Chance to Bid!',
             `"${pkg.title}" closes today at ${timeStr}. Submit your bid before the deadline.`,
-            { section: 'packages', package_id: pkg.id }
+            { section: 'packages', entity_id: pkg.id },
+            'bid_opportunity'
           ).catch(() => {});
         }
         const { error: flagErr3 } = await supabase.from('maintenance_packages').update({ deadline_warning_sent: true }).eq('id', pkg.id);
