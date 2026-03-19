@@ -2057,6 +2057,14 @@ async function runApolloDiscoveryCycle(supabase) {
               } catch (_) {}
               await new Promise(r => setTimeout(r, 350));
             }
+            if (leadType === 'provider' && inserted?.id && process.env.INSTANTLY_API_KEY) {
+              try {
+                const { data: stateRow } = await supabase.from('engine_state').select('instantly_campaign_id').eq('id', 1).single();
+                const campaignId = stateRow?.instantly_campaign_id || null;
+                await pushLeadsToInstantly(supabase, [{ ...leadData, id: inserted.id }], campaignId);
+                results.instantly_enrolled = (results.instantly_enrolled || 0) + 1;
+              } catch (_) {}
+            }
           }
         } else if (email && !existing.email) {
           await supabase.from('outreach_leads').update({ email, apollo_id: apolloPersonId || undefined, status: 'new', score: 72 }).eq('id', existing.id);
@@ -2113,7 +2121,7 @@ async function runApolloDiscoveryCycle(supabase) {
       await supabase.from('outreach_activity_log').insert({ event_type: 'apollo_discovery_cycle', metadata: { city, page, ...results } });
     } catch (_) {}
 
-    console.log(`[Apollo] Cycle complete — found:${results.search_results} added:${results.added} enriched:${results.enriched} wefunder_drafted:${results.wefunder_drafted}`);
+    console.log(`[Apollo] Cycle complete — found:${results.search_results} added:${results.added} enriched:${results.enriched} wefunder_drafted:${results.wefunder_drafted} instantly_enrolled:${results.instantly_enrolled || 0}`);
 
     try {
       const newInvestors = leadType === 'investor' ? results.added : 0;
@@ -2125,6 +2133,7 @@ async function runApolloDiscoveryCycle(supabase) {
       ];
       if (results.enriched > 0) parts.push(`${results.enriched} enriched`);
       if (results.wefunder_drafted > 0) parts.push(`⚡ ${results.wefunder_drafted} Wefunder draft${results.wefunder_drafted !== 1 ? 's' : ''} queued`);
+      if (results.instantly_enrolled > 0) parts.push(`📧 ${results.instantly_enrolled} enrolled in Instantly`);
       if (results.added === 0 && results.enriched === 0) parts.push('no new leads this cycle');
       await sendAdminSMS(supabase, parts.join(' | '));
     } catch (_) {}
