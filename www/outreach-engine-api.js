@@ -1222,8 +1222,12 @@ async function draftMessageWithAI(lead, channel, sequenceStep) {
       contextNote = 'IMPORTANT: This is a car owner community, club, or group discovered online. The lead is the community organizer or admin — NOT an individual car owner. My Car Concierge is in its early startup stage and actively looking for founding community partners. Pitch a partnership: their members already love their vehicles and would benefit from a trusted platform to find vetted local mechanics, compare competitive repair quotes, and track vehicle maintenance. Offer concrete founding-partner benefits: a dedicated Car Club loyalty program on My Car Concierge with custom punch card rewards for their members, a co-branded landing page, referral commissions for the club, and the opportunity to shape how My Car Concierge serves car enthusiast communities as it grows. Being an early community partner means more influence, more visibility, and preferred status. Be respectful of their community — position My Car Concierge as a resource that enhances the ownership experience, not as advertising.';
     } else if (lead.source === 'google_places' && lead.type === 'provider') {
       contextNote = 'IMPORTANT: This is an auto service shop or provider discovered online. They have NOT heard of My Car Concierge before. My Car Concierge is in its early startup stage and actively recruiting founding providers. Pitch the founding provider opportunity: they get in on the ground floor of a growing marketplace, with early-mover advantage — priority visibility, first access to new customers in their area, and the ability to build their reputation and reviews before competitors join. Emphasize there are no platform fees — providers keep 100% of what they earn, plus secure escrow payments, Car Club loyalty tools to build repeat business, and a steady pipeline of pre-qualified local customers. SOCIAL PROOF: Mention that the platform is gaining real momentum — My Car Concierge is currently raising on Wefunder (wefunder.com/my.car.concierge), showing that investors are betting on this marketplace. Frame this as a rare chance to be among the first providers on a platform that investors believe in — not just another listing site.';
-    } else if (lead.source === 'Apollo') {
+    } else if (lead.source === 'Apollo' && lead.type === 'investor') {
+      contextNote = 'IMPORTANT: This is a potential angel investor, VC, or financial professional discovered via Apollo.io. They may NOT have heard of My Car Concierge before. My Car Concierge is an early-stage automotive marketplace startup currently raising on Wefunder at wefunder.com/my.car.concierge — a community crowdfunding round open to everyday investors, not just institutions. Lead with the investment opportunity: a growing marketplace connecting car owners with vetted local service providers, with escrow payments, AI-powered tools, Car Club loyalty programs, and a founding community already building. Highlight market size (auto repair is a $100B+ industry), the platform traction, and why now is the right time to get in early. Include the Wefunder URL as the clear call to action. Do NOT make specific ROI promises, guaranteed return claims, or securities-law-violating statements. Be warm, confident, and direct — this is a conversation starter, not a sales pitch.';
+    } else if (lead.source === 'Apollo' && lead.type === 'provider') {
       contextNote = 'IMPORTANT: This is an auto service business owner or manager discovered via Apollo.io. They have NOT heard of My Car Concierge before. My Car Concierge is in its early startup stage and actively recruiting founding providers. Lead with credibility: My Car Concierge is currently raising on Wefunder (wefunder.com/my.car.concierge) — a community crowdfunding campaign that proves real investor confidence in this platform. Pitch the founding provider opportunity: they get in early on a marketplace backed by investors, with priority visibility, first access to new local customers, and the chance to build their reputation and reviews before competitors arrive. No platform fees — providers keep 100% of what they earn. Secure escrow payments protect both parties. Car Club loyalty tools build repeat business. Frame this as: investors are already betting on this platform — be one of the first providers to benefit.';
+    } else if (lead.source === 'Apollo') {
+      contextNote = 'IMPORTANT: This person was discovered via Apollo.io. They have NOT heard of My Car Concierge before. My Car Concierge is in its early startup stage and actively building its founding community. Mention the Wefunder campaign (wefunder.com/my.car.concierge) as a credibility signal. Pitch based on their apparent role — if they are in the auto industry, invite them as a founding provider; if they appear to be an investor or in finance, direct them to the Wefunder investment opportunity.';
     }
 
     const prompt = `You are a growth outreach assistant for My Car Concierge. ${BRAND_INFO}
@@ -1583,18 +1587,50 @@ async function runPipelineCleanup(supabase) {
 const DEFAULT_APOLLO_CONFIG = {
   enabled: false,
   interval_hours: 6,
-  cities: ['Newark, NJ', 'Jersey City, NJ', 'East Rutherford, NJ', 'Paterson, NJ', 'Trenton, NJ',
-           'New York, NY', 'Brooklyn, NY', 'Queens, NY', 'Bronx, NY',
-           'Philadelphia, PA', 'Stamford, CT', 'Bridgeport, CT',
-           'Edison, NJ', 'Hoboken, NJ', 'Elizabeth, NJ'],
-  titles: ['owner', 'co-owner', 'founder', 'president', 'ceo', 'managing partner', 'general manager', 'operator', 'proprietor'],
-  industries: ['auto repair', 'automotive', 'car repair', 'auto body', 'tire shop', 'oil change'],
   per_page: 25,
   auto_enrich: true,
   enrich_batch: 15,
+  profile_rotation_index: 0,
   city_rotation_index: 0,
   page_rotation_index: 1,
-  last_run: null
+  last_run: null,
+  search_profiles: [
+    {
+      name: 'Providers',
+      lead_type: 'provider',
+      cities: [
+        'Newark, NJ', 'Jersey City, NJ', 'East Rutherford, NJ', 'Paterson, NJ', 'Trenton, NJ',
+        'New York, NY', 'Brooklyn, NY', 'Queens, NY', 'Bronx, NY', 'Staten Island, NY',
+        'Philadelphia, PA', 'Stamford, CT', 'Bridgeport, CT', 'Hartford, CT',
+        'Edison, NJ', 'Hoboken, NJ', 'Elizabeth, NJ', 'Woodbridge, NJ', 'Hackensack, NJ',
+        'Long Island City, NY', 'White Plains, NY', 'Yonkers, NY'
+      ],
+      titles: ['owner', 'co-owner', 'founder', 'president', 'ceo', 'managing partner', 'general manager', 'operator', 'proprietor', 'shop foreman', 'service manager'],
+      industries: ['auto repair', 'automotive', 'car repair', 'auto body', 'tire shop', 'oil change', 'vehicle maintenance', 'collision repair', 'auto detailing', 'car wash']
+    },
+    {
+      name: 'Angel Investors',
+      lead_type: 'investor',
+      cities: [
+        'New York, NY', 'Brooklyn, NY', 'Hoboken, NJ', 'Princeton, NJ', 'Short Hills, NJ',
+        'San Francisco, CA', 'Palo Alto, CA', 'Menlo Park, CA', 'San Jose, CA',
+        'Boston, MA', 'Cambridge, MA',
+        'Austin, TX', 'Chicago, IL', 'Miami, FL', 'Los Angeles, CA',
+        'Atlanta, GA', 'Seattle, WA', 'Denver, CO', 'Nashville, TN'
+      ],
+      titles: [
+        'angel investor', 'active investor', 'general partner', 'managing partner', 'venture partner',
+        'principal', 'investment director', 'managing director', 'chief investment officer',
+        'portfolio manager', 'fund manager', 'founder', 'co-founder', 'partner',
+        'limited partner', 'family office', 'startup advisor', 'board member'
+      ],
+      industries: [
+        'venture capital', 'private equity', 'investment management', 'financial services',
+        'angel investing', 'family office', 'startup', 'automotive', 'marketplace',
+        'mobile applications', 'consumer technology', 'on-demand services'
+      ]
+    }
+  ]
 };
 
 async function getApolloConfig(supabase) {
@@ -1640,19 +1676,25 @@ async function runApolloDiscoveryCycle(supabase) {
   const apolloHeaders = { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'X-Api-Key': apolloKey };
 
   try {
-    // ── Search phase: rotate through cities ──
-    const cities = cfg.cities || DEFAULT_APOLLO_CONFIG.cities;
+    // ── Select current search profile (rotates each cycle) ──
+    const profiles = cfg.search_profiles || DEFAULT_APOLLO_CONFIG.search_profiles;
+    const profileIdx = (cfg.profile_rotation_index || 0) % profiles.length;
+    const profile = profiles[profileIdx];
+    const leadType = profile.lead_type || 'provider';
+
+    // ── Search phase: rotate through profile's cities ──
+    const cities = profile.cities;
     const cityIdx = cfg.city_rotation_index % cities.length;
     const city = cities[cityIdx];
     const page = cfg.page_rotation_index || 1;
 
-    console.log(`[Apollo] Searching city "${city}" page ${page}...`);
+    console.log(`[Apollo] Profile "${profile.name}" — city "${city}" page ${page}...`);
 
     const searchPayload = {
       page,
       per_page: Math.min(cfg.per_page || 25, 100),
-      person_titles: cfg.titles || DEFAULT_APOLLO_CONFIG.titles,
-      q_organization_keyword_tags: cfg.industries || DEFAULT_APOLLO_CONFIG.industries,
+      person_titles: profile.titles,
+      q_organization_keyword_tags: profile.industries,
       person_locations: [city]
     };
 
@@ -1663,11 +1705,13 @@ async function runApolloDiscoveryCycle(supabase) {
     const people = searchData.people || [];
 
     results.search_results = people.length;
-    console.log(`[Apollo] Found ${people.length} contacts in "${city}"`);
+    results.profile = profile.name;
+    console.log(`[Apollo] Found ${people.length} ${leadType} contacts in "${city}"`);
 
     const totalPages = Math.ceil((searchData.pagination?.total_entries || 25) / (cfg.per_page || 25));
     const nextPage = page >= totalPages ? 1 : page + 1;
     const nextCityIdx = nextPage === 1 ? (cityIdx + 1) % cities.length : cityIdx;
+    const nextProfileIdx = nextPage === 1 && nextCityIdx === 0 ? (profileIdx + 1) % profiles.length : profileIdx;
 
     for (const person of people) {
       try {
@@ -1678,18 +1722,20 @@ async function runApolloDiscoveryCycle(supabase) {
         const website = org.website_url || null;
         const domain = website ? website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : null;
         const apolloPersonId = person.id || null;
-        const metadata = { title: person.title, industry: org.industry, apollo_org_id: org.id, domain, apollo_id: apolloPersonId };
+        const metadata = { title: person.title, industry: org.industry, apollo_org_id: org.id, domain, apollo_id: apolloPersonId, apollo_profile: profile.name };
+
+        const baseScore = leadType === 'investor' ? (email ? 85 : 40) : (email ? 72 : 32);
 
         const leadData = {
           name: name || org.name || 'Unknown',
           email: email || null,
           phone: phone || org.phone || null,
           company: org.name || null,
-          type: 'Provider',
+          type: leadType,
           source: 'Apollo',
           location: city,
           status: email ? 'new' : 'email_unknown',
-          score: email ? 72 : 32,
+          score: baseScore,
           apollo_id: apolloPersonId || null,
           linkedin_url: person.linkedin_url || null,
           website: website || null,
@@ -1761,7 +1807,7 @@ async function runApolloDiscoveryCycle(supabase) {
     }
 
     // ── Update config state ──
-    await saveApolloConfig(supabase, { last_run: now.toISOString(), city_rotation_index: nextCityIdx, page_rotation_index: nextPage });
+    await saveApolloConfig(supabase, { last_run: now.toISOString(), city_rotation_index: nextCityIdx, page_rotation_index: nextPage, profile_rotation_index: nextProfileIdx });
 
     // ── Log to activity log ──
     try {
