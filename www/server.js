@@ -34487,6 +34487,67 @@ function saveAdminInvites(invites) {
     return;
   }
   
+  // /api/founder/campaign-stats — 30-min cached Wefunder campaign metrics for authenticated founders
+  if (req.method === 'GET' && req.url === '/api/founder/campaign-stats') {
+    setSecurityHeaders(res, false);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+    const now = Date.now();
+    const CACHE_TTL_30M = 30 * 60 * 1000;
+    if (wefunderStatsCache && (now - wefunderStatsCache.ts) < CACHE_TTL_30M) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(wefunderStatsCache.data));
+      return;
+    }
+    try {
+      const wfRes = await fetch('https://wefunder.com/my.car.concierge', {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MyCar/1.0)', 'Accept': 'text/html,application/xhtml+xml' }
+      });
+      const html = await wfRes.text();
+      let stats = { raised: 0, investors: 0, goal: 0, valuation: null, daysLeft: null, campaignUrl: 'https://wefunder.com/my.car.concierge', live: false };
+      const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+      if (nextDataMatch) {
+        try {
+          const nd = JSON.parse(nextDataMatch[1]);
+          const c = nd?.props?.pageProps?.campaign || nd?.props?.pageProps?.Company || nd?.props?.pageProps?.company || {};
+          stats.raised = parseFloat(c.amount_raised || c.amountRaised || c.total_raised || 0);
+          stats.investors = parseInt(c.num_investors || c.numInvestors || c.investor_count || 0, 10);
+          stats.goal = parseFloat(c.maximum_goal || c.goal_amount || c.minimum_goal || c.goal || 0);
+          stats.valuation = c.valuation || c.pre_money_valuation || null;
+          if (c.deadline_date || c.deadline || c.closes_at) {
+            const deadline = new Date(c.deadline_date || c.deadline || c.closes_at);
+            stats.daysLeft = Math.max(0, Math.ceil((deadline - new Date()) / 86400000));
+          }
+          stats.live = stats.raised > 0 || stats.investors > 0;
+        } catch {}
+      }
+      if (!stats.live) {
+        const raisedMatch = html.match(/\$([0-9,]+(?:\.[0-9]+)?[KkMm]?)\s*(?:raised|committed)/i);
+        if (raisedMatch) {
+          const raw = raisedMatch[1].replace(/,/g, '');
+          stats.raised = /[Kk]$/.test(raw) ? parseFloat(raw) * 1000 : /[Mm]$/.test(raw) ? parseFloat(raw) * 1000000 : parseFloat(raw);
+        }
+        const invMatch = html.match(/([0-9,]+)\s+investors?/i);
+        if (invMatch) stats.investors = parseInt(invMatch[1].replace(/,/g, ''), 10);
+        stats.live = stats.raised > 0 || stats.investors > 0;
+      }
+      wefunderStatsCache = { ts: now, data: stats };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(stats));
+    } catch (err) {
+      console.error('[Wefunder] campaign-stats error:', err.message);
+      const fallback = wefunderStatsCache?.data || { raised: 0, investors: 0, goal: 0, valuation: null, daysLeft: null, campaignUrl: 'https://wefunder.com/my.car.concierge', live: false, error: true };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(fallback));
+    }
+    return;
+  }
+
   if (req.method === 'GET' && req.url?.startsWith('/api/founder/campaign-link-stats')) {
     setSecurityHeaders(res, false);
     setCorsHeaders(res);
