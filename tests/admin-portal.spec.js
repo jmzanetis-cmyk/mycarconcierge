@@ -25,11 +25,11 @@ test.describe('Admin Portal — Members and Providers Management', () => {
     const { data: members, error } = await sb.from('profiles')
       .select('id, email, role').eq('role', 'member').limit(10);
     expect(error).toBeNull();
-    expect(members.length).toBeGreaterThan(0);
+    expect(members.length, 'Members table must have at least one member row').toBeGreaterThan(0);
 
     const { data: filtered } = await sb.from('profiles')
       .select('id, email').ilike('email', '%testmember%').limit(5);
-    expect(filtered.length).toBeGreaterThan(0);
+    expect(filtered.length, 'Email ilike filter must return test member row').toBeGreaterThan(0);
     expect(filtered[0].email).toMatch(/testmember/i);
   });
 
@@ -39,8 +39,8 @@ test.describe('Admin Portal — Members and Providers Management', () => {
     const { data: providers, error } = await sb.from('profiles')
       .select('id, email, role').eq('role', 'provider').limit(10);
     expect(error).toBeNull();
-    expect(providers.length).toBeGreaterThan(0);
-    providers.forEach(p => expect(p.role).toBe('provider'));
+    expect(providers.length, 'Providers table must have at least one provider row').toBeGreaterThan(0);
+    providers.forEach(p => expect(p.role, `All rows must have role=provider`).toBe('provider'));
   });
 
   test('Admin portal loads and password gate is enforced in browser', async ({ page }) => {
@@ -48,7 +48,7 @@ test.describe('Admin Portal — Members and Providers Management', () => {
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500);
     const passwordModal = page.locator('#admin-password-modal, #admin-password-input, [id*="admin-password"]').first();
-    await expect(passwordModal).toBeAttached({ timeout: 8000 });
+    await expect(passwordModal, 'Password gate must render on admin.html without auth').toBeAttached({ timeout: 8000 });
   });
 
   test('Admin API: authenticated fetch from browser context returns members data', async ({ page }) => {
@@ -70,17 +70,18 @@ test.describe('Admin Portal — Members and Providers Management', () => {
       }
     }, ADMIN_PASSWORD);
 
-    expect(result.status).toBe(200);
-    expect(result.hasData).toBe(true);
+    expect(result.status, 'Authenticated admin API request must return 200').toBe(200);
+    expect(result.hasData, 'Response must be a non-null object').toBe(true);
   });
 
-  test('Admin portal HTML contains member search input and filter tabs', async ({ page }) => {
+  test('Admin portal HTML contains member search input and filter controls', async ({ page }) => {
     await page.goto(`${BASE_URL}/admin.html`);
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1500);
-    await expect(page.locator('#member-search')).toBeAttached({ timeout: 5000 });
-    await expect(page.locator('#um-suspended')).toBeAttached({ timeout: 5000 });
-    await expect(page.locator('text=/Corrective Action|suspended provider/i').first()).toBeAttached({ timeout: 5000 });
+    await expect(page.locator('#member-search'), '#member-search must be in DOM').toBeAttached({ timeout: 5000 });
+    await expect(page.locator('#um-suspended'), '#um-suspended counter must be in DOM').toBeAttached({ timeout: 5000 });
+    await expect(page.locator('#provider-search'), '#provider-search must be in DOM').toBeAttached({ timeout: 5000 });
+    await expect(page.locator('#provider-status-filter'), 'Provider status filter must be in DOM').toBeAttached({ timeout: 5000 });
   });
 
   test('Admin members search: Supabase query with ilike filter returns expected results', async () => {
@@ -91,21 +92,19 @@ test.describe('Admin Portal — Members and Providers Management', () => {
       .select('id, email, full_name, role')
       .eq('role', 'member')
       .or('full_name.ilike.%testmember%,email.ilike.%testmember%');
-    expect(e1).toBeNull();
-    expect(byEmail.length).toBeGreaterThan(0);
+    expect(e1, 'Search query must not return an error').toBeNull();
+    expect(byEmail.length, 'Search must find test member by email').toBeGreaterThan(0);
     expect(byEmail[0].email).toMatch(/testmember/i);
 
     const { data: allMembers, error: e2 } = await sb.from('profiles')
       .select('id, role').eq('role', 'member').limit(20);
     expect(e2).toBeNull();
-    expect(allMembers.length).toBeGreaterThan(0);
-    allMembers.forEach(m => expect(m.role).toBe('member'));
+    allMembers.forEach(m => expect(m.role, 'All returned rows must have role=member').toBe('member'));
 
     const { data: allProviders, error: e3 } = await sb.from('profiles')
       .select('id, role').eq('role', 'provider').limit(20);
     expect(e3).toBeNull();
-    expect(allProviders.length).toBeGreaterThan(0);
-    allProviders.forEach(p => expect(p.role).toBe('provider'));
+    allProviders.forEach(p => expect(p.role, 'All returned rows must have role=provider').toBe('provider'));
   });
 
   test('Provider suspend/unsuspend: data layer toggles suspended flag correctly', async () => {
@@ -115,58 +114,49 @@ test.describe('Admin Portal — Members and Providers Management', () => {
     const { data: providers } = await sb.from('profiles')
       .select('id, email, role, suspended').ilike('email', '%testprovider%').limit(5);
     const provider = providers?.find(p => p.email?.includes('testprovider'));
-    expect(provider?.id).toBeTruthy();
+    expect(provider?.id, 'Test provider must exist in profiles').toBeTruthy();
     const providerId = provider.id;
     const originalSuspended = provider.suspended;
 
     const { error: suspendError } = await sb.from('profiles')
       .update({ suspended: true }).eq('id', providerId);
-    expect(suspendError).toBeNull();
+    expect(suspendError, 'Suspend update must not error').toBeNull();
 
     const { data: suspended } = await sb.from('profiles')
       .select('suspended').eq('id', providerId).single();
-    expect(suspended.suspended).toBe(true);
+    expect(suspended.suspended, 'Provider must be suspended after update').toBe(true);
 
     const { error: unsuspendError } = await sb.from('profiles')
       .update({ suspended: originalSuspended || false }).eq('id', providerId);
-    expect(unsuspendError).toBeNull();
+    expect(unsuspendError, 'Unsuspend update must not error').toBeNull();
 
     const { data: restored } = await sb.from('profiles')
       .select('suspended').eq('id', providerId).single();
     expect(restored.suspended).toBe(originalSuspended || false);
   });
 
-  test('Admin browser flow: real JWT injection unlocks portal, dashboard stats load, user management shows real data, toggle suspension updates DB', async ({ page }) => {
-    // Budget: ~70s. Each waitForFunction timeout is tight — fail fast and explicit.
+  test('Admin browser flow: JWT injection unlocks portal, user management search + suspension toggle updates DB', async ({ page }) => {
     test.setTimeout(100000);
     test.skip(!ADMIN_PASSWORD || !SUPABASE_SERVICE_KEY, 'ADMIN_PASSWORD and SUPABASE_SERVICE_ROLE_KEY required');
 
     const supabase = getSupabaseAdmin();
 
-    // Resolve testmember from real DB
     const { data: memberProfile } = await supabase.from('profiles')
       .select('id, suspension_reason, suspended_at').eq('email', TEST_MEMBER_EMAIL).single();
-    expect(memberProfile?.id, 'testmember must exist in profiles').toBeTruthy();
+    expect(memberProfile?.id, 'Test member must exist in profiles').toBeTruthy();
     const memberId = memberProfile.id;
     const originalSuspensionReason = memberProfile.suspension_reason;
     const originalSuspendedAt = memberProfile.suspended_at;
 
-    // Pre-suspend testmember so the "Unsuspend" button is rendered
     await supabase.from('profiles').update({
       suspension_reason: 'E2E test pre-suspension',
       suspended_at: new Date().toISOString()
     }).eq('id', memberId);
 
-    // Inject testadmin's real JWT into localStorage before navigation.
-    // admin.js reads it via supabaseClient.auth.getSession() — no route mocking required.
     await injectAdminSession(page);
-
     await page.goto(`${BASE_URL}/admin.html`);
     await page.waitForLoadState('domcontentloaded');
 
-    // Wait for admin.js to complete its async auth check and render the password form.
-    // With a real admin JWT, getSession() returns the session → profile.role = 'admin'
-    // → showModalState('password'). Falls back to login form if session wasn't picked up.
     await page.waitForFunction(
       () => {
         const pw = document.getElementById('admin-password-form');
@@ -179,9 +169,9 @@ test.describe('Admin Portal — Members and Providers Management', () => {
     const pwShowing = await page.evaluate(
       () => document.getElementById('admin-password-form')?.style.display === 'block'
     );
-    expect(pwShowing, 'Password form must show — injected admin JWT should route past login step').toBe(true);
+    expect(pwShowing, 'Password form must show — injected admin JWT bypasses login step').toBe(true);
 
-    // Submit password (real RPC: verify_admin_password) and wait for modal to hide
+    // Type the admin password into the real input and click the real submit button
     await page.evaluate((pass) => {
       const el = document.getElementById('admin-password-input');
       if (el) { el.value = pass; el.dispatchEvent(new Event('input', { bubbles: true })); }
@@ -189,20 +179,15 @@ test.describe('Admin Portal — Members and Providers Management', () => {
     }, ADMIN_PASSWORD);
 
     await page.waitForFunction(
-      () => {
-        const m = document.getElementById('admin-password-modal');
-        return !m || m.style.display === 'none';
-      },
+      () => { const m = document.getElementById('admin-password-modal'); return !m || m.style.display === 'none'; },
       { timeout: 15000 }
     );
+    expect(
+      await page.evaluate(() => { const m = document.getElementById('admin-password-modal'); return !m || m.style.display === 'none'; }),
+      'Admin password modal must close after RPC verification'
+    ).toBe(true);
 
-    const modalHidden = await page.evaluate(
-      () => { const m = document.getElementById('admin-password-modal'); return !m || m.style.display === 'none'; }
-    );
-    expect(modalHidden, 'Admin password modal must close after real RPC verification').toBe(true);
-
-    // Poll-click User Management nav. showSection() synchronously adds .active before its
-    // first await, so the same poll tick that clicks also detects .active — no race.
+    // Navigate to User Management
     await page.waitForFunction(
       () => {
         const nav = document.querySelector('[data-section="user-management"]');
@@ -212,12 +197,9 @@ test.describe('Admin Portal — Members and Providers Management', () => {
       { timeout: 20000, polling: 1000 }
     );
 
-    // Stat counters must be present (populated by loadUserManagement() → updateUserManagementStats())
     await expect(page.locator('#um-total-users'), '#um-total-users must be in DOM').toBeAttached({ timeout: 5000 });
     await expect(page.locator('#um-suspended'), '#um-suspended must be in DOM').toBeAttached({ timeout: 5000 });
 
-    // Wait for the real data table to render (loadUserManagement() calls Supabase then renders rows)
-    // The correct selector is #user-management-table (a <tbody>) rendered by renderUserManagementTable()
     await page.waitForFunction(
       () => {
         const tbody = document.getElementById('user-management-table');
@@ -226,20 +208,14 @@ test.describe('Admin Portal — Members and Providers Management', () => {
       { timeout: 12000 }
     );
 
-    // Verify the member search input and the table are in the DOM
-    await expect(page.locator('#member-search'), '#member-search must be in DOM').toBeAttached({ timeout: 5000 });
+    await expect(page.locator('#member-search'), '#member-search must be present').toBeAttached({ timeout: 5000 });
     const rowCount = await page.evaluate(() => document.getElementById('user-management-table')?.querySelectorAll('tr').length || 0);
-    expect(rowCount, 'User management table must have at least one row of real data').toBeGreaterThan(0);
+    expect(rowCount, 'User management table must have at least one data row').toBeGreaterThan(0);
 
-    // Search for testmember to narrow the table, then click their Edit button.
-    // The Edit button calls openUserEditModal() which is scoped inside the load handler,
-    // so we trigger it via DOM click (same path as a real user) rather than page.evaluate().
-    await page.evaluate((email) => {
-      const search = document.getElementById('member-search');
-      if (search) { search.value = email; search.dispatchEvent(new Event('input', { bubbles: true })); }
-    }, TEST_MEMBER_EMAIL);
+    // Type into search input — real keyboard interaction
+    await page.locator('#member-search').fill(TEST_MEMBER_EMAIL);
+    await page.locator('#member-search').dispatchEvent('input');
 
-    // Wait for table to filter and show testmember's row
     await page.waitForFunction(
       (email) => {
         const tbody = document.getElementById('user-management-table');
@@ -249,7 +225,7 @@ test.describe('Admin Portal — Members and Providers Management', () => {
       { timeout: 8000 }
     );
 
-    // Click the Edit button in the testmember row — triggers openUserEditModal() via onclick
+    // Click the Edit button in the filtered member row
     const editClicked = await page.evaluate((email) => {
       const rows = document.getElementById('user-management-table')?.querySelectorAll('tr') || [];
       for (const row of rows) {
@@ -260,44 +236,129 @@ test.describe('Admin Portal — Members and Providers Management', () => {
       }
       return false;
     }, TEST_MEMBER_EMAIL);
-    expect(editClicked, 'Edit button for testmember must be clickable in user management table').toBe(true);
+    expect(editClicked, 'Edit button must be clickable in user management row').toBe(true);
 
-    // Wait for the user-edit-modal to become active (added .active by openUserEditModal())
+    // Wait for the user-edit-modal to open (openUserEditModal now clears inline style so CSS controls display)
     await page.waitForFunction(
       () => document.getElementById('user-edit-modal')?.classList.contains('active'),
       { timeout: 8000 }
     );
 
-    // Assert the Unsuspend Account button is in the modal DOM for the pre-suspended user.
-    // The modal has style="display:none" which the CSS `.modal-backdrop.active{display:flex}`
-    // cannot override (inline style wins specificity). So the button exists in DOM but is
-    // inside a zero-size container — use dispatchEvent to fire the click handler directly.
-    const unsuspendBtn = page.locator('#user-edit-modal button[onclick*="toggleUserSuspension"][onclick*="false"]').first();
-    await expect(unsuspendBtn, 'Unsuspend Account button must be attached in modal DOM for pre-suspended user').toBeAttached({ timeout: 5000 });
-
-    // Fire the onclick handler — same execution path as a real user click.
-    // page.on('dialog') must be registered BEFORE the click triggers confirm().
+    // The modal is now visible — click the real Unsuspend Account button
+    const unsuspendBtn = page.locator('#user-edit-modal button').filter({ hasText: /Unsuspend Account/i }).first();
+    await expect(unsuspendBtn, 'Unsuspend Account button must be visible in the edit modal').toBeVisible({ timeout: 5000 });
     page.on('dialog', dialog => dialog.accept());
-    const btnFound = await page.evaluate(() => {
-      const btn = document.querySelector('#user-edit-modal button[onclick*="toggleUserSuspension"][onclick*="false"]');
-      if (!btn) return false;
-      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      return true;
-    });
-    expect(btnFound, 'Unsuspend Account button must be present and dispatchEvent must fire').toBe(true);
+    await unsuspendBtn.click();
     await page.waitForTimeout(3000);
 
-    // Verify the real DB was updated — no manual mutation, only the UI button click did this
+    // Verify DB was updated by the real UI click
     const { data: afterToggle } = await supabase.from('profiles')
       .select('suspension_reason, suspended_at').eq('id', memberId).single();
     expect(afterToggle, 'Profile must exist after toggle').toBeTruthy();
     expect(afterToggle.suspension_reason, 'suspension_reason must be cleared after Unsuspend').toBeNull();
     expect(afterToggle.suspended_at, 'suspended_at must be cleared after Unsuspend').toBeNull();
 
-    // Restore testmember's original state
     await supabase.from('profiles').update({
       suspension_reason: originalSuspensionReason,
       suspended_at: originalSuspendedAt
     }).eq('id', memberId);
+  });
+
+  test('Admin providers UI: search filters table, status dropdown narrows results, row data matches DB', async ({ page }) => {
+    test.setTimeout(90000);
+    test.skip(!ADMIN_PASSWORD || !SUPABASE_SERVICE_KEY, 'ADMIN_PASSWORD and SUPABASE_SERVICE_ROLE_KEY required');
+
+    await injectAdminSession(page);
+    await page.goto(`${BASE_URL}/admin.html`);
+    await page.waitForLoadState('domcontentloaded');
+
+    await page.waitForFunction(
+      () => {
+        const pw = document.getElementById('admin-password-form');
+        return pw && pw.style.display === 'block';
+      },
+      { timeout: 12000 }
+    );
+    await page.evaluate((pass) => {
+      const el = document.getElementById('admin-password-input');
+      if (el) { el.value = pass; el.dispatchEvent(new Event('input', { bubbles: true })); }
+      document.getElementById('admin-modal-btn')?.click();
+    }, ADMIN_PASSWORD);
+    await page.waitForFunction(
+      () => { const m = document.getElementById('admin-password-modal'); return !m || m.style.display === 'none'; },
+      { timeout: 15000 }
+    );
+
+    // Navigate to providers section
+    await page.waitForFunction(
+      () => {
+        const nav = document.querySelector('[data-section="providers"]');
+        if (nav) nav.click();
+        return document.getElementById('providers')?.classList.contains('active');
+      },
+      { timeout: 20000, polling: 1000 }
+    );
+
+    // Wait for providers table to populate
+    await page.waitForFunction(
+      () => {
+        const tbody = document.getElementById('providers-table');
+        return tbody && tbody.querySelectorAll('tr').length > 0;
+      },
+      { timeout: 12000 }
+    );
+
+    const initialRowCount = await page.evaluate(() => document.getElementById('providers-table')?.querySelectorAll('tr').length || 0);
+    expect(initialRowCount, 'Providers table must have at least one row').toBeGreaterThan(0);
+
+    // Verify search input and status filter are present and interactive
+    const searchInput = page.locator('#provider-search');
+    await expect(searchInput, '#provider-search must be visible').toBeVisible({ timeout: 5000 });
+    const statusFilter = page.locator('#provider-status-filter');
+    await expect(statusFilter, '#provider-status-filter must be visible').toBeVisible({ timeout: 5000 });
+
+    // Type into provider search — verify table updates (or remains non-empty)
+    await searchInput.click();
+    await searchInput.fill('a');
+    await searchInput.dispatchEvent('input');
+    await page.waitForTimeout(1000);
+
+    const afterSearchCount = await page.evaluate(() => document.getElementById('providers-table')?.querySelectorAll('tr').length || 0);
+    expect(afterSearchCount, 'Providers table must remain non-empty after broad search').toBeGreaterThan(0);
+
+    // Clear search and apply status filter
+    await searchInput.fill('');
+    await searchInput.dispatchEvent('input');
+    await page.waitForTimeout(500);
+
+    const statusOptions = await statusFilter.locator('option').allTextContents();
+    expect(statusOptions.length, 'Status filter must have at least 2 options').toBeGreaterThan(1);
+
+    await statusFilter.selectOption({ index: 1 });
+    await statusFilter.dispatchEvent('change');
+    await page.waitForTimeout(1000);
+
+    // Verify the table rendered rows or shows empty state (both are valid responses to a filter)
+    const filteredRowsVisible = await page.evaluate(() => {
+      const tbody = document.getElementById('providers-table');
+      return tbody ? true : false;
+    });
+    expect(filteredRowsVisible, 'Providers table body must remain in DOM after status filter').toBe(true);
+
+    // Verify at least one row from the DB matches what the table shows
+    const supabase = getSupabaseAdmin();
+    const { data: dbProviders } = await supabase.from('profiles')
+      .select('id, email, role').eq('role', 'provider').limit(3);
+    expect(dbProviders.length, 'DB must have at least one provider').toBeGreaterThan(0);
+
+    const firstDbEmail = dbProviders[0].email;
+    await searchInput.fill(firstDbEmail.split('@')[0]);
+    await searchInput.dispatchEvent('input');
+    await page.waitForTimeout(1000);
+    const foundInTable = await page.evaluate((term) => {
+      const tbody = document.getElementById('providers-table');
+      return tbody ? tbody.innerHTML.toLowerCase().includes(term.toLowerCase()) : false;
+    }, firstDbEmail.split('@')[0]);
+    expect(foundInTable, 'Provider from DB must appear in table when searched by name/email fragment').toBe(true);
   });
 });

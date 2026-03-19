@@ -5928,7 +5928,9 @@
       `;
 
       document.getElementById('user-edit-modal-body').innerHTML = modalContent;
-      document.getElementById('user-edit-modal').classList.add('active');
+      const userEditModal = document.getElementById('user-edit-modal');
+      userEditModal.style.display = '';
+      userEditModal.classList.add('active');
     }
 
     async function updateUserRole(userId, newRole) {
