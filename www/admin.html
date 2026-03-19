@@ -1177,6 +1177,94 @@
               <span style="font-size:0.88rem;color:var(--text-muted);">Loading Apollo status...</span>
               <button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh Status</button>
             </div>
+
+            <!-- Automation Settings -->
+            <div class="card" style="margin-bottom:20px;border:2px solid var(--accent-gold);background:linear-gradient(135deg,var(--bg-elevated) 0%,rgba(184,148,45,0.06) 100%);">
+              <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <h2 class="card-title" style="display:flex;align-items:center;gap:10px;">
+                  <span class="icon-inline" data-icon="cpu"></span> Automated Discovery
+                  <span id="apollo-auto-badge" style="display:none;font-size:0.72rem;padding:2px 8px;border-radius:20px;background:var(--success);color:#fff;font-weight:700;letter-spacing:0.03em;">RUNNING</span>
+                </h2>
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span id="apollo-last-run-label" style="font-size:0.82rem;color:var(--text-muted);"></span>
+                  <button class="btn btn-sm" id="apollo-run-now-btn" onclick="runApolloCycle()" style="background:var(--accent-gold);color:#000;font-weight:600;">
+                    <span class="icon-inline" data-icon="play"></span> Run Now
+                  </button>
+                  <button class="btn btn-sm" onclick="loadApolloConfig()"><span class="icon-inline" data-icon="refresh-cw"></span></button>
+                </div>
+              </div>
+              <div style="padding:4px 0;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:16px;">
+                  <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);cursor:pointer;" onclick="document.getElementById('apollo-auto-toggle').click()">
+                    <input type="checkbox" id="apollo-auto-toggle" style="width:18px;height:18px;accent-color:var(--accent-gold);">
+                    <div>
+                      <div style="font-weight:600;font-size:0.95rem;">Enable Automation</div>
+                      <div style="font-size:0.8rem;color:var(--text-muted);">Auto-discover leads on schedule</div>
+                    </div>
+                  </div>
+                  <div>
+                    <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.85rem;">Search Interval</label>
+                    <select id="apollo-auto-interval" class="form-input" style="width:100%;">
+                      <option value="2">Every 2 hours</option>
+                      <option value="4">Every 4 hours</option>
+                      <option value="6" selected>Every 6 hours</option>
+                      <option value="12">Every 12 hours</option>
+                      <option value="24">Once a day</option>
+                      <option value="48">Every 2 days</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.85rem;">Results Per City</label>
+                    <select id="apollo-auto-per-page" class="form-input" style="width:100%;">
+                      <option value="10">10 contacts</option>
+                      <option value="25" selected>25 contacts</option>
+                      <option value="50">50 contacts</option>
+                      <option value="100">100 contacts</option>
+                    </select>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);cursor:pointer;" onclick="document.getElementById('apollo-auto-enrich-toggle').click()">
+                    <input type="checkbox" id="apollo-auto-enrich-toggle" checked style="width:18px;height:18px;accent-color:var(--accent-teal,var(--accent-blue));">
+                    <div>
+                      <div style="font-weight:600;font-size:0.95rem;">Auto-Enrich Emails</div>
+                      <div style="font-size:0.8rem;color:var(--text-muted);">Reveals emails (uses credits)</div>
+                    </div>
+                  </div>
+                  <div>
+                    <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.85rem;">Enrich Batch Size</label>
+                    <select id="apollo-auto-enrich-batch" class="form-input" style="width:100%;">
+                      <option value="5">5 leads</option>
+                      <option value="10">10 leads</option>
+                      <option value="15" selected>15 leads</option>
+                      <option value="25">25 leads</option>
+                    </select>
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+                  <div>
+                    <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.85rem;">Target Cities <span style="color:var(--text-muted);font-weight:400;">(one per line, rotated automatically)</span></label>
+                    <textarea id="apollo-auto-cities" class="form-input" style="width:100%;min-height:120px;font-size:0.85rem;"></textarea>
+                  </div>
+                  <div>
+                    <div style="margin-bottom:12px;">
+                      <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.85rem;">Job Titles <span style="color:var(--text-muted);font-weight:400;">(comma-separated)</span></label>
+                      <input type="text" id="apollo-auto-titles" class="form-input" style="width:100%;">
+                    </div>
+                    <div>
+                      <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.85rem;">Industry Keywords <span style="color:var(--text-muted);font-weight:400;">(comma-separated)</span></label>
+                      <input type="text" id="apollo-auto-industries" class="form-input" style="width:100%;">
+                    </div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:12px;align-items:center;">
+                  <button class="btn btn-primary" onclick="saveApolloConfig()" style="flex:1;max-width:200px;">
+                    <span class="icon-inline" data-icon="save"></span> Save Settings
+                  </button>
+                  <div id="apollo-config-save-status" style="font-size:0.88rem;color:var(--text-muted);"></div>
+                  <div id="apollo-cycle-result" style="display:none;flex:1;padding:10px 14px;background:var(--bg-input);border-radius:var(--radius-md);font-size:0.85rem;"></div>
+                </div>
+              </div>
+            </div>
+
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
               <div class="card">
                 <div class="card-header"><h2 class="card-title"><span class="icon-inline" data-icon="search"></span> Discover New Leads</h2></div>

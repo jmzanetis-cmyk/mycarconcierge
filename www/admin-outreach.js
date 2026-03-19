@@ -1310,24 +1310,145 @@
     if (!bar) return;
     try {
       const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
-      const resp = await fetch('/api/admin/apollo/status', { headers: { 'x-admin-password': adminPassword } });
-      const data = await resp.json();
-      if (!resp.ok || data.error) {
+      const [statusResp, cfgResp] = await Promise.all([
+        fetch('/api/admin/apollo/status', { headers: { 'x-admin-password': adminPassword } }),
+        fetch('/api/admin/apollo/config', { headers: { 'x-admin-password': adminPassword } })
+      ]);
+      const data = await statusResp.json();
+      if (statusResp.ok && cfgResp.ok) {
+        const cfgData = await cfgResp.json();
+        if (cfgData.config) populateApolloConfigForm(cfgData.config);
+      }
+      if (!statusResp.ok || data.error) {
         bar.innerHTML = `<span style="color:var(--error);font-size:0.88rem;">⚠️ ${data.error || 'Apollo API error'}</span><button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Retry</button>`;
         return;
       }
       const minute = data.minute_requests_left !== undefined ? `<span style="margin-right:16px;"><strong>${data.minute_requests_left ?? '—'}</strong> <span style="color:var(--text-muted)">req/min left</span></span>` : '';
       const hour = data.hour_requests_left !== undefined ? `<span style="margin-right:16px;"><strong>${data.hour_requests_left ?? '—'}</strong> <span style="color:var(--text-muted)">req/hr left</span></span>` : '';
-      const day = data.day_requests_left !== undefined ? `<span style="margin-right:16px;"><strong>${data.day_requests_left ?? '—'}</strong> <span style="color:var(--text-muted)">req/day left</span></span>` : '';
       const credits = data.credits !== undefined ? `<span style="margin-right:16px;"><strong>${data.credits ?? '—'}</strong> <span style="color:var(--text-muted)">export credits</span></span>` : '';
+      const total = data.total_results ? `<span style="margin-right:16px;color:var(--text-muted);font-size:0.82rem;">${data.total_results.toLocaleString()} auto contacts in DB</span>` : '';
       bar.innerHTML = `
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
           <span style="margin-right:12px;font-weight:700;color:var(--success);">✓ Apollo Connected</span>
-          ${minute}${hour}${day}${credits}
+          ${minute}${hour}${credits}${total}
         </div>
         <button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>`;
     } catch (e) {
       bar.innerHTML = `<span style="color:var(--error);font-size:0.88rem;">⚠️ Could not reach Apollo API</span><button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Retry</button>`;
+    }
+  }
+
+  function populateApolloConfigForm(cfg) {
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+    const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+    const setOpt = (id, val) => { const el = document.getElementById(id); if (el) el.value = String(val); };
+
+    setChk('apollo-auto-toggle', cfg.enabled);
+    setOpt('apollo-auto-interval', cfg.interval_hours || 6);
+    setOpt('apollo-auto-per-page', cfg.per_page || 25);
+    setChk('apollo-auto-enrich-toggle', cfg.auto_enrich !== false);
+    setOpt('apollo-auto-enrich-batch', cfg.enrich_batch || 15);
+    setVal('apollo-auto-cities', (cfg.cities || []).join('\n'));
+    setVal('apollo-auto-titles', (cfg.titles || []).join(', '));
+    setVal('apollo-auto-industries', (cfg.industries || []).join(', '));
+
+    const badge = document.getElementById('apollo-auto-badge');
+    if (badge) badge.style.display = cfg.enabled ? 'inline' : 'none';
+
+    const lastRunLabel = document.getElementById('apollo-last-run-label');
+    if (lastRunLabel) {
+      if (cfg.last_run) {
+        const ago = Math.round((Date.now() - new Date(cfg.last_run)) / 60000);
+        lastRunLabel.textContent = ago < 60 ? `Last run ${ago}m ago` : `Last run ${Math.round(ago/60)}h ago`;
+      } else {
+        lastRunLabel.textContent = 'Never run';
+      }
+    }
+  }
+
+  async function loadApolloConfig() {
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/config', { headers: { 'x-admin-password': adminPassword } });
+      const data = await resp.json();
+      if (data.config) populateApolloConfigForm(data.config);
+    } catch (e) {
+      console.error('loadApolloConfig error:', e);
+    }
+  }
+
+  async function saveApolloConfig() {
+    const statusEl = document.getElementById('apollo-config-save-status');
+    if (statusEl) statusEl.textContent = 'Saving...';
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const citiesRaw = document.getElementById('apollo-auto-cities')?.value || '';
+      const titlesRaw = document.getElementById('apollo-auto-titles')?.value || '';
+      const industriesRaw = document.getElementById('apollo-auto-industries')?.value || '';
+
+      const payload = {
+        enabled: document.getElementById('apollo-auto-toggle')?.checked || false,
+        interval_hours: parseInt(document.getElementById('apollo-auto-interval')?.value || '6'),
+        per_page: parseInt(document.getElementById('apollo-auto-per-page')?.value || '25'),
+        auto_enrich: document.getElementById('apollo-auto-enrich-toggle')?.checked !== false,
+        enrich_batch: parseInt(document.getElementById('apollo-auto-enrich-batch')?.value || '15'),
+        cities: citiesRaw.split('\n').map(s => s.trim()).filter(Boolean),
+        titles: titlesRaw.split(',').map(s => s.trim()).filter(Boolean),
+        industries: industriesRaw.split(',').map(s => s.trim()).filter(Boolean)
+      };
+
+      const resp = await fetch('/api/admin/apollo/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      if (!resp.ok || data.error) throw new Error(data.error || 'Save failed');
+
+      if (statusEl) { statusEl.style.color = 'var(--success)'; statusEl.textContent = '✓ Settings saved'; setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000); }
+      const badge = document.getElementById('apollo-auto-badge');
+      if (badge) badge.style.display = payload.enabled ? 'inline' : 'none';
+    } catch (e) {
+      if (statusEl) { statusEl.style.color = 'var(--error)'; statusEl.textContent = '✗ ' + e.message; }
+    }
+  }
+
+  async function runApolloCycle() {
+    const btn = document.getElementById('apollo-run-now-btn');
+    const resultEl = document.getElementById('apollo-cycle-result');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span style="opacity:0.7">Running...</span>'; }
+    if (resultEl) resultEl.style.display = 'none';
+
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/cycle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify({ force: true })
+      });
+      const data = await resp.json();
+
+      if (resultEl) {
+        resultEl.style.display = 'block';
+        if (data.success) {
+          resultEl.style.background = 'rgba(34,197,94,0.1)';
+          resultEl.style.border = '1px solid rgba(34,197,94,0.3)';
+          resultEl.innerHTML = `<strong style="color:var(--success);">✓ Cycle complete</strong> — City: <strong>${data.city}</strong> · Found: <strong>${data.search_results}</strong> · Added: <strong>${data.added}</strong> · Enriched: <strong>${data.enriched}</strong>`;
+        } else if (data.skipped) {
+          resultEl.style.background = 'var(--bg-elevated)';
+          resultEl.style.border = '1px solid var(--border-subtle)';
+          resultEl.innerHTML = `Skipped: ${data.reason}`;
+        } else {
+          resultEl.style.background = 'rgba(239,68,68,0.1)';
+          resultEl.style.border = '1px solid rgba(239,68,68,0.3)';
+          resultEl.innerHTML = `<span style="color:var(--error);">Error: ${data.error || 'Unknown error'}</span>`;
+        }
+      }
+      if (data.success) await loadApolloStatus();
+    } catch (e) {
+      if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = `<span style="color:var(--error);">Error: ${e.message}</span>`; }
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="play"></span> Run Now'; if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn); }
     }
   }
 
@@ -1481,6 +1602,9 @@
   }
 
   window.loadApolloStatus = loadApolloStatus;
+  window.loadApolloConfig = loadApolloConfig;
+  window.saveApolloConfig = saveApolloConfig;
+  window.runApolloCycle = runApolloCycle;
   window.apolloSearch = apolloSearch;
   window.checkApolloEnrichQueue = checkApolloEnrichQueue;
   window.apolloEnrich = apolloEnrich;

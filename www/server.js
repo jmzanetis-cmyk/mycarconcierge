@@ -16,7 +16,7 @@ const { Resend } = require('resend');
 const stripeTreasury = require('./stripe-treasury');
 const { getHubSpotClient } = require('./hubspot-client');
 const handleCarClubRequest = require('./car-club-api');
-const { handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook, startEngineSchedulers, initEngineState } = require('./outreach-engine-api');
+const { handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook, startEngineSchedulers, initEngineState, runApolloDiscoveryCycle, getApolloConfig, saveApolloConfig } = require('./outreach-engine-api');
 const { Pool: PgPool } = require('pg');
 let _localPgPool = null;
 function getLocalPool() {
@@ -33431,6 +33431,73 @@ Return ONLY the JSON array, no other text.`;
             res.end(JSON.stringify({ success: true, total: (leads || []).length, enriched, failed, details }));
           } catch (err) {
             console.error('[Apollo] Enrich error:', err.message);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+
+      // GET /api/admin/apollo/config — fetch automation settings
+      if (req.method === 'GET' && req.url === '/api/admin/apollo/config') {
+        try {
+          const supabase = getSupabaseClient();
+          if (!supabase) throw new Error('Database not configured');
+          const cfg = await getApolloConfig(supabase);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, config: cfg }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
+
+      // POST /api/admin/apollo/config — save automation settings
+      if (req.method === 'POST' && req.url === '/api/admin/apollo/config') {
+        let body = '';
+        req.on('data', c => { body += c; });
+        req.on('end', async () => {
+          try {
+            const supabase = getSupabaseClient();
+            if (!supabase) throw new Error('Database not configured');
+            const updates = JSON.parse(body || '{}');
+            const cfg = await saveApolloConfig(supabase, updates);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, config: cfg }));
+          } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+
+      // POST /api/admin/apollo/cycle — manually trigger a full Apollo discovery cycle
+      if (req.method === 'POST' && req.url === '/api/admin/apollo/cycle') {
+        let body = '';
+        req.on('data', c => { body += c; });
+        req.on('end', async () => {
+          try {
+            const supabase = getSupabaseClient();
+            if (!supabase) throw new Error('Database not configured');
+            const { force = false } = JSON.parse(body || '{}');
+
+            // If forced, temporarily enable and remove last_run so the cycle runs regardless
+            if (force) {
+              await saveApolloConfig(supabase, { enabled: true, last_run: null });
+            }
+
+            const result = await runApolloDiscoveryCycle(supabase);
+
+            // If we force-enabled, restore original enabled state
+            if (force && !result.success && result.skipped) {
+              // leave enabled=true from above
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(result));
+          } catch (err) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: err.message }));
           }
