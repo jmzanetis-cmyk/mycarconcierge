@@ -315,18 +315,52 @@
   })();
 
   if (isCapacitorNative()) {
-    const tryInit = async () => {
-      if (window.supabaseClient) {
-        try {
-          const { data: { session } } = await window.supabaseClient.auth.getSession();
-          if (session) await window.initCapacitorPush(window._mccPushContext || 'member');
-        } catch {}
+    const tryFirstLaunchPrompt = async () => {
+      if (!window.supabaseClient) return;
+      try {
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const plugin = getPushPlugin();
+        if (!plugin) return;
+
+        // Check current permission state
+        const permStatus = await plugin.checkPermissions();
+        const permState = permStatus?.receive || permStatus?.status;
+
+        if (permState === 'prompt' || permState === 'prompt-with-rationale') {
+          // First-launch: automatically request permission on native
+          console.log('[CapacitorPush] First-launch: auto-requesting push permission');
+          const requestResult = await plugin.requestPermissions();
+          const granted = (requestResult?.receive || requestResult?.status) === 'granted';
+          if (granted) {
+            await window.initCapacitorPush(window._mccPushContext || 'member');
+          } else {
+            console.log('[CapacitorPush] Push permission denied by user on first-launch');
+          }
+        } else if (permState === 'granted') {
+          // Already granted — register/refresh token
+          await window.initCapacitorPush(window._mccPushContext || 'member');
+        }
+        // 'denied' — user previously denied, do not re-prompt
+      } catch (err) {
+        console.warn('[CapacitorPush] First-launch init error:', err.message || err);
       }
     };
+
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => setTimeout(tryInit, 1500));
+      document.addEventListener('DOMContentLoaded', () => setTimeout(tryFirstLaunchPrompt, 2000));
     } else {
-      setTimeout(tryInit, 1500);
+      setTimeout(tryFirstLaunchPrompt, 2000);
+    }
+
+    // Also re-check on auth state change (user logs in during session)
+    if (window.supabaseClient && typeof window.supabaseClient.auth?.onAuthStateChange === 'function') {
+      window.supabaseClient.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_IN') {
+          setTimeout(tryFirstLaunchPrompt, 1500);
+        }
+      });
     }
   }
 

@@ -16,7 +16,9 @@ end
 
 target 'App' do
   capacitor_pods
-  # Add your Pods here
+  # Firebase SDK for FCM push notifications (HTTP v1 via FCM service account)
+  pod 'FirebaseCore'
+  pod 'FirebaseMessaging'
 end
 
 post_install do |installer|
