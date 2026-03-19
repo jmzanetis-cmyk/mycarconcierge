@@ -530,6 +530,13 @@ async function initializeDashboard() {
   setupEventListeners();
   setupRealtimeSubscriptions();
   if (typeof initAiPackageAssistant === 'function') initAiPackageAssistant();
+
+  // Initialize native push notifications on member login
+  // members-push.js handles permission check, first-launch prompt, and FCM token registration
+  if (typeof window.initCapacitorPush === 'function') {
+    window._mccPushContext = 'member';
+    setTimeout(() => window.initCapacitorPush('member'), 1500);
+  }
 }
 
 // ========== REALTIME SUBSCRIPTIONS ==========

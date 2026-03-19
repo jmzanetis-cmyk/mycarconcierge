@@ -2,10 +2,43 @@ PODS:
   - Capacitor (7.4.4):
     - CapacitorCordova
   - CapacitorCordova (7.4.4)
+  - FirebaseCore (11.0.0):
+    - FirebaseCoreDiagnostics (= 11.0.0)
+    - GoogleUtilities/Environment (~> 8.0)
+    - GoogleUtilities/Logger (~> 8.0)
+  - FirebaseCoreDiagnostics (11.0.0)
+  - FirebaseInstallations (11.0.0):
+    - FirebaseCore (~> 11.0)
+    - GoogleUtilities/Environment (~> 8.0)
+    - GoogleUtilities/UserDefaults (~> 8.0)
+    - PromisesSwift (~> 2.1)
+  - FirebaseMessaging (11.0.0):
+    - FirebaseCore (~> 11.0)
+    - FirebaseInstallations (~> 11.0)
+    - GoogleDataTransport (~> 10.1)
+    - GoogleUtilities/AppDelegateSwizzler (~> 8.0)
+    - GoogleUtilities/Environment (~> 8.0)
+    - GoogleUtilities/Reachability (~> 8.0)
+    - GoogleUtilities/UserDefaults (~> 8.0)
+  - GoogleDataTransport (10.1.0)
+  - GoogleUtilities (8.0.2):
+    - GoogleUtilities/AppDelegateSwizzler (= 8.0.2)
+    - GoogleUtilities/Environment (= 8.0.2)
+    - GoogleUtilities/Logger (= 8.0.2)
+    - GoogleUtilities/Reachability (= 8.0.2)
+    - GoogleUtilities/UserDefaults (= 8.0.2)
+  - GoogleUtilities/AppDelegateSwizzler (8.0.2)
+  - GoogleUtilities/Environment (8.0.2)
+  - GoogleUtilities/Logger (8.0.2)
+  - GoogleUtilities/Reachability (8.0.2)
+  - GoogleUtilities/UserDefaults (8.0.2)
+  - PromisesSwift (2.4.0)
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
+  - FirebaseCore
+  - FirebaseMessaging
 
 EXTERNAL SOURCES:
   Capacitor:
@@ -16,7 +49,13 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   Capacitor: 358dd1c3fdd71d969547b17e159fd8a7736cb45f
   CapacitorCordova: bf648a636f3c153f652d312ae145fb508b6ffced
+  FirebaseCore: placeholder-run-pod-install-to-generate
+  FirebaseMessaging: placeholder-run-pod-install-to-generate
+  FirebaseInstallations: placeholder-run-pod-install-to-generate
+  GoogleDataTransport: placeholder-run-pod-install-to-generate
+  GoogleUtilities: placeholder-run-pod-install-to-generate
+  PromisesSwift: placeholder-run-pod-install-to-generate
 
-PODFILE CHECKSUM: e5aad413742a07f9e736126612b43b6c058babcd
+PODFILE CHECKSUM: placeholder-run-pod-install-to-regenerate
 
 COCOAPODS: 1.16.2
