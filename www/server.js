@@ -34443,8 +34443,8 @@ function saveAdminInvites(invites) {
       res.end(JSON.stringify({ packages }));
     } catch (err) {
       console.error('[CommunityBoard] Error:', err.message);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ packages: [] }));
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Community Board temporarily unavailable', packages: [] }));
     }
     return;
   }
