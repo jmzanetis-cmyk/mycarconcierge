@@ -3228,12 +3228,13 @@ async function loadCrowdFundedProgress() {
       if (!raisedEl || !barEl) return;
       const raisedDollars = (data.total_cents / 100).toFixed(2);
       const goalCents = pkg.funding_goal_cents;
+      const contributorLabel = data.count === 1 ? '1 contributor' : `${data.count} contributors`;
       if (goalCents) {
         const pct = Math.min(100, Math.round((data.total_cents / goalCents) * 100));
-        raisedEl.textContent = `$${raisedDollars} of $${(goalCents / 100).toFixed(0)} raised (${pct}%)`;
+        raisedEl.textContent = `$${raisedDollars} of $${(goalCents / 100).toFixed(0)} raised (${pct}%) · ${contributorLabel}`;
         barEl.style.width = pct + '%';
       } else {
-        raisedEl.textContent = data.total_cents > 0 ? `$${raisedDollars} raised by ${data.count} ${data.count === 1 ? 'member' : 'members'}` : 'No contributions yet';
+        raisedEl.textContent = data.total_cents > 0 ? `$${raisedDollars} raised · ${contributorLabel}` : 'No contributions yet';
         barEl.style.width = data.total_cents > 0 ? '100%' : '0%';
       }
     } catch {}
