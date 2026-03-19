@@ -6403,6 +6403,42 @@ async function sendWelcomeEmail(userId, userEmail, userName, userRole) {
       syncContactToHubSpot(userEmail, nameParts[0] || '', nameParts.slice(1).join(' ') || '', userRole, '').catch(err => {
         console.error('[HUBSPOT] Auto-sync on welcome email failed:', err.message);
       });
+
+      (async () => {
+        try {
+          if (!userEmail) return;
+          const { data: matchedLead } = await supabase
+            .from('outreach_leads')
+            .select('id, source, crm_profile_id, status')
+            .eq('email', userEmail.toLowerCase())
+            .neq('status', 'converted')
+            .is('crm_profile_id', null)
+            .maybeSingle();
+          if (!matchedLead) return;
+          await supabase.from('outreach_leads').update({
+            status: 'converted',
+            crm_profile_id: userId,
+            crm_sync_status: 'converted',
+            updated_at: new Date().toISOString()
+          }).eq('id', matchedLead.id);
+          await supabase.from('profiles').update({
+            outreach_lead_id: matchedLead.id,
+            outreach_source: matchedLead.source,
+            outreach_converted_at: new Date().toISOString()
+          }).eq('id', userId);
+          await supabase.from('opportunity_pipeline')
+            .update({ stage: 'converted', last_action_at: new Date().toISOString() })
+            .eq('lead_id', matchedLead.id);
+          await supabase.from('outreach_activity_log').insert({
+            lead_id: matchedLead.id,
+            event_type: 'converted',
+            metadata: { profile_id: userId, role: userRole, trigger: 'signup_welcome_email', source: matchedLead.source }
+          });
+          console.log(`[OutreachConversion] Lead ${matchedLead.id} auto-converted: ${userEmail} signed up as ${userRole}`);
+        } catch (convErr) {
+          console.error('[OutreachConversion] Auto-conversion error:', convErr.message);
+        }
+      })();
       
       return { sent: true, id: result.id };
     } else {
