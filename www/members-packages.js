@@ -1862,6 +1862,9 @@
       // Store bids for acceptBid function
       currentPackageBids = bids || [];
 
+      // Resolve the accepted bid for this package (used in appointment/transfer/location templates below)
+      const acceptedBid = bids?.find(b => b.id === pkg.accepted_bid_id) || bids?.find(b => b.status === 'accepted') || null;
+
       const priceEstimate = await fetchPriceEstimate(pkg.category, pkg.member_zip, packageId);
 
       // Check if user already reviewed this package

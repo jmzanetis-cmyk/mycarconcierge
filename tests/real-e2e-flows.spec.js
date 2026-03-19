@@ -717,26 +717,26 @@ test.describe('Cross-Role Browser Flow: Member → Request → Provider Bid → 
     console.log('[Step9] packages array contains target package:', packagesLoaded);
 
     // Open the accepted package's detail view
+    // viewPackage() is async — must await it so all Supabase queries complete before checking the modal
     const modalOpened = await page.evaluate(async (pkgId) => {
-      // Attempt 1: call viewPackage() directly if packages are loaded
+      // Attempt 1: await viewPackage() directly (async function with multiple Supabase calls inside)
       if (typeof window.viewPackage === 'function') {
-        window.viewPackage(pkgId);
-        await new Promise(r => setTimeout(r, 2000));
+        try { await window.viewPackage(pkgId); } catch (e) { console.error('[viewPackage err]', e); }
         const modal = document.getElementById('view-package-modal');
-        if (modal && (modal.style.display === 'flex' || modal.style.display === 'block' || modal.classList.contains('active'))) return 'viewPackage';
+        if (modal && modal.classList.contains('active')) return 'viewPackage';
       }
-      // Attempt 2: click [data-package-id] card in "All" tab
+      // Attempt 2: click [data-package-id] card in "All" tab and wait for modal
       const card = document.querySelector(`[data-package-id="${pkgId}"]`);
       if (card) {
         card.click();
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 3000));
         const modal = document.getElementById('view-package-modal');
-        if (modal && (modal.style.display === 'flex' || modal.style.display === 'block' || modal.classList.contains('active'))) return 'cardClick';
+        if (modal && modal.classList.contains('active')) return 'cardClick';
       }
       return 'none';
     }, createdPackageId);
     console.log('[Step9] modal open method:', modalOpened);
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
     // The package is in 'accepted' state — the modal should present the payment section.
     // The member should see EITHER the Stripe card form OR an "Authorize Payment" button
@@ -745,13 +745,13 @@ test.describe('Cross-Role Browser Flow: Member → Request → Provider Bid → 
     const isOpen = await viewModal.isVisible({ timeout: 8000 }).catch(() => false);
 
     if (!isOpen) {
-      // Last resort: reload packages and try once more
+      // Last resort: reload packages and try once more (await the async viewPackage call)
       await page.evaluate(async (pkgId) => {
         if (typeof loadPackages === 'function') await loadPackages();
         await new Promise(r => setTimeout(r, 1000));
-        if (typeof window.viewPackage === 'function') window.viewPackage(pkgId);
+        if (typeof window.viewPackage === 'function') await window.viewPackage(pkgId);
       }, createdPackageId);
-      await page.waitForTimeout(3000);
+      await page.waitForTimeout(2000);
     }
 
     const modalVisible = await viewModal.isVisible({ timeout: 5000 }).catch(() => false);
