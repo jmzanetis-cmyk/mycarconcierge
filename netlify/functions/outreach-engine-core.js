@@ -1860,10 +1860,12 @@ Then a blank line, then the email body starting with "Hi ${firstName},"`;
     const body = bodyLines.join('\n').trim();
     const urlPattern = /wefunder\.com\/my\.car\.concierge(?!\?)/g;
     const finalBody = body.replace(urlPattern, wefunderUrl);
+    const finalSubject = (subject || 'My Car Concierge — Community Round Now Live on Wefunder').replace(urlPattern, wefunderUrl);
+    const finalSubjectB = subjectB ? subjectB.replace(urlPattern, wefunderUrl) : null;
 
     return {
-      subject: subject || 'My Car Concierge — Community Round Now Live on Wefunder',
-      subjectB: subjectB || null,
+      subject: finalSubject,
+      subjectB: finalSubjectB,
       body: finalBody
     };
   } catch (err) {
