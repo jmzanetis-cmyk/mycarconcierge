@@ -248,10 +248,11 @@ test.describe('Cross-Role Browser Flow: Member → Request → Provider Bid → 
     }
 
     expect(bid, 'Bid must exist in DB').toBeTruthy();
-    expect(bid.price).toBeGreaterThan(0);
-    expect(bid.package_id).toBe(createdPackageId);
-    expect(bid.provider_id).toBeTruthy();
-    expect(['pending', 'submitted', 'open', 'accepted']).toContain(bid.status);
+    expect(bid.price, 'Bid price must be a positive number (the provider quoted an amount)').toBeGreaterThan(0);
+    expect(bid.package_id, 'Bid must reference the package created in Step 2').toBe(createdPackageId);
+    expect(bid.provider_id, 'Bid must have a provider_id linking to the provider who submitted').toBeTruthy();
+    // Newly submitted bids must be in pending/submitted (not already accepted/rejected/open — those are post-acceptance states)
+    expect(['pending', 'submitted'], 'Newly submitted bid must have status "pending" or "submitted" — not rejected, accepted, or open').toContain(bid.status);
   });
 
   test('Step 6: Member logs in and sees bid notification on their specific package', async ({ page }) => {
@@ -358,22 +359,53 @@ test.describe('Cross-Role Browser Flow: Member → Request → Provider Bid → 
         return true;
       }, resolvedBidId);
       expect(acceptClicked, 'Accept Bid button must be present in package modal and clickable').toBe(true);
+
+      // Assert post-acceptance payment confirmation UI (escrow held confirmation)
+      // The app shows a toast "Bid accepted! Payment held in escrow." and/or a savings card (#mcc-savings-card)
+      const paymentConfirmationShown = await page.waitForFunction(
+        () => {
+          // Check for toast with escrow message
+          const toasts = document.querySelectorAll('.toast, .toast-item, [class*="toast"], [id*="toast"]');
+          for (const t of toasts) {
+            if (/escrow|held|accepted/i.test(t.textContent || '')) return true;
+          }
+          // Check for savings card (rendered after successful bid accept)
+          if (document.getElementById('mcc-savings-card')) return true;
+          // Check that modal closed (payment flow completed)
+          const modal = document.getElementById('view-package-modal');
+          if (modal && !modal.classList.contains('active')) return true;
+          return false;
+        },
+        { timeout: 8000 }
+      ).catch(() => null);
+
+      // Verify DB state reflects payment was created — this is the definitive payment record check
+      const sb2 = getSupabaseAdmin();
+      const { data: escrowPayment } = await sb2.from('payments')
+        .select('id, status, amount_total, package_id, provider_id')
+        .eq('package_id', createdPackageId)
+        .eq('status', 'held')
+        .limit(1);
+      expect(escrowPayment?.length, 'Escrow payment record with status="held" must exist in payments table immediately after accept').toBeGreaterThan(0);
+      expect(escrowPayment[0].amount_total, 'Escrow payment amount must be positive').toBeGreaterThan(0);
+      expect(escrowPayment[0].package_id, 'Escrow payment must reference the correct package').toBe(createdPackageId);
+      console.log(`[Step 7] Payment confirmation UI triggered: ${paymentConfirmationShown ? 'yes' : 'no (timeout — checked DB instead)'}; escrow held: $${escrowPayment[0].amount_total}`);
     } else {
       expect(pkgCardClicked, 'Package card must exist in packages section').toBe(true);
       expect(modalVisible, 'Package view modal must open to accept bid').toBe(true);
     }
 
-    await page.waitForTimeout(2500);
+    await page.waitForTimeout(1500);
 
     const sb = getSupabaseAdmin();
     const { data: bid } = await sb.from('bids').select('status').eq('id', createdBidId).single();
     expect(bid, 'Bid must still exist in DB after accept action').toBeTruthy();
-    expect(bid.status, 'Bid status must be accepted after member clicks Accept').toBe('accepted');
+    expect(bid.status, 'Bid status must be "accepted" after member clicks Accept — not pending/submitted/rejected').toBe('accepted');
 
     const { data: pkg } = await sb.from('maintenance_packages')
       .select('status, accepted_bid_id').eq('id', createdPackageId).single();
-    expect(pkg.accepted_bid_id).toBe(createdBidId);
-    expect(pkg.status).toBe('accepted');
+    expect(pkg.accepted_bid_id, 'Package accepted_bid_id must reference the accepted bid').toBe(createdBidId);
+    expect(pkg.status, 'Package status must transition to "accepted" — not open/pending').toBe('accepted');
   });
 
   test('Step 8: Bid accepted + package accepted + escrow payment record created in DB', async () => {
@@ -422,18 +454,25 @@ test.describe('Cross-Role Browser Flow: Member → Request → Provider Bid → 
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ package_id: createdPackageId, bid_id: createdBidId })
     });
-    // 200 = Stripe PaymentIntent created; 5xx = Stripe key issue in test env (both acceptable for CI)
-    expect([200, 500, 503], 'Escrow create endpoint must respond (200 = PaymentIntent created, 5xx = Stripe key unavailable in CI)').toContain(escrowRes.status);
-    if (escrowRes.status === 200) {
-      const escrowBody = await escrowRes.json();
-      expect(escrowBody.success, 'Escrow create response must have success:true').toBe(true);
-      expect(
-        escrowBody.clientSecret || escrowBody.paymentIntentId,
-        'Escrow create response must include clientSecret or paymentIntentId (Stripe PaymentIntent contract)'
-      ).toBeTruthy();
-      if (escrowBody.clientSecret) {
-        expect(escrowBody.clientSecret, 'clientSecret must be a non-empty string').toMatch(/pi_/);
-      }
+
+    if (escrowRes.status >= 500) {
+      // Skip (not pass) when Stripe key is unavailable in CI — do not silently accept as success
+      let errBody = {};
+      try { errBody = await escrowRes.json(); } catch (_) {}
+      test.skip(true, `Stripe key unavailable in this environment (HTTP ${escrowRes.status}): ${errBody.error || 'server error'} — skipping escrow PaymentIntent assertion`);
+      return;
+    }
+
+    // Only reach here on 200/400/403/404 — assert strict Stripe contract
+    expect(escrowRes.status, 'Escrow create endpoint must return 200 (Stripe key configured)').toBe(200);
+    const escrowBody = await escrowRes.json();
+    expect(escrowBody.success, 'Escrow create response must have success:true').toBe(true);
+    expect(
+      escrowBody.clientSecret || escrowBody.paymentIntentId,
+      'Escrow create response must include clientSecret or paymentIntentId (Stripe PaymentIntent contract)'
+    ).toBeTruthy();
+    if (escrowBody.clientSecret) {
+      expect(escrowBody.clientSecret, 'clientSecret must begin with pi_ (Stripe PaymentIntent prefix)').toMatch(/^pi_/);
     }
 
     // Browser UI: package modal renders accepted-status state (waiting for provider)
