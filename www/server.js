@@ -6666,6 +6666,19 @@ function setCorsHeaders(res, req) {
 }
 
 // 2FA Authentication helper - extracts user from Authorization header
+async function requireMemberRole(user, supabase) {
+  if (!user || !supabase) return false;
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, is_also_member')
+      .eq('id', user.id)
+      .single();
+    if (!profile) return false;
+    return profile.role === 'member' || profile.role === 'admin' || profile.is_also_member === true;
+  } catch { return false; }
+}
+
 async function authenticateRequest(req) {
   const authHeader = req.headers.authorization || req.headers['Authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -34361,6 +34374,12 @@ function saveAdminInvites(invites) {
     }
     try {
       const supabase = getSupabaseClient();
+      const isMember = await requireMemberRole(user, supabase);
+      if (!isMember) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Member access required' }));
+        return;
+      }
       const { data: pkgs, error } = await supabase
         .from('maintenance_packages')
         .select(`id, title, description, member_id, created_at, status, funding_goal_cents, category, service_type,
@@ -34431,6 +34450,12 @@ function saveAdminInvites(invites) {
     const packageId = req.url.split('/')[3];
     try {
       const supabase = getSupabaseClient();
+      const isMember = await requireMemberRole(user, supabase);
+      if (!isMember) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Member access required' }));
+        return;
+      }
       const [contribRes, pkgRes] = await Promise.all([
         supabase
           .from('crowd_fund_contributions')
@@ -34471,6 +34496,12 @@ function saveAdminInvites(invites) {
     req.on('end', async () => {
       try {
         const supabase = getSupabaseClient();
+        const isMember = await requireMemberRole(user, supabase);
+        if (!isMember) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Member access required' }));
+          return;
+        }
         const { amount_cents } = JSON.parse(body);
         if (!amount_cents || amount_cents < 100) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -34542,13 +34573,62 @@ function saveAdminInvites(invites) {
     req.on('end', async () => {
       try {
         const supabase = getSupabaseClient();
-        const { payment_intent_id, amount_cents, message } = JSON.parse(body);
-        if (!payment_intent_id) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Payment verification required' }));
+        const isMember = await requireMemberRole(user, supabase);
+        if (!isMember) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Member access required' }));
           return;
         }
+        const { payment_intent_id, amount_cents, message } = JSON.parse(body);
         const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+        // Mode A: create PaymentIntent (amount_cents provided, no payment_intent_id)
+        if (!payment_intent_id && amount_cents) {
+          if (!Number.isInteger(amount_cents) || amount_cents < 50) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Minimum contribution is $0.50' }));
+            return;
+          }
+          const { data: pkg, error: pkgErr } = await supabase
+            .from('maintenance_packages')
+            .select('id, title, member_id, crowd_funded, status')
+            .eq('id', packageId)
+            .single();
+          if (pkgErr || !pkg) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Package not found' }));
+            return;
+          }
+          if (!pkg.crowd_funded) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'This package is not accepting community contributions' }));
+            return;
+          }
+          if (pkg.status !== 'open') {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'This request is no longer accepting contributions' }));
+            return;
+          }
+          if (pkg.member_id === user.id) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'You cannot contribute to your own request' }));
+            return;
+          }
+          const paymentIntent = await stripe.paymentIntents.create({
+            amount: amount_cents,
+            currency: 'usd',
+            payment_method_types: ['card'],
+            metadata: { package_id: packageId, contributor_id: user.id, type: 'crowd_fund_contribution' }
+          });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ client_secret: paymentIntent.client_secret, payment_intent_id: paymentIntent.id }));
+          return;
+        }
+        // Mode B: confirm and record contribution (payment_intent_id provided)
+        if (!payment_intent_id) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Provide amount_cents to create payment or payment_intent_id to confirm' }));
+          return;
+        }
         const paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
         if (paymentIntent.status !== 'succeeded') {
           res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -34613,10 +34693,20 @@ function saveAdminInvites(invites) {
           const { data: contribProfile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
           const contribName = contribProfile?.full_name || 'A community member';
           const amountDollars = (verifiedAmountCents / 100).toFixed(2);
-          await sendEmailNotification(pkg.member_id, 'Community Contribution Received', `${contribName} contributed $${amountDollars} toward your service request "${pkg.title}". Check your Community Board for updates.`);
+          const notifMessage = `${contribName} contributed $${amountDollars} toward your service request "${pkg.title}".`;
+          await supabase.from('notifications').insert({
+            user_id: pkg.member_id,
+            title: 'Community Contribution Received',
+            message: notifMessage,
+            type: 'crowd_fund_contribution',
+            metadata: { package_id: packageId, contribution_id: contrib.id, amount_cents: verifiedAmountCents }
+          });
+          await sendEmailNotification(pkg.member_id, 'Community Contribution Received', `${notifMessage} Check your Community Board for updates.`);
           sendFCMPushNotification([pkg.member_id], 'Someone Contributed to Your Repair!', `${contribName} chipped in $${amountDollars} toward "${pkg.title}".`, { section: 'packages' })
             .catch(() => {});
-        } catch {}
+        } catch (notifErr) {
+          console.error('[Contribute] Notification error:', notifErr.message);
+        }
         console.log(`[${requestId}] Contribution recorded: PI ${payment_intent_id}, package ${packageId}, $${(verifiedAmountCents / 100).toFixed(2)}`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, id: contrib.id }));
@@ -34641,7 +34731,12 @@ function saveAdminInvites(invites) {
     const packageId = req.url.split('/')[3];
     try {
       const supabase = getSupabaseClient();
-
+      const isMember = await requireMemberRole(user, supabase);
+      if (!isMember) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Member access required' }));
+        return;
+      }
       const { data: pkg, error: pkgErr } = await supabase
         .from('maintenance_packages')
         .select('id, title, member_id, crowd_funded, status')

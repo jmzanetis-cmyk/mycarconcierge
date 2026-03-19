@@ -3413,7 +3413,7 @@ async function submitContribution(packageId) {
     const session = await supabaseClient.auth.getSession();
     const token = session.data.session?.access_token;
     const amountCents = Math.round(amount * 100);
-    const intentRes = await fetch(`/api/packages/${packageId}/contribute/intent`, {
+    const intentRes = await fetch(`/api/packages/${packageId}/contribute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ amount_cents: amountCents })
