@@ -32462,10 +32462,14 @@ Return ONLY the JSON array, no other text.`;
     return handleAdminAuth(req, res, requestId, async () => {
       const t0 = Date.now();
       try {
-        const adminPass = req.headers['x-admin-password'] || '';
+        // Forward all auth headers so the internal engine-cycle endpoint can authenticate
+        const proxyHeaders = { 'Content-Type': 'application/json' };
+        if (req.headers['x-admin-password']) proxyHeaders['x-admin-password'] = req.headers['x-admin-password'];
+        if (req.headers['x-admin-token']) proxyHeaders['x-admin-token'] = req.headers['x-admin-token'];
+        if (req.headers.authorization) proxyHeaders['Authorization'] = req.headers.authorization;
         const resp = await fetch(`http://localhost:${PORT}/api/admin/outreach/engine-cycle`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPass }
+          headers: proxyHeaders
         });
         const result = await resp.json();
         await logAiAction({ module: 'outreach_engine', actionType: 'cycle_run', targetId: 'cycle', decision: { leads_discovered: result.discovered || 0, leads_scored: result.scored || 0, drafts_created: result.drafted || 0, auto_sent: result.auto_sent || 0 }, confidence: 0.9, autoExecuted: true, escalated: false, outcome: resp.ok ? 'executed' : 'error', executionTimeMs: Date.now() - t0 });

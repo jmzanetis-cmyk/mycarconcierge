@@ -33015,10 +33015,14 @@ Return ONLY the JSON array, no other text.`;
     return handleAdminAuth(req, res, requestId, async () => {
       const t0 = Date.now();
       try {
-        const adminPass = req.headers['x-admin-password'] || '';
+        // Forward all auth headers so the internal engine-cycle endpoint can authenticate
+        const proxyHeaders = { 'Content-Type': 'application/json' };
+        if (req.headers['x-admin-password']) proxyHeaders['x-admin-password'] = req.headers['x-admin-password'];
+        if (req.headers['x-admin-token']) proxyHeaders['x-admin-token'] = req.headers['x-admin-token'];
+        if (req.headers.authorization) proxyHeaders['Authorization'] = req.headers.authorization;
         const resp = await fetch(`http://localhost:${PORT}/api/admin/outreach/engine-cycle`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPass }
+          headers: proxyHeaders
         });
         const result = await resp.json();
         // AI Ops: log outreach cycle run
