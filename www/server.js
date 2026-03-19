@@ -34738,8 +34738,13 @@ function saveAdminInvites(invites) {
           contrib = newContrib;
         }
         try {
-          const { data: contribProfile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
+          const [{ data: contribProfile }, { data: ownerProfile }] = await Promise.all([
+            supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+            supabase.from('profiles').select('full_name, email').eq('id', pkg.member_id).single()
+          ]);
           const contribName = contribProfile?.full_name || 'A community member';
+          const ownerEmail = ownerProfile?.email;
+          const ownerName = ownerProfile?.full_name || 'Member';
           const amountDollars = (verifiedAmountCents / 100).toFixed(2);
           const notifMessage = `${contribName} contributed $${amountDollars} toward your service request "${pkg.title}".`;
           await supabase.from('notifications').insert({
@@ -34749,7 +34754,10 @@ function saveAdminInvites(invites) {
             type: 'crowd_fund_contribution',
             metadata: { package_id: packageId, contribution_id: contrib.id, amount_cents: verifiedAmountCents }
           });
-          await sendEmailNotification(pkg.member_id, 'Community Contribution Received', `${notifMessage} Check your Community Board for updates.`);
+          if (ownerEmail) {
+            const emailHtml = `<p>Hi ${ownerName},</p><p>${notifMessage}</p><p>Check your Community Board in the app for updates and to see your total funding progress.</p>`;
+            await sendEmailNotification(ownerEmail, ownerName, 'Community Contribution Received', emailHtml, pkg.member_id, 'bid_alerts');
+          }
           sendFCMPushNotification([pkg.member_id], 'Someone Contributed to Your Repair!', `${contribName} chipped in $${amountDollars} toward "${pkg.title}".`, { section: 'packages' })
             .catch(() => {});
         } catch (notifErr) {
