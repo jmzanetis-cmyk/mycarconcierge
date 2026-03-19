@@ -1255,6 +1255,19 @@
                     </div>
                   </div>
                 </div>
+                <div style="margin-bottom:14px;">
+                  <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.85rem;">
+                    Admin Notification Phone <span style="color:var(--text-muted);font-weight:400;">(SMS alerts after each cycle &amp; nightly digest)</span>
+                  </label>
+                  <div style="display:flex;gap:10px;align-items:center;">
+                    <input type="tel" id="admin-notification-phone" class="form-input" style="flex:1;max-width:260px;" placeholder="+12015550100">
+                    <button class="btn btn-sm" onclick="saveNotificationConfig()" style="white-space:nowrap;">
+                      <span class="icon-inline" data-icon="save"></span> Save Phone
+                    </button>
+                    <span id="notification-config-status" style="font-size:0.82rem;color:var(--text-muted);"></span>
+                  </div>
+                  <p style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">Leave blank to disable SMS notifications. Must be in E.164 format (+1XXXXXXXXXX).</p>
+                </div>
                 <div style="display:flex;gap:12px;align-items:center;">
                   <button class="btn btn-primary" onclick="saveApolloConfig()" style="flex:1;max-width:200px;">
                     <span class="icon-inline" data-icon="save"></span> Save Settings

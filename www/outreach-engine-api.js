@@ -105,6 +105,8 @@ let engineCycleInterval = null;
 let followUpInterval = null;
 let cleanupInterval = null;
 let apolloDiscoveryInterval = null;
+let wefunderBlastInterval = null;
+let dailyDigestTimeout = null;
 
 let schemaReady = false;
 
@@ -383,6 +385,39 @@ async function sendOutreachSMS(toPhone, body) {
     });
     return r.ok;
   } catch { return false; }
+}
+
+async function getAdminNotificationPhone(supabase) {
+  try {
+    const { data } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    return data?.metadata?.admin_notification_phone || null;
+  } catch (_) { return null; }
+}
+
+async function saveAdminNotificationPhone(supabase, phone) {
+  try {
+    const { data } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    const currentMeta = data?.metadata || {};
+    await supabase.from('engine_state').update({ metadata: { ...currentMeta, admin_notification_phone: phone || null } }).eq('id', 1);
+    return true;
+  } catch (err) {
+    console.error('[AdminSMS] Failed to save notification phone:', err.message);
+    return false;
+  }
+}
+
+async function sendAdminSMS(supabase, message) {
+  try {
+    const phone = await getAdminNotificationPhone(supabase);
+    if (!phone) return false;
+    const ok = await sendOutreachSMS(phone, message);
+    if (ok) console.log('[AdminSMS] Notification sent to admin phone');
+    else console.warn('[AdminSMS] Failed to send notification (Twilio error)');
+    return ok;
+  } catch (err) {
+    console.warn('[AdminSMS] Error:', err.message);
+    return false;
+  }
 }
 
 async function runOutreachAiDecisionLayer(supabase) {
@@ -1656,6 +1691,65 @@ async function saveApolloConfig(supabase, updates) {
   }
 }
 
+async function runWefunderBlastForEligible(supabase, { notify = true } = {}) {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600000).toISOString();
+
+  const { data: investorLeads } = await supabase
+    .from('outreach_leads')
+    .select('*')
+    .eq('type', 'investor')
+    .not('email', 'is', null)
+    .neq('status', 'unsubscribed');
+
+  const ids = (investorLeads || []).map(l => l.id);
+  let recentLeadIds = new Set();
+  if (ids.length > 0) {
+    const { data: recent } = await supabase
+      .from('outreach_messages')
+      .select('lead_id')
+      .eq('channel', 'email')
+      .gte('created_at', thirtyDaysAgo)
+      .in('lead_id', ids);
+    recentLeadIds = new Set((recent || []).map(m => m.lead_id));
+  }
+
+  const eligible = (investorLeads || []).filter(l => !recentLeadIds.has(l.id));
+  if (eligible.length === 0) return { drafted: 0, failed: 0, skipped: 0, total: ids.length };
+
+  let drafted = 0, failed = 0;
+  for (const lead of eligible) {
+    try {
+      const result = await draftWefunderBlastEmail(lead);
+      if (!result || result.error) { failed++; continue; }
+      await supabase.from('outreach_messages').insert({
+        lead_id: lead.id,
+        channel: 'email',
+        subject: result.subject,
+        body: result.body,
+        status: 'draft',
+        metadata: {
+          blast_type: 'wefunder',
+          subject_a: result.subject,
+          subject_b: result.subjectB || null,
+          ab_variant: 'A',
+          auto_drafted: true
+        }
+      });
+      drafted++;
+    } catch (_) { failed++; }
+    await new Promise(r => setTimeout(r, 350));
+  }
+
+  if (notify && drafted > 0) {
+    try {
+      await sendAdminSMS(supabase, `MCC Weekly Blast: ${drafted} new Wefunder draft${drafted !== 1 ? 's' : ''} queued for ${eligible.length} eligible investor leads. Review & approve in the admin Messages tab.`);
+    } catch (_) {}
+  }
+
+  console.log(`[Wefunder] Blast run complete — drafted:${drafted} failed:${failed} eligible:${eligible.length}`);
+  return { drafted, failed, skipped: recentLeadIds.size, total: ids.length };
+}
+
 async function draftWefunderBlastEmail(lead) {
   const firstName = lead.name?.split(' ')[0] || 'there';
   const companyCtx = lead.company ? ` at ${lead.company}` : '';
@@ -1735,7 +1829,7 @@ async function runApolloDiscoveryCycle(supabase) {
   }
 
   console.log('[Apollo] Starting automated discovery cycle...');
-  const results = { started_at: now.toISOString(), search_results: 0, with_email: 0, added: 0, enriched: 0, errors: [] };
+  const results = { started_at: now.toISOString(), search_results: 0, with_email: 0, added: 0, enriched: 0, wefunder_drafted: 0, errors: [] };
 
   const apolloHeaders = { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'X-Api-Key': apolloKey };
 
@@ -1817,9 +1911,42 @@ async function runApolloDiscoveryCycle(supabase) {
         }
 
         if (!existing) {
-          await supabase.from('outreach_leads').insert(leadData);
+          const { data: inserted } = await supabase.from('outreach_leads').insert(leadData).select('id').single();
           results.added++;
-          if (email) results.with_email++;
+          if (email) {
+            results.with_email++;
+            // Auto-draft Wefunder blast email for new investor leads with email
+            if (leadType === 'investor' && inserted?.id) {
+              try {
+                const { count: existingDraft } = await supabase
+                  .from('outreach_messages')
+                  .select('id', { count: 'exact', head: true })
+                  .eq('lead_id', inserted.id)
+                  .eq('channel', 'email');
+                if (!existingDraft || existingDraft === 0) {
+                  const draft = await draftWefunderBlastEmail({ ...leadData, id: inserted.id });
+                  if (draft && !draft.error) {
+                    await supabase.from('outreach_messages').insert({
+                      lead_id: inserted.id,
+                      channel: 'email',
+                      subject: draft.subject,
+                      body: draft.body,
+                      status: 'draft',
+                      metadata: {
+                        blast_type: 'wefunder',
+                        subject_a: draft.subject,
+                        subject_b: draft.subjectB || null,
+                        ab_variant: 'A',
+                        auto_drafted: true
+                      }
+                    });
+                    results.wefunder_drafted++;
+                  }
+                }
+              } catch (_) {}
+              await new Promise(r => setTimeout(r, 350));
+            }
+          }
         } else if (email && !existing.email) {
           await supabase.from('outreach_leads').update({ email, apollo_id: apolloPersonId || undefined, status: 'new', score: 72 }).eq('id', existing.id);
           results.with_email++;
@@ -1878,7 +2005,20 @@ async function runApolloDiscoveryCycle(supabase) {
       await supabase.from('outreach_activity_log').insert({ event_type: 'apollo_discovery_cycle', metadata: { city, page, ...results } });
     } catch (_) {}
 
-    console.log(`[Apollo] Cycle complete — found:${results.search_results} added:${results.added} enriched:${results.enriched}`);
+    console.log(`[Apollo] Cycle complete — found:${results.search_results} added:${results.added} enriched:${results.enriched} wefunder_drafted:${results.wefunder_drafted}`);
+
+    // ── Post-cycle admin SMS notification ──
+    try {
+      const newInvestors = leadType === 'investor' ? results.added : 0;
+      const newProviders = leadType === 'provider' ? results.added : 0;
+      const parts = [`MCC Outreach Cycle (${profile.name}):`, `+${results.added} leads found in ${city}`];
+      if (newInvestors > 0) parts.push(`${newInvestors} investor${newInvestors !== 1 ? 's' : ''}`);
+      if (newProviders > 0) parts.push(`${newProviders} provider${newProviders !== 1 ? 's' : ''}`);
+      if (results.enriched > 0) parts.push(`${results.enriched} enriched`);
+      if (results.wefunder_drafted > 0) parts.push(`${results.wefunder_drafted} Wefunder draft${results.wefunder_drafted !== 1 ? 's' : ''} queued — review in admin Messages tab`);
+      await sendAdminSMS(supabase, parts.join(' | '));
+    } catch (_) {}
+
     return { success: true, city, page, ...results };
 
   } catch (err) {
@@ -1895,6 +2035,8 @@ function startEngineSchedulers(getSupabaseClient) {
   if (followUpInterval) clearInterval(followUpInterval);
   if (cleanupInterval) clearInterval(cleanupInterval);
   if (apolloDiscoveryInterval) clearInterval(apolloDiscoveryInterval);
+  if (wefunderBlastInterval) clearInterval(wefunderBlastInterval);
+  if (dailyDigestTimeout) clearTimeout(dailyDigestTimeout);
 
   engineCycleInterval = setInterval(async () => {
     const supabase = getSupabaseClient();
@@ -1951,7 +2093,80 @@ function startEngineSchedulers(getSupabaseClient) {
     }
   }, 2 * 60 * 1000);
 
-  console.log('[OutreachEngine] Schedulers started: cycle=15min, follow-ups=6h, cleanup=7d, apollo=30min-check');
+  // ── Weekly Wefunder blast refresh ──
+  // Initial run after 10 minutes, then every 7 days
+  setTimeout(async () => {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      console.log('[Wefunder] Running initial weekly blast check...');
+      try {
+        const r = await runWefunderBlastForEligible(supabase, { notify: true });
+        console.log(`[Wefunder] Initial blast check done — drafted:${r.drafted} eligible:${r.total}`);
+      } catch (err) {
+        console.error('[Wefunder] Initial blast check error:', err.message);
+      }
+    }
+  }, 10 * 60 * 1000);
+
+  wefunderBlastInterval = setInterval(async () => {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      console.log('[Wefunder] Running weekly blast refresh...');
+      try {
+        const r = await runWefunderBlastForEligible(supabase, { notify: true });
+        console.log(`[Wefunder] Weekly blast done — drafted:${r.drafted} skipped:${r.skipped}`);
+      } catch (err) {
+        console.error('[Wefunder] Weekly blast error:', err.message);
+      }
+    }
+  }, 7 * 24 * 60 * 60 * 1000);
+
+  // ── Nightly admin digest SMS (fires at 01:00 UTC ≈ 8 PM ET) ──
+  function scheduleNightlyDigest() {
+    const now = new Date();
+    const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 1, 0, 0, 0));
+    if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
+    const msUntil = target - now;
+    dailyDigestTimeout = setTimeout(async function runDigest() {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        try {
+          const todayStart = new Date();
+          todayStart.setUTCHours(0, 0, 0, 0);
+          const [
+            { count: totalInvestors },
+            { count: pendingDrafts },
+            { count: sentToday },
+            { count: leadsToday }
+          ] = await Promise.all([
+            supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).eq('type', 'investor').not('email', 'is', null),
+            supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'draft').eq('channel', 'email'),
+            supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'sent').gte('created_at', todayStart.toISOString()),
+            supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).gte('created_at', todayStart.toISOString())
+          ]);
+
+          const msg = [
+            `MCC Daily Digest (${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}):`,
+            `${totalInvestors || 0} investor leads total`,
+            `${pendingDrafts || 0} draft${pendingDrafts !== 1 ? 's' : ''} awaiting approval`,
+            `${sentToday || 0} messages sent today`,
+            `${leadsToday || 0} new leads discovered today`
+          ].join(' | ');
+
+          await sendAdminSMS(supabase, msg);
+          console.log('[AdminSMS] Nightly digest sent:', msg);
+        } catch (err) {
+          console.error('[AdminSMS] Nightly digest error:', err.message);
+        }
+      }
+      // Schedule next night
+      dailyDigestTimeout = setTimeout(runDigest, 24 * 60 * 60 * 1000);
+    }, msUntil);
+    console.log(`[AdminSMS] Nightly digest scheduled in ${Math.round(msUntil / 60000)}min`);
+  }
+  scheduleNightlyDigest();
+
+  console.log('[OutreachEngine] Schedulers started: cycle=15min, follow-ups=6h, cleanup=7d, apollo=30min-check, wefunder-blast=weekly, digest=nightly');
 }
 
 async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminAuth, setCorsHeaders, requestId }) {
@@ -2566,6 +2781,18 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
           json(res, 200, { success: !error, added: lead_ids.length });
         }
 
+        else if (req.method === 'GET' && pathname === '/notification-config') {
+          const phone = await getAdminNotificationPhone(supabase);
+          json(res, 200, { admin_notification_phone: phone || '' });
+        }
+
+        else if (req.method === 'POST' && pathname === '/notification-config') {
+          const body = await parseBody(req);
+          const { admin_notification_phone } = body;
+          const ok = await saveAdminNotificationPhone(supabase, admin_notification_phone || null);
+          json(res, ok ? 200 : 500, { success: ok });
+        }
+
         else if (req.method === 'GET' && pathname === '/wefunder-blast/status') {
           const { data: investorLeads } = await supabase
             .from('outreach_leads')
@@ -2598,29 +2825,27 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
           const body = await parseBody(req);
           const { dry_run } = body;
 
-          const { data: investorLeads } = await supabase
-            .from('outreach_leads')
-            .select('*')
-            .eq('type', 'investor')
-            .not('email', 'is', null)
-            .neq('status', 'unsubscribed');
-
-          const ids = (investorLeads || []).map(l => l.id);
-          let recentLeadIds = new Set();
-          if (ids.length > 0) {
-            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600000).toISOString();
-            const { data: recent } = await supabase
-              .from('outreach_messages')
-              .select('lead_id')
-              .eq('channel', 'email')
-              .gte('created_at', thirtyDaysAgo)
-              .in('lead_id', ids);
-            recentLeadIds = new Set((recent || []).map(m => m.lead_id));
-          }
-
-          const eligible = (investorLeads || []).filter(l => !recentLeadIds.has(l.id));
-
           if (dry_run) {
+            // Dry-run: compute eligibility stats only, no drafting
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600000).toISOString();
+            const { data: investorLeads } = await supabase
+              .from('outreach_leads')
+              .select('id, name, company, email, location')
+              .eq('type', 'investor')
+              .not('email', 'is', null)
+              .neq('status', 'unsubscribed');
+            const ids = (investorLeads || []).map(l => l.id);
+            let recentLeadIds = new Set();
+            if (ids.length > 0) {
+              const { data: recent } = await supabase
+                .from('outreach_messages')
+                .select('lead_id')
+                .eq('channel', 'email')
+                .gte('created_at', thirtyDaysAgo)
+                .in('lead_id', ids);
+              recentLeadIds = new Set((recent || []).map(m => m.lead_id));
+            }
+            const eligible = (investorLeads || []).filter(l => !recentLeadIds.has(l.id));
             json(res, 200, {
               dry_run: true,
               eligible: eligible.length,
@@ -2631,45 +2856,17 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
             return;
           }
 
-          if (eligible.length === 0) {
-            json(res, 200, { drafted: 0, skipped: 0, message: 'No eligible investor leads found' });
-            resolve(true);
-            return;
-          }
-
-          // Start drafting — respond immediately with job started, process async
-          json(res, 202, { started: true, eligible: eligible.length, message: `Drafting ${eligible.length} Wefunder blast emails in background — check the Messages tab shortly.` });
+          // Respond immediately, draft async in background
+          json(res, 202, { started: true, message: 'Drafting Wefunder blast emails in background — check the Messages tab shortly.' });
           resolve(true);
 
-          // Process in background
-          let drafted = 0, failed = 0;
-          for (const lead of eligible) {
-            try {
-              const result = await draftWefunderBlastEmail(lead);
-              if (!result || result.error) { failed++; continue; }
-
-              await supabase.from('outreach_messages').insert({
-                lead_id: lead.id,
-                channel: 'email',
-                subject: result.subject,
-                body: result.body,
-                status: 'draft',
-                metadata: {
-                  blast_type: 'wefunder',
-                  subject_a: result.subject,
-                  subject_b: result.subjectB || null,
-                  ab_variant: 'A'
-                }
-              });
-              drafted++;
-            } catch (_) { failed++; }
-            await new Promise(r => setTimeout(r, 350));
-          }
-
-          await supabase.from('outreach_activity_log').insert({
-            event_type: 'wefunder_blast_launched',
-            metadata: { drafted, failed, eligible: eligible.length }
-          }).catch(() => {});
+          try {
+            const r = await runWefunderBlastForEligible(supabase, { notify: true });
+            await supabase.from('outreach_activity_log').insert({
+              event_type: 'wefunder_blast_launched',
+              metadata: { drafted: r.drafted, failed: r.failed, eligible: r.total }
+            }).catch(() => {});
+          } catch (_) {}
         }
 
         else if (req.method === 'POST' && pathname === '/convert-lead') {

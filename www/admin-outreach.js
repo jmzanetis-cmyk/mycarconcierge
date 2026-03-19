@@ -1319,6 +1319,7 @@
         const cfgData = await cfgResp.json();
         if (cfgData.config) populateApolloConfigForm(cfgData.config);
       }
+      loadNotificationConfig();
       if (!statusResp.ok || data.error) {
         bar.innerHTML = `<span style="color:var(--error);font-size:0.88rem;">⚠️ ${data.error || 'Apollo API error'}</span><button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Retry</button>`;
         return;
@@ -1413,6 +1414,45 @@
     }
   }
 
+  async function loadNotificationConfig() {
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/outreach/notification-config', { headers: { 'x-admin-password': adminPassword } });
+      if (resp.ok) {
+        const data = await resp.json();
+        const el = document.getElementById('admin-notification-phone');
+        if (el && data.admin_notification_phone) el.value = data.admin_notification_phone;
+      }
+    } catch (e) {
+      console.error('loadNotificationConfig error:', e);
+    }
+  }
+
+  async function saveNotificationConfig() {
+    const statusEl = document.getElementById('notification-config-status');
+    const phoneEl = document.getElementById('admin-notification-phone');
+    if (!phoneEl) return;
+    if (statusEl) statusEl.textContent = 'Saving...';
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/outreach/notification-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify({ admin_notification_phone: phoneEl.value.trim() || null })
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.success) throw new Error('Save failed');
+      if (statusEl) {
+        statusEl.style.color = 'var(--success)';
+        statusEl.textContent = '✓ Saved';
+        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+      }
+    } catch (e) {
+      if (statusEl) { statusEl.style.color = 'var(--error)'; statusEl.textContent = '✗ ' + e.message; }
+    }
+  }
+  window.saveNotificationConfig = saveNotificationConfig;
+
   async function runApolloCycle() {
     const btn = document.getElementById('apollo-run-now-btn');
     const resultEl = document.getElementById('apollo-cycle-result');
@@ -1433,7 +1473,8 @@
         if (data.success) {
           resultEl.style.background = 'rgba(34,197,94,0.1)';
           resultEl.style.border = '1px solid rgba(34,197,94,0.3)';
-          resultEl.innerHTML = `<strong style="color:var(--success);">✓ Cycle complete</strong> — City: <strong>${data.city}</strong> · Found: <strong>${data.search_results}</strong> · Added: <strong>${data.added}</strong> · Enriched: <strong>${data.enriched}</strong>`;
+          const wfDrafted = data.wefunder_drafted > 0 ? ` · <strong style="color:var(--accent-gold);">⚡ ${data.wefunder_drafted} Wefunder draft${data.wefunder_drafted !== 1 ? 's' : ''} queued</strong>` : '';
+          resultEl.innerHTML = `<strong style="color:var(--success);">✓ Cycle complete</strong> — City: <strong>${data.city}</strong> · Found: <strong>${data.search_results}</strong> · Added: <strong>${data.added}</strong> · Enriched: <strong>${data.enriched}</strong>${wfDrafted}`;
         } else if (data.skipped) {
           resultEl.style.background = 'var(--bg-elevated)';
           resultEl.style.border = '1px solid var(--border-subtle)';
