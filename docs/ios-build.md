@@ -45,7 +45,7 @@ This runs the full pipeline: strip consumer build → Capacitor sync → Xcode a
 bash build-ios.sh
 ```
 
-This calls `scripts/build-ios.sh` internally and then runs `xcodebuild` to produce an IPA at `build/export/`.
+This calls `scripts/ios-build.sh` internally (the strip + Capacitor sync step), then runs `xcodebuild` to produce an IPA at `build/export/`.
 
 Before running, update your Team ID in `ios/ExportOptions.plist`:
 
@@ -86,7 +86,13 @@ This checks that:
 
 ### 3. Open Xcode
 
+Xcode does not open automatically. Open it with either:
+
 ```bash
+# Option A: via the build script (re-strips and re-syncs, then opens)
+bash scripts/build-ios.sh --open
+
+# Option B: directly (after the build script has already run)
 npx cap open ios
 ```
 
