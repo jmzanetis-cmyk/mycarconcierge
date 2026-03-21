@@ -107,11 +107,14 @@ for f in ad-deck.html member-founder-deck.html member-founder.html \
           My_Car_Concierge_Complete_Outline.html iOS_App_Store_Submission_Guide.html; do
   [ -f "$BUILD_DIR/$f" ] && MARKETING_FILES+=("$f")
 done
+while IFS= read -r -d '' f; do
+  MARKETING_FILES+=("$(basename "$f")")
+done < <(find "$BUILD_DIR" -maxdepth 1 \( -name "*.pdf" -o -name "*.pptx" -o -name "*.ppt" -o -name "*.docx" \) -print0 2>/dev/null)
 if [ ${#MARKETING_FILES[@]} -eq 0 ]; then
-  check_pass "No marketing/investor documents present"
+  check_pass "No marketing/investor documents present (including PDFs and pitch decks)"
 else
   for f in "${MARKETING_FILES[@]}"; do
-    check_fail "Marketing file still present: $f"
+    check_fail "Marketing/investor file still present: $f"
   done
 fi
 

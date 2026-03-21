@@ -110,14 +110,14 @@ rm -f "$BUILD_DIR/founding-provider-chris-agrapidis.html"
 rm -f "$BUILD_DIR/founding-partner-agreement.html"
 rm -f "$BUILD_DIR/MCC-Service-Credits.html"
 rm -f "$BUILD_DIR/MCC-Services-Proposal.html"
-rm -f "$BUILD_DIR/MCC-Brand-Assets.pdf" 2>/dev/null || true
-rm -f "$BUILD_DIR/MCC-Provider-Brochure.pdf" 2>/dev/null || true
-rm -f "$BUILD_DIR/MCC-Provider-Presentation.pdf" 2>/dev/null || true
-rm -f "$BUILD_DIR"/MCC-Founding-Provider-Agreement*.pdf 2>/dev/null || true
+find "$BUILD_DIR" -maxdepth 1 -name "*.pdf" -delete
+find "$BUILD_DIR" -maxdepth 1 -name "*.pptx" -delete
+find "$BUILD_DIR" -maxdepth 1 -name "*.ppt" -delete
+find "$BUILD_DIR" -maxdepth 1 -name "*.docx" -delete
 rm -rf "$BUILD_DIR/marketing/"
 rm -rf "$BUILD_DIR/docs/"
 rm -rf "$BUILD_DIR/images/social/" 2>/dev/null || true
-echo "  Marketing and investor files removed."
+echo "  Marketing and investor files removed (PDFs, PPTX, and docs)."
 
 echo ""
 echo "Step 5/5: Patching HTML and JS for consumer-only mode..."
