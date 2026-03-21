@@ -984,7 +984,7 @@ async function sendMessage(supabase, messageId) {
     if (!resend) return { error: 'Email service not configured' };
 
     const unsubLink = `${UNSUBSCRIBE_URL}?email=${encodeURIComponent(lead.email)}&id=${lead.id}`;
-    const refLink = lead.type === 'provider' ? `${BASE_URL}/ref?id=${lead.id}` : null;
+    const refLink = lead.type === 'provider' ? `${BASE_URL}/api/outreach/ref?id=${lead.id}` : null;
     const textBody = bodyBase
       + (refLink ? `\n\nGet started here: ${refLink}` : '')
       + `\n\n---\n${PHYSICAL_ADDRESS}\nTo stop receiving these emails: ${unsubLink}`;

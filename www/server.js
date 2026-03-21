@@ -31818,7 +31818,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === 'GET' && req.url.startsWith('/ref')) {
+  if (req.method === 'GET' && req.url.startsWith('/api/outreach/ref')) {
     try {
       const urlObj = new URL(req.url, 'http://localhost');
       const leadId = urlObj.searchParams.get('id');

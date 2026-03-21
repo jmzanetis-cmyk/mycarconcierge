@@ -1414,7 +1414,7 @@ async function sendMessage(supabase, messageId) {
     if (!resend) return { error: 'Email service not configured' };
 
     const unsubLink = `${UNSUBSCRIBE_URL}?email=${encodeURIComponent(lead.email)}&id=${lead.id}`;
-    const refLink = lead.type === 'provider' ? `${BASE_URL}/ref?id=${lead.id}` : null;
+    const refLink = lead.type === 'provider' ? `${BASE_URL}/api/outreach/ref?id=${lead.id}` : null;
     const textBody = bodyBase
       + (refLink ? `\n\nGet started here: ${refLink}` : '')
       + `\n\n---\n${PHYSICAL_ADDRESS}\nTo stop receiving these emails: ${unsubLink}`;
@@ -3187,15 +3187,24 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
         else if (req.method === 'GET' && pathname === '/conversions') {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-          const { data: clickEvents } = await supabase
-            .from('outreach_activity_log')
-            .select('lead_id, metadata, created_at')
-            .eq('event_type', 'ref_click')
-            .gte('created_at', thirtyDaysAgo)
-            .order('created_at', { ascending: false });
+          const [{ data: clickEvents }, { count: totalSent }, { count: totalConverted }] = await Promise.all([
+            supabase
+              .from('outreach_activity_log')
+              .select('lead_id, metadata, created_at')
+              .eq('event_type', 'ref_click')
+              .gte('created_at', thirtyDaysAgo)
+              .order('created_at', { ascending: false }),
+            supabase
+              .from('outreach_messages')
+              .select('id', { count: 'exact', head: true })
+              .eq('status', 'sent'),
+            supabase
+              .from('outreach_leads')
+              .select('id', { count: 'exact', head: true })
+              .eq('status', 'converted')
+          ]);
 
           const totalClicks = (clickEvents || []).length;
-
           const leadIds = [...new Set((clickEvents || []).map(e => e.lead_id).filter(Boolean))];
 
           const { data: clickedLeads } = leadIds.length ? await supabase
@@ -3205,16 +3214,6 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
 
           const leadMap = {};
           (clickedLeads || []).forEach(l => { leadMap[l.id] = l; });
-
-          const { count: totalConverted } = await supabase
-            .from('outreach_leads')
-            .select('id', { count: 'exact', head: true })
-            .eq('status', 'converted');
-
-          const { count: totalSent } = await supabase
-            .from('outreach_messages')
-            .select('id', { count: 'exact', head: true })
-            .eq('status', 'sent');
 
           const cityMap = {};
           const typeMap = {};
@@ -3231,8 +3230,22 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
             }
           });
 
-          const warmList = (clickedLeads || [])
-            .filter(l => l.status !== 'converted')
+          const providerLeadsWithEmail = (clickedLeads || []).filter(l =>
+            l.type === 'provider' && l.email && l.status !== 'converted'
+          );
+
+          const profileEmails = providerLeadsWithEmail.map(l => l.email).filter(Boolean);
+          let signedUpEmails = new Set();
+          if (profileEmails.length) {
+            const { data: profiles } = await supabase
+              .from('profiles')
+              .select('email')
+              .in('email', profileEmails);
+            (profiles || []).forEach(p => { if (p.email) signedUpEmails.add(p.email.toLowerCase()); });
+          }
+
+          const warmList = providerLeadsWithEmail
+            .filter(l => !signedUpEmails.has((l.email || '').toLowerCase()))
             .map(l => {
               const clickedAt = clickTimestampByLead[l.id];
               const daysSince = clickedAt
@@ -3250,12 +3263,21 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
             })
             .sort((a, b) => (a.days_since_click ?? 999) - (b.days_since_click ?? 999));
 
+          const cityClickRate = Object.entries(cityMap)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([city, count]) => ({
+              city,
+              count,
+              ctr: totalSent > 0 ? ((count / totalSent) * 100).toFixed(2) + '%' : 'N/A'
+            }));
+
           json(res, 200, {
             total_clicks: totalClicks,
             total_converted: totalConverted || 0,
             warm_leads: warmList.length,
             total_sent: totalSent || 0,
-            by_city: Object.entries(cityMap).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([city, count]) => ({ city, count })),
+            by_city: cityClickRate,
             by_type: Object.entries(typeMap).sort((a, b) => b[1] - a[1]).map(([type, count]) => ({ type, count })),
             warm_list: warmList
           });
