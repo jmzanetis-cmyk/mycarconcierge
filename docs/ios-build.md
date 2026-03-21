@@ -16,11 +16,16 @@ The iOS consumer build strips all admin, outreach, marketing, and server-only co
 - Onboarding flows
 
 **Removed from the consumer build:**
-- Admin portal (`admin.html`, `admin.js`, `admin-outreach.js`, etc.)
+- Admin portal (`admin.html`, `admin.js`, `admin-outreach.js`, `providers.js`, etc.)
 - Outreach engine (`outreach-engine-api.js`)
-- Server-side code (`server.js`, `emailService.js`)
+- Server-side code (`server.js`, `simulate.js`, `playwright.config.js`)
 - Marketing and investor documents (all MCC-*.html, pitch decks, brochures)
-- SQL files, test scripts, and Netlify functions
+- SQL files, stress-test scripts, and Netlify functions
+
+**Retained in the consumer build** (required for member features):
+- `stripeutils.js` — Stripe payment flows used by members
+- `mcc-config.js` — API base URL routing; the Replit URL is intentionally kept as it is used by the native app's `isNativeApp` detection path for API calls to the production server
+- All member-facing JS (`members*.js`, `biometric-auth.js`, `mobile-pay.js`, etc.)
 
 ## Prerequisites
 
@@ -30,7 +35,7 @@ Before building for iOS you need:
 - An Apple Developer account with a valid signing certificate and provisioning profile
 - CocoaPods installed (`sudo gem install cocoapods`)
 - Node.js 18+ and npm
-- Capacitor CLI (`npm install -g @capacitor/cli`)
+- Capacitor CLI available (`npx cap` works without global install)
 
 ## Quick Start (Automated Archive)
 
@@ -59,7 +64,9 @@ Find your Team ID at [developer.apple.com/account](https://developer.apple.com/a
 bash scripts/build-ios.sh
 ```
 
-This copies `www/` to `www-ios/`, strips all admin/server/marketing files, patches HTML/JS for consumer-only mode, then runs `npx cap sync ios`.
+This copies `www/` to `www-ios/`, strips all admin/server/marketing files, patches HTML/JS for consumer-only mode, runs the validation check, then syncs to Capacitor (`npx cap copy ios && npx cap sync ios`).
+
+The script temporarily changes `capacitor.config.json` to `webDir: "www-ios"` during the Capacitor sync, then restores it to `www` automatically.
 
 ### 2. Validate the build
 
@@ -70,12 +77,12 @@ bash scripts/build-ios-check.sh
 ```
 
 This checks that:
-- No admin files remain (`admin.html`, `admin.js`, etc.)
-- No server-only files remain (`server.js`, `emailService.js`, etc.)
+- No admin files remain (`admin.html`, `admin.js`, `providers.js`, etc.)
+- No server-only files remain (`server.js`, etc.)
 - No SQL or stress-test files remain
 - No `admin.html` references in consumer HTML/JS
-- All required member-facing files are present
 - `login.js` admin redirect has been patched
+- All required member-facing files are present
 
 ### 3. Open Xcode
 
@@ -94,7 +101,7 @@ npx cap open ios
 ### 5. Set Version and Build Number
 
 In **General → Identity**:
-- **Version**: e.g., `1.0.0` (user-facing version)
+- **Version**: e.g., `1.0.0` (user-facing version shown in the App Store)
 - **Build**: e.g., `1` (increment for each App Store upload)
 
 ### 6. Archive the App
@@ -130,21 +137,25 @@ The Capacitor config is at `capacitor.config.json`:
   "appId": "com.zanetisholdings.mycarconcierge",
   "appName": "My Car Concierge",
   "webDir": "www",
-  ...
+  "server": {
+    "url": "https://www.mycarconcierge.com",
+    ...
+  }
 }
 ```
 
-The build script temporarily changes `webDir` to `www-ios` during the Capacitor sync, then restores it.
+The `server.url` points to production. The iOS app loads the bundled `www-ios` assets for its UI but makes API calls to the production server URL defined in `mcc-config.js`. The `scripts/build-ios.sh` temporarily changes `webDir` to `www-ios` during the Capacitor sync, then restores it.
 
 ## File Reference
 
-| Script | Purpose |
-|--------|---------|
-| `build-ios.sh` | Full pipeline: strip → sync → archive → export IPA |
+| File | Purpose |
+|------|---------|
+| `build-ios.sh` | Full pipeline: strip → sync → pod install → xcodebuild archive + export IPA |
 | `scripts/build-ios.sh` | Consumer build: copies www → www-ios, strips files, patches HTML/JS, syncs Capacitor |
 | `scripts/build-ios-check.sh` | Validates the consumer build — run standalone or as part of build |
+| `scripts/ios-build.sh` | Alternative strip script that operates on ios/App/App/public/ directly after cap sync |
 | `scripts/ios-run.sh` | Run on a connected device for local testing |
-| `ios/ExportOptions.plist` | Xcode export settings (update with your Team ID) |
+| `ios/ExportOptions.plist` | Xcode export settings — update `teamID` before archiving |
 | `capacitor.config.json` | Capacitor app configuration (appId, plugins, etc.) |
 
 ## Troubleshooting
@@ -167,6 +178,6 @@ cd ios/App && pod repo update && pod install
 - Re-run `bash scripts/build-ios.sh` — it regenerates `www-ios/` from scratch each time
 - If a specific file still contains admin references, add a targeted `sed` patch in `scripts/build-ios.sh`
 
-**App crashes on launch (Capacitor live-reload):**
-- The `capacitor.config.json` has a `server.url` pointing to the production URL
-- For local testing, comment out the `server` block and run `npx cap run ios`
+**App crashes on launch:**
+- The `capacitor.config.json` `server.url` points to production — make sure production is live
+- For local testing, comment out the `server` block and run `npx cap run ios` with a local server

@@ -5,6 +5,14 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$PROJECT_ROOT/www-ios"
 SRC_DIR="$PROJECT_ROOT/www"
 
+SED_INPLACE() {
+  if sed --version 2>/dev/null | grep -q GNU; then
+    sed -i "$@"
+  else
+    sed -i '' "$@"
+  fi
+}
+
 echo "=================================================="
 echo " My Car Concierge — iOS Consumer Build"
 echo "=================================================="
@@ -29,22 +37,18 @@ rm -f "$BUILD_DIR/analytics-tracker.js"
 rm -f "$BUILD_DIR/hubspot-client.js"
 rm -f "$BUILD_DIR/founder-dashboard.js"
 rm -f "$BUILD_DIR/founder-dashboard.html"
-echo "  Admin portal files removed."
+rm -f "$BUILD_DIR/providers.js"
+echo "  Admin portal files removed (including providers.js admin panel)."
 
 echo ""
 echo "Step 3/5: Stripping outreach engine, server-only, and test files..."
 
 rm -f "$BUILD_DIR/outreach-engine-api.js"
 rm -f "$BUILD_DIR/server.js"
-rm -f "$BUILD_DIR/emailService.js"
-rm -f "$BUILD_DIR/emailservice.js"
-rm -f "$BUILD_DIR/email-template.html"
 rm -f "$BUILD_DIR/simulate.js"
 rm -f "$BUILD_DIR/simulate-platform.js"
 rm -f "$BUILD_DIR/playwright.config.js"
 rm -f "$BUILD_DIR/seed-test-data.js"
-rm -f "$BUILD_DIR/stripeutils.js"
-rm -f "$BUILD_DIR/stripe-treasury.js"
 rm -f "$BUILD_DIR/electron.js"
 
 rm -f "$BUILD_DIR"/stress-test*.js
@@ -90,7 +94,7 @@ rm -f "$BUILD_DIR/MCC-Services-Proposal.html"
 rm -f "$BUILD_DIR/MCC-Brand-Assets.pdf" 2>/dev/null || true
 rm -f "$BUILD_DIR/MCC-Provider-Brochure.pdf" 2>/dev/null || true
 rm -f "$BUILD_DIR/MCC-Provider-Presentation.pdf" 2>/dev/null || true
-rm -f "$BUILD_DIR/MCC-Founding-Provider-Agreement-Chris-Agrapidis.pdf" 2>/dev/null || true
+rm -f "$BUILD_DIR"/MCC-Founding-Provider-Agreement*.pdf 2>/dev/null || true
 rm -rf "$BUILD_DIR/marketing/"
 rm -rf "$BUILD_DIR/docs/"
 rm -rf "$BUILD_DIR/images/social/" 2>/dev/null || true
@@ -100,37 +104,33 @@ echo ""
 echo "Step 5/5: Patching HTML and JS for consumer-only mode..."
 
 if [ -f "$BUILD_DIR/members.html" ]; then
-  sed -i 's|<div class="nav-item"[^>]*>.*admin\.html.*</div>||g' "$BUILD_DIR/members.html"
+  SED_INPLACE 's|<div class="nav-item"[^>]*>.*admin\.html.*</div>||g' "$BUILD_DIR/members.html"
   echo "  members.html: Admin nav link removed."
 fi
 
 if [ -f "$BUILD_DIR/login.js" ]; then
-  sed -i "s|window\.location\.href = 'admin\.html'|window.location.href = 'members.html'|g" "$BUILD_DIR/login.js"
+  SED_INPLACE "s|window\.location\.href = 'admin\.html'|window.location.href = 'members.html'|g" "$BUILD_DIR/login.js"
   echo "  login.js: Admin redirect patched → members.html."
 fi
 
 if [ -f "$BUILD_DIR/index.html" ]; then
-  sed -i "s|window\.location\.href = 'admin\.html'|window.location.href = 'members.html'|g" "$BUILD_DIR/index.html"
-  sed -i "s|window\.location\.href = \"admin\.html\"|window.location.href = 'members.html'|g" "$BUILD_DIR/index.html"
+  SED_INPLACE "s|window\.location\.href = 'admin\.html'|window.location.href = 'members.html'|g" "$BUILD_DIR/index.html"
+  SED_INPLACE "s|window\.location\.href = \"admin\.html\"|window.location.href = 'members.html'|g" "$BUILD_DIR/index.html"
   echo "  index.html: Admin redirect patched → members.html."
 fi
 
-if [ -f "$BUILD_DIR/mcc-config.js" ]; then
-  sed -i "s|const REPLIT_API_URL = '.*'|const REPLIT_API_URL = ''|g" "$BUILD_DIR/mcc-config.js"
-  echo "  mcc-config.js: Replit API URL cleared."
-fi
-
 if [ -f "$BUILD_DIR/sw.js" ]; then
-  sed -i "/['\"]\/admin\.html['\"],/d" "$BUILD_DIR/sw.js"
-  sed -i "/['\"]\/admin\.js['\"],/d" "$BUILD_DIR/sw.js"
-  sed -i "/['\"]\/admin-outreach\.js['\"],/d" "$BUILD_DIR/sw.js"
-  sed -i "/['\"]\/admin-team\.js['\"],/d" "$BUILD_DIR/sw.js"
-  sed -i "/['\"]\/admin-invite\.html['\"],/d" "$BUILD_DIR/sw.js"
-  sed -i "/['\"]\/analytics-tracker\.js['\"],/d" "$BUILD_DIR/sw.js"
-  sed -i "/['\"]\/hubspot-client\.js['\"],/d" "$BUILD_DIR/sw.js"
-  sed -i "/['\"]\/outreach-engine-api\.js['\"],/d" "$BUILD_DIR/sw.js"
-  sed -i "/['\"]\/stress-test/d" "$BUILD_DIR/sw.js"
-  sed -i "/['\"]\/founder-dashboard/d" "$BUILD_DIR/sw.js"
+  SED_INPLACE "/['\"]\/admin\.html['\"],/d" "$BUILD_DIR/sw.js"
+  SED_INPLACE "/['\"]\/admin\.js['\"],/d" "$BUILD_DIR/sw.js"
+  SED_INPLACE "/['\"]\/admin-outreach\.js['\"],/d" "$BUILD_DIR/sw.js"
+  SED_INPLACE "/['\"]\/admin-team\.js['\"],/d" "$BUILD_DIR/sw.js"
+  SED_INPLACE "/['\"]\/admin-invite\.html['\"],/d" "$BUILD_DIR/sw.js"
+  SED_INPLACE "/['\"]\/analytics-tracker\.js['\"],/d" "$BUILD_DIR/sw.js"
+  SED_INPLACE "/['\"]\/hubspot-client\.js['\"],/d" "$BUILD_DIR/sw.js"
+  SED_INPLACE "/['\"]\/outreach-engine-api\.js['\"],/d" "$BUILD_DIR/sw.js"
+  SED_INPLACE "/['\"]\/providers\.js['\"],/d" "$BUILD_DIR/sw.js"
+  SED_INPLACE "/['\"]\/stress-test/d" "$BUILD_DIR/sw.js"
+  SED_INPLACE "/['\"]\/founder-dashboard/d" "$BUILD_DIR/sw.js"
   echo "  sw.js: Admin/outreach entries removed from precache list."
 fi
 
@@ -146,7 +146,6 @@ echo " Syncing consumer build to Capacitor..."
 echo "=================================================="
 
 ORIGINAL_WEB_DIR="$(node -e "const c=require('$PROJECT_ROOT/capacitor.config.json'); console.log(c.webDir);")"
-TMP_CONFIG="$PROJECT_ROOT/.capacitor-ios-build.json"
 
 node -e "
 const cfg = require('$PROJECT_ROOT/capacitor.config.json');
