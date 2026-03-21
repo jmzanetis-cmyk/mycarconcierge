@@ -47,35 +47,32 @@ echo "Step 2/5: Stripping admin portal files..."
 
 rm -f "$BUILD_DIR/admin.html"
 rm -f "$BUILD_DIR/admin.js"
-rm -f "$BUILD_DIR/admin-outreach.js"
-rm -f "$BUILD_DIR/admin-invite.html"
-rm -f "$BUILD_DIR/admin-team.js"
+rm -f "$BUILD_DIR/providers.js"
 rm -f "$BUILD_DIR/generate-admin-hash.html"
 rm -f "$BUILD_DIR/accept-invite.html"
 rm -f "$BUILD_DIR/signed-agreements.html"
 rm -f "$BUILD_DIR/analytics-tracker.js"
 rm -f "$BUILD_DIR/hubspot-client.js"
-rm -f "$BUILD_DIR/founder-dashboard.js"
-rm -f "$BUILD_DIR/founder-dashboard.html"
-rm -f "$BUILD_DIR/providers.js"
+rm -f "$BUILD_DIR"/admin-*.js
+rm -f "$BUILD_DIR"/admin-*.html
+rm -f "$BUILD_DIR"/founder-dashboard.*
 echo "  Admin portal files removed (including providers.js admin panel)."
 
 echo ""
 echo "Step 3/5: Stripping outreach engine, server-only, and test files..."
 
 rm -f "$BUILD_DIR/outreach-engine-api.js"
+rm -f "$BUILD_DIR"/outreach-engine*.js
 rm -f "$BUILD_DIR/server.js"
 rm -f "$BUILD_DIR/simulate.js"
 rm -f "$BUILD_DIR/simulate-platform.js"
 rm -f "$BUILD_DIR/playwright.config.js"
 rm -f "$BUILD_DIR/seed-test-data.js"
 rm -f "$BUILD_DIR/electron.js"
-
 rm -f "$BUILD_DIR"/stress-test*.js
 rm -f "$BUILD_DIR"/stress-test*.sh
 
-rm -f "$BUILD_DIR"/outreach-schema.sql
-rm -f "$BUILD_DIR"/*.sql
+find "$BUILD_DIR" -name "*.sql" -delete
 
 rm -rf "$BUILD_DIR/netlify/"
 rm -rf "$BUILD_DIR/supabase/"
@@ -86,6 +83,7 @@ rm -rf "$BUILD_DIR/screenshots/"
 rm -rf "$BUILD_DIR/test-results/"
 rm -rf "$BUILD_DIR/tests/"
 rm -rf "$BUILD_DIR/twilio-screenshots/"
+rm -rf "$BUILD_DIR/docs/"
 rm -f "$BUILD_DIR/package.json"
 rm -f "$BUILD_DIR/package-lock.json"
 rm -f "$BUILD_DIR/netlify.toml"

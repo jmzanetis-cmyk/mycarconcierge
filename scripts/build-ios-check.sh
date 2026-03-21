@@ -22,12 +22,15 @@ check_fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 echo "[1] Checking for admin portal files..."
 ADMIN_FILES=()
-for f in admin.html admin.js admin-outreach.js admin-team.js admin-invite.html \
+for f in admin.html admin.js providers.js \
           generate-admin-hash.html accept-invite.html signed-agreements.html \
           founder-dashboard.html founder-dashboard.js analytics-tracker.js \
-          hubspot-client.js providers.js; do
+          hubspot-client.js; do
   [ -f "$BUILD_DIR/$f" ] && ADMIN_FILES+=("$f")
 done
+while IFS= read -r -d '' f; do
+  ADMIN_FILES+=("$(basename "$f")")
+done < <(find "$BUILD_DIR" -maxdepth 1 \( -name "admin-*.js" -o -name "admin-*.html" \) -print0 2>/dev/null)
 if [ ${#ADMIN_FILES[@]} -eq 0 ]; then
   check_pass "No admin portal files present (including providers.js)"
 else
@@ -85,13 +88,13 @@ fi
 
 echo ""
 echo "[6] Checking for admin.html references in consumer HTML/JS..."
-ADMIN_REFS=$(grep -rl "admin\.html" "$BUILD_DIR"/*.html "$BUILD_DIR"/*.js 2>/dev/null || true)
+ADMIN_REFS=$(grep -rl "admin\.html" "$BUILD_DIR" --include="*.html" --include="*.js" 2>/dev/null || true)
 if [ -z "$ADMIN_REFS" ]; then
   check_pass "No admin.html references in consumer HTML/JS"
 else
-  for ref in $ADMIN_REFS; do
-    check_fail "admin.html reference found in: $(basename "$ref")"
-  done
+  while IFS= read -r ref; do
+    [ -n "$ref" ] && check_fail "admin.html reference found in: ${ref#"$BUILD_DIR/"}"
+  done <<< "$ADMIN_REFS"
 fi
 
 echo ""
