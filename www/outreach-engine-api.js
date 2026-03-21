@@ -1414,12 +1414,19 @@ async function sendMessage(supabase, messageId) {
     if (!resend) return { error: 'Email service not configured' };
 
     const unsubLink = `${UNSUBSCRIBE_URL}?email=${encodeURIComponent(lead.email)}&id=${lead.id}`;
-    const textBody = bodyBase + `\n\n---\n${PHYSICAL_ADDRESS}\nTo stop receiving these emails: ${unsubLink}`;
+    const refLink = lead.type === 'provider' ? `${BASE_URL}/ref?id=${lead.id}` : null;
+    const textBody = bodyBase
+      + (refLink ? `\n\nGet started here: ${refLink}` : '')
+      + `\n\n---\n${PHYSICAL_ADDRESS}\nTo stop receiving these emails: ${unsubLink}`;
     const openPixel = `<img src="${BASE_URL}/t/o?m=${messageId}" width="1" height="1" style="display:none;" alt="">`;
     const clickUrl = `${BASE_URL}/t/c?m=${messageId}&u=${encodeURIComponent('https://mycarconcierge.com')}`;
+    const refButtonHtml = refLink
+      ? `<br><br><p style="text-align:center;margin:20px 0;"><a href="${refLink}" style="display:inline-block;padding:12px 28px;background:#c9a227;color:#0a0a0f;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;">Get Started — It's Free</a></p>`
+      : '';
     const htmlBody = bodyBase
       .replace(/\n/g, '<br>')
       .replace(/https:\/\/mycarconcierge\.com/g, `<a href="${clickUrl}" style="color:#c9a84c;">mycarconcierge.com</a>`)
+      + refButtonHtml
       + `<br><br><hr style="border-color:#333;"><p style="font-size:12px;color:#888;">${PHYSICAL_ADDRESS}<br><a href="${unsubLink}" style="color:#888;">Unsubscribe</a></p>${openPixel}`;
 
     try {
@@ -3174,6 +3181,83 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
               failures: aiCircuitBreaker.failures,
               paused_until: aiCircuitBreaker.pausedUntil ? new Date(aiCircuitBreaker.pausedUntil).toISOString() : null
             }
+          });
+        }
+
+        else if (req.method === 'GET' && pathname === '/conversions') {
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+          const { data: clickEvents } = await supabase
+            .from('outreach_activity_log')
+            .select('lead_id, metadata, created_at')
+            .eq('event_type', 'ref_click')
+            .gte('created_at', thirtyDaysAgo)
+            .order('created_at', { ascending: false });
+
+          const totalClicks = (clickEvents || []).length;
+
+          const leadIds = [...new Set((clickEvents || []).map(e => e.lead_id).filter(Boolean))];
+
+          const { data: clickedLeads } = leadIds.length ? await supabase
+            .from('outreach_leads')
+            .select('id, name, email, type, location, company, status, crm_profile_id')
+            .in('id', leadIds) : { data: [] };
+
+          const leadMap = {};
+          (clickedLeads || []).forEach(l => { leadMap[l.id] = l; });
+
+          const { count: totalConverted } = await supabase
+            .from('outreach_leads')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'converted');
+
+          const { count: totalSent } = await supabase
+            .from('outreach_messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'sent');
+
+          const cityMap = {};
+          const typeMap = {};
+          const clickTimestampByLead = {};
+
+          (clickEvents || []).forEach(e => {
+            const lead = leadMap[e.lead_id];
+            const city = (lead?.location || e.metadata?.city || 'Unknown').split(',')[0].trim();
+            cityMap[city] = (cityMap[city] || 0) + 1;
+            const type = lead?.type || 'unknown';
+            typeMap[type] = (typeMap[type] || 0) + 1;
+            if (!clickTimestampByLead[e.lead_id] || e.created_at > clickTimestampByLead[e.lead_id]) {
+              clickTimestampByLead[e.lead_id] = e.created_at;
+            }
+          });
+
+          const warmList = (clickedLeads || [])
+            .filter(l => l.status !== 'converted')
+            .map(l => {
+              const clickedAt = clickTimestampByLead[l.id];
+              const daysSince = clickedAt
+                ? Math.floor((Date.now() - new Date(clickedAt).getTime()) / 86400000)
+                : null;
+              return {
+                lead_id: l.id,
+                name: l.name,
+                email: l.email,
+                type: l.type,
+                location: l.location,
+                company: l.company,
+                days_since_click: daysSince
+              };
+            })
+            .sort((a, b) => (a.days_since_click ?? 999) - (b.days_since_click ?? 999));
+
+          json(res, 200, {
+            total_clicks: totalClicks,
+            total_converted: totalConverted || 0,
+            warm_leads: warmList.length,
+            total_sent: totalSent || 0,
+            by_city: Object.entries(cityMap).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([city, count]) => ({ city, count })),
+            by_type: Object.entries(typeMap).sort((a, b) => b[1] - a[1]).map(([type, count]) => ({ type, count })),
+            warm_list: warmList
           });
         }
 

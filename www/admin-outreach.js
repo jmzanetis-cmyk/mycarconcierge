@@ -253,6 +253,7 @@
       case 'analytics': await loadAnalytics(); break;
       case 'instantly': await loadInstantlyCampaigns(); break;
       case 'apollo': await loadApolloStatus(); break;
+      case 'conversions': await loadConversions(); break;
     }
   }
 
@@ -1766,4 +1767,89 @@
   window.pauseCampaign = pauseCampaign;
   window.resumeCampaign = resumeCampaign;
   window.renderOutreachHistoryPanel = renderOutreachHistoryPanel;
+  window.loadConversions = loadConversions;
+
+  async function loadConversions() {
+    try {
+      const res = await outreachFetch('/conversions');
+      if (!res.ok) throw new Error('Failed to load conversions');
+      const data = await res.json();
+
+      const totalClicks = data.total_clicks || 0;
+      const totalConverted = data.total_converted || 0;
+      const warmLeads = data.warm_leads || 0;
+      const sentCount = data.total_sent || 0;
+      const clickRate = sentCount > 0 ? ((totalClicks / sentCount) * 100).toFixed(1) + '%' : '0%';
+
+      const elById = id => document.getElementById(id);
+      const set = (id, v) => { const el = elById(id); if (el) el.textContent = v; };
+
+      set('conv-total-clicks', totalClicks.toLocaleString());
+      set('conv-total-converted', totalConverted.toLocaleString());
+      set('conv-warm-leads', warmLeads.toLocaleString());
+      set('conv-click-rate', clickRate);
+
+      const cityEl = elById('conv-by-city');
+      if (cityEl) {
+        const cities = data.by_city || [];
+        if (cities.length) {
+          cityEl.innerHTML = cities.map(c => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
+              <span style="font-size:0.9rem;">${escapeHtml(c.city || 'Unknown')}</span>
+              <span style="font-weight:700;color:var(--accent-teal);">${c.count}</span>
+            </div>`).join('');
+        } else {
+          cityEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No click data yet</p>';
+        }
+      }
+
+      const typeEl = elById('conv-by-type');
+      if (typeEl) {
+        const types = data.by_type || [];
+        if (types.length) {
+          typeEl.innerHTML = types.map(t => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
+              <span style="font-size:0.9rem;text-transform:capitalize;">${escapeHtml(t.type || 'unknown')}</span>
+              <span style="font-weight:700;color:var(--accent-blue);">${t.count}</span>
+            </div>`).join('');
+        } else {
+          typeEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No click data yet</p>';
+        }
+      }
+
+      const warmEl = elById('conv-warm-list');
+      if (warmEl) {
+        const warm = data.warm_list || [];
+        if (warm.length) {
+          warmEl.innerHTML = `
+            <table style="width:100%;">
+              <thead>
+                <tr>
+                  <th>Name</th><th>Company / City</th><th>Email</th><th>Clicked</th><th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${warm.map(l => `
+                  <tr>
+                    <td><strong>${escapeHtml(l.name || '—')}</strong></td>
+                    <td style="color:var(--text-muted);font-size:0.85rem;">${escapeHtml(l.location || l.company || '—')}</td>
+                    <td style="font-size:0.85rem;">${escapeHtml(l.email || '—')}</td>
+                    <td style="font-size:0.82rem;color:var(--text-muted);">${l.days_since_click != null ? l.days_since_click + 'd ago' : '—'}</td>
+                    <td>
+                      <button class="btn btn-sm btn-primary" onclick="window.draftForLead && window.draftForLead('${l.lead_id}')" title="Send follow-up">Follow Up</button>
+                    </td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>`;
+        } else {
+          warmEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No warm leads yet — ref clicks will appear here once providers open your emails.</p>';
+        }
+        if (typeof initInlineIcons !== 'undefined') initInlineIcons(warmEl);
+      }
+    } catch (e) {
+      console.error('[Conversions] Load error:', e);
+      const warmEl = document.getElementById('conv-warm-list');
+      if (warmEl) warmEl.innerHTML = `<p style="color:var(--accent-red);text-align:center;padding:20px;">Failed to load conversion data: ${e.message}</p>`;
+    }
+  }
 })();

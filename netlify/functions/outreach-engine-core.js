@@ -984,13 +984,20 @@ async function sendMessage(supabase, messageId) {
     if (!resend) return { error: 'Email service not configured' };
 
     const unsubLink = `${UNSUBSCRIBE_URL}?email=${encodeURIComponent(lead.email)}&id=${lead.id}`;
-    const textBody = bodyBase + `\n\n---\n${PHYSICAL_ADDRESS}\nTo stop receiving these emails: ${unsubLink}`;
+    const refLink = lead.type === 'provider' ? `${BASE_URL}/ref?id=${lead.id}` : null;
+    const textBody = bodyBase
+      + (refLink ? `\n\nGet started here: ${refLink}` : '')
+      + `\n\n---\n${PHYSICAL_ADDRESS}\nTo stop receiving these emails: ${unsubLink}`;
     const trackingBase = BASE_URL;
     const openPixel = `<img src="${trackingBase}/t/o?m=${messageId}" width="1" height="1" style="display:none;" alt="">`;
     const clickUrl = `${trackingBase}/t/c?m=${messageId}&u=${encodeURIComponent('https://mycarconcierge.com')}`;
+    const refButtonHtml = refLink
+      ? `<br><br><p style="text-align:center;margin:20px 0;"><a href="${refLink}" style="display:inline-block;padding:12px 28px;background:#c9a227;color:#0a0a0f;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;">Get Started — It's Free</a></p>`
+      : '';
     const htmlBody = bodyBase
       .replace(/\n/g, '<br>')
       .replace(/https:\/\/mycarconcierge\.com/g, `<a href="${clickUrl}" style="color:#c9a84c;">mycarconcierge.com</a>`)
+      + refButtonHtml
       + `<br><br><hr style="border-color:#333;"><p style="font-size:12px;color:#888;">${PHYSICAL_ADDRESS}<br><a href="${unsubLink}" style="color:#888;">Unsubscribe</a></p>${openPixel}`;
 
     try {

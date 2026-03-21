@@ -31818,6 +31818,34 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && req.url.startsWith('/ref')) {
+    try {
+      const urlObj = new URL(req.url, 'http://localhost');
+      const leadId = urlObj.searchParams.get('id');
+      if (leadId) {
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          await supabase.from('outreach_activity_log').insert({
+            lead_id: leadId,
+            event_type: 'ref_click',
+            metadata: { lead_id: leadId, timestamp: new Date().toISOString() }
+          });
+          const { data: lead } = await supabase.from('outreach_leads').select('status').eq('id', leadId).maybeSingle();
+          if (lead && (lead.status === 'new' || lead.status === 'contacted')) {
+            await supabase.from('outreach_leads').update({ status: 'clicked' }).eq('id', leadId);
+          }
+        }
+      }
+      res.writeHead(302, { Location: '/join' });
+      res.end();
+    } catch (err) {
+      console.error('[OutreachRef] Error logging ref click:', err.message);
+      res.writeHead(302, { Location: '/join' });
+      res.end();
+    }
+    return;
+  }
+
   if (req.url.startsWith('/api/admin/outreach')) {
     await handleOutreachRequest(req, res, { getSupabaseClient, handleAdminAuth, setCorsHeaders, requestId });
     return;
