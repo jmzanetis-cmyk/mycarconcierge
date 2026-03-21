@@ -1823,6 +1823,74 @@ Then a blank line, then the email body starting with "Hi ${firstName},"`;
   }
 }
 
+async function pushLeadsToInstantly(supabase, leads, campaignId) {
+  const apiKey = process.env.INSTANTLY_API_KEY;
+  if (!apiKey) return { error: 'INSTANTLY_API_KEY not configured', synced: 0 };
+
+  const validLeads = (leads || []).filter(l => l.email && !l.metadata?.instantly_synced);
+  if (validLeads.length === 0) return { synced: 0, skipped: leads?.length || 0 };
+
+  const batchSize = 100;
+  let totalSynced = 0;
+  const errors = [];
+
+  for (let i = 0; i < validLeads.length; i += batchSize) {
+    const batch = validLeads.slice(i, i + batchSize);
+    const instantlyLeads = batch.map(lead => {
+      const nameParts = (lead.name || '').split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      return {
+        email: lead.email,
+        first_name: firstName,
+        last_name: lastName,
+        company_name: lead.company || lead.name || '',
+        website: lead.website || '',
+        custom_variables: {
+          lead_type: lead.type || '',
+          source: lead.source || '',
+          score: String(lead.score || ''),
+          location: lead.location || '',
+          mcc_lead_id: lead.id,
+          search_category: lead.metadata?.search_category || ''
+        }
+      };
+    });
+
+    const reqBody = { leads: instantlyLeads };
+    if (campaignId) reqBody.campaign_id = campaignId;
+
+    try {
+      const res = await fetch('https://api.instantly.ai/api/v2/leads/bulk-add', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(reqBody)
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${res.status} - ${errText}`);
+        console.warn(`[Instantly] First-touch batch ${Math.floor(i / batchSize) + 1} failed: ${res.status} ${errText}`);
+        continue;
+      }
+
+      totalSynced += batch.length;
+
+      for (const lead of batch) {
+        const existingMeta = lead.metadata || {};
+        await supabase.from('outreach_leads').update({
+          metadata: { ...existingMeta, instantly_synced: true, instantly_synced_at: new Date().toISOString(), instantly_campaign_id: campaignId || null }
+        }).eq('id', lead.id);
+      }
+    } catch (err) {
+      errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${err.message}`);
+      console.warn(`[Instantly] First-touch batch exception:`, err.message);
+    }
+  }
+
+  return { synced: totalSynced, total: validLeads.length, errors: errors.length > 0 ? errors : undefined };
+}
+
 async function runApolloDiscoveryCycle(supabase) {
   const apolloKey = process.env.APOLLO_API_KEY;
   if (!apolloKey) return { skipped: true, reason: 'no_api_key' };
@@ -1959,9 +2027,15 @@ async function runApolloDiscoveryCycle(supabase) {
             }
             if (leadType === 'provider' && inserted?.id && cfg.instantly_auto_sync && cfg.instantly_provider_campaign_id && process.env.INSTANTLY_API_KEY) {
               try {
-                await pushLeadsToInstantly(supabase, [{ ...leadData, id: inserted.id }], cfg.instantly_provider_campaign_id);
-                results.instantly_enrolled = (results.instantly_enrolled || 0) + 1;
-              } catch (_) {}
+                const pushResult = await pushLeadsToInstantly(supabase, [{ ...leadData, id: inserted.id }], cfg.instantly_provider_campaign_id);
+                if (pushResult.synced > 0) {
+                  results.instantly_enrolled = (results.instantly_enrolled || 0) + 1;
+                } else if (pushResult.error || (pushResult.errors && pushResult.errors.length > 0)) {
+                  console.warn(`[Apollo] Instantly first-touch failed for ${leadData.name}:`, pushResult.error || pushResult.errors?.[0]);
+                }
+              } catch (pushErr) {
+                console.warn(`[Apollo] Instantly first-touch exception for ${leadData.name}:`, pushErr.message);
+              }
             }
           }
         } else if (email && !existing.email) {
