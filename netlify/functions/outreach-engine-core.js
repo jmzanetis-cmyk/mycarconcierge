@@ -2067,9 +2067,15 @@ async function runApolloDiscoveryCycle(supabase) {
             }
             if (leadType === 'provider' && inserted?.id && cfg.instantly_auto_sync && cfg.instantly_provider_campaign_id && process.env.INSTANTLY_API_KEY) {
               try {
-                await pushLeadsToInstantly(supabase, [{ ...leadData, id: inserted.id }], cfg.instantly_provider_campaign_id);
-                results.instantly_enrolled = (results.instantly_enrolled || 0) + 1;
-              } catch (_) {}
+                const pushResult = await pushLeadsToInstantly(supabase, [{ ...leadData, id: inserted.id }], cfg.instantly_provider_campaign_id);
+                if (pushResult.synced > 0) {
+                  results.instantly_enrolled = (results.instantly_enrolled || 0) + 1;
+                } else if (pushResult.error || (pushResult.errors && pushResult.errors.length > 0)) {
+                  console.warn(`[Apollo] Instantly first-touch failed for ${leadData.name}:`, pushResult.error || pushResult.errors?.[0]);
+                }
+              } catch (pushErr) {
+                console.warn(`[Apollo] Instantly first-touch exception for ${leadData.name}:`, pushErr.message);
+              }
             }
           }
         } else if (email && !existing.email) {
