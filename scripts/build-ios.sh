@@ -4,6 +4,13 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$PROJECT_ROOT/www-ios"
 SRC_DIR="$PROJECT_ROOT/www"
+OPEN_XCODE=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --open) OPEN_XCODE=true ;;
+  esac
+done
 
 SED_INPLACE() {
   if sed --version 2>/dev/null | grep -q GNU; then
@@ -12,6 +19,19 @@ SED_INPLACE() {
     sed -i '' "$@"
   fi
 }
+
+restore_capacitor_config() {
+  if [ -n "${ORIGINAL_WEB_DIR:-}" ]; then
+    node -e "
+const cfg = require('$PROJECT_ROOT/capacitor.config.json');
+cfg.webDir = '$ORIGINAL_WEB_DIR';
+const fs = require('fs');
+fs.writeFileSync('$PROJECT_ROOT/capacitor.config.json', JSON.stringify(cfg, null, 2) + '\n');
+" 2>/dev/null || true
+    echo "  capacitor.config.json restored (webDir=$ORIGINAL_WEB_DIR)"
+  fi
+}
+trap restore_capacitor_config EXIT
 
 echo "=================================================="
 echo " My Car Concierge — iOS Consumer Build"
@@ -158,27 +178,27 @@ cd "$PROJECT_ROOT"
 npx cap copy ios
 npx cap sync ios
 
-node -e "
-const cfg = require('$PROJECT_ROOT/capacitor.config.json');
-cfg.webDir = '$ORIGINAL_WEB_DIR';
-const fs = require('fs');
-fs.writeFileSync('$PROJECT_ROOT/capacitor.config.json', JSON.stringify(cfg, null, 2) + '\n');
-"
-
 echo ""
 echo "=================================================="
 echo " Consumer iOS build complete!"
 echo "=================================================="
 echo ""
-echo "Next steps:"
-echo "  1. Open Xcode:  npx cap open ios"
-echo "  2. Set your Team ID in Signing & Capabilities"
-echo "  3. Set version/build number (e.g., 1.0.0 / 1)"
-echo "  4. Product → Archive"
-echo "  5. Distribute App → App Store Connect → Upload"
-echo ""
-echo "Or run the full automated archive + export:"
-echo "  bash $PROJECT_ROOT/build-ios.sh"
-echo ""
 TOTAL_FILES=$(find "$BUILD_DIR" -type f | wc -l | tr -d ' ')
 echo "Consumer build: $TOTAL_FILES files in www-ios/"
+echo ""
+
+if [ "$OPEN_XCODE" = true ]; then
+  echo "Opening Xcode..."
+  npx cap open ios
+else
+  echo "Next steps:"
+  echo "  1. Open Xcode:     bash scripts/build-ios.sh --open"
+  echo "                  or npx cap open ios"
+  echo "  2. Set your Team ID in Signing & Capabilities"
+  echo "  3. Set version/build number (e.g., 1.0.0 / 1)"
+  echo "  4. Product → Archive"
+  echo "  5. Distribute App → App Store Connect → Upload"
+  echo ""
+  echo "Or run the full automated archive + export:"
+  echo "  bash $PROJECT_ROOT/build-ios.sh"
+fi
