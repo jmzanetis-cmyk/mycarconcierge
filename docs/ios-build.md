@@ -37,6 +37,17 @@ Before building for iOS you need:
 - Node.js 18+ and npm
 - Capacitor CLI available (`npx cap` works without global install)
 
+## Script Reference
+
+There are two strip scripts — use `scripts/build-ios.sh` for all new work:
+
+| Script | Purpose |
+|---|---|
+| `scripts/build-ios.sh` | **Canonical consumer build** — copy, strip, patch, validate, cap sync |
+| `scripts/ios-build.sh` | Legacy — called by root `build-ios.sh` archive pipeline only |
+
+Use `scripts/build-ios.sh` directly for development iteration. Use root `build-ios.sh` when you are ready to produce a signed IPA for App Store submission.
+
 ## Quick Start (Automated Archive)
 
 This runs the full pipeline: strip consumer build → Capacitor sync → Xcode archive → IPA export.
@@ -45,7 +56,7 @@ This runs the full pipeline: strip consumer build → Capacitor sync → Xcode a
 bash build-ios.sh
 ```
 
-This calls `scripts/ios-build.sh` internally (the strip + Capacitor sync step), then runs `xcodebuild` to produce an IPA at `build/export/`.
+This calls `scripts/ios-build.sh` (the legacy strip + sync step used by the archive pipeline), then runs `xcodebuild` to produce an IPA at `build/export/`. For day-to-day development use `scripts/build-ios.sh` directly (see Step-by-Step below).
 
 Before running, update your Team ID in `ios/ExportOptions.plist`:
 
