@@ -3272,6 +3272,41 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
               ctr: totalSent > 0 ? ((count / totalSent) * 100).toFixed(2) + '%' : 'N/A'
             }));
 
+          const { data: campaignRows } = await supabase
+            .from('outreach_campaigns')
+            .select('id, name');
+          const campaignNames = {};
+          (campaignRows || []).forEach(c => { campaignNames[c.id] = c.name; });
+
+          const { data: sentByCampaign } = await supabase
+            .from('outreach_messages')
+            .select('campaign_id')
+            .eq('status', 'sent');
+
+          const sentCountByCampaign = {};
+          (sentByCampaign || []).forEach(m => {
+            const cid = m.campaign_id || '__none__';
+            sentCountByCampaign[cid] = (sentCountByCampaign[cid] || 0) + 1;
+          });
+
+          const clicksByCampaign = {};
+          (clickEvents || []).forEach(e => {
+            const lead = leadMap[e.lead_id];
+            const cid = lead?.crm_profile_id || '__none__';
+            clicksByCampaign[cid] = (clicksByCampaign[cid] || 0) + 1;
+          });
+
+          const byCampaign = Object.entries(sentCountByCampaign).map(([cid, sent]) => {
+            const clicks = clicksByCampaign[cid] || 0;
+            return {
+              campaign_id: cid === '__none__' ? null : cid,
+              campaign_name: campaignNames[cid] || (cid === '__none__' ? 'No Campaign' : cid),
+              sent,
+              clicks,
+              ctr: sent > 0 ? ((clicks / sent) * 100).toFixed(2) + '%' : '0%'
+            };
+          }).sort((a, b) => b.clicks - a.clicks).slice(0, 10);
+
           json(res, 200, {
             total_clicks: totalClicks,
             total_converted: totalConverted || 0,
@@ -3279,6 +3314,7 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
             total_sent: totalSent || 0,
             by_city: cityClickRate,
             by_type: Object.entries(typeMap).sort((a, b) => b[1] - a[1]).map(([type, count]) => ({ type, count })),
+            by_campaign: byCampaign,
             warm_list: warmList
           });
         }

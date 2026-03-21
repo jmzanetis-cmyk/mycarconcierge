@@ -1796,7 +1796,10 @@
           cityEl.innerHTML = cities.map(c => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
               <span style="font-size:0.9rem;">${escapeHtml(c.city || 'Unknown')}</span>
-              <span style="font-weight:700;color:var(--accent-teal);">${c.count}</span>
+              <div style="text-align:right;">
+                <span style="font-weight:700;color:var(--accent-teal);">${c.count} clicks</span>
+                ${c.ctr && c.ctr !== 'N/A' ? `<span style="font-size:0.78rem;color:var(--text-muted);margin-left:6px;">(${escapeHtml(c.ctr)} CTR)</span>` : ''}
+              </div>
             </div>`).join('');
         } else {
           cityEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No click data yet</p>';
@@ -1814,6 +1817,30 @@
             </div>`).join('');
         } else {
           typeEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No click data yet</p>';
+        }
+      }
+
+      const campaignEl = elById('conv-by-campaign');
+      if (campaignEl) {
+        const campaigns = data.by_campaign || [];
+        if (campaigns.length) {
+          campaignEl.innerHTML = `
+            <table style="width:100%;">
+              <thead>
+                <tr><th>Campaign</th><th style="text-align:right;">Sent</th><th style="text-align:right;">Clicks</th><th style="text-align:right;">CTR</th></tr>
+              </thead>
+              <tbody>
+                ${campaigns.map(c => `
+                  <tr>
+                    <td style="font-size:0.88rem;">${escapeHtml(c.campaign_name || 'No Campaign')}</td>
+                    <td style="text-align:right;font-size:0.88rem;color:var(--text-muted);">${c.sent}</td>
+                    <td style="text-align:right;font-weight:700;color:var(--accent-teal);">${c.clicks}</td>
+                    <td style="text-align:right;font-size:0.85rem;color:var(--accent-blue);">${escapeHtml(c.ctr)}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>`;
+        } else {
+          campaignEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No campaign data yet</p>';
         }
       }
 

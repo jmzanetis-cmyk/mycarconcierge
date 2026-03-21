@@ -134,6 +134,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/outreach/ref"
+  to = "/.netlify/functions/outreach-ref"
+  status = 200
+
+[[redirects]]
   from = "/api/admin/outreach/*"
   to = "/.netlify/functions/outreach-admin/:splat"
   status = 200
