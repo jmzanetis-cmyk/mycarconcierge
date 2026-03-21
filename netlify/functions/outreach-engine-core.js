@@ -1171,7 +1171,13 @@ async function runEngineCycle(supabase) {
           .not('email', 'is', null)
           .not('score', 'is', null)
           .limit(500);
-        const leadsToSync = (unsyncedLeads || []).filter(l => l.email && !l.metadata?.instantly_synced);
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        const leadsToSync = (unsyncedLeads || []).filter(l => {
+          if (!l.email) return false;
+          if (!l.metadata?.instantly_synced) return true;
+          const syncedAt = l.metadata?.instantly_synced_at;
+          return syncedAt && (Date.now() - new Date(syncedAt).getTime()) > thirtyDaysMs;
+        });
         if (leadsToSync.length > 0) {
           const syncResult = await pushLeadsToInstantly(supabase, leadsToSync, state.instantly_campaign_id || null);
           results.instantly_synced = syncResult.synced || 0;
@@ -1736,6 +1742,8 @@ const DEFAULT_APOLLO_CONFIG = {
   per_page: 25,
   auto_enrich: true,
   enrich_batch: 15,
+  instantly_auto_sync: false,
+  instantly_provider_campaign_id: null,
   profile_rotation_index: 0,
   city_rotation_index: 0,
   page_rotation_index: 1,
@@ -2057,11 +2065,9 @@ async function runApolloDiscoveryCycle(supabase) {
               } catch (_) {}
               await new Promise(r => setTimeout(r, 350));
             }
-            if (leadType === 'provider' && inserted?.id && process.env.INSTANTLY_API_KEY) {
+            if (leadType === 'provider' && inserted?.id && cfg.instantly_auto_sync && cfg.instantly_provider_campaign_id && process.env.INSTANTLY_API_KEY) {
               try {
-                const { data: stateRow } = await supabase.from('engine_state').select('instantly_campaign_id').eq('id', 1).single();
-                const campaignId = stateRow?.instantly_campaign_id || null;
-                await pushLeadsToInstantly(supabase, [{ ...leadData, id: inserted.id }], campaignId);
+                await pushLeadsToInstantly(supabase, [{ ...leadData, id: inserted.id }], cfg.instantly_provider_campaign_id);
                 results.instantly_enrolled = (results.instantly_enrolled || 0) + 1;
               } catch (_) {}
             }

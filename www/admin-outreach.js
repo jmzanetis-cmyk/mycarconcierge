@@ -1360,6 +1360,8 @@
     setOpt('apollo-auto-per-page', cfg.per_page || 25);
     setChk('apollo-auto-enrich-toggle', cfg.auto_enrich !== false);
     setOpt('apollo-auto-enrich-batch', cfg.enrich_batch || 15);
+    setChk('apollo-instantly-auto-sync', cfg.instantly_auto_sync);
+    setVal('apollo-instantly-provider-campaign-id', cfg.instantly_provider_campaign_id);
     setVal('apollo-auto-cities', (cfg.cities || []).join('\n'));
     setVal('apollo-auto-titles', (cfg.titles || []).join(', '));
     setVal('apollo-auto-industries', (cfg.industries || []).join(', '));
@@ -1404,6 +1406,8 @@
         per_page: parseInt(document.getElementById('apollo-auto-per-page')?.value || '25'),
         auto_enrich: document.getElementById('apollo-auto-enrich-toggle')?.checked !== false,
         enrich_batch: parseInt(document.getElementById('apollo-auto-enrich-batch')?.value || '15'),
+        instantly_auto_sync: document.getElementById('apollo-instantly-auto-sync')?.checked || false,
+        instantly_provider_campaign_id: document.getElementById('apollo-instantly-provider-campaign-id')?.value?.trim() || null,
         cities: citiesRaw.split('\n').map(s => s.trim()).filter(Boolean),
         titles: titlesRaw.split(',').map(s => s.trim()).filter(Boolean),
         industries: industriesRaw.split(',').map(s => s.trim()).filter(Boolean)

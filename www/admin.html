@@ -1238,6 +1238,17 @@
                       <option value="25">25 leads</option>
                     </select>
                   </div>
+                  <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);cursor:pointer;" onclick="document.getElementById('apollo-instantly-auto-sync').click()">
+                    <input type="checkbox" id="apollo-instantly-auto-sync" style="width:18px;height:18px;accent-color:var(--accent-gold);">
+                    <div>
+                      <div style="font-weight:600;font-size:0.95rem;">Instantly First-Touch <span style="font-size:0.78rem;font-weight:400;color:var(--accent-gold);margin-left:4px;">Provider Leads Only</span></div>
+                      <div style="font-size:0.8rem;color:var(--text-muted);">Push new provider leads to Instantly on discovery. Investor leads are never auto-pushed.</div>
+                    </div>
+                  </div>
+                  <div>
+                    <label style="font-weight:500;margin-bottom:6px;display:block;font-size:0.85rem;">Instantly First-Touch Campaign ID <span style="color:var(--text-muted);font-weight:400;">(provider leads only)</span></label>
+                    <input type="text" id="apollo-instantly-provider-campaign-id" class="form-input" style="width:100%;" placeholder="campaign_abc123...">
+                  </div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
                   <div>
