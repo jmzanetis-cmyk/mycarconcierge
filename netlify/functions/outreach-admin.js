@@ -374,40 +374,33 @@ exports.handler = async function(event, context) {
       });
 
       const leadType = msg.outreach_leads?.type;
-      let sent = false;
-      if (leadType !== 'investor') {
-        try {
-          const sendResult = await sendMessage(supabase, msg.id);
-          sent = !!sendResult?.success;
-        } catch (e) {
-          sent = false;
-        }
+      const isProvider = leadType === 'provider';
+      if (isProvider) {
+        sendMessage(supabase, msg.id).then(() => {}).catch(() => {});
       }
 
-      return jsonResponse(200, { ...msg, sent });
+      return jsonResponse(200, { approved: true, sent: isProvider, lead_type: leadType });
     }
 
     if (method === 'POST' && path === 'messages/approve-bulk') {
       const { message_ids } = body;
       if (!Array.isArray(message_ids) || message_ids.length === 0) return jsonResponse(400, { error: 'message_ids array is required' });
 
-      const { data, error } = await supabase.from('outreach_messages')
+      const { data } = await supabase.from('outreach_messages')
         .update({ status: 'approved', approved_by: 'admin', approved_at: new Date().toISOString() })
         .in('id', message_ids).eq('status', 'draft').select('*, outreach_leads(*)');
 
-      let sent = 0;
-      for (const msg of (data || [])) {
-        const leadType = msg.outreach_leads?.type;
-        if (leadType !== 'investor') {
-          try {
-            const sr = await sendMessage(supabase, msg.id);
-            if (sr?.success) sent++;
-          } catch (e) {}
+      const approved = data || [];
+      const providerMsgs = approved.filter(m => m.outreach_leads?.type === 'provider');
+
+      (async () => {
+        for (const msg of providerMsgs) {
+          try { await sendMessage(supabase, msg.id); } catch (_) {}
           await new Promise(r => setTimeout(r, 300));
         }
-      }
+      })().catch(() => {});
 
-      return jsonResponse(200, { approved: data?.length || 0, sent });
+      return jsonResponse(200, { approved: approved.length, sent: providerMsgs.length, queued: providerMsgs.length });
     }
 
     if (method === 'POST' && path === 'messages/send') {

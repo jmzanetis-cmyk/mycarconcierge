@@ -363,6 +363,22 @@
     if (area) area.style.display = area.style.display === 'none' ? 'block' : 'none';
   }
 
+  function setCardApprovedBadge(msgId, sent) {
+    const card = document.getElementById('queue-card-' + msgId);
+    if (!card) return;
+    const btnArea = card.querySelector('.card-actions, .queue-card-actions, [data-actions]') || card;
+    const badge = document.createElement('span');
+    if (sent) {
+      badge.style.cssText = 'display:inline-block;padding:4px 10px;border-radius:12px;background:#16a34a;color:#fff;font-size:12px;font-weight:600;';
+      badge.textContent = '✓ Sent';
+    } else {
+      badge.style.cssText = 'display:inline-block;padding:4px 10px;border-radius:12px;background:#2563eb;color:#fff;font-size:12px;font-weight:600;';
+      badge.textContent = '✓ Approved — awaiting flush';
+    }
+    btnArea.innerHTML = '';
+    btnArea.appendChild(badge);
+  }
+
   async function saveEditedMessage(msgId) {
     const body = document.getElementById('edit-body-' + msgId)?.value;
     const subject = document.getElementById('edit-subject-' + msgId)?.value;
@@ -371,20 +387,12 @@
       body: JSON.stringify({ message_id: msgId, edited_body: body, edited_subject: subject })
     });
     if (res.ok) {
-      const approveData = await res.json();
-      if (approveData.sent) {
+      const data = await res.json();
+      setCardApprovedBadge(msgId, data.sent);
+      if (data.sent) {
         if (typeof showToast !== 'undefined') showToast('Message edited, approved, and sent');
       } else {
-        const sendRes = await outreachFetch('/messages/send', {
-          method: 'POST',
-          body: JSON.stringify({ message_id: msgId })
-        });
-        const sendData = await sendRes.json();
-        if (sendData.success) {
-          if (typeof showToast !== 'undefined') showToast('Message edited, approved, and sent');
-        } else {
-          if (typeof showToast !== 'undefined') showToast('Approved — awaiting flush', 'info');
-        }
+        if (typeof showToast !== 'undefined') showToast('Approved — awaiting flush', 'info');
       }
       await loadMessageQueue();
       await loadEngineState();
@@ -400,22 +408,12 @@
       if (typeof showToast !== 'undefined') showToast('Failed to approve message', 'error');
       return;
     }
-    const approveData = await res.json();
-    if (approveData.sent) {
+    const data = await res.json();
+    setCardApprovedBadge(msgId, data.sent);
+    if (data.sent) {
       if (typeof showToast !== 'undefined') showToast('Message approved and sent');
-      document.getElementById('queue-card-' + msgId)?.remove();
     } else {
-      const sendRes = await outreachFetch('/messages/send', {
-        method: 'POST',
-        body: JSON.stringify({ message_id: msgId })
-      });
-      const sendData = await sendRes.json();
-      if (sendData.success) {
-        if (typeof showToast !== 'undefined') showToast('Message approved and sent');
-        document.getElementById('queue-card-' + msgId)?.remove();
-      } else {
-        if (typeof showToast !== 'undefined') showToast('Approved — awaiting flush', 'info');
-      }
+      if (typeof showToast !== 'undefined') showToast('Approved — awaiting flush', 'info');
     }
     await loadEngineState();
   }
