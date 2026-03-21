@@ -391,10 +391,11 @@
       const data = await res.json();
       setCardApprovedBadge(msgId, data.sent);
       if (data.sent) {
-        if (typeof showToast !== 'undefined') showToast('Message edited, approved, and sent');
+        if (typeof showToast !== 'undefined') showToast('Message edited, approved — sending now');
       } else {
         if (typeof showToast !== 'undefined') showToast('Approved — awaiting flush', 'info');
       }
+      await new Promise(r => setTimeout(r, 1200));
       await loadMessageQueue();
       await loadEngineState();
     }
@@ -412,7 +413,7 @@
     const data = await res.json();
     setCardApprovedBadge(msgId, data.sent);
     if (data.sent) {
-      if (typeof showToast !== 'undefined') showToast('Message approved and sent');
+      if (typeof showToast !== 'undefined') showToast('Message approved — sending now');
     } else {
       if (typeof showToast !== 'undefined') showToast('Approved — awaiting flush', 'info');
     }
