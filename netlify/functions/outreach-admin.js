@@ -682,10 +682,11 @@ exports.handler = async function(event, context) {
     if (method === 'GET' && path === 'conversions') {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-      const [{ data: clickEvents }, { count: totalSent }, { count: totalConverted }] = await Promise.all([
+      const [{ data: clickEvents }, { count: totalSent }, { count: totalConverted }, { count: sentLast30d }] = await Promise.all([
         supabase.from('outreach_activity_log').select('lead_id, metadata, created_at').eq('event_type', 'ref_click').gte('created_at', thirtyDaysAgo).order('created_at', { ascending: false }),
         supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'sent'),
-        supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).eq('status', 'converted')
+        supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).eq('status', 'converted'),
+        supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'sent').gte('sent_at', thirtyDaysAgo)
       ]);
 
       const totalClicks = (clickEvents || []).length;
@@ -701,7 +702,6 @@ exports.handler = async function(event, context) {
       const cityMap = {};
       const typeMap = {};
       const clickTimestampByLead = {};
-      const clicksByMessageLeadId = {};
 
       (clickEvents || []).forEach(e => {
         const lead = leadMap[e.lead_id];
@@ -712,7 +712,6 @@ exports.handler = async function(event, context) {
         if (!clickTimestampByLead[e.lead_id] || e.created_at > clickTimestampByLead[e.lead_id]) {
           clickTimestampByLead[e.lead_id] = e.created_at;
         }
-        if (e.lead_id) clicksByMessageLeadId[e.lead_id] = true;
       });
 
       const providerLeadsWithEmail = (clickedLeads || []).filter(l => l.type === 'provider' && l.email && l.status !== 'converted');
@@ -732,9 +731,10 @@ exports.handler = async function(event, context) {
         })
         .sort((a, b) => (a.days_since_click ?? 999) - (b.days_since_click ?? 999));
 
+      const ctrDenominator = sentLast30d || 0;
       const cityClickRate = Object.entries(cityMap)
         .sort((a, b) => b[1] - a[1]).slice(0, 10)
-        .map(([city, count]) => ({ city, count, ctr: totalSent > 0 ? ((count / totalSent) * 100).toFixed(2) + '%' : 'N/A' }));
+        .map(([city, count]) => ({ city, count, ctr: ctrDenominator > 0 ? ((count / ctrDenominator) * 100).toFixed(2) + '%' : 'N/A' }));
 
       const { data: campaignRows } = await supabase.from('outreach_campaigns').select('id, name');
       const campaignNames = {};

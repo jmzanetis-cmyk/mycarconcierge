@@ -3187,7 +3187,7 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
         else if (req.method === 'GET' && pathname === '/conversions') {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-          const [{ data: clickEvents }, { count: totalSent }, { count: totalConverted }] = await Promise.all([
+          const [{ data: clickEvents }, { count: totalSent }, { count: totalConverted }, { count: sentLast30d }] = await Promise.all([
             supabase
               .from('outreach_activity_log')
               .select('lead_id, metadata, created_at')
@@ -3201,7 +3201,12 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
             supabase
               .from('outreach_leads')
               .select('id', { count: 'exact', head: true })
-              .eq('status', 'converted')
+              .eq('status', 'converted'),
+            supabase
+              .from('outreach_messages')
+              .select('id', { count: 'exact', head: true })
+              .eq('status', 'sent')
+              .gte('sent_at', thirtyDaysAgo)
           ]);
 
           const totalClicks = (clickEvents || []).length;
@@ -3263,13 +3268,14 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
             })
             .sort((a, b) => (a.days_since_click ?? 999) - (b.days_since_click ?? 999));
 
+          const ctrDenominator = sentLast30d || 0;
           const cityClickRate = Object.entries(cityMap)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 10)
             .map(([city, count]) => ({
               city,
               count,
-              ctr: totalSent > 0 ? ((count / totalSent) * 100).toFixed(2) + '%' : 'N/A'
+              ctr: ctrDenominator > 0 ? ((count / ctrDenominator) * 100).toFixed(2) + '%' : 'N/A'
             }));
 
           const { data: campaignRows } = await supabase
