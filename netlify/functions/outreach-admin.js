@@ -679,6 +679,100 @@ exports.handler = async function(event, context) {
       return jsonResponse(200, data);
     }
 
+    if (method === 'GET' && path === 'conversions') {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      const [{ data: clickEvents }, { count: totalSent }, { count: totalConverted }] = await Promise.all([
+        supabase.from('outreach_activity_log').select('lead_id, metadata, created_at').eq('event_type', 'ref_click').gte('created_at', thirtyDaysAgo).order('created_at', { ascending: false }),
+        supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'sent'),
+        supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).eq('status', 'converted')
+      ]);
+
+      const totalClicks = (clickEvents || []).length;
+      const leadIds = [...new Set((clickEvents || []).map(e => e.lead_id).filter(Boolean))];
+
+      const { data: clickedLeads } = leadIds.length
+        ? await supabase.from('outreach_leads').select('id, name, email, type, location, company, status, crm_profile_id').in('id', leadIds)
+        : { data: [] };
+
+      const leadMap = {};
+      (clickedLeads || []).forEach(l => { leadMap[l.id] = l; });
+
+      const cityMap = {};
+      const typeMap = {};
+      const clickTimestampByLead = {};
+      const clicksByMessageLeadId = {};
+
+      (clickEvents || []).forEach(e => {
+        const lead = leadMap[e.lead_id];
+        const city = (lead?.location || e.metadata?.city || 'Unknown').split(',')[0].trim();
+        cityMap[city] = (cityMap[city] || 0) + 1;
+        const type = lead?.type || 'unknown';
+        typeMap[type] = (typeMap[type] || 0) + 1;
+        if (!clickTimestampByLead[e.lead_id] || e.created_at > clickTimestampByLead[e.lead_id]) {
+          clickTimestampByLead[e.lead_id] = e.created_at;
+        }
+        if (e.lead_id) clicksByMessageLeadId[e.lead_id] = true;
+      });
+
+      const providerLeadsWithEmail = (clickedLeads || []).filter(l => l.type === 'provider' && l.email && l.status !== 'converted');
+      const profileEmails = providerLeadsWithEmail.map(l => l.email).filter(Boolean);
+      let signedUpEmails = new Set();
+      if (profileEmails.length) {
+        const { data: profiles } = await supabase.from('profiles').select('email').in('email', profileEmails);
+        (profiles || []).forEach(p => { if (p.email) signedUpEmails.add(p.email.toLowerCase()); });
+      }
+
+      const warmList = providerLeadsWithEmail
+        .filter(l => !signedUpEmails.has((l.email || '').toLowerCase()))
+        .map(l => {
+          const clickedAt = clickTimestampByLead[l.id];
+          const daysSince = clickedAt ? Math.floor((Date.now() - new Date(clickedAt).getTime()) / 86400000) : null;
+          return { lead_id: l.id, name: l.name, email: l.email, type: l.type, location: l.location, company: l.company, days_since_click: daysSince };
+        })
+        .sort((a, b) => (a.days_since_click ?? 999) - (b.days_since_click ?? 999));
+
+      const cityClickRate = Object.entries(cityMap)
+        .sort((a, b) => b[1] - a[1]).slice(0, 10)
+        .map(([city, count]) => ({ city, count, ctr: totalSent > 0 ? ((count / totalSent) * 100).toFixed(2) + '%' : 'N/A' }));
+
+      const { data: campaignRows } = await supabase.from('outreach_campaigns').select('id, name');
+      const campaignNames = {};
+      (campaignRows || []).forEach(c => { campaignNames[c.id] = c.name; });
+
+      const { data: sentByCampaign } = await supabase.from('outreach_messages').select('campaign_id, lead_id').eq('status', 'sent');
+      const sentCountByCampaign = {};
+      const leadIdToCampaign = {};
+      (sentByCampaign || []).forEach(m => {
+        const cid = m.campaign_id || '__none__';
+        sentCountByCampaign[cid] = (sentCountByCampaign[cid] || 0) + 1;
+        if (m.lead_id && m.campaign_id) leadIdToCampaign[m.lead_id] = m.campaign_id;
+      });
+
+      const clicksByCampaign = {};
+      (clickEvents || []).forEach(e => {
+        if (!e.lead_id) return;
+        const cid = leadIdToCampaign[e.lead_id] || '__none__';
+        clicksByCampaign[cid] = (clicksByCampaign[cid] || 0) + 1;
+      });
+
+      const byCampaign = Object.entries(sentCountByCampaign).map(([cid, sent]) => {
+        const clicks = clicksByCampaign[cid] || 0;
+        return { campaign_id: cid === '__none__' ? null : cid, campaign_name: campaignNames[cid] || (cid === '__none__' ? 'No Campaign' : cid), sent, clicks, ctr: sent > 0 ? ((clicks / sent) * 100).toFixed(2) + '%' : '0%' };
+      }).sort((a, b) => b.clicks - a.clicks).slice(0, 10);
+
+      return jsonResponse(200, {
+        total_clicks: totalClicks,
+        total_converted: totalConverted || 0,
+        warm_leads: warmList.length,
+        total_sent: totalSent || 0,
+        by_city: cityClickRate,
+        by_type: Object.entries(typeMap).sort((a, b) => b[1] - a[1]).map(([type, count]) => ({ type, count })),
+        by_campaign: byCampaign,
+        warm_list: warmList
+      });
+    }
+
     if (method === 'GET' && path === 'instantly-analytics') {
       const instantlyKey = process.env.INSTANTLY_API_KEY;
       if (!instantlyKey) return jsonResponse(400, { error: 'INSTANTLY_API_KEY not configured' });

@@ -3280,19 +3280,21 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
 
           const { data: sentByCampaign } = await supabase
             .from('outreach_messages')
-            .select('campaign_id')
+            .select('campaign_id, lead_id')
             .eq('status', 'sent');
 
           const sentCountByCampaign = {};
+          const leadIdToCampaign = {};
           (sentByCampaign || []).forEach(m => {
             const cid = m.campaign_id || '__none__';
             sentCountByCampaign[cid] = (sentCountByCampaign[cid] || 0) + 1;
+            if (m.lead_id && m.campaign_id) leadIdToCampaign[m.lead_id] = m.campaign_id;
           });
 
           const clicksByCampaign = {};
           (clickEvents || []).forEach(e => {
-            const lead = leadMap[e.lead_id];
-            const cid = lead?.crm_profile_id || '__none__';
+            if (!e.lead_id) return;
+            const cid = leadIdToCampaign[e.lead_id] || '__none__';
             clicksByCampaign[cid] = (clicksByCampaign[cid] || 0) + 1;
           });
 
