@@ -400,7 +400,7 @@ exports.handler = async function(event, context) {
         }
       })().catch(() => {});
 
-      return jsonResponse(200, { approved: approved.length, sent: providerMsgs.length, queued: providerMsgs.length });
+      return jsonResponse(200, { approved: approved.length, sent: providerMsgs.length, queued: approved.length - providerMsgs.length });
     }
 
     if (method === 'POST' && path === 'messages/send') {

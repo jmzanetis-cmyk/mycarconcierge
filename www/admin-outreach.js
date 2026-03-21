@@ -366,7 +366,7 @@
   function setCardApprovedBadge(msgId, sent) {
     const card = document.getElementById('queue-card-' + msgId);
     if (!card) return;
-    const btnArea = card.querySelector('.card-actions, .queue-card-actions, [data-actions]') || card;
+    const btnArea = card.querySelector('.queue-actions');
     const badge = document.createElement('span');
     if (sent) {
       badge.style.cssText = 'display:inline-block;padding:4px 10px;border-radius:12px;background:#16a34a;color:#fff;font-size:12px;font-weight:600;';
@@ -375,6 +375,7 @@
       badge.style.cssText = 'display:inline-block;padding:4px 10px;border-radius:12px;background:#2563eb;color:#fff;font-size:12px;font-weight:600;';
       badge.textContent = '✓ Approved — awaiting flush';
     }
+    if (!btnArea) return;
     btnArea.innerHTML = '';
     btnArea.appendChild(badge);
   }

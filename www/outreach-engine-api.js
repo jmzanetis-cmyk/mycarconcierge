@@ -2712,7 +2712,7 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
             }
           })().catch(() => {});
 
-          json(res, 200, { approved: approvedMsgs.length, sent: providerMsgs.length, queued: providerMsgs.length });
+          json(res, 200, { approved: approvedMsgs.length, sent: providerMsgs.length, queued: approvedMsgs.length - providerMsgs.length });
         }
 
         else if (req.method === 'POST' && pathname === '/messages/send') {
