@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Car Concierge - Investor Contact List</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy: #1e3a5f;
+            --gold: #b8942d;
+            --gold-light: #d4af37;
+            --dark-slate: #12161c;
+            --off-white: #fefdfb;
+            --gray-100: #f8f9fa;
+            --gray-200: #e9ecef;
+            --gray-600: #6c757d;
+            --gray-800: #343a40;
+            --teal: #20c997;
+            --success: #28a745;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1.6;
+            color: var(--gray-800);
+            background: var(--off-white);
+        }
+        
+        .page {
+            max-width: 8.5in;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        @media print {
+            .page {
+                box-shadow: none;
+                max-width: 100%;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--navy) 0%, var(--dark-slate) 100%);
+            color: white;
+            padding: 2rem 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+        
+        .header .subtitle {
+            color: var(--gold);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .header .date {
+            text-align: right;
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+        
+        /* Section */
+        .section {
+            padding: 2rem 3rem;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--gold);
+        }
+        
+        .section-header h2 {
+            font-size: 1.5rem;
+            color: var(--navy);
+        }
+        
+        .tier-badge {
+            display: inline-block;
+            background: var(--gold);
+            color: white;
+            padding: 0.25rem 1rem;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .tier-badge.tier-2 {
+            background: var(--navy);
+        }
+        
+        .tier-badge.tier-3 {
+            background: var(--teal);
+        }
+        
+        /* Investor Card */
+        .investor-card {
+            background: var(--gray-100);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--gold);
+        }
+        
+        .investor-card.priority {
+            border-left-color: var(--success);
+            background: linear-gradient(to right, rgba(40, 167, 69, 0.05), var(--gray-100));
+        }
+        
+        .investor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+        
+        .investor-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--navy);
+        }
+        
+        .investor-type {
+            font-size: 0.8rem;
+            color: var(--gray-600);
+            margin-top: 0.25rem;
+        }
+        
+        .fit-reason {
+            background: white;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--gray-200);
+        }
+        
+        .fit-reason strong {
+            color: var(--gold);
+        }
+        
+        /* Contact Table */
+        .contact-table {
+            width: 100%;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+        
+        .contact-table th {
+            text-align: left;
+            padding: 0.5rem;
+            background: var(--navy);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .contact-table td {
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            background: white;
+        }
+        
+        .contact-table a {
+            color: var(--navy);
+            text-decoration: none;
+        }
+        
+        .contact-table a:hover {
+            color: var(--gold);
+        }
+        
+        /* Pitch Angle */
+        .pitch-angle {
+            background: linear-gradient(135deg, var(--navy), var(--dark-slate));
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+        
+        .pitch-angle::before {
+            content: '"';
+            font-size: 1.5rem;
+            color: var(--gold);
+            margin-right: 0.5rem;
+        }
+        
+        .pitch-angle::after {
+            content: '"';
+            font-size: 1.5rem;
+            color: var(--gold);
+            margin-left: 0.5rem;
+        }
+        
+        /* How to Reach */
+        .reach-methods {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .reach-method {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: white;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            border: 1px solid var(--gray-200);
+        }
+        
+        .reach-method .icon {
+            width: 20px;
+            height: 20px;
+            background: var(--gold);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.7rem;
+        }
+        
+        /* Templates Section */
+        .template-box {
+            background: var(--dark-slate);
+            color: #e9ecef;
+            padding: 1.5rem;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.85rem;
+            margin: 1rem 0;
+            white-space: pre-wrap;
+        }
+        
+        .template-box .subject {
+            color: var(--gold);
+            font-weight: bold;
+            margin-bottom: 1rem;
+            display: block;
+        }
+        
+        /* Tracking Table */
+        .tracking-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        
+        .tracking-table th {
+            background: var(--navy);
+            color: white;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        
+        .tracking-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .tracking-table tr:nth-child(even) {
+            background: var(--gray-100);
+        }
+        
+        .status-cell {
+            width: 100px;
+        }
+        
+        /* Stats Bar */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        
+        .stat-item {
+            background: linear-gradient(135deg, var(--navy), var(--dark-slate));
+            color: white;
+            padding: 1.25rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .stat-item .value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--gold);
+        }
+        
+        .stat-item .label {
+            font-size: 0.8rem;
+            opacity: 0.9;
+            margin-top: 0.25rem;
+        }
+        
+        /* Outreach Timeline */
+        .timeline {
+            position: relative;
+            margin: 2rem 0;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--gold);
+        }
+        
+        .timeline-item {
+            position: relative;
+            padding-left: 50px;
+            margin-bottom: 1.5rem;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 12px;
+            top: 0;
+            width: 18px;
+            height: 18px;
+            background: var(--gold);
+            border-radius: 50%;
+            border: 3px solid white;
+        }
+        
+        .timeline-week {
+            font-weight: 700;
+            color: var(--navy);
+            margin-bottom: 0.5rem;
+        }
+        
+        .timeline-tasks {
+            background: var(--gray-100);
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .timeline-tasks li {
+            margin-bottom: 0.25rem;
+        }
+        
+        /* Print Button */
+        .print-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--gold);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(184, 148, 45, 0.4);
+            z-index: 1000;
+        }
+        
+        .print-btn:hover {
+            background: var(--gold-light);
+            transform: translateY(-2px);
+        }
+        
+        /* Footer */
+        .footer {
+            background: var(--gray-100);
+            padding: 1.5rem 3rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--gray-600);
+            border-top: 1px solid var(--gray-200);
+        }
+        
+        h3 {
+            color: var(--navy);
+            font-size: 1.1rem;
+            margin: 1.5rem 0 1rem;
+        }
+        
+        p {
+            margin-bottom: 0.75rem;
+        }
+        
+        ul {
+            margin: 0.5rem 0 0.5rem 1.5rem;
+        }
+        
+        li {
+            margin-bottom: 0.25rem;
+        }
+        
+        .divider {
+            height: 1px;
+            background: var(--gray-200);
+            margin: 2rem 0;
+        }
+    </style>
+</head>
+<body>
+    <button class="print-btn no-print" onclick="window.print()">Save as PDF</button>
+    
+    <div class="page">
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <h1>MY CAR CONCIERGE</h1>
+                <div class="subtitle">Investor Outreach Action List</div>
+            </div>
+            <div class="date">
+                January 2026<br>
+                Confidential
+            </div>
+        </div>
+        
+        <!-- Quick Stats -->
+        <div class="section">
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <div class="value">5</div>
+                    <div class="label">Tier 1 - Automotive VCs</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value">4</div>
+                    <div class="label">Tier 2 - Marketplace VCs</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value">5</div>
+                    <div class="label">Tier 3 - Angel Investors</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value">$500K</div>
+                    <div class="label">Target Raise</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tier 1: Automotive VCs -->
+        <div class="section">
+            <div class="section-header">
+                <span class="tier-badge">Tier 1</span>
+                <h2>Automotive-Focused VCs</h2>
+            </div>
+            <p>These firms specifically invest in automotive and mobility startups. They understand the industry and can provide strategic value.</p>
+            
+            <!-- FJ Labs -->
+            <div class="investor-card priority">
+                <div class="investor-header">
+                    <div>
+                        <div class="investor-name">FJ Labs</div>
+                        <div class="investor-type">Marketplace-Focused VC | New York, NY</div>
+                    </div>
+                </div>
+                <div class="fit-reason">
+                    <strong>Why They're a Fit:</strong> Led Clutch's $34.9M Series D (automotive e-commerce). Marketplace specialists who understand two-sided network effects.
+                </div>
+                <table class="contact-table">
+                    <tr><th>Contact</th><th>Role</th><th>Email</th><th>LinkedIn</th></tr>
+                    <tr><td>Fabrice Grinda</td><td>Co-Founder & Managing Partner</td><td>fabrice@fjlabs.com</td><td>linkedin.com/in/fabricegrinda</td></tr>
+                    <tr><td>Jose Marin</td><td>Co-Founder & Managing Partner</td><td>jose@fjlabs.com</td><td>linkedin.com/in/josemarin</td></tr>
+                </table>
+                <div class="pitch-angle">We're building the marketplace layer for the $443B automotive aftermarket - similar to what Clutch did for used car sales, but for services.</div>
+                <div class="reach-methods">
+                    <span class="reach-method"><span class="icon">W</span> fjlabs.com/pitch</span>
+                    <span class="reach-method"><span class="icon">E</span> Direct email</span>
+                    <span class="reach-method"><span class="icon">R</span> Portfolio company intros</span>
+                </div>
+            </div>
+            
+            <!-- Autotech Ventures -->
+            <div class="investor-card priority">
+                <div class="investor-header">
+                    <div>
+                        <div class="investor-name">Autotech Ventures</div>
+                        <div class="investor-type">Mobility VC | Menlo Park, CA | $500M+ AUM</div>
+                    </div>
+                </div>
+                <div class="fit-reason">
+                    <strong>Why They're a Fit:</strong> Largest automotive-focused VC. Invests in mobility and transportation technology at all stages.
+                </div>
+                <table class="contact-table">
+                    <tr><th>Contact</th><th>Role</th><th>Email</th><th>LinkedIn</th></tr>
+                    <tr><td>Alexei Andreev</td><td>Managing Director</td><td>info@autotechvc.com</td><td>linkedin.com/in/alexeiandreev</td></tr>
+                    <tr><td>Quin Garcia</td><td>Managing Director</td><td>quin@autotechvc.com</td><td>linkedin.com/in/quin-garcia</td></tr>
+                </table>
+                <div class="pitch-angle">Digital transformation of the automotive aftermarket - connecting the 245M out-of-warranty vehicles with vetted service providers through a trusted marketplace.</div>
+                <div class="reach-methods">
+                    <span class="reach-method"><span class="icon">W</span> autotechvc.com/submit</span>
+                    <span class="reach-method"><span class="icon">E</span> info@autotechvc.com</span>
+                </div>
+            </div>
+            
+            <!-- Automotive Ventures -->
+            <div class="investor-card">
+                <div class="investor-header">
+                    <div>
+                        <div class="investor-name">Automotive Ventures</div>
+                        <div class="investor-type">Dealership & Auto Tech VC</div>
+                    </div>
+                </div>
+                <div class="fit-reason">
+                    <strong>Why They're a Fit:</strong> Specifically invests in automotive tech and dealership innovation.
+                </div>
+                <table class="contact-table">
+                    <tr><th>Contact</th><th>Role</th><th>Email</th><th>LinkedIn</th></tr>
+                    <tr><td>Steve Greenfield</td><td>Founder & CEO</td><td>steve@automotiveventures.com</td><td>linkedin.com/in/stevegreenfield</td></tr>
+                </table>
+                <div class="pitch-angle">We're creating the Uber for auto repair - transparent pricing through competitive bidding, escrow protection, and a complete vehicle ownership platform.</div>
+            </div>
+            
+            <!-- Trucks VC -->
+            <div class="investor-card">
+                <div class="investor-header">
+                    <div>
+                        <div class="investor-name">Trucks Venture Capital</div>
+                        <div class="investor-type">Transportation & Fleet VC</div>
+                    </div>
+                </div>
+                <div class="fit-reason">
+                    <strong>Why They're a Fit:</strong> Focuses on the future of transportation, fleet and logistics.
+                </div>
+                <table class="contact-table">
+                    <tr><th>Contact</th><th>Role</th><th>Email</th><th>LinkedIn</th></tr>
+                    <tr><td>Reilly Brennan</td><td>General Partner</td><td>hello@trucks.vc</td><td>linkedin.com/in/reillybrennan</td></tr>
+                </table>
+                <div class="pitch-angle">Fleet management features built into a consumer marketplace - we can serve both individual owners and fleet operators with the same platform.</div>
+            </div>
+            
+            <!-- Maniv Mobility -->
+            <div class="investor-card">
+                <div class="investor-header">
+                    <div>
+                        <div class="investor-name">Maniv Mobility</div>
+                        <div class="investor-type">Global Mobility VC | Tel Aviv</div>
+                    </div>
+                </div>
+                <div class="fit-reason">
+                    <strong>Why They're a Fit:</strong> Global mobility investor with early-stage focus.
+                </div>
+                <table class="contact-table">
+                    <tr><th>Contact</th><th>Role</th><th>Email</th><th>LinkedIn</th></tr>
+                    <tr><td>Olaf Sakkers</td><td>General Partner</td><td>olaf@maniv.com</td><td>linkedin.com/in/olafsakkers</td></tr>
+                    <tr><td>Michael Granoff</td><td>Managing Partner</td><td>michael@maniv.com</td><td>linkedin.com/in/michaelgranoff</td></tr>
+                </table>
+                <div class="pitch-angle">Marketplace network effects in automotive services - first mover advantage in a $443B market with less than 5% digital penetration.</div>
+            </div>
+        </div>
+        
+        <!-- Tier 2: Marketplace VCs -->
+        <div class="section page-break">
+            <div class="section-header">
+                <span class="tier-badge tier-2">Tier 2</span>
+                <h2>Marketplace-Focused VCs</h2>
+            </div>
+            <p>These firms specialize in two-sided marketplaces and understand network effects, unit economics, and scaling strategies.</p>
+            
+            <!-- Benchmark -->
+            <div class="investor-card">
+                <div class="investor-header">
+                    <div>
+                        <div class="investor-name">Benchmark Capital</div>
+                        <div class="investor-type">Premier Marketplace VC</div>
+                    </div>
+                </div>
+                <div class="fit-reason">
+                    <strong>Why They're a Fit:</strong> Invested in Uber, Grubhub, Nextdoor - understands marketplace dynamics at scale.
+                </div>
+                <table class="contact-table">
+                    <tr><th>Contact</th><th>Role</th><th>Reach Via</th></tr>
+                    <tr><td>Bill Gurley</td><td>General Partner</td><td>Warm intro only</td></tr>
+                    <tr><td>Sarah Tavel</td><td>General Partner</td><td>Warm intro only</td></tr>
+                </table>
+                <div class="pitch-angle">Two-sided marketplace with built-in network effects and viral referral mechanics - 50% lifetime commission creates natural growth engine.</div>
+            </div>
+            
+            <!-- NFX -->
+            <div class="investor-card">
+                <div class="investor-header">
+                    <div>
+                        <div class="investor-name">NFX</div>
+                        <div class="investor-type">Network Effects Specialists</div>
+                    </div>
+                </div>
+                <div class="fit-reason">
+                    <strong>Why They're a Fit:</strong> Network effects specialists with early-stage focus.
+                </div>
+                <table class="contact-table">
+                    <tr><th>Contact</th><th>Role</th><th>Email</th></tr>
+                    <tr><td>James Currier</td><td>General Partner</td><td>james@nfx.com</td></tr>
+                    <tr><td>Pete Flint</td><td>General Partner</td><td>pete@nfx.com</td></tr>
+                </table>
+                <div class="pitch-angle">Network effects defensibility - more providers mean better pricing for members, which attracts more members, which attracts more providers.</div>
+                <div class="reach-methods">
+                    <span class="reach-method"><span class="icon">W</span> nfx.com/company-submission</span>
+                </div>
+            </div>
+            
+            <!-- Accel -->
+            <div class="investor-card">
+                <div class="investor-header">
+                    <div>
+                        <div class="investor-name">Accel Partners</div>
+                        <div class="investor-type">Global VC | Palo Alto</div>
+                    </div>
+                </div>
+                <div class="fit-reason">
+                    <strong>Why They're a Fit:</strong> Invested in Carwow (automotive marketplace) multiple times.
+                </div>
+                <table class="contact-table">
+                    <tr><th>Contact</th><th>Role</th><th>Email</th></tr>
+                    <tr><td>Arun Mathew</td><td>Partner</td><td>arun@accel.com</td></tr>
+                    <tr><td>Rich Wong</td><td>Partner</td><td>rich@accel.com</td></tr>
+                </table>
+                <div class="pitch-angle">Similar to Carwow's success in UK car buying, we're bringing marketplace transparency to the US automotive service market.</div>
+            </div>
+            
+            <!-- a16z -->
+            <div class="investor-card">
+                <div class="investor-header">
+                    <div>
+                        <div class="investor-name">a16z (Andreessen Horowitz)</div>
+                        <div class="investor-type">Premier VC</div>
+                    </div>
+                </div>
+                <div class="fit-reason">
+                    <strong>Why They're a Fit:</strong> Invests in marketplace and consumer businesses.
+                </div>
+                <table class="contact-table">
+                    <tr><th>Contact</th><th>Role</th><th>Reach Via</th></tr>
+                    <tr><td>Andrew Chen</td><td>General Partner</td><td>Warm intro / a16z.com/pitch</td></tr>
+                    <tr><td>Connie Chan</td><td>General Partner</td><td>Warm intro / a16z.com/pitch</td></tr>
+                </table>
+                <div class="pitch-angle">Consumer marketplace with B2B revenue model - providers pay for leads, creating sustainable unit economics from day one.</div>
+            </div>
+        </div>
+        
+        <!-- Tier 3: Angels -->
+        <div class="section page-break">
+            <div class="section-header">
+                <span class="tier-badge tier-3">Tier 3</span>
+                <h2>Angel Investors</h2>
+            </div>
+            <p>Individual investors who can write $25K-$250K checks and provide mentorship and network access.</p>
+            
+            <div class="investor-card">
+                <div class="investor-name">Ron Conway (SV Angel)</div>
+                <div class="investor-type">Legendary angel, early Uber investor</div>
+                <div class="fit-reason"><strong>Pitch:</strong> Ground floor of automotive service marketplace - similar market dynamics to Uber's early days.</div>
+            </div>
+            
+            <div class="investor-card">
+                <div class="investor-name">Chris Sacca (Lowercase Capital)</div>
+                <div class="investor-type">Early investor in Uber, Twitter, Instagram</div>
+                <div class="fit-reason"><strong>Pitch:</strong> Network effects + essential service = defensible moat in a recession-resistant market.</div>
+            </div>
+            
+            <div class="investor-card">
+                <div class="investor-name">Naval Ravikant (AngelList)</div>
+                <div class="investor-type">Marketplace expert, founded AngelList</div>
+                <div class="fit-reason"><strong>Pitch:</strong> Platform economics with viral referral - 50% lifetime commission creates army of recruiters.</div>
+            </div>
+            
+            <div class="investor-card">
+                <div class="investor-name">Elad Gil</div>
+                <div class="investor-type">Operator-turned-investor | eladgil.com</div>
+                <div class="fit-reason"><strong>Pitch:</strong> Fully built platform seeking growth capital - not a concept, a working product. Email: elad@eladgil.com</div>
+            </div>
+            
+            <div class="investor-card">
+                <div class="investor-name">Gokul Rajaram</div>
+                <div class="investor-type">Product leader at Square, DoorDash</div>
+                <div class="fit-reason"><strong>Pitch:</strong> Escrow payments create trust layer that enables marketplace transactions - similar to DoorDash's value prop.</div>
+            </div>
+        </div>
+        
+        <!-- Email Templates -->
+        <div class="section page-break">
+            <div class="section-header">
+                <h2>Outreach Templates</h2>
+            </div>
+            
+            <h3>Cold Email Template (VC)</h3>
+            <div class="template-box"><span class="subject">Subject: Marketplace for $443B automotive aftermarket</span>
+Hi [Name],
+
+I'm building My Car Concierge - a two-sided marketplace connecting vehicle owners with vetted service providers.
+
+Quick stats:
+- $443B market, &lt;5% digitized
+- Average vehicle age at record 12.8 years
+- Platform fully built, seeking seed funding
+
+We're similar to [relevant portfolio company] but for automotive services.
+
+Would you have 15 minutes this week to discuss?
+
+[Your name]
+mycarconcierge.com</div>
+            
+            <h3>Cold Email Template (Angel)</h3>
+            <div class="template-box"><span class="subject">Subject: Automotive marketplace - ground floor opportunity</span>
+Hi [Name],
+
+I noticed your investments in [relevant companies] and thought My Car Concierge might interest you.
+
+We're building the platform for automotive services:
+- Competitive bidding from vetted providers
+- Escrow payment protection
+- Complete vehicle management
+
+The market: $443B and growing. Digital penetration: &lt;5%.
+
+Happy to share our deck if you're interested.
+
+[Your name]</div>
+            
+            <h3>LinkedIn Connection Request</h3>
+            <div class="template-box">Hi [Name] - I'm building a marketplace for automotive services and noticed your work in [relevant area]. Would love to connect and share what we're building. Happy to keep it brief!</div>
+        </div>
+        
+        <!-- Outreach Timeline -->
+        <div class="section">
+            <div class="section-header">
+                <h2>Outreach Sequence</h2>
+            </div>
+            
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-week">Week 1-2: Research & Warm Intros</div>
+                    <div class="timeline-tasks">
+                        <ul>
+                            <li>Identify 2nd-degree connections to target investors</li>
+                            <li>Request warm introductions</li>
+                            <li>Update LinkedIn profile with MCC info</li>
+                            <li>Prepare deck and data room</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-week">Week 3-4: Tier 1 Outreach</div>
+                    <div class="timeline-tasks">
+                        <ul>
+                            <li>Submit to VC websites (FJ Labs, Autotech, etc.)</li>
+                            <li>Send personalized cold emails</li>
+                            <li>Follow up on warm intro requests</li>
+                            <li>Engage on Twitter/LinkedIn</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-week">Week 5-6: Tier 2 & 3 Outreach</div>
+                    <div class="timeline-tasks">
+                        <ul>
+                            <li>Apply to marketplace VCs</li>
+                            <li>Direct outreach to angels</li>
+                            <li>Follow up on Tier 1 non-responses</li>
+                            <li>Schedule meetings</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-week">Week 7-8: Meetings & Follow-up</div>
+                    <div class="timeline-tasks">
+                        <ul>
+                            <li>Conduct investor meetings</li>
+                            <li>Send follow-up materials</li>
+                            <li>Address due diligence questions</li>
+                            <li>Maintain momentum</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tracking Table -->
+        <div class="section page-break">
+            <div class="section-header">
+                <h2>Investor Tracking</h2>
+            </div>
+            
+            <table class="tracking-table">
+                <tr>
+                    <th>Investor</th>
+                    <th>Tier</th>
+                    <th>Status</th>
+                    <th>Contact Date</th>
+                    <th>Follow-up</th>
+                    <th>Notes</th>
+                </tr>
+                <tr><td>FJ Labs</td><td>1</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>Autotech Ventures</td><td>1</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>Automotive Ventures</td><td>1</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>Trucks VC</td><td>1</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>Maniv Mobility</td><td>1</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>Benchmark</td><td>2</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>NFX</td><td>2</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>Accel</td><td>2</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>a16z</td><td>2</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>Ron Conway</td><td>3</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>Chris Sacca</td><td>3</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>Naval Ravikant</td><td>3</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>Elad Gil</td><td>3</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+                <tr><td>Gokul Rajaram</td><td>3</td><td class="status-cell"></td><td></td><td></td><td></td></tr>
+            </table>
+            
+            <div class="divider"></div>
+            
+            <h3>Important Note</h3>
+            <p>Contact information is based on publicly available sources. Before reaching out:</p>
+            <ul>
+                <li>Verify current contact details via official firm websites</li>
+                <li>Check LinkedIn for warm introduction paths</li>
+                <li>Use official submission forms when available</li>
+                <li>Research recent portfolio investments for relevance</li>
+            </ul>
+            <p><strong>Many top-tier VCs prefer warm introductions.</strong> Prioritize building relationships over cold outreach.</p>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>My Car Concierge</strong> | Investor Outreach Action List | January 2026</p>
+            <p>Confidential - For Internal Use Only</p>
+        </div>
+    </div>
+</body>
+</html>

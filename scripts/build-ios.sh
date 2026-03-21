@@ -80,6 +80,7 @@ rm -f "$BUILD_DIR"/*.sql
 rm -rf "$BUILD_DIR/netlify/"
 rm -rf "$BUILD_DIR/supabase/"
 rm -rf "$BUILD_DIR/migrations/"
+rm -rf "$BUILD_DIR/supabase-migrations/"
 rm -rf "$BUILD_DIR/data/"
 rm -rf "$BUILD_DIR/screenshots/"
 rm -rf "$BUILD_DIR/test-results/"
@@ -124,8 +125,8 @@ echo ""
 echo "Step 5/5: Patching HTML and JS for consumer-only mode..."
 
 if [ -f "$BUILD_DIR/members.html" ]; then
-  SED_INPLACE 's|<div class="nav-item"[^>]*>.*admin\.html.*</div>||g' "$BUILD_DIR/members.html"
-  echo "  members.html: Admin nav link removed."
+  SED_INPLACE "/admin\.html/d" "$BUILD_DIR/members.html"
+  echo "  members.html: Admin nav link line removed."
 fi
 
 if [ -f "$BUILD_DIR/login.js" ]; then
