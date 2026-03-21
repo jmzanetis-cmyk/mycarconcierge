@@ -1535,7 +1535,7 @@ async function pushLeadsToInstantly(supabase, leads, campaignId) {
   const apiKey = process.env.INSTANTLY_API_KEY;
   if (!apiKey) return { error: 'INSTANTLY_API_KEY not configured', synced: 0 };
 
-  const validLeads = (leads || []).filter(l => l.email && !l.metadata?.instantly_synced);
+  const validLeads = (leads || []).filter(l => l.email);
   if (validLeads.length === 0) return { synced: 0, skipped: leads?.length || 0 };
 
   const batchSize = 100;
