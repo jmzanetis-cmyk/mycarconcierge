@@ -10317,8 +10317,8 @@
           headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ dispute_id: disputeId })
         });
+        if (!res.ok) { let e; try { e = await res.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Request failed (${res.status})`); }
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed');
         if (resultEl) {
           resultEl.style.color = 'var(--accent-green)';
           resultEl.textContent = `Action: ${data.action || '—'} | Confidence: ${((data.confidence || 0) * 100).toFixed(0)}% | ${data.reasoning || ''}`;
@@ -10338,8 +10338,8 @@
       if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Running payment tracker…'; }
       try {
         const res = await fetch(`${apiBase}/api/admin/ai-ops/payment-tracker/run`, { method: 'POST', headers: getAiOpsHeaders() });
+        if (!res.ok) { let e; try { e = await res.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Request failed (${res.status})`); }
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed');
         if (resultEl) {
           resultEl.style.color = 'var(--accent-green)';
           resultEl.textContent = data.message || `Processed ${data.processed || 0} orders, ${data.anomalies || 0} anomalies`;
@@ -10399,8 +10399,8 @@
         const res = await fetch(`/api/admin/sms-log?${params}`, {
           headers: { 'x-admin-password': localStorage.getItem('adminPassword') || '', 'x-admin-token': localStorage.getItem('adminTeamToken') || '' }
         });
+        if (!res.ok) { let e; try { e = await res.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load SMS log (${res.status})`); }
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load SMS log');
 
         const { rows = [], total = 0, summary = {} } = data;
 

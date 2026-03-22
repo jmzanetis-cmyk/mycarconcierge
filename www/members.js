@@ -7595,6 +7595,7 @@
               method: 'POST',
               headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
             });
+            if (!resp.ok) continue;
             const data = await resp.json();
             if (data.success && data.score !== undefined) {
               v.health_score = data.score;
@@ -7626,9 +7627,13 @@
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
         });
-        const data = await response.json();
         loadingEl.style.display = 'none';
         contentEl.style.display = 'block';
+        if (!response.ok) {
+          contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Could not compute health score. Please try again later.</p>';
+          return;
+        }
+        const data = await response.json();
 
         if (!data.success) {
           contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Could not compute health score. Please try again later.</p>';
@@ -7693,9 +7698,13 @@
         const response = await fetch(`/api/vehicles/${vehicleId}/maintenance-forecast`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        const data = await response.json();
         loadingEl.style.display = 'none';
         contentEl.style.display = 'block';
+        if (!response.ok) {
+          contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No maintenance forecast data available.</p>';
+          return;
+        }
+        const data = await response.json();
 
         if (!data.success || !data.forecast?.length) {
           contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No maintenance forecast data available.</p>';
@@ -7796,6 +7805,7 @@
         const response = await fetch(`/api/obd/scans/${vehicleId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (!response.ok) { loadingEl.style.display = 'none'; throw new Error(`Failed to load scans (${response.status})`); }
         const data = await response.json();
         
         loadingEl.style.display = 'none';
@@ -8709,6 +8719,7 @@
       
       try {
         const response = await fetch(`/api/member/${currentUser.id}/notification-preferences`);
+        if (!response.ok) throw new Error(`Failed to load preferences (${response.status})`);
         const data = await response.json();
         
         if (data.warning) {
@@ -8760,6 +8771,7 @@
           body: JSON.stringify(preferences)
         });
         
+        if (!response.ok) { let e; try { e = await response.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to save preferences (${response.status})`); }
         const data = await response.json();
         
         if (data.success) {
@@ -8909,6 +8921,7 @@
     async function getVapidKey() {
       try {
         const response = await fetch('/api/push/vapid-key');
+        if (!response.ok) return null;
         const data = await response.json();
         return data.publicKey;
       } catch (error) {
