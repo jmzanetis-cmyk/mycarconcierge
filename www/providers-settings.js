@@ -495,7 +495,10 @@ function _populateBgCheckTeamMemberSelect() {
   if (!sel) return;
   const members = Array.isArray(teamMembers) ? teamMembers : [];
   sel.innerHTML = '<option value="">Select a team member...</option>' +
-    members.map(m => `<option value="${m.id}" data-email="${m.email || ''}" data-name="${m.full_name || ''}">${m.full_name || m.email || m.id}</option>`).join('');
+    members.map(m => {
+      const displayName = m.name || m.full_name || '';
+      return `<option value="${m.id}" data-email="${m.email || ''}" data-name="${displayName}">${displayName || m.email || m.id}</option>`;
+    }).join('');
   sel.onchange = function() {
     const opt = sel.options[sel.selectedIndex];
     const email = opt.getAttribute('data-email') || '';

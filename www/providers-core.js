@@ -317,10 +317,9 @@ async function showSection(id) {
   if (id === 'background-checks') {
     if (typeof loadVerificationBadgeStatus === 'function') loadVerificationBadgeStatus();
     if (typeof loadBackgroundCheckStatus === 'function') loadBackgroundCheckStatus();
-  } else {
-    // Stop in-progress polling when leaving bg-check-related views
-    if (typeof _clearBgCheckPoll === 'function') _clearBgCheckPoll();
   }
+  // Note: background-check polling (_bgCheckPollTimer) continues across section changes so the
+  // overview dashboard card stays fresh while a check is in-progress. It self-stops when resolved.
   if (id === 'team-section' && typeof loadTeamManagementData === 'function') {
     loadTeamManagementData();
   }
