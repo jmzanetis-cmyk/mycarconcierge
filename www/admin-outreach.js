@@ -1889,105 +1889,182 @@
   window.renderOutreachHistoryPanel = renderOutreachHistoryPanel;
   window.loadConversions = loadConversions;
 
+  function convResetDateRange() {
+    const toEl = document.getElementById('conv-date-to');
+    const fromEl = document.getElementById('conv-date-from');
+    const today = new Date();
+    const past30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const fmt = d => d.toISOString().split('T')[0];
+    if (fromEl) fromEl.value = fmt(past30);
+    if (toEl) toEl.value = fmt(today);
+    loadConversions();
+  }
+  window.convResetDateRange = convResetDateRange;
+
+  function renderFunnelStages(containerId, stages, accentColor) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const labels = ['Discovered', 'Instantly Synced', 'Email Sent', 'Ref Clicked', 'Signed Up'];
+    const keys = ['discovered', 'instantly_synced', 'email_sent', 'ref_clicked', 'signed_up'];
+    const maxVal = stages.discovered || 1;
+    el.innerHTML = keys.map((key, i) => {
+      const val = stages[key] || 0;
+      const pct = maxVal > 0 ? ((val / maxVal) * 100).toFixed(1) : '0.0';
+      const prevVal = i > 0 ? (stages[keys[i - 1]] || 0) : stages.discovered;
+      const stepPct = prevVal > 0 ? ((val / prevVal) * 100).toFixed(0) + '%' : '—';
+      const barWidth = maxVal > 0 ? Math.max(4, Math.round((val / maxVal) * 100)) : 4;
+      return `
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+            <span style="font-size:0.82rem;font-weight:600;color:var(--text-secondary);">${labels[i]}</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:0.78rem;color:var(--text-muted);">${i > 0 ? stepPct + ' from prev' : ''}</span>
+              <span style="font-weight:700;font-size:1rem;">${val.toLocaleString()}</span>
+            </div>
+          </div>
+          <div style="height:10px;background:var(--bg-input);border-radius:5px;overflow:hidden;">
+            <div style="height:100%;width:${barWidth}%;background:${accentColor};border-radius:5px;transition:width 0.5s ease;"></div>
+          </div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">${pct}% of total</div>
+        </div>`;
+    }).join('');
+  }
+
   async function loadConversions() {
     try {
-      const res = await outreachFetch('/conversions');
+      const fromEl = document.getElementById('conv-date-from');
+      const toEl = document.getElementById('conv-date-to');
+      const labelEl = document.getElementById('conv-date-label');
+
+      // Initialize date range to last 30 days if not set
+      if (fromEl && !fromEl.value) {
+        const past30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        fromEl.value = past30.toISOString().split('T')[0];
+      }
+      if (toEl && !toEl.value) {
+        toEl.value = new Date().toISOString().split('T')[0];
+      }
+
+      const fromVal = fromEl?.value || '';
+      const toVal = toEl?.value || '';
+      const params = new URLSearchParams();
+      if (fromVal) params.set('from', fromVal);
+      if (toVal) params.set('to', toVal);
+      if (labelEl) labelEl.textContent = fromVal && toVal ? `(${fromVal} – ${toVal})` : '';
+
+      const res = await outreachFetch('/conversions?' + params.toString());
       if (!res.ok) throw new Error('Failed to load conversions');
       const data = await res.json();
 
-      const totalClicks = data.total_clicks || 0;
-      const totalConverted = data.total_converted || 0;
-      const warmLeads = data.warm_leads || 0;
-      const sentCount = data.total_sent || 0;
-      const clickRate = sentCount > 0 ? ((totalClicks / sentCount) * 100).toFixed(1) + '%' : '0%';
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
 
-      const elById = id => document.getElementById(id);
-      const set = (id, v) => { const el = elById(id); if (el) el.textContent = v; };
+      // Summary cards
+      const summary = data.summary || {};
+      set('conv-clicks-today', (summary.clicks_today || 0).toLocaleString());
+      set('conv-clicks-week', (summary.clicks_week || 0).toLocaleString());
+      set('conv-signups', (summary.signups_from_outreach || 0).toLocaleString());
+      set('conv-rate', summary.conversion_rate || '0%');
 
-      set('conv-total-clicks', totalClicks.toLocaleString());
-      set('conv-total-converted', totalConverted.toLocaleString());
-      set('conv-warm-leads', warmLeads.toLocaleString());
-      set('conv-click-rate', clickRate);
+      // Legacy compat
+      set('conv-total-clicks', (data.total_clicks || 0).toLocaleString());
+      set('conv-total-converted', (data.total_converted || 0).toLocaleString());
+      set('conv-warm-leads', (data.warm_leads || 0).toLocaleString());
+      set('conv-click-rate', summary.conversion_rate || '0%');
 
-      const cityEl = elById('conv-by-city');
-      if (cityEl) {
-        const cities = data.by_city || [];
-        if (cities.length) {
-          cityEl.innerHTML = cities.map(c => `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
-              <span style="font-size:0.9rem;">${escapeHtml(c.city || 'Unknown')}</span>
-              <div style="text-align:right;">
-                <span style="font-weight:700;color:var(--accent-teal);">${c.count} clicks</span>
-                ${c.ctr && c.ctr !== 'N/A' ? `<span style="font-size:0.78rem;color:var(--text-muted);margin-left:6px;">(${escapeHtml(c.ctr)} CTR)</span>` : ''}
-              </div>
-            </div>`).join('');
+      // Funnels
+      const funnel = data.funnel || {};
+      renderFunnelStages('conv-funnel-provider', funnel.provider || {}, 'var(--accent-teal)');
+      renderFunnelStages('conv-funnel-investor', funnel.investor || {}, 'var(--accent-gold)');
+      if (typeof initInlineIcons !== 'undefined') {
+        const pEl = document.getElementById('conv-funnel-provider');
+        const iEl = document.getElementById('conv-funnel-investor');
+        if (pEl) initInlineIcons(pEl);
+        if (iEl) initInlineIcons(iEl);
+      }
+
+      // Recent conversions table
+      const recentEl = document.getElementById('conv-recent-table');
+      const recentCountEl = document.getElementById('conv-recent-count');
+      const recent = data.recent_conversions || [];
+      if (recentCountEl) recentCountEl.textContent = recent.length ? `${recent.length} conversions` : '';
+      if (recentEl) {
+        if (recent.length) {
+          recentEl.innerHTML = `
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                  <tr style="border-bottom:2px solid var(--border-subtle);">
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Name</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Type</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Source</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Clicked</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Signed Up</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Time to Convert</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${recent.map(r => {
+                    const clickedFmt = r.clicked_at ? new Date(r.clicked_at).toLocaleDateString() : '—';
+                    const signedFmt = r.signed_up_at ? new Date(r.signed_up_at).toLocaleDateString() : '—';
+                    const ttc = r.time_to_convert_hours != null
+                      ? (r.time_to_convert_hours < 24 ? r.time_to_convert_hours + 'h' : Math.round(r.time_to_convert_hours / 24) + 'd')
+                      : '—';
+                    const typeColor = r.type === 'investor' ? 'var(--accent-gold)' : 'var(--accent-teal)';
+                    return `
+                      <tr style="border-bottom:1px solid var(--border-subtle);">
+                        <td style="padding:8px 12px;font-weight:600;font-size:0.9rem;">${escapeHtml(r.name || '—')}</td>
+                        <td style="padding:8px 12px;">
+                          <span style="font-size:0.78rem;font-weight:600;text-transform:uppercase;color:${typeColor};background:${typeColor}22;padding:2px 7px;border-radius:10px;">
+                            ${escapeHtml(r.type || '—')}
+                          </span>
+                        </td>
+                        <td style="padding:8px 12px;font-size:0.85rem;color:var(--text-muted);">${escapeHtml(r.source || '—')}</td>
+                        <td style="padding:8px 12px;font-size:0.85rem;color:var(--text-muted);">${clickedFmt}</td>
+                        <td style="padding:8px 12px;font-size:0.85rem;font-weight:600;color:var(--accent-green);">${signedFmt}</td>
+                        <td style="padding:8px 12px;font-size:0.85rem;color:var(--text-secondary);">${ttc}</td>
+                      </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>`;
         } else {
-          cityEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No click data yet</p>';
+          recentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No conversions recorded in this date range yet.</p>';
         }
       }
 
-      const typeEl = elById('conv-by-type');
-      if (typeEl) {
-        const types = data.by_type || [];
-        if (types.length) {
-          typeEl.innerHTML = types.map(t => `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
-              <span style="font-size:0.9rem;text-transform:capitalize;">${escapeHtml(t.type || 'unknown')}</span>
-              <span style="font-weight:700;color:var(--accent-blue);">${t.count}</span>
-            </div>`).join('');
-        } else {
-          typeEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No click data yet</p>';
-        }
-      }
-
-      const campaignEl = elById('conv-by-campaign');
-      if (campaignEl) {
-        const campaigns = data.by_campaign || [];
-        if (campaigns.length) {
-          campaignEl.innerHTML = `
-            <table style="width:100%;">
-              <thead>
-                <tr><th>Campaign</th><th style="text-align:right;">Sent</th><th style="text-align:right;">Clicks</th><th style="text-align:right;">CTR</th></tr>
-              </thead>
-              <tbody>
-                ${campaigns.map(c => `
-                  <tr>
-                    <td style="font-size:0.88rem;">${escapeHtml(c.campaign_name || 'No Campaign')}</td>
-                    <td style="text-align:right;font-size:0.88rem;color:var(--text-muted);">${c.sent}</td>
-                    <td style="text-align:right;font-weight:700;color:var(--accent-teal);">${c.clicks}</td>
-                    <td style="text-align:right;font-size:0.85rem;color:var(--accent-blue);">${escapeHtml(c.ctr)}</td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>`;
-        } else {
-          campaignEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No campaign data yet</p>';
-        }
-      }
-
-      const warmEl = elById('conv-warm-list');
+      // Warm leads
+      const warmEl = document.getElementById('conv-warm-list');
+      const warmCountEl = document.getElementById('conv-warm-count');
+      const warm = data.warm_list || [];
+      if (warmCountEl) warmCountEl.textContent = warm.length ? `${warm.length} warm leads` : '';
       if (warmEl) {
-        const warm = data.warm_list || [];
         if (warm.length) {
           warmEl.innerHTML = `
-            <table style="width:100%;">
-              <thead>
-                <tr>
-                  <th>Name</th><th>Company / City</th><th>Email</th><th>Clicked</th><th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${warm.map(l => `
-                  <tr>
-                    <td><strong>${escapeHtml(l.name || '—')}</strong></td>
-                    <td style="color:var(--text-muted);font-size:0.85rem;">${escapeHtml(l.location || l.company || '—')}</td>
-                    <td style="font-size:0.85rem;">${escapeHtml(l.email || '—')}</td>
-                    <td style="font-size:0.82rem;color:var(--text-muted);">${l.days_since_click != null ? l.days_since_click + 'd ago' : '—'}</td>
-                    <td>
-                      <button class="btn btn-sm btn-primary" onclick="window.draftForLead && window.draftForLead('${l.lead_id}')" title="Send follow-up">Follow Up</button>
-                    </td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>`;
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                  <tr style="border-bottom:2px solid var(--border-subtle);">
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Name</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Company / City</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Email</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Clicked</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${warm.map(l => `
+                    <tr style="border-bottom:1px solid var(--border-subtle);">
+                      <td style="padding:8px 12px;font-weight:600;font-size:0.9rem;">${escapeHtml(l.name || '—')}</td>
+                      <td style="padding:8px 12px;font-size:0.85rem;color:var(--text-muted);">${escapeHtml(l.location || l.company || '—')}</td>
+                      <td style="padding:8px 12px;font-size:0.85rem;">${escapeHtml(l.email || '—')}</td>
+                      <td style="padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">${l.days_since_click != null ? l.days_since_click + 'd ago' : '—'}</td>
+                      <td style="padding:8px 12px;">
+                        <button class="btn btn-sm btn-primary" onclick="window.draftForLead && window.draftForLead('${l.lead_id}')" title="Send follow-up">Follow Up</button>
+                      </td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>`;
         } else {
           warmEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No warm leads yet — ref clicks will appear here once providers open your emails.</p>';
         }
