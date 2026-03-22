@@ -1,3 +1,14 @@
+    // ========== FETCH HELPER ==========
+    async function safeFetch(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) {
+        let errMsg = `Server error (${res.status})`;
+        try { const e = await res.clone().json(); errMsg = e.error || e.message || errMsg; } catch {}
+        throw new Error(errMsg);
+      }
+      return res.json();
+    }
+
     // ========== THEME TOGGLE ==========
     function toggleTheme() {
       document.documentElement.classList.add('theme-transition');
@@ -2610,6 +2621,7 @@
           body: JSON.stringify({ user_id: currentUser?.id || null })
         });
         
+        if (!response.ok) { let e; try { e = await response.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Request failed (${response.status})`); }
         const data = await response.json();
         
         if (data.success) {
@@ -10261,23 +10273,26 @@
     }
 
     async function refreshEmergencyLocation() {
-      document.getElementById('emergency-address').value = 'Getting your location...';
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-          document.getElementById('emergency-lat').value = pos.coords.latitude;
-          document.getElementById('emergency-lng').value = pos.coords.longitude;
-          try {
-            const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
-            const data = await resp.json();
-            document.getElementById('emergency-address').value = data.display_name || `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
-          } catch (e) {
-            document.getElementById('emergency-address').value = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
-          }
-        }, (err) => {
-          document.getElementById('emergency-address').value = 'Unable to get location';
-          showToast('Please enable location services', 'error');
-        }, { enableHighAccuracy: true });
+      const addrEl = document.getElementById('emergency-address');
+      addrEl.value = 'Getting your location...';
+      if (!navigator.geolocation) {
+        addrEl.value = 'Location unavailable — please enter manually';
+        return;
       }
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        document.getElementById('emergency-lat').value = pos.coords.latitude;
+        document.getElementById('emergency-lng').value = pos.coords.longitude;
+        try {
+          const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
+          const data = await resp.json();
+          addrEl.value = data.display_name || `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+        } catch (e) {
+          addrEl.value = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+        }
+      }, (err) => {
+        addrEl.value = 'Location unavailable — please enter manually';
+        showToast('Location unavailable — please enter your address manually', 'error');
+      }, { enableHighAccuracy: true, timeout: 10000 });
     }
 
     async function loadEmergencySection() {

@@ -211,6 +211,12 @@
   async function runManualCycle() {
     if (typeof showToast !== 'undefined') showToast('Running engine cycle...');
     const res = await outreachFetch('/engine-cycle', { method: 'POST' });
+    if (!res.ok) {
+      let errMsg = `Engine cycle failed (${res.status})`;
+      try { const e = await res.json(); errMsg = e.error || e.message || errMsg; } catch {}
+      if (typeof showToast !== 'undefined') showToast(errMsg, 'error');
+      return;
+    }
     const data = await res.json();
     if (data.skipped) {
       if (typeof showToast !== 'undefined') showToast('Cycle skipped — engine is paused', 'error');

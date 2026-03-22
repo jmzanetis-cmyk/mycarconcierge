@@ -126,7 +126,22 @@
       }
     };
 
-    setTimeout(navigate, 300);
+    // Retry-with-backoff: wait up to ~2 seconds for window.showSection to be ready
+    // before navigating, so slow-loading devices still reach the correct section.
+    let attempts = 0;
+    const delays = [100, 200, 400, 700, 600]; // ~2 s total
+    function tryNavigate() {
+      if (typeof window.showSection === 'function') {
+        navigate();
+        return;
+      }
+      if (attempts < delays.length) {
+        setTimeout(tryNavigate, delays[attempts++]);
+      } else {
+        console.warn('[PushDeepLink] showSection not ready after retries — skipping navigation');
+      }
+    }
+    tryNavigate();
   }
 
   // Returns element ID prefixes depending on context (member vs provider)

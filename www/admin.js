@@ -5,6 +5,17 @@
       div.textContent = String(text);
       return div.innerHTML;
     }
+
+    // ========== FETCH HELPER ==========
+    async function safeFetch(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) {
+        let errMsg = `Server error (${res.status})`;
+        try { const e = await res.clone().json(); errMsg = e.error || e.message || errMsg; } catch {}
+        throw new Error(errMsg);
+      }
+      return res.json();
+    }
     
     // ========== STATE ==========
     let currentUser = null;
@@ -1091,6 +1102,7 @@
         const response = await fetch(`${apiBase}/api/admin/providers?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        if (!response.ok) { let e; try { e = await response.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load providers (${response.status})`); }
         const result = await response.json();
         
         if (result.success) {
@@ -10022,8 +10034,8 @@
         const params = new URLSearchParams({ page: aiOpsActivityPage, limit: 25 });
         if (mod) params.set('module', mod);
         const res = await fetch(`${apiBase}/api/admin/ai-ops/actions?${params}`, { headers: getAiOpsHeaders() });
+        if (!res.ok) { let e; try { e = await res.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load (${res.status})`); }
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load');
         const actions = data.actions || [];
         if (actions.length === 0) {
           listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No AI actions logged yet. Run an AI Ops module to see activity here.</div>';
@@ -10072,8 +10084,8 @@
       listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading escalations…</div>';
       try {
         const res = await fetch(`${apiBase}/api/admin/ai-ops/escalations?status=pending`, { headers: getAiOpsHeaders() });
+        if (!res.ok) { let e; try { e = await res.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load (${res.status})`); }
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load');
         const escs = data.escalations || [];
         const badge = document.getElementById('ai-ops-esc-badge');
         if (badge) { badge.textContent = escs.length; badge.style.display = escs.length > 0 ? 'inline' : 'none'; }
@@ -10157,8 +10169,8 @@
       if (!contentEl) return;
       try {
         const res = await fetch(`${apiBase}/api/admin/ai-ops/digests`, { headers: getAiOpsHeaders() });
+        if (!res.ok) { let e; try { e = await res.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load (${res.status})`); }
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load');
         aiOpsDigests = data.digests || [];
         if (aiOpsDigests.length === 0) {
           contentEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No digests yet. Click "Generate Now" to create today\'s digest.</div>';
