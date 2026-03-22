@@ -5954,14 +5954,14 @@ async function sendSmsNotification(phoneNumber, message, userId = null, notifica
       const msgSid = resData.sid || null;
       const msgStatus = resData.status || 'queued';
       console.log(`SMS sent to ${formattedPhone} sid=${msgSid}`);
-      logSmsAttempt(maskedPhone, logType, msgSid, msgStatus, null, null);
+      await logSmsAttempt(maskedPhone, logType, msgSid, msgStatus, null, null);
       return { sent: true, sid: msgSid };
     } else {
       const errorData = await twilioRes.json();
       console.error('Twilio error:', errorData);
       const errCode = errorData.code || errorData.status || null;
       const errMsg = errorData.message || errorData.more_info || null;
-      logSmsAttempt(maskedPhone, logType, null, 'failed', errCode, errMsg);
+      await logSmsAttempt(maskedPhone, logType, null, 'failed', errCode, errMsg);
       return { sent: false, reason: 'twilio_error', error: errorData };
     }
   } catch (error) {
@@ -33767,16 +33767,13 @@ Return ONLY the JSON array, no other text.`;
           if (listErr) throw listErr;
 
           const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-          const { data: summary7d, error: sumErr } = await supabase.from('sms_log')
-            .select('status', { count: 'exact' })
-            .gte('created_at', sevenDaysAgo);
-          
-          let total7d = 0, failed7d = 0;
-          if (!sumErr && summary7d) {
-            total7d = summary7d.length;
-            failed7d = summary7d.filter(r => r.status === 'failed' || r.status === 'undelivered').length;
-          }
-          const deliveryRate = total7d > 0 ? (((total7d - failed7d) / total7d) * 100).toFixed(1) : null;
+          const [{ count: total7d, error: sumErr }, { count: failed7d, error: failErr }] = await Promise.all([
+            supabase.from('sms_log').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo),
+            supabase.from('sms_log').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo).in('status', ['failed', 'undelivered'])
+          ]);
+          const t7d = (!sumErr && total7d != null) ? total7d : 0;
+          const f7d = (!failErr && failed7d != null) ? failed7d : 0;
+          const deliveryRate = t7d > 0 ? (((t7d - f7d) / t7d) * 100).toFixed(1) : null;
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
@@ -33784,7 +33781,7 @@ Return ONLY the JSON array, no other text.`;
             total: count || 0,
             page,
             limit,
-            summary: { total7d, failed7d, deliveryRate }
+            summary: { total7d: t7d, failed7d: f7d, deliveryRate }
           }));
         } catch (err) {
           console.error('[SMS_LOG] GET error:', err.message);
