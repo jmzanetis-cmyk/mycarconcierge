@@ -383,7 +383,7 @@
             </div>
           </div>
           <div style="margin-top:10px;padding:8px 12px;background:rgba(255,200,50,0.07);border-left:3px solid rgba(180,140,40,0.5);border-radius:0 6px 6px 0;font-size:0.8rem;color:var(--text-secondary);">
-            <strong>⚖️ Compliance:</strong> All investor messages require manual approval and must not promise returns or guarantee outcomes.
+            <strong>⚖️ Compliance:</strong> All investor messages require manual approval and must not promise returns or guaranteed outcomes.
           </div>
         </div>`;
     }
@@ -430,7 +430,7 @@
             <div class="pipeline-cell"><span class="stage-badge ${opp.stage}">${opp.stage.replace(/_/g, ' ')}</span></div>
             <div class="pipeline-cell" style="display:flex;gap:4px;">
               <button class="btn btn-sm" onclick="window.previewMessage('${lead.id}')" title="Preview message">Preview</button>
-              ${!isDuplicate && lead.status !== 'unsubscribed' ? `<button class="btn btn-sm btn-primary" onclick="window.draftForLead('${lead.id}')">Draft</button>` : '<span class="text-muted">—</span>'}
+              ${!isDuplicate && lead.status !== 'unsubscribed' ? `<button class="btn btn-sm btn-primary" onclick="window.draftForLead('${lead.id}')">Draft Message</button>` : '<span class="text-muted">—</span>'}
             </div>
           </div>
         `;
@@ -492,7 +492,7 @@
         : '';
       const complianceNote = isInvestor
         ? `<div style="margin-bottom:8px;padding:7px 10px;background:rgba(255,200,50,0.07);border-left:3px solid rgba(180,140,40,0.5);border-radius:0 6px 6px 0;font-size:0.78rem;color:var(--text-secondary);">
-            <strong>⚖️ Compliance reminder:</strong> All investor messages require manual approval and must not promise returns or guarantee outcomes.
+            <strong>⚖️ Compliance reminder:</strong> All investor messages require manual approval and must not promise returns or guaranteed outcomes.
            </div>`
         : '';
       return `
