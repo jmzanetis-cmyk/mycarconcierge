@@ -16,7 +16,7 @@ const { Resend } = require('resend');
 const stripeTreasury = require('./stripe-treasury');
 const { getHubSpotClient } = require('./hubspot-client');
 const handleCarClubRequest = require('./car-club-api');
-const { handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook, startEngineSchedulers, initEngineState, runApolloDiscoveryCycle, getApolloConfig, saveApolloConfig } = require('./outreach-engine-api');
+const { handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook, startEngineSchedulers, initEngineState, runApolloDiscoveryCycle, getApolloConfig, saveApolloConfig, pushLeadsToInstantly } = require('./outreach-engine-api');
 const { Pool: PgPool } = require('pg');
 let _localPgPool = null;
 function getLocalPool() {
@@ -33555,6 +33555,74 @@ Return ONLY the JSON array, no other text.`;
 
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(result));
+          } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+
+      // POST /api/admin/apollo/resync-instantly-ref-links — re-push all previously-synced provider leads with corrected ref_link
+      if (req.method === 'POST' && req.url === '/api/admin/apollo/resync-instantly-ref-links') {
+        let body = '';
+        req.on('data', c => { body += c; });
+        req.on('end', async () => {
+          try {
+            const supabase = getSupabaseClient();
+            if (!supabase) throw new Error('Database not configured');
+            const { campaign_id } = JSON.parse(body || '{}');
+
+            // Fetch all provider leads that were previously synced to Instantly
+            const batchSize = 1000;
+            let allLeads = [];
+            let from = 0;
+            while (true) {
+              const { data, error } = await supabase
+                .from('outreach_leads')
+                .select('id, email, name, company, website, type, source, score, location, metadata')
+                .eq('type', 'provider')
+                .not('email', 'is', null)
+                .range(from, from + batchSize - 1);
+              if (error) throw error;
+              if (!data || data.length === 0) break;
+              // Filter to only leads that were previously synced
+              const synced = data.filter(l => l.metadata?.instantly_synced === true);
+              allLeads = allLeads.concat(synced);
+              if (data.length < batchSize) break;
+              from += batchSize;
+            }
+
+            if (allLeads.length === 0) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ synced: 0, total: 0, message: 'No previously-synced provider leads found' }));
+              return;
+            }
+
+            // Use the stored campaign_id from each lead's metadata if not overridden
+            // Group by campaign_id so we can push each batch to the right campaign
+            const byCampaign = {};
+            for (const lead of allLeads) {
+              const cid = campaign_id || lead.metadata?.instantly_campaign_id || null;
+              const key = cid || '__none__';
+              if (!byCampaign[key]) byCampaign[key] = { campaignId: cid, leads: [] };
+              byCampaign[key].leads.push(lead);
+            }
+
+            let totalSynced = 0;
+            const allErrors = [];
+            for (const { campaignId, leads } of Object.values(byCampaign)) {
+              const result = await pushLeadsToInstantly(supabase, leads, campaignId);
+              totalSynced += result.synced || 0;
+              if (result.errors) allErrors.push(...result.errors);
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              synced: totalSynced,
+              total: allLeads.length,
+              errors: allErrors.length > 0 ? allErrors : undefined
+            }));
           } catch (err) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: err.message }));

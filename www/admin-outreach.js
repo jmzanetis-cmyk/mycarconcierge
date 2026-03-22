@@ -1370,7 +1370,42 @@
     if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Generate from Real Stats'; }
   }
 
+  async function resyncInstantlyRefLinks() {
+    const btn = document.getElementById('instantly-resync-btn');
+    const resultDiv = document.getElementById('instantly-resync-result');
+    const campaignId = document.getElementById('instantly-resync-campaign')?.value?.trim() || '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="icon-inline" data-icon="loader"></span> Re-syncing...'; }
+    if (resultDiv) resultDiv.style.display = 'none';
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const payload = {};
+      if (campaignId) payload.campaign_id = campaignId;
+      const res = await fetch('/api/admin/apollo/resync-instantly-ref-links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Re-sync failed: ' + res.status);
+      const data = await res.json();
+      if (resultDiv) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `<strong>Re-sync Complete:</strong> ${(data.synced || 0).toLocaleString()} of ${(data.total || 0).toLocaleString()} leads updated in Instantly.ai with correct <code>ref_link</code>` +
+          (data.message ? `<br><span style="color:var(--text-muted);">${data.message}</span>` : '') +
+          (data.errors?.length ? `<br><span style="color:var(--accent-red);">Errors (${data.errors.length}): ${data.errors.slice(0,3).join('; ')}${data.errors.length > 3 ? '…' : ''}</span>` : '');
+      }
+      if (typeof showToast !== 'undefined') showToast(`${(data.synced || 0).toLocaleString()} leads re-synced with ref_link`);
+    } catch (e) {
+      if (resultDiv) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `<span style="color:var(--accent-red);">Error: ${e.message}</span>`;
+      }
+      if (typeof showToast !== 'undefined') showToast(e.message, 'error');
+    }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="refresh-cw"></span> Re-sync Ref Links'; }
+  }
+
   window.syncLeadsToInstantly = syncLeadsToInstantly;
+  window.resyncInstantlyRefLinks = resyncInstantlyRefLinks;
   window.createInstantlyCampaign = createInstantlyCampaign;
   window.loadInstantlyCampaigns = loadInstantlyCampaigns;
   window.generateWeeklyCalendar = generateWeeklyCalendar;

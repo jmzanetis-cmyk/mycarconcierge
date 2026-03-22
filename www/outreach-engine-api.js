@@ -3636,4 +3636,4 @@ async function handleResendWebhook(req, res, { getSupabaseClient, setCorsHeaders
   }
 }
 
-module.exports = { handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook, startEngineSchedulers, initEngineState, runApolloDiscoveryCycle, getApolloConfig, saveApolloConfig };
+module.exports = { handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook, startEngineSchedulers, initEngineState, runApolloDiscoveryCycle, getApolloConfig, saveApolloConfig, pushLeadsToInstantly };

@@ -1154,6 +1154,15 @@
                 </div>
               </div>
               <div class="card">
+                <div class="card-header"><h2 class="card-title"><span class="icon-inline" data-icon="refresh-cw"></span> Re-sync Ref Links</h2></div>
+                <div style="display:flex;flex-direction:column;gap:16px;padding:4px 0;">
+                  <p style="color:var(--text-secondary);font-size:0.9rem;">Re-push all previously-synced provider leads to Instantly.ai with the corrected <code>ref_link</code> custom variable. Safe to run — Instantly's bulk-add API is idempotent on email.</p>
+                  <div><label style="font-weight:500;margin-bottom:6px;display:block;">Override Campaign ID <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label><input type="text" id="instantly-resync-campaign" class="form-input" style="width:100%;" placeholder="Leave blank to use each lead's stored campaign ID"></div>
+                  <button class="btn btn-secondary" id="instantly-resync-btn" onclick="resyncInstantlyRefLinks()" style="width:100%;"><span class="icon-inline" data-icon="refresh-cw"></span> Re-sync Ref Links</button>
+                  <div id="instantly-resync-result" style="display:none;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);font-size:0.9rem;"></div>
+                </div>
+              </div>
+              <div class="card">
                 <div class="card-header"><h2 class="card-title"><span class="icon-inline" data-icon="plus"></span> Create Instantly Campaign</h2></div>
                 <div style="display:flex;flex-direction:column;gap:16px;padding:4px 0;">
                   <div><label style="font-weight:500;margin-bottom:6px;display:block;">Campaign Name</label><input type="text" id="instantly-campaign-name" class="form-input" style="width:100%;" placeholder="e.g., NJ Providers - March 2026"></div>
