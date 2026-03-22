@@ -317,6 +317,9 @@ async function showSection(id) {
   if (id === 'background-checks') {
     if (typeof loadVerificationBadgeStatus === 'function') loadVerificationBadgeStatus();
     if (typeof loadBackgroundCheckStatus === 'function') loadBackgroundCheckStatus();
+  } else {
+    // Stop in-progress polling when leaving bg-check-related views
+    if (typeof _clearBgCheckPoll === 'function') _clearBgCheckPoll();
   }
   if (id === 'team-section' && typeof loadTeamManagementData === 'function') {
     loadTeamManagementData();

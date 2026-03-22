@@ -7699,12 +7699,15 @@ async function handleAdminGetProviders(req, res, requestId) {
     let enrichedData = data || [];
     if (enrichedData.length > 0) {
       const providerIds = enrichedData.map(p => p.id);
-      const { data: bgData } = await supabase
+      const { data: bgData, error: bgError } = await supabase
         .from('provider_background_checks')
         .select('provider_id, status, updated_at')
         .in('provider_id', providerIds)
         .eq('subject_type', 'provider')
         .order('created_at', { ascending: false });
+      if (bgError) {
+        console.warn(`[${requestId}] Admin providers: bgcheck enrichment query failed:`, bgError.message);
+      }
       if (bgData) {
         // Only keep the most recent check per provider
         const bgMap = {};
