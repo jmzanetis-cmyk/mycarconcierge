@@ -8718,9 +8718,7 @@
       if (!currentUser) return;
       
       try {
-        const response = await fetch(`/api/member/${currentUser.id}/notification-preferences`);
-        if (!response.ok) throw new Error(`Failed to load preferences (${response.status})`);
-        const data = await response.json();
+        const data = await safeFetch(`/api/member/${currentUser.id}/notification-preferences`);
         
         if (data.warning) {
           console.log('Notification preferences:', data.warning);

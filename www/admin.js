@@ -10033,9 +10033,7 @@
       try {
         const params = new URLSearchParams({ page: aiOpsActivityPage, limit: 25 });
         if (mod) params.set('module', mod);
-        const res = await fetch(`${apiBase}/api/admin/ai-ops/actions?${params}`, { headers: getAiOpsHeaders() });
-        if (!res.ok) { let e; try { e = await res.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load (${res.status})`); }
-        const data = await res.json();
+        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/actions?${params}`, { headers: getAiOpsHeaders() });
         const actions = data.actions || [];
         if (actions.length === 0) {
           listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No AI actions logged yet. Run an AI Ops module to see activity here.</div>';
@@ -10083,9 +10081,7 @@
       if (!listEl) return;
       listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading escalations…</div>';
       try {
-        const res = await fetch(`${apiBase}/api/admin/ai-ops/escalations?status=pending`, { headers: getAiOpsHeaders() });
-        if (!res.ok) { let e; try { e = await res.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load (${res.status})`); }
-        const data = await res.json();
+        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/escalations?status=pending`, { headers: getAiOpsHeaders() });
         const escs = data.escalations || [];
         const badge = document.getElementById('ai-ops-esc-badge');
         if (badge) { badge.textContent = escs.length; badge.style.display = escs.length > 0 ? 'inline' : 'none'; }
@@ -10168,9 +10164,7 @@
       const dateEl = document.getElementById('ai-ops-digest-date');
       if (!contentEl) return;
       try {
-        const res = await fetch(`${apiBase}/api/admin/ai-ops/digests`, { headers: getAiOpsHeaders() });
-        if (!res.ok) { let e; try { e = await res.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load (${res.status})`); }
-        const data = await res.json();
+        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/digests`, { headers: getAiOpsHeaders() });
         aiOpsDigests = data.digests || [];
         if (aiOpsDigests.length === 0) {
           contentEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No digests yet. Click "Generate Now" to create today\'s digest.</div>';
@@ -10312,13 +10306,11 @@
       if (!disputeId) { if (window.showToast) showToast('Enter a dispute ID', 'error'); return; }
       if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Analyzing dispute…'; }
       try {
-        const res = await fetch(`${apiBase}/api/admin/ai-ops/dispute-resolver/trigger`, {
+        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/dispute-resolver/trigger`, {
           method: 'POST',
           headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ dispute_id: disputeId })
         });
-        if (!res.ok) { let e; try { e = await res.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Request failed (${res.status})`); }
-        const data = await res.json();
         if (resultEl) {
           resultEl.style.color = 'var(--accent-green)';
           resultEl.textContent = `Action: ${data.action || '—'} | Confidence: ${((data.confidence || 0) * 100).toFixed(0)}% | ${data.reasoning || ''}`;
@@ -10337,9 +10329,7 @@
       const resultEl = document.getElementById('ai-ops-payment-result');
       if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Running payment tracker…'; }
       try {
-        const res = await fetch(`${apiBase}/api/admin/ai-ops/payment-tracker/run`, { method: 'POST', headers: getAiOpsHeaders() });
-        if (!res.ok) { let e; try { e = await res.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Request failed (${res.status})`); }
-        const data = await res.json();
+        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/payment-tracker/run`, { method: 'POST', headers: getAiOpsHeaders() });
         if (resultEl) {
           resultEl.style.color = 'var(--accent-green)';
           resultEl.textContent = data.message || `Processed ${data.processed || 0} orders, ${data.anomalies || 0} anomalies`;
@@ -10396,11 +10386,9 @@
         const params = new URLSearchParams({ page, limit: SMS_LOG_PAGE_SIZE });
         if (statusFilter) params.set('status', statusFilter);
         if (typeFilter) params.set('type', typeFilter);
-        const res = await fetch(`/api/admin/sms-log?${params}`, {
+        const data = await safeFetch(`/api/admin/sms-log?${params}`, {
           headers: { 'x-admin-password': localStorage.getItem('adminPassword') || '', 'x-admin-token': localStorage.getItem('adminTeamToken') || '' }
         });
-        if (!res.ok) { let e; try { e = await res.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load SMS log (${res.status})`); }
-        const data = await res.json();
 
         const { rows = [], total = 0, summary = {} } = data;
 
