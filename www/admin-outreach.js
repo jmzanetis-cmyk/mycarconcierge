@@ -1374,26 +1374,48 @@
     const btn = document.getElementById('instantly-resync-btn');
     const resultDiv = document.getElementById('instantly-resync-result');
     const campaignId = document.getElementById('instantly-resync-campaign')?.value?.trim() || '';
-    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="icon-inline" data-icon="loader"></span> Re-syncing...'; }
-    if (resultDiv) resultDiv.style.display = 'none';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="icon-inline" data-icon="loader"></span> Starting...'; }
+    if (resultDiv) { resultDiv.style.display = 'block'; resultDiv.innerHTML = 'Starting re-sync job…'; }
     try {
       const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
       const payload = {};
       if (campaignId) payload.campaign_id = campaignId;
-      const res = await fetch('/api/admin/apollo/resync-instantly-ref-links', {
+
+      // Start the async job
+      const startRes = await fetch('/api/admin/apollo/resync-instantly-ref-links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error('Re-sync failed: ' + res.status);
-      const data = await res.json();
-      if (resultDiv) {
-        resultDiv.style.display = 'block';
-        resultDiv.innerHTML = `<strong>Re-sync Complete:</strong> ${(data.synced || 0).toLocaleString()} of ${(data.total || 0).toLocaleString()} leads updated in Instantly.ai with correct <code>ref_link</code>` +
-          (data.message ? `<br><span style="color:var(--text-muted);">${data.message}</span>` : '') +
-          (data.errors?.length ? `<br><span style="color:var(--accent-red);">Errors (${data.errors.length}): ${data.errors.slice(0,3).join('; ')}${data.errors.length > 3 ? '…' : ''}</span>` : '');
-      }
-      if (typeof showToast !== 'undefined') showToast(`${(data.synced || 0).toLocaleString()} leads re-synced with ref_link`);
+      if (!startRes.ok) throw new Error('Re-sync start failed: ' + startRes.status);
+      const { job_id } = await startRes.json();
+      if (!job_id) throw new Error('No job ID returned');
+
+      if (btn) btn.innerHTML = '<span class="icon-inline" data-icon="loader"></span> Re-syncing…';
+
+      // Poll for progress every 1.5 seconds
+      await new Promise((resolve, reject) => {
+        const interval = setInterval(async () => {
+          try {
+            const pollRes = await fetch(`/api/admin/apollo/resync-instantly-ref-links?job_id=${job_id}`, {
+              headers: { 'x-admin-password': adminPassword }
+            });
+            if (!pollRes.ok) { clearInterval(interval); reject(new Error('Progress poll failed: ' + pollRes.status)); return; }
+            const progress = await pollRes.json();
+            const pct = progress.total ? Math.round((progress.synced / progress.total) * 100) : null;
+            const pctLabel = pct !== null ? ` (${pct}%)` : '';
+            if (resultDiv) {
+              resultDiv.innerHTML = progress.done
+                ? `<strong>Re-sync Complete:</strong> ${(progress.synced || 0).toLocaleString()} of ${(progress.total || 0).toLocaleString()} leads updated in Instantly.ai with correct <code>ref_link</code>` +
+                  (progress.errors?.length ? `<br><span style="color:var(--accent-red);">Errors (${progress.errors.length}): ${progress.errors.slice(0,3).join('; ')}${progress.errors.length > 3 ? '…' : ''}</span>` : '')
+                : `Re-syncing… ${(progress.synced || 0).toLocaleString()}${progress.total ? ' / ' + progress.total.toLocaleString() : ''} leads processed${pctLabel}`;
+            }
+            if (progress.done) { clearInterval(interval); resolve(progress); }
+          } catch (pollErr) { clearInterval(interval); reject(pollErr); }
+        }, 1500);
+      }).then(progress => {
+        if (typeof showToast !== 'undefined') showToast(`${(progress.synced || 0).toLocaleString()} leads re-synced with ref_link`);
+      });
     } catch (e) {
       if (resultDiv) {
         resultDiv.style.display = 'block';

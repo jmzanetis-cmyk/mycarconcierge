@@ -33563,7 +33563,10 @@ Return ONLY the JSON array, no other text.`;
         return;
       }
 
-      // POST /api/admin/apollo/resync-instantly-ref-links — re-push all previously-synced provider leads with corrected ref_link
+      // In-memory store for re-sync job progress (lives per server process, suitable for one-time admin ops)
+      if (!global._resyncRefLinkJobs) global._resyncRefLinkJobs = new Map();
+
+      // POST /api/admin/apollo/resync-instantly-ref-links — start async re-sync job, returns job_id
       if (req.method === 'POST' && req.url === '/api/admin/apollo/resync-instantly-ref-links') {
         let body = '';
         req.on('data', c => { body += c; });
@@ -33573,61 +33576,98 @@ Return ONLY the JSON array, no other text.`;
             if (!supabase) throw new Error('Database not configured');
             const { campaign_id } = JSON.parse(body || '{}');
 
-            // Fetch all provider leads that were previously synced to Instantly
-            const batchSize = 1000;
-            let allLeads = [];
-            let from = 0;
-            while (true) {
-              const { data, error } = await supabase
-                .from('outreach_leads')
-                .select('id, email, name, company, website, type, source, score, location, metadata')
-                .eq('type', 'provider')
-                .not('email', 'is', null)
-                .range(from, from + batchSize - 1);
-              if (error) throw error;
-              if (!data || data.length === 0) break;
-              // Filter to only leads that were previously synced
-              const synced = data.filter(l => l.metadata?.instantly_synced === true);
-              allLeads = allLeads.concat(synced);
-              if (data.length < batchSize) break;
-              from += batchSize;
-            }
+            const jobId = crypto.randomBytes(8).toString('hex');
+            const job = { synced: 0, total: null, done: false, errors: [], started_at: new Date().toISOString() };
+            global._resyncRefLinkJobs.set(jobId, job);
 
-            if (allLeads.length === 0) {
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ synced: 0, total: 0, message: 'No previously-synced provider leads found' }));
-              return;
-            }
+            // Run async — do not await
+            (async () => {
+              try {
+                // Fetch total count first for progress reporting (DB-side filter on JSONB)
+                const countQ = await supabase
+                  .from('outreach_leads')
+                  .select('id', { count: 'exact', head: true })
+                  .eq('type', 'provider')
+                  .not('email', 'is', null)
+                  .filter('metadata->>instantly_synced', 'eq', 'true');
+                job.total = countQ.count || 0;
 
-            // Use the stored campaign_id from each lead's metadata if not overridden
-            // Group by campaign_id so we can push each batch to the right campaign
-            const byCampaign = {};
-            for (const lead of allLeads) {
-              const cid = campaign_id || lead.metadata?.instantly_campaign_id || null;
-              const key = cid || '__none__';
-              if (!byCampaign[key]) byCampaign[key] = { campaignId: cid, leads: [] };
-              byCampaign[key].leads.push(lead);
-            }
+                // Page through leads in DB-filtered batches of 500
+                const dbBatch = 500;
+                let from = 0;
+                const byCampaign = {};
+                while (true) {
+                  const { data, error } = await supabase
+                    .from('outreach_leads')
+                    .select('id, email, name, company, website, type, source, score, location, metadata')
+                    .eq('type', 'provider')
+                    .not('email', 'is', null)
+                    .filter('metadata->>instantly_synced', 'eq', 'true')
+                    .range(from, from + dbBatch - 1);
+                  if (error) throw error;
+                  if (!data || data.length === 0) break;
+                  for (const lead of data) {
+                    const cid = campaign_id || lead.metadata?.instantly_campaign_id || null;
+                    const key = cid || '__none__';
+                    if (!byCampaign[key]) byCampaign[key] = { campaignId: cid, leads: [] };
+                    byCampaign[key].leads.push(lead);
+                  }
+                  // Push each accumulated campaign group in Instantly batches of 100 for progress feedback
+                  for (const grp of Object.values(byCampaign)) {
+                    while (grp.leads.length >= 100) {
+                      const chunk = grp.leads.splice(0, 100);
+                      const result = await pushLeadsToInstantly(supabase, chunk, grp.campaignId);
+                      job.synced += result.synced || 0;
+                      if (result.errors) job.errors.push(...result.errors);
+                    }
+                  }
+                  if (data.length < dbBatch) break;
+                  from += dbBatch;
+                }
+                // Flush any remaining leads (< 100 per campaign)
+                for (const grp of Object.values(byCampaign)) {
+                  if (grp.leads.length > 0) {
+                    const result = await pushLeadsToInstantly(supabase, grp.leads, grp.campaignId);
+                    job.synced += result.synced || 0;
+                    if (result.errors) job.errors.push(...result.errors);
+                  }
+                }
+                job.total = job.total || job.synced;
+                job.done = true;
+              } catch (err) {
+                job.errors.push(err.message);
+                job.done = true;
+              }
+            })();
 
-            let totalSynced = 0;
-            const allErrors = [];
-            for (const { campaignId, leads } of Object.values(byCampaign)) {
-              const result = await pushLeadsToInstantly(supabase, leads, campaignId);
-              totalSynced += result.synced || 0;
-              if (result.errors) allErrors.push(...result.errors);
-            }
-
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-              synced: totalSynced,
-              total: allLeads.length,
-              errors: allErrors.length > 0 ? allErrors : undefined
-            }));
+            res.writeHead(202, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ job_id: jobId, message: 'Re-sync started' }));
           } catch (err) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: err.message }));
           }
         });
+        return;
+      }
+
+      // GET /api/admin/apollo/resync-instantly-ref-links?job_id=xxx — poll job progress
+      if (req.method === 'GET' && req.url.startsWith('/api/admin/apollo/resync-instantly-ref-links')) {
+        const u = new URL(req.url, 'http://localhost');
+        const jobId = u.searchParams.get('job_id');
+        const job = jobId && global._resyncRefLinkJobs ? global._resyncRefLinkJobs.get(jobId) : null;
+        if (!job) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Job not found' }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          synced: job.synced,
+          total: job.total,
+          done: job.done,
+          errors: job.errors.length > 0 ? job.errors : undefined,
+          started_at: job.started_at
+        }));
         return;
       }
 
