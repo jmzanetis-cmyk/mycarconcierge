@@ -5889,7 +5889,24 @@ async function checkNotificationPreference(userId, channel, type) {
   }
 }
 
-async function sendSmsNotification(phoneNumber, message, userId = null, notificationType = null) {
+async function logSmsAttempt(toPhoneMasked, messageType, messageSid, status, errorCode, errorMessage) {
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    await supabase.from('sms_log').insert({
+      to_phone_masked: toPhoneMasked,
+      message_type: messageType || 'unknown',
+      message_sid: messageSid || null,
+      status: status || 'unknown',
+      error_code: errorCode ? String(errorCode) : null,
+      error_message: errorMessage || null
+    });
+  } catch (err) {
+    console.error('[SMS_LOG] Failed to log SMS attempt:', err.message);
+  }
+}
+
+async function sendSmsNotification(phoneNumber, message, userId = null, notificationType = null, smsLogType = null) {
   if (userId && notificationType) {
     const shouldSend = await checkNotificationPreference(userId, 'sms', notificationType);
     if (!shouldSend) {
@@ -5906,6 +5923,9 @@ async function sendSmsNotification(phoneNumber, message, userId = null, notifica
     console.log('Twilio not configured, skipping SMS');
     return { sent: false, reason: 'not_configured' };
   }
+  
+  const logType = smsLogType || notificationType || 'general';
+  const maskedPhone = maskPhoneNumber(phoneNumber);
   
   try {
     const cleanPhone = phoneNumber.replace(/\D/g, '');
@@ -5930,15 +5950,23 @@ async function sendSmsNotification(phoneNumber, message, userId = null, notifica
     );
     
     if (twilioRes.ok) {
-      console.log(`SMS sent to ${formattedPhone}`);
-      return { sent: true };
+      const resData = await twilioRes.json();
+      const msgSid = resData.sid || null;
+      const msgStatus = resData.status || 'queued';
+      console.log(`SMS sent to ${formattedPhone} sid=${msgSid}`);
+      logSmsAttempt(maskedPhone, logType, msgSid, msgStatus, null, null);
+      return { sent: true, sid: msgSid };
     } else {
       const errorData = await twilioRes.json();
       console.error('Twilio error:', errorData);
+      const errCode = errorData.code || errorData.status || null;
+      const errMsg = errorData.message || errorData.more_info || null;
+      logSmsAttempt(maskedPhone, logType, null, 'failed', errCode, errMsg);
       return { sent: false, reason: 'twilio_error', error: errorData };
     }
   } catch (error) {
     console.error('SMS send error:', error);
+    logSmsAttempt(maskedPhone, logType, null, 'failed', null, error.message);
     return { sent: false, reason: 'exception', error: error.message };
   }
 }
@@ -6779,7 +6807,7 @@ async function sendDreamCarSMSNotification(userId, matches) {
       : 'https://mycarconcierge.com';
     const message = `My Car Concierge found ${matchCount} new car${matchCount !== 1 ? 's' : ''} matching your search! View them at ${appUrl}/members.html#dream-car`;
     
-    return await sendSmsNotification(profile.phone, message);
+    return await sendSmsNotification(profile.phone, message, null, null, 'dream_car');
   } catch (error) {
     console.error('Dream Car SMS error:', error.message);
     return { sent: false, reason: 'exception', error: error.message };
@@ -7274,7 +7302,8 @@ async function handle2faSendCode(req, res, requestId) {
       
       const smsResult = await sendSmsNotification(
         phone,
-        `Your My Car Concierge verification code is: ${code}. It expires in 5 minutes.`
+        `Your My Car Concierge verification code is: ${code}. It expires in 5 minutes.`,
+        null, null, '2fa'
       );
       
       if (!smsResult.sent && smsResult.reason !== 'not_configured') {
@@ -11252,7 +11281,7 @@ async function sendBidNotifications(supabase, packageId, newBidId, bidPrice, req
 
     if (alertSms && memberProfile.phone && memberProfile.sms_consent) {
       const msg = `My Car Concierge: A new bid of $${bidPrice.toFixed(2)} was received on your "${pkg.title}" request. Log in to view bids: mycarconcierge.com/members.html`;
-      await sendSmsNotification(memberProfile.phone, msg, null, null);
+      await sendSmsNotification(memberProfile.phone, msg, null, null, 'bid_alert');
       console.log(`[${requestId}] Bid SMS sent to member ${pkg.member_id}`);
     }
 
@@ -11301,7 +11330,7 @@ async function sendBidNotifications(supabase, packageId, newBidId, bidPrice, req
 
     if (cb.provider_bid_alerts_sms && pProfile.phone && pProfile.sms_consent) {
       const msg = `My Car Concierge: A competing bid was just placed on "${pkg.title}". Check your My Bids page and update your bid: mycarconcierge.com/providers.html`;
-      await sendSmsNotification(pProfile.phone, msg, null, null);
+      await sendSmsNotification(pProfile.phone, msg, null, null, 'bid_alert');
       console.log(`[${requestId}] Competing bid SMS sent to provider ${cb.provider_id}`);
     }
 
@@ -33703,6 +33732,127 @@ Return ONLY the JSON array, no other text.`;
     });
   }
 
+  // ========== SMS LOG ENDPOINTS ==========
+
+  if (req.url.startsWith('/api/admin/sms-log')) {
+    setCorsHeaders(res, req);
+    if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+    return handleAdminAuth(req, res, requestId, async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      // GET /api/admin/sms-log — paginated list + summary stats
+      if (req.method === 'GET' && (req.url === '/api/admin/sms-log' || req.url.startsWith('/api/admin/sms-log?'))) {
+        try {
+          const u = new URL(req.url, 'http://localhost');
+          const page = Math.max(1, parseInt(u.searchParams.get('page') || '1'));
+          const limit = Math.min(100, Math.max(1, parseInt(u.searchParams.get('limit') || '50')));
+          const statusFilter = u.searchParams.get('status') || '';
+          const typeFilter = u.searchParams.get('type') || '';
+          const offset = (page - 1) * limit;
+
+          let query = supabase.from('sms_log')
+            .select('*', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
+          if (statusFilter) query = query.eq('status', statusFilter);
+          if (typeFilter) query = query.eq('message_type', typeFilter);
+
+          const { data: rows, count, error: listErr } = await query;
+          if (listErr) throw listErr;
+
+          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+          const { data: summary7d, error: sumErr } = await supabase.from('sms_log')
+            .select('status', { count: 'exact' })
+            .gte('created_at', sevenDaysAgo);
+          
+          let total7d = 0, failed7d = 0;
+          if (!sumErr && summary7d) {
+            total7d = summary7d.length;
+            failed7d = summary7d.filter(r => r.status === 'failed' || r.status === 'undelivered').length;
+          }
+          const deliveryRate = total7d > 0 ? (((total7d - failed7d) / total7d) * 100).toFixed(1) : null;
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            rows: rows || [],
+            total: count || 0,
+            page,
+            limit,
+            summary: { total7d, failed7d, deliveryRate }
+          }));
+        } catch (err) {
+          console.error('[SMS_LOG] GET error:', err.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
+
+      // POST /api/admin/sms-log/refresh-status — fetch status from Twilio for given SIDs
+      if (req.method === 'POST' && req.url === '/api/admin/sms-log/refresh-status') {
+        try {
+          const body = await getRequestBody(req);
+          const sids = Array.isArray(body.sids) ? body.sids.filter(s => s && typeof s === 'string') : [];
+          if (sids.length === 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'No SIDs provided' }));
+            return;
+          }
+
+          const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+          const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+          if (!twilioSid || !twilioToken) {
+            res.writeHead(503, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Twilio not configured' }));
+            return;
+          }
+          const twilioAuth = Buffer.from(`${twilioSid}:${twilioToken}`).toString('base64');
+
+          const results = [];
+          for (const sid of sids.slice(0, 25)) {
+            try {
+              const resp = await fetch(
+                `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages/${sid}.json`,
+                { headers: { 'Authorization': `Basic ${twilioAuth}` } }
+              );
+              if (!resp.ok) {
+                results.push({ sid, error: `HTTP ${resp.status}` });
+                continue;
+              }
+              const msg = await resp.json();
+              const newStatus = msg.status || 'unknown';
+              const errCode = msg.error_code ? String(msg.error_code) : null;
+              const errMsg = msg.error_message || null;
+              await supabase.from('sms_log')
+                .update({ status: newStatus, error_code: errCode, error_message: errMsg })
+                .eq('message_sid', sid);
+              results.push({ sid, status: newStatus, error_code: errCode });
+            } catch (sidErr) {
+              results.push({ sid, error: sidErr.message });
+            }
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ updated: results.length, results }));
+        } catch (err) {
+          console.error('[SMS_LOG] refresh-status error:', err.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unknown SMS log endpoint' }));
+    });
+  }
+
   // ========== AI OPS ENDPOINTS ==========
 
   if (req.url.startsWith('/api/admin/ai-ops')) {
@@ -38569,6 +38719,7 @@ server.listen(PORT, '0.0.0.0', () => {
   startBidDeadlineScheduler();
   seedFoundingProviderAgreements();
   createAiOpsTablesIfNeeded();
+  initSmsLogTable();
 });
 
 // ========== AI OPS FOUNDATION ==========
@@ -38622,6 +38773,44 @@ function isTableMissingError(err) {
   if (!err) return false;
   const msg = err.message || '';
   return err.code === '42P01' || msg.includes('does not exist') || msg.includes('schema cache') || msg.includes('relation') || msg.includes('Could not find');
+}
+
+async function initSmsLogTable() {
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { error: checkErr } = await supabase.from('sms_log').select('id').limit(1);
+    if (!checkErr) return;
+    if (!isTableMissingError(checkErr)) return;
+    console.log('[SMS_LOG] Creating sms_log table...');
+    const sql = `CREATE TABLE IF NOT EXISTS public.sms_log (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      to_phone_masked text NOT NULL,
+      message_type text NOT NULL DEFAULT 'general',
+      message_sid text,
+      status text NOT NULL DEFAULT 'unknown',
+      error_code text,
+      error_message text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS sms_log_created_idx ON public.sms_log(created_at DESC);
+    CREATE INDEX IF NOT EXISTS sms_log_status_idx ON public.sms_log(status);
+    CREATE INDEX IF NOT EXISTS sms_log_type_idx ON public.sms_log(message_type);
+    ALTER TABLE public.sms_log ENABLE ROW LEVEL SECURITY;
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='sms_log' AND policyname='service_role_sms_log') THEN
+        CREATE POLICY service_role_sms_log ON public.sms_log FOR ALL TO service_role USING (true) WITH CHECK (true);
+      END IF;
+    END $$;`;
+    const createResult = await runSupabaseSQL(sql);
+    if (createResult.error) {
+      console.log('[SMS_LOG] Table creation skipped (table may already exist or rpc unavailable):', createResult.error);
+    } else {
+      console.log('[SMS_LOG] sms_log table ready.');
+    }
+  } catch (err) {
+    console.error('[SMS_LOG] initSmsLogTable error:', err.message);
+  }
 }
 
 async function createAiOpsTablesIfNeeded() {

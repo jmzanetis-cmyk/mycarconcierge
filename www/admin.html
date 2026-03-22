@@ -587,6 +587,7 @@
       <div class="nav-item" data-section="ai-ops"><span class="icon-inline" data-icon="cpu"></span> AI Ops Agent</div>
 
       <div class="nav-label">System</div>
+      <div class="nav-item" data-section="sms-log"><span class="icon-inline" data-icon="message-circle"></span> SMS Log</div>
       <div class="nav-item" data-section="team-management"><span class="icon-inline" data-icon="users"></span> Team Management</div>
       <div class="nav-item" data-section="settings"><span class="icon-inline" data-icon="settings"></span> Settings</div>
     </div>
@@ -4141,6 +4142,77 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
             </table>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section id="sms-log" class="section">
+      <div class="section-title-bar">
+        <h2>SMS Delivery Log</h2>
+        <p class="section-subtitle">Track Twilio SMS sends and delivery status</p>
+      </div>
+
+      <div class="stats-grid" id="sms-log-summary" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-blue-soft);color:var(--accent-blue);">📨</div>
+          <div class="stat-value" id="sms-stat-total7d">--</div>
+          <div class="stat-label">Sent (Last 7 Days)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);">✅</div>
+          <div class="stat-value" id="sms-stat-rate">--</div>
+          <div class="stat-label">Delivery Rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-red-soft);color:var(--accent-red);">⚠️</div>
+          <div class="stat-value" id="sms-stat-failed">--</div>
+          <div class="stat-label">Failures (7 Days)</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header" style="flex-wrap:wrap;gap:12px;">
+          <h3 class="card-title">Recent SMS Sends</h3>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <select id="sms-log-status-filter" class="form-select" style="padding:8px 12px;font-size:0.85rem;width:140px;" onchange="loadSmsLog(1)">
+              <option value="">All Statuses</option>
+              <option value="queued">Queued</option>
+              <option value="sent">Sent</option>
+              <option value="delivered">Delivered</option>
+              <option value="failed">Failed</option>
+              <option value="undelivered">Undelivered</option>
+            </select>
+            <select id="sms-log-type-filter" class="form-select" style="padding:8px 12px;font-size:0.85rem;width:180px;" onchange="loadSmsLog(1)">
+              <option value="">All Types</option>
+              <option value="2fa">2FA</option>
+              <option value="appointment_reminders">Appointment Reminder</option>
+              <option value="maintenance_reminders">Maintenance Reminder</option>
+              <option value="bid_alert">Bid Alert</option>
+              <option value="general">General</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="loadSmsLog(1)">
+              <span class="icon-inline" data-icon="refresh-cw"></span> Refresh
+            </button>
+          </div>
+        </div>
+        <div class="table-wrapper" style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>To (Masked)</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Error</th>
+                <th>Twilio SID</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="sms-log-tbody">
+              <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="sms-log-pagination" style="display:flex;justify-content:space-between;align-items:center;padding:16px 0 0;font-size:0.85rem;color:var(--text-muted);"></div>
       </div>
     </section>
 

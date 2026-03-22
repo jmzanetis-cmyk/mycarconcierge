@@ -126,7 +126,8 @@
       'team-management': async () => { await loadTeamMembers(); },
       traffic: async () => { await loadTrafficData(); },
       'marketing-outreach': async () => { await initMarketingHub(); if (typeof window.initOutreachEngine === 'function') await window.initOutreachEngine(); },
-      'ai-ops': async () => { await initAiOps(); }
+      'ai-ops': async () => { await initAiOps(); },
+      'sms-log': async () => { await loadSmsLog(1); }
     };
 
     function showSectionLoading(sectionId) {
@@ -10340,3 +10341,148 @@
     window.triggerPaymentTracker = triggerPaymentTracker;
 
     // ========== END AI OPS AGENT ==========
+
+    // ========== SMS LOG ==========
+
+    let smsLogPage = 1;
+    const SMS_LOG_PAGE_SIZE = 50;
+
+    function smsStatusBadge(status) {
+      const map = {
+        delivered: 'approved',
+        sent: 'blue',
+        queued: 'orange',
+        failed: 'rejected',
+        undelivered: 'rejected',
+        unknown: 'muted'
+      };
+      return `<span class="status-badge ${map[status] || 'muted'}">${status || 'unknown'}</span>`;
+    }
+
+    function smsTypeBadge(type) {
+      const labels = {
+        '2fa': '2FA',
+        appointment_reminders: 'Appt Reminder',
+        maintenance_reminders: 'Maintenance',
+        bid_alert: 'Bid Alert',
+        general: 'General',
+        maintenance_nudge: 'Maintenance',
+        dream_car: 'Dream Car'
+      };
+      return `<span class="badge badge-gray">${labels[type] || type || 'unknown'}</span>`;
+    }
+
+    async function loadSmsLog(page = 1) {
+      smsLogPage = page;
+      const statusFilter = document.getElementById('sms-log-status-filter')?.value || '';
+      const typeFilter = document.getElementById('sms-log-type-filter')?.value || '';
+      const tbody = document.getElementById('sms-log-tbody');
+      const paginationEl = document.getElementById('sms-log-pagination');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px;"><div style="display:inline-block;width:24px;height:24px;border:2px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div></td></tr>`;
+
+      try {
+        const params = new URLSearchParams({ page, limit: SMS_LOG_PAGE_SIZE });
+        if (statusFilter) params.set('status', statusFilter);
+        if (typeFilter) params.set('type', typeFilter);
+        const res = await fetch(`/api/admin/sms-log?${params}`, {
+          headers: { 'x-admin-password': localStorage.getItem('adminPassword') || '', 'x-admin-token': localStorage.getItem('adminTeamToken') || '' }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load SMS log');
+
+        const { rows = [], total = 0, summary = {} } = data;
+
+        const total7dEl = document.getElementById('sms-stat-total7d');
+        const rateEl = document.getElementById('sms-stat-rate');
+        const failedEl = document.getElementById('sms-stat-failed');
+        if (total7dEl) total7dEl.textContent = summary.total7d ?? '--';
+        if (rateEl) rateEl.textContent = summary.deliveryRate != null ? `${summary.deliveryRate}%` : '--';
+        if (failedEl) {
+          failedEl.textContent = summary.failed7d ?? '--';
+          failedEl.style.color = summary.failed7d > 0 ? 'var(--accent-red)' : 'inherit';
+        }
+
+        if (!tbody) return;
+        if (rows.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px;">No SMS messages found</td></tr>`;
+        } else {
+          tbody.innerHTML = rows.map(row => {
+            const isFailed = row.status === 'failed' || row.status === 'undelivered';
+            const rowStyle = isFailed ? 'border-left:3px solid var(--accent-red);' : '';
+            const errorCell = row.error_code
+              ? `<span style="color:var(--accent-red);font-size:0.82rem;">${row.error_code}${row.error_message ? ' — ' + row.error_message.substring(0, 60) : ''}</span>`
+              : `<span style="color:var(--text-muted);">—</span>`;
+            const sidCell = row.message_sid
+              ? `<span style="font-size:0.75rem;font-family:monospace;color:var(--text-muted);">${row.message_sid}</span>`
+              : `<span style="color:var(--text-muted);">—</span>`;
+            const actionCell = row.message_sid
+              ? `<button class="btn btn-ghost btn-sm" onclick="refreshSingleSmsStatus('${row.message_sid}', this)" title="Refresh status from Twilio" style="padding:4px 8px;font-size:0.75rem;"><span class="icon-inline" data-icon="refresh-cw"></span></button>`
+              : '';
+            const ts = row.created_at ? new Date(row.created_at).toLocaleString() : '—';
+            return `<tr style="${rowStyle}">
+              <td style="font-size:0.82rem;white-space:nowrap;">${ts}</td>
+              <td style="font-family:monospace;font-size:0.85rem;">${row.to_phone_masked || '—'}</td>
+              <td>${smsTypeBadge(row.message_type)}</td>
+              <td>${smsStatusBadge(row.status)}</td>
+              <td style="max-width:260px;">${errorCell}</td>
+              <td>${sidCell}</td>
+              <td>${actionCell}</td>
+            </tr>`;
+          }).join('');
+          if (window.MCC_ICONS) {
+            tbody.querySelectorAll('[data-icon]').forEach(el => {
+              const svg = MCC_ICONS[el.getAttribute('data-icon')];
+              if (svg) el.innerHTML = svg;
+            });
+          }
+        }
+
+        if (paginationEl) {
+          const totalPages = Math.ceil(total / SMS_LOG_PAGE_SIZE);
+          const start = total > 0 ? (page - 1) * SMS_LOG_PAGE_SIZE + 1 : 0;
+          const end = Math.min(page * SMS_LOG_PAGE_SIZE, total);
+          paginationEl.innerHTML = `
+            <span>${total > 0 ? `${start}–${end} of ${total}` : '0 results'}</span>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-secondary btn-sm" onclick="loadSmsLog(${page - 1})" ${page <= 1 ? 'disabled' : ''}>← Prev</button>
+              <span style="padding:6px 12px;font-size:0.85rem;">Page ${page} of ${totalPages || 1}</span>
+              <button class="btn btn-secondary btn-sm" onclick="loadSmsLog(${page + 1})" ${page >= totalPages ? 'disabled' : ''}>Next →</button>
+            </div>`;
+        }
+      } catch (err) {
+        console.error('[SMS_LOG] Load error:', err);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--accent-red);padding:40px;">${err.message}</td></tr>`;
+      }
+    }
+
+    async function refreshSingleSmsStatus(sid, btn) {
+      if (!sid) return;
+      if (btn) { btn.disabled = true; btn.textContent = '…'; }
+      try {
+        const res = await fetch('/api/admin/sms-log/refresh-status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-password': localStorage.getItem('adminPassword') || '',
+            'x-admin-token': localStorage.getItem('adminTeamToken') || ''
+          },
+          body: JSON.stringify({ sids: [sid] })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        const result = data.results?.[0];
+        if (result?.status) {
+          if (window.showToast) showToast(`Status updated: ${result.status}`, 'success');
+          await loadSmsLog(smsLogPage);
+        }
+      } catch (err) {
+        if (window.showToast) showToast('Refresh failed: ' + err.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; if (btn.querySelector) btn.innerHTML = (window.MCC_ICONS?.['refresh-cw'] || '↻'); }
+      }
+    }
+
+    window.loadSmsLog = loadSmsLog;
+    window.refreshSingleSmsStatus = refreshSingleSmsStatus;
+
+    // ========== END SMS LOG ==========
