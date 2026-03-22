@@ -326,32 +326,79 @@
 
     const priority = document.getElementById('pipeline-filter-priority')?.value || '';
     const stage = document.getElementById('pipeline-filter-stage')?.value || '';
+    const typeFilter = document.getElementById('pipeline-filter-type')?.value || '';
     const params = new URLSearchParams();
     if (priority) params.set('priority', priority);
     if (stage) params.set('stage', stage);
+    if (typeFilter) params.set('type', typeFilter);
 
     container.innerHTML = '<div class="loading-spinner" style="padding:40px;text-align:center;"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>';
 
     const res = await outreachFetch('/pipeline?' + params.toString());
     outreachPipeline = await res.json();
 
-    if (!outreachPipeline.length) {
-      container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);"><p>No opportunities in the pipeline yet.</p><p style="margin-top:8px;">Add leads manually or import from Google Places to get started.</p></div>';
+    let displayed = outreachPipeline;
+    if (typeFilter) {
+      displayed = outreachPipeline.filter(opp => (opp.outreach_leads || {}).type === typeFilter);
+    }
+
+    if (typeFilter === 'investor') {
+      displayed = [...displayed].sort((a, b) => (b.opportunity_score || 0) - (a.opportunity_score || 0));
+    }
+
+    let wefunderCard = '';
+    if (typeFilter === 'investor') {
+      const totalLeads = displayed.length;
+      const contacted = displayed.filter(o => ['contacted', 'converted', 'message_queued'].includes(o.stage)).length;
+      const pendingDrafts = (outreachMessages || []).filter(m => (m.outreach_leads || {}).type === 'investor' && m.status === 'draft').length;
+      wefunderCard = `
+        <div style="margin:0 0 16px;padding:16px;background:linear-gradient(135deg,rgba(180,120,20,0.12),rgba(100,70,10,0.08));border:1px solid rgba(180,140,40,0.3);border-radius:10px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <span style="font-size:1.3rem;">💛</span>
+            <div>
+              <div style="font-weight:700;font-size:1rem;color:var(--accent-gold,#c9a227);">Wefunder Investor Pipeline</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">wefunder.com/my.car.concierge — community fundraising round</div>
+            </div>
+            <a href="https://wefunder.com/my.car.concierge" target="_blank" rel="noopener" class="btn btn-sm" style="margin-left:auto;border-color:rgba(180,140,40,0.5);color:var(--accent-gold,#c9a227);">View Campaign ↗</a>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
+            <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-gold,#c9a227);">${totalLeads}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Investor Leads</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-blue);">${contacted}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Contacted / Active</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-orange);">${pendingDrafts}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Drafts Pending Approval</div>
+            </div>
+          </div>
+          <div style="margin-top:10px;padding:8px 12px;background:rgba(255,200,50,0.07);border-left:3px solid rgba(180,140,40,0.5);border-radius:0 6px 6px 0;font-size:0.8rem;color:var(--text-secondary);">
+            <strong>⚖️ Compliance:</strong> All investor messages require manual approval and must not promise returns or guarantee outcomes.
+          </div>
+        </div>`;
+    }
+
+    if (!displayed.length) {
+      container.innerHTML = wefunderCard + '<div style="padding:40px;text-align:center;color:var(--text-muted);"><p>No opportunities in the pipeline yet.</p><p style="margin-top:8px;">Add leads manually or import from Google Places to get started.</p></div>';
       return;
     }
 
-    container.innerHTML = outreachPipeline.map(opp => {
+    container.innerHTML = wefunderCard + displayed.map(opp => {
       const lead = opp.outreach_leads || {};
       const isDuplicate = lead.crm_sync_status === 'duplicate';
       const isReengagement = lead.source === 'crm_reengagement';
+      const isInvestor = lead.type === 'investor';
       return `
-        <div class="pipeline-row" style="animation:slideIn 0.3s ease;">
+        <div class="pipeline-row" style="animation:slideIn 0.3s ease;${isInvestor ? 'border-left:3px solid rgba(180,140,40,0.5);' : ''}">
           <div class="pipeline-cell">
             <span class="priority-badge ${opp.priority}">${opp.priority}</span>
           </div>
           <div class="pipeline-cell">
             <strong>${escapeHtml(lead.name || 'Unknown')}</strong>
-            <span class="type-badge ${lead.type}">${lead.type || '?'}</span>
+            ${isInvestor ? '<span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;background:rgba(180,140,40,0.18);color:#c9a227;border:1px solid rgba(180,140,40,0.35);margin-left:4px;">Investor</span>' : `<span class="type-badge ${lead.type}">${lead.type || '?'}</span>`}
             ${isDuplicate ? '<span class="crm-badge duplicate">CRM User</span>' : ''}
             ${isReengagement ? '<span class="crm-badge reengagement">Re-engagement</span>' : ''}
             ${lead.crm_sync_status === 'converted' ? '<span class="crm-badge converted">Converted</span>' : ''}
@@ -394,12 +441,21 @@
 
     container.innerHTML = outreachMessages.map(msg => {
       const lead = msg.outreach_leads || {};
+      const isInvestor = lead.type === 'investor';
+      const investorBadge = isInvestor
+        ? `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:rgba(180,140,40,0.18);color:#c9a227;border:1px solid rgba(180,140,40,0.35);margin-left:4px;">Investor</span>`
+        : '';
+      const complianceNote = isInvestor
+        ? `<div style="margin-bottom:8px;padding:7px 10px;background:rgba(255,200,50,0.07);border-left:3px solid rgba(180,140,40,0.5);border-radius:0 6px 6px 0;font-size:0.78rem;color:var(--text-secondary);">
+            <strong>⚖️ Compliance reminder:</strong> All investor messages require manual approval and must not promise returns or guarantee outcomes.
+           </div>`
+        : '';
       return `
-        <div class="queue-card" id="queue-card-${msg.id}">
+        <div class="queue-card" id="queue-card-${msg.id}" style="${isInvestor ? 'border-left:3px solid rgba(180,140,40,0.4);' : ''}">
           <div class="queue-card-header">
             <div>
               <strong>${escapeHtml(lead.name || 'Unknown')}</strong>
-              <span class="type-badge ${lead.type}">${lead.type}</span>
+              ${isInvestor ? investorBadge : `<span class="type-badge ${lead.type}">${lead.type}</span>`}
               <span class="channel-badge">${msg.channel}</span>
             </div>
             <span class="text-muted">${timeAgo(new Date(msg.created_at))}</span>
@@ -407,6 +463,7 @@
           ${msg.subject ? `<div class="queue-subject"><strong>Subject:</strong> ${escapeHtml(msg.subject)}</div>` : ''}
           <div class="queue-body">${escapeHtml(msg.body)}</div>
           <div class="queue-actions">
+            ${complianceNote}
             <button class="btn btn-sm" onclick="window.toggleEditMessage('${msg.id}')"><span class="icon-inline" data-icon="edit"></span> Edit</button>
             <button class="btn btn-sm btn-danger" onclick="window.skipMessage('${msg.id}')">Skip</button>
             <button class="btn btn-sm btn-primary" onclick="window.approveAndSend('${msg.id}')"><span class="icon-inline" data-icon="send"></span> Approve & Send</button>

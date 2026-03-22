@@ -1051,6 +1051,9 @@
               <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                 <h2 class="card-title">Opportunity Pipeline</h2>
                 <div style="display:flex;gap:8px;align-items:center;">
+                  <select id="pipeline-filter-type" class="form-input" style="width:auto;" onchange="switchOutreachTab('pipeline')">
+                    <option value="">All Types</option><option value="provider">Provider</option><option value="investor">Investor</option><option value="member">Member</option>
+                  </select>
                   <select id="pipeline-filter-priority" class="form-input" style="width:auto;" onchange="switchOutreachTab('pipeline')">
                     <option value="">All Priorities</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
                   </select>
