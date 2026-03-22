@@ -348,9 +348,12 @@
 
     let wefunderCard = '';
     if (typeFilter === 'investor') {
-      const totalLeads = displayed.length;
-      const contacted = displayed.filter(o => ['contacted', 'converted', 'message_queued'].includes(o.stage)).length;
-      const pendingDrafts = (outreachMessages || []).filter(m => (m.outreach_leads || {}).type === 'investor' && m.status === 'draft').length;
+      let iStats = { total_investor_leads: displayed.length, total_outreach_sent: 0, pending_approval: 0, wefunder_ref_clicks: 0 };
+      try {
+        const statsRes = await outreachFetch('/investor-stats');
+        if (statsRes.ok) iStats = await statsRes.json();
+      } catch (_) {}
+
       wefunderCard = `
         <div style="margin:0 0 16px;padding:16px;background:linear-gradient(135deg,rgba(180,120,20,0.12),rgba(100,70,10,0.08));border:1px solid rgba(180,140,40,0.3);border-radius:10px;">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
@@ -363,16 +366,20 @@
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
             <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;">
-              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-gold,#c9a227);">${totalLeads}</div>
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-gold,#c9a227);">${iStats.total_investor_leads}</div>
               <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Investor Leads</div>
             </div>
             <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;">
-              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-blue);">${contacted}</div>
-              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Contacted / Active</div>
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-blue);">${iStats.total_outreach_sent}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Outreach Sent</div>
             </div>
             <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;">
-              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-orange);">${pendingDrafts}</div>
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-orange);">${iStats.pending_approval}</div>
               <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Drafts Pending Approval</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-green,#22c55e);">${iStats.wefunder_ref_clicks}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Wefunder Ref Clicks</div>
             </div>
           </div>
           <div style="margin-top:10px;padding:8px 12px;background:rgba(255,200,50,0.07);border-left:3px solid rgba(180,140,40,0.5);border-radius:0 6px 6px 0;font-size:0.8rem;color:var(--text-secondary);">
@@ -386,11 +393,49 @@
       return;
     }
 
-    container.innerHTML = wefunderCard + displayed.map(opp => {
+    const investorHeaderRow = typeFilter === 'investor'
+      ? `<div class="pipeline-header-row" style="grid-template-columns:80px 1fr 100px 1fr 1fr 90px 130px;">
+           <div>Score</div><div>Name</div><div>Source</div><div>AI Notes</div><div>Last Contact</div><div>Stage</div><div>Actions</div>
+         </div>`
+      : '';
+
+    const prevHeader = document.querySelector('#outreach-pipeline .pipeline-header-row');
+    if (prevHeader) prevHeader.style.display = typeFilter === 'investor' ? 'none' : '';
+
+    container.innerHTML = wefunderCard + investorHeaderRow + displayed.map(opp => {
       const lead = opp.outreach_leads || {};
       const isDuplicate = lead.crm_sync_status === 'duplicate';
       const isReengagement = lead.source === 'crm_reengagement';
       const isInvestor = lead.type === 'investor';
+
+      if (isInvestor && typeFilter === 'investor') {
+        const lastContact = opp.last_action_at
+          ? timeAgo(new Date(opp.last_action_at))
+          : (opp.added_at ? timeAgo(new Date(opp.added_at)) : '—');
+        const srcLabel = escapeHtml((lead.source || 'manual').replace(/_/g, ' '));
+        return `
+          <div class="pipeline-row" style="animation:slideIn 0.3s ease;border-left:3px solid rgba(180,140,40,0.5);grid-template-columns:80px 1fr 100px 1fr 1fr 90px 130px;">
+            <div class="pipeline-cell">
+              <div class="score-bar"><div class="score-fill" style="width:${opp.opportunity_score}%"></div></div>
+              <span class="score-text">${opp.opportunity_score}</span>
+            </div>
+            <div class="pipeline-cell">
+              <strong>${escapeHtml(lead.name || 'Unknown')}</strong>
+              <span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;background:rgba(180,140,40,0.18);color:#c9a227;border:1px solid rgba(180,140,40,0.35);margin-left:4px;">Investor</span>
+              ${isDuplicate ? '<span class="crm-badge duplicate">CRM User</span>' : ''}
+            </div>
+            <div class="pipeline-cell"><span class="source-badge">${srcLabel}</span></div>
+            <div class="pipeline-cell pipeline-notes">${escapeHtml(opp.ai_notes || '-')}</div>
+            <div class="pipeline-cell">${lastContact}</div>
+            <div class="pipeline-cell"><span class="stage-badge ${opp.stage}">${opp.stage.replace(/_/g, ' ')}</span></div>
+            <div class="pipeline-cell" style="display:flex;gap:4px;">
+              <button class="btn btn-sm" onclick="window.previewMessage('${lead.id}')" title="Preview message">Preview</button>
+              ${!isDuplicate && lead.status !== 'unsubscribed' ? `<button class="btn btn-sm btn-primary" onclick="window.draftForLead('${lead.id}')">Draft</button>` : '<span class="text-muted">—</span>'}
+            </div>
+          </div>
+        `;
+      }
+
       return `
         <div class="pipeline-row" style="animation:slideIn 0.3s ease;${isInvestor ? 'border-left:3px solid rgba(180,140,40,0.5);' : ''}">
           <div class="pipeline-cell">

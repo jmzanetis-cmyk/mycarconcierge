@@ -2591,6 +2591,37 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
           else json(res, 200, data || []);
         }
 
+        else if (req.method === 'GET' && pathname === '/investor-stats') {
+          const { data: investorLeads, count: totalLeads } = await supabase
+            .from('outreach_leads').select('id', { count: 'exact' }).eq('type', 'investor');
+          const investorIds = (investorLeads || []).map(l => l.id);
+
+          let totalSent = 0, pendingApproval = 0, wefunderClicks = 0;
+          if (investorIds.length > 0) {
+            const [sentRes, draftRes] = await Promise.all([
+              supabase.from('outreach_messages').select('id', { count: 'exact', head: true })
+                .in('lead_id', investorIds).in('status', ['sent', 'approved']),
+              supabase.from('outreach_messages').select('id', { count: 'exact', head: true })
+                .in('lead_id', investorIds).eq('status', 'draft')
+            ]);
+            totalSent = sentRes.count || 0;
+            pendingApproval = draftRes.count || 0;
+          }
+
+          const { count: refCount } = await supabase
+            .from('founder_campaign_clicks')
+            .select('id', { count: 'exact', head: true })
+            .ilike('founder_code', 'investor%');
+          wefunderClicks = refCount || 0;
+
+          json(res, 200, {
+            total_investor_leads: totalLeads || 0,
+            total_outreach_sent: totalSent,
+            pending_approval: pendingApproval,
+            wefunder_ref_clicks: wefunderClicks
+          });
+        }
+
         else if (req.method === 'POST' && pathname === '/pipeline/score') {
           const body = await parseBody(req);
           let leadsToScore = [];
