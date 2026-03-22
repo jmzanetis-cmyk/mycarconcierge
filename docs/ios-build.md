@@ -253,6 +253,7 @@ Run through every item below before clicking **Submit for Review** in App Store 
   - [x] Google Cloud Vision (OCR)
   - [x] Anthropic / Google Gemini (AI features)
   - [x] Resend (email)
+  - [x] Instantly.ai (provider/investor outreach email)
   - [x] BackgroundChecks.com (provider background screening)
 - [ ] App does not collect data from children under 13 — confirmed in Age Rating questionnaire
 - [ ] No third-party SDKs in the build that require additional privacy disclosures (verify in Xcode → Privacy Report)
