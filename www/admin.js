@@ -2019,7 +2019,7 @@
       filteredProviders = filterProvidersData();
       
       if (!filteredProviders.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No providers match filters</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No providers match filters</td></tr>';
         updateBulkBar();
         return;
       }
@@ -2046,6 +2046,11 @@
             <td>${mccIcon('star', 16)} ${stats.average_rating?.toFixed(1) || 'New'}${stats.average_rating && stats.average_rating < 4 ? ' <span style="color:var(--accent-red);">' + mccIcon('alert-triangle', 16) + '</span>' : ''}</td>
             <td>${stats.jobs_completed || 0}</td>
             <td>$${(stats.total_earnings || 0).toLocaleString()}</td>
+            <td>
+              ${p.background_verified
+                ? `<span style="padding:3px 8px;border-radius:100px;font-size:0.75rem;font-weight:600;background:rgba(74,200,140,0.15);color:var(--accent-green);border:1px solid rgba(74,200,140,0.3);" title="${p.background_verified_at ? 'Verified ' + new Date(p.background_verified_at).toLocaleDateString() : 'Verified'}">✅ Verified</span>`
+                : `<span style="padding:3px 8px;border-radius:100px;font-size:0.75rem;font-weight:600;background:rgba(100,100,120,0.12);color:var(--text-muted);border:1px solid var(--border-subtle);">— Pending</span>`}
+            </td>
             <td><span class="status-badge ${isSuspended ? 'rejected' : 'approved'}">${isSuspended ? 'Suspended' : 'Active'}</span></td>
             <td>
               <div style="display:flex;gap:4px;">

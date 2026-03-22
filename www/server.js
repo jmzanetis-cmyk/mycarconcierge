@@ -7695,10 +7695,29 @@ async function handleAdminGetProviders(req, res, requestId) {
       return;
     }
     
+    // Enrich with background check status from provider_applications
+    let enrichedData = data || [];
+    if (enrichedData.length > 0) {
+      const providerIds = enrichedData.map(p => p.id);
+      const { data: bgData } = await supabase
+        .from('provider_applications')
+        .select('user_id, background_verified, background_verified_at')
+        .in('user_id', providerIds);
+      if (bgData) {
+        const bgMap = {};
+        bgData.forEach(b => { bgMap[b.user_id] = b; });
+        enrichedData = enrichedData.map(p => ({
+          ...p,
+          background_verified: bgMap[p.id]?.background_verified || false,
+          background_verified_at: bgMap[p.id]?.background_verified_at || null,
+        }));
+      }
+    }
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       success: true,
-      data: data || [],
+      data: enrichedData,
       total: count || 0,
       page,
       totalPages: Math.ceil((count || 0) / limit)

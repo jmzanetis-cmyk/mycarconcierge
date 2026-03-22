@@ -312,6 +312,9 @@ async function showSection(id) {
   // Section-specific loading
   if (id === 'team' && typeof loadTeamMembers === 'function') {
     loadTeamMembers();
+  }
+  if (id === 'background-checks') {
+    if (typeof loadVerificationBadgeStatus === 'function') loadVerificationBadgeStatus();
     if (typeof loadBackgroundCheckStatus === 'function') loadBackgroundCheckStatus();
   }
   if (id === 'team-section' && typeof loadTeamManagementData === 'function') {
