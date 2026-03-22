@@ -7695,21 +7695,26 @@ async function handleAdminGetProviders(req, res, requestId) {
       return;
     }
     
-    // Enrich with background check status from provider_applications
+    // Enrich with provider's own background check status from provider_background_checks
     let enrichedData = data || [];
     if (enrichedData.length > 0) {
       const providerIds = enrichedData.map(p => p.id);
       const { data: bgData } = await supabase
-        .from('provider_applications')
-        .select('user_id, background_verified, background_verified_at')
-        .in('user_id', providerIds);
+        .from('provider_background_checks')
+        .select('provider_id, status, updated_at')
+        .in('provider_id', providerIds)
+        .eq('subject_type', 'provider')
+        .order('created_at', { ascending: false });
       if (bgData) {
+        // Only keep the most recent check per provider
         const bgMap = {};
-        bgData.forEach(b => { bgMap[b.user_id] = b; });
+        bgData.forEach(b => {
+          if (!bgMap[b.provider_id]) bgMap[b.provider_id] = b;
+        });
         enrichedData = enrichedData.map(p => ({
           ...p,
-          background_verified: bgMap[p.id]?.background_verified || false,
-          background_verified_at: bgMap[p.id]?.background_verified_at || null,
+          bgcheck_status: bgMap[p.id]?.status || null,
+          bgcheck_updated_at: bgMap[p.id]?.updated_at || null,
         }));
       }
     }

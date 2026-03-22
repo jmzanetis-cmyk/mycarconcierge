@@ -2014,6 +2014,26 @@
     let selectedProviders = new Set();
     let filteredProviders = [];
 
+    function renderBgCheckBadge(status, updatedAt) {
+      const cfg = {
+        eligible:     { bg: 'rgba(74,200,140,0.15)',  border: 'rgba(74,200,140,0.3)',  color: 'var(--accent-green)',  icon: '✅', label: 'Cleared'    },
+        clear:        { bg: 'rgba(74,200,140,0.15)',  border: 'rgba(74,200,140,0.3)',  color: 'var(--accent-green)',  icon: '✅', label: 'Cleared'    },
+        needs_review: { bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)',  color: 'var(--accent-orange)', icon: '⚠️', label: 'Review'     },
+        not_eligible: { bg: 'rgba(239,95,95,0.15)',   border: 'rgba(239,95,95,0.3)',   color: 'var(--accent-red)',    icon: '🚫', label: 'Not Eligible'},
+        initiated:    { bg: 'rgba(56,189,248,0.1)',   border: 'rgba(56,189,248,0.25)', color: 'var(--accent-blue)',   icon: '⏳', label: 'Initiated'  },
+        pending:      { bg: 'rgba(201,162,39,0.12)',  border: 'rgba(201,162,39,0.3)',  color: 'var(--accent-gold)',   icon: '⏳', label: 'Pending'    },
+        processing:   { bg: 'rgba(56,189,248,0.1)',   border: 'rgba(56,189,248,0.25)', color: 'var(--accent-blue)',   icon: '🔍', label: 'Processing' },
+        canceled:     { bg: 'rgba(100,100,120,0.1)',  border: 'var(--border-subtle)',  color: 'var(--text-muted)',    icon: '—',  label: 'Canceled'   },
+        disputed:     { bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.25)', color: 'var(--accent-orange)', icon: '⚠️', label: 'Disputed'   },
+      };
+      if (!status) {
+        return `<span style="font-size:0.75rem;color:var(--text-muted);">Not started</span>`;
+      }
+      const s = cfg[status] || { bg: 'rgba(100,100,120,0.1)', border: 'var(--border-subtle)', color: 'var(--text-muted)', icon: '—', label: status };
+      const title = updatedAt ? `title="Updated ${new Date(updatedAt).toLocaleDateString()}"` : '';
+      return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;background:${s.bg};color:${s.color};border:1px solid ${s.border};" ${title}>${s.icon} ${s.label}</span>`;
+    }
+
     function renderProviders() {
       const tbody = document.getElementById('providers-table');
       filteredProviders = filterProvidersData();
@@ -2046,11 +2066,7 @@
             <td>${mccIcon('star', 16)} ${stats.average_rating?.toFixed(1) || 'New'}${stats.average_rating && stats.average_rating < 4 ? ' <span style="color:var(--accent-red);">' + mccIcon('alert-triangle', 16) + '</span>' : ''}</td>
             <td>${stats.jobs_completed || 0}</td>
             <td>$${(stats.total_earnings || 0).toLocaleString()}</td>
-            <td>
-              ${p.background_verified
-                ? `<span style="padding:3px 8px;border-radius:100px;font-size:0.75rem;font-weight:600;background:rgba(74,200,140,0.15);color:var(--accent-green);border:1px solid rgba(74,200,140,0.3);" title="${p.background_verified_at ? 'Verified ' + new Date(p.background_verified_at).toLocaleDateString() : 'Verified'}">✅ Verified</span>`
-                : `<span style="padding:3px 8px;border-radius:100px;font-size:0.75rem;font-weight:600;background:rgba(100,100,120,0.12);color:var(--text-muted);border:1px solid var(--border-subtle);">— Pending</span>`}
-            </td>
+            <td>${renderBgCheckBadge(p.bgcheck_status, p.bgcheck_updated_at)}</td>
             <td><span class="status-badge ${isSuspended ? 'rejected' : 'approved'}">${isSuspended ? 'Suspended' : 'Active'}</span></td>
             <td>
               <div style="display:flex;gap:4px;">

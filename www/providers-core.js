@@ -273,6 +273,7 @@ async function initializeProviderDashboard(user) {
     if (typeof loadNotifications === 'function') loadNotifications();
     if (typeof loadTeamManagementData === 'function') loadTeamManagementData();
     if (typeof loadLoyaltyNetwork === 'function') loadLoyaltyNetwork();
+    if (typeof loadBackgroundCheckStatus === 'function') loadBackgroundCheckStatus();
   });
   
   // Load jobs module for emergencies

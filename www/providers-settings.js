@@ -283,6 +283,22 @@ async function removeTeamMember(memberId) {
 
 // ========== BACKGROUND CHECKS ==========
 
+let _bgCheckPollTimer = null;
+
+function _clearBgCheckPoll() {
+  if (_bgCheckPollTimer) { clearInterval(_bgCheckPollTimer); _bgCheckPollTimer = null; }
+}
+
+function _startBgCheckPoll(status) {
+  _clearBgCheckPoll();
+  const inProgress = ['initiated','pending','processing'].includes(status);
+  if (inProgress) {
+    _bgCheckPollTimer = setInterval(() => {
+      loadBackgroundCheckStatus({ silent: true });
+    }, 20000);
+  }
+}
+
 const BG_STATUS_CONFIG = {
   initiated:    { color: 'var(--accent-blue)',   label: 'Initiated',    icon: '⏳' },
   pending:      { color: 'var(--accent-gold)',   label: 'Pending',      icon: '⏳' },
@@ -301,10 +317,13 @@ function bgCheckStatusBadge(status) {
   return `<span style="padding:3px 10px;border-radius:100px;font-size:0.78rem;font-weight:600;background:${cfg.color}22;color:${cfg.color};border:1px solid ${cfg.color}44;">${cfg.icon} ${cfg.label}</span>`;
 }
 
-async function loadBackgroundCheckStatus() {
+async function loadBackgroundCheckStatus(opts = {}) {
+  const silent = opts?.silent || false;
   const providerContainer = document.getElementById('provider-check-content');
   const teamContainer     = document.getElementById('team-checks-list');
-  if (!providerContainer && !teamContainer) return;
+  const dashCard          = document.getElementById('bg-check-dashboard-status');
+
+  if (!providerContainer && !teamContainer && !dashCard) return;
 
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
@@ -315,6 +334,7 @@ async function loadBackgroundCheckStatus() {
 
     if (!response.ok) throw new Error('Failed to fetch background check status');
     const data = await response.json();
+    const lastUpdated = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     // ---- Provider's own check ----
     if (providerContainer) {
@@ -391,11 +411,41 @@ async function loadBackgroundCheckStatus() {
         }).join('');
       }
     }
+    // ---- Dashboard card update (overview section) ----
+    if (dashCard) {
+      const pc = data.providerCheck;
+      if (!pc) {
+        dashCard.innerHTML = `
+          <div style="display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div style="font-size:0.85rem;color:var(--text-muted);">No background check on file.</div>
+            <button class="btn btn-primary btn-sm" onclick="openBackgroundCheckModal('provider')" style="white-space:nowrap;">🛡️ Start Check</button>
+          </div>`;
+        _clearBgCheckPoll();
+      } else {
+        const cfg = BG_STATUS_CONFIG[pc.status] || {};
+        const updatedAt = pc.updated_at ? new Date(pc.updated_at).toLocaleDateString() : lastUpdated;
+        const showReport = ['eligible','clear','needs_review','not_eligible'].includes(pc.status);
+        dashCard.innerHTML = `
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:0;">
+              ${bgCheckStatusBadge(pc.status)}
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;">Updated ${updatedAt} · <span style="color:var(--text-muted);">Last checked ${lastUpdated}</span></div>
+            </div>
+            ${showReport && pc.id ? `<button class="btn btn-secondary btn-sm" onclick="viewBgCheckReport('${pc.id}')" style="white-space:nowrap;flex-shrink:0;">View Report</button>` : ''}
+            ${['initiated','pending','processing'].includes(pc.status) ? `<div style="font-size:0.75rem;color:var(--accent-blue);white-space:nowrap;">Auto-refreshing…</div>` : ''}
+          </div>`;
+        _startBgCheckPoll(pc.status);
+      }
+    }
+
   } catch (err) {
     console.error('Error loading background check status:', err);
-    const errMsg = `<div style="padding:16px;color:var(--text-muted);font-size:0.9rem;">Unable to load check status. Please try again.</div>`;
-    if (providerContainer) providerContainer.innerHTML = errMsg;
-    if (teamContainer) teamContainer.innerHTML = errMsg;
+    if (!opts?.silent) {
+      const errMsg = `<div style="padding:16px;color:var(--text-muted);font-size:0.9rem;">Unable to load check status. Please try again.</div>`;
+      if (providerContainer) providerContainer.innerHTML = errMsg;
+      if (teamContainer) teamContainer.innerHTML = errMsg;
+      if (dashCard) dashCard.innerHTML = `<div style="font-size:0.85rem;color:var(--text-muted);">Unable to load</div>`;
+    }
   }
 }
 
