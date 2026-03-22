@@ -1,6 +1,7 @@
 (function() {
   const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
   let outreachState = {};
+  let apolloConfig = null;
   let outreachLeads = [];
   let outreachPipeline = [];
   let outreachMessages = [];
@@ -78,9 +79,15 @@
 
   async function loadEngineState() {
     try {
-      const res = await outreachFetch('/engine-state');
-      const data = await res.json();
-      outreachState = data;
+      const [stateRes, apolloRes] = await Promise.all([
+        outreachFetch('/engine-state'),
+        fetch(`${apiBase}/api/admin/apollo/config`, { headers: getOutreachHeaders() })
+      ]);
+      outreachState = await stateRes.json();
+      if (apolloRes.ok) {
+        const apolloData = await apolloRes.json();
+        if (apolloData.config) apolloConfig = apolloData.config;
+      }
       renderEngineControlPanel();
     } catch (e) {
       console.error('Failed to load engine state:', e);
@@ -97,6 +104,21 @@
     const pausedText = outreachState.paused_at ? `Paused ${timeAgo(new Date(outreachState.paused_at))}${outreachState.paused_by ? ' by ' + outreachState.paused_by : ''}` : '';
 
     const autoSendOn = outreachState.auto_send !== false;
+    const apolloEnabled = apolloConfig?.enabled === true;
+    const apolloLastRun = apolloConfig?.last_run ? (() => {
+      const mins = Math.round((Date.now() - new Date(apolloConfig.last_run)) / 60000);
+      return mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
+    })() : null;
+    const apolloBadgeHtml = apolloEnabled
+      ? `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;font-size:12px;font-weight:600;">
+           <span style="width:7px;height:7px;border-radius:50%;background:#4ade80;display:inline-block;"></span>
+           Discovery Active${apolloLastRun ? ' · last run ' + apolloLastRun : ''}
+         </span>`
+      : `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#f87171;font-size:12px;font-weight:600;">
+           <span style="width:7px;height:7px;border-radius:50%;background:#f87171;display:inline-block;"></span>
+           Discovery Disabled
+         </span>
+         <button class="btn btn-sm" onclick="window.enableApolloDiscovery()" style="font-size:12px;padding:3px 10px;background:var(--accent-blue,#2563eb);color:#fff;border:none;">Enable Discovery</button>`;
     panel.innerHTML = `
       <div class="engine-status-row">
         <div class="engine-status-left">
@@ -123,6 +145,11 @@
           <button class="btn btn-sm" onclick="window.enrichLeadContacts()" title="Enrich Lead Contacts" style="background:var(--accent-gold,#d4a843);color:#000"><span class="icon-inline" data-icon="search"></span> Enrich Contacts</button>
         </div>
       </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-top:4px;background:var(--bg-elevated,#1a1f2e);border-radius:8px;border:1px solid var(--border-subtle,#2a3040);flex-wrap:wrap;">
+        <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Apollo Discovery:</span>
+        ${apolloBadgeHtml}
+        ${!apolloEnabled ? `<span style="font-size:11px;color:var(--text-muted);margin-left:4px;">After enabling, also add <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">&#123;&#123;ref_link&#125;&#125;</code> as a variable in your Instantly.ai campaign template to track provider signups.</span>` : ''}
+      </div>
     `;
     if (typeof initInlineIcons !== 'undefined') initInlineIcons(panel);
   }
@@ -144,6 +171,36 @@
     }
     await loadEngineState();
   }
+
+  async function enableApolloDiscovery() {
+    if (typeof showToast !== 'undefined') showToast('Enabling Apollo discovery...');
+    try {
+      const saveRes = await fetch(`${apiBase}/api/admin/apollo/config`, {
+        method: 'POST',
+        headers: getOutreachHeaders(),
+        body: JSON.stringify({ enabled: true })
+      });
+      if (!saveRes.ok) throw new Error('Failed to save config');
+      apolloConfig = (await saveRes.json()).config || { ...apolloConfig, enabled: true };
+      renderEngineControlPanel();
+      if (typeof showToast !== 'undefined') showToast('Apollo discovery enabled — starting first cycle...');
+      const cycleRes = await fetch(`${apiBase}/api/admin/apollo/cycle`, {
+        method: 'POST',
+        headers: getOutreachHeaders(),
+        body: JSON.stringify({ force: true })
+      });
+      const cycleData = await cycleRes.json();
+      if (cycleData.success) {
+        if (typeof showToast !== 'undefined') showToast(`Discovery cycle complete: ${cycleData.added || 0} leads added`);
+      } else if (cycleData.skipped) {
+        if (typeof showToast !== 'undefined') showToast(`Cycle skipped: ${cycleData.reason}`, 'warning');
+      }
+      await loadEngineState();
+    } catch (e) {
+      if (typeof showToast !== 'undefined') showToast('Failed to enable Apollo: ' + e.message, 'error');
+    }
+  }
+  window.enableApolloDiscovery = enableApolloDiscovery;
 
   async function runManualCycle() {
     if (typeof showToast !== 'undefined') showToast('Running engine cycle...');

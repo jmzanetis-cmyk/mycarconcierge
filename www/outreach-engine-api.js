@@ -1847,20 +1847,24 @@ async function pushLeadsToInstantly(supabase, leads, campaignId) {
       const nameParts = (lead.name || '').split(' ');
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
+      const customVars = {
+        lead_type: lead.type || '',
+        source: lead.source || '',
+        score: String(lead.score || ''),
+        location: lead.location || '',
+        mcc_lead_id: lead.id,
+        search_category: lead.metadata?.search_category || ''
+      };
+      if (lead.type === 'provider') {
+        customVars.ref_link = `${BASE_URL}/api/outreach/ref?id=${lead.id}`;
+      }
       return {
         email: lead.email,
         first_name: firstName,
         last_name: lastName,
         company_name: lead.company || lead.name || '',
         website: lead.website || '',
-        custom_variables: {
-          lead_type: lead.type || '',
-          source: lead.source || '',
-          score: String(lead.score || ''),
-          location: lead.location || '',
-          mcc_lead_id: lead.id,
-          search_category: lead.metadata?.search_category || ''
-        }
+        custom_variables: customVars
       };
     });
 
