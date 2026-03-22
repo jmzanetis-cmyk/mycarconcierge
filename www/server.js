@@ -15967,6 +15967,9 @@ async function handleSplitCreate(req, res, requestId) {
           try {
             const isGuest = !participant.member_id && participants.find(p => p.email.toLowerCase() === participant.email)?.is_guest;
             const guestToken = isGuest ? generateGuestToken(participant.id) : null;
+            if (isGuest && !guestToken) {
+              console.warn(`[SplitPay] Skipping guest invite email to ${participant.email} — guest token signing is disabled (ADMIN_PASSWORD not set)`);
+            } else {
             const payLink = isGuest 
               ? `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}&guest=true&token=${guestToken}`
               : `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}`;
@@ -15998,6 +16001,7 @@ async function handleSplitCreate(req, res, requestId) {
               subject: 'You\'ve been invited to split a payment - My Car Concierge',
               html: emailHtml
             });
+            } // end else (guest token available)
           } catch (emailErr) {
             console.error(`[${requestId}] Failed to send split payment email to ${participant.email}:`, emailErr.message);
           }
@@ -16206,6 +16210,9 @@ async function handleSplitCreateAdditional(req, res, requestId) {
           try {
             const isGuest = !participant.member_id && participants.find(p => p.email.toLowerCase() === participant.email)?.is_guest;
             const guestToken = isGuest ? generateGuestToken(participant.id) : null;
+            if (isGuest && !guestToken) {
+              console.warn(`[SplitPay] Skipping guest invite email to ${participant.email} — guest token signing is disabled (ADMIN_PASSWORD not set)`);
+            } else {
             const payLink = isGuest
               ? `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}&guest=true&token=${guestToken}`
               : `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}`;
@@ -16240,6 +16247,7 @@ async function handleSplitCreateAdditional(req, res, requestId) {
               subject: 'Urgent: Split Payment for Additional Work - My Car Concierge (2hr window)',
               html: emailHtml
             });
+            } // end else (guest token available)
           } catch (emailErr) {
             console.error(`[${requestId}] Failed to send additional work split payment email to ${participant.email}:`, emailErr.message);
           }
@@ -17411,6 +17419,9 @@ async function handleSplitReactivate(req, res, requestId, splitId) {
           try {
             const isGuest = !participant.member_id && participants.find(p => p.email.toLowerCase() === participant.email)?.is_guest;
             const guestToken = isGuest ? generateGuestToken(participant.id) : null;
+            if (isGuest && !guestToken) {
+              console.warn(`[SplitPay] Skipping guest invite email to ${participant.email} — guest token signing is disabled (ADMIN_PASSWORD not set)`);
+            } else {
             const payLink = isGuest
               ? `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}&guest=true&token=${guestToken}`
               : `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}`;
@@ -17442,6 +17453,7 @@ async function handleSplitReactivate(req, res, requestId, splitId) {
               subject: 'You\'ve been invited to split a payment - My Car Concierge',
               html: emailHtml
             });
+            } // end else (guest token available)
           } catch (emailErr) {
             console.error(`[${requestId}] Failed to send split reactivation email to ${participant.email}:`, emailErr.message);
           }
