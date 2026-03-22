@@ -429,9 +429,10 @@ function openBackgroundCheckModal(subjectType) {
 
 function _populateBgCheckTeamMemberSelect() {
   const sel = document.getElementById('bg-check-team-member');
-  if (!sel || !Array.isArray(window._teamMembers)) return;
+  if (!sel) return;
+  const members = Array.isArray(teamMembers) ? teamMembers : [];
   sel.innerHTML = '<option value="">Select a team member...</option>' +
-    window._teamMembers.map(m => `<option value="${m.id}" data-email="${m.email || ''}" data-name="${m.full_name || ''}">${m.full_name || m.email || m.id}</option>`).join('');
+    members.map(m => `<option value="${m.id}" data-email="${m.email || ''}" data-name="${m.full_name || ''}">${m.full_name || m.email || m.id}</option>`).join('');
   sel.onchange = function() {
     const opt = sel.options[sel.selectedIndex];
     const email = opt.getAttribute('data-email') || '';
@@ -490,6 +491,7 @@ async function submitBackgroundCheck() {
 
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
+    const providerId = providerProfile?.team_provider_id || currentUser?.id;
     const response = await fetch('/api/bgcheck/initiate', {
       method: 'POST',
       headers: {
@@ -497,13 +499,16 @@ async function submitBackgroundCheck() {
         'Authorization': `Bearer ${session?.access_token}`
       },
       body: JSON.stringify({
-        subject_type: type === 'employee' ? 'employee' : 'provider',
-        employee_id: type === 'employee' ? teamMemberId : null,
-        first_name: firstName,
-        last_name: lastName,
+        providerId,
+        subjectType: type === 'employee' ? 'employee' : 'provider',
+        employeeId: type === 'employee' ? (teamMemberId || null) : null,
+        firstName,
+        lastName,
         email,
         state,
-        phone: phone || undefined
+        phone: phone || undefined,
+        providerEmail: currentUser?.email || undefined,
+        providerName: providerProfile?.business_name || providerProfile?.full_name || undefined
       })
     });
 
@@ -527,6 +532,19 @@ async function submitBackgroundCheck() {
 }
 
 async function viewBgCheckReport(checkId) {
+  const modal = document.getElementById('bg-report-viewer-modal');
+  const iframe = document.getElementById('bg-report-viewer-iframe');
+  const loader = document.getElementById('bg-report-viewer-loader');
+  const errorEl = document.getElementById('bg-report-viewer-error');
+
+  if (!modal || !iframe) return;
+
+  // Reset state
+  iframe.style.display = 'none';
+  if (loader)  { loader.style.display = 'flex'; loader.textContent = 'Loading report…'; }
+  if (errorEl) errorEl.style.display = 'none';
+  openModal('bg-report-viewer-modal');
+
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     const response = await fetch(`/api/bgcheck/report-url/${checkId}`, {
@@ -535,14 +553,29 @@ async function viewBgCheckReport(checkId) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Unable to load report');
 
-    if (data.reportUrl) {
-      window.open(data.reportUrl, '_blank', 'noopener');
-    } else {
-      showToast('Report not yet available. Check back after the check completes.', 'warning');
+    if (!data.reportUrl) {
+      throw new Error('Report not yet available. Check back after the background check completes.');
     }
+
+    iframe.src = data.reportUrl;
+    iframe.onload = () => {
+      if (loader) loader.style.display = 'none';
+      iframe.style.display = 'block';
+    };
+    iframe.onerror = () => {
+      if (loader) loader.style.display = 'none';
+      if (errorEl) {
+        errorEl.style.display = 'block';
+        errorEl.innerHTML = `Unable to embed report. <a href="${data.reportUrl}" target="_blank" rel="noopener" style="color:var(--accent-gold);">Open in new tab →</a>`;
+      }
+    };
   } catch (err) {
     console.error('viewBgCheckReport error:', err);
-    showToast(err.message || 'Could not load report', 'error');
+    if (loader) loader.style.display = 'none';
+    if (errorEl) {
+      errorEl.style.display = 'block';
+      errorEl.textContent = err.message || 'Could not load report';
+    }
   }
 }
 

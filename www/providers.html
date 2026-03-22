@@ -5203,6 +5203,26 @@
     </div>
   </div>
 
+  <!-- Background Check Report Viewer Modal (Connect Widget) -->
+  <div class="modal-backdrop" id="bg-report-viewer-modal">
+    <div class="modal" style="max-width:900px;width:95vw;height:85vh;display:flex;flex-direction:column;">
+      <div class="modal-header" style="flex-shrink:0;">
+        <h3 class="modal-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span> Background Check Report</h3>
+        <button class="modal-close" onclick="closeModal('bg-report-viewer-modal'); document.getElementById('bg-report-viewer-iframe').src='about:blank';">×</button>
+      </div>
+      <div class="modal-body" style="flex:1;padding:0;overflow:hidden;display:flex;flex-direction:column;min-height:0;">
+        <div id="bg-report-viewer-loader" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.95rem;padding:40px;">Loading report…</div>
+        <div id="bg-report-viewer-error" style="display:none;padding:24px;color:var(--accent-red);font-size:0.9rem;"></div>
+        <iframe id="bg-report-viewer-iframe"
+          style="display:none;width:100%;flex:1;border:none;border-radius:0 0 var(--radius-lg) var(--radius-lg);"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+          title="BackgroundChecks.com Connect Widget"
+          referrerpolicy="strict-origin-when-cross-origin">
+        </iframe>
+      </div>
+    </div>
+  </div>
+
   <!-- Background Check Modal -->
   <div class="modal-backdrop" id="background-check-modal">
     <div class="modal">
