@@ -9939,7 +9939,7 @@ async function handleEnrichRecall(req, res, requestId, recallId) {
 
     const { data: recall, error: fetchError } = await supabase
       .from('vehicle_recalls')
-      .select('id, vehicle_id, component, summary, consequence, remedy, manufacturer, nhtsa_campaign_number, ai_summary, severity')
+      .select('id, vehicle_id, component, summary, consequence, remedy, manufacturer, nhtsa_campaign_number')
       .eq('id', recallId)
       .single();
 
@@ -9968,10 +9968,19 @@ async function handleEnrichRecall(req, res, requestId, recallId) {
       }
     }
 
-    if (recall.ai_summary && recall.severity) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, ai_summary: recall.ai_summary, severity: recall.severity, cached: true }));
-      return;
+    let aiColumnsReady = false;
+    const { data: aiRow, error: aiColErr } = await supabase
+      .from('vehicle_recalls')
+      .select('ai_summary, severity')
+      .eq('id', recallId)
+      .single();
+    if (!aiColErr) {
+      aiColumnsReady = true;
+      if (aiRow?.ai_summary && aiRow?.severity) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, ai_summary: aiRow.ai_summary, severity: aiRow.severity, cached: true }));
+        return;
+      }
     }
 
     if (!anthropicClient) {
@@ -10023,14 +10032,13 @@ Severity guide: critical = risk of injury/accident/fire; important = significant
       severity = 'monitor';
     }
 
-    if (aiSummary) {
-      try {
-        await supabase
-          .from('vehicle_recalls')
-          .update({ ai_summary: aiSummary, severity })
-          .eq('id', recallId);
-      } catch (dbErr) {
-        console.error(`[${requestId}] Failed to save recall enrichment:`, dbErr.message);
+    if (aiSummary && aiColumnsReady) {
+      const { error: updateErr } = await supabase
+        .from('vehicle_recalls')
+        .update({ ai_summary: aiSummary, severity })
+        .eq('id', recallId);
+      if (updateErr) {
+        console.error(`[${requestId}] Failed to save recall enrichment:`, updateErr.message);
       }
     }
 
@@ -10047,10 +10055,9 @@ Severity guide: critical = risk of injury/accident/fire; important = significant
 async function runRecallsAiMigration() {
   const supabase = getSupabaseClient();
   if (!supabase) return;
-  try {
-    await supabase.from('vehicle_recalls').select('ai_summary, severity').limit(1);
-  } catch {
-    console.warn('[Migration] vehicle_recalls ai_summary/severity columns not yet added. Run vehicle_recalls_ai_columns_migration.sql in Supabase SQL Editor.');
+  const { error } = await supabase.from('vehicle_recalls').select('ai_summary, severity').limit(1);
+  if (error && (error.code === '42703' || (error.message && error.message.includes('ai_summary')))) {
+    console.warn('[Migration] vehicle_recalls ai_summary/severity columns missing. Run supabase/migrations/20260322_vehicle_recalls_ai_columns.sql in the Supabase SQL Editor to enable AI recall enrichment.');
   }
 }
 
