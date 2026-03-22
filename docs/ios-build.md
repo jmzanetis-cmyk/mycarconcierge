@@ -223,8 +223,8 @@ Run through every item below before clicking **Submit for Review** in App Store 
 - [ ] Description filled in (≤ 4,000 chars) — see `docs/appstore-metadata.md`
 - [ ] Promotional Text filled in (≤ 170 chars) — see `docs/appstore-metadata.md`
 - [ ] Keywords filled in (≤ 100 chars) — see `docs/appstore-metadata.md`
-- [ ] Support URL resolves: `https://mycarconcierge.com/support.html` → HTTP 200
-- [ ] Privacy Policy URL resolves: `https://mycarconcierge.com/privacy.html` → HTTP 200
+- [ ] Support URL resolves: `https://www.mycarconcierge.com/support.html` → HTTP 200
+- [ ] Privacy Policy URL resolves: `https://www.mycarconcierge.com/privacy.html` → HTTP 200
 - [ ] What's New text entered for version 1.0.0 — see `docs/appstore-metadata.md`
 - [ ] Primary Category: **Lifestyle** / Secondary Category: **Business**
 - [ ] Age Rating questionnaire completed — expected result: **4+**

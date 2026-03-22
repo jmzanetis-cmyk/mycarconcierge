@@ -108,11 +108,11 @@ car service,mechanic finder,auto repair,vehicle care,car maintenance,oil change,
 
 | Field | Value |
 |---|---|
-| **Support URL** | https://mycarconcierge.com/support.html |
-| **Marketing URL** | https://mycarconcierge.com |
-| **Privacy Policy URL** | https://mycarconcierge.com/privacy.html |
+| **Support URL** | https://www.mycarconcierge.com/support.html |
+| **Marketing URL** | https://www.mycarconcierge.com |
+| **Privacy Policy URL** | https://www.mycarconcierge.com/privacy.html |
 
-> **Note:** All three URLs must be publicly reachable before submission. Verify that `https://mycarconcierge.com/privacy.html` and `https://mycarconcierge.com/support.html` return HTTP 200 responses on production.
+> **Note:** All three URLs must be publicly reachable before submission. Verify that `https://www.mycarconcierge.com/privacy.html` and `https://www.mycarconcierge.com/support.html` return HTTP 200 responses on production. Use the `www.` subdomain consistently — confirm that `https://mycarconcierge.com` (apex) either redirects to `https://www.mycarconcierge.com` or serves the same content.
 
 ---
 
