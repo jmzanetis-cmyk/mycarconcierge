@@ -25890,7 +25890,7 @@ async function sendAppointmentReminders() {
         
         const message = `My Car Concierge: Reminder - Your ${serviceType} for ${vehicleName} is scheduled tomorrow at ${appointmentTime} with ${providerName}. Reply HELP for assistance.`;
         
-        const smsResult = await sendSmsNotification(member.phone, message, member.id, 'maintenance_reminders');
+        const smsResult = await sendSmsNotification(member.phone, message, member.id, 'maintenance_reminders', 'appointment_reminders');
 
         sendFCMPushNotification(
           [member.id],
