@@ -289,6 +289,9 @@ function _clearBgCheckPoll() {
   if (_bgCheckPollTimer) { clearInterval(_bgCheckPollTimer); _bgCheckPollTimer = null; }
 }
 
+// Clean up poll timer on page unload / session teardown
+window.addEventListener('beforeunload', _clearBgCheckPoll, { once: false });
+
 function _startBgCheckPoll(status) {
   _clearBgCheckPoll();
   const inProgress = ['initiated','pending','processing'].includes(status);
