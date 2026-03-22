@@ -3208,7 +3208,6 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
             { data: clickEventsInRange },
             { count: clicksToday },
             { count: clicksWeek },
-            { data: sentMsgsInRange },
             { count: totalSent },
             { count: totalConverted },
           ] = await Promise.all([
@@ -3228,10 +3227,6 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
               .select('id', { count: 'exact', head: true })
               .eq('event_type', 'ref_click')
               .gte('created_at', weekStart.toISOString()),
-            supabase.from('outreach_messages')
-              .select('id, lead_id, sent_at, campaign_id')
-              .eq('status', 'sent').not('sent_at', 'is', null)
-              .gte('sent_at', fromDate).lte('sent_at', toDate),
             supabase.from('outreach_messages')
               .select('id', { count: 'exact', head: true })
               .eq('status', 'sent'),
@@ -3253,23 +3248,27 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
           const providerInstantly = providerLeads.filter(l => l.metadata?.instantly_synced === true);
           const investorInstantly = investorLeads.filter(l => l.metadata?.instantly_synced === true);
 
-          // Funnel stage 3: Email Sent — match sent messages to lead type
-          const msgs = sentMsgsInRange || [];
-          const sentLeadIds = new Set(msgs.map(m => m.lead_id).filter(Boolean));
-          const unknownIds = [...sentLeadIds].filter(id => !leadMap[id]);
+          // Funnel stage 3: Email Opened — event_type='opened' in outreach_activity_log
+          const { data: openEventsInRange } = await supabase.from('outreach_activity_log')
+            .select('lead_id')
+            .eq('event_type', 'opened')
+            .gte('created_at', fromDate).lte('created_at', toDate);
+
+          const openedLeadIds = new Set((openEventsInRange || []).map(e => e.lead_id).filter(Boolean));
           const extraLeads = {};
-          if (unknownIds.length > 0) {
+          const openUnknownIds = [...openedLeadIds].filter(id => !leadMap[id]);
+          if (openUnknownIds.length > 0) {
             const { data: extra } = await supabase.from('outreach_leads')
-              .select('id, type').in('id', unknownIds.slice(0, 500));
+              .select('id, type').in('id', openUnknownIds.slice(0, 500));
             (extra || []).forEach(l => { extraLeads[l.id] = l; });
           }
           const getLeadType = id => leadMap[id]?.type || extraLeads[id]?.type || null;
 
-          let providerEmailSent = 0, investorEmailSent = 0;
-          sentLeadIds.forEach(id => {
+          let providerEmailOpened = 0, investorEmailOpened = 0;
+          openedLeadIds.forEach(id => {
             const t = getLeadType(id);
-            if (t === 'provider') providerEmailSent++;
-            else if (t === 'investor') investorEmailSent++;
+            if (t === 'provider') providerEmailOpened++;
+            else if (t === 'investor') investorEmailOpened++;
           });
 
           // Funnel stage 4: Ref Clicked (in date range, by type)
@@ -3374,14 +3373,14 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
               provider: {
                 discovered: providerLeads.length,
                 instantly_synced: providerInstantly.length,
-                email_sent: providerEmailSent,
+                email_opened: providerEmailOpened,
                 ref_clicked: providerClicked,
                 signed_up: providerSignedUp
               },
               investor: {
                 discovered: investorLeads.length,
                 instantly_synced: investorInstantly.length,
-                email_sent: investorEmailSent,
+                email_opened: investorEmailOpened,
                 ref_clicked: investorClicked,
                 signed_up: investorSignedUp
               }

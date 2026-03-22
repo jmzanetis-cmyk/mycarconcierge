@@ -1904,8 +1904,8 @@
   function renderFunnelStages(containerId, stages, accentColor) {
     const el = document.getElementById(containerId);
     if (!el) return;
-    const labels = ['Discovered', 'Instantly Synced', 'Email Sent', 'Ref Clicked', 'Signed Up'];
-    const keys = ['discovered', 'instantly_synced', 'email_sent', 'ref_clicked', 'signed_up'];
+    const labels = ['Discovered', 'Instantly Synced', 'Email Opened', 'Ref Link Clicked', 'Signed Up'];
+    const keys = ['discovered', 'instantly_synced', 'email_opened', 'ref_clicked', 'signed_up'];
     const maxVal = stages.discovered || 1;
     el.innerHTML = keys.map((key, i) => {
       const val = stages[key] || 0;
