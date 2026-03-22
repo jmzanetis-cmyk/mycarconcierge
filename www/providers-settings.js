@@ -438,6 +438,19 @@ async function loadBackgroundCheckStatus(opts = {}) {
       }
     }
 
+    // ---- Profile-level cleared badge ----
+    const profileBadge = document.getElementById('bg-check-profile-badge');
+    if (profileBadge) {
+      const pc = data.providerCheck;
+      const isCleared = pc && ['eligible', 'clear'].includes(pc.status);
+      if (isCleared) {
+        profileBadge.style.display = 'inline-flex';
+        profileBadge.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:100px;font-size:0.78rem;font-weight:600;background:rgba(74,200,140,0.15);color:var(--accent-green);border:1px solid rgba(74,200,140,0.35);" title="Background check cleared by BackgroundChecks.com">✅ Background Cleared</span>`;
+      } else {
+        profileBadge.style.display = 'none';
+      }
+    }
+
   } catch (err) {
     console.error('Error loading background check status:', err);
     if (!opts?.silent) {
@@ -565,13 +578,16 @@ async function submitBackgroundCheck() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to initiate background check');
 
-    showToast('Background check initiated! An invitation has been sent.', 'success');
     closeModal('background-check-modal');
     await loadBackgroundCheckStatus();
 
-    if (data.applicantUrl) {
-      showToast('Opening application link…', 'info');
+    if (data.apiConfigured === false) {
+      showToast('Background check request saved. A BackgroundChecks.com API key is not yet configured — admin will be notified to complete setup.', 'warning');
+    } else if (data.applicantUrl) {
+      showToast('Background check initiated! Invitation sent — opening application link…', 'success');
       setTimeout(() => window.open(data.applicantUrl, '_blank'), 800);
+    } else {
+      showToast('Background check initiated! An invitation has been sent to the provided email.', 'success');
     }
   } catch (err) {
     console.error('Background check error:', err);
