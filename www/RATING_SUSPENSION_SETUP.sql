@@ -158,8 +158,8 @@ BEGIN
   -- Ensure provider_stats row exists
   SELECT EXISTS(SELECT 1 FROM provider_stats WHERE provider_id = p_provider_id) INTO v_stats_exists;
   IF NOT v_stats_exists THEN
-    INSERT INTO provider_stats (provider_id, bid_credits, total_reviews, suspended)
-    VALUES (p_provider_id, 0, 0, FALSE);
+    INSERT INTO provider_stats (provider_id, total_reviews, suspended)
+    VALUES (p_provider_id, 0, FALSE);
   END IF;
   
   -- Check if already suspended
@@ -182,10 +182,10 @@ BEGIN
   
   -- Check suspension criteria: <4.0 average with 3+ reviews
   IF v_total_reviews >= 3 AND v_avg_rating < 4.0 THEN
-    -- Get current bid credits
+    -- Get current bid credits (stored on profiles table)
     SELECT COALESCE(bid_credits, 0) INTO v_current_credits
-    FROM provider_stats
-    WHERE provider_id = p_provider_id;
+    FROM profiles
+    WHERE id = p_provider_id;
     
     -- Calculate refund amount (average bid cost ~$3.50)
     v_credit_value := 3.50;
@@ -196,9 +196,13 @@ BEGIN
     SET 
       suspended = TRUE,
       suspended_reason = 'Average rating dropped below 4.0 stars (' || v_avg_rating || ' with ' || v_total_reviews || ' reviews)',
-      suspended_at = NOW(),
-      bid_credits = 0  -- Zero out credits (they will be refunded)
+      suspended_at = NOW()
     WHERE provider_id = p_provider_id;
+
+    -- Zero out bid credits on profiles table
+    UPDATE profiles
+    SET bid_credits = 0
+    WHERE id = p_provider_id;
     
     -- Create refund record if they had credits
     IF v_current_credits > 0 THEN
@@ -419,7 +423,7 @@ BEGIN
   -- Get provider status
   SELECT 
     COALESCE(ps.suspended, false),
-    COALESCE(ps.bid_credits, 0),
+    COALESCE(p.bid_credits, 0),
     (p.role = 'provider')
   INTO v_suspended, v_credits, v_approved
   FROM profiles p

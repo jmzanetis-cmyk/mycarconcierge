@@ -49,12 +49,13 @@ const metrics = {
 
 let workerUnhandledErrors = 0;
 
-function recordMetric(metric, latency, status) {
+function recordMetric(metric, latency, status, expectedStatus) {
   metric.requests++;
   metric.latencies.push(latency);
   metric.statusCodes[status] = (metric.statusCodes[status] || 0) + 1;
   if (status === 429) {
     metric.rateLimited++;
+  } else if (expectedStatus && status === expectedStatus) {
   } else if (status >= 400 || status === 0) {
     metric.errors++;
   }
@@ -222,7 +223,7 @@ async function runPostBid(session, packageId) {
     metrics.postBid.latencies.push(result.latency);
     return;
   }
-  recordMetric(metrics.postBid, result.latency, result.status);
+  recordMetric(metrics.postBid, result.latency, result.status, 409);
 }
 
 async function runAuthProfile(session) {

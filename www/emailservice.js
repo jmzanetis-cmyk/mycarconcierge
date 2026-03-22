@@ -74,7 +74,7 @@ const EmailTemplates = {
    * Sent when AI finds a vehicle matching member's dream car preferences
    */
   dream_car_match: {
-    subject: '🚗 Dream Car Alert: {{vehicle_year}} {{vehicle_make}} {{vehicle_model}} Found!',
+    subject: 'Dream Car Alert: {{vehicle_year}} {{vehicle_make}} {{vehicle_model}} Found!',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
         <h1 style="color: #d4a855; font-size: 28px; margin: 0 0 8px 0;">Your Dream Car Has Been Found!</h1>
@@ -110,13 +110,13 @@ const EmailTemplates = {
           <div style="border-top: 1px solid #2d2d44; padding-top: 16px; margin-top: 16px;">
             <p style="color: #6b7280; font-size: 12px; margin: 0 0 4px 0; text-transform: uppercase;">Listed By</p>
             <p style="color: #ffffff; font-size: 16px; margin: 0;">{{dealer_name}}</p>
-            <p style="color: #9ca3af; font-size: 14px; margin: 4px 0 0 0;">📍 {{dealer_location}}</p>
+            <p style="color: #9ca3af; font-size: 14px; margin: 4px 0 0 0;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> {{dealer_location}}</p>
           </div>
         </div>
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44; margin-top: 20px;">
-        <h3 style="color: #d4a855; font-size: 16px; margin: 0 0 16px 0;">✨ Why This Is A Great Match</h3>
+        <h3 style="color: #d4a855; font-size: 16px; margin: 0 0 16px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Why This Is A Great Match</h3>
         <ul style="list-style: none; padding: 0; margin: 0;">
           <li style="color: #e5e7eb; padding: 8px 0; border-bottom: 1px solid #2d2d44; display: flex; align-items: center;">
             <span style="color: #4ade80; margin-right: 12px;">✓</span> {{match_reason_1}}
@@ -147,7 +147,7 @@ const EmailTemplates = {
    * Sent when a vehicle is due for scheduled maintenance
    */
   maintenance_reminder: {
-    subject: '🔧 Maintenance Due: {{service_type}} for Your {{vehicle_year}} {{vehicle_make}}',
+    subject: 'Maintenance Due: {{service_type}} for Your {{vehicle_year}} {{vehicle_make}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
         <h1 style="color: #ffffff; font-size: 28px; margin: 0 0 8px 0;">Maintenance Reminder</h1>
@@ -167,7 +167,7 @@ const EmailTemplates = {
         
         <div style="background: #12121c; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
           <div style="display: flex; align-items: center; margin-bottom: 12px;">
-            <span style="color: #4a7cff; font-size: 20px; margin-right: 12px;">🚗</span>
+            <span style="color: #4a7cff; font-size: 20px; margin-right: 12px;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></span>
             <div>
               <p style="color: #6b7280; font-size: 12px; margin: 0; text-transform: uppercase;">Vehicle</p>
               <p style="color: #ffffff; font-size: 16px; margin: 0; font-weight: 600;">{{vehicle_year}} {{vehicle_make}} {{vehicle_model}}</p>
@@ -191,7 +191,7 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: linear-gradient(135deg, #d4a855 0%, #b8942d 100%); border: none; margin-top: 20px;">
-        <h3 style="color: #0a0a0f; font-size: 18px; margin: 0 0 12px 0; font-weight: 700;">💡 Why This Matters</h3>
+        <h3 style="color: #0a0a0f; font-size: 18px; margin: 0 0 12px 0; font-weight: 700;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg> Why This Matters</h3>
         <p style="color: #1a1a2e; font-size: 14px; margin: 0; line-height: 1.6;">
           Regular {{service_type}} helps extend the life of your vehicle, improves fuel efficiency, and prevents costly repairs down the road. Don't let this service slip!
         </p>
@@ -258,7 +258,7 @@ const EmailTemplates = {
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td width="50" valign="top">
-                          <span style="font-size: 28px;">🚗</span>
+                          <span style="font-size: 28px;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></span>
                         </td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Add Your Vehicle</h3>
@@ -278,7 +278,7 @@ const EmailTemplates = {
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td width="50" valign="top">
-                          <span style="font-size: 28px;">💰</span>
+                          <span style="font-size: 28px;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
                         </td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Get Competitive Bids</h3>
@@ -298,12 +298,12 @@ const EmailTemplates = {
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td width="50" valign="top">
-                          <span style="font-size: 28px;">📚</span>
+                          <span style="font-size: 28px;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
                         </td>
                         <td>
-                          <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Learn at Car Care Academy</h3>
+                          <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Learn at Vehicle Maintenance</h3>
                           <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">
-                            Become a smarter car owner with our educational resources covering maintenance tips, buying guides, and money-saving advice.
+                            Become a smarter auto owner with our educational resources covering maintenance tips, buying guides, and money-saving advice.
                           </p>
                         </td>
                       </tr>
@@ -318,7 +318,7 @@ const EmailTemplates = {
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td width="50" valign="top">
-                          <span style="font-size: 28px;">🔒</span>
+                          <span style="font-size: 28px;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
                         </td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Pay with Confidence</h3>
@@ -416,7 +416,7 @@ const EmailTemplates = {
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td width="50" valign="top">
-                          <span style="font-size: 28px;">👤</span>
+                          <span style="font-size: 28px;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
                         </td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Complete Your Profile</h3>
@@ -436,7 +436,7 @@ const EmailTemplates = {
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td width="50" valign="top">
-                          <span style="font-size: 28px;">💳</span>
+                          <span style="font-size: 28px;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>
                         </td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Connect Your Payment Account</h3>
@@ -456,7 +456,7 @@ const EmailTemplates = {
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td width="50" valign="top">
-                          <span style="font-size: 28px;">🔨</span>
+                          <span style="font-size: 28px;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
                         </td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Browse & Bid on Jobs</h3>
@@ -476,7 +476,7 @@ const EmailTemplates = {
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td width="50" valign="top">
-                          <span style="font-size: 28px;">⭐</span>
+                          <span style="font-size: 28px;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
                         </td>
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Build Your Reputation</h3>
@@ -531,7 +531,7 @@ const EmailTemplates = {
    * Sent when a member receives a new bid on their maintenance package
    */
   bid_received: {
-    subject: '💰 New Bid on Your Maintenance Package: {{package_title}}',
+    subject: 'New Bid on Your Maintenance Package: {{package_title}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
         <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;">You've Received a New Bid!</h1>
@@ -559,7 +559,7 @@ const EmailTemplates = {
           <div>
             <p style="color: #6b7280; font-size: 12px; margin: 0 0 4px 0; text-transform: uppercase;">Provider Rating</p>
             <p style="color: #d4a855; font-size: 20px; font-weight: bold; margin: 0;">
-              {{provider_rating}} <span style="font-size: 16px;">⭐</span>
+              {{provider_rating}} <span style="font-size: 16px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
             </p>
           </div>
           <div style="text-align: right;">
@@ -575,17 +575,17 @@ const EmailTemplates = {
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #4a7cff; margin-top: 24px;">
         <p style="color: #4a7cff; font-size: 14px; margin: 0; text-align: center;">
-          💡 <strong>Pro Tip:</strong> Wait for multiple bids to get the best value for your service!
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:2px"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg> <strong>Pro Tip:</strong> Wait for multiple bids to get the best value for your service!
         </p>
       </div>
     `
   },
 
   bidding_ending_soon: {
-    subject: '⏰ Bidding Ends Soon: {{package_title}}',
+    subject: 'Bidding Ends Soon: {{package_title}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #f59e0b; font-size: 28px; margin: 0 0 8px 0;">⏰ Bidding Window Closing Soon!</h1>
+        <h1 style="color: #f59e0b; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Bidding Window Closing Soon!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Don't miss out on your best bids</p>
       </div>
       
@@ -655,7 +655,7 @@ const EmailTemplates = {
     subject: 'New Message: {{package_title}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #ffffff; font-size: 28px; margin: 0 0 8px 0;">💬 New Message</h1>
+        <h1 style="color: #ffffff; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> New Message</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">You have a new message regarding your service</p>
       </div>
       
@@ -681,10 +681,10 @@ const EmailTemplates = {
   },
 
   bid_accepted_member: {
-    subject: '✅ Bid Accepted - {{package_title}}',
+    subject: 'Bid Accepted - {{package_title}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;">✅ Bid Accepted!</h1>
+        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Bid Accepted!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Your service is now scheduled</p>
       </div>
       
@@ -704,13 +704,13 @@ const EmailTemplates = {
         </div>
         
         <div style="background: linear-gradient(135deg, #065f46 0%, #047857 100%); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center;">
-          <span style="color: #4ade80; font-size: 20px; margin-right: 12px;">🔒</span>
+          <span style="color: #4ade80; font-size: 20px; margin-right: 12px;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
           <p style="color: #ffffff; font-size: 14px; margin: 0;"><strong>Payment Status:</strong> Held in Escrow</p>
         </div>
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44; margin-top: 20px;">
-        <h3 style="color: #d4a855; font-size: 18px; margin: 0 0 16px 0;">📋 What's Next</h3>
+        <h3 style="color: #d4a855; font-size: 18px; margin: 0 0 16px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> What's Next</h3>
         <ol style="padding-left: 20px; margin: 0; color: #e5e7eb;">
           <li style="margin-bottom: 12px;">The provider will contact you to schedule</li>
           <li style="margin-bottom: 12px;">Work will begin as agreed</li>
@@ -728,10 +728,10 @@ const EmailTemplates = {
   },
 
   work_started: {
-    subject: '🔧 Work Has Started on {{package_title}}',
+    subject: 'Work Has Started on {{package_title}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #4a7cff; font-size: 28px; margin: 0 0 8px 0;">🔧 Service In Progress!</h1>
+        <h1 style="color: #4a7cff; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Service In Progress!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Your provider has begun working</p>
       </div>
       
@@ -762,10 +762,10 @@ const EmailTemplates = {
   },
 
   work_completed: {
-    subject: '✅ Action Required: Confirm Completion of {{package_title}}',
+    subject: 'Action Required: Confirm Completion of {{package_title}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;">✅ Service Complete!</h1>
+        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Service Complete!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Please confirm to release payment</p>
       </div>
       
@@ -790,7 +790,7 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44; margin-top: 20px;">
-        <h3 style="color: #ffffff; font-size: 18px; margin: 0 0 12px 0;">📋 Please Confirm Completion</h3>
+        <h3 style="color: #ffffff; font-size: 18px; margin: 0 0 12px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Please Confirm Completion</h3>
         <p style="color: #e5e7eb; font-size: 14px; margin: 0;">Once you've received your vehicle and are satisfied with the work, please confirm completion to release payment.</p>
       </div>
       
@@ -800,7 +800,7 @@ const EmailTemplates = {
       
       <div class="card" style="background: linear-gradient(135deg, #7c2d12 0%, #9a3412 100%); border: none; margin-top: 24px;">
         <p style="color: #fef2f2; font-size: 14px; margin: 0; text-align: center;">
-          ⚠️ If you don't respond within 7 days, payment will be automatically released.
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> If you don't respond within 7 days, payment will be automatically released.
         </p>
       </div>
       
@@ -809,10 +809,10 @@ const EmailTemplates = {
   },
 
   upsell_request: {
-    subject: '⚠️ Action Required: Additional Work Found - {{package_title}}',
+    subject: 'Action Required: Additional Work Found - {{package_title}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #f59e0b; font-size: 28px; margin: 0 0 8px 0;">⚠️ Additional Issue Found</h1>
+        <h1 style="color: #f59e0b; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Additional Issue Found</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Your provider discovered something during service</p>
       </div>
       
@@ -848,7 +848,7 @@ const EmailTemplates = {
             <div><strong style="color: #ef4444;">Decline:</strong> Continue with original scope only</div>
           </li>
           <li style="color: #e5e7eb; padding: 10px 0; display: flex; align-items: center;">
-            <span style="color: #4a7cff; margin-right: 12px; font-size: 18px;">📊</span>
+            <span style="color: #4a7cff; margin-right: 12px; font-size: 18px;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
             <div><strong style="color: #4a7cff;">Get Competing Bids:</strong> Create a new package for this issue</div>
           </li>
         </ul>
@@ -863,10 +863,10 @@ const EmailTemplates = {
   },
 
   payment_released: {
-    subject: '💰 Payment Confirmed - {{package_title}}',
+    subject: 'Payment Confirmed - {{package_title}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;">💰 Payment Released!</h1>
+        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Payment Released!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Transaction completed successfully</p>
       </div>
       
@@ -891,7 +891,7 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #d4a855; margin-top: 20px;">
-        <h3 style="color: #d4a855; font-size: 18px; margin: 0 0 12px 0;">⭐ How Was Your Experience?</h3>
+        <h3 style="color: #d4a855; font-size: 18px; margin: 0 0 12px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> How Was Your Experience?</h3>
         <p style="color: #e5e7eb; font-size: 14px; margin: 0;">Your feedback helps other members choose the best providers.</p>
       </div>
       
@@ -914,7 +914,7 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44;">
-        <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 20px 0;">📋 What Happens Next</h2>
+        <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 20px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> What Happens Next</h2>
         <ol style="padding-left: 20px; margin: 0; color: #e5e7eb;">
           <li style="margin-bottom: 16px; padding-left: 8px;">Our team reviews your credentials (1-3 business days)</li>
           <li style="margin-bottom: 16px; padding-left: 8px;">We verify your insurance and certifications</li>
@@ -929,10 +929,10 @@ const EmailTemplates = {
   },
 
   provider_approved: {
-    subject: '🎉 Congratulations! You\'re Now an MCC Provider',
+    subject: 'Congratulations! You\'re Now an MCC Provider',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;">🎉 You're Approved, {{business_name}}!</h1>
+        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> You're Approved, {{business_name}}!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Welcome to the My Car Concierge network</p>
       </div>
       
@@ -941,7 +941,7 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44; margin-top: 20px;">
-        <h2 style="color: #d4a855; font-size: 20px; margin: 0 0 20px 0;">🚀 Get Started</h2>
+        <h2 style="color: #d4a855; font-size: 20px; margin: 0 0 20px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> Get Started</h2>
         <ol style="padding-left: 20px; margin: 0; color: #e5e7eb;">
           <li style="margin-bottom: 16px; padding-left: 8px;"><strong style="color: #d4a855;">Set up payments:</strong> Connect your Stripe account</li>
           <li style="margin-bottom: 16px; padding-left: 8px;"><strong style="color: #d4a855;">Complete your profile:</strong> Add photos and specializations</li>
@@ -955,22 +955,22 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #4a7cff; margin-top: 24px;">
-        <h3 style="color: #4a7cff; font-size: 16px; margin: 0 0 12px 0;">💡 How It Works</h3>
+        <h3 style="color: #4a7cff; font-size: 16px; margin: 0 0 12px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg> How It Works</h3>
         <ul style="padding-left: 20px; margin: 0; color: #e5e7eb;">
           <li style="margin-bottom: 8px;">Members post anonymous maintenance packages</li>
           <li style="margin-bottom: 8px;">You submit competitive bids</li>
           <li style="margin-bottom: 8px;">Payment is held in escrow when bid accepted</li>
-          <li>Complete the work, get paid (minus 7.5% MCC fee)</li>
+          <li>Complete the work, get paid in full</li>
         </ul>
       </div>
     `
   },
 
   bid_accepted_provider: {
-    subject: '🎉 Your Bid Was Accepted! - {{package_title}}',
+    subject: 'Your Bid Was Accepted! - {{package_title}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;">🎉 Congratulations! You Won the Job!</h1>
+        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Congratulations! You Won the Job!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Your bid has been accepted</p>
       </div>
       
@@ -986,18 +986,18 @@ const EmailTemplates = {
           <div style="flex: 1; min-width: 140px; background: #12121c; border-radius: 8px; padding: 16px; text-align: center;">
             <p style="color: #6b7280; font-size: 12px; margin: 0 0 8px 0; text-transform: uppercase;">You'll Receive</p>
             <p style="color: #4ade80; font-size: 24px; font-weight: bold; margin: 0;">\${{provider_amount}}</p>
-            <p style="color: #6b7280; font-size: 11px; margin: 4px 0 0 0;">after 7.5% fee</p>
+            <p style="color: #6b7280; font-size: 11px; margin: 4px 0 0 0;">no platform fees</p>
           </div>
         </div>
         
         <div style="background: linear-gradient(135deg, #065f46 0%, #047857 100%); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center;">
-          <span style="color: #4ade80; font-size: 20px; margin-right: 12px;">🔒</span>
+          <span style="color: #4ade80; font-size: 20px; margin-right: 12px;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
           <p style="color: #ffffff; font-size: 14px; margin: 0;"><strong>Payment Status:</strong> Held in Escrow</p>
         </div>
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44; margin-top: 20px;">
-        <h3 style="color: #d4a855; font-size: 18px; margin: 0 0 16px 0;">📋 Next Steps</h3>
+        <h3 style="color: #d4a855; font-size: 18px; margin: 0 0 16px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Next Steps</h3>
         <ol style="padding-left: 20px; margin: 0; color: #e5e7eb;">
           <li style="margin-bottom: 12px;">Contact the member to schedule</li>
           <li style="margin-bottom: 12px;">Mark "Work Started" when you begin</li>
@@ -1013,17 +1013,17 @@ const EmailTemplates = {
       
       <div class="card" style="background: linear-gradient(135deg, #7c2d12 0%, #9a3412 100%); border: none; margin-top: 24px;">
         <p style="color: #fef2f2; font-size: 14px; margin: 0; text-align: center;">
-          ⚠️ Important: Only charge for the agreed scope. Additional work requires member approval.
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Important: Only charge for the agreed scope. Additional work requires member approval.
         </p>
       </div>
     `
   },
 
   payment_received: {
-    subject: '💰 Payment Received - \${{amount}} - {{package_title}}',
+    subject: 'Payment Received - \${{amount}} - {{package_title}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;">💰 You've Been Paid!</h1>
+        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> You've Been Paid!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Great work on completing the job</p>
       </div>
       
@@ -1035,8 +1035,8 @@ const EmailTemplates = {
             <span style="color: #ffffff; font-weight: 600;">\${{total_amount}}</span>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <span style="color: #a7f3d0;">MCC Fee (7.5%):</span>
-            <span style="color: #fca5a5;">-\${{mcc_fee}}</span>
+            <span style="color: #a7f3d0;">Platform Fee:</span>
+            <span style="color: #4ade80;">$0.00</span>
           </div>
           <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 8px; margin-top: 8px;">
             <span style="color: #ffffff; font-weight: 600;">Your Payment:</span>
@@ -1061,7 +1061,7 @@ const EmailTemplates = {
     subject: '[Action Required] Dispute Opened - {{package_title}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #ef4444; font-size: 28px; margin: 0 0 8px 0;">⚠️ Dispute Filed</h1>
+        <h1 style="color: #ef4444; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Dispute Filed</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Action required</p>
       </div>
       
@@ -1099,10 +1099,10 @@ const EmailTemplates = {
   },
 
   document_expiring: {
-    subject: '⚠️ Action Required: Document Expiring Soon - {{document_type}}',
+    subject: 'Action Required: Document Expiring Soon - {{document_type}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #f59e0b; font-size: 28px; margin: 0 0 8px 0;">📄 Document Expiring Soon</h1>
+        <h1 style="color: #f59e0b; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Document Expiring Soon</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Update required to maintain account status</p>
       </div>
       
@@ -1131,7 +1131,7 @@ const EmailTemplates = {
       
       <div class="card" style="background: linear-gradient(135deg, #7c2d12 0%, #9a3412 100%); border: none; margin-top: 24px;">
         <p style="color: #fef2f2; font-size: 14px; margin: 0; text-align: center;">
-          ⚠️ Your account will be automatically suspended if documents expire.
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Your account will be automatically suspended if documents expire.
         </p>
       </div>
     `
@@ -1140,10 +1140,10 @@ const EmailTemplates = {
   // ===== FOUNDER COMMISSION EMAILS =====
 
   founder_commission_earned: {
-    subject: '💰 You Earned a Commission - \${{commission_amount}}',
+    subject: 'You Earned a Commission - \${{commission_amount}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #d4a855; font-size: 28px; margin: 0 0 8px 0;">💰 Commission Earned!</h1>
+        <h1 style="color: #d4a855; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Commission Earned!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Congratulations, {{founder_name}}!</p>
       </div>
       
@@ -1170,7 +1170,7 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44; margin-top: 20px;">
-        <h3 style="color: #ffffff; font-size: 16px; margin: 0 0 16px 0;">📊 Your Founder Stats</h3>
+        <h3 style="color: #ffffff; font-size: 16px; margin: 0 0 16px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Your Founder Stats</h3>
         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
           <div style="flex: 1; min-width: 100px; background: #12121c; border-radius: 8px; padding: 12px; text-align: center;">
             <p style="color: #6b7280; font-size: 11px; margin: 0 0 4px 0; text-transform: uppercase;">Total Earnings</p>
@@ -1198,10 +1198,10 @@ const EmailTemplates = {
   },
 
   founder_referral_signup: {
-    subject: '🎉 New Referral Signup - {{referral_type}}',
+    subject: 'New Referral Signup - {{referral_type}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;">🎉 New Referral!</h1>
+        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> New Referral!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Great news, {{founder_name}}!</p>
       </div>
       
@@ -1228,7 +1228,7 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #4a7cff; margin-top: 20px;">
-        <h3 style="color: #4a7cff; font-size: 16px; margin: 0 0 12px 0;">💰 What This Means For You</h3>
+        <h3 style="color: #4a7cff; font-size: 16px; margin: 0 0 12px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> What This Means For You</h3>
         <ul style="padding-left: 20px; margin: 0; color: #e5e7eb;">
           <li style="margin-bottom: 8px;">You'll earn <strong style="color: #4ade80;">50% commission</strong> on every service credit pack this provider purchases</li>
           <li style="margin-bottom: 8px;">Commission is automatically credited to your account</li>
@@ -1237,7 +1237,7 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44; margin-top: 20px;">
-        <h3 style="color: #ffffff; font-size: 16px; margin: 0 0 16px 0;">📊 Your Referral Stats</h3>
+        <h3 style="color: #ffffff; font-size: 16px; margin: 0 0 16px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Your Referral Stats</h3>
         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
           <div style="flex: 1; min-width: 100px; background: #12121c; border-radius: 8px; padding: 12px; text-align: center;">
             <p style="color: #6b7280; font-size: 11px; margin: 0 0 4px 0; text-transform: uppercase;">Providers</p>
@@ -1261,10 +1261,10 @@ const EmailTemplates = {
   },
 
   founder_payout_processed: {
-    subject: '💸 Payout Processed - \${{payout_amount}}',
+    subject: 'Payout Processed - \${{payout_amount}}',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;">💸 Payout Processed!</h1>
+        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Payout Processed!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Hi {{founder_name}}, your money is on its way</p>
       </div>
       
@@ -1300,10 +1300,10 @@ const EmailTemplates = {
   },
 
   founder_tier_upgrade: {
-    subject: '🏆 Congratulations! You\'ve Reached {{new_tier}} Tier',
+    subject: 'Congratulations! You\'ve Reached {{new_tier}} Tier',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #d4a855; font-size: 28px; margin: 0 0 8px 0;">🏆 Tier Upgrade!</h1>
+        <h1 style="color: #d4a855; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> Tier Upgrade!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Hi {{founder_name}}, you've been upgraded!</p>
       </div>
       
@@ -1324,7 +1324,7 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44; margin-top: 20px;">
-        <h3 style="color: #ffffff; font-size: 16px; margin: 0 0 16px 0;">📊 How You Got Here</h3>
+        <h3 style="color: #ffffff; font-size: 16px; margin: 0 0 16px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> How You Got Here</h3>
         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
           <div style="flex: 1; min-width: 100px; background: #12121c; border-radius: 8px; padding: 12px; text-align: center;">
             <p style="color: #6b7280; font-size: 11px; margin: 0 0 4px 0; text-transform: uppercase;">Referrals</p>
@@ -1350,10 +1350,10 @@ const EmailTemplates = {
   },
 
   founder_approved: {
-    subject: '🎉 Welcome to the My Car Concierge Founder Program!',
+    subject: 'Welcome to the My Car Concierge Founder Program!',
     template: `
       <div style="text-align: center; margin-bottom: 32px;">
-        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;">🎉 Welcome, Founder!</h1>
+        <h1 style="color: #4ade80; font-size: 28px; margin: 0 0 8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Welcome, Founder!</h1>
         <p style="color: #9ca3af; font-size: 16px; margin: 0;">Congratulations, {{name}}! You're approved!</p>
       </div>
       
@@ -1364,12 +1364,12 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #4ade80; margin-top: 20px;">
-        <h3 style="color: #4ade80; font-size: 18px; margin: 0 0 12px 0;">💰 How You Earn</h3>
+        <h3 style="color: #4ade80; font-size: 18px; margin: 0 0 12px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> How You Earn</h3>
         <p style="color: #e5e7eb; font-size: 14px; margin: 0;">You earn <strong style="color: #4ade80;">50% commission</strong> on all service credit purchases from providers you refer. This is a <strong style="color: #d4a855;">lifetime commission</strong> — you'll continue earning on every service credit pack they purchase, forever!</p>
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44; margin-top: 20px;">
-        <h3 style="color: #4a7cff; font-size: 18px; margin: 0 0 12px 0;">📱 Your Personal QR Code</h3>
+        <h3 style="color: #4a7cff; font-size: 18px; margin: 0 0 12px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> Your Personal QR Code</h3>
         <p style="color: #e5e7eb; font-size: 14px; margin: 0 0 12px 0;">We've generated a unique QR code for you that makes sharing easy. Providers can simply scan it to sign up with your referral code already applied.</p>
         <p style="color: #9ca3af; font-size: 14px; margin: 0;"><strong>To find your QR code:</strong></p>
         <ol style="padding-left: 20px; margin: 12px 0 0 0; color: #e5e7eb;">
@@ -1380,7 +1380,7 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44; margin-top: 20px;">
-        <h3 style="color: #d4a855; font-size: 18px; margin: 0 0 16px 0;">🚀 Get Started</h3>
+        <h3 style="color: #d4a855; font-size: 18px; margin: 0 0 16px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> Get Started</h3>
         <ol style="padding-left: 20px; margin: 0; color: #e5e7eb;">
           <li style="margin-bottom: 12px;"><strong>Visit your dashboard</strong> to view your referral tools and stats</li>
           <li style="margin-bottom: 12px;"><strong>Set up your payout method</strong> to receive your commission payments</li>
@@ -1394,7 +1394,7 @@ const EmailTemplates = {
       </div>
       
       <div class="card" style="background: #1a1a2e; border: 1px solid #2d2d44; margin-top: 24px;">
-        <h3 style="color: #ffffff; font-size: 16px; margin: 0 0 12px 0;">⚙️ Set Up Your Payout Method</h3>
+        <h3 style="color: #ffffff; font-size: 16px; margin: 0 0 12px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;margin-right:4px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Set Up Your Payout Method</h3>
         <p style="color: #e5e7eb; font-size: 14px; margin: 0;">To receive your commission payments, connect a payout method from your Founder Dashboard. <strong style="color: #d4a855;">Payouts are processed on the 15th of each month</strong> for balances of $25 or more.</p>
       </div>
       
@@ -1855,17 +1855,17 @@ async function sendDreamCarMatchEmail(memberEmail, memberName, vehicleData, matc
  */
 function getServiceIcon(serviceType) {
   const icons = {
-    'oil change': '🛢️',
-    'tire rotation': '🔄',
-    'brake inspection': '🛑',
-    'air filter': '💨',
-    'transmission': '⚙️',
-    'coolant flush': '❄️',
-    'spark plugs': '⚡',
-    'battery': '🔋',
-    'alignment': '↔️',
-    'inspection': '🔍',
-    'default': '🔧'
+    'oil change': '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/><path d="M12 3v12"/><path d="M5 21h14"/></svg>',
+    'tire rotation': '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+    'brake inspection': '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>',
+    'air filter': '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>',
+    'transmission': '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    'coolant flush': '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><line x1="8" y1="16" x2="8.01" y2="16"/><line x1="8" y1="20" x2="8.01" y2="20"/><line x1="12" y1="18" x2="12.01" y2="18"/><line x1="12" y1="22" x2="12.01" y2="22"/><line x1="16" y1="16" x2="16.01" y2="16"/><line x1="16" y1="20" x2="16.01" y2="20"/></svg>',
+    'spark plugs': '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+    'battery': '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="18" height="12" rx="2" ry="2"/><line x1="23" y1="13" x2="23" y2="11"/></svg>',
+    'alignment': '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>',
+    'inspection': '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+    'default': '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>'
   };
   
   const key = serviceType.toLowerCase();
@@ -2125,7 +2125,7 @@ async function sendBiddingEndingSms(phone, packageTitle, hoursLeft) {
  * Send SMS for dream car match
  */
 async function sendDreamCarMatchSms(phone, vehicleInfo) {
-  const message = `MCC: 🚗 Dream Car Alert! We found a ${vehicleInfo}. Log in to view details.`;
+  const message = `MCC: Dream Car Alert! We found a ${vehicleInfo}. Log in to view details.`;
   return queueSms(phone, message, 'dream_car_match');
 }
 
@@ -2133,6 +2133,6 @@ async function sendDreamCarMatchSms(phone, vehicleInfo) {
  * Send SMS for maintenance reminder
  */
 async function sendMaintenanceReminderSms(phone, serviceType, vehicleName) {
-  const message = `MCC: 🔧 Reminder: ${serviceType} is due for your ${vehicleName}. Log in to get service quotes.`;
+  const message = `MCC: Reminder: ${serviceType} is due for your ${vehicleName}. Log in to get service quotes.`;
   return queueSms(phone, message, 'maintenance_reminder');
 }

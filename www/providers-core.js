@@ -37,6 +37,7 @@ function loadModuleForSection(section) {
     case 'fleet-services':
     case 'customer-queue':
     case 'walkin-pos':
+    case 'refund-requests':
       return loadModule('jobs');
     case 'earnings':
     case 'earnings-analytics':
@@ -81,7 +82,7 @@ function updateThemeIcon() {
   const themeIcon = document.getElementById('theme-icon');
   const currentTheme = document.documentElement.getAttribute('data-theme');
   if (themeIcon) {
-    themeIcon.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+    themeIcon.innerHTML = currentTheme === 'dark' ? mccIcon('moon', 16) : mccIcon('sun', 16);
   }
 }
 
@@ -97,7 +98,7 @@ function updateThemeToggleUI() {
     themeLabel.textContent = currentTheme === 'dark' ? 'Dark Mode' : 'Light Mode';
   }
   if (iconDisplay) {
-    iconDisplay.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+    iconDisplay.innerHTML = currentTheme === 'dark' ? mccIcon('moon', 16) : mccIcon('sun', 16);
   }
 }
 
@@ -249,6 +250,12 @@ async function initializeProviderDashboard(user) {
     loadModule('bids').then(() => {
       if (typeof loadOpenPackages === 'function') loadOpenPackages();
       if (typeof loadMyBids === 'function') loadMyBids();
+      if (typeof window.loadServiceCredits === 'function') {
+        console.log('[Init] Loading service credits...');
+        window.loadServiceCredits();
+      } else {
+        console.warn('[Init] loadServiceCredits not available after bids module loaded');
+      }
     }),
     loadEarnings(),
     loadMyReviews(),
@@ -257,14 +264,6 @@ async function initializeProviderDashboard(user) {
     loadPosIntegrationStatus(),
     loadPerformance()
   ]);
-  
-  // Load service credits after profile is loaded (needs providerProfile)
-  if (typeof window.loadServiceCredits === 'function') {
-    console.log('[Init] Loading service credits...');
-    window.loadServiceCredits();
-  } else {
-    console.warn('[Init] loadServiceCredits not available');
-  }
   
   updateStats();
   setupNav();
@@ -281,9 +280,11 @@ async function initializeProviderDashboard(user) {
     if (typeof setupEmergencySettings === 'function') setupEmergencySettings();
     if (typeof refreshEmergencies === 'function') refreshEmergencies();
     if (typeof loadDestinationTasks === 'function') loadDestinationTasks();
+    if (typeof loadProviderRefundBadge === 'function') loadProviderRefundBadge();
   });
   
   checkPurchaseStatus();
+  loadCarClubCard();
   
   if (typeof applyFilters === 'function') applyFilters();
   
@@ -325,6 +326,18 @@ async function showSection(id) {
   }
   if (id === 'pos-analytics' && typeof loadPosAnalytics === 'function') {
     loadPosAnalytics();
+  }
+  if (id === 'refund-requests' && typeof loadProviderRefunds === 'function') {
+    loadProviderRefunds();
+  }
+  if (id === 'bids' && typeof loadBidInsights === 'function') {
+    loadBidInsights();
+  }
+  if ((id === 'settings' || id === 'notifications') && typeof loadProviderNotificationSettings === 'function') {
+    loadProviderNotificationSettings();
+    if (typeof loadProviderPushPreferences === 'function') {
+      loadProviderPushPreferences();
+    }
   }
 }
 
@@ -639,7 +652,7 @@ function renderEarnings() {
   if (!container) return;
   
   if (!myPayments.length) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">💰</div><p>No payments yet. Complete jobs to see your earnings!</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('dollar-sign', 40) + '</div><p>No payments yet. Complete jobs to see your earnings!</p></div>';
     return;
   }
 
@@ -654,7 +667,7 @@ function renderEarnings() {
           ${p.status === 'released' ? '+' : ''}$${(p.amount_provider || 0).toFixed(2)}
         </div>
         <div style="font-size:0.8rem;color:var(--text-muted);">
-          ${p.status === 'held' ? '⏳ In Escrow' : p.status === 'released' ? '✓ Released' : p.status === 'refunded' ? '↩ Refunded' : p.status}
+          ${p.status === 'held' ? mccIcon('clock', 16) + ' In Escrow' : p.status === 'released' ? mccIcon('check', 16) + ' Released' : p.status === 'refunded' ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Refunded' : p.status}
         </div>
       </div>
     </div>
@@ -693,7 +706,7 @@ function renderReviews() {
   if (!container) return;
   
   if (!myReviews.length) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⭐</div><p>No reviews yet.</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('star', 40) + '</div><p>No reviews yet.</p></div>';
     return;
   }
 
@@ -701,7 +714,7 @@ function renderReviews() {
     <div style="padding:16px;border-bottom:1px solid var(--border-subtle);">
       <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
         <strong>${r.profiles?.full_name || 'Member'}</strong>
-        <span style="color:var(--accent-gold);">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span>
+        <span style="color:var(--accent-gold);">${mccIcon('star', 16).repeat(r.rating)}${mccIcon('star', 16).repeat(5-r.rating)}</span>
       </div>
       ${r.comment ? `<p style="color:var(--text-secondary);margin-bottom:8px;">"${r.comment}"</p>` : ''}
       <div style="font-size:0.85rem;color:var(--text-muted);">${r.maintenance_packages?.title || 'Service'} • ${new Date(r.created_at).toLocaleDateString()}</div>
@@ -747,8 +760,8 @@ function renderPerformance() {
 }
 
 function getTierIcon(tier) {
-  const icons = { platinum: '💎', gold: '🏆', silver: '🥈', bronze: '🥉' };
-  return icons[tier] || '🥉';
+  const icons = { platinum: mccIcon('sparkles', 16), gold: mccIcon('trophy', 16), silver: mccIcon('award', 16), bronze: mccIcon('award', 16) };
+  return icons[tier] || mccIcon('award', 16);
 }
 
 function getTierLabel(tier) {
@@ -774,6 +787,9 @@ function populateProfileForm(profile) {
   
   if (typeof loadQrCheckinSetting === 'function') {
     loadQrCheckinSetting();
+  }
+  if (typeof initPublicProfileCard === 'function') {
+    initPublicProfileCard();
   }
 }
 
@@ -808,7 +824,7 @@ async function loadSubscription() {
 function checkPurchaseStatus() {
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('purchase') === 'success') {
-    showToast('🎉 Bid credits purchased successfully!', 'success');
+    showToast(mccIcon('party-popper', 16) + ' Bid credits purchased successfully!', 'success');
     window.history.replaceState({}, '', window.location.pathname);
     loadProviderProfile();
     updateStats();
@@ -849,27 +865,89 @@ function setupRealtimeSubscriptions() {
     .subscribe();
 }
 
-// ========== PUSH NOTIFICATIONS ==========
+async function loadCarClubCard() {
+  const el = document.getElementById('car-club-card-content');
+  if (!el) return;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const resp = await fetch(`${apiBase}/api/car-club/my-club`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    const data = await resp.json();
+    if (data.club) {
+      const club = data.club;
+      const rules = club.reward_rules || [];
+      const activeRewards = rules.filter(r => r.is_active).length;
+      const memberCount = club.member_count || 0;
+      el.innerHTML = `<div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px;">
+        <div style="flex:1;min-width:80px;text-align:center;">
+          <div style="font-size:1.5rem;font-weight:700;color:var(--text-primary);">${memberCount}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);">Members</div>
+        </div>
+        <div style="flex:1;min-width:80px;text-align:center;">
+          <div style="font-size:1.5rem;font-weight:700;color:var(--text-primary);">${activeRewards}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);">Active Rewards</div>
+        </div>
+      </div>
+      <a href="/car-club-provider.html" style="display:inline-block;font-size:0.85rem;color:var(--accent-gold);text-decoration:none;font-weight:500;">Manage →</a>`;
+    } else {
+      el.innerHTML = `<div style="text-align:center;padding:16px 0;">
+        <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px;">Build loyalty and keep your customers coming back with reward programs.</p>
+        <a href="/car-club-provider.html" class="btn" style="background:linear-gradient(135deg, var(--accent-gold), #c49a45);color:#0a0a0f;font-weight:600;padding:10px 24px;border-radius:10px;text-decoration:none;display:inline-block;">Launch Car Club</a>
+      </div>`;
+    }
+  } catch(e) {
+    el.innerHTML = `<div style="text-align:center;padding:16px 0;">
+      <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px;">Build loyalty and keep your customers coming back with reward programs.</p>
+      <a href="/car-club-provider.html" class="btn" style="background:linear-gradient(135deg, var(--accent-gold), #c49a45);color:#0a0a0f;font-weight:600;padding:10px 24px;border-radius:10px;text-decoration:none;display:inline-block;">Launch Car Club</a>
+    </div>`;
+  }
+}
+
 async function initProviderPushNotifications() {
+  if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+    if (typeof window.initCapacitorPush === 'function') {
+      await window.initCapacitorPush('provider');
+    }
+    return;
+  }
+
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    console.log('Push notifications not supported');
+    console.log('[ProviderPush] Push notifications not supported');
     return;
   }
   
   try {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
-    
-    if (!subscription) {
-      console.log('No push subscription yet');
+    if (typeof updateProviderWebPushUI === 'function') {
+      updateProviderWebPushUI(!!subscription);
     }
+    console.log('[ProviderPush] Web push subscription:', subscription ? 'active' : 'none');
   } catch (err) {
-    console.log('Push notification setup error:', err);
+    console.log('[ProviderPush] Push notification setup error:', err);
   }
 }
 
 // ========== LOGOUT ==========
 async function logout() {
+  try {
+    const storedToken = localStorage.getItem('mcc_fcm_token');
+    if (storedToken) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        await fetch(`${apiBase}/api/push/unregister-device`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ token: storedToken })
+        }).catch(() => {});
+        localStorage.removeItem('mcc_fcm_token');
+      }
+    }
+  } catch {}
   await supabaseClient.auth.signOut();
   window.location.href = 'login.html';
 }
@@ -878,5 +956,23 @@ function switchToMember() {
   localStorage.setItem('mcc_portal', 'member');
   window.location.href = 'members.html';
 }
+
+function showProviderFounderPromo() {
+  const banner = document.getElementById('provider-founder-promo');
+  if (!banner) return;
+  const dismissed = localStorage.getItem('providerFounderPromoDismissed');
+  if (dismissed) return;
+  banner.style.display = 'block';
+}
+
+window.dismissProviderFounderPromo = function() {
+  const banner = document.getElementById('provider-founder-promo');
+  if (banner) banner.style.display = 'none';
+  localStorage.setItem('providerFounderPromoDismissed', Date.now().toString());
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(showProviderFounderPromo, 1000);
+});
 
 console.log('providers-core.js loaded');

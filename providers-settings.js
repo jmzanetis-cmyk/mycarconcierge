@@ -841,4 +841,202 @@ function copyProfileLink() {
   });
 }
 
+// ========== PROVIDER WEB PUSH NOTIFICATIONS (VAPID) ==========
+
+function updateProviderWebPushUI(enabled) {
+  const enableSection = document.getElementById('provider-push-enable-section');
+  const enabledSection = document.getElementById('provider-push-enabled-section');
+  const badge = document.getElementById('provider-push-status-badge');
+  const statusText = document.getElementById('provider-push-status-text');
+  const statusDesc = document.getElementById('provider-push-status-desc');
+
+  if (enableSection) enableSection.style.display = enabled ? 'none' : 'block';
+  if (enabledSection) enabledSection.style.display = enabled ? 'block' : 'none';
+
+  if (badge) {
+    badge.textContent = enabled ? 'On' : 'Off';
+    badge.style.background = enabled ? 'rgba(74,200,140,0.15)' : 'rgba(239,95,95,0.15)';
+    badge.style.color = enabled ? 'var(--accent-green)' : 'var(--accent-red)';
+  }
+  if (statusText) statusText.textContent = enabled ? 'Push Notifications Enabled' : 'Push Notifications Disabled';
+  if (statusDesc) statusDesc.textContent = enabled
+    ? 'You are receiving instant alerts for new bid opportunities and updates on this device.'
+    : 'Enable to receive instant alerts for new bid opportunities and updates.';
+}
+
+async function loadProviderNotificationSettings() {
+  const notSupported = document.getElementById('provider-push-not-supported');
+  const pushContent = document.getElementById('provider-push-content');
+  const nativeCard = document.getElementById('provider-native-push-card');
+
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (notSupported) notSupported.style.display = 'block';
+    if (pushContent) pushContent.style.display = 'none';
+  } else {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      updateProviderWebPushUI(!!subscription);
+    } catch (err) {
+      console.log('[ProviderPush] Could not check subscription:', err.message);
+      updateProviderWebPushUI(false);
+    }
+  }
+
+  if (nativeCard) {
+    const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    nativeCard.style.display = isNative ? 'block' : 'none';
+    if (isNative && typeof window.initCapacitorPush === 'function') {
+      window.initCapacitorPush('provider');
+    }
+  }
+}
+
+async function enableProviderPushNotifications() {
+  const btn = document.getElementById('provider-push-enable-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enabling…'; }
+
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      showToast('Push notifications are not supported in this browser.', 'error');
+      return;
+    }
+
+    let permissionResult = Notification.permission;
+    if (permissionResult === 'default') {
+      permissionResult = await Notification.requestPermission();
+    }
+    if (permissionResult === 'denied') {
+      showToast('Notification permission was denied. Please allow it in your browser settings.', 'error');
+      updateProviderWebPushUI(false);
+      return;
+    }
+
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const vapidResp = await fetch(`${apiBase}/api/push/vapid-key`);
+    const vapidData = await vapidResp.json();
+    if (!vapidData.publicKey) {
+      showToast('Push notifications are not configured on this server.', 'error');
+      return;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidData.publicKey)
+    });
+
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const saveResp = await fetch(`${apiBase}/api/provider/push/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ subscription })
+    });
+    const saveResult = await saveResp.json();
+
+    if (saveResult.success || saveResult.warning) {
+      updateProviderWebPushUI(true);
+      showToast('Push notifications enabled!', 'success');
+    } else {
+      throw new Error(saveResult.error || 'Failed to save subscription');
+    }
+  } catch (err) {
+    console.error('[ProviderPush] Enable error:', err);
+    showToast('Could not enable push notifications. Please try again.', 'error');
+    updateProviderWebPushUI(false);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg> Enable Push Notifications';
+    }
+  }
+}
+
+async function disableProviderPushNotifications() {
+  try {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) await subscription.unsubscribe();
+    }
+
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    await fetch(`${apiBase}/api/provider/push/unsubscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` }
+    });
+
+    updateProviderWebPushUI(false);
+    showToast('Push notifications disabled.', 'success');
+  } catch (err) {
+    console.error('[ProviderPush] Disable error:', err);
+    showToast('Could not disable push notifications. Please try again.', 'error');
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+const PROVIDER_PUSH_PREF_FIELDS = [
+  { id: 'provider-push-bid-opportunities', key: 'push_bid_opportunities' },
+  { id: 'provider-push-appointment-reminders', key: 'push_appointment_reminders' },
+  { id: 'provider-push-payment-received', key: 'push_payment_received' },
+  { id: 'provider-push-customer-messages', key: 'push_customer_messages' },
+  { id: 'provider-push-bid-accepted', key: 'push_bid_accepted' },
+  { id: 'provider-push-ai-match', key: 'push_ai_match' },
+  { id: 'provider-push-car-club', key: 'push_car_club' }
+];
+
+async function loadProviderPushPreferences() {
+  const firstEl = document.getElementById(PROVIDER_PUSH_PREF_FIELDS[0].id);
+  if (!firstEl) return;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const resp = await fetch(`${apiBase}/api/provider/${session.user.id}/notification-preferences`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    const data = await resp.json();
+    const prefs = data.preferences || {};
+    PROVIDER_PUSH_PREF_FIELDS.forEach(({ id, key }) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.checked = prefs[key] !== false;
+        el.addEventListener('change', saveProviderPushPreferences);
+      }
+    });
+  } catch (err) {
+    console.error('[ProviderPush] Failed to load push prefs:', err);
+  }
+}
+
+async function saveProviderPushPreferences() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const preferences = {};
+    PROVIDER_PUSH_PREF_FIELDS.forEach(({ id, key }) => {
+      preferences[key] = document.getElementById(id)?.checked ?? true;
+    });
+    await fetch(`${apiBase}/api/provider/${session.user.id}/notification-preferences`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify(preferences)
+    });
+  } catch (err) {
+    console.error('[ProviderPush] Failed to save push prefs:', err);
+  }
+}
+
 console.log('providers-settings.js loaded');

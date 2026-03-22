@@ -16,7 +16,7 @@
       const themeIcon = document.getElementById('theme-icon');
       const currentTheme = document.documentElement.getAttribute('data-theme');
       if (themeIcon) {
-        themeIcon.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+        themeIcon.innerHTML = currentTheme === 'dark' ? mccIcon('moon', 16) : mccIcon('sun', 16);
       }
     }
 
@@ -32,7 +32,7 @@
         themeLabel.textContent = currentTheme === 'dark' ? 'Dark Mode' : 'Light Mode';
       }
       if (iconDisplay) {
-        iconDisplay.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+        iconDisplay.innerHTML = currentTheme === 'dark' ? mccIcon('moon', 16) : mccIcon('sun', 16);
       }
     }
 
@@ -67,6 +67,7 @@
     let selectedPartsTier = 'standard';
     let selectedBiddingWindowHours = 72; // Default 3 days
     let selectedOilPreference = 'provider'; // 'provider' or 'specify'
+    let carClubProviderIds = new Set();
     let pendingPackagePhotos = []; // Photos to upload with new package
     let pendingVehiclePhoto = null; // Photo to upload with new vehicle
     let pendingEditVehiclePhoto = null; // Photo to upload when editing vehicle
@@ -174,6 +175,11 @@
       boat_marine: [
         'Boat hull cleaning', 'Boat detailing', 'Boat winterization',
         'Marine engine service', 'Boat wraps', 'Bottom paint', 'Canvas / upholstery repair'
+      ],
+      snow_removal: [
+        'Residential driveway clearing', 'Commercial lot clearing', 'Sidewalk / walkway clearing',
+        'Salting / de-icing', 'Snow plowing', 'Roof snow removal', 'Seasonal snow removal contract',
+        'Emergency / storm response', 'Ice dam removal', 'Parking garage clearing'
       ],
       manufacturer_service: [
         '── Mercedes-Benz ──',
@@ -435,12 +441,25 @@
         loadUpsellRequests(),
         loadConversations(),
         loadNotifications(),
-        checkActiveEmergency()
+        checkActiveEmergency(),
+        loadCarClubProviders()
       ]);
       
       updateStats();
       setupEventListeners();
       setupRealtimeSubscriptions();
+      showBudgetForecastIfEligible();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('create') === 'true') {
+        const providerSlug = urlParams.get('provider') || localStorage.getItem('preferred_provider_slug') || '';
+        if (providerSlug) {
+          localStorage.setItem('preferred_provider_slug', providerSlug);
+        }
+        showSection('packages');
+        setTimeout(() => openPackageModal(), 500);
+        window.history.replaceState({}, '', '/members.html');
+      }
     }
     
     // ========== REALTIME SUBSCRIPTIONS ==========
@@ -460,7 +479,7 @@
           const pkg = packages.find(p => p.id === payload.new.package_id);
           if (pkg) {
             console.log('[REALTIME] New bid received:', payload.new);
-            showToast('💰 New bid received!', 'success');
+            showToast('New bid received!', 'success');
             await loadPackages();
             updateStats();
           }
@@ -474,7 +493,7 @@
           filter: `recipient_id=eq.${currentUser.id}`
         }, async (payload) => {
           console.log('[REALTIME] New message:', payload.new);
-          showToast('💬 New message received!', 'success');
+          showToast('New message received!', 'success');
           await loadConversations();
           
           // If message modal is open, refresh it
@@ -513,7 +532,7 @@
           if (pkg) {
             console.log('[REALTIME] Package updated:', payload.new);
             if (payload.old.status !== payload.new.status) {
-              showToast(`📦 Package "${payload.new.title}" is now ${payload.new.status}`, 'success');
+              showToast(`Package "${payload.new.title}" is now ${payload.new.status}`, 'success');
             }
             await loadPackages();
             updateStats();
@@ -528,7 +547,7 @@
           filter: `member_id=eq.${currentUser.id}`
         }, async (payload) => {
           console.log('[REALTIME] New upsell request:', payload.new);
-          showToast('⚠️ Provider found additional work needed!', 'success');
+          showToast(mccIcon('alert-triangle', 16) + ' Provider found additional work needed!', 'success');
           await loadUpsellRequests();
         })
 
@@ -619,7 +638,7 @@
       // Show location reminder if ZIP not set
       if (!userProfile?.zip_code) {
         const status = document.getElementById('location-status');
-        status.innerHTML = '<div style="background:var(--accent-orange-soft);border:1px solid rgba(245,158,11,0.3);color:var(--accent-orange);padding:12px;border-radius:var(--radius-md);">⚠️ Please set your ZIP code so providers in your area can find your service requests.</div>';
+        status.innerHTML = '<div style="background:var(--accent-orange-soft);border:1px solid rgba(245,158,11,0.3);color:var(--accent-orange);padding:12px;border-radius:var(--radius-md);">' + mccIcon('alert-triangle', 16) + ' Please set your ZIP code so providers in your area can find your service requests.</div>';
         status.style.display = 'block';
       }
 
@@ -660,11 +679,11 @@
       let badgesHtml = '';
       
       if (profile?.platform_fee_exempt) {
-        badgesHtml += '<span class="loyalty-badge vip">👑 VIP Member</span>';
+        badgesHtml += '<span class="loyalty-badge vip">' + mccIcon('star', 14) + ' VIP Member</span>';
       }
       
       if (profile?.provider_verified) {
-        badgesHtml += '<span class="loyalty-badge trusted">✓ Trusted Customer</span>';
+        badgesHtml += '<span class="loyalty-badge trusted">' + mccIcon('check-circle', 14) + ' Trusted Customer</span>';
       }
 
       if (badgesHtml) {
@@ -684,7 +703,7 @@
           
           if (provider) {
             const providerName = provider.business_name || provider.full_name || 'Your Provider';
-            preferredProviderDisplay.innerHTML = `⭐ Preferred Provider: <strong>${providerName}</strong>`;
+            preferredProviderDisplay.innerHTML = `${mccIcon('star', 14)} Preferred Provider: <strong>${providerName}</strong>`;
             preferredProviderDisplay.style.display = 'block';
           }
         } catch (err) {
@@ -732,8 +751,14 @@
         renderVehicles();
         updateVehicleSelects();
         
-        // Load recalls for all vehicles in background
+        // Load recalls and AI predictions for all vehicles in background
         loadAllVehicleRecalls();
+        if (typeof loadAllVehiclePredictions === 'function') {
+          loadAllVehiclePredictions();
+        }
+
+        autoComputeStaleHealthScores();
+
       } catch (err) {
         console.error('loadVehicles error:', err);
         vehicles = [];
@@ -770,16 +795,16 @@
       
       const container = document.getElementById('upsells-list');
       if (!filtered.length) {
-        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">✅</div><p>No ${currentUpsellFilter === 'all' ? '' : currentUpsellFilter} updates.</p></div>`;
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('check-circle', 48)}</div><p>No ${currentUpsellFilter === 'all' ? '' : currentUpsellFilter} updates.</p></div>`;
         return;
       }
 
       const updateTypeIcons = {
-        cost_increase: '💰',
-        car_ready: '✅',
-        work_paused: '⏸️',
-        question: '❓',
-        request_call: '📞'
+        cost_increase: mccIcon('dollar-sign', 16),
+        car_ready: mccIcon('check-circle', 16),
+        work_paused: mccIcon('pause', 16),
+        question: mccIcon('circle-help', 16),
+        request_call: mccIcon('phone', 16)
       };
       const updateTypeLabels = {
         cost_increase: 'Cost Increase',
@@ -803,7 +828,7 @@
         const timeLeft = u.expires_at ? getTimeRemaining(u.expires_at) : null;
         const urgencyColors = { critical: 'var(--accent-red)', recommended: 'var(--accent-orange)', optional: 'var(--text-muted)' };
         const updateType = u.update_type || 'cost_increase';
-        const typeIcon = updateTypeIcons[updateType] || '📋';
+        const typeIcon = updateTypeIcons[updateType] || mccIcon('file-text', 16);
         const typeLabel = updateTypeLabels[updateType] || 'Update';
         const typeBadgeColor = updateTypeBadgeColors[updateType] || 'var(--accent-gold)';
         const isUrgent = u.is_urgent;
@@ -813,43 +838,43 @@
         if (u.status === 'pending') {
           if (updateType === 'cost_increase') {
             actionButtons = `
-              <button class="btn btn-success" onclick="approveUpsell('${u.id}')">✓ Approve ($${(u.estimated_cost || 0).toFixed(2)})</button>
+              <button class="btn btn-success" onclick="approveUpsell('${u.id}')">${mccIcon('check-circle', 14)} Approve ($${(u.estimated_cost || 0).toFixed(2)})</button>
               <button class="btn btn-secondary" onclick="declineUpsell('${u.id}')">✗ Decline</button>
-              <button class="btn btn-ghost" onclick="rebidUpsell('${u.id}', '${u.title.replace(/'/g, "\\'")}', ${u.estimated_cost || 0})">🔄 Get Competing Bids</button>
-              <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">📞 Call Me</button>
+              <button class="btn btn-ghost" onclick="rebidUpsell('${u.id}', '${u.title.replace(/'/g, "\\'")}', ${u.estimated_cost || 0})">${mccIcon('refresh-cw', 14)} Get Competing Bids</button>
+              <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 14)} Call Me</button>
             `;
           } else if (updateType === 'car_ready') {
             actionButtons = `
-              <button class="btn btn-success" onclick="acknowledgeUpdate('${u.id}')">👍 Got It - I'll Pick Up</button>
-              <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">📞 Call Me</button>
+              <button class="btn btn-success" onclick="acknowledgeUpdate('${u.id}')">${mccIcon('check-circle', 14)} Got It - I'll Pick Up</button>
+              <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 14)} Call Me</button>
             `;
           } else if (updateType === 'work_paused') {
             actionButtons = `
-              ${u.estimated_cost > 0 ? `<button class="btn btn-success" onclick="approveUpsell('${u.id}')">✓ Approve & Continue ($${(u.estimated_cost || 0).toFixed(2)})</button>` : ''}
-              <button class="btn btn-primary" onclick="acknowledgeUpdate('${u.id}')">✓ Proceed</button>
+              ${u.estimated_cost > 0 ? `<button class="btn btn-success" onclick="approveUpsell('${u.id}')">${mccIcon('check-circle', 14)} Approve & Continue ($${(u.estimated_cost || 0).toFixed(2)})</button>` : ''}
+              <button class="btn btn-primary" onclick="acknowledgeUpdate('${u.id}')">${mccIcon('check-circle', 14)} Proceed</button>
               <button class="btn btn-secondary" onclick="declineUpsell('${u.id}')">✗ Stop Work</button>
-              <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">📞 Call Me Now</button>
+              <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 14)} Call Me Now</button>
             `;
           } else if (updateType === 'question') {
             actionButtons = `
-              <button class="btn btn-primary" onclick="openReplyModal('${u.id}', '${u.title.replace(/'/g, "\\'")}')">💬 Reply</button>
-              <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">📞 Call Me</button>
+              <button class="btn btn-primary" onclick="openReplyModal('${u.id}', '${u.title.replace(/'/g, "\\'")}')"> ${mccIcon('message-square', 14)} Reply</button>
+              <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 14)} Call Me</button>
             `;
           } else if (updateType === 'request_call') {
             actionButtons = `
-              <button class="btn btn-primary" onclick="requestCallBack('${u.id}')">📞 I'll Call Now</button>
-              <button class="btn btn-ghost" onclick="acknowledgeUpdate('${u.id}')">👍 Got It</button>
+              <button class="btn btn-primary" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 14)} I'll Call Now</button>
+              <button class="btn btn-ghost" onclick="acknowledgeUpdate('${u.id}')">${mccIcon('check-circle', 14)} Got It</button>
             `;
           } else {
             actionButtons = `
-              <button class="btn btn-success" onclick="acknowledgeUpdate('${u.id}')">👍 Acknowledge</button>
+              <button class="btn btn-success" onclick="acknowledgeUpdate('${u.id}')">${mccIcon('check-circle', 14)} Acknowledge</button>
             `;
           }
         }
         
         return `
           <div class="card" style="margin-bottom:16px;${isUrgent && u.status === 'pending' ? 'border:2px solid var(--accent-red);animation:pulse 2s infinite;' : ''}">
-            ${isUrgent && u.status === 'pending' ? '<div style="background:var(--accent-red);color:white;padding:8px 16px;margin:-20px -20px 16px -20px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;font-weight:600;text-align:center;">🚨 URGENT - Response Needed</div>' : ''}
+            ${isUrgent && u.status === 'pending' ? '<div style="background:var(--accent-red);color:white;padding:8px 16px;margin:-20px -20px 16px -20px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;font-weight:600;text-align:center;">' + mccIcon('alert-triangle', 14) + ' URGENT - Response Needed</div>' : ''}
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
               <div>
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
@@ -864,7 +889,7 @@
               ${showCost ? `
                 <div style="text-align:right;">
                   <div style="font-size:1.2rem;font-weight:600;">$${(u.estimated_cost || 0).toFixed(2)}</div>
-                  <div style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.05));border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:2px 6px;border-radius:100px;font-size:0.65rem;font-weight:600;margin-top:4px;cursor:help;" title="This price includes all parts, labor, taxes, shop fees, disposal fees, and platform fees. No hidden costs.">✓ All-Inclusive</div>
+                  <div style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.05));border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:2px 6px;border-radius:100px;font-size:0.65rem;font-weight:600;margin-top:4px;cursor:help;" title="This price includes all parts, labor, taxes, shop fees, and disposal fees. No hidden costs.">${mccIcon('check-circle', 14)} All-Inclusive</div>
                   <div style="font-size:0.75rem;color:${urgencyColors[u.urgency] || 'var(--text-muted)'};font-weight:500;margin-top:4px;">${(u.urgency || 'recommended').toUpperCase()}</div>
                 </div>
               ` : ''}
@@ -881,13 +906,13 @@
             ` : ''}
 
             ${u.status === 'pending' ? `
-              ${timeLeft ? `<div style="background:${updateType === 'cost_increase' ? 'var(--accent-orange-soft)' : 'var(--bg-input)'};border:1px solid ${updateType === 'cost_increase' ? 'rgba(245,158,11,0.3)' : 'var(--border-subtle)'};padding:10px 14px;border-radius:var(--radius-md);margin-bottom:16px;"><span style="color:var(--accent-orange);font-weight:600;">⏰ ${timeLeft} to respond</span>${updateType === 'cost_increase' ? '<span style="color:var(--text-secondary);font-size:0.85rem;"> — Provider may suspend work if no response</span>' : ''}</div>` : ''}
+              ${timeLeft ? `<div style="background:${updateType === 'cost_increase' ? 'var(--accent-orange-soft)' : 'var(--bg-input)'};border:1px solid ${updateType === 'cost_increase' ? 'rgba(245,158,11,0.3)' : 'var(--border-subtle)'};padding:10px 14px;border-radius:var(--radius-md);margin-bottom:16px;"><span style="color:var(--accent-orange);font-weight:600;">${mccIcon('clock', 14)} ${timeLeft} to respond</span>${updateType === 'cost_increase' ? '<span style="color:var(--text-secondary);font-size:0.85rem;"> — Provider may suspend work if no response</span>' : ''}</div>` : ''}
               <div style="display:flex;gap:12px;flex-wrap:wrap;">
                 ${actionButtons}
               </div>
             ` : `
               <div style="padding:12px;background:${u.status === 'approved' || u.member_action === 'acknowledged' ? 'var(--accent-green-soft)' : 'var(--bg-input)'};border-radius:var(--radius-md);color:${u.status === 'approved' || u.member_action === 'acknowledged' ? 'var(--accent-green)' : 'var(--text-muted)'};">
-                ${u.status === 'approved' ? '✓ Approved' : u.status === 'declined' ? '✗ Declined' : u.member_action === 'acknowledged' ? '👍 Acknowledged' : u.member_action === 'call_me' ? '📞 Call Requested' : u.status === 'rebid' ? '🔄 Sent for competing bids' : u.status === 'expired' ? '⏰ Expired' : u.status}
+                ${u.status === 'approved' ? mccIcon('check-circle', 14) + ' Approved' : u.status === 'declined' ? '✗ Declined' : u.member_action === 'acknowledged' ? `${mccIcon('check-circle', 14)} Acknowledged` : u.member_action === 'call_me' ? `${mccIcon('phone', 14)} Call Requested` : u.status === 'rebid' ? `${mccIcon('refresh-cw', 14)} Sent for competing bids` : u.status === 'expired' ? `${mccIcon('clock', 14)} Expired` : u.status}
                 ${u.responded_at ? ` on ${new Date(u.responded_at).toLocaleDateString()}` : ''}
               </div>
             `}
@@ -962,13 +987,11 @@
         
         if (payment) {
           const newTotal = (payment.amount_total || 0) + (upsell.estimated_cost || 0);
-          const mccFee = newTotal * 0.075;
-          const providerAmount = newTotal - mccFee;
           
           await supabaseClient.from('payments').update({
             amount_total: newTotal,
-            amount_provider: providerAmount,
-            amount_mcc_fee: mccFee
+            amount_provider: newTotal,
+            amount_mcc_fee: 0
           }).eq('id', payment.id);
         }
       }
@@ -1068,6 +1091,19 @@
       renderRecentActivity();
     }
 
+    async function loadCarClubProviders() {
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/car-club/browse`);
+        if (res.ok) {
+          const data = await res.json();
+          carClubProviderIds = new Set((data.clubs || []).map(c => c.provider_id).filter(Boolean));
+        }
+      } catch (e) {
+        console.warn('Could not load car club providers:', e);
+      }
+    }
+
     async function loadConversations() {
       try {
         // Get all messages where user is sender or recipient
@@ -1140,7 +1176,7 @@
       const container = document.getElementById('conversations-list');
       
       if (!conversations.length) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">💬</div><p>No conversations yet. Messages will appear here when you communicate with providers.</p></div>';
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('message-square', 14)}</div><p>No conversations yet. Messages will appear here when you communicate with providers.</p></div>`;
         return;
       }
 
@@ -1738,20 +1774,148 @@
       showToast('Recommendations updated', 'success');
     }
 
+    async function askServiceHistoryChat() {
+      const input = document.getElementById('history-chat-input');
+      const responseBox = document.getElementById('history-chat-response');
+      const btn = document.getElementById('history-chat-btn');
+      if (!input || !responseBox) return;
+      const question = input.value.trim();
+      if (!question) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Thinking…';
+      responseBox.style.display = 'none';
+      responseBox.textContent = '';
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showToast('Please log in again', 'error'); return; }
+
+        const resp = await fetch('/api/ai/service-history-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ question })
+        });
+
+        const data = await resp.json();
+        if (data.answer) {
+          responseBox.textContent = data.answer;
+          responseBox.style.display = 'block';
+        } else {
+          showToast(data.error || 'Could not get an answer. Try again.', 'error');
+        }
+      } catch (err) {
+        showToast('Error reaching AI. Please try again.', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Ask AI';
+      }
+    }
+
+    let _forecastOpen = false;
+    let _forecastLoaded = false;
+
+    function toggleBudgetForecast() {
+      const body = document.getElementById('budget-forecast-body');
+      const chevron = document.getElementById('forecast-chevron');
+      _forecastOpen = !_forecastOpen;
+      body.style.display = _forecastOpen ? 'block' : 'none';
+      if (chevron) chevron.style.transform = _forecastOpen ? 'rotate(180deg)' : '';
+      if (_forecastOpen && !_forecastLoaded) loadBudgetForecast();
+    }
+
+    async function loadBudgetForecast() {
+      const content = document.getElementById('budget-forecast-content');
+      if (!content) return;
+
+      const primaryVehicle = vehicles && vehicles[0];
+      if (!primaryVehicle) {
+        content.innerHTML = '<p style="color:var(--text-muted);font-size:0.88rem;padding:8px 0;">Add a vehicle to see your personalized cost forecast.</p>';
+        return;
+      }
+
+      content.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);">Generating your forecast…</div>';
+      _forecastLoaded = true;
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const resp = await fetch(`/api/ai/budget-forecast/${primaryVehicle.id}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const data = await resp.json();
+
+        if (!resp.ok || data.error) {
+          content.innerHTML = '<p style="color:var(--text-muted);font-size:0.88rem;">Could not generate forecast. Please try again later.</p>';
+          return;
+        }
+
+        const vehicleLabel = `${data.vehicle?.year || ''} ${data.vehicle?.make || ''} ${data.vehicle?.model || ''}`.trim();
+        const items = data.items || [];
+        const narrativeHtml = data.narrative ? `<p style="font-size:0.9rem;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">${data.narrative}</p>` : '';
+        const itemsHtml = items.map(item => {
+          const low = item.low_cents ? `$${(item.low_cents / 100).toFixed(0)}` : '–';
+          const high = item.high_cents ? `$${(item.high_cents / 100).toFixed(0)}` : '–';
+          return `
+            <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-subtle);">
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;font-size:0.9rem;">${item.service}</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">${item.estimated_month || ''} ${item.reason ? '— ' + item.reason : ''}</div>
+              </div>
+              <div style="font-size:1rem;font-weight:600;color:var(--accent-gold);white-space:nowrap;">${low}–${high}</div>
+            </div>
+          `;
+        }).join('');
+
+        const cachedNote = data.cached ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:12px;text-align:right;">Cached · refreshes weekly</div>` : '';
+
+        content.innerHTML = `
+          ${narrativeHtml}
+          ${vehicleLabel ? `<div style="font-size:0.8rem;font-weight:600;color:var(--accent-gold);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">${mccIcon('car', 14)} ${vehicleLabel}</div>` : ''}
+          ${items.length ? itemsHtml : '<p style="color:var(--text-muted);font-size:0.88rem;">No forecast items generated.</p>'}
+          ${cachedNote}
+        `;
+
+        if (vehicles.length > 1) {
+          const card = document.getElementById('budget-forecast-card');
+          if (card) card.style.display = 'block';
+        }
+      } catch (err) {
+        console.error('Budget forecast error:', err);
+        _forecastLoaded = false;
+        content.innerHTML = '<p style="color:var(--text-muted);font-size:0.88rem;">Error loading forecast. <button class="btn btn-ghost btn-sm" onclick="loadBudgetForecast()">Retry</button></p>';
+      }
+    }
+
+    function showBudgetForecastIfEligible() {
+      const card = document.getElementById('budget-forecast-card');
+      if (!card) return;
+      if (!vehicles || !vehicles.length || !serviceHistory || !serviceHistory.length) return;
+      const threeMonthsAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
+      const oldest = serviceHistory.reduce((min, r) => {
+        const t = new Date(r.service_date || r.created_at || 0).getTime();
+        return t < min ? t : min;
+      }, Infinity);
+      if (oldest <= threeMonthsAgo) {
+        card.style.display = 'block';
+      }
+    }
+
     function getRecommendationIcon(serviceType) {
       const icons = {
-        'Oil Change': '🛢️',
-        'Tire Rotation': '🔄',
-        'Brake Inspection': '🛑',
-        'Brake Service': '🛑',
-        'Transmission Service': '⚙️',
-        'Coolant Flush': '💧',
-        'Air Filter': '🌬️',
-        'Battery Check': '🔋',
-        'Alignment': '📐',
-        'Inspection': '🔍',
-        'Tune-Up': '🔧',
-        'default': '🔧'
+        'Oil Change': mccIcon('thermometer', 14),
+        'Tire Rotation': mccIcon('refresh-cw', 14),
+        'Brake Inspection': mccIcon('alert-triangle', 14),
+        'Brake Service': mccIcon('alert-triangle', 14),
+        'Transmission Service': mccIcon('settings', 14),
+        'Coolant Flush': mccIcon('thermometer', 14),
+        'Air Filter': mccIcon('activity', 14),
+        'Battery Check': mccIcon('activity', 14),
+        'Alignment': mccIcon('settings', 14),
+        'Inspection': mccIcon('search', 14),
+        'Tune-Up': mccIcon('settings', 14),
+        'default': mccIcon('settings', 14)
       };
       return icons[serviceType] || icons['default'];
     }
@@ -1782,7 +1946,7 @@
       }
       
       if (priority === 'urgent') {
-        explanation += ' ⚠️ This should be addressed soon to prevent further issues.';
+        explanation += ' ' + mccIcon('alert-triangle', 14) + ' This should be addressed soon to prevent further issues.';
       }
       
       return explanation;
@@ -1794,7 +1958,7 @@
       if (!recommendations.length) {
         container.innerHTML = `
           <div class="empty-state" style="padding:24px;">
-            <div class="empty-state-icon">✅</div>
+            <div class="empty-state-icon">${mccIcon('check-circle', 48)}</div>
             <p>No service recommendations at this time.</p>
             <p style="font-size:0.85rem;margin-top:8px;">Recommendations will appear based on your vehicle data and service history.</p>
           </div>`;
@@ -1820,7 +1984,7 @@
           'Unknown Vehicle';
 
         if (Object.keys(groupedByVehicle).length > 1) {
-          html += `<div class="recommendation-vehicle">🚗 ${vehicleName}</div>`;
+          html += `<div class="recommendation-vehicle">${mccIcon('car-front', 14)} ${vehicleName}</div>`;
         }
 
         group.recs.forEach(rec => {
@@ -1844,12 +2008,12 @@
                 </div>
                 <div class="recommendation-reason">${rec.reason || 'Regular maintenance recommended'}</div>
                 <div class="recommendation-why" style="margin:10px 0;padding:10px 12px;background:var(--accent-gold-soft);border-radius:var(--radius-sm);border-left:3px solid var(--accent-gold);">
-                  <span style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">💡 <strong>Why this matters:</strong> ${whyExplanation}</span>
+                  <span style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">${mccIcon('info', 14)} <strong>Why this matters:</strong> ${whyExplanation}</span>
                 </div>
                 <div class="recommendation-meta">
-                  ${costRange ? `<span>💰 ${costRange}</span>` : ''}
-                  ${dueInfo ? `<span>📅 ${dueInfo}</span>` : ''}
-                  ${rec.source ? `<span>📊 ${rec.source === 'time' ? 'Time-based' : rec.source === 'mileage' ? 'Mileage-based' : rec.source === 'inspection' ? 'Inspection' : 'Manual'}</span>` : ''}
+                  ${costRange ? `<span>${mccIcon('dollar-sign', 14)} ${costRange}</span>` : ''}
+                  ${dueInfo ? `<span>${mccIcon('calendar', 14)} ${dueInfo}</span>` : ''}
+                  ${rec.source ? `<span>${mccIcon('bar-chart', 14)} ${rec.source === 'time' ? 'Time-based' : rec.source === 'mileage' ? 'Mileage-based' : rec.source === 'inspection' ? 'Inspection' : 'Manual'}</span>` : ''}
                 </div>
                 <div class="recommendation-actions">
                   <button class="btn btn-primary btn-sm" data-rec="${encodeURIComponent(JSON.stringify({
@@ -1859,7 +2023,7 @@
                     costLow: rec.estimated_cost_low || null,
                     costHigh: rec.estimated_cost_high || null,
                     priority: rec.priority || 'routine'
-                  }))}" onclick="scheduleFromRecommendation(this)">📅 Schedule Service</button>
+                  }))}" onclick="scheduleFromRecommendation(this)">${mccIcon('calendar', 14)} Schedule Service</button>
                   <button class="btn btn-ghost btn-sm" onclick="dismissRecommendation('${rec.id}', ${rec.isLocal || false})">Dismiss</button>
                 </div>
               </div>
@@ -2090,7 +2254,7 @@
       
       // Load provider count
       try {
-        const { count } = await supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('is_suspended', false);
+        const { count } = await supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('suspended', false);
         document.getElementById('stat-providers').textContent = count || 0;
       } catch (e) {
         document.getElementById('stat-providers').textContent = '--';
@@ -2111,7 +2275,7 @@
       if (!vehicles.length) {
         grid.innerHTML = `
           <div class="empty-state" style="grid-column: 1 / -1; padding: 60px 20px;">
-            <div class="empty-state-icon" style="font-size: 64px; margin-bottom: 20px;">🚗</div>
+            <div class="empty-state-icon" style="font-size: 64px; margin-bottom: 20px;">${mccIcon('car-front', 14)}</div>
             <h3 style="font-size: 1.3rem; margin-bottom: 8px;">No vehicles yet</h3>
             <p style="color: var(--text-muted); margin-bottom: 24px;">Add your first vehicle to get started with maintenance tracking.</p>
             <button class="btn btn-primary" onclick="openVehicleModal()" style="padding: 14px 28px; font-size: 1rem;">+ Add Your First Vehicle</button>
@@ -2125,36 +2289,37 @@
         const vehicleSubtitle = `${v.year || ''} ${v.make} ${v.model} ${v.trim || ''} ${v.color ? '• ' + v.color : ''}`.trim();
         const photoContent = v.photo_url 
           ? `<img src="${v.photo_url}" alt="${vehicleTitle}" style="width:100%;height:100%;object-fit:cover;">`
-          : `<span class="vehicle-emoji">🚗</span>`;
+          : `<span class="vehicle-emoji">${mccIcon('car-front', 14)}</span>`;
         const recallData = vehicleRecalls[v.id];
         const recallBadge = recallData && recallData.activeCount > 0 
-          ? `<span class="recall-badge" onclick="event.stopPropagation(); openRecallsModal('${v.id}')">⚠️ ${recallData.activeCount} Recall${recallData.activeCount > 1 ? 's' : ''}</span>` 
+          ? `<span class="recall-badge" onclick="event.stopPropagation(); openRecallsModal('${v.id}')">${mccIcon('alert-triangle', 14)} ${recallData.activeCount} Recall${recallData.activeCount > 1 ? 's' : ''}</span>` 
           : '';
         const registrationStatus = vehicleRegistrationStatus[v.id];
         const registrationVerified = v.registration_verified || (registrationStatus && registrationStatus.verified);
         const registrationBadge = registrationVerified
-          ? '<span class="registration-verified-badge">📋 Registration Verified</span>'
+          ? `<span class="registration-verified-badge">${mccIcon('file-text', 14)} Registration Verified</span>`
           : '';
         return `
           <div class="vehicle-card">
             <div class="vehicle-card-photo">
               ${photoContent}
               ${registrationBadge || recallBadge}
-              <span class="vehicle-card-badge ${healthClass}">${healthLabel}</span>
+              <span class="vehicle-card-badge ${healthClass}" onclick="event.stopPropagation(); viewVehicleDetails('${v.id}'); setTimeout(()=>showVehicleTab('health','${v.id}'),300)" style="cursor:pointer;" title="Health Score: ${v.health_score || 100}/100">${v.health_score || 100} ${healthLabel}</span>
             </div>
             <div class="vehicle-card-body">
               <div class="vehicle-card-title">${v.nickname || vehicleTitle}</div>
               <div class="vehicle-card-subtitle">${vehicleSubtitle}</div>
               <div class="vehicle-card-meta">
-                <span>🏷️ ${v.mileage ? v.mileage.toLocaleString() + ' mi' : 'No mileage'}</span>
+                <span>${mccIcon('file-text', 14)} ${v.mileage ? v.mileage.toLocaleString() + ' mi' : 'No mileage'}</span>
                 ${v.vin ? `<span>VIN: ...${v.vin.slice(-6)}</span>` : ''}
               </div>
+              ${typeof renderPredictionsSection === 'function' ? renderPredictionsSection(v.id) : ''}
               <div class="vehicle-card-actions">
                 <button class="btn btn-secondary btn-sm" onclick="viewVehicleDetails('${v.id}')" style="flex: 1;">View Details</button>
                 <button class="btn btn-primary btn-sm" onclick="createPackageForVehicle('${v.id}')" style="flex: 1;">+ Service</button>
-                ${!registrationVerified ? `<button class="btn btn-ghost btn-sm" onclick="openRegistrationModal('${v.id}')" title="Verify Registration" style="padding: 8px;color:var(--accent-gold);">📋</button>` : ''}
-                <button class="btn btn-ghost btn-sm" onclick="generateHealthReportPDF('${v.id}')" title="Download Health Report" style="padding: 8px;">📄</button>
-                <button class="btn btn-ghost btn-sm" onclick="deleteVehicle('${v.id}')" title="Delete" style="padding: 8px;">🗑️</button>
+                ${!registrationVerified ? `<button class="btn btn-ghost btn-sm" onclick="openRegistrationModal('${v.id}')" title="Verify Registration" style="padding: 8px;color:var(--accent-gold);">${mccIcon('file-text', 14)}</button>` : ''}
+                <button class="btn btn-ghost btn-sm" onclick="generateHealthReportPDF('${v.id}')" title="Download Health Report" style="padding: 8px;">${mccIcon('file-text', 14)}</button>
+                <button class="btn btn-ghost btn-sm" onclick="deleteVehicle('${v.id}')" title="Delete" style="padding: 8px;">${mccIcon('trash-2', 14)}</button>
               </div>
             </div>
           </div>
@@ -2217,7 +2382,7 @@
       
       const btn = document.getElementById('refresh-recalls-btn');
       btn.disabled = true;
-      btn.innerHTML = '⏳ Checking...';
+      btn.innerHTML = `${mccIcon('clock', 14)} Checking...`;
       
       document.getElementById('recalls-list').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Checking NHTSA for updates...</div>';
       
@@ -2229,10 +2394,21 @@
         console.error('Error refreshing recalls:', error);
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '🔄 Check for Updates';
+        btn.innerHTML = `${mccIcon('refresh-cw', 14)} Check for Updates`;
       }
     }
     
+    function getSeverityBadge(severity) {
+      if (!severity) return '';
+      const cfg = {
+        critical: { label: 'Critical', color: '#dc2626', bg: 'rgba(220,38,38,0.12)' },
+        important: { label: 'Important', color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
+        monitor: { label: 'Monitor', color: '#2563eb', bg: 'rgba(37,99,235,0.12)' }
+      };
+      const s = cfg[severity] || cfg.monitor;
+      return `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;letter-spacing:0.03em;color:${s.color};background:${s.bg};border:1px solid ${s.color}40;">${s.label}</span>`;
+    }
+
     function renderRecallsList(recallData) {
       const listEl = document.getElementById('recalls-list');
       const emptyEl = document.getElementById('recalls-empty');
@@ -2253,57 +2429,177 @@
         const statusClass = isAcknowledged ? 'addressed' : 'active';
         const cardClass = isAcknowledged ? 'acknowledged' : 'unacknowledged';
         const statusText = isAcknowledged ? 'Addressed' : 'Active';
+        const severityBadge = getSeverityBadge(recall.severity);
+        const hasAiSummary = !!recall.ai_summary;
         
         return `
-          <div class="recall-card ${cardClass}">
+          <div class="recall-card ${cardClass}" data-recall-id="${recall.id}" data-vehicle-id="${escapeHtml(currentRecallsVehicleId)}">
             <div class="recall-card-header">
-              <div>
-                <div class="recall-card-title">${escapeHtml(recall.component || 'Unknown Component')}</div>
+              <div style="flex:1;min-width:0;">
+                <div class="recall-card-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  ${escapeHtml(recall.component || 'Unknown Component')}
+                  ${severityBadge || (isAcknowledged ? '' : '<span class="recall-ai-loading" style="font-size:0.72rem;color:var(--text-muted);">Analyzing...</span>')}
+                </div>
                 <div class="recall-card-campaign">Campaign #${escapeHtml(recall.nhtsa_campaign_number || 'N/A')}</div>
               </div>
               <span class="recall-card-status ${statusClass}">${statusText}</span>
             </div>
             
-            ${recall.summary ? `
+            ${hasAiSummary ? `
               <div class="recall-card-section">
-                <div class="recall-card-section-title">Summary</div>
-                <div class="recall-card-section-content">${escapeHtml(recall.summary)}</div>
+                <div class="recall-card-section-title" style="display:flex;align-items:center;gap:6px;">
+                  ${mccIcon('info', 14)} Plain-Language Summary
+                </div>
+                <div class="recall-card-section-content recall-ai-summary-text">${escapeHtml(recall.ai_summary)}</div>
+                ${(recall.summary || recall.consequence || recall.remedy) ? `
+                  <details style="margin-top:8px;">
+                    <summary style="font-size:0.78rem;color:var(--text-muted);cursor:pointer;user-select:none;">View original NHTSA text</summary>
+                    <div style="margin-top:8px;padding:10px;background:var(--bg-tertiary,var(--card-bg));border-radius:6px;font-size:0.78rem;">
+                      ${recall.summary ? `<p style="margin:0 0 6px;"><strong>Summary:</strong> ${escapeHtml(recall.summary)}</p>` : ''}
+                      ${recall.consequence ? `<p style="margin:0 0 6px;color:var(--accent-red);"><strong>Consequence:</strong> ${escapeHtml(recall.consequence)}</p>` : ''}
+                      ${recall.remedy ? `<p style="margin:0;"><strong>Remedy:</strong> ${escapeHtml(recall.remedy)}</p>` : ''}
+                    </div>
+                  </details>
+                ` : ''}
               </div>
-            ` : ''}
-            
-            ${recall.consequence ? `
-              <div class="recall-card-section">
-                <div class="recall-card-section-title">⚠️ Consequence</div>
-                <div class="recall-card-section-content" style="color: var(--accent-red);">${escapeHtml(recall.consequence)}</div>
-              </div>
-            ` : ''}
-            
-            ${recall.remedy ? `
-              <div class="recall-card-section">
-                <div class="recall-card-section-title">✅ Remedy</div>
-                <div class="recall-card-section-content">${escapeHtml(recall.remedy)}</div>
-              </div>
-            ` : ''}
+            ` : `
+              ${recall.summary ? `
+                <div class="recall-card-section">
+                  <div class="recall-card-section-title">Summary</div>
+                  <div class="recall-card-section-content">${escapeHtml(recall.summary)}</div>
+                </div>
+              ` : ''}
+              ${recall.consequence ? `
+                <div class="recall-card-section">
+                  <div class="recall-card-section-title">${mccIcon('alert-triangle', 16)} Consequence</div>
+                  <div class="recall-card-section-content" style="color: var(--accent-red);">${escapeHtml(recall.consequence)}</div>
+                </div>
+              ` : ''}
+              ${recall.remedy ? `
+                <div class="recall-card-section">
+                  <div class="recall-card-section-title">${mccIcon('check-circle', 14)} Remedy</div>
+                  <div class="recall-card-section-content">${escapeHtml(recall.remedy)}</div>
+                </div>
+              ` : ''}
+            `}
             
             ${!isAcknowledged ? `
               <div class="recall-card-actions">
                 <button class="btn btn-success btn-sm" onclick="acknowledgeRecall('${recall.id}')">
-                  ✓ Mark as Addressed
+                  ${mccIcon('check-circle', 14)} Mark as Addressed
                 </button>
-                <button class="btn btn-secondary btn-sm" onclick="createPackageForVehicle('${currentRecallsVehicleId}')">
-                  📦 Request Service
+                <button class="btn btn-primary btn-sm recall-book-btn">
+                  ${mccIcon('tool', 14)} Book Recall Fix
                 </button>
               </div>
             ` : `
               <div class="recall-card-actions">
                 <span style="font-size: 0.82rem; color: var(--text-muted);">
-                  ✓ Addressed ${recall.acknowledged_at ? new Date(recall.acknowledged_at).toLocaleDateString() : ''}
+                  ${mccIcon('check-circle', 14)} Addressed ${recall.acknowledged_at ? new Date(recall.acknowledged_at).toLocaleDateString() : ''}
                 </span>
               </div>
             `}
           </div>
         `;
       }).join('');
+
+      listEl.querySelectorAll('.recall-book-btn').forEach(btn => {
+        const card = btn.closest('[data-recall-id]');
+        if (!card) return;
+        const rid = card.getAttribute('data-recall-id');
+        const vid = card.getAttribute('data-vehicle-id');
+        const recall = recallData.recalls.find(r => r.id === rid);
+        if (!recall) return;
+        btn.addEventListener('click', () => {
+          const title = `Recall: ${recall.component || 'Safety Recall'} (Campaign #${recall.nhtsa_campaign_number || 'N/A'})`;
+          const description = recall.ai_summary || recall.summary || '';
+          const category = mapRecallComponentToCategory(recall.component);
+          createPackageForVehicle(vid, { title, description, category });
+        });
+      });
+
+      enrichUnanalyzedRecalls(recallData.recalls);
+    }
+
+    function mapRecallComponentToCategory(component) {
+      if (!component) return 'maintenance';
+      const c = component.toLowerCase();
+      if (c.includes('brake') || c.includes('abs') || c.includes('parking brake')) return 'maintenance';
+      if (c.includes('tire') || c.includes('wheel') || c.includes('rim') || c.includes('alignment')) return 'maintenance';
+      if (c.includes('engine') || c.includes('fuel') || c.includes('ignition') || c.includes('emission') || c.includes('exhaust')) return 'maintenance';
+      if (c.includes('transmission') || c.includes('drivetrain') || c.includes('axle') || c.includes('driveshaft')) return 'maintenance';
+      if (c.includes('electrical') || c.includes('battery') || c.includes('wiring') || c.includes('fuse')) return 'audio_electronics';
+      if (c.includes('light') || c.includes('lamp') || c.includes('headlight') || c.includes('taillight')) return 'lighting';
+      if (c.includes('steering') || c.includes('suspension') || c.includes('control arm') || c.includes('shock') || c.includes('strut')) return 'maintenance';
+      if (c.includes('body') || c.includes('door') || c.includes('latch') || c.includes('hood') || c.includes('trunk') || c.includes('hatch')) return 'cosmetic';
+      if (c.includes('seat') || c.includes('interior') || c.includes('upholstery')) return 'interior';
+      if (c.includes('ev') || c.includes('hybrid') || c.includes('battery pack') || c.includes('electric motor')) return 'ev_hybrid';
+      return 'maintenance';
+    }
+
+    async function enrichUnanalyzedRecalls(recalls) {
+      if (!recalls || recalls.length === 0) return;
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+      const needsEnrich = recalls.filter(r => !r.ai_summary);
+      for (const recall of needsEnrich) {
+        try {
+          const resp = await fetch(`/api/recalls/${recall.id}/enrich`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+          });
+          if (!resp.ok) continue;
+          const data = await resp.json();
+          if (!data.success) continue;
+          const card = document.querySelector(`[data-recall-id="${recall.id}"]`);
+          if (!card) continue;
+          if (data.severity) {
+            const titleEl = card.querySelector('.recall-card-title');
+            if (titleEl) {
+              const loadingEl = titleEl.querySelector('.recall-ai-loading');
+              if (loadingEl) loadingEl.remove();
+              titleEl.insertAdjacentHTML('beforeend', getSeverityBadge(data.severity));
+            }
+          }
+          if (data.ai_summary) {
+            const existingSections = card.querySelectorAll('.recall-card-section');
+            existingSections.forEach(s => s.remove());
+            const actionsEl = card.querySelector('.recall-card-actions');
+            const hasOriginal = recall.summary || recall.consequence || recall.remedy;
+            const originalHtml = hasOriginal ? `
+              <details style="margin-top:8px;">
+                <summary style="font-size:0.78rem;color:var(--text-muted);cursor:pointer;user-select:none;">View original NHTSA text</summary>
+                <div style="margin-top:8px;padding:10px;background:var(--bg-tertiary,var(--card-bg));border-radius:6px;font-size:0.78rem;">
+                  ${recall.summary ? `<p style="margin:0 0 6px;"><strong>Summary:</strong> ${escapeHtml(recall.summary)}</p>` : ''}
+                  ${recall.consequence ? `<p style="margin:0 0 6px;color:var(--accent-red);"><strong>Consequence:</strong> ${escapeHtml(recall.consequence)}</p>` : ''}
+                  ${recall.remedy ? `<p style="margin:0;"><strong>Remedy:</strong> ${escapeHtml(recall.remedy)}</p>` : ''}
+                </div>
+              </details>` : '';
+            const summaryHtml = `
+              <div class="recall-card-section">
+                <div class="recall-card-section-title" style="display:flex;align-items:center;gap:6px;">${mccIcon('info', 14)} Plain-Language Summary</div>
+                <div class="recall-card-section-content recall-ai-summary-text">${escapeHtml(data.ai_summary)}</div>
+                ${originalHtml}
+              </div>`;
+            if (actionsEl) {
+              actionsEl.insertAdjacentHTML('beforebegin', summaryHtml);
+            }
+            const bookBtn = card.querySelector('.recall-book-btn');
+            if (bookBtn) {
+              bookBtn.removeEventListener('click', bookBtn._bookHandler);
+              bookBtn._bookHandler = () => {
+                const title = `Recall: ${recall.component || 'Safety Recall'} (Campaign #${recall.nhtsa_campaign_number || 'N/A'})`;
+                const description = data.ai_summary || recall.summary || '';
+                const category = mapRecallComponentToCategory(recall.component);
+                createPackageForVehicle(card.getAttribute('data-vehicle-id'), { title, description, category });
+              };
+              bookBtn.addEventListener('click', bookBtn._bookHandler);
+            }
+          }
+        } catch {
+        }
+      }
     }
     
     async function acknowledgeRecall(recallId) {
@@ -2456,10 +2752,10 @@
       if (status) {
         statusContainer.style.display = 'block';
         const statusLabels = {
-          pending: '⏳ Pending Review',
-          approved: '✅ Approved',
-          rejected: '❌ Rejected',
-          needs_review: '🔍 Needs Manual Review'
+          pending: `${mccIcon('clock', 14)} Pending Review`,
+          approved: mccIcon('check-circle', 14) + ' Approved',
+          rejected: mccIcon('x', 14) + ' Rejected',
+          needs_review: `${mccIcon('search', 14)} Needs Manual Review`
         };
         document.getElementById('registration-status-display').innerHTML = `
           <span class="registration-status-badge ${status.status}">${statusLabels[status.status] || status.status}</span>
@@ -2566,11 +2862,11 @@
       
       const btn = document.getElementById('verify-registration-btn');
       btn.disabled = true;
-      btn.innerHTML = '⏳ Processing...';
+      btn.innerHTML = `${mccIcon('clock', 14)} Processing...`;
       
       document.getElementById('registration-loading').style.display = 'block';
       document.getElementById('registration-result').style.display = 'none';
-      document.getElementById('registration-loading-icon').textContent = '📤';
+      document.getElementById('registration-loading-icon').innerHTML = mccIcon('upload', 14);
       document.getElementById('registration-loading-text').textContent = 'Uploading document...';
       document.getElementById('registration-loading-subtext').textContent = 'Please wait';
       document.getElementById('registration-progress-bar').style.width = '20%';
@@ -2584,7 +2880,7 @@
           throw new Error('Failed to upload document');
         }
         
-        document.getElementById('registration-loading-icon').textContent = '🔍';
+        document.getElementById('registration-loading-icon').innerHTML = mccIcon('search', 14);
         document.getElementById('registration-loading-text').textContent = 'Analyzing document...';
         document.getElementById('registration-loading-subtext').textContent = 'Extracting registration details';
         document.getElementById('registration-progress-bar').style.width = '70%';
@@ -2601,7 +2897,7 @@
         if (result.success) {
           const statusConfig = {
             approved: {
-              icon: '✅',
+              icon: mccIcon('check-circle', 16),
               title: 'Registration Verified!',
               message: 'Your vehicle registration has been successfully verified.',
               class: 'approved',
@@ -2610,7 +2906,7 @@
               color: 'var(--accent-green)'
             },
             needs_review: {
-              icon: '🔍',
+              icon: mccIcon('search', 14),
               title: 'Manual Review Required',
               message: 'Your registration requires manual review. We\'ll verify it within 24-48 hours.',
               class: 'needs_review',
@@ -2619,7 +2915,7 @@
               color: 'var(--accent-blue)'
             },
             rejected: {
-              icon: '❌',
+              icon: mccIcon('x', 16),
               title: 'Verification Failed',
               message: 'The registration document could not be verified. Please ensure the image is clear and try again.',
               class: 'rejected',
@@ -2628,7 +2924,7 @@
               color: 'var(--accent-red)'
             },
             pending: {
-              icon: '⏳',
+              icon: mccIcon('clock', 14),
               title: 'Verification Pending',
               message: 'Your registration is being processed.',
               class: 'pending',
@@ -2663,14 +2959,14 @@
         } else {
           resultContainer.innerHTML = `
             <div style="background:rgba(239,95,95,0.15);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);padding:20px;text-align:center;">
-              <div style="font-size:48px;margin-bottom:12px;">❌</div>
+              <div style="margin-bottom:12px;">${mccIcon('x', 48)}</div>
               <div style="font-weight:600;font-size:1.1rem;margin-bottom:8px;color:var(--accent-red);">Verification Error</div>
               <p style="color:var(--text-secondary);font-size:0.9rem;">${result.error || 'An error occurred during verification. Please try again.'}</p>
             </div>
           `;
         }
         
-        btn.innerHTML = '✓ Verify Registration';
+        btn.innerHTML = mccIcon('check-circle', 14) + ' Verify Registration';
         btn.disabled = true;
         
       } catch (error) {
@@ -2679,14 +2975,14 @@
         document.getElementById('registration-loading').style.display = 'none';
         document.getElementById('registration-result').innerHTML = `
           <div style="background:rgba(239,95,95,0.15);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);padding:20px;text-align:center;">
-            <div style="font-size:48px;margin-bottom:12px;">❌</div>
+            <div style="margin-bottom:12px;">${mccIcon('x', 48)}</div>
             <div style="font-weight:600;font-size:1.1rem;margin-bottom:8px;color:var(--accent-red);">Upload Failed</div>
             <p style="color:var(--text-secondary);font-size:0.9rem;">${error.message || 'Failed to upload the document. Please try again.'}</p>
           </div>
         `;
         document.getElementById('registration-result').style.display = 'block';
         
-        btn.innerHTML = '✓ Verify Registration';
+        btn.innerHTML = mccIcon('check-circle', 14) + ' Verify Registration';
         btn.disabled = false;
       }
     }
@@ -2702,7 +2998,7 @@
       else if (currentPackageFilter === 'completed') filtered = packages.filter(p => p.status === 'completed');
 
       if (!filtered.length) {
-        list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><p>No packages in this category.</p></div>';
+        list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">$${mccIcon('package', 14)}</div><p>No packages in this category.</p></div>`;
         return;
       }
 
@@ -2720,21 +3016,21 @@
         if (p.status === 'open' && p.bidding_deadline) {
           const countdown = formatCountdown(p.bidding_deadline);
           const urgentClass = countdown.expired ? 'expired' : countdown.urgent ? 'urgent' : '';
-          countdownHtml = `<span class="countdown-timer ${urgentClass}">⏱️ ${countdown.text}</span>`;
+          countdownHtml = `<span class="countdown-timer ${urgentClass}">${mccIcon('clock', 14)} ${countdown.text}</span>`;
         }
         
         // Exclusive first look indicator
         let exclusiveHtml = '';
         if (p.status === 'open' && p.exclusive_until && new Date(p.exclusive_until) > new Date()) {
           const hoursRemaining = Math.ceil((new Date(p.exclusive_until) - new Date()) / (1000 * 60 * 60));
-          exclusiveHtml = `<div class="exclusive-first-look-badge" style="margin-top:6px;padding:6px 10px;background:var(--accent-gold-soft);border:1px solid var(--accent-gold);border-radius:var(--radius-sm);font-size:0.8rem;color:var(--accent-gold);">⭐ Your preferred provider has ${hoursRemaining}h first look</div>`;
+          exclusiveHtml = `<div class="exclusive-first-look-badge" style="margin-top:6px;padding:6px 10px;background:var(--accent-gold-soft);border:1px solid var(--accent-gold);border-radius:var(--radius-sm);font-size:0.8rem;color:var(--accent-gold);">${mccIcon('star', 14)} Your preferred provider has ${hoursRemaining}h first look</div>`;
         }
         
         // Repost button for expired packages
-        const repostButton = isExpired ? `<button class="btn btn-primary btn-sm" onclick="repostPackage('${p.id}')">🔄 Repost</button>` : '';
+        const repostButton = isExpired ? `<button class="btn btn-primary btn-sm" onclick="repostPackage('${p.id}')">${mccIcon('refresh-cw', 14)} Repost</button>` : '';
         
         // Extend deadline button for open (non-expired) packages
-        const extendButton = (p.status === 'open' && !isExpired) ? `<button class="btn btn-ghost btn-sm" onclick="extendDeadline('${p.id}')" title="Add more time">⏱️+</button>` : '';
+        const extendButton = (p.status === 'open' && !isExpired) ? `<button class="btn btn-ghost btn-sm" onclick="extendDeadline('${p.id}')" title="Add more time">${mccIcon('clock', 14)}+</button>` : '';
         
         return `
           <div class="package-card">
@@ -2750,14 +3046,14 @@
               </div>
             </div>
             <div class="package-meta">
-              <span>📅 ${new Date(p.created_at).toLocaleDateString()}</span>
-              <span>🔄 ${formatFrequency(p.frequency)}</span>
-              <span>🔧 ${p.parts_preference || 'Standard'} parts</span>
-              <span>🚗 ${formatPickup(p.pickup_preference)}</span>
+              <span>${mccIcon('calendar', 14)} ${new Date(p.created_at).toLocaleDateString()}</span>
+              <span>${mccIcon('refresh-cw', 14)} ${formatFrequency(p.frequency)}</span>
+              <span>${mccIcon('settings', 14)} ${p.parts_preference || 'Standard'} parts</span>
+              <span>${mccIcon('car-front', 14)} ${formatPickup(p.pickup_preference)}</span>
             </div>
             ${p.description ? `<div class="package-description">${p.description}</div>` : ''}
             <div class="package-footer">
-              <span class="bid-count">${isExpired ? 'Bidding ended' : (p.bid_count > 0 ? `💬 ${p.bid_count} bid${p.bid_count === 1 ? '' : 's'} received` : 'No bids yet')}</span>
+              <span class="bid-count">${isExpired ? 'Bidding ended' : (p.bid_count > 0 ? `${mccIcon('message-square', 14)} ${p.bid_count} bid${p.bid_count === 1 ? '' : 's'} received` : 'No bids yet')}</span>
               <div style="display:flex;gap:8px;">
                 ${extendButton}
                 ${repostButton}
@@ -2773,14 +3069,14 @@
       const container = document.getElementById('recent-activity');
       const recent = packages.slice(0, 3);
       if (!recent.length) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><p>No recent activity.</p></div>';
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">$${mccIcon('package', 14)}</div><p>No recent activity.</p></div>`;
         return;
       }
       container.innerHTML = recent.map(p => {
         const vehicle = p.vehicles;
         const vehicleName = vehicle ? (vehicle.nickname || `${vehicle.make} ${vehicle.model}`) : 'Vehicle';
         const bidInfo = p.status === 'open' && p.bid_count > 0 
-          ? `<div style="color:var(--accent-gold);font-size:0.85rem;margin-top:4px;">💬 ${p.bid_count} bid${p.bid_count === 1 ? '' : 's'}</div>` 
+          ? `<div style="color:var(--accent-gold);font-size:0.85rem;margin-top:4px;">${mccIcon('message-square', 14)} ${p.bid_count} bid${p.bid_count === 1 ? '' : 's'}</div>` 
           : '';
         return `
           <div class="package-card" style="margin-bottom:12px;padding:16px 20px;cursor:pointer;" onclick="viewPackage('${p.id}')">
@@ -2799,16 +3095,16 @@
 
     function getReminderIcon(type) {
       const icons = {
-        'registration': '📋',
-        'oil_change': '🛢️',
-        'warranty': '🛡️',
-        'maintenance': '🔧',
-        'inspection': '🔍',
-        'tire_rotation': '🔄',
-        'brake_check': '🛑',
-        'other': '📌'
+        'registration': mccIcon('file-text', 14),
+        'oil_change': mccIcon('thermometer', 14),
+        'warranty': mccIcon('shield', 14),
+        'maintenance': mccIcon('settings', 14),
+        'inspection': mccIcon('search', 14),
+        'tire_rotation': mccIcon('refresh-cw', 14),
+        'brake_check': mccIcon('alert-triangle', 14),
+        'other': mccIcon('map-pin', 14)
       };
-      return icons[type] || '🔧';
+      return icons[type] || mccIcon('settings', 14);
     }
     
     function formatReminderType(type) {
@@ -2836,7 +3132,7 @@
           : 'Oil degrades over time and loses its protective properties. Regular changes prevent costly engine wear.',
         'tire_rotation': 'Front tires wear faster due to steering and braking. Rotating them ensures even wear, extends tire life by 20-30%, and maintains safe handling.',
         'brake_check': 'Brake pads are wear items - the friction material gets thinner with each stop. Regular inspection ensures your stopping power stays safe.',
-        'inspection': 'Regular inspections catch small issues before they become expensive repairs. Think of it as a health checkup for your car.',
+        'inspection': 'Regular inspections catch small issues before they become expensive repairs. Think of it as a health checkup for your vehicle.',
         'registration': 'Vehicle registration renewal is required by law. Driving with expired registration can result in fines and your vehicle being towed.',
         'warranty': 'Warranty deadlines matter. Delaying service could void coverage on expensive repairs that would otherwise be free.',
         'maintenance': 'Regular maintenance extends vehicle life and prevents breakdowns. Components wear over time and need attention.'
@@ -2854,7 +3150,7 @@
     function renderReminders() {
       const list = document.getElementById('reminders-list');
       if (!reminders.length) {
-        list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔔</div><p>No reminders. Your vehicles are up to date!</p></div>';
+        list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">$${mccIcon('bell', 14)}</div><p>No reminders. Your vehicles are up to date!</p></div>`;
         return;
       }
       list.innerHTML = reminders.map(r => {
@@ -2875,12 +3171,13 @@
               ${r.description ? `<br><span style="color:var(--text-muted);font-size:0.8rem;">${r.description}</span>` : ''}
             </div>
             <div class="reminder-why-due" style="margin-top:8px;padding:10px 12px;background:var(--accent-blue-soft);border-radius:var(--radius-sm);border-left:3px solid var(--accent-blue);">
-              <span style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">💡 <strong>Why it's due:</strong> ${whyExplanation}</span>
+              <span style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">${mccIcon('info', 14)} <strong>Why it's due:</strong> ${whyExplanation}</span>
+              ${(function() { var ck = typeof getCareKeyForCategory === 'function' ? getCareKeyForCategory(r.title || r.type || '') : null; return ck ? '<button onclick="openAcademyCareCard(\'' + ck + '\')" style="margin-top:6px;display:inline-flex;align-items:center;gap:4px;background:transparent;border:none;color:var(--accent-teal);font-size:0.78rem;font-weight:600;cursor:pointer;padding:0;">' + mccIcon('book-open', 12) + ' Learn more in Academy</button>' : ''; })()}
             </div>
           </div>
           <div class="reminder-actions">
             <button class="btn btn-sm btn-primary" onclick="createPackageFromReminder('${r.vehicleId}', '${r.title.replace(/'/g, "\\'")}')">Schedule</button>
-            <button class="btn btn-sm btn-secondary" onclick="snoozeReminder('${r.id}', ${r.dbId ? `'${r.dbId}'` : 'null'})" title="Snooze for 7 days">💤</button>
+            <button class="btn btn-sm btn-secondary" onclick="snoozeReminder('${r.id}', ${r.dbId ? `'${r.dbId}'` : 'null'})" title="Snooze for 7 days">${mccIcon('clock', 14)}</button>
             <button class="btn btn-sm btn-ghost" onclick="dismissReminder('${r.id}')" title="Dismiss reminder">✕</button>
           </div>
         </div>
@@ -2891,7 +3188,7 @@
       const container = document.getElementById('upcoming-reminders');
       const upcoming = reminders.filter(r => r.status === 'due' || r.status === 'overdue').slice(0, 3);
       if (!upcoming.length) {
-        container.innerHTML = '<div class="empty-state" style="padding:24px"><div class="empty-state-icon">✅</div><p>All caught up!</p></div>';
+        container.innerHTML = `<div class="empty-state" style="padding:24px"><div class="empty-state-icon">${mccIcon('check-circle', 48)}</div><p>All caught up!</p></div>`;
         return;
       }
       container.innerHTML = upcoming.map(r => `
@@ -2904,7 +3201,7 @@
             <div class="reminder-due">${r.vehicleName}</div>
           </div>
           <div class="reminder-actions" style="margin-left:auto;">
-            <button class="btn btn-sm btn-secondary" onclick="snoozeReminder('${r.id}', ${r.dbId ? `'${r.dbId}'` : 'null'})" title="Snooze for 7 days">💤</button>
+            <button class="btn btn-sm btn-secondary" onclick="snoozeReminder('${r.id}', ${r.dbId ? `'${r.dbId}'` : 'null'})" title="Snooze for 7 days">${mccIcon('clock', 14)}</button>
             <button class="btn btn-sm btn-ghost" onclick="dismissReminder('${r.id}')" title="Dismiss reminder">✕</button>
           </div>
         </div>
@@ -3342,7 +3639,7 @@
       const btn = document.getElementById('edu-btn-' + code);
       if (content) {
         content.classList.toggle('expanded');
-        btn.textContent = content.classList.contains('expanded') ? '✕ Close' : 'ℹ️ What is this?';
+        btn.innerHTML = content.classList.contains('expanded') ? '✕ Close' : mccIcon('info', 14) + ' What is this?';
       }
     }
 
@@ -3350,32 +3647,32 @@
       const edu = maintenanceEducation[code];
       if (!edu) return '';
       
-      const difficultyLabels = { easy: '🟢 DIY-Friendly', moderate: '🟡 Moderate DIY', professional: '🔴 Professional Recommended' };
+      const difficultyLabels = { easy: `${mccIcon('check-circle', 14)} DIY-Friendly`, moderate: `${mccIcon('alert-triangle', 14)} Moderate DIY`, professional: `${mccIcon('alert-triangle', 14)} Professional Recommended` };
       
       const highMileageSection = edu.highMileageNote ? `
             <div class="edu-section" style="background:var(--accent-gold-soft);border-radius:var(--radius-sm);padding:12px;margin-top:8px;">
-              <div class="edu-section-title" style="color:var(--accent-gold);">🚗 High-Mileage & Professional Drivers</div>
+              <div class="edu-section-title" style="color:var(--accent-gold);">${mccIcon('car-front', 14)} High-Mileage & Professional Drivers</div>
               <div class="edu-section-text">${edu.highMileageNote}</div>
             </div>` : '';
       
       return `
-        <button class="edu-toggle-btn" id="edu-btn-${code}" onclick="event.stopPropagation(); toggleMaintenanceEducation('${code}')">ℹ️ What is this?</button>
+        <button class="edu-toggle-btn" id="edu-btn-${code}" onclick="event.stopPropagation(); toggleMaintenanceEducation('${code}')">${mccIcon('info', 14)} What is this?</button>
         <div class="edu-content" id="edu-content-${code}">
           <div class="edu-card">
             <div class="edu-section">
-              <div class="edu-section-title">📖 What is it?</div>
+              <div class="edu-section-title">${mccIcon('book-open', 14)} What is it?</div>
               <div class="edu-section-text">${edu.whatIsIt}</div>
             </div>
             <div class="edu-section">
-              <div class="edu-section-title">⚠️ Why it matters</div>
+              <div class="edu-section-title">${mccIcon('alert-triangle', 16)} Why it matters</div>
               <div class="edu-section-text">${edu.whyMatters}</div>
             </div>
             <div class="edu-section">
-              <div class="edu-section-title">🚨 Warning signs if skipped</div>
+              <div class="edu-section-title">${mccIcon('alert-triangle', 14)} Warning signs if skipped</div>
               <div class="edu-section-text">${edu.warningSignsIfSkipped}</div>
             </div>
             <div class="edu-section">
-              <div class="edu-section-title">🔧 DIY Difficulty</div>
+              <div class="edu-section-title">${mccIcon('settings', 14)} DIY Difficulty</div>
               <span class="edu-difficulty ${edu.diyDifficulty}">${difficultyLabels[edu.diyDifficulty] || edu.diyDifficulty}</span>
             </div>${highMileageSection}
           </div>
@@ -3391,25 +3688,25 @@
       const needsCarbonCleaning = fuelInjectionType === 'direct_injection' || fuelInjectionType === 'dual_injection';
       
       const baseSchedule = [
-        { code: 'oil_synthetic', name: 'Oil & Filter Change', icon: '🛢️', category: 'fluids', base_mileage_interval: vehicleClass === 'european' ? 10000 : 7500, base_months_interval: 12, priority: 'critical', high_mileage_multiplier: 0.75, notes: 'Full synthetic oil recommended' },
-        { code: 'tire_rotation', name: 'Tire Rotation', icon: '🔄', category: 'tires', base_mileage_interval: 6000, base_months_interval: 6, priority: 'recommended', high_mileage_multiplier: 1.0, notes: 'Promotes even tire wear' },
-        { code: 'engine_air_filter', name: 'Engine Air Filter', icon: '💨', category: 'filters', base_mileage_interval: 25000, base_months_interval: 24, priority: 'recommended', high_mileage_multiplier: 0.8, notes: 'Replace sooner in dusty conditions' },
-        { code: 'cabin_air_filter', name: 'Cabin Air Filter', icon: '🌬️', category: 'filters', base_mileage_interval: 20000, base_months_interval: 18, priority: 'recommended', high_mileage_multiplier: 0.85, notes: 'Keeps interior air clean' },
-        { code: 'brake_fluid', name: 'Brake Fluid Flush', icon: '🛑', category: 'fluids', base_mileage_interval: 0, base_months_interval: 24, priority: 'critical', high_mileage_multiplier: 0.85, notes: 'Replace every 2-3 years regardless of mileage' },
-        { code: 'transmission_fluid', name: 'Transmission Fluid', icon: '⚙️', category: 'fluids', base_mileage_interval: 60000, base_months_interval: 48, priority: 'recommended', high_mileage_multiplier: 0.75, notes: 'Critical for transmission longevity' },
-        { code: 'coolant_flush', name: 'Coolant Flush', icon: '❄️', category: 'fluids', base_mileage_interval: 50000, base_months_interval: 48, priority: 'recommended', high_mileage_multiplier: 0.8, notes: 'Prevents overheating and corrosion' },
-        { code: 'spark_plugs', name: 'Spark Plugs', icon: '⚡', category: 'engine', base_mileage_interval: vehicleClass === 'asian' ? 100000 : 60000, base_months_interval: vehicleClass === 'asian' ? 84 : 60, priority: 'recommended', high_mileage_multiplier: 0.9, notes: vehicleClass === 'asian' ? 'Iridium plugs - extended interval' : 'Check manufacturer specs' },
-        { code: 'carbon_cleaning', name: 'Carbon Cleaning (Walnut Blasting)', icon: '🥜', category: 'engine', base_mileage_interval: vehicleClass === 'european' ? 50000 : 70000, base_months_interval: 60, priority: 'recommended', high_mileage_multiplier: 0.8, notes: 'Critical for direct injection engines - removes carbon buildup from intake valves' },
-        { code: 'fuel_system_cleaning', name: 'Fuel System Cleaning', icon: '⛽', category: 'engine', base_mileage_interval: 30000, base_months_interval: 30, priority: 'recommended', high_mileage_multiplier: 0.85, notes: 'Cleans fuel injectors and intake for optimal performance' },
-        { code: 'throttle_body_service', name: 'Throttle Body Service', icon: '🔧', category: 'engine', base_mileage_interval: 60000, base_months_interval: 48, priority: 'recommended', high_mileage_multiplier: 0.85, notes: 'Clean throttle body for smooth idle and response' },
-        { code: 'brake_pads_front', name: 'Front Brake Pads', icon: '🛑', category: 'brakes', base_mileage_interval: 40000, base_months_interval: 36, priority: 'critical', high_mileage_multiplier: 0.85, notes: 'Inspect regularly for wear' },
-        { code: 'brake_pads_rear', name: 'Rear Brake Pads', icon: '🛑', category: 'brakes', base_mileage_interval: 50000, base_months_interval: 48, priority: 'critical', high_mileage_multiplier: 0.85, notes: 'Usually last longer than front' },
-        { code: 'battery_check', name: 'Battery Inspection', icon: '🔋', category: 'electrical', base_mileage_interval: 12000, base_months_interval: 12, priority: 'recommended', high_mileage_multiplier: 1.0, notes: 'Test and clean terminals' },
-        { code: 'wiper_blades', name: 'Wiper Blades', icon: '🌧️', category: 'electrical', base_mileage_interval: 15000, base_months_interval: 12, priority: 'recommended', high_mileage_multiplier: 1.0, notes: 'Replace when streaking' },
-        { code: 'wheel_alignment', name: 'Wheel Alignment', icon: '🎯', category: 'tires', base_mileage_interval: 25000, base_months_interval: 24, priority: 'recommended', high_mileage_multiplier: 0.9, notes: 'Check if pulling or uneven tire wear' },
-        { code: 'serpentine_belt', name: 'Serpentine Belt', icon: '🔗', category: 'engine', base_mileage_interval: 60000, base_months_interval: 60, priority: 'recommended', high_mileage_multiplier: 0.85, notes: 'Inspect for cracks and wear' },
-        { code: 'timing_belt', name: 'Timing Belt/Chain', icon: '🔗', category: 'engine', base_mileage_interval: 90000, base_months_interval: 84, priority: 'critical', high_mileage_multiplier: 0.9, notes: 'Critical! Failure causes major engine damage' },
-        { code: 'multi_point_inspection', name: 'Multi-Point Inspection', icon: '📋', category: 'other', base_mileage_interval: 15000, base_months_interval: 12, priority: 'recommended', high_mileage_multiplier: 1.0, notes: 'Comprehensive vehicle check' }
+        { code: 'oil_synthetic', name: 'Oil & Filter Change', icon: mccIcon('thermometer', 14), category: 'fluids', base_mileage_interval: vehicleClass === 'european' ? 10000 : 7500, base_months_interval: 12, priority: 'critical', high_mileage_multiplier: 0.75, notes: 'Full synthetic oil recommended' },
+        { code: 'tire_rotation', name: 'Tire Rotation', icon: mccIcon('refresh-cw', 14), category: 'tires', base_mileage_interval: 6000, base_months_interval: 6, priority: 'recommended', high_mileage_multiplier: 1.0, notes: 'Promotes even tire wear' },
+        { code: 'engine_air_filter', name: 'Engine Air Filter', icon: mccIcon('activity', 14), category: 'filters', base_mileage_interval: 25000, base_months_interval: 24, priority: 'recommended', high_mileage_multiplier: 0.8, notes: 'Replace sooner in dusty conditions' },
+        { code: 'cabin_air_filter', name: 'Cabin Air Filter', icon: mccIcon('activity', 14), category: 'filters', base_mileage_interval: 20000, base_months_interval: 18, priority: 'recommended', high_mileage_multiplier: 0.85, notes: 'Keeps interior air clean' },
+        { code: 'brake_fluid', name: 'Brake Fluid Flush', icon: mccIcon('alert-triangle', 14), category: 'fluids', base_mileage_interval: 0, base_months_interval: 24, priority: 'critical', high_mileage_multiplier: 0.85, notes: 'Replace every 2-3 years regardless of mileage' },
+        { code: 'transmission_fluid', name: 'Transmission Fluid', icon: mccIcon('settings', 14), category: 'fluids', base_mileage_interval: 60000, base_months_interval: 48, priority: 'recommended', high_mileage_multiplier: 0.75, notes: 'Critical for transmission longevity' },
+        { code: 'coolant_flush', name: 'Coolant Flush', icon: mccIcon('tool', 16), category: 'fluids', base_mileage_interval: 50000, base_months_interval: 48, priority: 'recommended', high_mileage_multiplier: 0.8, notes: 'Prevents overheating and corrosion' },
+        { code: 'spark_plugs', name: 'Spark Plugs', icon: mccIcon('zap', 14), category: 'engine', base_mileage_interval: vehicleClass === 'asian' ? 100000 : 60000, base_months_interval: vehicleClass === 'asian' ? 84 : 60, priority: 'recommended', high_mileage_multiplier: 0.9, notes: vehicleClass === 'asian' ? 'Iridium plugs - extended interval' : 'Check manufacturer specs' },
+        { code: 'carbon_cleaning', name: 'Carbon Cleaning (Walnut Blasting)', icon: mccIcon('settings', 14), category: 'engine', base_mileage_interval: vehicleClass === 'european' ? 50000 : 70000, base_months_interval: 60, priority: 'recommended', high_mileage_multiplier: 0.8, notes: 'Critical for direct injection engines - removes carbon buildup from intake valves' },
+        { code: 'fuel_system_cleaning', name: 'Fuel System Cleaning', icon: mccIcon('fuel', 16), category: 'engine', base_mileage_interval: 30000, base_months_interval: 30, priority: 'recommended', high_mileage_multiplier: 0.85, notes: 'Cleans fuel injectors and intake for optimal performance' },
+        { code: 'throttle_body_service', name: 'Throttle Body Service', icon: mccIcon('settings', 14), category: 'engine', base_mileage_interval: 60000, base_months_interval: 48, priority: 'recommended', high_mileage_multiplier: 0.85, notes: 'Clean throttle body for smooth idle and response' },
+        { code: 'brake_pads_front', name: 'Front Brake Pads', icon: mccIcon('alert-triangle', 14), category: 'brakes', base_mileage_interval: 40000, base_months_interval: 36, priority: 'critical', high_mileage_multiplier: 0.85, notes: 'Inspect regularly for wear' },
+        { code: 'brake_pads_rear', name: 'Rear Brake Pads', icon: mccIcon('alert-triangle', 14), category: 'brakes', base_mileage_interval: 50000, base_months_interval: 48, priority: 'critical', high_mileage_multiplier: 0.85, notes: 'Usually last longer than front' },
+        { code: 'battery_check', name: 'Battery Inspection', icon: mccIcon('activity', 14), category: 'electrical', base_mileage_interval: 12000, base_months_interval: 12, priority: 'recommended', high_mileage_multiplier: 1.0, notes: 'Test and clean terminals' },
+        { code: 'wiper_blades', name: 'Wiper Blades', icon: mccIcon('activity', 14), category: 'electrical', base_mileage_interval: 15000, base_months_interval: 12, priority: 'recommended', high_mileage_multiplier: 1.0, notes: 'Replace when streaking' },
+        { code: 'wheel_alignment', name: 'Wheel Alignment', icon: mccIcon('check-circle', 14), category: 'tires', base_mileage_interval: 25000, base_months_interval: 24, priority: 'recommended', high_mileage_multiplier: 0.9, notes: 'Check if pulling or uneven tire wear' },
+        { code: 'serpentine_belt', name: 'Serpentine Belt', icon: mccIcon('link', 14), category: 'engine', base_mileage_interval: 60000, base_months_interval: 60, priority: 'recommended', high_mileage_multiplier: 0.85, notes: 'Inspect for cracks and wear' },
+        { code: 'timing_belt', name: 'Timing Belt/Chain', icon: mccIcon('link', 14), category: 'engine', base_mileage_interval: 90000, base_months_interval: 84, priority: 'critical', high_mileage_multiplier: 0.9, notes: 'Critical! Failure causes major engine damage' },
+        { code: 'multi_point_inspection', name: 'Multi-Point Inspection', icon: mccIcon('file-text', 14), category: 'other', base_mileage_interval: 15000, base_months_interval: 12, priority: 'recommended', high_mileage_multiplier: 1.0, notes: 'Comprehensive vehicle check' }
       ];
       
       if (isEV) {
@@ -3463,7 +3760,7 @@
       }
       
       if (!filteredItems.length) {
-        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">✅</div><p>No items match this filter.</p></div>`;
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('check-circle', 48)}</div><p>No items match this filter.</p></div>`;
         return;
       }
       
@@ -3542,7 +3839,7 @@
               ${item.status !== 'up-to-date' ? `<button class="btn btn-sm btn-primary" onclick="postMaintenanceRequest('${item.code}', '${item.name.replace(/'/g, "\\'")}')">Post Request</button>` : ''}
             </div>
           </div>
-          ${item.notes ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border-subtle);">💡 ${item.notes}</div>` : ''}
+          ${item.notes ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border-subtle);">${mccIcon('info', 14)} ${item.notes}</div>` : ''}
           <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle);">
             ${getEducationHtml(item.code)}
           </div>
@@ -3746,7 +4043,7 @@
       
       const list = document.getElementById('history-list');
       if (!append) {
-        list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⏳</div><p>Loading service history...</p></div>';
+        list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">$${mccIcon('clock', 14)}</div><p>Loading service history...</p></div>`;
         posHistoryOffset = 0;
         posServiceHistory = [];
       }
@@ -3793,7 +4090,7 @@
         
       } catch (error) {
         console.error('Error loading POS service history:', error);
-        list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>Failed to load service history.</p><p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">${error.message}</p></div>`;
+        list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('alert-triangle', 24)}</div><p>Failed to load service history. Please try again later.</p></div>`;
       }
     }
     
@@ -3848,7 +4145,7 @@
       
       const btn = document.getElementById('export-history-btn');
       const originalText = btn.innerHTML;
-      btn.innerHTML = '⏳ Generating...';
+      btn.innerHTML = `${mccIcon('clock', 14)} Generating...`;
       btn.disabled = true;
       
       try {
@@ -4070,7 +4367,7 @@
       const list = document.getElementById('history-list');
       
       if (!posServiceHistory.length) {
-        list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📜</div><p>No service history found.</p><p style="font-size:0.9rem;color:var(--text-muted);margin-top:8px;">Completed walk-in services will appear here.</p></div>`;
+        list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('file-text', 14)}</div><p>No service history found.</p><p style="font-size:0.9rem;color:var(--text-muted);margin-top:8px;">Completed walk-in services will appear here.</p></div>`;
         return;
       }
       
@@ -4102,11 +4399,11 @@
             <div class="service-history-body">
               <div class="service-info-row">
                 <div class="service-info-item">
-                  <span class="info-label">🔧 Services</span>
+                  <span class="info-label">${mccIcon('settings', 14)} Services</span>
                   <span class="info-value">${servicesList}</span>
                 </div>
                 <div class="service-info-item">
-                  <span class="info-label">🚗 Vehicle</span>
+                  <span class="info-label">${mccIcon('car-front', 14)} Vehicle</span>
                   <span class="info-value">${h.vehicle?.displayName || 'Unknown Vehicle'}</span>
                 </div>
               </div>
@@ -4146,8 +4443,8 @@
               ` : ''}
               ${h.inspection ? renderInspectionDetails(h.inspection) : ''}
               <div class="details-actions">
-                <button class="btn btn-secondary btn-sm" onclick="printReceipt('${h.id}')">🖨️ Print Receipt</button>
-                ${h.provider?.phone ? `<a href="tel:${h.provider.phone}" class="btn btn-ghost btn-sm">📞 Call Provider</a>` : ''}
+                <button class="btn btn-secondary btn-sm" onclick="printReceipt('${h.id}')">${mccIcon('printer', 14)} Print Receipt</button>
+                ${h.provider?.phone ? `<a href="tel:${h.provider.phone}" class="btn btn-ghost btn-sm">${mccIcon('phone', 14)} Call Provider</a>` : ''}
               </div>
             </div>
           </div>
@@ -4302,7 +4599,7 @@
       if (filter) filtered = serviceHistory.filter(h => h.vehicle_id === filter);
 
       if (!filtered.length) {
-        list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📜</div><p>No service history yet. Completed packages will appear here.</p></div>';
+        list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">$${mccIcon('file-text', 14)}</div><p>No service history yet. Completed packages will appear here.</p></div>`;
         return;
       }
       list.innerHTML = filtered.map(h => {
@@ -4339,7 +4636,7 @@
     // ========== COST ESTIMATOR ==========
     const estimatorServiceData = {
       maintenance: {
-        name: 'Maintenance', icon: '🔧',
+        name: 'Maintenance', icon: mccIcon('settings', 14),
         services: [
           { name: 'Oil Change', hasTiers: true, tiers: {
             basic: { domestic: { low: 35, avg: 45, high: 55 }, asian: { low: 40, avg: 50, high: 60 }, european: { low: 75, avg: 95, high: 120 } },
@@ -4368,7 +4665,7 @@
         ]
       },
       repair: {
-        name: 'Repairs', icon: '🛠️',
+        name: 'Repairs', icon: mccIcon('settings', 14),
         services: [
           { name: 'Alternator Replacement', hasTiers: false, prices: { domestic: { low: 350, avg: 500, high: 750 }, asian: { low: 380, avg: 550, high: 800 }, european: { low: 550, avg: 800, high: 1200 } }},
           { name: 'Starter Replacement', hasTiers: false, prices: { domestic: { low: 350, avg: 500, high: 700 }, asian: { low: 380, avg: 550, high: 750 }, european: { low: 500, avg: 750, high: 1100 } }},
@@ -4389,7 +4686,7 @@
         ]
       },
       detailing: {
-        name: 'Detailing', icon: '✨',
+        name: 'Detailing', icon: mccIcon('sparkles', 14),
         services: [
           { name: 'Basic Wash & Vacuum', hasTiers: false, prices: { domestic: { low: 40, avg: 60, high: 90 }, asian: { low: 40, avg: 60, high: 90 }, european: { low: 50, avg: 75, high: 110 } }},
           { name: 'Interior Detail', hasTiers: false, prices: { domestic: { low: 100, avg: 175, high: 280 }, asian: { low: 100, avg: 175, high: 280 }, european: { low: 130, avg: 225, high: 360 } }},
@@ -4406,7 +4703,7 @@
         ]
       },
       body: {
-        name: 'Body Work', icon: '🚗',
+        name: 'Body Work', icon: mccIcon('car-front', 14),
         services: [
           { name: 'Dent Removal (PDR)', hasTiers: false, prices: { domestic: { low: 75, avg: 150, high: 300 }, asian: { low: 75, avg: 150, high: 300 }, european: { low: 100, avg: 200, high: 400 } }},
           { name: 'Scratch Repair', hasTiers: false, prices: { domestic: { low: 100, avg: 250, high: 500 }, asian: { low: 100, avg: 250, high: 500 }, european: { low: 140, avg: 350, high: 700 } }},
@@ -4420,7 +4717,7 @@
         ]
       },
       inspection: {
-        name: 'Inspection', icon: '🔍',
+        name: 'Inspection', icon: mccIcon('search', 14),
         services: [
           { name: 'Pre-Purchase Inspection', hasTiers: false, prices: { domestic: { low: 100, avg: 150, high: 250 }, asian: { low: 100, avg: 150, high: 250 }, european: { low: 150, avg: 225, high: 375 } }},
           { name: 'State Inspection', hasTiers: false, prices: { domestic: { low: 20, avg: 35, high: 75 }, asian: { low: 20, avg: 35, high: 75 }, european: { low: 30, avg: 50, high: 100 } }},
@@ -4428,7 +4725,7 @@
         ]
       },
       diagnostic: {
-        name: 'Diagnostics', icon: '📊',
+        name: 'Diagnostics', icon: mccIcon('bar-chart', 14),
         services: [
           { name: 'Check Engine Light Diagnosis', hasTiers: false, prices: { domestic: { low: 80, avg: 120, high: 180 }, asian: { low: 90, avg: 135, high: 200 }, european: { low: 120, avg: 180, high: 270 } }},
           { name: 'Electrical Diagnosis', hasTiers: false, prices: { domestic: { low: 100, avg: 175, high: 300 }, asian: { low: 110, avg: 190, high: 330 }, european: { low: 150, avg: 260, high: 450 } }},
@@ -4437,7 +4734,7 @@
         ]
       },
       ev_hybrid: {
-        name: 'EV & Hybrid', icon: '⚡',
+        name: 'EV & Hybrid', icon: mccIcon('zap', 14),
         services: [
           { name: 'Battery Health Check', hasTiers: false, prices: { domestic: { low: 100, avg: 175, high: 300 }, asian: { low: 110, avg: 190, high: 330 }, electric: { low: 130, avg: 225, high: 390 } }},
           { name: 'EV Brake Service', hasTiers: false, prices: { domestic: { low: 150, avg: 250, high: 400 }, asian: { low: 165, avg: 275, high: 440 }, electric: { low: 195, avg: 325, high: 520 } }},
@@ -4448,7 +4745,7 @@
         ]
       },
       protection: {
-        name: 'Protection', icon: '🛡️',
+        name: 'Protection', icon: mccIcon('shield', 14),
         services: [
           { name: 'Undercoating / Rustproofing', hasTiers: false, prices: { domestic: { low: 150, avg: 300, high: 500 }, asian: { low: 165, avg: 330, high: 550 }, european: { low: 225, avg: 450, high: 750 } }},
           { name: 'Ceramic Coating (Premium)', hasTiers: true, tiers: {
@@ -4464,7 +4761,7 @@
         ]
       },
       engine_performance: {
-        name: 'Engine & Performance', icon: '⚙️',
+        name: 'Engine & Performance', icon: mccIcon('settings', 14),
         services: [
           { name: 'Walnut Shell Blasting / Carbon Cleaning', hasTiers: false, prices: { domestic: { low: 400, avg: 600, high: 900 }, asian: { low: 450, avg: 700, high: 1000 }, european: { low: 600, avg: 900, high: 1400 } }},
           { name: 'Intake Manifold Cleaning', hasTiers: false, prices: { domestic: { low: 200, avg: 350, high: 550 }, asian: { low: 220, avg: 385, high: 605 }, european: { low: 300, avg: 525, high: 825 } }},
@@ -4603,7 +4900,7 @@
       const btn = document.getElementById('service-edu-btn');
       if (content) {
         content.classList.toggle('expanded');
-        btn.innerHTML = content.classList.contains('expanded') ? '✕ Hide' : 'ℹ️ Why this matters';
+        btn.innerHTML = content.classList.contains('expanded') ? '✕ Hide' : mccIcon('info', 14) + ' Why this matters';
       }
     }
 
@@ -4613,16 +4910,16 @@
       
       return `
         <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle);">
-          <button class="edu-toggle-btn" id="service-edu-btn" onclick="toggleServiceEducation()">ℹ️ Why this matters</button>
+          <button class="edu-toggle-btn" id="service-edu-btn" onclick="toggleServiceEducation()">${mccIcon('info', 14)} Why this matters</button>
           <div class="edu-content" id="service-edu-content">
             <div class="edu-card">
               <div class="edu-section">
-                <div class="edu-section-title">⚠️ Why this matters</div>
+                <div class="edu-section-title">${mccIcon('alert-triangle', 16)} Why this matters</div>
                 <div class="edu-section-text">${edu.whyMatters}</div>
               </div>
               ${edu.tip ? `
               <div class="edu-section">
-                <div class="edu-section-title">💡 Pro tip</div>
+                <div class="edu-section-title">${mccIcon('info', 14)} Pro tip</div>
                 <div class="edu-section-text">${edu.tip}</div>
               </div>
               ` : ''}
@@ -4715,7 +5012,7 @@
           ${vehicles.map(v => `
             <div class="saved-vehicle-option" onclick="selectEstimatorVehicle('${v.id}')" 
                  style="background:var(--bg-card);border:2px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;cursor:pointer;transition:all 0.2s ease;">
-              <div style="font-size:1.5rem;margin-bottom:8px;">🚗</div>
+              <div style="font-size:1.5rem;margin-bottom:8px;">${mccIcon('car-front', 14)}</div>
               <div style="font-weight:600;">${v.year || ''} ${v.make} ${v.model}</div>
               <div style="font-size:0.8rem;color:var(--text-muted);">${v.nickname || ''}</div>
             </div>
@@ -4901,34 +5198,34 @@
       
       const factors = [];
       if (estimate.vehicleClass === 'european') {
-        factors.push('<li>🚗 <strong>European vehicles</strong> typically cost 40-50% more due to specialized parts and labor</li>');
+        factors.push(`<li>${mccIcon('car-front', 14)} <strong>European vehicles</strong> typically cost 40-50% more due to specialized parts and labor</li>`);
       } else if (estimate.vehicleClass === 'asian') {
-        factors.push('<li>🚗 <strong>Asian vehicles</strong> have competitive pricing with widely available parts</li>');
+        factors.push(`<li>${mccIcon('car-front', 14)} <strong>Asian vehicles</strong> have competitive pricing with widely available parts</li>`);
       } else if (estimate.vehicleClass === 'electric') {
-        factors.push('<li>⚡ <strong>Electric vehicles</strong> require specialized technicians and equipment</li>');
+        factors.push(`<li>${mccIcon('zap', 14)} <strong>Electric vehicles</strong> require specialized technicians and equipment</li>`);
       } else {
-        factors.push('<li>🚗 <strong>Domestic vehicles</strong> have the most competitive pricing with readily available parts</li>');
+        factors.push(`<li>${mccIcon('car-front', 14)} <strong>Domestic vehicles</strong> have the most competitive pricing with readily available parts</li>`);
       }
       
       if (estimate.region === 'west') {
-        factors.push('<li>📍 <strong>West Coast</strong> labor rates are 15% above national average</li>');
+        factors.push(`<li>${mccIcon('map-pin', 14)} <strong>West Coast</strong> labor rates are 15% above national average</li>`);
       } else if (estimate.region === 'northeast') {
-        factors.push('<li>📍 <strong>Northeast</strong> labor rates are 8% above national average</li>');
+        factors.push(`<li>${mccIcon('map-pin', 14)} <strong>Northeast</strong> labor rates are 8% above national average</li>`);
       } else if (estimate.region === 'midwest') {
-        factors.push('<li>📍 <strong>Midwest</strong> labor rates are 5% below national average</li>');
+        factors.push(`<li>${mccIcon('map-pin', 14)} <strong>Midwest</strong> labor rates are 5% below national average</li>`);
       } else if (estimate.region === 'south') {
-        factors.push('<li>📍 <strong>South</strong> labor rates are 10% below national average</li>');
+        factors.push(`<li>${mccIcon('map-pin', 14)} <strong>South</strong> labor rates are 10% below national average</li>`);
       }
       
       if (estimate.tier) {
         if (estimate.tier === 'basic') {
-          factors.push('<li>🔧 <strong>Basic tier</strong> uses standard/aftermarket parts</li>');
+          factors.push(`<li>${mccIcon('settings', 14)} <strong>Basic tier</strong> uses standard/aftermarket parts</li>`);
         } else if (estimate.tier === 'premium') {
-          factors.push('<li>🔧 <strong>Premium tier</strong> uses OEM/synthetic parts for longer life</li>');
+          factors.push(`<li>${mccIcon('settings', 14)} <strong>Premium tier</strong> uses OEM/synthetic parts for longer life</li>`);
         }
       }
       
-      factors.push('<li>💡 Prices reflect industry benchmarks and may vary by provider</li>');
+      factors.push(`<li>${mccIcon('info', 14)} Prices reflect industry benchmarks and may vary by provider</li>`);
       
       document.getElementById('estimate-factors').innerHTML = factors.join('');
       
@@ -5050,14 +5347,23 @@
         document.getElementById('p-service-type').innerHTML = '<option value="">Select service...</option>' + options;
         document.getElementById('insurance-section').style.display = e.target.value === 'accident_repair' ? 'block' : 'none';
         
-        // Show oil preference section for maintenance or manufacturer_service categories
         const showOilPrefs = e.target.value === 'maintenance' || e.target.value === 'manufacturer_service';
         document.getElementById('oil-preference-section').style.display = showOilPrefs ? 'block' : 'none';
         
-        // Show fitment section for performance, offroad, and other mod categories
         const fitmentCategories = ['performance', 'offroad', 'cosmetic', 'premium_protection', 'motorcycle', 'classic_vintage'];
         const showFitment = fitmentCategories.includes(e.target.value);
         document.getElementById('fitment-section').style.display = showFitment ? 'block' : 'none';
+
+        const isSnowRemoval = e.target.value === 'snow_removal';
+        document.getElementById('snow-removal-section').style.display = isSnowRemoval ? 'block' : 'none';
+        const vehicleSelect = document.getElementById('p-vehicle');
+        if (isSnowRemoval) {
+          vehicleSelect.removeAttribute('required');
+          vehicleSelect.closest('.form-group').querySelector('.form-label').textContent = 'Vehicle (optional for snow removal)';
+        } else {
+          vehicleSelect.setAttribute('required', '');
+          vehicleSelect.closest('.form-group').querySelector('.form-label').textContent = 'Vehicle *';
+        }
       });
 
       // Oil preference toggle selection
@@ -5290,6 +5596,24 @@
       // Clear photos
       pendingPackagePhotos = [];
       document.getElementById('package-photo-previews').innerHTML = '';
+
+      // Reset AI describe panel
+      const aiDescBody = document.getElementById('ai-describe-body');
+      if (aiDescBody) aiDescBody.style.display = 'none';
+      const aiDescInput = document.getElementById('ai-describe-input');
+      if (aiDescInput) aiDescInput.value = '';
+      const aiDescStatus = document.getElementById('ai-describe-status');
+      if (aiDescStatus) aiDescStatus.style.display = 'none';
+      const aiDescChevron = document.getElementById('ai-describe-chevron');
+      if (aiDescChevron) aiDescChevron.style.transform = '';
+      const aiPhotoPreview = document.getElementById('ai-photo-preview');
+      if (aiPhotoPreview) aiPhotoPreview.style.display = 'none';
+      const aiPhotoThumb = document.getElementById('ai-photo-thumb');
+      if (aiPhotoThumb) aiPhotoThumb.src = '';
+      const aiPhotoExpl = document.getElementById('ai-photo-explanation');
+      if (aiPhotoExpl) { aiPhotoExpl.style.display = 'none'; aiPhotoExpl.textContent = ''; }
+      const aiPhotoInput = document.getElementById('ai-photo-input');
+      if (aiPhotoInput) aiPhotoInput.value = '';
       
       // Handle private job section
       const privateJobSection = document.getElementById('private-job-section');
@@ -5378,9 +5702,15 @@
       }
     }
 
-    function createPackageForVehicle(vehicleId) {
+    function createPackageForVehicle(vehicleId, opts) {
       openPackageModal();
       document.getElementById('p-vehicle').value = vehicleId;
+      if (opts && opts.title) document.getElementById('p-title').value = opts.title;
+      if (opts && opts.description) document.getElementById('p-description').value = opts.description;
+      if (opts && opts.category) {
+        const catEl = document.getElementById('p-category');
+        if (catEl) catEl.value = opts.category;
+      }
     }
 
     function createPackageFromReminder(vehicleId, title) {
@@ -6000,18 +6330,34 @@
         status: 'open'
       };
 
-      // Check if this is a private job request
+      const directoryProviderSlug = localStorage.getItem('preferred_provider_slug');
+      let directoryProviderId = null;
+      if (directoryProviderSlug) {
+        try {
+          const { data: dirProvider } = await supabaseClient
+            .from('profiles')
+            .select('id')
+            .eq('directory_slug', directoryProviderSlug)
+            .eq('role', 'provider')
+            .single();
+          if (dirProvider) {
+            directoryProviderId = dirProvider.id;
+          }
+        } catch (e) {}
+        localStorage.removeItem('preferred_provider_slug');
+      }
+
       const isPrivateJob = document.getElementById('p-private-job')?.checked && userProfile.preferred_provider_id;
       
-      if (isPrivateJob) {
-        // Private job - send directly to preferred provider, skip bidding
+      if (directoryProviderId) {
+        packageData.exclusive_provider_id = directoryProviderId;
+        packageData.exclusive_until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      } else if (isPrivateJob) {
         packageData.is_private_job = true;
         packageData.exclusive_provider_id = userProfile.preferred_provider_id;
-        // No exclusive_until for private jobs - they stay private forever
       } else if (userProfile.preferred_provider_id) {
-        // Regular job with preferred provider - give exclusive first look
         packageData.exclusive_provider_id = userProfile.preferred_provider_id;
-        packageData.exclusive_until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
+        packageData.exclusive_until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       }
 
       const { data, error } = await supabaseClient.from('maintenance_packages').insert(packageData).select();
@@ -6332,10 +6678,10 @@
         <div class="form-section">
           <div class="form-section-title">Package Details</div>
           <div class="package-meta" style="margin-bottom:0;">
-            <span>🚗 ${vehicleName}</span>
-            <span>📅 Created ${new Date(pkg.created_at).toLocaleDateString()}</span>
-            <span>🔄 ${formatFrequency(pkg.frequency)}</span>
-            <span>🔧 ${pkg.parts_preference || 'Standard'} parts</span>
+            <span>${mccIcon('car-front', 14)} ${vehicleName}</span>
+            <span>${mccIcon('calendar', 14)} Created ${new Date(pkg.created_at).toLocaleDateString()}</span>
+            <span>${mccIcon('refresh-cw', 14)} ${formatFrequency(pkg.frequency)}</span>
+            <span>${mccIcon('settings', 14)} ${pkg.parts_preference || 'Standard'} parts</span>
           </div>
           ${pkg.description ? `<p style="color:var(--text-secondary);margin-top:16px;line-height:1.6;">${pkg.description}</p>` : ''}
         </div>
@@ -6361,22 +6707,23 @@
                 
                 // Performance data
                 const tier = perf?.tier || 'bronze';
-                const tierIcon = {'platinum': '💎', 'gold': '🥇', 'silver': '🥈', 'bronze': '🥉'}[tier] || '🥉';
+                const tierIcon = {'platinum': mccIcon('star', 14), 'gold': mccIcon('star', 14), 'silver': mccIcon('star', 14), 'bronze': mccIcon('star', 14)}[tier] || mccIcon('star', 14);
                 const tierColors = {'platinum': '#e5e4e2', 'gold': 'var(--accent-gold)', 'silver': '#c0c0c0', 'bronze': '#cd7f32'};
                 const overallScore = perf?.overall_score ? Math.round(perf.overall_score) : null;
                 const onTimeRate = perf?.on_time_rate && jobs > 0 ? Math.round(perf.on_time_rate) : null;
                 const badges = perf?.badges || [];
-                const badgeIcons = {'top_rated': '🏆', 'quick_responder': '⚡', 'veteran': '🎖️', 'perfect_score': '⭐', 'dispute_free': '🛡️'};
+                const badgeIcons = {'top_rated': mccIcon('trophy', 14), 'quick_responder': mccIcon('zap', 14), 'veteran': mccIcon('award', 14), 'perfect_score': mccIcon('star', 14), 'dispute_free': mccIcon('shield', 14)};
                 
                 return `
                   <div class="bid-card" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;margin-bottom:12px;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
                       <div style="display:flex;gap:12px;align-items:flex-start;">
-                        <div style="width:48px;height:48px;background:var(--accent-gold-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🔧</div>
+                        <div style="width:48px;height:48px;background:var(--accent-gold-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${mccIcon('settings', 14)}</div>
                         <div>
-                          <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+                          <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap;">
                             <h4 style="margin:0;font-size:1rem;">${providerName}</h4>
                             ${perf ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:${tierColors[tier]}20;color:${tierColors[tier]};border:1px solid ${tierColors[tier]}40;">${tierIcon} ${tier.charAt(0).toUpperCase() + tier.slice(1)}</span>` : ''}
+                            ${carClubProviderIds.has(bid.provider_id) ? `<span class="car-club-badge" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:linear-gradient(135deg,rgba(212,168,85,0.15),rgba(212,168,85,0.08));color:var(--accent-gold);border:1px solid rgba(212,168,85,0.25);"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> Car Club</span>` : ''}
                           </div>
                           <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:2px;">
                             ${businessName && businessName !== providerName ? `${businessName}` : ''}
@@ -6384,7 +6731,7 @@
                             ${yearsInBusiness ? `${yearsInBusiness} years in business` : ''}
                           </div>
                           <div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">
-                            ⭐ ${rating} 
+                            ${mccIcon('star', 14)} ${rating} 
                             ${jobs > 0 ? `• ${jobs} jobs` : '• New provider'}
                             ${onTimeRate !== null ? ` • ${onTimeRate}% on-time` : ''}
                             ${overallScore !== null ? ` • Score: ${overallScore}` : ''}
@@ -6394,15 +6741,15 @@
                       </div>
                       <div style="text-align:right;">
                         <div style="font-size:1.4rem;font-weight:600;color:var(--accent-gold);">$${bidPrice.toFixed(2)}</div>
-                        <div style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.05));border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:3px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;margin-top:4px;cursor:help;" title="This price includes all parts, labor, taxes, shop fees, disposal fees, and platform fees. No hidden costs or surprises.">✓ All-Inclusive</div>
-                        ${bid.status === 'accepted' ? '<span style="color:var(--accent-green);font-size:0.8rem;display:block;margin-top:4px;">✓ Accepted</span>' : ''}
+                        <div style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.05));border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:3px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;margin-top:4px;cursor:help;" title="This price includes all parts, labor, taxes, shop fees, and disposal fees. No hidden costs or surprises.">${mccIcon('check-circle', 14)} All-Inclusive</div>
+                        ${bid.status === 'accepted' ? '<span style="color:var(--accent-green);font-size:0.8rem;display:block;margin-top:4px;">' + mccIcon('check-circle', 14) + ' Accepted</span>' : ''}
                         ${bid.status === 'rejected' ? '<span style="color:var(--accent-red);font-size:0.8rem;display:block;margin-top:4px;">✗ Not selected</span>' : ''}
                       </div>
                     </div>
                     
                     ${isVerified || specialties.length > 0 ? `
                       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-                        ${isVerified ? `<span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg, var(--accent-gold), #c49a45);color:var(--bg-deep);padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;">✓ Concierge Verified</span>` : ''}
+                        ${isVerified ? `<span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg, var(--accent-gold), #c49a45);color:var(--bg-deep);padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;">${mccIcon('check-circle', 14)} Concierge Verified</span>` : ''}
                         ${specialties.map(s => `<span style="display:inline-block;background:var(--bg-input);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:3px 10px;border-radius:100px;font-size:0.75rem;">${s}</span>`).join('')}
                       </div>
                     ` : ''}
@@ -6414,12 +6761,12 @@
                         ${bid.labor_cost ? `Labor: $${bid.labor_cost.toFixed(2)}` : ''}
                       </div>
                     ` : ''}
-                    ${bid.estimated_duration ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">⏱️ Estimated time: ${bid.estimated_duration}</div>` : ''}
-                    ${bid.available_dates ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">📅 Availability: ${bid.available_dates}</div>` : ''}
+                    ${bid.estimated_duration ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('clock', 14)} Estimated time: ${bid.estimated_duration}</div>` : ''}
+                    ${bid.available_dates ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('calendar', 14)} Availability: ${bid.available_dates}</div>` : ''}
                     ${bid.notes ? `<div style="color:var(--text-secondary);margin-bottom:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;">"${bid.notes}"</div>` : ''}
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                      <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}')">💬 Message</button>
-                      ${pkg.status === 'open' && bid.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="acceptBid('${bid.id}', '${packageId}')">✓ Accept Bid</button>` : ''}
+                      <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}')">${mccIcon('message-square', 14)} Message</button>
+                      ${pkg.status === 'open' && bid.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="acceptBid('${bid.id}', '${packageId}')">${mccIcon('check-circle', 14)} Accept Bid</button>` : ''}
                     </div>
                   </div>
                 `;
@@ -6430,66 +6777,66 @@
 
         ${(pkg.status === 'accepted' || pkg.status === 'in_progress') ? `
           <div class="form-section" id="logistics-dashboard-${packageId}">
-            <div class="form-section-title">🎉 Service Coordination Dashboard</div>
+            <div class="form-section-title">${mccIcon('party-popper', 14)} Service Coordination Dashboard</div>
             <p style="color:var(--text-secondary);margin-bottom:20px;">Coordinate scheduling, vehicle transfer, and location with your service provider.</p>
             
             <!-- Scheduling Section -->
             <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">📅 Appointment Scheduling</h4>
+                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">${mccIcon('calendar', 14)} Appointment Scheduling</h4>
               </div>
               <div id="appointment-status-${packageId}" style="margin-bottom:16px;">
                 <div style="color:var(--text-muted);font-size:0.9rem;">Loading appointment status...</div>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="btn btn-primary btn-sm" onclick="openScheduleModal('${packageId}', '${pkg.member_id}', '${acceptedBid?.provider_id || ''}')">📅 Propose Appointment</button>
+                <button class="btn btn-primary btn-sm" onclick="openScheduleModal('${packageId}', '${pkg.member_id}', '${acceptedBid?.provider_id || ''}')">${mccIcon('calendar', 14)} Propose Appointment</button>
               </div>
             </div>
 
             <!-- Vehicle Transfer Section -->
             <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">🚗 Vehicle Transfer</h4>
+                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">${mccIcon('car-front', 14)} Vehicle Transfer</h4>
               </div>
               <div id="transfer-status-${packageId}" style="margin-bottom:16px;">
                 <div style="color:var(--text-muted);font-size:0.9rem;">Loading transfer status...</div>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="btn btn-secondary btn-sm" onclick="openTransferModal('${packageId}', '${pkg.member_id}', '${acceptedBid?.provider_id || ''}')">⚙️ Setup Transfer</button>
+                <button class="btn btn-secondary btn-sm" onclick="openTransferModal('${packageId}', '${pkg.member_id}', '${acceptedBid?.provider_id || ''}')">${mccIcon('settings', 14)} Setup Transfer</button>
               </div>
             </div>
 
             <!-- Location Sharing Section -->
             <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">📍 Location Sharing</h4>
+                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">${mccIcon('map-pin', 14)} Location Sharing</h4>
               </div>
               <div id="location-status-${packageId}" style="margin-bottom:16px;">
                 <div style="color:var(--text-muted);font-size:0.9rem;">Share your location for pickup coordination.</div>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="btn btn-primary btn-sm" onclick="shareMyLocation('${packageId}', '${acceptedBid?.provider_id || ''}')">📍 Share My Location</button>
-                <button class="btn btn-secondary btn-sm" onclick="viewSharedLocation('${packageId}')">🗺️ View Provider Location</button>
+                <button class="btn btn-primary btn-sm" onclick="shareMyLocation('${packageId}', '${acceptedBid?.provider_id || ''}')">${mccIcon('map-pin', 14)} Share My Location</button>
+                <button class="btn btn-secondary btn-sm" onclick="viewSharedLocation('${packageId}')">${mccIcon('map-pin', 14)} View Provider Location</button>
               </div>
             </div>
 
             <!-- Vehicle Condition Evidence Section -->
             <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">📸 Vehicle Condition Evidence</h4>
+                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">${mccIcon('camera', 14)} Vehicle Condition Evidence</h4>
               </div>
               <div id="evidence-timeline-${packageId}" style="margin-bottom:16px;">
                 <div style="color:var(--text-muted);font-size:0.9rem;">Loading evidence timeline...</div>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="btn btn-primary btn-sm" onclick="openMemberEvidenceModal('${packageId}', 'pre_pickup')">📸 Document Pre-Pickup Condition</button>
+                <button class="btn btn-primary btn-sm" onclick="openMemberEvidenceModal('${packageId}', 'pre_pickup')">${mccIcon('camera', 14)} Document Pre-Pickup Condition</button>
               </div>
             </div>
 
             <!-- Key Exchange Verification Section -->
             <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">🔑 Key Exchange Verification</h4>
+                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">${mccIcon('key', 14)} Key Exchange Verification</h4>
               </div>
               <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Track key handoffs between you and the provider for security and liability protection.</p>
               <div id="key-exchange-timeline-${packageId}">
@@ -6500,7 +6847,7 @@
             <!-- Inspection Report Section -->
             <div id="inspection-report-container-${packageId}" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">🔍 Multi-Point Inspection</h4>
+                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">${mccIcon('search', 14)} Multi-Point Inspection</h4>
               </div>
               <div id="inspection-report-content-${packageId}">
                 <div style="color:var(--text-muted);font-size:0.9rem;">Loading inspection report...</div>
@@ -6514,16 +6861,16 @@
           <div class="form-section" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border-subtle);">
             <div class="form-section-title">Job Status</div>
             <div class="alert info" style="margin-bottom:16px;padding:16px;background:var(--accent-blue-soft);border:1px solid rgba(74,124,255,0.3);color:var(--accent-blue);border-radius:var(--radius-md);">
-              ${pkg.status === 'accepted' ? '⏳ Waiting for provider to start work...' : '🔧 Work is in progress...'}
+              ${pkg.status === 'accepted' ? `${mccIcon('clock', 14)} Waiting for provider to start work...` : `${mccIcon('settings', 14)} Work is in progress...`}
             </div>
             ${pkg.work_completed_at && pkg.status === 'in_progress' ? `
               <div class="alert" style="margin-bottom:16px;padding:16px;background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);color:var(--accent-green);border-radius:var(--radius-md);">
-                ✓ Provider has marked work as complete on ${new Date(pkg.work_completed_at).toLocaleDateString()}
+                ${mccIcon('check-circle', 14)} Provider has marked work as complete on ${new Date(pkg.work_completed_at).toLocaleDateString()}
               </div>
               <p style="color:var(--text-secondary);margin-bottom:16px;">Once you receive your vehicle and verify the work is complete, confirm below to release payment to the provider.</p>
               <div style="display:flex;gap:12px;">
-                <button class="btn btn-primary" onclick="confirmCompletion('${packageId}')">✓ Confirm Complete & Release Payment</button>
-                <button class="btn btn-danger btn-sm" onclick="openDispute('${packageId}')">⚠️ Open Dispute</button>
+                <button class="btn btn-primary" onclick="confirmCompletion('${packageId}')">${mccIcon('check-circle', 14)} Confirm Complete & Release Payment</button>
+                <button class="btn btn-danger btn-sm" onclick="openDispute('${packageId}')">${mccIcon('alert-triangle', 14)} Open Dispute</button>
               </div>
             ` : ''}
           </div>
@@ -6531,11 +6878,11 @@
 
         ${pkg.status === 'completed' ? `
           <div class="form-section" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border-subtle);">
-            <div class="form-section-title">✓ Completed</div>
+            <div class="form-section-title">${mccIcon('check-circle', 14)} Completed</div>
             <div class="alert" style="background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);color:var(--accent-green);padding:16px;border-radius:var(--radius-md);margin-bottom:16px;">
-              ✓ This job was completed on ${new Date(pkg.member_confirmed_at || pkg.work_completed_at).toLocaleDateString()}
+              ${mccIcon('check-circle', 14)} This job was completed on ${new Date(pkg.member_confirmed_at || pkg.work_completed_at).toLocaleDateString()}
             </div>
-            <button class="btn btn-secondary" onclick="openReviewModal('${packageId}')">⭐ Leave a Review</button>
+            <button class="btn btn-secondary" onclick="openReviewModal('${packageId}')">${mccIcon('star', 14)} Leave a Review</button>
           </div>
         ` : ''}
       `;
@@ -6559,10 +6906,8 @@
       }
       
       const amount = bid.price || 0;
-      const mccFee = amount * 0.075;
-      const providerAmount = amount - mccFee;
 
-      if (!confirm(`Accept this bid for $${amount.toFixed(2)}?\n\nThis will:\n• Hold payment in escrow\n• Close the package to other providers\n• Notify the provider to begin work\n\nMCC Fee (7.5%): $${mccFee.toFixed(2)}\nProvider receives: $${providerAmount.toFixed(2)}`)) return;
+      if (!confirm(`Accept this bid for $${amount.toFixed(2)}?\n\nThis will:\n• Hold payment in escrow\n• Close the package to other providers\n• Notify the provider to begin work`)) return;
 
       try {
         // Update this bid to accepted
@@ -6574,8 +6919,7 @@
         // Update package status
         await supabaseClient.from('maintenance_packages').update({ 
           status: 'accepted', 
-          accepted_bid_id: bidId, 
-          accepted_at: new Date().toISOString() 
+          accepted_bid_id: bidId
         }).eq('id', packageId);
 
         // Create payment record (escrow)
@@ -6584,8 +6928,8 @@
           member_id: currentUser.id,
           provider_id: bid.provider_id,
           amount_total: amount,
-          amount_provider: providerAmount,
-          mcc_fee: mccFee,
+          amount_provider: amount,
+          mcc_fee: 0,
           status: 'held',
           held_at: new Date().toISOString()
         });
@@ -6597,7 +6941,7 @@
           await supabaseClient.from('notifications').insert({
             user_id: bid.provider_id,
             type: 'bid_accepted',
-            title: '🎉 Your bid was accepted!',
+            title: `${mccIcon('party-popper', 14)} Your bid was accepted!`,
             message: `Your bid of $${amount.toFixed(2)} for "${pkg?.title || 'Maintenance Package'}" has been accepted. Contact the member to schedule the work.`,
             link_type: 'package',
             link_id: packageId
@@ -6620,10 +6964,53 @@
         closeModal('view-package-modal');
         showToast('Bid accepted! Payment held in escrow. Provider has been notified.', 'success');
         await loadPackages();
+        const refreshedPkg = packages.find(p => p.id === packageId);
+        const otherBids = (currentPackageBids || []).filter(b => b.id !== bidId && b.price > 0);
+        const avgMarket = otherBids.length ? otherBids.reduce((s, b) => s + b.price, 0) / otherBids.length : 0;
+        _showBidSavingsCard(refreshedPkg?.title || 'your service', amount, avgMarket);
       } catch (err) {
         console.error('Error accepting bid:', err);
         showToast('Failed to accept bid. Please try again.', 'error');
       }
+    }
+
+    function _showBidSavingsCard(serviceTitle, bidAmount, estimatedMarket) {
+      const existing = document.getElementById('mcc-savings-card');
+      if (existing) existing.remove();
+      const amt = Number(bidAmount) || 0;
+      const est = Number(estimatedMarket) || 0;
+      const saved = est > amt ? est - amt : 0;
+      const savingsLine = saved > 0 ? ` and saved $${saved.toFixed(0)} vs. the estimated market price` : '';
+      const shareText = `I just got ${serviceTitle} for $${amt.toFixed(2)}${savingsLine} through My Car Concierge — the automotive marketplace with zero platform fees. Check it out: https://mycarconcierge.com`;
+      const savingsHtml = saved > 0
+        ? `<div style="font-size:0.85rem;margin-bottom:10px;opacity:0.95;">You saved <strong>$${saved.toFixed(0)}</strong> vs. estimated market price of $${est.toFixed(0)}</div>`
+        : `<div style="font-size:0.85rem;margin-bottom:10px;opacity:0.95;">Zero platform fees — you keep every dollar.</div>`;
+      const card = document.createElement('div');
+      card.id = 'mcc-savings-card';
+      card.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9000;background:linear-gradient(135deg,var(--accent-gold),#b87333);border-radius:var(--radius-lg);padding:20px 24px;box-shadow:0 12px 40px rgba(0,0,0,0.4);max-width:360px;width:calc(100% - 48px);color:#fff;';
+      card.innerHTML = `
+        <button onclick="document.getElementById('mcc-savings-card').remove()" style="position:absolute;top:10px;right:12px;background:none;border:none;color:rgba(255,255,255,0.8);cursor:pointer;font-size:1.1rem;line-height:1;">✕</button>
+        <div style="font-size:0.8rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;opacity:0.85;margin-bottom:6px;">Bid Accepted</div>
+        <div style="font-size:1.15rem;font-weight:700;margin-bottom:6px;line-height:1.3;">${serviceTitle} — $${amt.toFixed(2)}</div>
+        ${savingsHtml}
+        <button id="mcc-savings-share-btn" class="btn" style="width:100%;background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);font-weight:600;border-radius:var(--radius-md);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>
+          Share Your Win
+        </button>
+        <div id="mcc-savings-copied" style="display:none;text-align:center;font-size:0.85rem;margin-top:8px;opacity:0.9;">Copied to clipboard!</div>
+      `;
+      document.body.appendChild(card);
+      document.getElementById('mcc-savings-share-btn').addEventListener('click', async () => {
+        if (navigator.share) {
+          try { await navigator.share({ text: shareText, url: 'https://mycarconcierge.com' }); } catch (e) {}
+        } else {
+          try {
+            await navigator.clipboard.writeText(shareText);
+            document.getElementById('mcc-savings-copied').style.display = 'block';
+          } catch (e) {}
+        }
+      });
+      setTimeout(() => { const el = document.getElementById('mcc-savings-card'); if (el) el.remove(); }, 12000);
     }
 
     async function confirmCompletion(packageId) {
@@ -6675,15 +7062,21 @@
           provider_name: bid?.profiles?.provider_alias || `Provider #${bid?.provider_id?.slice(0,4).toUpperCase()}`
         });
 
+        if (pkg?.vehicle_id && typeof invalidatePredictionsForVehicle === 'function') {
+          invalidatePredictionsForVehicle(pkg.vehicle_id);
+        }
+
         closeModal('view-package-modal');
         showToast('Payment released! Thank you for using My Car Concierge.', 'success');
         await loadPackages();
         await loadServiceHistory();
 
-        // Open review modal
         setTimeout(() => {
           openReviewModal(packageId, bid?.provider_id, bid?.profiles?.business_name || bid?.profiles?.full_name, pkg?.title, bid?.price);
         }, 500);
+        setTimeout(() => {
+          _showBidSavingsCard(pkg?.title || 'your service', bid?.price || 0);
+        }, 1200);
       } catch (err) {
         console.error('Error confirming completion:', err);
         showToast('Error completing job. Please try again.', 'error');
@@ -6960,11 +7353,14 @@
 
       document.getElementById('vehicle-details-title').textContent = vehicle.nickname || `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`;
       document.getElementById('vehicle-details-body').innerHTML = `
-        <div class="tabs" style="margin-bottom:20px;">
+        <div class="tabs" style="margin-bottom:20px;flex-wrap:wrap;">
           <div class="tab active" onclick="showVehicleTab('info', '${vehicleId}')">Info</div>
+          <div class="tab" onclick="showVehicleTab('health', '${vehicleId}')">Health</div>
+          <div class="tab" onclick="showVehicleTab('forecast', '${vehicleId}')">Maintenance</div>
           <div class="tab" onclick="showVehicleTab('photos', '${vehicleId}')">Photos (${photos?.length || 0})</div>
           <div class="tab" onclick="showVehicleTab('documents', '${vehicleId}')">Documents (${documents?.length || 0})</div>
           <div class="tab" onclick="showVehicleTab('history', '${vehicleId}')">Service History</div>
+          <div class="tab" onclick="showVehicleTab('diagnostics', '${vehicleId}')">Diagnostics</div>
         </div>
         
         <div id="vehicle-tab-info">
@@ -6987,21 +7383,35 @@
           <div style="margin-top:24px;padding:16px;background:var(--bg-input);border-radius:var(--radius-lg);border:1px solid var(--border-subtle);">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
               <div>
-                <div style="font-weight:600;margin-bottom:4px;">📋 Registration Verification</div>
+                <div style="font-weight:600;margin-bottom:4px;">${mccIcon('file-text', 14)} Registration Verification</div>
                 <div style="font-size:0.88rem;color:var(--text-muted);">
                   ${vehicle.registration_verified || vehicleRegistrationStatus[vehicleId]?.verified 
-                    ? '<span style="color:var(--accent-green);">✅ Verified</span>' 
+                    ? '<span style="color:var(--accent-green);">' + mccIcon('check-circle', 14) + ' Verified</span>' 
                     : vehicleRegistrationStatus[vehicleId]?.status === 'pending' 
-                      ? '<span style="color:var(--accent-orange);">⏳ Pending Review</span>'
+                      ? '<span style="color:var(--accent-orange);">' + mccIcon('clock', 14) + ' Pending Review</span>'
                       : vehicleRegistrationStatus[vehicleId]?.status === 'needs_review'
-                        ? '<span style="color:var(--accent-blue);">🔍 Under Review</span>'
+                        ? '<span style="color:var(--accent-blue);">' + mccIcon('search', 14) + ' Under Review</span>'
                         : 'Not verified yet'}
                 </div>
               </div>
               ${vehicle.registration_verified || vehicleRegistrationStatus[vehicleId]?.verified 
-                ? '<span class="registration-status-badge approved">✓ Verified</span>'
-                : `<button class="btn btn-primary" onclick="openRegistrationModal('${vehicleId}')" style="padding:10px 20px;">📋 Verify Registration</button>`
+                ? '<span class="registration-status-badge approved">' + mccIcon('check-circle', 14) + ' Verified</span>'
+                : `<button class="btn btn-primary" onclick="openRegistrationModal('${vehicleId}')" style="padding:10px 20px;">${mccIcon('file-text', 14)} Verify Registration</button>`
               }
+            </div>
+          </div>
+          
+          <div style="margin-top:24px;padding:16px;background:var(--bg-input);border-radius:var(--radius-lg);border:1px solid var(--border-subtle);">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+              <div>
+                <div style="font-weight:600;margin-bottom:4px;">${mccIcon('settings', 14)} Check Engine Light?</div>
+                <div style="font-size:0.88rem;color:var(--text-muted);">
+                  Upload your diagnostic codes to get AI-powered insights
+                </div>
+              </div>
+              <button class="btn btn-primary" onclick="openOBDScanner('${vehicleId}')" style="padding:10px 20px;">
+                ${mccIcon('bar-chart', 14)} Upload Scan Results
+              </button>
             </div>
           </div>
           
@@ -7020,7 +7430,7 @@
               <option value="interior">Interior</option>
               <option value="damage">Damage</option>
             </select>
-            <button class="btn btn-primary" onclick="uploadVehiclePhotos('${vehicleId}')">📤 Upload</button>
+            <button class="btn btn-primary" onclick="uploadVehiclePhotos('${vehicleId}')">${mccIcon('upload', 14)} Upload</button>
           </div>
           <div class="photo-grid" style="margin-top:16px;" id="vehicle-photos-grid">
             ${photos?.length ? photos.map(p => `
@@ -7028,8 +7438,8 @@
                 <img src="${p.url}" onclick="window.open('${p.url}','_blank')" style="cursor:pointer;">
                 ${p.is_primary ? '<span style="position:absolute;top:4px;left:4px;background:var(--accent-gold);color:#000;padding:2px 6px;border-radius:4px;font-size:0.7rem;">Primary</span>' : ''}
                 <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);padding:4px;display:flex;justify-content:space-between;">
-                  <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:0.7rem;" onclick="event.stopPropagation();window.setPrimaryPhoto('${p.id}','${vehicleId}')">⭐</button>
-                  <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:0.7rem;color:var(--accent-red);" onclick="event.stopPropagation();window.deleteVehiclePhoto('${p.id}','${vehicleId}')">🗑</button>
+                  <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:0.7rem;" onclick="event.stopPropagation();window.setPrimaryPhoto('${p.id}','${vehicleId}')">${mccIcon('star', 14)}</button>
+                  <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:0.7rem;color:var(--accent-red);" onclick="event.stopPropagation();window.deleteVehiclePhoto('${p.id}','${vehicleId}')">${mccIcon('trash-2', 14)}</button>
                 </div>
               </div>
             `).join('') : '<p style="color:var(--text-muted);grid-column:1/-1;">No photos yet. Upload photos of your vehicle!</p>'}
@@ -7049,7 +7459,7 @@
               <option value="other">Other</option>
             </select>
             <input type="date" class="form-input" id="doc-expiration" style="width:auto;" placeholder="Expiration (optional)">
-            <button class="btn btn-primary" onclick="uploadVehicleDocument('${vehicleId}')">📤 Upload</button>
+            <button class="btn btn-primary" onclick="uploadVehicleDocument('${vehicleId}')">${mccIcon('upload', 14)} Upload</button>
           </div>
           <div id="vehicle-documents-list">
             ${documents?.length ? documents.map(d => `
@@ -7066,7 +7476,7 @@
                 </div>
                 <div style="display:flex;gap:8px;">
                   <a href="${d.file_url}" target="_blank" class="btn btn-secondary btn-sm">View</a>
-                  <button class="btn btn-ghost btn-sm" style="color:var(--accent-red);" onclick="window.deleteVehicleDocument('${d.id}','${vehicleId}')">🗑</button>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--accent-red);" onclick="window.deleteVehicleDocument('${d.id}','${vehicleId}')">${mccIcon('trash-2', 14)}</button>
                 </div>
               </div>
             `).join('') : '<p style="color:var(--text-muted);">No documents yet. Upload your registration, insurance card, etc.</p>'}
@@ -7088,6 +7498,30 @@
             </div>
           `).join('') : '<p style="color:var(--text-muted)">No service history for this vehicle.</p>'}
         </div>
+        
+        <div id="vehicle-tab-health" style="display:none;">
+          <div id="vehicle-health-loading" style="text-align:center;padding:20px;">
+            <div class="spinner"></div>
+            <div style="margin-top:12px;color:var(--text-muted);">Computing health score...</div>
+          </div>
+          <div id="vehicle-health-content" style="display:none;"></div>
+        </div>
+
+        <div id="vehicle-tab-forecast" style="display:none;">
+          <div id="vehicle-forecast-loading" style="text-align:center;padding:20px;">
+            <div class="spinner"></div>
+            <div style="margin-top:12px;color:var(--text-muted);">Loading maintenance forecast...</div>
+          </div>
+          <div id="vehicle-forecast-content" style="display:none;"></div>
+        </div>
+
+        <div id="vehicle-tab-diagnostics" style="display:none;">
+          <div id="vehicle-diagnostics-loading" style="text-align:center;padding:20px;">
+            <div class="spinner"></div>
+            <div style="margin-top:12px;color:var(--text-muted);">Loading diagnostic scans...</div>
+          </div>
+          <div id="vehicle-diagnostics-list"></div>
+        </div>
       `;
 
       document.getElementById('vehicle-details-modal').classList.add('active');
@@ -7095,15 +7529,15 @@
 
     function getDocIcon(type) {
       const icons = {
-        registration: '📋',
-        insurance_card: '🛡️',
-        title: '📜',
-        inspection: '🔍',
-        warranty: '✅',
-        service_record: '🔧',
-        other: '📄'
+        registration: mccIcon('file-text', 14),
+        insurance_card: mccIcon('shield', 14),
+        title: mccIcon('file-text', 14),
+        inspection: mccIcon('search', 14),
+        warranty: mccIcon('check-circle', 14),
+        service_record: mccIcon('settings', 14),
+        other: mccIcon('file-text', 14)
       };
-      return icons[type] || '📄';
+      return icons[type] || mccIcon('file-text', 14);
     }
 
     function formatDocType(type) {
@@ -7120,12 +7554,287 @@
     }
 
     function showVehicleTab(tabName, vehicleId) {
-      ['info', 'photos', 'documents', 'history'].forEach(t => {
-        document.getElementById(`vehicle-tab-${t}`).style.display = t === tabName ? 'block' : 'none';
+      ['info', 'photos', 'documents', 'history', 'diagnostics', 'health', 'forecast'].forEach(t => {
+        const el = document.getElementById(`vehicle-tab-${t}`);
+        if (el) el.style.display = t === tabName ? 'block' : 'none';
       });
-      // Update tab active state
-      document.querySelectorAll('.tabs .tab').forEach(tab => tab.classList.remove('active'));
-      event.target.classList.add('active');
+      const tabs = document.querySelectorAll('#vehicle-details-modal .tabs .tab');
+      tabs.forEach(tab => tab.classList.remove('active'));
+      const idx = ['info','health','forecast','photos','documents','history','diagnostics'].indexOf(tabName);
+      if (idx >= 0 && tabs[idx]) tabs[idx].classList.add('active');
+      
+      if (tabName === 'diagnostics') loadVehicleDiagnostics(vehicleId);
+      if (tabName === 'health') loadVehicleHealth(vehicleId);
+      if (tabName === 'forecast') loadMaintenanceForecast(vehicleId);
+    }
+
+    async function autoComputeStaleHealthScores() {
+      const stale = vehicles.filter(v => !v.health_score || v.health_score === 100);
+      if (stale.length === 0) return;
+
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const token = session.data.session?.access_token;
+        if (!token) return;
+
+        for (const v of stale.slice(0, 3)) {
+          try {
+            const resp = await fetch(`/api/vehicles/${v.id}/compute-health`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            });
+            const data = await resp.json();
+            if (data.success && data.score !== undefined) {
+              v.health_score = data.score;
+            }
+          } catch (e) {}
+        }
+        renderVehicles();
+      } catch (e) {}
+    }
+
+    function escHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function loadVehicleHealth(vehicleId) {
+      const loadingEl = document.getElementById('vehicle-health-loading');
+      const contentEl = document.getElementById('vehicle-health-content');
+      if (!loadingEl || !contentEl) return;
+
+      loadingEl.style.display = 'block';
+      contentEl.style.display = 'none';
+
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const token = session.data.session?.access_token;
+
+        const response = await fetch(`/api/vehicles/${vehicleId}/compute-health`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        loadingEl.style.display = 'none';
+        contentEl.style.display = 'block';
+
+        if (!data.success) {
+          contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Could not compute health score. Please try again later.</p>';
+          return;
+        }
+
+        const score = data.score;
+        const scoreClass = score >= 90 ? 'excellent' : score >= 70 ? 'good' : score >= 50 ? 'fair' : 'poor';
+        const scoreLabel = score >= 90 ? 'Excellent' : score >= 70 ? 'Good' : score >= 50 ? 'Fair' : 'Needs Attention';
+        const scoreColor = score >= 90 ? 'var(--accent-green)' : score >= 70 ? 'var(--accent-blue)' : score >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
+
+        const positiveFactors = (data.factors?.positive || []).map(f => `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(46,204,113,0.1);border-radius:var(--radius-md);margin-bottom:6px;"><span style="color:var(--accent-green);font-weight:600;">+</span> <span style="font-size:0.9rem;">${escHtml(f)}</span></div>`).join('');
+        const negativeFactors = (data.factors?.negative || []).map(f => `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(231,76,60,0.1);border-radius:var(--radius-md);margin-bottom:6px;"><span style="color:var(--accent-red);font-weight:600;">-</span> <span style="font-size:0.9rem;">${escHtml(f)}</span></div>`).join('');
+
+        contentEl.innerHTML = `
+          <div style="text-align:center;margin-bottom:24px;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:120px;height:120px;border-radius:50%;border:6px solid ${scoreColor};margin-bottom:12px;">
+              <div>
+                <div style="font-size:2.5rem;font-weight:700;color:${scoreColor};line-height:1;">${score}</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);">/ 100</div>
+              </div>
+            </div>
+            <div style="font-size:1.1rem;font-weight:600;color:${scoreColor};">${scoreLabel}</div>
+            ${data.summary ? `<div style="font-size:0.88rem;color:var(--text-muted);margin-top:8px;max-width:400px;margin-left:auto;margin-right:auto;">${escHtml(data.summary)}</div>` : ''}
+          </div>
+
+          ${positiveFactors || negativeFactors ? `
+          <div style="margin-bottom:20px;">
+            <div style="font-weight:600;margin-bottom:10px;">Score Breakdown</div>
+            ${positiveFactors}
+            ${negativeFactors}
+          </div>` : ''}
+
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="showVehicleTab('forecast','${vehicleId}')" style="flex:1;">View Maintenance Forecast</button>
+            <button class="btn btn-secondary" onclick="loadVehicleHealth('${vehicleId}')" style="flex:1;">Refresh Score</button>
+          </div>
+        `;
+
+        const vehicle = vehicles.find(v => v.id === vehicleId);
+        if (vehicle) vehicle.health_score = score;
+
+      } catch (err) {
+        loadingEl.style.display = 'none';
+        contentEl.style.display = 'block';
+        contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Failed to load health score. Please try again.</p>';
+      }
+    }
+
+    async function loadMaintenanceForecast(vehicleId) {
+      const loadingEl = document.getElementById('vehicle-forecast-loading');
+      const contentEl = document.getElementById('vehicle-forecast-content');
+      if (!loadingEl || !contentEl) return;
+
+      loadingEl.style.display = 'block';
+      contentEl.style.display = 'none';
+
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const token = session.data.session?.access_token;
+
+        const response = await fetch(`/api/vehicles/${vehicleId}/maintenance-forecast`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        loadingEl.style.display = 'none';
+        contentEl.style.display = 'block';
+
+        if (!data.success || !data.forecast?.length) {
+          contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No maintenance forecast data available.</p>';
+          return;
+        }
+
+        const urgencyColors = { overdue: 'var(--accent-red)', high: 'var(--accent-orange)', medium: 'var(--accent-gold)', low: 'var(--accent-green)' };
+        const urgencyLabels = { overdue: 'Overdue', high: 'Due Soon', medium: 'Upcoming', low: 'On Track' };
+
+        const forecastItems = data.forecast.map(item => {
+          const color = urgencyColors[item.urgency] || 'var(--text-muted)';
+          const label = urgencyLabels[item.urgency] || 'Scheduled';
+
+          let dueLine = '';
+          if (item.urgency === 'overdue') {
+            dueLine = 'Past due';
+          } else if (item.due_date) {
+            const dueDate = new Date(item.due_date);
+            const dateStr = dueDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            if (item.due_mileage && item.due_mileage > 0) {
+              dueLine = `Due ~${dateStr} or ${item.due_mileage.toLocaleString()} mi`;
+            } else {
+              dueLine = `Due ~${dateStr}`;
+            }
+          } else if (item.due_mileage) {
+            dueLine = `Due at ${item.due_mileage.toLocaleString()} mi`;
+          }
+
+          let remainingLine = '';
+          if (item.miles_remaining !== null && item.miles_remaining > 0) {
+            remainingLine += `~${item.miles_remaining.toLocaleString()} mi remaining`;
+          }
+          if (item.days_remaining !== null && item.days_remaining > 0) {
+            remainingLine += remainingLine ? ` / ~${item.days_remaining} days` : `~${item.days_remaining} days remaining`;
+          }
+
+          return `
+            <div style="display:flex;align-items:center;gap:16px;padding:14px;background:var(--bg-input);border-radius:var(--radius-lg);margin-bottom:10px;border-left:4px solid ${color};">
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                  <span style="font-weight:600;">${escHtml(item.label)}</span>
+                  <span style="font-size:0.75rem;padding:2px 8px;border-radius:20px;background:${color};color:#fff;font-weight:500;">${label}</span>
+                </div>
+                <div style="font-size:0.85rem;color:var(--text-muted);">${dueLine}</div>
+                ${remainingLine ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">${remainingLine}</div>` : ''}
+                ${item.last_service_date ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">Last: ${new Date(item.last_service_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${item.last_service_mileage ? ' at ' + item.last_service_mileage.toLocaleString() + ' mi' : ''}</div>` : ''}
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="createForecastPackage('${vehicleId}','${item.service_type}','${item.label.replace(/'/g, "\\'")}')" style="white-space:nowrap;">Get Quotes</button>
+            </div>
+          `;
+        }).join('');
+
+        contentEl.innerHTML = `
+          <div style="font-weight:600;margin-bottom:16px;">Upcoming Maintenance for ${data.vehicle?.year || ''} ${data.vehicle?.make || ''} ${data.vehicle?.model || ''}</div>
+          ${forecastItems}
+        `;
+
+      } catch (err) {
+        loadingEl.style.display = 'none';
+        contentEl.style.display = 'block';
+        contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Failed to load forecast. Please try again.</p>';
+      }
+    }
+
+    function createForecastPackage(vehicleId, serviceType, label) {
+      closeModal('vehicle-details-modal');
+      openPackageModal();
+      document.getElementById('p-vehicle').value = vehicleId;
+      document.getElementById('p-title').value = label;
+      const categoryMap = {
+        'oil_change': 'maintenance',
+        'tire_rotation': 'maintenance',
+        'brake_inspection': 'brakes',
+        'air_filter': 'maintenance',
+        'transmission_fluid': 'maintenance',
+        'coolant_flush': 'maintenance',
+        'spark_plugs': 'engine',
+        'timing_belt': 'engine',
+        'state_inspection': 'inspection',
+        'emissions_test': 'inspection'
+      };
+      const category = categoryMap[serviceType] || 'maintenance';
+      document.getElementById('p-category').value = category;
+      document.getElementById('p-category').dispatchEvent(new Event('change'));
+    }
+
+    async function loadVehicleDiagnostics(vehicleId) {
+      const listEl = document.getElementById('vehicle-diagnostics-list');
+      const loadingEl = document.getElementById('vehicle-diagnostics-loading');
+      
+      loadingEl.style.display = 'block';
+      listEl.innerHTML = '';
+
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const token = session.data.session?.access_token;
+        
+        const response = await fetch(`/api/obd/scans/${vehicleId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        
+        loadingEl.style.display = 'none';
+
+        if (!data.success || !data.scans?.length) {
+          listEl.innerHTML = `
+            <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
+              <div style="font-size:48px;margin-bottom:16px;">${mccIcon('settings', 14)}</div>
+              <div style="font-weight:500;margin-bottom:8px;">No diagnostic scans yet</div>
+              <div style="font-size:0.88rem;margin-bottom:16px;">When your check engine light comes on, upload your codes here</div>
+              <button class="btn btn-primary" onclick="openOBDScanner('${vehicleId}')">${mccIcon('bar-chart', 14)} Upload Scan Results</button>
+            </div>
+          `;
+          return;
+        }
+
+        const severityColors = {
+          low: 'var(--accent-green)',
+          medium: 'var(--accent-gold)',
+          high: 'var(--accent-orange)',
+          critical: 'var(--accent-red)'
+        };
+
+        listEl.innerHTML = `
+          <div style="margin-bottom:16px;">
+            <button class="btn btn-primary" onclick="openOBDScanner('${vehicleId}')">${mccIcon('bar-chart', 14)} New Scan</button>
+          </div>
+          ${data.scans.map(scan => `
+            <div style="padding:16px;background:var(--bg-input);border-radius:var(--radius-md);margin-bottom:12px;border-left:4px solid ${severityColors[scan.severity] || 'var(--border-subtle)'};">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                <div style="font-family:monospace;font-size:1.1rem;color:var(--accent-gold);">${scan.codes?.join(', ') || 'N/A'}</div>
+                <div style="font-size:0.8rem;color:var(--text-muted);">${new Date(scan.created_at).toLocaleDateString()}</div>
+              </div>
+              ${scan.ai_interpretation?.summary ? `
+                <div style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:8px;">${scan.ai_interpretation.summary.substring(0, 150)}${scan.ai_interpretation.summary.length > 150 ? '...' : ''}</div>
+              ` : ''}
+              <div style="display:flex;gap:8px;align-items:center;">
+                <span style="font-size:0.8rem;padding:2px 8px;border-radius:var(--radius-sm);background:${severityColors[scan.severity] || 'var(--bg-secondary)'}20;color:${severityColors[scan.severity] || 'var(--text-muted)'};">${scan.severity || 'Unknown'}</span>
+                ${scan.service_request_id ? '<span style="font-size:0.8rem;color:var(--accent-green);">' + mccIcon('check-circle', 14) + ' Service requested</span>' : `<button class="btn btn-ghost btn-sm" onclick="viewScanAndCreateRequest('${scan.id}')">Create Service Request</button>`}
+              </div>
+            </div>
+          `).join('')}
+        `;
+      } catch (err) {
+        loadingEl.style.display = 'none';
+        listEl.innerHTML = `<p style="color:var(--accent-red);">Error loading diagnostic scans.</p>`;
+      }
+    }
+
+    async function viewScanAndCreateRequest(scanId) {
+      showToast('Creating service request from scan...', 'info');
     }
 
     async function uploadVehiclePhotos(vehicleId) {
@@ -7414,7 +8123,7 @@
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(...colors.red);
-            doc.text('⚠ URGENT ITEMS:', margin + 4, yPos + 2);
+            doc.text('! URGENT ITEMS:', margin + 4, yPos + 2);
             yPos += 6;
             doc.setFont('helvetica', 'normal');
             urgentItems.forEach(item => {
@@ -7432,7 +8141,7 @@
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(...colors.orange);
-            doc.text('⚡ NEEDS ATTENTION:', margin + 4, yPos + 2);
+            doc.text(`${mccIcon('zap', 14)} NEEDS ATTENTION:`, margin + 4, yPos + 2);
             yPos += 6;
             doc.setFont('helvetica', 'normal');
             attentionItems.forEach(item => {
@@ -7533,7 +8242,7 @@
           yPos += 4;
           drawSectionHeader('Current Recommendations');
           
-          const priorityLabels = { urgent: '🔴 Urgent', soon: '🟠 Soon', upcoming: '🟡 Upcoming', routine: '🔵 Routine' };
+          const priorityLabels = { urgent: `${mccIcon('alert-triangle', 14)} Urgent`, soon: `${mccIcon('alert-triangle', 14)} Soon`, upcoming: `${mccIcon('alert-triangle', 14)} Upcoming`, routine: `${mccIcon('info', 14)} Routine` };
           
           recommendations.forEach((rec, index) => {
             if (index >= 8) return;
@@ -7613,7 +8322,7 @@
         member_dropoff: 'Drop-off', 
         rideshare: 'Rideshare', 
         either: 'Flexible',
-        destination_service: '🚗 Transport Service'
+        destination_service: `${mccIcon('car-front', 14)} Transport Service`
       };
       return map[pref] || pref;
     }
@@ -7622,7 +8331,7 @@
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
       toast.className = `toast ${type}`;
-      toast.innerHTML = `<span>${type === 'success' ? '✓' : '⚠'}</span><span>${message}</span>`;
+      toast.innerHTML = `<span>${type === 'success' ? mccIcon('check-circle', 16) : mccIcon('alert-triangle', 16)}</span><span>${message}</span>`;
       container.appendChild(toast);
       setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
     }
@@ -7688,7 +8397,7 @@
       const container = document.getElementById('report-evidence-list');
       container.innerHTML = reportEvidenceFiles.map((file, i) => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-input);border-radius:var(--radius-sm);margin-bottom:4px;">
-          <span style="font-size:0.85rem;">📎 ${file.name}</span>
+          <span style="font-size:0.85rem;">${mccIcon('link', 14)} ${file.name}</span>
           <button onclick="removeReportEvidence(${i})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;">×</button>
         </div>
       `).join('');
@@ -7759,7 +8468,7 @@
     }
 
     // ========== NOTIFICATIONS ==========
-    let notifications = [];
+    notifications = [];
 
     async function loadNotifications() {
       try {
@@ -7798,20 +8507,20 @@
       const container = document.getElementById('notifications-list');
       
       if (!notifications.length) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔔</div><p>No notifications yet.</p></div>';
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">$${mccIcon('bell', 14)}</div><p>No notifications yet.</p></div>`;
         return;
       }
 
       const notifIcons = {
-        'bid_received': '💰',
-        'bid_accepted': '✅',
-        'work_started': '🔧',
-        'work_completed': '✓',
-        'message_received': '💬',
-        'payment_released': '💳',
-        'upsell_request': '⚠️',
-        'reminder': '🔔',
-        'default': '📢'
+        'bid_received': mccIcon('dollar-sign', 14),
+        'bid_accepted': mccIcon('check-circle', 14),
+        'work_started': mccIcon('settings', 14),
+        'work_completed': mccIcon('check-circle', 16),
+        'message_received': mccIcon('message-square', 14),
+        'payment_released': mccIcon('credit-card', 14),
+        'upsell_request': mccIcon('alert-triangle', 16),
+        'reminder': mccIcon('bell', 14),
+        'default': mccIcon('bell', 14)
       };
 
       container.innerHTML = notifications.map(n => {
@@ -7929,7 +8638,9 @@
       }
 
       try {
-        const { error } = await supabaseClient.from('profiles').update({
+        const bookingGuidance = localStorage.getItem('mcc_booking_guidance') || 'full';
+
+        const updateData = {
           full_name: fullName || null,
           phone: phone || null,
           zip_code: zipCode,
@@ -7940,9 +8651,15 @@
           sms_work_completed: smsWorkCompleted,
           sms_new_message: smsNewMessage,
           sms_bidding_ending: smsBiddingEnding
-        }).eq('id', currentUser.id);
+        };
+
+        const { error } = await supabaseClient.from('profiles').update(updateData).eq('id', currentUser.id);
 
         if (error) throw error;
+
+        try {
+          await supabaseClient.from('profiles').update({ booking_guidance: bookingGuidance }).eq('id', currentUser.id);
+        } catch (e) {}
 
         // Update local profile
         userProfile.full_name = fullName;
@@ -8034,7 +8751,7 @@
         const data = await response.json();
         
         if (data.success) {
-          statusEl.textContent = '✓ Saved';
+          statusEl.innerHTML = mccIcon('check-circle', 14) + ' Saved';
           statusEl.style.color = 'var(--accent-green)';
           showToast('Notification preferences saved!', 'success');
           
@@ -8042,7 +8759,7 @@
             statusEl.style.display = 'none';
           }, 3000);
         } else if (data.warning) {
-          statusEl.textContent = '⚠ Migration needed';
+          statusEl.innerHTML = mccIcon('alert-triangle', 14) + ' Migration needed';
           statusEl.style.color = 'var(--accent-orange)';
           showToast('Preferences saved locally. Database migration pending.', 'warning');
         } else {
@@ -8096,7 +8813,7 @@
       if (!statusIcon) return;
       
       if (enabled) {
-        statusIcon.textContent = '🔔';
+        statusIcon.innerHTML = mccIcon('bell', 14);
         statusText.textContent = 'Push Notifications Enabled';
         statusDesc.textContent = 'You\'ll receive instant alerts on this device.';
         statusBadge.textContent = 'On';
@@ -8105,7 +8822,7 @@
         enableSection.style.display = 'none';
         enabledSection.style.display = 'block';
       } else {
-        statusIcon.textContent = '🔕';
+        statusIcon.innerHTML = mccIcon('bell', 14);
         statusText.textContent = 'Push Notifications Disabled';
         statusDesc.textContent = 'Enable to receive instant alerts for bids, vehicle updates, and more.';
         statusBadge.textContent = 'Off';
@@ -8127,7 +8844,7 @@
         if (permission !== 'granted') {
           showToast('Please allow notifications in your browser settings', 'error');
           btn.disabled = false;
-          btn.textContent = '🔔 Enable Push Notifications';
+          btn.innerHTML = `${mccIcon('bell', 14)} Enable Push Notifications`;
           return;
         }
         
@@ -8137,7 +8854,7 @@
         if (!vapidKey) {
           showToast('Push notifications not configured', 'error');
           btn.disabled = false;
-          btn.textContent = '🔔 Enable Push Notifications';
+          btn.innerHTML = `${mccIcon('bell', 14)} Enable Push Notifications`;
           return;
         }
         
@@ -8156,7 +8873,7 @@
         showToast('Failed to enable push notifications', 'error');
         const btn = document.getElementById('push-enable-btn');
         btn.disabled = false;
-        btn.textContent = '🔔 Enable Push Notifications';
+        btn.innerHTML = `${mccIcon('bell', 14)} Enable Push Notifications`;
       }
     }
     
@@ -8332,6 +9049,77 @@
       }
     }
 
+    function _mccDownloadICS(date, timeStart, timeEnd, title, notes) {
+      const [year, month, day] = date.split('-').map(Number);
+      const [sh, sm] = (timeStart || '09:00').split(':').map(Number);
+      const [eh, em] = (timeEnd || '10:00').split(':').map(Number);
+      const pad = n => String(n).padStart(2, '0');
+      const dtS = `${year}${pad(month)}${pad(day)}T${pad(sh)}${pad(sm)}00`;
+      const dtE = `${year}${pad(month)}${pad(day)}T${pad(eh)}${pad(em)}00`;
+      const stamp = new Date().toISOString().replace(/[-:.]/g,'').slice(0, 15) + 'Z';
+      const ics = [
+        'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//My Car Concierge//EN',
+        'BEGIN:VEVENT',
+        `UID:mcc-${Date.now()}@mycarconcierge.com`,
+        `DTSTAMP:${stamp}`, `DTSTART:${dtS}`, `DTEND:${dtE}`,
+        `SUMMARY:${title.replace(/[,;\\]/g, '\\$&')}`,
+        notes ? `DESCRIPTION:${notes.replace(/[,;\\]/g, '\\$&').replace(/\n/g, '\\n')}` : '',
+        'END:VEVENT', 'END:VCALENDAR'
+      ].filter(Boolean).join('\r\n');
+      const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'appointment.ics'; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+
+    function _mccGoogleCalURL(date, timeStart, timeEnd, title, notes) {
+      const [year, month, day] = date.split('-').map(Number);
+      const [sh, sm] = (timeStart || '09:00').split(':').map(Number);
+      const [eh, em] = (timeEnd || '10:00').split(':').map(Number);
+      const pad = n => String(n).padStart(2, '0');
+      const dtS = `${year}${pad(month)}${pad(day)}T${pad(sh)}${pad(sm)}00`;
+      const dtE = `${year}${pad(month)}${pad(day)}T${pad(eh)}${pad(em)}00`;
+      return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dtS}/${dtE}${notes ? '&details=' + encodeURIComponent(notes) : ''}`;
+    }
+
+    function showApptCalendarOptions(date, timeStart, timeEnd, title, notes) {
+      const existing = document.getElementById('mcc-cal-popup');
+      if (existing) { existing.remove(); return; }
+      const popup = document.createElement('div');
+      popup.id = 'mcc-cal-popup';
+      popup.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.5);min-width:280px;';
+      popup.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <strong style="color:var(--text-primary);">Add to Calendar</strong>
+          <button id="mcc-cal-close" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;">✕</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <button id="mcc-cal-ics" class="btn btn-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+            Download iCal (.ics)
+          </button>
+          <button id="mcc-cal-google" class="btn btn-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>
+            Open in Google Calendar
+          </button>
+        </div>
+      `;
+      document.body.appendChild(popup);
+      document.getElementById('mcc-cal-close').addEventListener('click', () => popup.remove());
+      document.getElementById('mcc-cal-ics').addEventListener('click', () => {
+        _mccDownloadICS(date, timeStart, timeEnd, title, notes);
+        popup.remove();
+      });
+      document.getElementById('mcc-cal-google').addEventListener('click', () => {
+        window.open(_mccGoogleCalURL(date, timeStart, timeEnd, title, notes), '_blank');
+        popup.remove();
+      });
+      const dismiss = (e) => { if (!popup.contains(e.target)) { popup.remove(); document.removeEventListener('click', dismiss); } };
+      setTimeout(() => document.addEventListener('click', dismiss), 100);
+    }
+    window.showApptCalendarOptions = showApptCalendarOptions;
+
     // Render appointment status
     function renderAppointmentStatus(packageId, appointment) {
       const container = document.getElementById(`appointment-status-${packageId}`);
@@ -8341,7 +9129,7 @@
         container.innerHTML = `
           <div style="padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px dashed var(--border-subtle);">
             <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;">
-              <span style="font-size:1.5rem;display:block;margin-bottom:8px;">📅</span>
+              <span style="font-size:1.5rem;display:block;margin-bottom:8px;">${mccIcon('calendar', 14)}</span>
               No appointment scheduled yet. Propose a time to get started.
             </div>
           </div>
@@ -8350,9 +9138,9 @@
       }
 
       const statusColors = {
-        'proposed': { bg: 'var(--accent-gold-soft)', color: 'var(--accent-gold)', icon: '⏳' },
-        'counter_proposed': { bg: 'var(--accent-orange-soft)', color: 'var(--accent-orange)', icon: '🔄' },
-        'confirmed': { bg: 'var(--accent-green-soft)', color: 'var(--accent-green)', icon: '✓' },
+        'proposed': { bg: 'var(--accent-gold-soft)', color: 'var(--accent-gold)', icon: mccIcon('clock', 14) },
+        'counter_proposed': { bg: 'var(--accent-orange-soft)', color: 'var(--accent-orange)', icon: mccIcon('refresh-cw', 14) },
+        'confirmed': { bg: 'var(--accent-green-soft)', color: 'var(--accent-green)', icon: mccIcon('check-circle', 14) },
         'cancelled': { bg: 'rgba(239, 95, 95, 0.15)', color: 'var(--accent-red)', icon: '✗' }
       };
       const status = statusColors[appointment.status] || statusColors['proposed'];
@@ -8369,30 +9157,39 @@
                 ${status.icon} ${appointment.status.replace('_', ' ').toUpperCase()}
               </div>
               <div style="font-size:1.1rem;font-weight:600;color:var(--text-primary);">${date}</div>
-              <div style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">🕐 ${timeStart} - ${timeEnd}</div>
+              <div style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">${mccIcon('clock', 14)} ${timeStart} - ${timeEnd}</div>
             </div>
             ${appointment.estimated_days ? `<div style="text-align:right;"><div style="font-size:0.8rem;color:var(--text-muted);">Est. Duration</div><div style="font-weight:600;color:var(--text-primary);">${appointment.estimated_days} day(s)</div></div>` : ''}
           </div>
           ${appointment.notes ? `<div style="font-size:0.85rem;color:var(--text-secondary);padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);margin-bottom:12px;">"${appointment.notes}"</div>` : ''}
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             ${appointment.status === 'proposed' && !proposedByMe ? `
-              <button class="btn btn-success btn-sm" onclick="confirmScheduleFromMember('${appointment.id}', '${packageId}')">✓ Confirm Time</button>
-              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromMember('${appointment.id}', '${packageId}')">🔄 Propose Different Time</button>
+              <button class="btn btn-success btn-sm" onclick="confirmScheduleFromMember('${appointment.id}', '${packageId}')">${mccIcon('check-circle', 14)} Confirm Time</button>
+              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromMember('${appointment.id}', '${packageId}')">${mccIcon('refresh-cw', 14)} Propose Different Time</button>
             ` : ''}
             ${appointment.status === 'counter_proposed' && proposedByMe ? `
-              <button class="btn btn-success btn-sm" onclick="acceptCounterProposalFromMember('${appointment.id}', '${packageId}')">✓ Accept New Time</button>
-              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromMember('${appointment.id}', '${packageId}')">🔄 Counter Again</button>
+              <button class="btn btn-success btn-sm" onclick="acceptCounterProposalFromMember('${appointment.id}', '${packageId}')">${mccIcon('check-circle', 14)} Accept New Time</button>
+              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromMember('${appointment.id}', '${packageId}')">${mccIcon('refresh-cw', 14)} Counter Again</button>
             ` : ''}
             ${appointment.status === 'proposed' && proposedByMe ? `
-              <div style="font-size:0.85rem;color:var(--text-muted);">⏳ Waiting for provider response...</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);">${mccIcon('clock', 14)} Waiting for provider response...</div>
             ` : ''}
             ${appointment.status === 'counter_proposed' && !proposedByMe ? `
-              <button class="btn btn-success btn-sm" onclick="acceptCounterProposalFromMember('${appointment.id}', '${packageId}')">✓ Accept New Time</button>
-              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromMember('${appointment.id}', '${packageId}')">🔄 Counter Again</button>
+              <button class="btn btn-success btn-sm" onclick="acceptCounterProposalFromMember('${appointment.id}', '${packageId}')">${mccIcon('check-circle', 14)} Accept New Time</button>
+              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromMember('${appointment.id}', '${packageId}')">${mccIcon('refresh-cw', 14)} Counter Again</button>
             ` : ''}
-            ${appointment.status === 'confirmed' ? `
-              <div style="font-size:0.85rem;color:var(--accent-green);">✓ Appointment confirmed! See you on ${date}.</div>
-            ` : ''}
+            ${appointment.status === 'confirmed' ? (() => {
+              const rawDate = appointment.proposed_date;
+              const tS = appointment.proposed_time_start || '09:00';
+              const tE = appointment.proposed_time_end || '10:00';
+              const pkgTitle = (packages.find(p => p.id === packageId)?.title || 'Service Appointment').replace(/"/g, '&quot;');
+              const apptNotes = (appointment.notes || '').replace(/"/g, '&quot;');
+              window._mccApptCal = { date: rawDate, timeStart: tS, timeEnd: tE, title: pkgTitle, notes: apptNotes };
+              return `
+              <div style="font-size:0.85rem;color:var(--accent-green);">${mccIcon('check-circle', 14)} Appointment confirmed! See you on ${date}.</div>
+              <button class="btn btn-secondary btn-sm" onclick="(function(){const d=window._mccApptCal;if(d)showApptCalendarOptions(d.date,d.timeStart,d.timeEnd,d.title,d.notes);})()" style="margin-top:8px;">${mccIcon('calendar', 14)} Add to Calendar</button>
+              `;
+            })() : ''}
           </div>
         </div>
       `;
@@ -8407,7 +9204,7 @@
         container.innerHTML = `
           <div style="padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px dashed var(--border-subtle);">
             <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;">
-              <span style="font-size:1.5rem;display:block;margin-bottom:8px;">🚗</span>
+              <span style="font-size:1.5rem;display:block;margin-bottom:8px;">${mccIcon('car-front', 14)}</span>
               No transfer method set. Configure how your vehicle will be delivered.
             </div>
           </div>
@@ -8416,21 +9213,21 @@
       }
 
       const transferTypes = {
-        'member_dropoff': { label: 'Member Drop-off', icon: '🚗', desc: 'You bring the vehicle to the provider' },
-        'provider_pickup': { label: 'Provider Pickup', icon: '🚚', desc: 'Provider picks up from your location' },
-        'mobile_service': { label: 'Mobile Service', icon: '🔧', desc: 'Service performed at your location' },
-        'towing': { label: 'Towing Required', icon: '🚜', desc: 'Vehicle will be towed' }
+        'member_dropoff': { label: 'Member Drop-off', icon: mccIcon('car-front', 14), desc: 'You bring the vehicle to the provider' },
+        'provider_pickup': { label: 'Provider Pickup', icon: mccIcon('truck', 14), desc: 'Provider picks up from your location' },
+        'mobile_service': { label: 'Mobile Service', icon: mccIcon('settings', 14), desc: 'Service performed at your location' },
+        'towing': { label: 'Towing Required', icon: mccIcon('truck', 14), desc: 'Vehicle will be towed' }
       };
       const type = transferTypes[transfer.transfer_type] || transferTypes['member_dropoff'];
 
       const statusSteps = [
-        { key: 'pending', label: 'Pending', icon: '⏳' },
-        { key: 'scheduled', label: 'Scheduled', icon: '📅' },
-        { key: 'in_transit_to_provider', label: 'In Transit', icon: '🚗' },
-        { key: 'with_provider', label: 'With Provider', icon: '🔧' },
-        { key: 'work_complete', label: 'Work Complete', icon: '✅' },
-        { key: 'in_transit_to_member', label: 'Returning', icon: '🏠' },
-        { key: 'returned', label: 'Returned', icon: '✓' }
+        { key: 'pending', label: 'Pending', icon: mccIcon('clock', 14) },
+        { key: 'scheduled', label: 'Scheduled', icon: mccIcon('calendar', 14) },
+        { key: 'in_transit_to_provider', label: 'In Transit', icon: mccIcon('car-front', 14) },
+        { key: 'with_provider', label: 'With Provider', icon: mccIcon('settings', 14) },
+        { key: 'work_complete', label: 'Work Complete', icon: mccIcon('check-circle', 16) },
+        { key: 'in_transit_to_member', label: 'Returning', icon: mccIcon('home', 14) },
+        { key: 'returned', label: 'Returned', icon: mccIcon('check-circle', 14) }
       ];
 
       const currentStepIndex = statusSteps.findIndex(s => s.key === transfer.vehicle_status) || 0;
@@ -8464,15 +9261,15 @@
             </div>
           </div>
 
-          ${transfer.pickup_address ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">📍 Pickup: ${transfer.pickup_address}</div>` : ''}
-          ${transfer.return_address ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">🏠 Return: ${transfer.return_address}</div>` : ''}
+          ${transfer.pickup_address ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('map-pin', 14)} Pickup: ${transfer.pickup_address}</div>` : ''}
+          ${transfer.return_address ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('home', 14)} Return: ${transfer.return_address}</div>` : ''}
           
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
             ${transfer.vehicle_status === 'pending' || transfer.vehicle_status === 'scheduled' ? `
-              <button class="btn btn-success btn-sm" onclick="confirmVehicleHandoff('${transfer.id}', '${packageId}', 'pickup')">✓ Confirm Handoff</button>
+              <button class="btn btn-success btn-sm" onclick="confirmVehicleHandoff('${transfer.id}', '${packageId}', 'pickup')">${mccIcon('check-circle', 14)} Confirm Handoff</button>
             ` : ''}
             ${transfer.vehicle_status === 'in_transit_to_member' || transfer.vehicle_status === 'work_complete' ? `
-              <button class="btn btn-success btn-sm" onclick="confirmVehicleHandoff('${transfer.id}', '${packageId}', 'return')">✓ Confirm Vehicle Received</button>
+              <button class="btn btn-success btn-sm" onclick="confirmVehicleHandoff('${transfer.id}', '${packageId}', 'return')">${mccIcon('check-circle', 14)} Confirm Vehicle Received</button>
             ` : ''}
           </div>
         </div>
@@ -8492,11 +9289,11 @@
         const mapsUrl = `https://www.google.com/maps?q=${driverLocation.lat},${driverLocation.lng}`;
         const driverName = driverLocation.profiles?.business_name || driverLocation.profiles?.provider_alias || driverLocation.profiles?.full_name || 'Driver';
         const trackingTypeLabels = {
-          'pickup': '🚗 Picking up your vehicle',
-          'return': '🚗 Returning your vehicle',
-          'in_transit': '🚗 In transit'
+          'pickup': `${mccIcon('car-front', 14)} Picking up your vehicle`,
+          'return': `${mccIcon('car-front', 14)} Returning your vehicle`,
+          'in_transit': `${mccIcon('car-front', 14)} In transit`
         };
-        const trackingLabel = trackingTypeLabels[driverLocation.tracking_type] || '🚗 Driver is on the way';
+        const trackingLabel = trackingTypeLabels[driverLocation.tracking_type] || `${mccIcon('car-front', 14)} Driver is on the way`;
         
         html += `
           <div style="padding:16px;background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);border-radius:var(--radius-md);margin-bottom:12px;">
@@ -8512,7 +9309,7 @@
               <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                 <div>
                   <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px;">
-                    📍 Live Location
+                    ${mccIcon('map-pin', 14)} Live Location
                   </div>
                   <div style="font-size:0.95rem;color:var(--text-primary);margin-bottom:4px;">
                     ${parseFloat(driverLocation.lat).toFixed(6)}, ${parseFloat(driverLocation.lng).toFixed(6)}
@@ -8521,7 +9318,7 @@
                   <div style="font-size:0.8rem;color:var(--text-muted);">Last update: ${updatedAt} on ${updatedDate}</div>
                 </div>
                 <a href="${mapsUrl}" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;">
-                  🗺️ Open Maps
+                  ${mccIcon('map-pin', 14)} Open Maps
                 </a>
               </div>
             </div>
@@ -8549,14 +9346,14 @@
             <div style="display:flex;justify-content:space-between;align-items:flex-start;">
               <div>
                 <div style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;color:${isFromMe ? 'var(--accent-green)' : 'var(--accent-blue)'};margin-bottom:4px;">
-                  ${isFromMe ? '📍 Your Shared Location' : '📍 Provider Location (One-time)'}
+                  ${isFromMe ? `${mccIcon('map-pin', 14)} Your Shared Location` : `${mccIcon('map-pin', 14)} Provider Location (One-time)`}
                 </div>
                 ${locationShare.address ? `<div style="font-size:0.95rem;color:var(--text-primary);margin-bottom:4px;">${locationShare.address}</div>` : ''}
                 <div style="font-size:0.8rem;color:var(--text-muted);">Shared: ${sharedAt}</div>
                 ${locationShare.message ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:8px;">"${locationShare.message}"</div>` : ''}
               </div>
               <a href="${mapsUrl}" target="_blank" class="btn btn-sm btn-secondary" style="text-decoration:none;">
-                🗺️ Open Maps
+                ${mccIcon('map-pin', 14)} Open Maps
               </a>
             </div>
           </div>
@@ -8577,10 +9374,10 @@
     // ========== MEMBER EVIDENCE FUNCTIONS ==========
 
     const memberEvidenceTypeLabels = {
-      'pre_pickup': { label: 'Pre-Pickup Condition', icon: '🔵', color: 'var(--accent-blue)' },
-      'arrival_shop': { label: 'Arrival at Shop', icon: '🟠', color: '#f59e0b' },
-      'post_service': { label: 'Post-Service Condition', icon: '🟢', color: 'var(--accent-green)' },
-      'return': { label: 'Vehicle Return', icon: '🟣', color: '#a855f7' }
+      'pre_pickup': { label: 'Pre-Pickup Condition', icon: mccIcon('info', 14), color: 'var(--accent-blue)' },
+      'arrival_shop': { label: 'Arrival at Shop', icon: mccIcon('alert-triangle', 14), color: '#f59e0b' },
+      'post_service': { label: 'Post-Service Condition', icon: mccIcon('check-circle', 14), color: 'var(--accent-green)' },
+      'return': { label: 'Vehicle Return', icon: mccIcon('star', 14), color: '#a855f7' }
     };
 
     async function loadEvidenceTimeline(packageId) {
@@ -8594,7 +9391,7 @@
           container.innerHTML = `
             <div style="padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px dashed var(--border-subtle);">
               <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;">
-                <span style="font-size:1.5rem;display:block;margin-bottom:8px;">📸</span>
+                <span style="font-size:1.5rem;display:block;margin-bottom:8px;">${mccIcon('camera', 14)}</span>
                 No evidence captured yet. Document your vehicle condition before pickup.
               </div>
             </div>
@@ -8603,7 +9400,7 @@
         }
 
         const timeline = evidence.map(e => {
-          const typeInfo = memberEvidenceTypeLabels[e.type] || { label: e.type, icon: '📷', color: 'var(--text-muted)' };
+          const typeInfo = memberEvidenceTypeLabels[e.type] || { label: e.type, icon: mccIcon('camera', 14), color: 'var(--text-muted)' };
           const photoGrid = e.photos?.length ? `
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
               ${e.photos.slice(0, 4).map(url => `
@@ -8626,8 +9423,8 @@
                   <div style="font-size:0.75rem;color:var(--text-muted);">by ${createdByName}</div>
                 </div>
                 <div style="display:flex;gap:16px;font-size:0.82rem;color:var(--text-secondary);margin-bottom:4px;">
-                  <span>🔢 ${e.odometer?.toLocaleString() || 'N/A'} mi</span>
-                  <span>⛽ ${e.fuel_level || 'N/A'}</span>
+                  <span>${mccIcon('hash', 14)} ${e.odometer?.toLocaleString() || 'N/A'} mi</span>
+                  <span>${mccIcon('fuel', 14)} ${e.fuel_level || 'N/A'}</span>
                 </div>
                 ${e.exterior_condition ? `<div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;"><strong>Exterior:</strong> ${e.exterior_condition}</div>` : ''}
                 ${e.interior_condition ? `<div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;"><strong>Interior:</strong> ${e.interior_condition}</div>` : ''}
@@ -8663,7 +9460,7 @@
           container.innerHTML = `
             <div style="padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px dashed var(--border-subtle);">
               <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;">
-                <span style="font-size:1.5rem;display:block;margin-bottom:8px;">🔑</span>
+                <span style="font-size:1.5rem;display:block;margin-bottom:8px;">${mccIcon('key', 14)}</span>
                 No key exchanges recorded yet. The provider will document key handoffs at pickup and return.
               </div>
             </div>
@@ -8672,12 +9469,12 @@
         }
 
         const stageInfo = {
-          'pickup': { label: 'Pickup Key Exchange', icon: '🔵', color: 'var(--accent-blue)' },
-          'return': { label: 'Return Key Exchange', icon: '🟣', color: '#a855f7' }
+          'pickup': { label: 'Pickup Key Exchange', icon: mccIcon('info', 14), color: 'var(--accent-blue)' },
+          'return': { label: 'Return Key Exchange', icon: mccIcon('star', 14), color: '#a855f7' }
         };
 
         const timeline = keyExchanges.map(exchange => {
-          const info = stageInfo[exchange.stage] || { label: exchange.stage, icon: '🔑', color: 'var(--text-muted)' };
+          const info = stageInfo[exchange.stage] || { label: exchange.stage, icon: mccIcon('key', 14), color: 'var(--text-muted)' };
           
           const photoGrid = `
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
@@ -8702,7 +9499,7 @@
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
                   <div style="display:flex;align-items:center;gap:8px;">
                     <span style="font-weight:600;font-size:0.9rem;">${info.label}</span>
-                    ${exchange.verified_at ? `<span style="background:var(--accent-green);color:#fff;padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:600;">✓ Verified</span>` : ''}
+                    ${exchange.verified_at ? `<span style="background:var(--accent-green);color:#fff;padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:600;">${mccIcon('check-circle', 14)} Verified</span>` : ''}
                   </div>
                   <div style="font-size:0.75rem;color:var(--text-muted);">by Provider</div>
                 </div>
@@ -8777,7 +9574,7 @@
       btn.disabled = true;
       btn.textContent = 'Uploading...';
       statusDiv.style.display = 'block';
-      statusDiv.innerHTML = '<p style="color:var(--accent-gold);">📤 Uploading photos...</p>';
+      statusDiv.innerHTML = `<p style="color:var(--accent-gold);">$${mccIcon('upload', 14)} Uploading photos...</p>`;
 
       try {
         const photoUrls = await window.uploadEvidencePhotos(packageId, files);
@@ -8785,7 +9582,7 @@
           throw new Error('Failed to upload photos');
         }
 
-        statusDiv.innerHTML = '<p style="color:var(--accent-gold);">📝 Saving evidence...</p>';
+        statusDiv.innerHTML = `<p style="color:var(--accent-gold);">$${mccIcon('edit', 14)} Saving evidence...</p>`;
 
         let lat = null, lng = null;
         try {
@@ -8812,7 +9609,7 @@
 
         if (error) throw error;
 
-        statusDiv.innerHTML = '<p style="color:var(--accent-green);">✅ Evidence saved successfully!</p>';
+        statusDiv.innerHTML = '<p style="color:var(--accent-green);">' + mccIcon('check-circle', 14) + ' Evidence saved successfully!</p>';
         showToast('Vehicle condition documented!', 'success');
 
         setTimeout(() => {
@@ -8821,11 +9618,11 @@
         }, 1500);
       } catch (err) {
         console.error('Evidence submission error:', err);
-        statusDiv.innerHTML = `<p style="color:var(--accent-red);">❌ Error: ${err.message || 'Failed to save evidence'}</p>`;
+        statusDiv.innerHTML = `<p style="color:var(--accent-red);">${mccIcon('x', 14)} Error: ${err.message || 'Failed to save evidence'}</p>`;
         showToast('Failed to save evidence', 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = '📸 Save Evidence';
+        btn.innerHTML = `${mccIcon('camera', 14)} Save Evidence`;
       }
     }
 
@@ -9122,7 +9919,7 @@
 
         document.getElementById('view-location-body').innerHTML = `
           <div style="text-align:center;margin-bottom:20px;">
-            <div style="font-size:48px;margin-bottom:12px;">📍</div>
+            <div style="font-size:48px;margin-bottom:12px;">${mccIcon('map-pin', 14)}</div>
             <div style="font-size:1.1rem;font-weight:600;color:var(--text-primary);margin-bottom:4px;">
               ${location.shared_by === currentUser?.id ? 'Your Shared Location' : 'Provider Location'}
             </div>
@@ -9137,10 +9934,10 @@
           ` : ''}
           <div style="display:flex;flex-direction:column;gap:8px;">
             <a href="${mapsUrl}" target="_blank" class="btn btn-primary" style="justify-content:center;text-decoration:none;">
-              🗺️ Open in Google Maps
+              ${mccIcon('map-pin', 14)} Open in Google Maps
             </a>
             <a href="https://www.google.com/maps/dir/?api=1&destination=${location.latitude},${location.longitude}" target="_blank" class="btn btn-secondary" style="justify-content:center;text-decoration:none;">
-              🚗 Get Directions
+              ${mccIcon('car-front', 14)} Get Directions
             </a>
           </div>
         `;
@@ -9221,7 +10018,7 @@
             lat: position.coords.latitude,
             lng: position.coords.longitude
           };
-          document.getElementById('emergency-location-text').textContent = '📍 Location captured';
+          document.getElementById('emergency-location-text').innerHTML = `${mccIcon('map-pin', 14)} Location captured`;
           
           try {
             const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${emergencyLocation.lat}&lon=${emergencyLocation.lng}`);
@@ -9235,7 +10032,7 @@
           }
         },
         (error) => {
-          document.getElementById('emergency-location-text').textContent = '⚠️ Could not get location';
+          document.getElementById('emergency-location-text').innerHTML = mccIcon('alert-triangle', 14) + ' Could not get location';
           document.getElementById('emergency-address-text').textContent = 'Please enable location services';
         },
         { enableHighAccuracy: true, timeout: 10000 }
@@ -9291,13 +10088,13 @@
     }
 
     const EMERGENCY_SERVICE_RATES = {
-      lockout: { base: 100, perMile: 0, includedMiles: 0, display: '🔐 Lockout' },
-      dead_battery: { base: 100, perMile: 0, includedMiles: 0, display: '🔋 Jump Start' },
-      flat_tire: { base: 125, perMile: 0, includedMiles: 0, display: '🛞 Flat Tire' },
-      fuel_delivery: { base: 125, perMile: 0, includedMiles: 0, display: '⛽ Fuel Delivery' },
-      tow_needed: { base: 200, perMile: 6, includedMiles: 10, display: '🚛 Towing' },
-      accident: { base: 250, perMile: 6, includedMiles: 10, display: '💥 Accident' },
-      other: { base: 150, perMile: 0, includedMiles: 0, display: '🔧 Other' }
+      lockout: { base: 100, perMile: 0, includedMiles: 0, display: `${mccIcon('lock', 14)} Lockout` },
+      dead_battery: { base: 100, perMile: 0, includedMiles: 0, display: `${mccIcon('activity', 14)} Jump Start` },
+      flat_tire: { base: 125, perMile: 0, includedMiles: 0, display: `${mccIcon('settings', 14)} Flat Tire` },
+      fuel_delivery: { base: 125, perMile: 0, includedMiles: 0, display: mccIcon('fuel', 14) + ' Fuel Delivery' },
+      tow_needed: { base: 200, perMile: 6, includedMiles: 10, display: `${mccIcon('truck', 14)} Towing` },
+      accident: { base: 250, perMile: 6, includedMiles: 10, display: `${mccIcon('alert-triangle', 14)} Accident` },
+      other: { base: 150, perMile: 0, includedMiles: 0, display: `${mccIcon('settings', 14)} Other` }
     };
     const EMERGENCY_ACTIVATION_FEE = 25;
     let pendingEmergencyPaymentData = null;
@@ -9435,7 +10232,7 @@
         updateEmergencyBanner();
         showSection('emergency');
         loadEmergencySection();
-        showToast('🚨 Emergency request submitted! Providers are being notified.', 'success');
+        showToast(`${mccIcon('alert-triangle', 14)} Emergency request submitted! Providers are being notified.`, 'success');
         
       } catch (err) {
         console.error('Error submitting emergency:', err);
@@ -9512,13 +10309,13 @@
       if (!e) return;
       
       const typeLabels = {
-        'flat_tire': '🛞 Flat Tire',
-        'dead_battery': '🔋 Dead Battery',
-        'lockout': '🔐 Locked Out',
-        'tow_needed': '🚛 Tow Needed',
-        'fuel_delivery': '⛽ Out of Fuel',
-        'accident': '💥 Accident',
-        'other': '❓ Other'
+        'flat_tire': `${mccIcon('settings', 14)} Flat Tire`,
+        'dead_battery': `${mccIcon('activity', 14)} Dead Battery`,
+        'lockout': `${mccIcon('lock', 14)} Locked Out`,
+        'tow_needed': `${mccIcon('truck', 14)} Tow Needed`,
+        'fuel_delivery': mccIcon('fuel', 14) + ' Out of Fuel',
+        'accident': `${mccIcon('alert-triangle', 14)} Accident`,
+        'other': mccIcon('help-circle', 14) + ' Other'
       };
       
       document.getElementById('emergency-active-type').textContent = typeLabels[e.emergency_type] || e.emergency_type;
@@ -9527,12 +10324,12 @@
       const currentIdx = statuses.indexOf(e.status);
       
       const statusLabels = {
-        'pending': { icon: '⏳', label: 'Waiting for provider' },
-        'accepted': { icon: '✓', label: 'Provider accepted' },
-        'en_route': { icon: '🚗', label: 'Provider en route' },
-        'arrived': { icon: '📍', label: 'Provider arrived' },
-        'in_progress': { icon: '🔧', label: 'Work in progress' },
-        'completed': { icon: '✅', label: 'Completed' }
+        'pending': { icon: mccIcon('clock', 14), label: 'Waiting for provider' },
+        'accepted': { icon: mccIcon('check-circle', 14), label: 'Provider accepted' },
+        'en_route': { icon: mccIcon('car-front', 14), label: 'Provider en route' },
+        'arrived': { icon: mccIcon('map-pin', 14), label: 'Provider arrived' },
+        'in_progress': { icon: mccIcon('settings', 14), label: 'Work in progress' },
+        'completed': { icon: mccIcon('check-circle', 16), label: 'Completed' }
       };
       
       // Show round info for pending status
@@ -9549,7 +10346,7 @@
         }
         roundInfoHtml = `
           <div style="background:var(--accent-orange-soft);border:1px solid var(--accent-orange);border-radius:var(--radius-md);padding:12px 16px;margin-bottom:16px;text-align:center;">
-            <div style="font-weight:600;color:var(--accent-orange);margin-bottom:4px;">🔍 Round ${currentRound} of 3</div>
+            <div style="font-weight:600;color:var(--accent-orange);margin-bottom:4px;">${mccIcon('search', 14)} Round ${currentRound} of 3</div>
             <div style="font-size:0.85rem;color:var(--text-secondary);">Searching for nearby providers... ${timeRemaining}</div>
           </div>
         `;
@@ -9575,7 +10372,7 @@
         document.getElementById('emergency-provider-info').innerHTML = `
           <div style="font-weight:600;margin-bottom:8px;">Your Provider</div>
           <div style="font-size:1.1rem;margin-bottom:4px;">${e.provider.business_name || e.provider.full_name}</div>
-          ${e.provider.phone ? `<a href="tel:${e.provider.phone}" class="btn btn-primary" style="margin-top:8px;width:100%;justify-content:center;">📞 Call Provider</a>` : ''}
+          ${e.provider.phone ? `<a href="tel:${e.provider.phone}" class="btn btn-primary" style="margin-top:8px;width:100%;justify-content:center;">${mccIcon('phone', 14)} Call Provider</a>` : ''}
           ${e.eta_minutes ? `<div style="color:var(--accent-gold);margin-top:8px;">ETA: ${e.eta_minutes} minutes</div>` : ''}
         `;
       }
@@ -9588,7 +10385,7 @@
       if (completed.length === 0) {
         container.innerHTML = `
           <div class="empty-state">
-            <div class="empty-state-icon">🆘</div>
+            <div class="empty-state-icon">${mccIcon('alert-triangle', 48)}</div>
             <p>No emergency requests yet.</p>
           </div>
         `;
@@ -9596,13 +10393,13 @@
       }
       
       const typeLabels = {
-        'flat_tire': '🛞 Flat Tire',
-        'dead_battery': '🔋 Dead Battery',
-        'lockout': '🔐 Locked Out',
-        'tow_needed': '🚛 Tow Needed',
-        'fuel_delivery': '⛽ Out of Fuel',
-        'accident': '💥 Accident',
-        'other': '❓ Other'
+        'flat_tire': `${mccIcon('settings', 14)} Flat Tire`,
+        'dead_battery': `${mccIcon('activity', 14)} Dead Battery`,
+        'lockout': `${mccIcon('lock', 14)} Locked Out`,
+        'tow_needed': `${mccIcon('truck', 14)} Tow Needed`,
+        'fuel_delivery': mccIcon('fuel', 14) + ' Out of Fuel',
+        'accident': `${mccIcon('alert-triangle', 14)} Accident`,
+        'other': mccIcon('help-circle', 14) + ' Other'
       };
       
       container.innerHTML = completed.map(e => `
@@ -9648,25 +10445,25 @@
       if (!e) return;
       
       const typeLabels = {
-        'flat_tire': '🛞 Flat Tire',
-        'dead_battery': '🔋 Dead Battery',
-        'lockout': '🔐 Locked Out',
-        'tow_needed': '🚛 Tow Needed',
-        'fuel_delivery': '⛽ Out of Fuel',
-        'accident': '💥 Accident',
-        'other': '❓ Other'
+        'flat_tire': `${mccIcon('settings', 14)} Flat Tire`,
+        'dead_battery': `${mccIcon('activity', 14)} Dead Battery`,
+        'lockout': `${mccIcon('lock', 14)} Locked Out`,
+        'tow_needed': `${mccIcon('truck', 14)} Tow Needed`,
+        'fuel_delivery': mccIcon('fuel', 14) + ' Out of Fuel',
+        'accident': `${mccIcon('alert-triangle', 14)} Accident`,
+        'other': mccIcon('help-circle', 14) + ' Other'
       };
       
       const statuses = ['pending', 'accepted', 'en_route', 'arrived', 'in_progress', 'completed'];
       const currentIdx = statuses.indexOf(e.status);
       
       const statusLabels = {
-        'pending': { icon: '⏳', label: 'Waiting for provider' },
-        'accepted': { icon: '✓', label: 'Provider accepted' },
-        'en_route': { icon: '🚗', label: 'Provider en route' },
-        'arrived': { icon: '📍', label: 'Provider arrived' },
-        'in_progress': { icon: '🔧', label: 'Work in progress' },
-        'completed': { icon: '✅', label: 'Completed' }
+        'pending': { icon: mccIcon('clock', 14), label: 'Waiting for provider' },
+        'accepted': { icon: mccIcon('check-circle', 14), label: 'Provider accepted' },
+        'en_route': { icon: mccIcon('car-front', 14), label: 'Provider en route' },
+        'arrived': { icon: mccIcon('map-pin', 14), label: 'Provider arrived' },
+        'in_progress': { icon: mccIcon('settings', 14), label: 'Work in progress' },
+        'completed': { icon: mccIcon('check-circle', 16), label: 'Completed' }
       };
       
       const timelineHtml = statuses.slice(0, 5).map((status, idx) => {
@@ -9687,7 +10484,7 @@
         <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:16px;margin-top:20px;">
           <div style="font-weight:600;margin-bottom:8px;">Your Provider</div>
           <div style="font-size:1.1rem;margin-bottom:4px;">${e.provider.business_name || e.provider.full_name}</div>
-          ${e.provider.phone ? `<a href="tel:${e.provider.phone}" class="btn btn-primary" style="margin-top:12px;width:100%;justify-content:center;">📞 Call Provider</a>` : ''}
+          ${e.provider.phone ? `<a href="tel:${e.provider.phone}" class="btn btn-primary" style="margin-top:12px;width:100%;justify-content:center;">${mccIcon('phone', 14)} Call Provider</a>` : ''}
           ${e.eta_minutes ? `<div style="color:var(--accent-gold);margin-top:12px;">ETA: ${e.eta_minutes} minutes</div>` : ''}
         </div>
       ` : '';
@@ -9696,7 +10493,7 @@
       
       document.getElementById('emergency-status-content').innerHTML = `
         <div style="text-align:center;margin-bottom:20px;">
-          <div style="font-size:32px;margin-bottom:8px;">${typeLabels[e.emergency_type]?.split(' ')[0] || '🚨'}</div>
+          <div style="font-size:32px;margin-bottom:8px;">${typeLabels[e.emergency_type]?.split(' ')[0] || mccIcon('alert-triangle', 14)}</div>
           <div style="font-size:1.1rem;font-weight:600;">${typeLabels[e.emergency_type] || e.emergency_type}</div>
           <div style="color:var(--text-muted);font-size:0.9rem;">${vehicleName}</div>
         </div>
@@ -9707,7 +10504,7 @@
         
         ${e.address ? `
           <div style="margin-top:20px;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);">
-            <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">📍 Your Location</div>
+            <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">${mccIcon('map-pin', 14)} Your Location</div>
             <div style="font-size:0.9rem;color:var(--text-secondary);">${e.address}</div>
           </div>
         ` : ''}
@@ -9781,7 +10578,7 @@
       
       container.innerHTML = `
         <div class="card" style="text-align:center;padding:40px 24px;">
-          <div style="font-size:48px;margin-bottom:16px;">😔</div>
+          <div style="font-size:48px;margin-bottom:16px;">${mccIcon('circle-alert', 14)}</div>
           <h3 style="margin-bottom:12px;color:var(--accent-red);">No Providers Available</h3>
           <p style="color:var(--text-secondary);margin-bottom:24px;line-height:1.6;">
             We're sorry, but no providers were able to respond to your emergency request after 15 minutes of searching.
@@ -9789,7 +10586,7 @@
           <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:16px;margin-bottom:24px;">
             <p style="font-weight:600;margin-bottom:8px;">Alternative Help:</p>
             <p style="color:var(--text-secondary);margin-bottom:12px;">Please try calling 911 or a local towing service.</p>
-            <a href="tel:911" class="btn btn-danger" style="width:100%;justify-content:center;margin-bottom:8px;">📞 Call 911</a>
+            <a href="tel:911" class="btn btn-danger" style="width:100%;justify-content:center;margin-bottom:8px;">${mccIcon('phone', 14)} Call 911</a>
           </div>
           <button class="btn btn-secondary" onclick="cancelActiveEmergency()" style="width:100%;justify-content:center;">Cancel Request & Try Again</button>
         </div>
@@ -9858,7 +10655,7 @@
         if (error || !inspection) {
           container.innerHTML = `
             <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;padding:16px;">
-              <span style="font-size:1.5rem;display:block;margin-bottom:8px;">📋</span>
+              <span style="font-size:1.5rem;display:block;margin-bottom:8px;">${mccIcon('file-text', 14)}</span>
               No inspection report available yet. Your provider will complete an inspection during service.
             </div>
           `;
@@ -9882,7 +10679,7 @@
       
       const categories = [
         { 
-          name: '🛢️ Fluids', 
+          name: `${mccIcon('thermometer', 14)} Fluids`, 
           items: [
             { label: 'Engine Oil', field: 'engine_oil' },
             { label: 'Transmission Fluid', field: 'transmission_fluid' },
@@ -9892,7 +10689,7 @@
           ]
         },
         { 
-          name: '🛞 Brakes', 
+          name: `${mccIcon('settings', 14)} Brakes`, 
           items: [
             { label: 'Front Brake Pads', field: 'brake_pads_front', extra: inspection.brake_pads_front_percent ? `${inspection.brake_pads_front_percent}%` : null },
             { label: 'Rear Brake Pads', field: 'brake_pads_rear', extra: inspection.brake_pads_rear_percent ? `${inspection.brake_pads_rear_percent}%` : null },
@@ -9900,7 +10697,7 @@
           ]
         },
         { 
-          name: '🚗 Tires', 
+          name: `${mccIcon('car-front', 14)} Tires`, 
           items: [
             { label: 'Front Left', field: 'tire_front_left', extra: inspection.tire_front_left_tread ? `${inspection.tire_front_left_tread}/32"` : null },
             { label: 'Front Right', field: 'tire_front_right', extra: inspection.tire_front_right_tread ? `${inspection.tire_front_right_tread}/32"` : null },
@@ -9910,7 +10707,7 @@
           ]
         },
         { 
-          name: '⚡ Electrical & Lights', 
+          name: `${mccIcon('zap', 14)} Electrical & Lights`, 
           items: [
             { label: 'Battery', field: 'battery', extra: inspection.battery_voltage ? `${inspection.battery_voltage}V` : null },
             { label: 'Headlights', field: 'headlights' },
@@ -9919,28 +10716,28 @@
           ]
         },
         { 
-          name: '🔗 Belts & Hoses', 
+          name: `${mccIcon('link', 14)} Belts & Hoses`, 
           items: [
             { label: 'Serpentine Belt', field: 'serpentine_belt' },
             { label: 'Hoses', field: 'hoses' }
           ]
         },
         { 
-          name: '🌧️ Wipers & Glass', 
+          name: `${mccIcon('activity', 14)} Wipers & Glass`, 
           items: [
             { label: 'Wiper Blades', field: 'wiper_blades' },
             { label: 'Windshield', field: 'windshield' }
           ]
         },
         { 
-          name: '🔧 Suspension & Steering', 
+          name: `${mccIcon('settings', 14)} Suspension & Steering`, 
           items: [
             { label: 'Shocks/Struts', field: 'shocks_struts' },
             { label: 'Alignment', field: 'alignment' }
           ]
         },
         { 
-          name: '🌬️ Filters', 
+          name: `${mccIcon('activity', 14)} Filters`, 
           items: [
             { label: 'Air Filter', field: 'air_filter' },
             { label: 'Cabin Filter', field: 'cabin_filter' }
@@ -9977,28 +10774,28 @@
         <div class="inspection-report-header">
           <div>
             <span class="inspection-overall-badge ${inspection.overall_condition}">${conditionLabels[inspection.overall_condition] || 'N/A'}</span>
-            <div class="inspection-date" style="margin-top:8px;">📅 Inspected: ${inspectionDate}</div>
+            <div class="inspection-date" style="margin-top:8px;">${mccIcon('calendar', 14)} Inspected: ${inspectionDate}</div>
           </div>
         </div>
         
         <div class="inspection-counts">
-          ${inspection.urgent_items > 0 ? `<div class="inspection-count-item urgent">🔴 ${inspection.urgent_items} Urgent</div>` : ''}
-          ${inspection.attention_items > 0 ? `<div class="inspection-count-item attention">🟠 ${inspection.attention_items} Need Attention</div>` : ''}
-          ${!inspection.urgent_items && !inspection.attention_items ? `<div class="inspection-count-item good">✅ All items in good condition</div>` : ''}
+          ${inspection.urgent_items > 0 ? `<div class="inspection-count-item urgent">${mccIcon('alert-triangle', 14)} ${inspection.urgent_items} Urgent</div>` : ''}
+          ${inspection.attention_items > 0 ? `<div class="inspection-count-item attention">${mccIcon('alert-triangle', 14)} ${inspection.attention_items} Need Attention</div>` : ''}
+          ${!inspection.urgent_items && !inspection.attention_items ? `<div class="inspection-count-item good">${mccIcon('check-circle', 14)} All items in good condition</div>` : ''}
         </div>
         
         ${categoriesHtml}
         
         ${inspection.recommendations ? `
           <div class="inspection-recommendations">
-            <div class="inspection-recommendations-title">💡 Provider Recommendations</div>
+            <div class="inspection-recommendations-title">${mccIcon('info', 14)} Provider Recommendations</div>
             <div class="inspection-recommendations-text">${inspection.recommendations}</div>
           </div>
         ` : ''}
         
         ${inspection.technician_notes ? `
           <div class="inspection-recommendations" style="margin-top:12px;">
-            <div class="inspection-recommendations-title">📝 Technician Notes</div>
+            <div class="inspection-recommendations-title">${mccIcon('edit', 14)} Technician Notes</div>
             <div class="inspection-recommendations-text">${inspection.technician_notes}</div>
           </div>
         ` : ''}
@@ -10050,7 +10847,7 @@
       if (!filtered.length) {
         container.innerHTML = `
           <div class="empty-state">
-            <div class="empty-state-icon">🚗</div>
+            <div class="empty-state-icon">${mccIcon('car-front', 14)}</div>
             <p>No ${currentDestFilter === 'all' ? '' : currentDestFilter + ' '}destination services.</p>
             <button class="btn btn-primary" onclick="openDestinationBookingModal()" style="margin-top:16px;">+ Book Service</button>
           </div>`;
@@ -10063,10 +10860,10 @@
         const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim() : 'Vehicle';
         
         const serviceIcons = {
-          airport: '✈️',
-          dealership: '🏢',
-          detailing: '✨',
-          valet: '🔑'
+          airport: mccIcon('truck', 14),
+          dealership: mccIcon('store', 14),
+          detailing: mccIcon('sparkles', 14),
+          valet: mccIcon('key', 14)
         };
         const serviceLabels = {
           airport: 'Airport',
@@ -10098,7 +10895,7 @@
           cancelled: 'Cancelled'
         };
         
-        const icon = serviceIcons[service.service_type] || '🚗';
+        const icon = serviceIcons[service.service_type] || mccIcon('car-front', 14);
         const label = serviceLabels[service.service_type] || service.service_type;
         const color = serviceColors[service.service_type] || 'var(--accent-blue)';
         
@@ -10115,10 +10912,10 @@
         
         const driverInfo = service.driver_name ? `
           <div style="display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 12px;background:var(--accent-blue-soft);border-radius:var(--radius-md);">
-            <span style="font-size:20px;">👤</span>
+            <span style="font-size:20px;">${mccIcon('user', 14)}</span>
             <div>
               <div style="font-size:0.85rem;font-weight:500;color:var(--accent-blue);">Driver: ${service.driver_name}</div>
-              ${service.driver_phone ? `<div style="font-size:0.78rem;color:var(--text-muted);">📞 ${service.driver_phone}</div>` : ''}
+              ${service.driver_phone ? `<div style="font-size:0.78rem;color:var(--text-muted);">${mccIcon('phone', 14)} ${service.driver_phone}</div>` : ''}
             </div>
           </div>
         ` : '';
@@ -10144,7 +10941,7 @@
               return `
                 <div style="display:flex;align-items:center;flex-shrink:0;">
                   <div style="width:20px;height:20px;border-radius:50%;background:${stepColor}${isCompleted || isCurrent ? '' : '33'};display:flex;align-items:center;justify-content:center;font-size:10px;color:white;">
-                    ${isCompleted ? '✓' : (idx + 1)}
+                    ${isCompleted ? mccIcon('check-circle', 10) : (idx + 1)}
                   </div>
                   ${idx < 4 ? `<div style="width:24px;height:2px;background:${isCompleted ? 'var(--accent-green)' : 'var(--border-subtle)'};"></div>` : ''}
                 </div>
@@ -10181,7 +10978,7 @@
             </div>
             <div class="package-card-footer" style="display:flex;gap:10px;flex-wrap:wrap;padding-top:16px;border-top:1px solid var(--border-subtle);">
               <button class="btn btn-secondary" onclick="viewDestinationService('${service.id}')">View Details</button>
-              ${['en_route', 'in_progress'].includes(service.status) && service.tracking_url ? `<a href="${service.tracking_url}" target="_blank" class="btn btn-primary">📍 Track Driver</a>` : ''}
+              ${['en_route', 'in_progress'].includes(service.status) && service.tracking_url ? `<a href="${service.tracking_url}" target="_blank" class="btn btn-primary">${mccIcon('map-pin', 14)} Track Driver</a>` : ''}
               ${service.status === 'pending' ? `<button class="btn btn-danger btn-sm" onclick="cancelDestinationService('${service.id}')" style="margin-left:auto;">Cancel Service</button>` : ''}
             </div>
           </div>
@@ -10238,17 +11035,17 @@
       submitBtn.style.display = 'inline-flex';
       
       const titles = {
-        airport: '✈️ Airport Pickup/Drop-off',
-        dealership: '🏢 Dealership Service Run',
-        detailing: '✨ Mobile Detailing',
-        valet: '🔑 Valet Service'
+        airport: `${mccIcon('truck', 14)} Airport Pickup/Drop-off`,
+        dealership: `${mccIcon('store', 14)} Dealership Service Run`,
+        detailing: `${mccIcon('sparkles', 14)} Mobile Detailing`,
+        valet: `${mccIcon('key', 14)} Valet Service`
       };
       
       const buttonLabels = {
-        airport: '✈️ Book Airport Service',
-        dealership: '🏢 Schedule Dealership Run',
-        detailing: '✨ Book Detail Service',
-        valet: '🔑 Book Valet Service'
+        airport: `${mccIcon('truck', 14)} Book Airport Service`,
+        dealership: `${mccIcon('store', 14)} Schedule Dealership Run`,
+        detailing: `${mccIcon('sparkles', 14)} Book Detail Service`,
+        valet: `${mccIcon('key', 14)} Book Valet Service`
       };
       
       document.getElementById('dest-modal-title').textContent = titles[type] || 'Book Destination Service';
@@ -10477,7 +11274,7 @@
       const vehicle = pkg?.vehicles;
       const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim() : 'Vehicle';
       
-      const serviceIcons = { airport: '✈️', dealership: '🏢', detailing: '✨', valet: '🔑' };
+      const serviceIcons = { airport: mccIcon('truck', 14), dealership: mccIcon('store', 14), detailing: mccIcon('sparkles', 14), valet: mccIcon('key', 14) };
       const serviceLabels = { airport: 'Airport Parking', dealership: 'Dealership Run', detailing: 'Mobile Detailing', valet: 'Valet Service' };
       const statusLabels = { pending: 'Pending', assigned: 'Driver Assigned', in_progress: 'In Progress', en_route: 'Driver En Route', completed: 'Completed', cancelled: 'Cancelled' };
       const statusColors = { pending: 'gray', assigned: 'var(--accent-blue)', in_progress: 'var(--accent-blue)', en_route: 'var(--accent-orange)', completed: 'var(--accent-green)', cancelled: 'var(--accent-red)' };
@@ -10529,11 +11326,11 @@
       }
       
       const timelineSteps = [
-        { status: 'pending', label: 'Pending', icon: '📝' },
-        { status: 'assigned', label: 'Assigned', icon: '👤' },
-        { status: 'en_route', label: 'En Route', icon: '🚗' },
-        { status: 'in_progress', label: 'In Progress', icon: '⚙️' },
-        { status: 'completed', label: 'Completed', icon: '✅' }
+        { status: 'pending', label: 'Pending', icon: mccIcon('edit', 14) },
+        { status: 'assigned', label: 'Assigned', icon: mccIcon('user', 14) },
+        { status: 'en_route', label: 'En Route', icon: mccIcon('car-front', 14) },
+        { status: 'in_progress', label: 'In Progress', icon: mccIcon('settings', 14) },
+        { status: 'completed', label: 'Completed', icon: mccIcon('check-circle', 16) }
       ];
       
       const currentStatusIndex = timelineSteps.findIndex(s => s.status === service.status);
@@ -10548,7 +11345,7 @@
             return `
               <div style="display:flex;flex-direction:column;align-items:center;z-index:1;">
                 <div style="width:32px;height:32px;border-radius:50%;background:${isCompleted || isCurrent ? color : 'var(--bg-elevated)'};border:2px solid ${color};display:flex;align-items:center;justify-content:center;font-size:14px;">
-                  ${isCompleted ? '✓' : step.icon}
+                  ${isCompleted ? mccIcon('check-circle', 14) : step.icon}
                 </div>
                 <div style="font-size:0.75rem;margin-top:6px;color:${isCurrent ? 'var(--text-primary)' : 'var(--text-muted)'};">${step.label}</div>
               </div>
@@ -10591,19 +11388,19 @@
           <div class="card" style="margin-bottom:20px;">
             <div class="card-header"><h4 class="card-title">Driver Information</h4></div>
             <div style="padding:16px;display:flex;align-items:center;gap:16px;">
-              <div style="width:60px;height:60px;border-radius:50%;background:var(--accent-blue);display:flex;align-items:center;justify-content:center;font-size:24px;">👤</div>
+              <div style="width:60px;height:60px;border-radius:50%;background:var(--accent-blue);display:flex;align-items:center;justify-content:center;font-size:24px;">${mccIcon('user', 14)}</div>
               <div>
                 <div style="font-weight:600;">${service.driver_name || 'Driver Assigned'}</div>
-                ${service.driver_phone ? `<div style="color:var(--text-muted);">📞 ${service.driver_phone}</div>` : ''}
+                ${service.driver_phone ? `<div style="color:var(--text-muted);">${mccIcon('phone', 14)} ${service.driver_phone}</div>` : ''}
               </div>
-              ${service.driver_phone ? `<button class="btn btn-secondary" onclick="window.open('tel:${service.driver_phone}')" style="margin-left:auto;">📞 Contact</button>` : ''}
+              ${service.driver_phone ? `<button class="btn btn-secondary" onclick="window.open('tel:${service.driver_phone}')" style="margin-left:auto;">${mccIcon('phone', 14)} Contact</button>` : ''}
             </div>
           </div>
         ` : ''}
         
         ${['en_route', 'in_progress'].includes(service.status) && service.tracking_url ? `
           <a href="${service.tracking_url}" target="_blank" class="btn btn-primary" style="width:100%;padding:16px;font-size:1.1rem;">
-            📍 Track Driver in Real-Time
+            ${mccIcon('map-pin', 14)} Track Driver in Real-Time
           </a>
         ` : ''}
         
@@ -10666,7 +11463,7 @@
           const roleLabels = { owner: 'Owner', adult: 'Adult', driver: 'Driver', viewer: 'Viewer', member: 'Member' };
           pendingBanner.innerHTML = allMemberships.map(inv => `
             <div class="card" style="background:linear-gradient(135deg, rgba(212,168,85,0.08), rgba(212,168,85,0.03));border:2px solid rgba(212,168,85,0.3);margin-bottom:12px;position:relative;">
-              <div style="position:absolute;top:-8px;left:16px;background:var(--accent-gold);color:var(--bg-deep);padding:2px 10px;border-radius:100px;font-size:0.7rem;font-weight:700;">📨 INVITATION</div>
+              <div style="position:absolute;top:-8px;left:16px;background:var(--accent-gold);color:var(--bg-deep);padding:2px 10px;border-radius:100px;font-size:0.7rem;font-weight:700;">${mccIcon('mail', 14)} INVITATION</div>
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;padding-top:8px;">
                 <div style="flex:1;min-width:200px;">
                   <div style="font-size:1.1rem;font-weight:600;margin-bottom:6px;">${inv.household?.name || 'Household'}</div>
@@ -10676,7 +11473,7 @@
                   </div>
                 </div>
                 <div style="display:flex;gap:10px;">
-                  <button class="btn btn-primary" onclick="acceptInvitation('${inv.id}')" style="padding:10px 20px;">✓ Accept</button>
+                  <button class="btn btn-primary" onclick="acceptInvitation('${inv.id}')" style="padding:10px 20px;">${mccIcon('check-circle', 14)} Accept</button>
                   <button class="btn btn-secondary" onclick="declineInvitation('${inv.id}')" style="padding:10px 20px;">✗ Decline</button>
                 </div>
               </div>
@@ -10740,7 +11537,7 @@
       document.getElementById('household-name-display').textContent = data.name;
       
       const memberCount = householdMembers.filter(m => m.status === 'active').length + 1;
-      document.getElementById('household-member-count-badge').textContent = `👥 ${memberCount} member${memberCount !== 1 ? 's' : ''}`;
+      document.getElementById('household-member-count-badge').innerHTML = `${mccIcon('users', 14)} ${memberCount} member${memberCount !== 1 ? 's' : ''}`;
       
       document.getElementById('household-role-display').textContent = isHouseholdOwner ? 'Owner' : 
         (householdMembers.find(m => m.user_id === currentUser.id)?.role || 'Member');
@@ -10787,7 +11584,7 @@
         const isCurrentUserOwner = currentUser && owner.id === currentUser.id;
         membersHtml += `
           <div style="background:var(--bg-elevated);border:2px solid var(--accent-gold);border-radius:var(--radius-lg);padding:20px;position:relative;">
-            <div style="position:absolute;top:-8px;right:16px;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);color:var(--bg-deep);padding:2px 10px;border-radius:100px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">👑 Owner</div>
+            <div style="position:absolute;top:-8px;right:16px;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);color:var(--bg-deep);padding:2px 10px;border-radius:100px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${mccIcon('star', 14)} Owner</div>
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
               <div style="width:52px;height:52px;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);border:3px solid rgba(212,168,85,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--bg-deep);box-shadow:0 4px 12px rgba(212,168,85,0.3);">
                 ${initial}
@@ -10802,9 +11599,9 @@
               </div>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;">
-              <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-blue-soft);color:var(--accent-blue);">📝 Can Request</span>
-              <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-green-soft);color:var(--accent-green);">✓ Can Approve</span>
-              <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-gold-soft);color:var(--accent-gold);">🔓 Full Access</span>
+              <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-blue-soft);color:var(--accent-blue);">${mccIcon('edit', 14)} Can Request</span>
+              <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-green-soft);color:var(--accent-green);">${mccIcon('check-circle', 14)} Can Approve</span>
+              <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-gold-soft);color:var(--accent-gold);">${mccIcon('lock', 14)} Full Access</span>
             </div>
           </div>
         `;
@@ -10821,9 +11618,9 @@
         const perms = member.permissions || {};
         
         let permsBadges = [];
-        if (perms.can_request_services) permsBadges.push('<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-blue-soft);color:var(--accent-blue);">📝 Can Request</span>');
-        if (perms.can_approve_services) permsBadges.push('<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-green-soft);color:var(--accent-green);">✓ Can Approve</span>');
-        if (perms.spending_limit) permsBadges.push(`<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-gold-soft);color:var(--accent-gold);">💰 $${perms.spending_limit} limit</span>`);
+        if (perms.can_request_services) permsBadges.push(`<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-blue-soft);color:var(--accent-blue);">${mccIcon('edit', 14)} Can Request</span>`);
+        if (perms.can_approve_services) permsBadges.push('<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-green-soft);color:var(--accent-green);">' + mccIcon('check-circle', 14) + ' Can Approve</span>');
+        if (perms.spending_limit) permsBadges.push(`<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-gold-soft);color:var(--accent-gold);">${mccIcon('dollar-sign', 14)} $${perms.spending_limit} limit</span>`);
         
         const manageBtn = isHouseholdOwner ? `<button class="btn btn-ghost btn-sm" onclick="openManageMemberModal('${member.id}')">Manage</button>` : '';
         
@@ -10852,7 +11649,7 @@
         `;
       });
       
-      grid.innerHTML = membersHtml || '<div class="empty-state" style="grid-column:1/-1;padding:32px;"><div class="empty-state-icon">👥</div><p>No members yet.</p></div>';
+      grid.innerHTML = membersHtml || `<div class="empty-state" style="grid-column:1/-1;padding:32px;"><div class="empty-state-icon">${mccIcon('users', 14)}</div><p>No members yet.</p></div>`;
     }
 
     function renderPendingInvitations() {
@@ -10876,11 +11673,11 @@
         return `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:10px;">
             <div style="display:flex;align-items:center;gap:12px;flex:1;">
-              <div style="width:40px;height:40px;background:var(--accent-orange-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--accent-orange);">📧</div>
+              <div style="width:40px;height:40px;background:var(--accent-orange-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--accent-orange);">${mccIcon('mail', 14)}</div>
               <div style="flex:1;">
                 <div style="font-weight:500;margin-bottom:4px;">${inv.email}</div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-                  <span style="padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:var(--accent-orange-soft);color:var(--accent-orange);">⏳ Pending</span>
+                  <span style="padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:var(--accent-orange-soft);color:var(--accent-orange);">${mccIcon('clock', 14)} Pending</span>
                   <span style="padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:500;background:${roleColor}22;color:${roleColor};">${roleLabels[role] || 'Member'}</span>
                 </div>
               </div>
@@ -10902,7 +11699,7 @@
       
       const vehicleCountBadge = document.getElementById('household-vehicle-count-badge');
       if (vehicleCountBadge) {
-        vehicleCountBadge.textContent = `🚗 ${householdVehicles.length} vehicle${householdVehicles.length !== 1 ? 's' : ''}`;
+        vehicleCountBadge.innerHTML = `${mccIcon('car-front', 14)} ${householdVehicles.length} vehicle${householdVehicles.length !== 1 ? 's' : ''}`;
       }
       
       renderHouseholdVehicles();
@@ -10914,7 +11711,7 @@
       if (householdVehicles.length === 0) {
         grid.innerHTML = `
           <div class="empty-state" style="grid-column:1/-1;padding:32px;">
-            <div class="empty-state-icon">🚗</div>
+            <div class="empty-state-icon">${mccIcon('car-front', 14)}</div>
             <p>No vehicles shared yet.</p>
             ${isHouseholdOwner ? '<button class="btn btn-secondary" onclick="openShareVehicleModal()" style="margin-top:12px;">+ Share a Vehicle</button>' : ''}
           </div>
@@ -10951,13 +11748,13 @@
         } else if (canRequestService) {
           actionButtons = `<button class="btn btn-primary btn-sm" onclick="requestServiceForHouseholdVehicle('${v.id}', '${vehicleName}')">Request Service</button>`;
         } else if (isViewOnly) {
-          actionButtons = `<span style="font-size:0.8rem;color:var(--text-muted);font-style:italic;">👁️ View Only</span>`;
+          actionButtons = `<span style="font-size:0.8rem;color:var(--text-muted);font-style:italic;">${mccIcon('eye', 14)} View Only</span>`;
         }
         
         return `
           <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);overflow:hidden;transition:all 0.2s;" class="household-vehicle-card">
             <div style="height:140px;background:linear-gradient(135deg, rgba(74,124,255,0.1), rgba(212,168,85,0.1));display:flex;align-items:center;justify-content:center;font-size:56px;position:relative;">
-              🚗
+              ${mccIcon('car-front', 14)}
               <span style="position:absolute;top:12px;right:12px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:${accessColor}22;color:${accessColor};">
                 ${accessLabels[accessLevel]}
               </span>
@@ -11324,7 +12121,7 @@
         if (memberUserIds.length === 0 && sharedVehicleIds.length === 0) {
           activityList.innerHTML = `
             <div class="empty-state" style="padding:24px;">
-              <div class="empty-state-icon">📊</div>
+              <div class="empty-state-icon">${mccIcon('bar-chart', 14)}</div>
               <p>No recent activity.</p>
               <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Service requests from household members will appear here.</p>
             </div>
@@ -11353,7 +12150,7 @@
         if (error || !activity || activity.length === 0) {
           activityList.innerHTML = `
             <div class="empty-state" style="padding:24px;">
-              <div class="empty-state-icon">📊</div>
+              <div class="empty-state-icon">${mccIcon('bar-chart', 14)}</div>
               <p>No recent activity.</p>
               <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Service requests from household members will appear here.</p>
             </div>
@@ -11393,10 +12190,10 @@
                   <span style="padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:${status.bg};color:${status.color};white-space:nowrap;">${status.label}</span>
                 </div>
                 <div style="font-size:0.92rem;color:var(--text-secondary);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                  <span style="color:var(--accent-gold);">📦</span> ${item.title}
+                  <span style="color:var(--accent-gold);">${mccIcon('package', 14)}</span> ${item.title}
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;font-size:0.82rem;color:var(--text-muted);">
-                  <span>🚗 ${vehicleName}</span>
+                  <span>${mccIcon('car-front', 14)} ${vehicleName}</span>
                   <span>•</span>
                   <span>${timeAgo}</span>
                 </div>
@@ -11409,7 +12206,7 @@
         console.error('Error loading household activity:', err);
         activityList.innerHTML = `
           <div class="empty-state" style="padding:24px;">
-            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-icon">${mccIcon('alert-triangle', 24)}</div>
             <p>Could not load activity.</p>
           </div>
         `;
@@ -11488,10 +12285,10 @@
       
       if (data.billing_email || data.address || data.tax_id) {
         document.getElementById('fleet-company-info').style.display = 'block';
-        document.getElementById('fleet-billing-email-display').innerHTML = data.billing_email ? `📧 ${data.billing_email}` : '';
-        document.getElementById('fleet-address-display').innerHTML = data.address ? `📍 ${data.address}` : '';
+        document.getElementById('fleet-billing-email-display').innerHTML = data.billing_email ? `${mccIcon('mail', 14)} ${data.billing_email}` : '';
+        document.getElementById('fleet-address-display').innerHTML = data.address ? `${mccIcon('map-pin', 14)} ${data.address}` : '';
         const taxIdEl = document.getElementById('fleet-tax-id-display');
-        if (taxIdEl) taxIdEl.innerHTML = data.tax_id ? `🏛️ Tax ID: ${data.tax_id}` : '';
+        if (taxIdEl) taxIdEl.innerHTML = data.tax_id ? `${mccIcon('store', 14)} Tax ID: ${data.tax_id}` : '';
       } else {
         document.getElementById('fleet-company-info').style.display = 'none';
       }
@@ -11553,7 +12350,7 @@
       if (fleetPendingApprovals.length === 0) {
         container.innerHTML = `
           <div class="empty-state" style="padding:24px;">
-            <div class="empty-state-icon">✅</div>
+            <div class="empty-state-icon">${mccIcon('check-circle', 48)}</div>
             <p>No pending approvals.</p>
           </div>
         `;
@@ -11573,13 +12370,13 @@
                 <div style="font-weight:600;font-size:1rem;margin-bottom:4px;">${pkg.title || 'Service Request'}</div>
                 <div style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:8px;">${vehicleName}</div>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:0.85rem;color:var(--text-muted);">
-                  <span>👤 ${requesterName}</span>
-                  ${pkg.estimated_cost ? `<span>💰 ~$${Number(pkg.estimated_cost).toLocaleString()}</span>` : ''}
-                  <span>📅 ${new Date(pkg.created_at).toLocaleDateString()}</span>
+                  <span>${mccIcon('user', 14)} ${requesterName}</span>
+                  ${pkg.estimated_cost ? `<span>${mccIcon('dollar-sign', 14)} ~$${Number(pkg.estimated_cost).toLocaleString()}</span>` : ''}
+                  <span>${mccIcon('calendar', 14)} ${new Date(pkg.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
               <div style="display:flex;gap:8px;">
-                <button class="btn btn-success btn-sm" onclick="approveFleetServiceRequest('${pkg.id}')">✓ Approve</button>
+                <button class="btn btn-success btn-sm" onclick="approveFleetServiceRequest('${pkg.id}')">${mccIcon('check-circle', 14)} Approve</button>
                 <button class="btn btn-danger btn-sm" onclick="rejectFleetServiceRequest('${pkg.id}')">✕ Reject</button>
               </div>
             </div>
@@ -11659,7 +12456,7 @@
         tbody.innerHTML = `
           <tr>
             <td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">
-              <div style="font-size:32px;margin-bottom:8px;">👥</div>
+              <div style="font-size:32px;margin-bottom:8px;">${mccIcon('users', 14)}</div>
               No fleet members yet. Add your first employee.
             </td>
           </tr>
@@ -11693,18 +12490,18 @@
             <td>${member.spending_limit ? '$' + Number(member.spending_limit).toLocaleString() : 'No limit'}</td>
             <td>
               ${member.requires_approval 
-                ? '<span class="approval-indicator">⚠️ Required</span>' 
-                : '<span class="approval-indicator no-approval">✓ Auto</span>'}
+                ? '<span class="approval-indicator">' + mccIcon('alert-triangle', 14) + ' Required</span>' 
+                : '<span class="approval-indicator no-approval">' + mccIcon('check-circle', 14) + ' Auto</span>'}
             </td>
             <td><span class="fleet-status-badge ${status}">${status}</span></td>
             <td>
               <div style="display:flex;gap:6px;">
-                <button class="btn btn-ghost btn-sm" onclick="openEditFleetEmployee('${member.id}')" title="Edit">✏️</button>
+                <button class="btn btn-ghost btn-sm" onclick="openEditFleetEmployee('${member.id}')" title="Edit">${mccIcon('edit', 14)}</button>
                 ${status === 'active' 
-                  ? `<button class="btn btn-ghost btn-sm" onclick="suspendFleetMember('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Suspend" style="color:var(--accent-orange);">⏸️</button>`
-                  : `<button class="btn btn-ghost btn-sm" onclick="activateFleetMember('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Activate" style="color:var(--accent-green);">▶️</button>`
+                  ? `<button class="btn btn-ghost btn-sm" onclick="suspendFleetMember('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Suspend" style="color:var(--accent-orange);">${mccIcon('pause', 14)}</button>`
+                  : `<button class="btn btn-ghost btn-sm" onclick="activateFleetMember('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Activate" style="color:var(--accent-green);">${mccIcon('play', 14)}</button>`
                 }
-                <button class="btn btn-ghost btn-sm" onclick="confirmRemoveFleetEmployee('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Remove" style="color:var(--accent-red);">🗑️</button>
+                <button class="btn btn-ghost btn-sm" onclick="confirmRemoveFleetEmployee('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Remove" style="color:var(--accent-red);">${mccIcon('trash-2', 14)}</button>
               </div>
             </td>
           </tr>
@@ -11732,7 +12529,7 @@
       if (fleetVehicles.length === 0) {
         grid.innerHTML = `
           <div class="empty-state" style="grid-column:1/-1;padding:32px;">
-            <div class="empty-state-icon">🚗</div>
+            <div class="empty-state-icon">${mccIcon('car-front', 14)}</div>
             <p>No vehicles in fleet yet.</p>
             <button class="btn btn-primary btn-sm" onclick="openAddFleetVehicleModal()" style="margin-top:12px;">+ Add First Vehicle</button>
           </div>
@@ -11743,7 +12540,7 @@
       if (filteredVehicles.length === 0) {
         grid.innerHTML = `
           <div class="empty-state" style="grid-column:1/-1;padding:24px;">
-            <div class="empty-state-icon">🔍</div>
+            <div class="empty-state-icon">${mccIcon('search', 14)}</div>
             <p>No vehicles match this filter.</p>
           </div>
         `;
@@ -11763,19 +12560,19 @@
             <div class="fleet-vehicle-photo">
               ${v.photo_url 
                 ? `<img src="${v.photo_url}" alt="${v.make} ${v.model}">` 
-                : '🚗'}
+                : mccIcon('car-front', 14)}
               <span class="fleet-assignment-badge ${assignment}" style="position:absolute;top:8px;right:8px;">${assignment}</span>
-              ${needsService ? `<span class="fleet-assignment-badge" style="position:absolute;top:8px;left:8px;background:rgba(239,95,95,0.9);color:#fff;">⚠️ Needs Service</span>` : ''}
+              ${needsService ? `<span class="fleet-assignment-badge" style="position:absolute;top:8px;left:8px;background:rgba(239,95,95,0.9);color:#fff;">${mccIcon('alert-triangle', 14)} Needs Service</span>` : ''}
             </div>
             <div class="fleet-vehicle-body">
               <div class="fleet-vehicle-title">${v.year || ''} ${v.make || ''} ${v.model || ''}</div>
-              <div class="fleet-vehicle-driver">👤 ${driverName}</div>
+              <div class="fleet-vehicle-driver">${mccIcon('user', 14)} ${driverName}</div>
               <div class="fleet-vehicle-meta">
-                ${fv.department ? `<span style="font-size:0.78rem;color:var(--text-muted);">📁 ${fv.department}</span>` : ''}
+                ${fv.department ? `<span style="font-size:0.78rem;color:var(--text-muted);">${mccIcon('folder-open', 14)} ${fv.department}</span>` : ''}
                 <span class="fleet-status-badge ${healthStatus === 'excellent' || healthStatus === 'good' ? 'active' : healthStatus === 'fair' ? 'pending' : 'inactive'}" style="font-size:0.7rem;">${healthStatus}</span>
               </div>
               <div style="display:flex;gap:8px;">
-                <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="openEditFleetVehicle('${fv.id}')">✏️ Edit</button>
+                <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="openEditFleetVehicle('${fv.id}')">${mccIcon('edit', 14)} Edit</button>
               </div>
             </div>
           </div>
@@ -11803,7 +12600,7 @@
       if (bulkBatches.length === 0) {
         container.innerHTML = `
           <div class="empty-state" style="padding:32px;">
-            <div class="empty-state-icon">📅</div>
+            <div class="empty-state-icon">${mccIcon('calendar', 14)}</div>
             <p>No bulk service batches yet.</p>
             <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Schedule maintenance for multiple vehicles at once.</p>
           </div>
@@ -11825,9 +12622,9 @@
               <span class="batch-status-badge ${statusClass}">${formatBatchStatus(batch.status)}</span>
             </div>
             <div class="batch-meta">
-              <span>🚗 ${vehicleCount} vehicle${vehicleCount !== 1 ? 's' : ''}</span>
-              <span>📅 ${formatDateRange(batch.start_date, batch.end_date)}</span>
-              ${batch.total_estimated_cost ? `<span>💰 ~$${Number(batch.total_estimated_cost).toLocaleString()}</span>` : ''}
+              <span>${mccIcon('car-front', 14)} ${vehicleCount} vehicle${vehicleCount !== 1 ? 's' : ''}</span>
+              <span>${mccIcon('calendar', 14)} ${formatDateRange(batch.start_date, batch.end_date)}</span>
+              ${batch.total_estimated_cost ? `<span>${mccIcon('dollar-sign', 14)} ~$${Number(batch.total_estimated_cost).toLocaleString()}</span>` : ''}
             </div>
             <div class="batch-actions">
               ${batch.status === 'draft' ? `<button class="btn btn-secondary btn-sm" onclick="editBulkBatch('${batch.id}')">Edit</button>` : ''}
@@ -12134,7 +12931,7 @@
       document.getElementById('edit-fleet-vehicle-content').innerHTML = `
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
           <div style="width:80px;height:60px;background:var(--bg-input);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:32px;overflow:hidden;">
-            ${v.photo_url ? `<img src="${v.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : '🚗'}
+            ${v.photo_url ? `<img src="${v.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : mccIcon('car-front', 14)}
           </div>
           <div>
             <div style="font-weight:600;font-size:1.1rem;">${v.year} ${v.make} ${v.model}</div>
@@ -12288,7 +13085,7 @@
           <label style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-input);border:2px solid ${isSelected ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:var(--radius-md);cursor:pointer;transition:all 0.15s;">
             <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleBulkVehicle('${fv.id}')">
             <div style="width:50px;height:40px;background:var(--bg-elevated);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;overflow:hidden;">
-              ${v.photo_url ? `<img src="${v.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : '🚗'}
+              ${v.photo_url ? `<img src="${v.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : mccIcon('car-front', 14)}
             </div>
             <div style="flex:1;">
               <div style="font-weight:500;">${v.year} ${v.make} ${v.model}</div>
@@ -12366,7 +13163,7 @@
       
       document.getElementById('bulk-review-content').innerHTML = `
         <div class="card" style="margin-bottom:16px;">
-          <h4 style="margin-bottom:12px;">📋 Batch Details</h4>
+          <h4 style="margin-bottom:12px;">${mccIcon('file-text', 14)} Batch Details</h4>
           <div style="display:grid;gap:8px;font-size:0.9rem;">
             <div><strong>Title:</strong> ${title}</div>
             <div><strong>Service Type:</strong> ${serviceType}</div>
@@ -12376,12 +13173,12 @@
         </div>
         
         <div class="card">
-          <h4 style="margin-bottom:12px;">🚗 Vehicles (${bulkSelectedVehicles.length})</h4>
+          <h4 style="margin-bottom:12px;">${mccIcon('car-front', 14)} Vehicles (${bulkSelectedVehicles.length})</h4>
           ${vehiclesList}
         </div>
         
         <div style="margin-top:16px;padding:16px;background:var(--accent-gold-soft);border-radius:var(--radius-md);">
-          <strong style="color:var(--accent-gold);">ℹ️ What happens next:</strong>
+          <strong style="color:var(--accent-gold);">${mccIcon('info', 14)} What happens next:</strong>
           <p style="font-size:0.88rem;color:var(--text-secondary);margin-top:8px;">
             This batch will be submitted for approval. Once approved, individual maintenance packages will be created for each vehicle and sent out for provider bids.
           </p>
@@ -12848,7 +13645,7 @@
           video.muted = true;
           div.appendChild(video);
         } else if (file.type.startsWith('audio/')) {
-          div.innerHTML = '<div class="va-audio-icon">🎵</div>';
+          div.innerHTML = `<div class="va-audio-icon">$${mccIcon('activity', 14)}</div>`;
         }
         
         const removeBtn = document.createElement('button');
@@ -12953,11 +13750,11 @@
       document.getElementById('va-result').style.display = 'block';
       
       const severityLabels = {
-        low: '✅ Low Priority',
-        medium: '⚠️ Medium Priority',
-        high: '🔶 High Priority',
-        critical: '🚨 Critical - Address Immediately',
-        cosmetic: '✨ Cosmetic Work'
+        low: mccIcon('check-circle', 14) + ' Low Priority',
+        medium: mccIcon('alert-triangle', 14) + ' Medium Priority',
+        high: `${mccIcon('alert-triangle', 14)} High Priority`,
+        critical: `${mccIcon('alert-triangle', 14)} Critical - Address Immediately`,
+        cosmetic: `${mccIcon('sparkles', 14)} Cosmetic Work`
       };
       
       const severityBadge = document.getElementById('va-severity-badge');
@@ -13057,52 +13854,52 @@ Note: This assessment was generated by AI and is for informational purposes only
     // Car Education Data
     const carEducation = {
       maintenance101: [
-        { title: 'Why Oil Changes Matter', content: 'Oil lubricates your engine\'s moving parts and removes heat. Old oil breaks down and can\'t protect your engine, leading to wear and expensive repairs. Most modern cars need synthetic oil every 5,000-10,000 miles.', icon: '🛢️' },
-        { title: 'Brake Basics', content: 'Brakes work by pressing pads against spinning rotors to slow your car. Brake pads wear down over time and need replacement every 30,000-70,000 miles. Squealing usually means pads are getting low.', icon: '🛑' },
-        { title: 'Tire Care Essentials', content: 'Tires are your only contact with the road. Rotate them every 5,000-7,500 miles for even wear. Check pressure monthly - underinflated tires waste gas and wear faster.', icon: '🔄' },
-        { title: 'Battery Health', content: 'Car batteries typically last 3-5 years. Extreme heat and cold shorten their life. Signs of a dying battery: slow engine crank, dim lights, and dashboard warning lights.', icon: '🔋' },
-        { title: 'Fluid Check Guide', content: 'Your car uses several fluids: engine oil, coolant, brake fluid, transmission fluid, and power steering fluid. Most have dipsticks or reservoirs you can check yourself.', icon: '💧' },
-        { title: 'Filter Fundamentals', content: 'Air filters keep dust out of your engine (replace every 15,000-30,000 miles). Cabin filters keep the air you breathe clean (replace every 15,000-25,000 miles).', icon: '💨' }
+        { title: 'Why Oil Changes Matter', content: 'Oil lubricates your engine\'s moving parts and removes heat. Old oil breaks down and can\'t protect your engine, leading to wear and expensive repairs. Most modern cars need synthetic oil every 5,000-10,000 miles.', icon: mccIcon('thermometer', 14) },
+        { title: 'Brake Basics', content: 'Brakes work by pressing pads against spinning rotors to slow your car. Brake pads wear down over time and need replacement every 30,000-70,000 miles. Squealing usually means pads are getting low.', icon: mccIcon('alert-triangle', 14) },
+        { title: 'Tire Care Essentials', content: 'Tires are your only contact with the road. Rotate them every 5,000-7,500 miles for even wear. Check pressure monthly - underinflated tires waste gas and wear faster.', icon: mccIcon('refresh-cw', 14) },
+        { title: 'Battery Health', content: 'Car batteries typically last 3-5 years. Extreme heat and cold shorten their life. Signs of a dying battery: slow engine crank, dim lights, and dashboard warning lights.', icon: mccIcon('activity', 14) },
+        { title: 'Fluid Check Guide', content: 'Your car uses several fluids: engine oil, coolant, brake fluid, transmission fluid, and power steering fluid. Most have dipsticks or reservoirs you can check yourself.', icon: mccIcon('thermometer', 14) },
+        { title: 'Filter Fundamentals', content: 'Air filters keep dust out of your engine (replace every 15,000-30,000 miles). Cabin filters keep the air you breathe clean (replace every 15,000-25,000 miles).', icon: mccIcon('activity', 14) }
       ],
       repairs: [
-        { title: 'Alternator vs Battery', content: 'If your car won\'t start, it could be either. A dead battery is more common. If you jump-start and it dies again quickly, the alternator (which charges the battery) may be failing.', icon: '⚡' },
-        { title: 'Suspension & Shocks', content: 'Suspension keeps your ride smooth and your tires on the road. Signs of worn shocks: bouncy ride, nose-diving when braking, uneven tire wear.', icon: '🚗' },
-        { title: 'Transmission Explained', content: 'The transmission transfers power from engine to wheels and changes gears. Automatic transmissions shift for you; manuals require clutch work. Fluid changes extend transmission life.', icon: '⚙️' },
-        { title: 'Timing Belt vs Chain', content: 'Timing belts are rubber and need replacement (60,000-100,000 miles). Timing chains are metal and usually last the life of the engine. Check your owner\'s manual.', icon: '🔗' },
-        { title: 'Catalytic Converter', content: 'This emissions device converts harmful gases into less harmful ones. They\'re expensive because they contain precious metals. Theft is common - consider a protective shield.', icon: '🌿' },
-        { title: 'CV Joints & Axles', content: 'CV (constant velocity) joints allow your wheels to turn while receiving power. Clicking sounds when turning often indicate worn CV joints. The rubber boots protect them from dirt.', icon: '🔘' }
+        { title: 'Alternator vs Battery', content: 'If your car won\'t start, it could be either. A dead battery is more common. If you jump-start and it dies again quickly, the alternator (which charges the battery) may be failing.', icon: mccIcon('zap', 14) },
+        { title: 'Suspension & Shocks', content: 'Suspension keeps your ride smooth and your tires on the road. Signs of worn shocks: bouncy ride, nose-diving when braking, uneven tire wear.', icon: mccIcon('car-front', 14) },
+        { title: 'Transmission Explained', content: 'The transmission transfers power from engine to wheels and changes gears. Automatic transmissions shift for you; manuals require clutch work. Fluid changes extend transmission life.', icon: mccIcon('settings', 14) },
+        { title: 'Timing Belt vs Chain', content: 'Timing belts are rubber and need replacement (60,000-100,000 miles). Timing chains are metal and usually last the life of the engine. Check your owner\'s manual.', icon: mccIcon('link', 14) },
+        { title: 'Catalytic Converter', content: 'This emissions device converts harmful gases into less harmful ones. They\'re expensive because they contain precious metals. Theft is common - consider a protective shield.', icon: mccIcon('shield', 14) },
+        { title: 'CV Joints & Axles', content: 'CV (constant velocity) joints allow your wheels to turn while receiving power. Clicking sounds when turning often indicate worn CV joints. The rubber boots protect them from dirt.', icon: mccIcon('settings', 14) }
       ],
       warningSigns: [
-        { title: 'Squealing Brakes', content: 'A high-pitched squeal usually means brake pads are worn. Built-in wear indicators make this sound on purpose. Don\'t ignore it - metal-on-metal grinding is much more expensive to fix.', icon: '🔊', severity: 'medium' },
-        { title: 'Check Engine Light', content: 'This can mean anything from a loose gas cap to a serious engine problem. A steady light means get it checked soon. A flashing light means pull over - continued driving may cause damage.', icon: '🚨', severity: 'high' },
-        { title: 'Burning Smell', content: 'Different burns mean different problems: Sweet smell = coolant leak. Burning oil = oil leak onto hot engine. Burning rubber = belt slipping or stuck brake. Electrical = wiring issue.', icon: '👃', severity: 'high' },
-        { title: 'Vibrations', content: 'Steering wheel shake at highway speeds often means unbalanced or worn tires. Vibration when braking suggests warped rotors. General vibration could be engine mounts or drivetrain.', icon: '📳', severity: 'medium' },
-        { title: 'Pulling to One Side', content: 'If your car drifts left or right, it could be alignment, uneven tire pressure, or worn suspension. Start by checking tire pressure - it\'s the easiest fix.', icon: '↔️', severity: 'low' },
-        { title: 'Strange Noises', content: 'Clicking when turning = CV joint. Grinding = brakes or transmission. Knocking from engine = low oil or engine damage. Hissing = vacuum or coolant leak. Clunking over bumps = suspension.', icon: '👂', severity: 'medium' }
+        { title: 'Squealing Brakes', content: 'A high-pitched squeal usually means brake pads are worn. Built-in wear indicators make this sound on purpose. Don\'t ignore it - metal-on-metal grinding is much more expensive to fix.', icon: mccIcon('alert-triangle', 14), severity: 'medium' },
+        { title: 'Check Engine Light', content: 'This can mean anything from a loose gas cap to a serious engine problem. A steady light means get it checked soon. A flashing light means pull over - continued driving may cause damage.', icon: mccIcon('alert-triangle', 14), severity: 'high' },
+        { title: 'Burning Smell', content: 'Different burns mean different problems: Sweet smell = coolant leak. Burning oil = oil leak onto hot engine. Burning rubber = belt slipping or stuck brake. Electrical = wiring issue.', icon: mccIcon('alert-triangle', 14), severity: 'high' },
+        { title: 'Vibrations', content: 'Steering wheel shake at highway speeds often means unbalanced or worn tires. Vibration when braking suggests warped rotors. General vibration could be engine mounts or drivetrain.', icon: mccIcon('activity', 14), severity: 'medium' },
+        { title: 'Pulling to One Side', content: 'If your car drifts left or right, it could be alignment, uneven tire pressure, or worn suspension. Start by checking tire pressure - it\'s the easiest fix.', icon: mccIcon('activity', 16), severity: 'low' },
+        { title: 'Strange Noises', content: 'Clicking when turning = CV joint. Grinding = brakes or transmission. Knocking from engine = low oil or engine damage. Hissing = vacuum or coolant leak. Clunking over bumps = suspension.', icon: mccIcon('alert-triangle', 14), severity: 'medium' }
       ],
       savingTips: [
-        { title: 'Get Multiple Quotes', content: 'For any repair over $300, get 2-3 quotes. Prices can vary significantly. My Car Concierge makes this easy with competitive bidding from verified providers.', icon: '📊' },
-        { title: 'Don\'t Skip Maintenance', content: 'Regular oil changes and inspections catch small problems before they become big ones. A $50 oil change prevents a $5,000 engine replacement.', icon: '📅' },
-        { title: 'Understand the Diagnosis', content: 'Ask your mechanic to explain what\'s wrong in plain language. A good provider will show you the worn parts and explain why repairs are needed.', icon: '🔍' },
-        { title: 'Know What\'s Urgent', content: 'Brakes, tires, steering = safety-critical, fix immediately. Oil leak = fix soon. Cosmetic issues = can wait. Don\'t let shops scare you into unnecessary rush jobs.', icon: '⏰' },
-        { title: 'OEM vs Aftermarket Parts', content: 'OEM (Original Equipment Manufacturer) parts are made by your car\'s brand. Aftermarket parts are often cheaper and work fine, but quality varies. For critical components, OEM may be worth it.', icon: '🏭' },
-        { title: 'DIY What You Can', content: 'Some things are easy to do yourself: wiper blades, air filters, tire pressure, washer fluid. YouTube tutorials make it simple. Save labor costs for complex repairs.', icon: '🛠️' }
+        { title: 'Get Multiple Quotes', content: 'For any repair over $300, get 2-3 quotes. Prices can vary significantly. My Car Concierge makes this easy with competitive bidding from verified providers.', icon: mccIcon('bar-chart', 14) },
+        { title: 'Don\'t Skip Maintenance', content: 'Regular oil changes and inspections catch small problems before they become big ones. A $50 oil change prevents a $5,000 engine replacement.', icon: mccIcon('calendar', 14) },
+        { title: 'Understand the Diagnosis', content: 'Ask your mechanic to explain what\'s wrong in plain language. A good provider will show you the worn parts and explain why repairs are needed.', icon: mccIcon('search', 14) },
+        { title: 'Know What\'s Urgent', content: 'Brakes, tires, steering = safety-critical, fix immediately. Oil leak = fix soon. Cosmetic issues = can wait. Don\'t let shops scare you into unnecessary rush jobs.', icon: mccIcon('clock', 14) },
+        { title: 'OEM vs Aftermarket Parts', content: 'OEM (Original Equipment Manufacturer) parts are made by your car\'s brand. Aftermarket parts are often cheaper and work fine, but quality varies. For critical components, OEM may be worth it.', icon: mccIcon('store', 14) },
+        { title: 'DIY What You Can', content: 'Some things are easy to do yourself: wiper blades, air filters, tire pressure, washer fluid. YouTube tutorials make it simple. Save labor costs for complex repairs.', icon: mccIcon('settings', 14) }
       ],
       rideshare: [
-        { title: 'Accelerated Maintenance Schedules', content: 'When you drive 30,000-50,000+ miles per year, standard maintenance intervals don\'t apply. Your oil changes may need to happen every 3,000-5,000 miles instead of 7,500. Brake pads might last only 20,000 miles with constant city stop-and-go. Create a mileage-based schedule and track everything - your car is your business asset.', icon: '📅', readTime: '3 min' },
-        { title: 'City Driving Wear Patterns', content: 'Stop-and-go traffic is the hardest on your vehicle. Brakes wear 2-3x faster than highway driving. Transmission fluid degrades faster from constant gear changes. Your cooling system works harder in traffic. Engine mounts and suspension take a beating from potholes. Understanding these patterns helps you budget for repairs.', icon: '🏙️', readTime: '3 min' },
-        { title: 'Cost-Per-Mile Calculations', content: 'Knowing your true cost per mile helps you understand profitability. Include: fuel, insurance, maintenance, repairs, depreciation, and car washes. Most drivers underestimate true costs. Track all expenses for accurate calculations. A well-maintained vehicle has lower cost-per-mile than one driven to failure.', icon: '💵', readTime: '4 min' },
-        { title: 'Tax Deduction Essentials', content: 'Vehicle expenses for business driving may be tax-deductible. Keep detailed mileage logs with dates, destinations, and purpose. Save all receipts for repairs, maintenance, fuel, and car washes. Consult a tax professional about standard mileage rate vs actual expenses method. Good records can save you thousands.', icon: '📋', readTime: '3 min' },
-        { title: 'Protecting Resale Value', content: 'High-mileage vehicles depreciate faster, but you can minimize the hit. Keep detailed maintenance records - they\'re worth money at resale. Address cosmetic issues promptly. Consider professional detailing before selling. Timing matters - selling at 100K miles gets better value than 150K. Plan your exit strategy.', icon: '💰', readTime: '3 min' },
-        { title: 'Passenger Comfort & Safety', content: 'Happy passengers mean better ratings and tips. Keep your cabin air filter fresh for clean air. Ensure AC works well year-round. Check that all seat belts function properly. Keep the interior clean and odor-free. Working USB ports and phone mounts show professionalism. First impressions matter.', icon: '⭐', readTime: '3 min' }
+        { title: 'Accelerated Maintenance Schedules', content: 'When you drive 30,000-50,000+ miles per year, standard maintenance intervals don\'t apply. Your oil changes may need to happen every 3,000-5,000 miles instead of 7,500. Brake pads might last only 20,000 miles with constant city stop-and-go. Create a mileage-based schedule and track everything - your car is your business asset.', icon: mccIcon('calendar', 14), readTime: '3 min' },
+        { title: 'City Driving Wear Patterns', content: 'Stop-and-go traffic is the hardest on your vehicle. Brakes wear 2-3x faster than highway driving. Transmission fluid degrades faster from constant gear changes. Your cooling system works harder in traffic. Engine mounts and suspension take a beating from potholes. Understanding these patterns helps you budget for repairs.', icon: mccIcon('store', 14), readTime: '3 min' },
+        { title: 'Cost-Per-Mile Calculations', content: 'Knowing your true cost per mile helps you understand profitability. Include: fuel, insurance, maintenance, repairs, depreciation, and car washes. Most drivers underestimate true costs. Track all expenses for accurate calculations. A well-maintained vehicle has lower cost-per-mile than one driven to failure.', icon: mccIcon('dollar-sign', 14), readTime: '4 min' },
+        { title: 'Tax Deduction Essentials', content: 'Vehicle expenses for business driving may be tax-deductible. Keep detailed mileage logs with dates, destinations, and purpose. Save all receipts for repairs, maintenance, fuel, and car washes. Consult a tax professional about standard mileage rate vs actual expenses method. Good records can save you thousands.', icon: mccIcon('file-text', 14), readTime: '3 min' },
+        { title: 'Protecting Resale Value', content: 'High-mileage vehicles depreciate faster, but you can minimize the hit. Keep detailed maintenance records - they\'re worth money at resale. Address cosmetic issues promptly. Consider professional detailing before selling. Timing matters - selling at 100K miles gets better value than 150K. Plan your exit strategy.', icon: mccIcon('dollar-sign', 14), readTime: '3 min' },
+        { title: 'Passenger Comfort & Safety', content: 'Happy passengers mean better ratings and tips. Keep your cabin air filter fresh for clean air. Ensure AC works well year-round. Check that all seat belts function properly. Keep the interior clean and odor-free. Working USB ports and phone mounts show professionalism. First impressions matter.', icon: mccIcon('star', 14), readTime: '3 min' }
       ],
       commercial: [
-        { title: 'Heavy-Duty Brake Systems', content: 'Larger vehicles with passengers or cargo need more stopping power. Brake systems work much harder than passenger cars. Inspect brake pads, rotors, and drums more frequently. Listen for squealing or grinding - address immediately. Air brake systems require additional maintenance. Never compromise on brakes when carrying passengers.', icon: '🛑', readTime: '4 min' },
-        { title: 'Transmission Care for Heavy Loads', content: 'Transmissions in vans and buses work harder due to weight. Use the correct transmission fluid specified for your vehicle. Consider more frequent fluid changes - every 30,000 miles for heavy use. Avoid overloading - it accelerates wear dramatically. Towing or carrying maximum loads? Expect shorter component life.', icon: '⚙️', readTime: '4 min' },
-        { title: 'Pre-Trip Inspection Basics', content: 'Professional drivers should inspect their vehicle before each trip. Check tires for pressure and damage. Test all lights - headlights, brake lights, turn signals. Verify horn works. Check mirrors for proper adjustment. Look under the vehicle for leaks. Test brakes before leaving. This protects you and your passengers.', icon: '✅', readTime: '4 min' },
-        { title: 'Cooling System Demands', content: 'Engines in commercial vehicles run hotter due to constant operation and heavier loads. Check coolant levels regularly. Inspect belts and hoses for wear. Watch your temperature gauge - overheating destroys engines. Consider a heavy-duty radiator if you frequently operate at capacity. Don\'t ignore warning signs.', icon: '🌡️', readTime: '3 min' },
-        { title: 'Suspension & Steering Under Load', content: 'Heavy loads stress suspension components. Inspect shocks and struts for leaks or wear. Check ball joints and tie rod ends regularly. Listen for clunks over bumps - address immediately. Proper alignment extends tire life and improves handling. Worn suspension affects braking distance and safety.', icon: '🔧', readTime: '3 min' },
-        { title: 'Fleet Maintenance Records', content: 'Proper documentation is essential for commercial vehicles. Track all maintenance by date and mileage. Record fuel consumption to spot problems early. Keep repair receipts organized. Many jurisdictions require maintenance logs for commercial vehicles. Good records also help with resale and warranty claims.', icon: '📁', readTime: '3 min' }
+        { title: 'Heavy-Duty Brake Systems', content: 'Larger vehicles with passengers or cargo need more stopping power. Brake systems work much harder than passenger cars. Inspect brake pads, rotors, and drums more frequently. Listen for squealing or grinding - address immediately. Air brake systems require additional maintenance. Never compromise on brakes when carrying passengers.', icon: mccIcon('alert-triangle', 14), readTime: '4 min' },
+        { title: 'Transmission Care for Heavy Loads', content: 'Transmissions in vans and buses work harder due to weight. Use the correct transmission fluid specified for your vehicle. Consider more frequent fluid changes - every 30,000 miles for heavy use. Avoid overloading - it accelerates wear dramatically. Towing or carrying maximum loads? Expect shorter component life.', icon: mccIcon('settings', 14), readTime: '4 min' },
+        { title: 'Pre-Trip Inspection Basics', content: 'Professional drivers should inspect their vehicle before each trip. Check tires for pressure and damage. Test all lights - headlights, brake lights, turn signals. Verify horn works. Check mirrors for proper adjustment. Look under the vehicle for leaks. Test brakes before leaving. This protects you and your passengers.', icon: mccIcon('check-circle', 16), readTime: '4 min' },
+        { title: 'Cooling System Demands', content: 'Engines in commercial vehicles run hotter due to constant operation and heavier loads. Check coolant levels regularly. Inspect belts and hoses for wear. Watch your temperature gauge - overheating destroys engines. Consider a heavy-duty radiator if you frequently operate at capacity. Don\'t ignore warning signs.', icon: mccIcon('thermometer', 14), readTime: '3 min' },
+        { title: 'Suspension & Steering Under Load', content: 'Heavy loads stress suspension components. Inspect shocks and struts for leaks or wear. Check ball joints and tie rod ends regularly. Listen for clunks over bumps - address immediately. Proper alignment extends tire life and improves handling. Worn suspension affects braking distance and safety.', icon: mccIcon('settings', 14), readTime: '3 min' },
+        { title: 'Fleet Maintenance Records', content: 'Proper documentation is essential for commercial vehicles. Track all maintenance by date and mileage. Record fuel consumption to spot problems early. Keep repair receipts organized. Many jurisdictions require maintenance logs for commercial vehicles. Good records also help with resale and warranty claims.', icon: mccIcon('folder-open', 14), readTime: '3 min' }
       ],
       glossary: [
         { term: 'Alignment', definition: 'Adjusting the angles of your wheels so they\'re perpendicular to the ground and parallel to each other. Proper alignment prevents uneven tire wear.' },
@@ -13141,12 +13938,12 @@ Note: This assessment was generated by AI and is for informational purposes only
     };
 
     const learnCategoryMeta = {
-      maintenance101: { title: 'Maintenance 101', icon: '🔧', desc: 'Understanding routine maintenance' },
-      repairs: { title: 'Understanding Repairs', icon: '🔩', desc: 'What mechanics mean when they say...' },
-      warningSigns: { title: 'Warning Signs', icon: '⚠️', desc: 'Sounds, smells, and symptoms to watch for' },
-      savingTips: { title: 'Money-Saving Tips', icon: '💰', desc: 'How to save on car care' },
-      rideshare: { title: 'Rideshare & High-Mileage Drivers', icon: '🚗', desc: 'Tips for drivers who put serious miles on their vehicles' },
-      commercial: { title: 'Commercial & Fleet Vehicles', icon: '🚐', desc: 'Maintenance for vans, buses, and commercial transport' }
+      maintenance101: { title: 'Maintenance 101', icon: mccIcon('settings', 14), desc: 'Understanding routine maintenance' },
+      repairs: { title: 'Understanding Repairs', icon: mccIcon('settings', 14), desc: 'What mechanics mean when they say...' },
+      warningSigns: { title: 'Warning Signs', icon: mccIcon('alert-triangle', 16), desc: 'Sounds, smells, and symptoms to watch for' },
+      savingTips: { title: 'Money-Saving Tips', icon: mccIcon('dollar-sign', 14), desc: 'How to save on auto care' },
+      rideshare: { title: 'Rideshare & High-Mileage Drivers', icon: mccIcon('car-front', 14), desc: 'Tips for drivers who put serious miles on their vehicles' },
+      commercial: { title: 'Commercial & Fleet Vehicles', icon: mccIcon('truck', 14), desc: 'Maintenance for vans, buses, and commercial transport' }
     };
 
     let currentLearnCategory = null;
@@ -13243,7 +14040,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       if (filteredTerms.length === 0) {
         glossaryList.innerHTML = `
           <div class="empty-state" style="padding:32px;">
-            <div class="empty-state-icon">🔍</div>
+            <div class="empty-state-icon">${mccIcon('search', 14)}</div>
             <p>No terms found matching "${searchTerm}"</p>
           </div>
         `;
@@ -13339,7 +14136,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       const maskedPhoneEl = document.getElementById('2fa-masked-phone');
       
       if (enabled) {
-        if (statusIcon) statusIcon.textContent = '🔒';
+        if (statusIcon) statusIcon.innerHTML = mccIcon('lock', 14);
         if (statusText) statusText.textContent = '2FA is Enabled';
         if (statusDesc) statusDesc.textContent = 'Your account is protected with two-factor authentication.';
         if (statusBadge) {
@@ -13351,7 +14148,7 @@ Note: This assessment was generated by AI and is for informational purposes only
         if (disableSection) disableSection.style.display = 'block';
         if (maskedPhoneEl) maskedPhoneEl.textContent = maskedPhone || '***-***-****';
       } else {
-        if (statusIcon) statusIcon.textContent = '🔓';
+        if (statusIcon) statusIcon.innerHTML = mccIcon('lock', 14);
         if (statusText) statusText.textContent = '2FA is Disabled';
         if (statusDesc) statusDesc.textContent = 'Your account is protected by password only.';
         if (statusBadge) {
@@ -13388,7 +14185,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       
       const btn = document.getElementById('2fa-enable-btn');
       const originalText = btn.innerHTML;
-      btn.innerHTML = '⏳ Sending...';
+      btn.innerHTML = `${mccIcon('clock', 14)} Sending...`;
       btn.disabled = true;
       
       try {
@@ -13501,7 +14298,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       const btn = document.getElementById('2fa-verify-btn');
       const errorEl = document.getElementById('2fa-verify-error');
       
-      btn.innerHTML = '⏳ Verifying...';
+      btn.innerHTML = `${mccIcon('clock', 14)} Verifying...`;
       btn.disabled = true;
       errorEl.style.display = 'none';
       
@@ -13547,7 +14344,7 @@ Note: This assessment was generated by AI and is for informational purposes only
         
         if (enableData.success) {
           close2FAVerifyModal();
-          showToast('✅ Two-factor authentication enabled successfully!', 'success');
+          showToast('Two-factor authentication enabled successfully!', 'success');
           load2FAStatus();
           document.getElementById('2fa-phone-input').value = '';
         } else {
@@ -13738,7 +14535,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       if (dreamCarSearches.length === 0) {
         list.innerHTML = `
           <div class="empty-state" style="padding: 40px 20px;">
-            <div class="empty-state-icon">🤖</div>
+            <div class="empty-state-icon">${mccIcon('settings', 14)}</div>
             <p>No AI searches yet.</p>
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">Create a search and we'll automatically find matching cars for you.</p>
           </div>
@@ -13781,23 +14578,23 @@ Note: This assessment was generated by AI and is for informational purposes only
                   ${criteriaParts.length > 0 ? criteriaParts.join(' • ') : 'No criteria set'}
                 </p>
                 <div style="display: flex; gap: 16px; font-size: 0.82rem; color: var(--text-muted);">
-                  <span>📅 Last searched: ${lastSearched}</span>
-                  <span>🎯 Matches: ${matchCount}</span>
-                  <span>🔄 ${search.search_frequency === 'hourly' ? 'Every hour' : search.search_frequency === 'twice_daily' ? 'Twice daily' : 'Daily'}</span>
+                  <span>${mccIcon('calendar', 14)} Last searched: ${lastSearched}</span>
+                  <span>${mccIcon('check-circle', 14)} Matches: ${matchCount}</span>
+                  <span>${mccIcon('refresh-cw', 14)} ${search.search_frequency === 'hourly' ? 'Every hour' : search.search_frequency === 'twice_daily' ? 'Twice daily' : 'Daily'}</span>
                 </div>
               </div>
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button class="btn btn-sm btn-secondary" onclick="viewSearchMatches('${search.id}')">
-                  🎯 View Matches
+                  ${mccIcon('check-circle', 14)} View Matches
                 </button>
                 <button class="btn btn-sm btn-secondary" onclick="editDreamCarSearch('${search.id}')">
-                  ✏️ Edit
+                  ${mccIcon('edit', 14)} Edit
                 </button>
                 <button class="btn btn-sm btn-secondary" onclick="toggleSearchActive('${search.id}')">
-                  ${search.is_active ? '⏸️ Pause' : '▶️ Resume'}
+                  ${search.is_active ? mccIcon('pause', 14) + ' Pause' : mccIcon('play', 14) + ' Resume'}
                 </button>
                 <button class="btn btn-sm btn-danger" onclick="deleteDreamCarSearch('${search.id}')">
-                  🗑️
+                  ${mccIcon('trash-2', 14)}
                 </button>
               </div>
             </div>
@@ -13820,7 +14617,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       if (filtered.length === 0) {
         grid.innerHTML = `
           <div class="empty-state" style="padding: 40px 20px; grid-column: 1 / -1;">
-            <div class="empty-state-icon">🚗</div>
+            <div class="empty-state-icon">${mccIcon('car-front', 14)}</div>
             <p>No matches found yet.</p>
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">Create an AI search and matches will appear here.</p>
           </div>
@@ -13829,40 +14626,73 @@ Note: This assessment was generated by AI and is for informational purposes only
       }
 
       grid.innerHTML = filtered.map(match => {
-        const photo = match.photos && match.photos.length > 0 ? match.photos[0] : null;
-        const scoreColor = match.match_score >= 90 ? 'var(--accent-green)' : match.match_score >= 70 ? 'var(--accent-gold)' : 'var(--accent-blue)';
-        
-        return `
-          <div class="vehicle-card" style="cursor: pointer;" onclick="viewMatchDetail('${match.id}')">
-            <div class="vehicle-card-photo">
-              ${photo ? `<img src="${escapeHtml(photo)}" alt="Car photo" onerror="this.parentNode.innerHTML='<div class=\\'vehicle-emoji\\'>🚗</div>'">` : '<div class="vehicle-emoji">🚗</div>'}
-              <div style="position: absolute; top: 12px; right: 12px; padding: 6px 12px; border-radius: 100px; font-size: 0.8rem; font-weight: 600; background: linear-gradient(135deg, ${scoreColor}, ${scoreColor}88); color: white;">
-                ${match.match_score || 0}% Match
+        const ld = match.listing_data || {};
+        const isRealListing = match.source === 'gemini_search' || ld.source_site || ld.url;
+        const title = ld.title || [match.year, match.make, match.model, ld.trim].filter(Boolean).join(' ') || 'Car Listing';
+        const price = ld.price || match.price;
+        const mileage = ld.mileage;
+        const location = ld.location;
+        const sourceSite = ld.source_site || '';
+        const scoreColor = (match.match_score || 0) >= 90 ? 'var(--accent-green)' : (match.match_score || 0) >= 80 ? 'var(--accent-gold)' : 'var(--accent-blue)';
+
+        if (isRealListing) {
+          return `
+            <div class="vehicle-card" style="cursor: pointer; position: relative;" onclick="viewMatchDetail('${match.id}')">
+              ${!match.is_seen ? '<div style="position: absolute; top: 12px; left: 12px; width: 10px; height: 10px; background: var(--accent-blue); border-radius: 50%; z-index: 1;"></div>' : ''}
+              <div style="padding: 16px 16px 0;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 8px;">
+                  ${sourceSite ? `<span style="padding: 3px 10px; border-radius: 100px; font-size: 0.72rem; font-weight: 600; background: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color);">${escapeHtml(sourceSite)}</span>` : '<span></span>'}
+                  ${match.match_score ? `<span style="padding: 3px 10px; border-radius: 100px; font-size: 0.72rem; font-weight: 600; background: ${scoreColor}22; color: ${scoreColor};">${match.match_score}% match</span>` : ''}
+                </div>
+                <h3 class="vehicle-card-title" style="margin-bottom: 8px; font-size: 0.95rem;">${escapeHtml(title)}</h3>
+                <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; font-size: 0.85rem;">
+                  ${price ? `<span style="font-size: 1.05rem; font-weight: 700; color: var(--accent-gold);">$${Number(price).toLocaleString()}</span>` : ''}
+                  ${mileage ? `<span style="color: var(--text-muted);">${mccIcon('truck', 14)} ${Number(mileage).toLocaleString()} mi</span>` : ''}
+                  ${location ? `<span style="color: var(--text-muted);">${mccIcon('map-pin', 14)} ${escapeHtml(location)}</span>` : ''}
+                </div>
+                ${ld.description ? `<p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 10px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(ld.description)}</p>` : ''}
               </div>
-              ${!match.is_seen ? '<div style="position: absolute; top: 12px; left: 12px; width: 10px; height: 10px; background: var(--accent-blue); border-radius: 50%;"></div>' : ''}
+              <div style="padding: 0 16px 16px; display: flex; gap: 8px;" onclick="event.stopPropagation();">
+                <button class="btn btn-sm btn-secondary" onclick="viewMatchDetail('${match.id}')" style="flex: 1;">
+                  ${mccIcon('external-link', 14)} View Details
+                </button>
+                <button class="btn btn-sm ${match.is_saved ? 'btn-primary' : 'btn-ghost'}" onclick="saveMatch('${match.id}', ${!match.is_saved})">
+                  ${match.is_saved ? mccIcon('star', 14) : '☆'}
+                </button>
+                <button class="btn btn-sm btn-ghost" onclick="dismissMatch('${match.id}')" title="Dismiss">✕</button>
+              </div>
             </div>
-            <div class="vehicle-card-body">
-              <h3 class="vehicle-card-title">${match.year || ''} ${escapeHtml(match.make || '')} ${escapeHtml(match.model || '')}</h3>
-              <p class="vehicle-card-subtitle">${match.trim ? escapeHtml(match.trim) : ''}</p>
-              <div class="vehicle-card-meta">
-                ${match.price ? `<span>💰 $${Number(match.price).toLocaleString()}</span>` : ''}
-                ${match.mileage ? `<span>🛣️ ${Number(match.mileage).toLocaleString()} mi</span>` : ''}
+          `;
+        }
+
+        const pr = ld.price_range || {};
+        const trend = (ld.market_trend || 'fair').toLowerCase();
+        const trendColors = { hot: 'var(--accent-red, #e74c3c)', fair: 'var(--accent-gold)', soft: 'var(--accent-green)' };
+        const trendColor = trendColors[trend] || 'var(--accent-gold)';
+        const checklist = ld.buying_checklist || match.match_reasons || [];
+        const intelTitle = [match.year, match.make, match.model].filter(Boolean).join(' ') || 'Market Intelligence';
+        return `
+          <div class="vehicle-card" style="cursor: pointer; position: relative;" onclick="viewMatchDetail('${match.id}')">
+            ${!match.is_seen ? '<div style="position: absolute; top: 12px; left: 12px; width: 10px; height: 10px; background: var(--accent-blue); border-radius: 50%; z-index: 1;"></div>' : ''}
+            <div style="padding: 16px 16px 0;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <span style="padding: 4px 12px; border-radius: 100px; font-size: 0.78rem; font-weight: 600; background: ${trendColor}; color: white;">${trend.toUpperCase()} MARKET</span>
+                <span style="font-size: 0.78rem; color: var(--text-muted);">${new Date(match.found_at || match.created_at).toLocaleDateString()}</span>
               </div>
-              <div style="display: flex; gap: 8px; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
-                ${match.location ? `<span>📍 ${escapeHtml(match.location)}</span>` : ''}
-                ${match.source ? `<span>🔗 ${escapeHtml(match.source)}</span>` : ''}
-              </div>
-              <div class="vehicle-card-actions" onclick="event.stopPropagation();">
-                <button class="btn btn-sm ${match.is_seen ? 'btn-ghost' : 'btn-secondary'}" onclick="markMatchSeen('${match.id}', ${!match.is_seen})">
-                  ${match.is_seen ? '👁️ Seen' : '👁️ Mark Seen'}
-                </button>
-                <button class="btn btn-sm ${match.is_saved ? 'btn-primary' : 'btn-secondary'}" onclick="saveMatch('${match.id}', ${!match.is_saved})">
-                  ${match.is_saved ? '⭐ Saved' : '☆ Save'}
-                </button>
-                <button class="btn btn-sm btn-ghost" onclick="dismissMatch('${match.id}')" title="Dismiss">
-                  ✕
-                </button>
-              </div>
+              <h3 class="vehicle-card-title" style="margin-bottom: 8px;">${escapeHtml(intelTitle)}</h3>
+              ${pr.low && pr.median && pr.high ? `
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; text-align: center;">
+                  <div><div style="font-size: 0.68rem; color: var(--text-muted);">Low</div><div style="font-size: 0.95rem; font-weight: 700; color: var(--accent-green);">$${Number(pr.low).toLocaleString()}</div></div>
+                  <div style="border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color);"><div style="font-size: 0.68rem; color: var(--text-muted);">Median</div><div style="font-size: 0.95rem; font-weight: 700; color: var(--accent-gold);">$${Number(pr.median).toLocaleString()}</div></div>
+                  <div><div style="font-size: 0.68rem; color: var(--text-muted);">High</div><div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary);">$${Number(pr.high).toLocaleString()}</div></div>
+                </div>
+              ` : ''}
+              ${checklist.slice(0, 2).map(tip => `<div style="font-size: 0.8rem; color: var(--text-muted); padding: 2px 0;">${mccIcon('check', 12)} ${escapeHtml(tip)}</div>`).join('')}
+            </div>
+            <div style="padding: 8px 16px 16px; display: flex; gap: 8px;" onclick="event.stopPropagation();">
+              <button class="btn btn-sm btn-secondary" onclick="viewMatchDetail('${match.id}')" style="flex: 1;">${mccIcon('bar-chart-2', 14)} Analysis</button>
+              <button class="btn btn-sm ${match.is_saved ? 'btn-primary' : 'btn-ghost'}" onclick="saveMatch('${match.id}', ${!match.is_saved})">${match.is_saved ? mccIcon('star', 14) : '☆'}</button>
+              <button class="btn btn-sm btn-ghost" onclick="dismissMatch('${match.id}')" title="Dismiss">✕</button>
             </div>
           </div>
         `;
@@ -14181,56 +15011,74 @@ Note: This assessment was generated by AI and is for informational purposes only
       const titleEl = document.getElementById('ai-match-modal-title');
       const bodyEl = document.getElementById('ai-match-modal-body');
       
-      titleEl.textContent = `${match.year || ''} ${match.make || ''} ${match.model || ''}`.trim();
-      
-      const photo = match.photos && match.photos.length > 0 ? match.photos[0] : null;
-      const scoreColor = match.match_score >= 90 ? 'var(--accent-green)' : match.match_score >= 70 ? 'var(--accent-gold)' : 'var(--accent-blue)';
-      
-      bodyEl.innerHTML = `
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-          <div>
-            <div style="height: 200px; background: var(--bg-input); border-radius: var(--radius-md); overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-              ${photo ? `<img src="${escapeHtml(photo)}" alt="Car photo" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentNode.innerHTML='<div style=\\'font-size: 60px;\\'>🚗</div>'">` : '<div style="font-size: 60px;">🚗</div>'}
-            </div>
-            ${match.photos && match.photos.length > 1 ? `
-              <div style="display: flex; gap: 8px; overflow-x: auto;">
-                ${match.photos.slice(1, 5).map(p => `
-                  <img src="${escapeHtml(p)}" alt="Photo" style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); cursor: pointer;" onerror="this.style.display='none'">
-                `).join('')}
-              </div>
-            ` : ''}
+      const ld = match.listing_data || {};
+      const isRealListing = match.source === 'gemini_search' || ld.source_site || ld.url;
+      const title = ld.title || [match.year, match.make, match.model, ld.trim].filter(Boolean).join(' ') || 'Car Listing';
+      const price = ld.price || match.price;
+      const safeUrl = (u) => (u && /^https?:\/\//i.test(u)) ? u : null;
+
+      titleEl.textContent = title;
+
+      if (isRealListing) {
+        const scoreColor = (match.match_score || 0) >= 90 ? 'var(--accent-green)' : (match.match_score || 0) >= 80 ? 'var(--accent-gold)' : 'var(--accent-blue)';
+        bodyEl.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;">
+            ${ld.source_site ? `<span style="padding: 4px 12px; border-radius: 100px; font-size: 0.82rem; font-weight: 600; background: var(--bg-input); color: var(--text-muted); border: 1px solid var(--border-color);">${escapeHtml(ld.source_site)}</span>` : ''}
+            ${match.match_score ? `<span style="padding: 4px 12px; border-radius: 100px; font-size: 0.82rem; font-weight: 600; background: ${scoreColor}22; color: ${scoreColor};">${match.match_score}% match</span>` : ''}
+            ${match.is_saved ? `<span style="color: var(--accent-gold);">${mccIcon('star', 14)} Saved</span>` : ''}
           </div>
-          <div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-              <div style="padding: 8px 16px; border-radius: 100px; font-size: 1rem; font-weight: 600; background: linear-gradient(135deg, ${scoreColor}, ${scoreColor}88); color: white;">
-                ${match.match_score || 0}% Match
-              </div>
-              ${match.is_saved ? '<span style="color: var(--accent-gold);">⭐ Saved</span>' : ''}
-            </div>
-            <div style="display: grid; gap: 12px;">
-              ${match.price ? `<div><span style="color: var(--text-muted);">Price:</span> <strong>$${Number(match.price).toLocaleString()}</strong></div>` : ''}
-              ${match.mileage ? `<div><span style="color: var(--text-muted);">Mileage:</span> <strong>${Number(match.mileage).toLocaleString()} miles</strong></div>` : ''}
-              ${match.exterior_color ? `<div><span style="color: var(--text-muted);">Color:</span> ${escapeHtml(match.exterior_color)}</div>` : ''}
-              ${match.location ? `<div><span style="color: var(--text-muted);">Location:</span> ${escapeHtml(match.location)}</div>` : ''}
-              ${match.seller_type ? `<div><span style="color: var(--text-muted);">Seller:</span> ${match.seller_type === 'dealer' ? 'Dealer' : match.seller_type === 'private' ? 'Private' : 'Other'}</div>` : ''}
-              ${match.source ? `<div><span style="color: var(--text-muted);">Source:</span> ${escapeHtml(match.source)}</div>` : ''}
-            </div>
-            ${match.listing_url ? `
-              <a href="${escapeHtml(match.listing_url)}" target="_blank" rel="noopener" class="btn btn-secondary" style="margin-top: 16px; width: 100%; justify-content: center;">
-                🔗 View Original Listing
-              </a>
-            ` : ''}
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+            ${price ? `<div style="padding: 16px; background: var(--bg-input); border-radius: var(--radius-md);"><div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px;">Price</div><div style="font-size: 1.4rem; font-weight: 700; color: var(--accent-gold);">$${Number(price).toLocaleString()}</div></div>` : ''}
+            ${ld.mileage ? `<div style="padding: 16px; background: var(--bg-input); border-radius: var(--radius-md);"><div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px;">Mileage</div><div style="font-size: 1.1rem; font-weight: 600;">${Number(ld.mileage).toLocaleString()} mi</div></div>` : ''}
+            ${ld.location ? `<div style="padding: 12px 16px; background: var(--bg-input); border-radius: var(--radius-md);"><div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px;">Location</div><div style="font-size: 0.9rem;">${escapeHtml(ld.location)}</div></div>` : ''}
+            ${ld.trim ? `<div style="padding: 12px 16px; background: var(--bg-input); border-radius: var(--radius-md);"><div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px;">Trim</div><div style="font-size: 0.9rem;">${escapeHtml(ld.trim)}</div></div>` : ''}
           </div>
-        </div>
-        ${match.match_reasons && match.match_reasons.length > 0 ? `
-          <div style="margin-top: 20px; padding: 16px; background: var(--bg-input); border-radius: var(--radius-md);">
-            <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 12px; color: var(--accent-gold);">Why this matches:</h4>
-            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-              ${match.match_reasons.map(r => `<span style="padding: 4px 10px; background: var(--accent-gold-soft); color: var(--accent-gold); border-radius: 100px; font-size: 0.82rem;">✓ ${escapeHtml(r)}</span>`).join('')}
+
+          ${ld.description ? `
+            <div style="padding: 16px; background: var(--bg-input); border-radius: var(--radius-md); margin-bottom: 20px;">
+              <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 8px; font-weight: 600;">About this listing</div>
+              <p style="font-size: 0.88rem; color: var(--text-secondary); margin: 0; line-height: 1.6;">${escapeHtml(ld.description)}</p>
             </div>
+          ` : ''}
+
+          <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px;">
+            ${safeUrl(ld.url) ? `<a href="${escapeHtml(safeUrl(ld.url))}" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="flex: 1; justify-content: center;">${mccIcon('external-link', 14)} View Full Listing</a>` : ''}
+            <button class="btn btn-secondary" onclick="addMatchToProspects()" style="${safeUrl(ld.url) ? '' : 'flex: 1; justify-content: center;'}">${mccIcon('plus', 14)} Add to Prospects</button>
           </div>
-        ` : ''}
-      `;
+        `;
+      } else {
+        const intel = ld;
+        const pr = intel.price_range || {};
+        const trend = (intel.market_trend || 'fair').toLowerCase();
+        const trendColors = { hot: '#e74c3c', fair: '#b8860b', soft: '#28a745' };
+        const trendColor = trendColors[trend] || '#b8860b';
+        const trendLabels = { hot: 'HOT', fair: 'FAIR', soft: 'SOFT' };
+        const checklist = intel.buying_checklist || match.match_reasons || [];
+        const urls = intel.search_urls || {};
+        bodyEl.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+            <span style="padding: 6px 16px; border-radius: 100px; font-size: 0.9rem; font-weight: 600; background: ${trendColor}; color: white;">${trendLabels[trend] || 'FAIR'} MARKET</span>
+            ${intel.criteria ? `<span style="font-size: 0.82rem; color: var(--text-muted);">${escapeHtml(intel.criteria)}</span>` : ''}
+          </div>
+          ${pr.low && pr.median && pr.high ? `
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px;">
+              <div style="text-align: center; padding: 16px; background: var(--bg-input); border-radius: var(--radius-md);"><div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px;">Low</div><div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-green);">$${Number(pr.low).toLocaleString()}</div></div>
+              <div style="text-align: center; padding: 16px; background: var(--bg-input); border-radius: var(--radius-md); border: 2px solid var(--accent-gold);"><div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px;">Median</div><div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-gold);">$${Number(pr.median).toLocaleString()}</div></div>
+              <div style="text-align: center; padding: 16px; background: var(--bg-input); border-radius: var(--radius-md);"><div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px;">High</div><div style="font-size: 1.2rem; font-weight: 700; color: var(--text-primary);">$${Number(pr.high).toLocaleString()}</div></div>
+            </div>
+          ` : ''}
+          ${intel.market_trend_note ? `<div style="padding: 12px 16px; background: var(--bg-input); border-radius: var(--radius-md); margin-bottom: 20px; font-size: 0.88rem; color: var(--text-secondary);">${mccIcon('trending-up', 14)} ${escapeHtml(intel.market_trend_note)}</div>` : ''}
+          ${checklist.length > 0 ? `<div style="margin-bottom: 20px;"><h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 12px; color: var(--accent-gold);">${mccIcon('check-circle', 14)} Buying Checklist</h4><ul style="list-style: none; padding: 0; margin: 0; display: grid; gap: 8px;">${checklist.map(tip => `<li style="font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 8px; padding: 8px 12px; background: var(--bg-input); border-radius: var(--radius-sm);"><span style="color: var(--accent-gold); flex-shrink: 0;">${mccIcon('check', 14)}</span><span>${escapeHtml(tip)}</span></li>`).join('')}</ul></div>` : ''}
+          ${intel.best_value_years ? `<div style="padding: 12px 16px; background: var(--bg-input); border-radius: var(--radius-md); margin-bottom: 20px;"><span style="font-size: 0.82rem; font-weight: 600; color: var(--accent-gold);">${mccIcon('calendar', 14)} Best Value Years:</span><span style="font-size: 0.85rem; color: var(--text-secondary); margin-left: 8px;">${escapeHtml(intel.best_value_years)}</span></div>` : ''}
+          ${intel.negotiate_tip ? `<div style="border-left: 4px solid var(--accent-gold); padding: 12px 16px; margin-bottom: 20px; background: var(--bg-input); border-radius: 0 var(--radius-md) var(--radius-md) 0;"><span style="font-size: 0.82rem; font-weight: 600; color: var(--accent-gold);">${mccIcon('message-circle', 14)} Negotiation Tip</span><p style="font-size: 0.85rem; color: var(--text-secondary); margin: 6px 0 0;">${escapeHtml(intel.negotiate_tip)}</p></div>` : ''}
+          <div style="margin-top: 8px;"><h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 12px;">${mccIcon('search', 14)} Search Now</h4><div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+            <a href="${urls.autotrader ? escapeHtml(urls.autotrader) : '#'}" target="${urls.autotrader ? '_blank' : '_self'}" rel="noopener" class="btn btn-secondary" style="justify-content: center; font-size: 0.85rem;${urls.autotrader ? '' : ' opacity: 0.4; pointer-events: none;'}">Autotrader</a>
+            <a href="${urls.cargurus ? escapeHtml(urls.cargurus) : '#'}" target="${urls.cargurus ? '_blank' : '_self'}" rel="noopener" class="btn btn-secondary" style="justify-content: center; font-size: 0.85rem;${urls.cargurus ? '' : ' opacity: 0.4; pointer-events: none;'}">CarGurus</a>
+            <a href="${urls.cars_com ? escapeHtml(urls.cars_com) : '#'}" target="${urls.cars_com ? '_blank' : '_self'}" rel="noopener" class="btn btn-secondary" style="justify-content: center; font-size: 0.85rem;${urls.cars_com ? '' : ' opacity: 0.4; pointer-events: none;'}">Cars.com</a>
+          </div></div>
+        `;
+      }
       
       modal.classList.add('active');
     }
@@ -14250,19 +15098,21 @@ Note: This assessment was generated by AI and is for informational purposes only
           return;
         }
 
+        const ld = currentMatchDetail.listing_data || {};
+        const isReal = currentMatchDetail.source === 'gemini_search' || ld.source_site || ld.url;
         const prospectData = {
           user_id: session.user.id,
-          year: parseInt(currentMatchDetail.year) || null,
-          make: currentMatchDetail.make,
-          model: currentMatchDetail.model,
-          trim: currentMatchDetail.trim,
-          asking_price: currentMatchDetail.price,
-          mileage: currentMatchDetail.mileage,
-          exterior_color: currentMatchDetail.exterior_color,
-          seller_location: currentMatchDetail.location,
-          seller_type: currentMatchDetail.seller_type,
-          listing_url: currentMatchDetail.listing_url,
-          photos: currentMatchDetail.photos || [],
+          year: parseInt(ld.year || currentMatchDetail.year) || null,
+          make: ld.make || currentMatchDetail.make,
+          model: ld.model || currentMatchDetail.model,
+          trim: ld.trim || null,
+          asking_price: (isReal ? ld.price : ld.price_range?.median) || currentMatchDetail.price || null,
+          mileage: ld.mileage || null,
+          exterior_color: null,
+          seller_location: ld.location || null,
+          seller_type: null,
+          listing_url: ((u) => (u && /^https?:\/\//i.test(u)) ? u : null)(ld.url),
+          photos: [],
           status: 'considering'
         };
 
@@ -14325,7 +15175,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       if (filtered.length === 0) {
         grid.innerHTML = `
           <div class="empty-state">
-            <div class="empty-state-icon">🚘</div>
+            <div class="empty-state-icon">${mccIcon('car-front', 14)}</div>
             <p>No prospect vehicles ${filter !== 'all' ? 'with this status' : 'yet'}.</p>
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">Add vehicles you're considering to compare them.</p>
           </div>
@@ -14353,17 +15203,17 @@ Note: This assessment was generated by AI and is for informational purposes only
         return `
           <div class="vehicle-card" style="cursor: pointer;" onclick="viewProspect('${p.id}')">
             <div class="vehicle-card-photo">
-              <div class="vehicle-emoji">🚘</div>
-              ${p.is_favorite ? '<div style="position:absolute;top:12px;left:12px;font-size:24px;">❤️</div>' : ''}
+              <div class="vehicle-emoji">${mccIcon('car-front', 14)}</div>
+              ${p.is_favorite ? '<div style="position:absolute;top:12px;left:12px;font-size:24px;">' + mccIcon('star', 14) + '</div>' : ''}
               <div class="vehicle-card-badge" style="background:${statusColors[p.status] || statusColors.considering};color:${p.status === 'passed' ? 'var(--text-primary)' : '#fff'};">${statusLabels[p.status] || 'Considering'}</div>
             </div>
             <div class="vehicle-card-body">
               <div class="vehicle-card-title">${p.year || ''} ${p.make || ''} ${p.model || ''}</div>
               <div class="vehicle-card-subtitle">${p.trim || ''} ${p.body_style ? '• ' + p.body_style : ''}</div>
               <div class="vehicle-card-meta">
-                ${p.mileage ? `<span>🛣️ ${Number(p.mileage).toLocaleString()} mi</span>` : ''}
-                ${p.asking_price ? `<span>💰 $${Number(p.asking_price).toLocaleString()}</span>` : ''}
-                ${p.carfax_accidents !== null ? `<span>⚠️ ${p.carfax_accidents} accidents</span>` : ''}
+                ${p.mileage ? `<span>${mccIcon('truck', 14)} ${Number(p.mileage).toLocaleString()} mi</span>` : ''}
+                ${p.asking_price ? `<span>${mccIcon('dollar-sign', 14)} $${Number(p.asking_price).toLocaleString()}</span>` : ''}
+                ${p.carfax_accidents !== null ? `<span>${mccIcon('alert-triangle', 14)} ${p.carfax_accidents} accidents</span>` : ''}
               </div>
               ${matchScore !== null ? `
                 <div style="margin-top:12px;padding:8px 12px;background:${matchScore >= 80 ? 'var(--accent-green-soft)' : matchScore >= 50 ? 'var(--accent-orange-soft)' : 'rgba(239,95,95,0.15)'};border-radius:var(--radius-sm);display:inline-flex;align-items:center;gap:6px;">
@@ -14372,13 +15222,14 @@ Note: This assessment was generated by AI and is for informational purposes only
               ` : ''}
               ${p.personal_rating ? `
                 <div style="margin-top:8px;color:var(--accent-gold);">
-                  ${'⭐'.repeat(p.personal_rating)}${'☆'.repeat(5 - p.personal_rating)}
+                  ${mccIcon('star', 14).repeat(p.personal_rating)}${'☆'.repeat(5 - p.personal_rating)}
                 </div>
               ` : ''}
               <div class="vehicle-card-actions" onclick="event.stopPropagation();">
-                <button class="btn btn-sm btn-secondary" onclick="editProspect('${p.id}')">✏️ Edit</button>
-                <button class="btn btn-sm btn-ghost" onclick="toggleFavorite('${p.id}')" title="${p.is_favorite ? 'Remove from favorites' : 'Add to favorites'}">${p.is_favorite ? '❤️' : '🤍'}</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteProspect('${p.id}')">🗑️</button>
+                <button class="btn btn-sm btn-primary" onclick="inspectProspect('${p.id}')" title="Request a pre-purchase inspection">${mccIcon('search', 14)} Inspect This Car</button>
+                <button class="btn btn-sm btn-secondary" onclick="editProspect('${p.id}')">${mccIcon('edit', 14)} Edit</button>
+                <button class="btn btn-sm btn-ghost" onclick="toggleFavorite('${p.id}')" title="${p.is_favorite ? 'Remove from favorites' : 'Add to favorites'}">${p.is_favorite ? mccIcon('star', 14) : mccIcon('star', 14)}</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteProspect('${p.id}')">${mccIcon('trash-2', 14)}</button>
               </div>
             </div>
           </div>
@@ -14388,6 +15239,42 @@ Note: This assessment was generated by AI and is for informational purposes only
 
     function filterProspects() {
       renderProspects();
+    }
+
+    function inspectProspect(prospectId) {
+      const p = prospectVehicles.find(v => v.id === prospectId);
+      if (!p) return;
+      showSection('packages');
+      setTimeout(() => {
+        openPackageModal();
+        setTimeout(() => {
+          const titleInput = document.getElementById('p-title');
+          const serviceTypeSelect = document.getElementById('p-service-type');
+          const categorySelect = document.getElementById('p-category');
+          const vehicleSelect = document.getElementById('p-vehicle');
+          const vehicleLabel = [p.year, p.make, p.model].filter(Boolean).join(' ');
+          if (titleInput) titleInput.value = `Pre-Purchase Inspection — ${vehicleLabel}`;
+          if (categorySelect) {
+            categorySelect.value = 'maintenance';
+            categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          if (serviceTypeSelect) {
+            serviceTypeSelect.value = 'Inspection';
+            serviceTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          if (vehicleSelect && vehicles && vehicles.length) {
+            const match = vehicles.find(v =>
+              v.make === p.make && v.model === p.model && String(v.year) === String(p.year)
+            );
+            if (match) vehicleSelect.value = match.id;
+          }
+          const descInput = document.getElementById('p-description');
+          if (descInput) {
+            const loc = p.location || p.seller_location || '';
+            descInput.value = `Pre-purchase inspection requested for ${vehicleLabel}${p.vin ? ' (VIN: ' + p.vin + ')' : ''}${loc ? '. Vehicle located at: ' + loc : ''}`;
+          }
+        }, 350);
+      }, 100);
     }
 
     function calculateMatchScore(prospect) {
@@ -14478,10 +15365,10 @@ Note: This assessment was generated by AI and is for informational purposes only
 
       const btn = document.getElementById('vin-lookup-btn');
       btn.disabled = true;
-      btn.textContent = '⏳ Looking up...';
+      btn.innerHTML = `${mccIcon('clock', 14)} Looking up...`;
 
       try {
-        const response = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`);
+        const response = await fetch(`/api/vin-proxy?vin=${encodeURIComponent(vin)}`);
         const data = await response.json();
         
         if (data.Results) {
@@ -14525,7 +15412,7 @@ Note: This assessment was generated by AI and is for informational purposes only
         showToast('Failed to lookup VIN. Please try again.', 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = '🔍 Lookup';
+        btn.innerHTML = `${mccIcon('search', 14)} Lookup`;
       }
     }
 
@@ -14734,7 +15621,7 @@ Note: This assessment was generated by AI and is for informational purposes only
               <div style="font-size:0.85rem;color:var(--text-muted);">Owners</div>
             </div>
             <div style="text-align:center;">
-              <div style="font-size:2rem;margin-bottom:4px;">${prospect.carfax_service_records ? '✅' : '❌'}</div>
+              <div style="margin-bottom:4px;">${prospect.carfax_service_records ? mccIcon('check-circle', 32) : mccIcon('x', 32)}</div>
               <div style="font-size:0.85rem;color:var(--text-muted);">Service Records</div>
             </div>
           </div>
@@ -14745,7 +15632,7 @@ Note: This assessment was generated by AI and is for informational purposes only
           <div style="flex:1;min-width:200px;">
             <h4 style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px;">Your Rating</h4>
             <div style="font-size:28px;color:var(--accent-gold);">
-              ${prospect.personal_rating ? '⭐'.repeat(prospect.personal_rating) + '☆'.repeat(5 - prospect.personal_rating) : '☆☆☆☆☆'}
+              ${prospect.personal_rating ? mccIcon('star', 14).repeat(prospect.personal_rating) + '☆'.repeat(5 - prospect.personal_rating) : '☆☆☆☆☆'}
             </div>
           </div>
           ${matchScore !== null ? `
@@ -14774,9 +15661,9 @@ Note: This assessment was generated by AI and is for informational purposes only
         ` : ''}
 
         <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
-          <button class="btn btn-primary" onclick="editProspect('${prospect.id}');closeViewProspectModal();">✏️ Edit</button>
-          <button class="btn btn-secondary" onclick="toggleFavorite('${prospect.id}');closeViewProspectModal();">${prospect.is_favorite ? '❤️ Unfavorite' : '🤍 Favorite'}</button>
-          <button class="btn btn-danger" onclick="deleteProspect('${prospect.id}');closeViewProspectModal();">🗑️ Delete</button>
+          <button class="btn btn-primary" onclick="editProspect('${prospect.id}');closeViewProspectModal();">${mccIcon('edit', 14)} Edit</button>
+          <button class="btn btn-secondary" onclick="toggleFavorite('${prospect.id}');closeViewProspectModal();">${prospect.is_favorite ? `${mccIcon('star', 14)} Unfavorite` : `${mccIcon('star', 14)} Favorite`}</button>
+          <button class="btn btn-danger" onclick="deleteProspect('${prospect.id}');closeViewProspectModal();">${mccIcon('trash-2', 14)} Delete</button>
         </div>
       `;
 
@@ -14868,8 +15755,8 @@ Note: This assessment was generated by AI and is for informational purposes only
         { label: 'Exterior Color', key: 'exterior_color', format: v => v || 'N/A' },
         { label: 'Accidents', key: 'carfax_accidents', format: v => v !== null ? v : 'N/A', best: 'low' },
         { label: 'Previous Owners', key: 'carfax_owners', format: v => v || 'N/A', best: 'low' },
-        { label: 'Service Records', key: 'carfax_service_records', format: v => v ? '✅ Yes' : '❌ No' },
-        { label: 'Your Rating', key: 'personal_rating', format: v => v ? '⭐'.repeat(v) : 'N/A', best: 'high' },
+        { label: 'Service Records', key: 'carfax_service_records', format: v => v ? mccIcon('check-circle', 14) + ' Yes' : mccIcon('x', 14) + ' No' },
+        { label: 'Your Rating', key: 'personal_rating', format: v => v ? mccIcon('star', 14).repeat(v) : 'N/A', best: 'high' },
         { label: 'Match Score', key: null, format: (v, p) => { const s = calculateMatchScore(p); return s !== null ? s + '%' : 'N/A'; }, best: 'high', isComputed: true }
       ];
 
@@ -15221,10 +16108,10 @@ Note: This assessment was generated by AI and is for informational purposes only
 
     function getCategoryEmoji(category) {
       switch (category) {
-        case 'apparel': return '👕';
-        case 'accessories': return '🎒';
-        case 'decals': return '🏷️';
-        default: return '📦';
+        case 'apparel': return mccIcon('file-text', 14);
+        case 'accessories': return mccIcon('file-text', 14);
+        case 'decals': return mccIcon('file-text', 14);
+        default: return mccIcon('package', 14);
       }
     }
 
@@ -15323,7 +16210,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       if (shopCart.length === 0) {
         cartList.innerHTML = `
           <div class="empty-state" style="padding:24px 0;">
-            <div style="font-size:40px;margin-bottom:12px;">🛒</div>
+            <div style="font-size:40px;margin-bottom:12px;">${mccIcon('shopping-cart', 14)}</div>
             <p style="color:var(--text-muted);font-size:0.9rem;">Your cart is empty</p>
           </div>
         `;
@@ -15528,7 +16415,7 @@ Note: This assessment was generated by AI and is for informational purposes only
         const itemsHtml = (order.items || []).map(item => `
           <div class="order-item-row">
             <div class="order-item-image">
-              ${item.image_url ? `<img src="${item.image_url}" alt="${item.name}">` : '📦'}
+              ${item.image_url ? `<img src="${item.image_url}" alt="${item.name}">` : mccIcon('package', 14)}
             </div>
             <div class="order-item-info">
               <div class="order-item-name">${item.name || 'Product'}</div>
@@ -15559,7 +16446,7 @@ Note: This assessment was generated by AI and is for informational purposes only
               ${order.tracking_number ? `<p><strong>Tracking #:</strong> ${order.tracking_number}</p>` : ''}
               ${order.tracking_url ? `
                 <button class="btn btn-primary btn-sm order-tracking-btn" onclick="trackOrder('${order.id}')">
-                  📍 Track Shipment
+                  ${mccIcon('map-pin', 14)} Track Shipment
                 </button>
               ` : ''}
             </div>
@@ -15570,7 +16457,7 @@ Note: This assessment was generated by AI and is for informational purposes only
           <div class="order-card" id="order-${order.id}">
             <div class="order-card-header" onclick="toggleOrderDetails('${order.id}')">
               <div class="order-card-info">
-                <div class="order-icon">📦</div>
+                <div class="order-icon">${mccIcon('package', 14)}</div>
                 <div class="order-meta">
                   <div class="order-number">${orderNumber}</div>
                   <div class="order-date">${orderDate}</div>
@@ -15730,13 +16617,13 @@ Note: This assessment was generated by AI and is for informational purposes only
             case 'completed':
               statusClass = 'background:var(--accent-green-soft);color:var(--accent-green);';
               statusLabel = 'Completed';
-              statusIcon = '✅';
+              statusIcon = mccIcon('check-circle', 14);
               break;
             case 'pending':
             default:
               statusClass = 'background:var(--accent-orange-soft);color:var(--accent-orange);';
               statusLabel = 'Pending';
-              statusIcon = '⏳';
+              statusIcon = mccIcon('clock', 14);
               break;
           }
           
@@ -15745,7 +16632,7 @@ Note: This assessment was generated by AI and is for informational purposes only
           return `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:var(--bg-elevated);border-radius:12px;border:1px solid var(--border-subtle);">
               <div style="display:flex;align-items:center;gap:16px;">
-                <div style="width:48px;height:48px;border-radius:50%;background:var(--accent-blue-soft);display:flex;align-items:center;justify-content:center;font-size:20px;">👤</div>
+                <div style="width:48px;height:48px;border-radius:50%;background:var(--accent-blue-soft);display:flex;align-items:center;justify-content:center;font-size:20px;">${mccIcon('user', 14)}</div>
                 <div>
                   <div style="font-weight:600;margin-bottom:2px;">${referral.referred_name || 'Member'}</div>
                   <div style="font-size:0.85rem;color:var(--text-muted);">Joined ${date}</div>
@@ -15939,7 +16826,7 @@ See you there!`);
       if (fuelLogs.length === 0) {
         container.innerHTML = `
           <div class="empty-state" style="padding:40px;">
-            <div class="empty-state-icon">⛽</div>
+            <div class="empty-state-icon">${mccIcon('fuel', 48)}</div>
             <p>No fuel logs yet.</p>
             <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Start tracking your fuel expenses to see stats and trends.</p>
           </div>
@@ -15979,8 +16866,8 @@ See you there!`);
                     <td style="padding:14px 8px;font-size:0.9rem;text-align:right;font-weight:600;color:var(--accent-gold);">$${parseFloat(log.total_cost).toFixed(2)}</td>
                     <td style="padding:14px 8px;font-size:0.9rem;color:var(--text-secondary);">${log.station_name || '-'}</td>
                     <td style="padding:14px 8px;text-align:center;">
-                      <button class="btn btn-ghost btn-sm" onclick="editFuelLog('${log.id}')" title="Edit">✏️</button>
-                      <button class="btn btn-ghost btn-sm" onclick="deleteFuelLog('${log.id}')" title="Delete" style="color:var(--accent-red);">🗑️</button>
+                      <button class="btn btn-ghost btn-sm" onclick="editFuelLog('${log.id}')" title="Edit">${mccIcon('edit', 14)}</button>
+                      <button class="btn btn-ghost btn-sm" onclick="deleteFuelLog('${log.id}')" title="Delete" style="color:var(--accent-red);">${mccIcon('trash-2', 14)}</button>
                     </td>
                   </tr>
                 `;
@@ -15993,12 +16880,12 @@ See you there!`);
 
     function getFuelTypeEmoji(type) {
       switch (type) {
-        case 'regular': return '⛽';
-        case 'mid-grade': return '⛽';
-        case 'premium': return '🏎️';
-        case 'diesel': return '🛢️';
-        case 'electric': return '🔋';
-        default: return '⛽';
+        case 'regular': return mccIcon('fuel', 14);
+        case 'mid-grade': return mccIcon('fuel', 14);
+        case 'premium': return mccIcon('car-front', 14);
+        case 'diesel': return mccIcon('thermometer', 14);
+        case 'electric': return mccIcon('activity', 14);
+        default: return mccIcon('fuel', 14);
       }
     }
 
@@ -16372,7 +17259,7 @@ See you there!`);
       if (insuranceDocuments.length === 0) {
         container.innerHTML = `
           <div class="empty-state" style="padding:40px;">
-            <div class="empty-state-icon">📋</div>
+            <div class="empty-state-icon">${mccIcon('file-text', 14)}</div>
             <p>No insurance documents yet.</p>
             <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Upload your insurance cards and policy documents to keep them handy.</p>
           </div>
@@ -16402,7 +17289,7 @@ See you there!`);
         html += `
           <div style="margin-bottom:24px;">
             <h3 style="font-size:0.95rem;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-              <span>🚗</span> ${vehicleName}
+              <span>${mccIcon('car-front', 14)}</span> ${vehicleName}
             </h3>
             <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));gap:12px;">
               ${group.documents.map(doc => renderInsuranceCard(doc)).join('')}
@@ -16459,11 +17346,11 @@ See you there!`);
           <div style="display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--border-subtle);">
             ${hasFile ? `
               <button class="btn btn-secondary btn-sm" onclick="downloadInsuranceDocument('${doc.id}')" style="flex:1;">
-                📥 Download
+                ${mccIcon('download', 14)} Download
               </button>
             ` : ''}
             <button class="btn btn-ghost btn-sm" onclick="deleteInsuranceDocument('${doc.id}')" style="color:var(--accent-red);" title="Delete">
-              🗑️
+              ${mccIcon('trash-2', 14)}
             </button>
           </div>
         </div>
@@ -16548,6 +17435,103 @@ See you there!`);
       if (fileInput) fileInput.value = '';
       if (dropzone) dropzone.style.display = 'block';
       if (preview) preview.style.display = 'none';
+    }
+
+    async function submitInsuranceExtraction(vehicleId) {
+      const fileInput = document.getElementById('insurance-file-input');
+      const file = selectedInsuranceFile || (fileInput?.files?.[0]);
+      const statusEl = document.getElementById('insurance-extraction-status');
+
+      if (!file) { showToast('Please select an insurance card image first', 'error'); return; }
+      if (!statusEl) return;
+
+      statusEl.style.display = 'block';
+      statusEl.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">Extracting insurance details via AI…</p>';
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+
+        let publicUrl = null;
+        try {
+          const path = `${currentUser.id}/${Date.now()}_${file.name}`;
+          const { error: uploadErr } = await supabaseClient.storage.from('insurance-documents').upload(path, file, { upsert: true });
+          if (!uploadErr) {
+            const { data: urlData } = supabaseClient.storage.from('insurance-documents').getPublicUrl(path);
+            publicUrl = urlData?.publicUrl;
+          }
+        } catch (storageErr) {
+          console.log('[Insurance] Storage upload skipped:', storageErr.message);
+        }
+
+        if (!publicUrl) {
+          const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          publicUrl = dataUrl;
+        }
+
+        const res = await fetch('/api/insurance/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ imageUrl: publicUrl })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Extraction failed');
+
+        const ext = data.extracted || {};
+        const rawDate = ext.expirationDate || '';
+        const formattedDate = rawDate.includes('/') ? rawDate : (() => {
+          const d = new Date(rawDate);
+          if (!rawDate || isNaN(d)) return rawDate;
+          const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const dy = String(d.getUTCDate()).padStart(2, '0');
+          return `${m}/${dy}/${d.getUTCFullYear()}`;
+        })();
+
+        statusEl.innerHTML = `
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;margin-top:8px;">
+            <p style="font-weight:600;margin:0 0 12px;font-size:0.95rem;">Review Extracted Information</p>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label class="form-label" style="font-size:0.82rem;">Insurance Provider</label>
+              <input type="text" id="ins-review-provider" class="form-input" value="${ext.insurerName || ''}" placeholder="Insurance provider name">
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label class="form-label" style="font-size:0.82rem;">Policy Number</label>
+              <input type="text" id="ins-review-policy" class="form-input" value="${ext.policyNumber || ''}" placeholder="Policy number">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label class="form-label" style="font-size:0.82rem;">Expiration Date (MM/DD/YYYY)</label>
+              <input type="text" id="ins-review-expiration" class="form-input" value="${formattedDate}" placeholder="MM/DD/YYYY">
+            </div>
+            <button type="button" id="ins-review-confirm" class="btn btn-primary btn-sm" style="width:100%;">Confirm &amp; Auto-fill Form</button>
+          </div>`;
+
+        document.getElementById('ins-review-confirm')?.addEventListener('click', () => {
+          const provider = document.getElementById('ins-review-provider')?.value || '';
+          const policy = document.getElementById('ins-review-policy')?.value || '';
+          const expiry = document.getElementById('ins-review-expiration')?.value || '';
+          const providerField = document.getElementById('insurance-doc-provider');
+          const policyField = document.getElementById('insurance-doc-policy-number');
+          const endDateField = document.getElementById('insurance-doc-end-date');
+          if (providerField) providerField.value = provider;
+          if (policyField) policyField.value = policy;
+          if (endDateField && expiry) {
+            const parts = expiry.split('/');
+            if (parts.length === 3) {
+              endDateField.value = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+            }
+          }
+          showToast('Form auto-filled from insurance card', 'success');
+        });
+
+      } catch (err) {
+        statusEl.innerHTML = `<p style="color:var(--accent-red);font-size:0.88rem;">Extraction failed: ${err.message}. Please fill in details manually.</p>`;
+      }
     }
 
     async function saveInsuranceDocument(event) {
@@ -16786,12 +17770,12 @@ See you there!`);
         const dateStr = loginDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         const timeStr = loginDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
         
-        const deviceIcon = activity.device_type === 'mobile' ? '📱' : 
-                          activity.device_type === 'tablet' ? '📱' : '💻';
+        const deviceIcon = activity.device_type === 'mobile' ? mccIcon('smartphone', 14) : 
+                          activity.device_type === 'tablet' ? mccIcon('smartphone', 14) : mccIcon('settings', 14);
         const deviceLabel = activity.device_type ? (activity.device_type.charAt(0).toUpperCase() + activity.device_type.slice(1)) : 'Unknown';
         
         const statusBadge = activity.is_successful 
-          ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--accent-green-soft);color:var(--accent-green);border-radius:100px;font-size:0.78rem;font-weight:500;">✓ Success</span>'
+          ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--accent-green-soft);color:var(--accent-green);border-radius:100px;font-size:0.78rem;font-weight:500;">' + mccIcon('check-circle', 14) + ' Success</span>'
           : '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:rgba(239,95,95,0.15);color:var(--accent-red);border-radius:100px;font-size:0.78rem;font-weight:500;">✕ Failed</span>';
         
         const needsAction = !activity.is_successful && !activity.acknowledged_at;
@@ -16799,18 +17783,18 @@ See you there!`);
         
         let actionsHtml = '';
         if (isSuspicious) {
-          actionsHtml = '<span style="font-size:0.8rem;color:var(--accent-red);">🚨 Reported</span>';
+          actionsHtml = `<span style="font-size:0.8rem;color:var(--accent-red);">${mccIcon('alert-triangle', 14)} Reported</span>`;
         } else if (needsAction) {
           actionsHtml = `
             <button class="btn btn-sm" style="padding:4px 10px;font-size:0.78rem;background:var(--accent-green-soft);color:var(--accent-green);border:1px solid rgba(74,200,140,0.3);" onclick="acknowledgeLoginActivity('${activity.id}')">
-              ✓ This was me
+              ${mccIcon('check-circle', 14)} This was me
             </button>
             <button class="btn btn-sm" style="padding:4px 10px;font-size:0.78rem;background:rgba(239,95,95,0.15);color:var(--accent-red);border:1px solid rgba(239,95,95,0.3);margin-left:4px;" onclick="reportSuspiciousLogin('${activity.id}')">
-              🚨 Report
+              ${mccIcon('alert-triangle', 14)} Report
             </button>
           `;
         } else if (activity.acknowledged_at) {
-          actionsHtml = '<span style="font-size:0.8rem;color:var(--text-muted);">✓ Acknowledged</span>';
+          actionsHtml = '<span style="font-size:0.8rem;color:var(--text-muted);">' + mccIcon('check-circle', 14) + ' Acknowledged</span>';
         } else {
           actionsHtml = '<span style="font-size:0.8rem;color:var(--text-muted);">—</span>';
         }
@@ -16910,3 +17894,230 @@ See you there!`);
     }
     
     // ========== END LOGIN ACTIVITY SECTION ==========
+
+    // ========== OBD SCANNER SECTION ==========
+    let currentOBDScan = null;
+    let obdPhotoBase64 = null;
+
+    function openOBDScanner(vehicleId) {
+      document.getElementById('obd-scan-vehicle-id').value = vehicleId;
+      document.getElementById('obd-codes-input').value = '';
+      document.getElementById('obd-notes').value = '';
+      document.getElementById('obd-photo-preview').style.display = 'none';
+      document.getElementById('obd-extracted-codes').style.display = 'none';
+      document.getElementById('obd-ocr-loading').style.display = 'none';
+      obdPhotoBase64 = null;
+      currentOBDScan = null;
+      closeModal('vehicle-details-modal');
+      document.getElementById('obd-scanner-modal').classList.add('active');
+    }
+
+    async function handleOBDPhotoSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        obdPhotoBase64 = e.target.result.split(',')[1];
+        document.getElementById('obd-photo-img').src = e.target.result;
+        document.getElementById('obd-photo-preview').style.display = 'block';
+        document.getElementById('obd-photo-upload-area').style.display = 'none';
+        
+        document.getElementById('obd-ocr-loading').style.display = 'block';
+        try {
+          const response = await fetch('/api/obd/scan-ocr', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+            },
+            body: JSON.stringify({ imageBase64: obdPhotoBase64 })
+          });
+          const data = await response.json();
+          document.getElementById('obd-ocr-loading').style.display = 'none';
+          
+          if (data.codes && data.codes.length > 0) {
+            document.getElementById('obd-extracted-codes').style.display = 'block';
+            document.getElementById('obd-extracted-codes-list').textContent = data.codes.join(', ');
+            document.getElementById('obd-codes-input').value = data.codes.join(', ');
+          } else {
+            showToast('No codes found in image. Please enter codes manually.', 'warning');
+          }
+        } catch (err) {
+          document.getElementById('obd-ocr-loading').style.display = 'none';
+          showToast('Could not read image. Please enter codes manually.', 'error');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearOBDPhoto() {
+      obdPhotoBase64 = null;
+      document.getElementById('obd-photo-input').value = '';
+      document.getElementById('obd-photo-preview').style.display = 'none';
+      document.getElementById('obd-photo-upload-area').style.display = 'block';
+      document.getElementById('obd-extracted-codes').style.display = 'none';
+    }
+
+    async function submitOBDScan() {
+      const vehicleId = document.getElementById('obd-scan-vehicle-id').value;
+      const codesInput = document.getElementById('obd-codes-input').value.trim();
+      const notes = document.getElementById('obd-notes').value.trim();
+
+      if (!codesInput) {
+        showToast('Please enter at least one diagnostic code', 'error');
+        return;
+      }
+
+      const codes = codesInput.toUpperCase().match(/[PCBU][0-9]{4}/g);
+      if (!codes || codes.length === 0) {
+        showToast('No valid codes found. Codes should be like P0420, C0035, etc.', 'error');
+        return;
+      }
+
+      document.getElementById('obd-submit-btn').disabled = true;
+      document.getElementById('obd-submit-btn').textContent = 'Analyzing...';
+
+      try {
+        const session = await supabase.auth.getSession();
+        const token = session.data.session?.access_token;
+
+        const scanResponse = await fetch('/api/obd/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            vehicleId,
+            codes: [...new Set(codes)],
+            notes,
+            source: obdPhotoBase64 ? 'photo_ocr' : 'manual'
+          })
+        });
+        const scanData = await scanResponse.json();
+
+        if (!scanData.success) {
+          throw new Error(scanData.error || 'Failed to submit scan');
+        }
+
+        const interpretResponse = await fetch('/api/obd/interpret', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ scanId: scanData.scan.id })
+        });
+        const interpretData = await interpretResponse.json();
+
+        if (!interpretData.success) {
+          throw new Error(interpretData.error || 'Failed to interpret codes');
+        }
+
+        currentOBDScan = { ...scanData.scan, ...interpretData };
+        closeModal('obd-scanner-modal');
+        showOBDResults(currentOBDScan);
+
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        document.getElementById('obd-submit-btn').disabled = false;
+        document.getElementById('obd-submit-btn').textContent = 'Analyze Codes';
+      }
+    }
+
+    function showOBDResults(scan) {
+      const interpretation = scan.interpretation || {};
+      const severityColors = {
+        low: 'var(--accent-green)',
+        medium: 'var(--accent-gold)',
+        high: 'var(--accent-orange)',
+        critical: 'var(--accent-red)'
+      };
+      const severityLabels = {
+        low: mccIcon('check-circle', 14) + ' Low - Minor issue',
+        medium: mccIcon('alert-triangle', 14) + ' Medium - Should address soon',
+        high: `${mccIcon('alert-triangle', 14)} High - Address promptly`,
+        critical: `${mccIcon('alert-triangle', 14)} Critical - Immediate attention needed`
+      };
+
+      document.getElementById('obd-results-body').innerHTML = `
+        <div style="margin-bottom:20px;">
+          <div style="font-weight:600;margin-bottom:8px;">Codes Analyzed:</div>
+          <div style="font-family:monospace;font-size:1.2rem;color:var(--accent-gold);">${scan.codes?.join(', ') || 'N/A'}</div>
+        </div>
+
+        <div style="padding:16px;background:${severityColors[scan.severity] || 'var(--bg-input)'}20;border:1px solid ${severityColors[scan.severity] || 'var(--border-subtle)'};border-radius:var(--radius-md);margin-bottom:20px;">
+          <div style="font-weight:600;color:${severityColors[scan.severity] || 'inherit'};">${severityLabels[scan.severity] || 'Unknown Severity'}</div>
+          ${interpretation.safeToKeepDriving !== undefined ? `<div style="margin-top:8px;font-size:0.9rem;">Safe to drive: ${interpretation.safeToKeepDriving ? 'Yes, with caution' : 'No - get checked immediately'}</div>` : ''}
+        </div>
+
+        <div style="margin-bottom:20px;">
+          <div style="font-weight:600;margin-bottom:8px;">What This Means:</div>
+          <div style="line-height:1.6;color:var(--text-secondary);">${interpretation.summary || 'Analysis in progress...'}</div>
+        </div>
+
+        ${interpretation.likelyCauses?.length ? `
+          <div style="margin-bottom:20px;">
+            <div style="font-weight:600;margin-bottom:8px;">Likely Causes:</div>
+            <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
+              ${interpretation.likelyCauses.map(c => `<li style="margin-bottom:4px;">${c}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+
+        ${interpretation.estimatedCostRange ? `
+          <div style="margin-bottom:20px;">
+            <div style="font-weight:600;margin-bottom:8px;">Estimated Repair Cost:</div>
+            <div style="font-size:1.1rem;color:var(--accent-gold);">${interpretation.estimatedCostRange}</div>
+          </div>
+        ` : ''}
+
+        ${interpretation.recommendations?.length ? `
+          <div style="margin-bottom:20px;">
+            <div style="font-weight:600;margin-bottom:8px;">Recommendations:</div>
+            <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
+              ${interpretation.recommendations.map(r => `<li style="margin-bottom:4px;">${r}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+
+        ${interpretation.questionsForMechanic?.length ? `
+          <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:16px;">
+            <div style="font-weight:600;margin-bottom:8px;">${mccIcon('info', 14)} Questions to Ask Your Mechanic:</div>
+            <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
+              ${interpretation.questionsForMechanic.map(q => `<li style="margin-bottom:4px;">${q}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+
+        ${typeof getCareKeyForCategory === 'function' && getCareKeyForCategory(interpretation.summary || '') ? `
+          <div style="margin-top:20px;padding:14px 16px;background:linear-gradient(135deg,rgba(34,211,238,0.1),rgba(34,211,238,0.03));border:1px solid rgba(34,211,238,0.3);border-radius:var(--radius-md);display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="closeModal('obd-results-modal');openAcademyCareCard('${getCareKeyForCategory(interpretation.summary || '')}')">
+            <span style="color:var(--accent-teal);flex-shrink:0;">${mccIcon('book-open', 20)}</span>
+            <div>
+              <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary);">Learn More in the Care Guide</div>
+              <div style="font-size:0.82rem;color:var(--text-muted);">Understand this service, what to expect, and how to prepare</div>
+            </div>
+            <span style="margin-left:auto;color:var(--text-muted);">${mccIcon('chevron-right', 16)}</span>
+          </div>
+        ` : ''}
+      `;
+
+      document.getElementById('obd-results-modal').classList.add('active');
+    }
+
+    async function createServiceRequestFromScan() {
+      if (!currentOBDScan) return;
+      
+      closeModal('obd-results-modal');
+      
+      const vehicleId = currentOBDScan.vehicle_id;
+      const vehicle = vehicles.find(v => v.id === vehicleId);
+      const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim() : 'My Vehicle';
+      
+      const interpretation = currentOBDScan.interpretation || {};
+      const description = `Check Engine Light - Diagnostic Codes: ${currentOBDScan.codes?.join(', ') || 'N/A'}\n\n${interpretation.summary || ''}\n\nLikely causes: ${interpretation.likelyCauses?.join(', ') || 'See scan results'}`;
+      
+      if (typeof showCreateServiceRequest === 'function') {
+        showCreateServiceRequest(vehicleId, description, currentOBDScan.id);
+      } else {
+        showToast('Navigate to Service Requests to create a new request with these codes attached.', 'info');
+        switchSection('service-requests');
+      }
+    }
+    // ========== END OBD SCANNER SECTION ==========

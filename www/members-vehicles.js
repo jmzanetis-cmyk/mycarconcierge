@@ -1,6 +1,7 @@
 // ========== MY CAR CONCIERGE - VEHICLES MODULE ==========
 // Vehicle management, recalls, registration verification, vehicle details
 
+
     // ========== VEHICLE RECALLS FUNCTIONS ==========
     
     async function fetchVehicleRecalls(vehicleId, refresh = false) {
@@ -73,6 +74,33 @@
       }
     }
     
+    function getSeverityBadge(severity) {
+      if (!severity) return '';
+      const cfg = {
+        critical: { label: 'Critical', color: '#dc2626', bg: 'rgba(220,38,38,0.12)' },
+        important: { label: 'Important', color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
+        monitor: { label: 'Monitor', color: '#2563eb', bg: 'rgba(37,99,235,0.12)' }
+      };
+      const s = cfg[severity] || cfg.monitor;
+      return `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;letter-spacing:0.03em;color:${s.color};background:${s.bg};border:1px solid ${s.color}40;">${s.label}</span>`;
+    }
+
+    function mapRecallComponentToCategory(component) {
+      if (!component) return 'maintenance';
+      const c = component.toLowerCase();
+      if (c.includes('brake') || c.includes('abs') || c.includes('parking brake')) return 'maintenance';
+      if (c.includes('tire') || c.includes('wheel') || c.includes('rim') || c.includes('alignment')) return 'maintenance';
+      if (c.includes('engine') || c.includes('fuel') || c.includes('ignition') || c.includes('emission') || c.includes('exhaust')) return 'maintenance';
+      if (c.includes('transmission') || c.includes('drivetrain') || c.includes('axle') || c.includes('driveshaft')) return 'maintenance';
+      if (c.includes('electrical') || c.includes('battery') || c.includes('wiring') || c.includes('fuse')) return 'audio_electronics';
+      if (c.includes('light') || c.includes('lamp') || c.includes('headlight') || c.includes('taillight')) return 'lighting';
+      if (c.includes('steering') || c.includes('suspension') || c.includes('control arm') || c.includes('shock') || c.includes('strut')) return 'maintenance';
+      if (c.includes('body') || c.includes('door') || c.includes('latch') || c.includes('hood') || c.includes('trunk') || c.includes('hatch')) return 'cosmetic';
+      if (c.includes('seat') || c.includes('interior') || c.includes('upholstery')) return 'interior';
+      if (c.includes('ev') || c.includes('hybrid') || c.includes('battery pack') || c.includes('electric motor')) return 'ev_hybrid';
+      return 'maintenance';
+    }
+
     function renderRecallsList(recallData) {
       const listEl = document.getElementById('recalls-list');
       const emptyEl = document.getElementById('recalls-empty');
@@ -93,45 +121,67 @@
         const statusClass = isAcknowledged ? 'addressed' : 'active';
         const cardClass = isAcknowledged ? 'acknowledged' : 'unacknowledged';
         const statusText = isAcknowledged ? 'Addressed' : 'Active';
-        
+        const severityBadge = getSeverityBadge(recall.severity);
+        const hasAiSummary = !!recall.ai_summary;
+
         return `
-          <div class="recall-card ${cardClass}">
+          <div class="recall-card ${cardClass}" data-recall-id="${recall.id}" data-vehicle-id="${escapeHtml(currentRecallsVehicleId)}">
             <div class="recall-card-header">
-              <div>
-                <div class="recall-card-title">${escapeHtml(recall.component || 'Unknown Component')}</div>
+              <div style="flex:1;min-width:0;">
+                <div class="recall-card-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  ${escapeHtml(recall.component || 'Unknown Component')}
+                  ${severityBadge || '<span class="recall-ai-loading" style="font-size:0.72rem;color:var(--text-muted);">Analyzing...</span>'}
+                </div>
                 <div class="recall-card-campaign">Campaign #${escapeHtml(recall.nhtsa_campaign_number || 'N/A')}</div>
               </div>
               <span class="recall-card-status ${statusClass}">${statusText}</span>
             </div>
             
-            ${recall.summary ? `
+            ${hasAiSummary ? `
               <div class="recall-card-section">
-                <div class="recall-card-section-title">Summary</div>
-                <div class="recall-card-section-content">${escapeHtml(recall.summary)}</div>
+                <div class="recall-card-section-title" style="display:flex;align-items:center;gap:6px;">
+                  ${mccIcon('info', 14)} Plain-Language Summary
+                </div>
+                <div class="recall-card-section-content recall-ai-summary-text">${escapeHtml(recall.ai_summary)}</div>
+                ${(recall.summary || recall.consequence || recall.remedy) ? `
+                  <details style="margin-top:8px;">
+                    <summary style="font-size:0.78rem;color:var(--text-muted);cursor:pointer;user-select:none;">View original NHTSA text</summary>
+                    <div style="margin-top:8px;padding:10px;background:var(--bg-tertiary,var(--card-bg));border-radius:6px;font-size:0.78rem;">
+                      ${recall.summary ? `<p style="margin:0 0 6px;"><strong>Summary:</strong> ${escapeHtml(recall.summary)}</p>` : ''}
+                      ${recall.consequence ? `<p style="margin:0 0 6px;color:var(--accent-red);"><strong>Consequence:</strong> ${escapeHtml(recall.consequence)}</p>` : ''}
+                      ${recall.remedy ? `<p style="margin:0;"><strong>Remedy:</strong> ${escapeHtml(recall.remedy)}</p>` : ''}
+                    </div>
+                  </details>
+                ` : ''}
               </div>
-            ` : ''}
-            
-            ${recall.consequence ? `
-              <div class="recall-card-section">
-                <div class="recall-card-section-title">${mccIcon('alert-triangle', 16)} Consequence</div>
-                <div class="recall-card-section-content" style="color: var(--accent-red);">${escapeHtml(recall.consequence)}</div>
-              </div>
-            ` : ''}
-            
-            ${recall.remedy ? `
-              <div class="recall-card-section">
-                <div class="recall-card-section-title">${mccIcon('check-circle', 14)} Remedy</div>
-                <div class="recall-card-section-content">${escapeHtml(recall.remedy)}</div>
-              </div>
-            ` : ''}
+            ` : `
+              ${recall.summary ? `
+                <div class="recall-card-section">
+                  <div class="recall-card-section-title">Summary</div>
+                  <div class="recall-card-section-content">${escapeHtml(recall.summary)}</div>
+                </div>
+              ` : ''}
+              ${recall.consequence ? `
+                <div class="recall-card-section">
+                  <div class="recall-card-section-title">${mccIcon('alert-triangle', 16)} Consequence</div>
+                  <div class="recall-card-section-content" style="color: var(--accent-red);">${escapeHtml(recall.consequence)}</div>
+                </div>
+              ` : ''}
+              ${recall.remedy ? `
+                <div class="recall-card-section">
+                  <div class="recall-card-section-title">${mccIcon('check-circle', 14)} Remedy</div>
+                  <div class="recall-card-section-content">${escapeHtml(recall.remedy)}</div>
+                </div>
+              ` : ''}
+            `}
             
             ${!isAcknowledged ? `
               <div class="recall-card-actions">
                 <button class="btn btn-success btn-sm" onclick="acknowledgeRecall('${recall.id}')">
                   ${mccIcon('check-circle', 14)} Mark as Addressed
                 </button>
-                <button class="btn btn-secondary btn-sm" onclick="createPackageForVehicle('${currentRecallsVehicleId}')">
-                  ${mccIcon('package', 16)} Request Service
+                <button class="btn btn-primary btn-sm recall-book-btn">
+                  ${mccIcon('tool', 14)} Book Recall Fix
                 </button>
               </div>
             ` : `
@@ -144,6 +194,91 @@
           </div>
         `;
       }).join('');
+
+      listEl.querySelectorAll('.recall-book-btn').forEach(btn => {
+        const card = btn.closest('[data-recall-id]');
+        if (!card) return;
+        const rid = card.getAttribute('data-recall-id');
+        const vid = card.getAttribute('data-vehicle-id');
+        const recall = recallData.recalls.find(r => r.id === rid);
+        if (!recall) return;
+        btn.addEventListener('click', () => {
+          const title = `Recall: ${recall.component || 'Safety Recall'} (Campaign #${recall.nhtsa_campaign_number || 'N/A'})`;
+          const description = recall.ai_summary || recall.summary || '';
+          const category = mapRecallComponentToCategory(recall.component);
+          createPackageForVehicle(vid, { title, description, category });
+        });
+      });
+
+      enrichUnanalyzedRecalls(recallData.recalls);
+    }
+
+    async function enrichUnanalyzedRecalls(recalls) {
+      if (!recalls || recalls.length === 0) return;
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const needsEnrich = recalls.filter(r => !r.ai_summary);
+      for (const recall of needsEnrich) {
+        try {
+          const resp = await fetch(`${apiBase}/api/recalls/${recall.id}/enrich`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+          });
+          if (!resp.ok) continue;
+          const data = await resp.json();
+          if (!data.success) continue;
+          const recallId = recall.id;
+          const card = document.querySelector(`[data-recall-id="${recallId}"]`);
+          if (!card) continue;
+          if (data.severity) {
+            const titleEl = card.querySelector('.recall-card-title');
+            if (titleEl) {
+              const loadingEl = titleEl.querySelector('.recall-ai-loading');
+              if (loadingEl) loadingEl.remove();
+              titleEl.insertAdjacentHTML('beforeend', getSeverityBadge(data.severity));
+            }
+          }
+          if (data.ai_summary) {
+            const existingSections = card.querySelectorAll('.recall-card-section');
+            existingSections.forEach(s => s.remove());
+            const actionsEl = card.querySelector('.recall-card-actions');
+            const recallRecord = recalls.find(r => r.id === recallId);
+            const hasOriginal = recallRecord && (recallRecord.summary || recallRecord.consequence || recallRecord.remedy);
+            const originalHtml = hasOriginal ? `
+              <details style="margin-top:8px;">
+                <summary style="font-size:0.78rem;color:var(--text-muted);cursor:pointer;user-select:none;">View original NHTSA text</summary>
+                <div style="margin-top:8px;padding:10px;background:var(--bg-tertiary,var(--card-bg));border-radius:6px;font-size:0.78rem;">
+                  ${recallRecord.summary ? `<p style="margin:0 0 6px;"><strong>Summary:</strong> ${escapeHtml(recallRecord.summary)}</p>` : ''}
+                  ${recallRecord.consequence ? `<p style="margin:0 0 6px;color:var(--accent-red);"><strong>Consequence:</strong> ${escapeHtml(recallRecord.consequence)}</p>` : ''}
+                  ${recallRecord.remedy ? `<p style="margin:0;"><strong>Remedy:</strong> ${escapeHtml(recallRecord.remedy)}</p>` : ''}
+                </div>
+              </details>` : '';
+            const summaryHtml = `
+              <div class="recall-card-section">
+                <div class="recall-card-section-title" style="display:flex;align-items:center;gap:6px;">${mccIcon('info', 14)} Plain-Language Summary</div>
+                <div class="recall-card-section-content recall-ai-summary-text">${escapeHtml(data.ai_summary)}</div>
+                ${originalHtml}
+              </div>`;
+            if (actionsEl) {
+              actionsEl.insertAdjacentHTML('beforebegin', summaryHtml);
+            }
+            const bookBtn = card.querySelector('.recall-book-btn');
+            if (bookBtn && recallRecord) {
+              bookBtn.removeEventListener('click', bookBtn._bookHandler);
+              bookBtn._bookHandler = () => {
+                const title = `Recall: ${recallRecord.component || 'Safety Recall'} (Campaign #${recallRecord.nhtsa_campaign_number || 'N/A'})`;
+                const description = data.ai_summary || recallRecord.summary || '';
+                const category = mapRecallComponentToCategory(recallRecord.component);
+                createPackageForVehicle(card.getAttribute('data-vehicle-id'), { title, description, category });
+              };
+              bookBtn.addEventListener('click', bookBtn._bookHandler);
+            }
+          }
+        } catch {
+        }
+      }
     }
     
     async function acknowledgeRecall(recallId) {
@@ -718,6 +853,7 @@
         }
       }
     }
+    window.submitInsuranceExtraction = submitInsuranceExtraction;
     
     function showInsuranceReviewUI(extracted, vehicleId, uploadResult) {
       const extractionStatus = document.getElementById('insurance-extraction-status');
@@ -743,7 +879,7 @@
         ${iField('Expiration Date', extracted.expirationDate, 'ins-review-expiration')}
         
         <div style="display:flex;gap:10px;margin-top:14px;">
-          <button class="btn btn-gold" onclick="confirmInsuranceExtraction('${vehicleId}', '${uploadResult?.url || ''}', '${uploadResult?.storagePath || ''}')" style="flex:1;">
+          <button id="ins-review-confirm" class="btn btn-gold" onclick="confirmInsuranceExtraction('${vehicleId}', '${uploadResult?.url || ''}', '${uploadResult?.storagePath || ''}')" style="flex:1;">
             ${mccIcon('check-circle', 14)} Confirm & Save
           </button>
           <button class="btn btn-secondary" onclick="document.getElementById('insurance-extraction-status').style.display='none'" style="flex:0 0 auto;">
@@ -751,8 +887,9 @@
           </button>
         </div>
       `;
-      
+      extractionStatus.style.display = 'block';
     }
+    window.showInsuranceReviewUI = showInsuranceReviewUI;
     
     async function confirmInsuranceExtraction(vehicleId, fileUrl, storagePath) {
       const provider = document.getElementById('ins-review-provider')?.value?.trim() || '';
@@ -783,6 +920,7 @@
       document.getElementById('insurance-extraction-status').style.display = 'none';
       showToast('Fields pre-filled! Review and save the document.', 'success');
     }
+    window.confirmInsuranceExtraction = confirmInsuranceExtraction;
     
     // ========== END INSURANCE CARD EXTRACTION ==========
 
@@ -1788,120 +1926,3 @@
       updateStats();
     }
 
-    // ========== AI PREDICTIVE MAINTENANCE ==========
-
-    let vehiclePredictions = {};
-
-    async function fetchVehiclePredictions(vehicleId) {
-      try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) return null;
-
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/vehicle/${vehicleId}/predictions`, {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        });
-        const data = await response.json();
-
-        if (data.success) {
-          vehiclePredictions[vehicleId] = {
-            health_summary: data.health_summary,
-            predictions: data.predictions || [],
-            generated_at: data.generated_at,
-            cached: data.cached
-          };
-          return vehiclePredictions[vehicleId];
-        }
-        return null;
-      } catch (error) {
-        console.error('Error fetching predictions:', error);
-        return null;
-      }
-    }
-
-    async function loadAllVehiclePredictions() {
-      if (_predictionsLoading) return;
-      _predictionsLoading = true;
-      try {
-        const promises = vehicles.map(v => fetchVehiclePredictions(v.id));
-        await Promise.allSettled(promises);
-        renderVehicles();
-      } finally {
-        _predictionsLoading = false;
-      }
-    }
-
-    function getUrgencyConfig(urgency) {
-      const configs = {
-        critical: { label: 'Critical', color: 'var(--accent-red)', bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.3)', icon: 'alert-triangle' },
-        soon: { label: 'Soon', color: 'var(--accent-orange)', bg: 'var(--accent-orange-soft)', border: 'rgba(251,146,60,0.3)', icon: 'clock' },
-        upcoming: { label: 'Upcoming', color: 'var(--accent-blue)', bg: 'var(--accent-blue-soft)', border: 'rgba(56,189,248,0.3)', icon: 'calendar' },
-        routine: { label: 'Routine', color: 'var(--accent-green)', bg: 'var(--accent-green-soft)', border: 'rgba(52,211,153,0.3)', icon: 'check-circle' }
-      };
-      return configs[urgency] || configs.routine;
-    }
-
-    function renderPredictionsSection(vehicleId) {
-      const predData = vehiclePredictions[vehicleId];
-      if (!predData) {
-        return `<div class="predictions-section predictions-loading" id="predictions-${vehicleId}">
-          <div class="predictions-header">
-            <span class="predictions-title">${mccIcon('cpu', 14)} AI Maintenance Forecast</span>
-          </div>
-          <div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.82rem;">Analyzing vehicle data...</div>
-        </div>`;
-      }
-
-      const predictions = predData.predictions || [];
-      if (predictions.length === 0 && !predData.health_summary) {
-        return '';
-      }
-
-      let predictionsHtml = predictions.slice(0, 4).map((p, idx) => {
-        const config = getUrgencyConfig(p.urgency);
-        const milesText = p.estimated_miles ? `~${p.estimated_miles.toLocaleString()} mi` : '';
-        const dateText = p.estimated_date ? new Date(p.estimated_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
-        const timeInfo = [milesText, dateText].filter(Boolean).join(' · ');
-
-        return `<div class="prediction-item" data-vehicle-id="${vehicleId}" data-prediction-idx="${idx}" data-prediction-title="${escapeHtml(p.title)}">
-          <div class="prediction-item-left">
-            <span class="prediction-urgency-dot" style="background:${config.color};"></span>
-            <div>
-              <div class="prediction-item-title">${escapeHtml(p.title)}</div>
-              <div class="prediction-item-meta">${timeInfo ? timeInfo + ' — ' : ''}${escapeHtml(p.reason)}</div>
-            </div>
-          </div>
-          <div class="prediction-item-right">
-            <span class="prediction-urgency-badge" style="background:${config.bg};color:${config.color};border:1px solid ${config.border};">${config.label}</span>
-            <span class="prediction-action-icon">${mccIcon('package', 14)}</span>
-          </div>
-        </div>`;
-      }).join('');
-
-      return `<div class="predictions-section" id="predictions-${vehicleId}">
-        <div class="predictions-header">
-          <span class="predictions-title">${mccIcon('cpu', 14)} AI Maintenance Forecast</span>
-        </div>
-        ${predData.health_summary ? `<div class="predictions-health-summary">${escapeHtml(predData.health_summary)}</div>` : ''}
-        ${predictionsHtml ? `<div class="predictions-list">${predictionsHtml}</div>` : ''}
-      </div>`;
-    }
-
-    function createPackageFromPrediction(vehicleId, title) {
-      openPackageModal();
-      document.getElementById('p-vehicle').value = vehicleId;
-      document.getElementById('p-title').value = title;
-    }
-
-    let _predictionsLoading = false;
-
-    document.addEventListener('click', function(e) {
-      const item = e.target.closest('.prediction-item[data-vehicle-id]');
-      if (item) {
-        const vehicleId = item.getAttribute('data-vehicle-id');
-        const title = item.getAttribute('data-prediction-title') || '';
-        const decoded = document.createElement('textarea');
-        decoded.innerHTML = title;
-        createPackageFromPrediction(vehicleId, decoded.value);
-      }
-    });

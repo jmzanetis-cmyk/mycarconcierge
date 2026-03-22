@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS outreach_leads (
     company TEXT,
     location TEXT,
     source TEXT,
-    status TEXT DEFAULT 'new' CHECK (status IN ('new', 'queued', 'contacted', 'responded', 'converted', 'unsubscribed', 'bounced', 'dead')),
+    status TEXT DEFAULT 'new' CHECK (status IN ('new', 'queued', 'contacted', 'clicked', 'responded', 'converted', 'unsubscribed', 'bounced', 'dead')),
     notes TEXT,
     metadata JSONB DEFAULT '{}',
     crm_profile_id UUID,
@@ -310,7 +310,7 @@ UPDATE engine_state SET is_running = TRUE, auto_send = TRUE WHERE id = 1;
 DO $$
 BEGIN
   ALTER TABLE outreach_leads DROP CONSTRAINT IF EXISTS outreach_leads_status_check;
-  ALTER TABLE outreach_leads ADD CONSTRAINT outreach_leads_status_check CHECK (status IN ('new', 'queued', 'contacted', 'responded', 'converted', 'unsubscribed', 'bounced', 'dead'));
+  ALTER TABLE outreach_leads ADD CONSTRAINT outreach_leads_status_check CHECK (status IN ('new', 'queued', 'contacted', 'clicked', 'responded', 'converted', 'unsubscribed', 'bounced', 'dead'));
   ALTER TABLE outreach_messages DROP CONSTRAINT IF EXISTS outreach_messages_status_check;
   ALTER TABLE outreach_messages ADD CONSTRAINT outreach_messages_status_check CHECK (status IN ('draft', 'approved', 'sent', 'failed', 'skipped', 'bounced'));
 EXCEPTION WHEN OTHERS THEN NULL;

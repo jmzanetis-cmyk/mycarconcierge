@@ -4,7 +4,7 @@
   "description": "My Car Concierge - Automotive Service Marketplace",
   "main": "electron/main.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node www/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "electron": "electron .",
     "electron:dev": "electron .",
@@ -13,6 +13,8 @@
     "cap:android": "npx cap open android",
     "cap:ios": "npx cap open ios",
     "ios:run": "bash scripts/ios-run.sh",
+    "ios:prep": "bash scripts/ios-build.sh",
+    "ios:store": "bash build-ios.sh",
     "build:mac": "npm run build:www && electron-builder --mac",
     "build:win": "npm run build:www && electron-builder --win",
     "build:linux": "npm run build:www && electron-builder --linux",

@@ -1,6 +1,7 @@
 (function() {
   const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
   let outreachState = {};
+  let apolloConfig = null;
   let outreachLeads = [];
   let outreachPipeline = [];
   let outreachMessages = [];
@@ -78,9 +79,15 @@
 
   async function loadEngineState() {
     try {
-      const res = await outreachFetch('/engine-state');
-      const data = await res.json();
-      outreachState = data;
+      const [stateRes, apolloRes] = await Promise.all([
+        outreachFetch('/engine-state'),
+        fetch(`${apiBase}/api/admin/apollo/config`, { headers: getOutreachHeaders() })
+      ]);
+      outreachState = await stateRes.json();
+      if (apolloRes.ok) {
+        const apolloData = await apolloRes.json();
+        if (apolloData.config) apolloConfig = apolloData.config;
+      }
       renderEngineControlPanel();
     } catch (e) {
       console.error('Failed to load engine state:', e);
@@ -97,6 +104,27 @@
     const pausedText = outreachState.paused_at ? `Paused ${timeAgo(new Date(outreachState.paused_at))}${outreachState.paused_by ? ' by ' + outreachState.paused_by : ''}` : '';
 
     const autoSendOn = outreachState.auto_send !== false;
+    const apolloConfigLoaded = apolloConfig !== null;
+    const apolloEnabled = apolloConfig?.enabled === true;
+    const apolloLastRun = apolloConfig?.last_run ? (() => {
+      const mins = Math.round((Date.now() - new Date(apolloConfig.last_run)) / 60000);
+      return mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
+    })() : null;
+    const apolloBadgeHtml = !apolloConfigLoaded
+      ? `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--text-muted);font-size:12px;font-weight:600;">
+           <span style="width:7px;height:7px;border-radius:50%;background:var(--text-muted);display:inline-block;"></span>
+           Discovery — unavailable
+         </span>`
+      : apolloEnabled
+      ? `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;font-size:12px;font-weight:600;">
+           <span style="width:7px;height:7px;border-radius:50%;background:#4ade80;display:inline-block;"></span>
+           Discovery Active${apolloLastRun ? ' · last run ' + apolloLastRun : ''}
+         </span>`
+      : `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#f87171;font-size:12px;font-weight:600;">
+           <span style="width:7px;height:7px;border-radius:50%;background:#f87171;display:inline-block;"></span>
+           Discovery Disabled
+         </span>
+         <button class="btn btn-sm" onclick="window.enableApolloDiscovery()" style="font-size:12px;padding:3px 10px;background:var(--accent-blue,#2563eb);color:#fff;border:none;">Enable Discovery</button>`;
     panel.innerHTML = `
       <div class="engine-status-row">
         <div class="engine-status-left">
@@ -123,6 +151,11 @@
           <button class="btn btn-sm" onclick="window.enrichLeadContacts()" title="Enrich Lead Contacts" style="background:var(--accent-gold,#d4a843);color:#000"><span class="icon-inline" data-icon="search"></span> Enrich Contacts</button>
         </div>
       </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-top:4px;background:var(--bg-elevated,#1a1f2e);border-radius:8px;border:1px solid var(--border-subtle,#2a3040);flex-wrap:wrap;">
+        <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Apollo Discovery:</span>
+        ${apolloBadgeHtml}
+        ${apolloConfigLoaded && !apolloEnabled ? `<span style="font-size:11px;color:var(--text-muted);margin-left:4px;">After enabling, also add <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">&#123;&#123;ref_link&#125;&#125;</code> as a variable in your <a href="https://app.instantly.ai/app/campaigns" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue,#2563eb);text-decoration:underline;">Instantly.ai campaign template</a> to track provider signups.</span>` : ''}
+      </div>
     `;
     if (typeof initInlineIcons !== 'undefined') initInlineIcons(panel);
   }
@@ -144,6 +177,36 @@
     }
     await loadEngineState();
   }
+
+  async function enableApolloDiscovery() {
+    if (typeof showToast !== 'undefined') showToast('Enabling Apollo discovery...');
+    try {
+      const saveRes = await fetch(`${apiBase}/api/admin/apollo/config`, {
+        method: 'POST',
+        headers: getOutreachHeaders(),
+        body: JSON.stringify({ enabled: true })
+      });
+      if (!saveRes.ok) throw new Error('Failed to save config');
+      apolloConfig = (await saveRes.json()).config || { ...apolloConfig, enabled: true };
+      renderEngineControlPanel();
+      if (typeof showToast !== 'undefined') showToast('Apollo discovery enabled — starting first cycle...');
+      const cycleRes = await fetch(`${apiBase}/api/admin/apollo/cycle`, {
+        method: 'POST',
+        headers: getOutreachHeaders(),
+        body: JSON.stringify({ force: true })
+      });
+      const cycleData = await cycleRes.json();
+      if (cycleData.success) {
+        if (typeof showToast !== 'undefined') showToast(`Discovery cycle complete: ${cycleData.added || 0} leads added`);
+      } else if (cycleData.skipped) {
+        if (typeof showToast !== 'undefined') showToast(`Cycle skipped: ${cycleData.reason}`, 'warning');
+      }
+      await loadEngineState();
+    } catch (e) {
+      if (typeof showToast !== 'undefined') showToast('Failed to enable Apollo: ' + e.message, 'error');
+    }
+  }
+  window.enableApolloDiscovery = enableApolloDiscovery;
 
   async function runManualCycle() {
     if (typeof showToast !== 'undefined') showToast('Running engine cycle...');
@@ -252,6 +315,8 @@
       case 'campaigns': await loadCampaigns(); break;
       case 'analytics': await loadAnalytics(); break;
       case 'instantly': await loadInstantlyCampaigns(); break;
+      case 'apollo': await loadApolloStatus(); break;
+      case 'conversions': await loadConversions(); break;
     }
   }
 
@@ -362,6 +427,23 @@
     if (area) area.style.display = area.style.display === 'none' ? 'block' : 'none';
   }
 
+  function setCardApprovedBadge(msgId, sent) {
+    const card = document.getElementById('queue-card-' + msgId);
+    if (!card) return;
+    const btnArea = card.querySelector('.queue-actions');
+    const badge = document.createElement('span');
+    if (sent) {
+      badge.style.cssText = 'display:inline-block;padding:4px 10px;border-radius:12px;background:#16a34a;color:#fff;font-size:12px;font-weight:600;';
+      badge.textContent = '✓ Sent';
+    } else {
+      badge.style.cssText = 'display:inline-block;padding:4px 10px;border-radius:12px;background:#2563eb;color:#fff;font-size:12px;font-weight:600;';
+      badge.textContent = '✓ Approved — awaiting flush';
+    }
+    if (!btnArea) return;
+    btnArea.innerHTML = '';
+    btnArea.appendChild(badge);
+  }
+
   async function saveEditedMessage(msgId) {
     const body = document.getElementById('edit-body-' + msgId)?.value;
     const subject = document.getElementById('edit-subject-' + msgId)?.value;
@@ -370,16 +452,14 @@
       body: JSON.stringify({ message_id: msgId, edited_body: body, edited_subject: subject })
     });
     if (res.ok) {
-      const sendRes = await outreachFetch('/messages/send', {
-        method: 'POST',
-        body: JSON.stringify({ message_id: msgId })
-      });
-      const sendData = await sendRes.json();
-      if (sendData.success) {
-        if (typeof showToast !== 'undefined') showToast('Message edited, approved, and sent');
+      const data = await res.json();
+      setCardApprovedBadge(msgId, data.sent);
+      if (data.sent) {
+        if (typeof showToast !== 'undefined') showToast('Message edited, approved — sending now');
       } else {
-        if (typeof showToast !== 'undefined') showToast('Approved but send failed: ' + (sendData.error || 'Unknown error'), 'error');
+        if (typeof showToast !== 'undefined') showToast('Approved — awaiting flush', 'info');
       }
+      await new Promise(r => setTimeout(r, 1200));
       await loadMessageQueue();
       await loadEngineState();
     }
@@ -394,16 +474,12 @@
       if (typeof showToast !== 'undefined') showToast('Failed to approve message', 'error');
       return;
     }
-    const sendRes = await outreachFetch('/messages/send', {
-      method: 'POST',
-      body: JSON.stringify({ message_id: msgId })
-    });
-    const sendData = await sendRes.json();
-    if (sendData.success) {
-      if (typeof showToast !== 'undefined') showToast('Message approved and sent');
-      document.getElementById('queue-card-' + msgId)?.remove();
+    const data = await res.json();
+    setCardApprovedBadge(msgId, data.sent);
+    if (data.sent) {
+      if (typeof showToast !== 'undefined') showToast('Message approved — sending now');
     } else {
-      if (typeof showToast !== 'undefined') showToast('Approved but send failed: ' + (sendData.error || 'Unknown'), 'error');
+      if (typeof showToast !== 'undefined') showToast('Approved — awaiting flush', 'info');
     }
     await loadEngineState();
   }
@@ -422,22 +498,22 @@
     if (!confirm(`Approve and send all ${outreachMessages.length} messages?`)) return;
     const ids = outreachMessages.map(m => m.id);
 
-    await outreachFetch('/messages/approve-bulk', {
+    const bulkRes = await outreachFetch('/messages/approve-bulk', {
       method: 'POST',
       body: JSON.stringify({ message_ids: ids })
     });
+    const bulkData = await bulkRes.json();
+    const autoSent = bulkData.sent || 0;
+    const approved = bulkData.approved || ids.length;
 
-    let sent = 0;
-    for (const id of ids) {
-      const sendRes = await outreachFetch('/messages/send', {
-        method: 'POST',
-        body: JSON.stringify({ message_id: id })
-      });
-      const data = await sendRes.json();
-      if (data.success) sent++;
+    if (autoSent > 0 && autoSent >= approved) {
+      if (typeof showToast !== 'undefined') showToast(`${autoSent} of ${approved} messages approved and sent`);
+    } else if (autoSent > 0) {
+      if (typeof showToast !== 'undefined') showToast(`${autoSent} sent immediately; ${approved - autoSent} approved — awaiting flush (investor messages require manual review)`);
+    } else {
+      if (typeof showToast !== 'undefined') showToast(`${approved} messages approved — awaiting flush`);
     }
 
-    if (typeof showToast !== 'undefined') showToast(`${sent} of ${ids.length} messages sent`);
     await loadMessageQueue();
     await loadEngineState();
   }
@@ -1302,6 +1378,432 @@
   window.clearAndRedraft = clearAndRedraft;
   window.runCycleNow = runCycleNow;
   window.toggleOutreachEngine = toggleOutreachEngine;
+  // ========== APOLLO.IO ==========
+
+  async function loadApolloStatus() {
+    const bar = document.getElementById('apollo-status-bar');
+    if (!bar) return;
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const [statusResp, cfgResp] = await Promise.all([
+        fetch('/api/admin/apollo/status', { headers: { 'x-admin-password': adminPassword } }),
+        fetch('/api/admin/apollo/config', { headers: { 'x-admin-password': adminPassword } })
+      ]);
+      const data = await statusResp.json();
+      if (statusResp.ok && cfgResp.ok) {
+        const cfgData = await cfgResp.json();
+        if (cfgData.config) populateApolloConfigForm(cfgData.config);
+      }
+      loadNotificationConfig();
+      if (!statusResp.ok || data.error) {
+        bar.innerHTML = `<span style="color:var(--error);font-size:0.88rem;">⚠️ ${data.error || 'Apollo API error'}</span><button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Retry</button>`;
+        return;
+      }
+      const minute = data.minute_requests_left !== undefined ? `<span style="margin-right:16px;"><strong>${data.minute_requests_left ?? '—'}</strong> <span style="color:var(--text-muted)">req/min left</span></span>` : '';
+      const hour = data.hour_requests_left !== undefined ? `<span style="margin-right:16px;"><strong>${data.hour_requests_left ?? '—'}</strong> <span style="color:var(--text-muted)">req/hr left</span></span>` : '';
+      const credits = data.credits !== undefined ? `<span style="margin-right:16px;"><strong>${data.credits ?? '—'}</strong> <span style="color:var(--text-muted)">export credits</span></span>` : '';
+      const total = data.total_results ? `<span style="margin-right:16px;color:var(--text-muted);font-size:0.82rem;">${data.total_results.toLocaleString()} auto contacts in DB</span>` : '';
+      bar.innerHTML = `
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+          <span style="margin-right:12px;font-weight:700;color:var(--success);">✓ Apollo Connected</span>
+          ${minute}${hour}${credits}${total}
+        </div>
+        <button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>`;
+    } catch (e) {
+      bar.innerHTML = `<span style="color:var(--error);font-size:0.88rem;">⚠️ Could not reach Apollo API</span><button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Retry</button>`;
+    }
+  }
+
+  function populateApolloConfigForm(cfg) {
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+    const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+    const setOpt = (id, val) => { const el = document.getElementById(id); if (el) el.value = String(val); };
+
+    setChk('apollo-auto-toggle', cfg.enabled);
+    setOpt('apollo-auto-interval', cfg.interval_hours || 6);
+    setOpt('apollo-auto-per-page', cfg.per_page || 25);
+    setChk('apollo-auto-enrich-toggle', cfg.auto_enrich !== false);
+    setOpt('apollo-auto-enrich-batch', cfg.enrich_batch || 15);
+    setChk('apollo-instantly-auto-sync', cfg.instantly_auto_sync);
+    setVal('apollo-instantly-provider-campaign-id', cfg.instantly_provider_campaign_id);
+    setVal('apollo-auto-cities', (cfg.cities || []).join('\n'));
+    setVal('apollo-auto-titles', (cfg.titles || []).join(', '));
+    setVal('apollo-auto-industries', (cfg.industries || []).join(', '));
+
+    const badge = document.getElementById('apollo-auto-badge');
+    if (badge) badge.style.display = cfg.enabled ? 'inline' : 'none';
+
+    const lastRunLabel = document.getElementById('apollo-last-run-label');
+    if (lastRunLabel) {
+      if (cfg.last_run) {
+        const ago = Math.round((Date.now() - new Date(cfg.last_run)) / 60000);
+        lastRunLabel.textContent = ago < 60 ? `Last run ${ago}m ago` : `Last run ${Math.round(ago/60)}h ago`;
+      } else {
+        lastRunLabel.textContent = 'Never run';
+      }
+    }
+  }
+
+  async function loadApolloConfig() {
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/config', { headers: { 'x-admin-password': adminPassword } });
+      const data = await resp.json();
+      if (data.config) populateApolloConfigForm(data.config);
+    } catch (e) {
+      console.error('loadApolloConfig error:', e);
+    }
+  }
+
+  async function saveApolloConfig() {
+    const statusEl = document.getElementById('apollo-config-save-status');
+    if (statusEl) statusEl.textContent = 'Saving...';
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const citiesRaw = document.getElementById('apollo-auto-cities')?.value || '';
+      const titlesRaw = document.getElementById('apollo-auto-titles')?.value || '';
+      const industriesRaw = document.getElementById('apollo-auto-industries')?.value || '';
+
+      const payload = {
+        enabled: document.getElementById('apollo-auto-toggle')?.checked || false,
+        interval_hours: parseInt(document.getElementById('apollo-auto-interval')?.value || '6'),
+        per_page: parseInt(document.getElementById('apollo-auto-per-page')?.value || '25'),
+        auto_enrich: document.getElementById('apollo-auto-enrich-toggle')?.checked !== false,
+        enrich_batch: parseInt(document.getElementById('apollo-auto-enrich-batch')?.value || '15'),
+        instantly_auto_sync: document.getElementById('apollo-instantly-auto-sync')?.checked || false,
+        instantly_provider_campaign_id: document.getElementById('apollo-instantly-provider-campaign-id')?.value?.trim() || null,
+        cities: citiesRaw.split('\n').map(s => s.trim()).filter(Boolean),
+        titles: titlesRaw.split(',').map(s => s.trim()).filter(Boolean),
+        industries: industriesRaw.split(',').map(s => s.trim()).filter(Boolean)
+      };
+
+      const resp = await fetch('/api/admin/apollo/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      if (!resp.ok || data.error) throw new Error(data.error || 'Save failed');
+
+      if (statusEl) { statusEl.style.color = 'var(--success)'; statusEl.textContent = '✓ Settings saved'; setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000); }
+      const badge = document.getElementById('apollo-auto-badge');
+      if (badge) badge.style.display = payload.enabled ? 'inline' : 'none';
+    } catch (e) {
+      if (statusEl) { statusEl.style.color = 'var(--error)'; statusEl.textContent = '✗ ' + e.message; }
+    }
+  }
+
+  async function loadNotificationConfig() {
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/outreach/notification-config', { headers: { 'x-admin-password': adminPassword } });
+      if (resp.ok) {
+        const data = await resp.json();
+        const phoneEl = document.getElementById('admin-notification-phone');
+        if (phoneEl && data.admin_notification_phone) phoneEl.value = data.admin_notification_phone;
+        const digestEl = document.getElementById('digest-hour-utc');
+        if (digestEl && typeof data.digest_hour_utc === 'number') digestEl.value = String(data.digest_hour_utc);
+      }
+    } catch (e) {
+      console.error('loadNotificationConfig error:', e);
+    }
+  }
+
+  async function saveNotificationConfig() {
+    const statusEl = document.getElementById('notification-config-status');
+    const phoneEl = document.getElementById('admin-notification-phone');
+    const digestEl = document.getElementById('digest-hour-utc');
+    if (!phoneEl) return;
+    if (statusEl) statusEl.textContent = 'Saving...';
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const payload = { admin_notification_phone: phoneEl.value.trim() || null };
+      if (digestEl) payload.digest_hour_utc = parseInt(digestEl.value, 10);
+      const resp = await fetch('/api/admin/outreach/notification-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.success) throw new Error('Save failed');
+      if (statusEl) {
+        statusEl.style.color = 'var(--success)';
+        statusEl.textContent = '✓ Saved';
+        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+      }
+    } catch (e) {
+      if (statusEl) { statusEl.style.color = 'var(--error)'; statusEl.textContent = '✗ ' + e.message; }
+    }
+  }
+  window.saveNotificationConfig = saveNotificationConfig;
+
+  async function runApolloCycle() {
+    const btn = document.getElementById('apollo-run-now-btn');
+    const resultEl = document.getElementById('apollo-cycle-result');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span style="opacity:0.7">Running...</span>'; }
+    if (resultEl) resultEl.style.display = 'none';
+
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/cycle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify({ force: true })
+      });
+      const data = await resp.json();
+
+      if (resultEl) {
+        resultEl.style.display = 'block';
+        if (data.success) {
+          resultEl.style.background = 'rgba(34,197,94,0.1)';
+          resultEl.style.border = '1px solid rgba(34,197,94,0.3)';
+          const wfDrafted = data.wefunder_drafted > 0 ? ` · <strong style="color:var(--accent-gold);">⚡ ${data.wefunder_drafted} Wefunder draft${data.wefunder_drafted !== 1 ? 's' : ''} queued</strong>` : '';
+          resultEl.innerHTML = `<strong style="color:var(--success);">✓ Cycle complete</strong> — City: <strong>${data.city}</strong> · Found: <strong>${data.search_results}</strong> · Added: <strong>${data.added}</strong> · Enriched: <strong>${data.enriched}</strong>${wfDrafted}`;
+        } else if (data.skipped) {
+          resultEl.style.background = 'var(--bg-elevated)';
+          resultEl.style.border = '1px solid var(--border-subtle)';
+          resultEl.innerHTML = `Skipped: ${data.reason}`;
+        } else {
+          resultEl.style.background = 'rgba(239,68,68,0.1)';
+          resultEl.style.border = '1px solid rgba(239,68,68,0.3)';
+          resultEl.innerHTML = `<span style="color:var(--error);">Error: ${data.error || 'Unknown error'}</span>`;
+        }
+      }
+      if (data.success) await loadApolloStatus();
+    } catch (e) {
+      if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = `<span style="color:var(--error);">Error: ${e.message}</span>`; }
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="play"></span> Run Now'; if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn); }
+    }
+  }
+
+  async function apolloSearch() {
+    const btn = document.getElementById('apollo-search-btn');
+    const resultEl = document.getElementById('apollo-search-result');
+    const listEl = document.getElementById('apollo-results-list');
+    const countEl = document.getElementById('apollo-results-count');
+
+    const citiesRaw = document.getElementById('apollo-cities')?.value || '';
+    const cities = citiesRaw.split('\n').map(s => s.trim()).filter(Boolean);
+    const titlesRaw = document.getElementById('apollo-titles')?.value || '';
+    const titles = titlesRaw.split(',').map(s => s.trim()).filter(Boolean);
+    const industriesRaw = document.getElementById('apollo-industries')?.value || '';
+    const industries = industriesRaw.split(',').map(s => s.trim()).filter(Boolean);
+    const per_page = parseInt(document.getElementById('apollo-per-page')?.value || '25');
+    const page = parseInt(document.getElementById('apollo-page')?.value || '1');
+    const enrich = document.getElementById('apollo-enrich')?.checked || false;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span style="opacity:0.7">Searching Apollo...</span>';
+    resultEl.style.display = 'none';
+    listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">Searching Apollo database...</div>';
+
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify({ cities, titles, industries, per_page, page, enrich })
+      });
+      const data = await resp.json();
+
+      if (!resp.ok || data.error) {
+        listEl.innerHTML = `<div style="padding:20px;color:var(--error);text-align:center;">${data.error || 'Search failed'}</div>`;
+        return;
+      }
+
+      const withEmail = data.results.filter(r => r.has_email);
+      resultEl.style.display = 'block';
+      resultEl.style.background = 'var(--bg-elevated)';
+      resultEl.style.border = '1px solid var(--border-subtle)';
+      resultEl.innerHTML = `
+        <div style="display:flex;gap:20px;flex-wrap:wrap;">
+          <span>Found: <strong>${data.found}</strong></span>
+          <span style="color:var(--success);">With email: <strong>${data.with_email}</strong></span>
+          <span style="color:var(--text-muted);">Added to leads: <strong>${data.added}</strong></span>
+          ${data.pagination?.total_entries ? `<span style="color:var(--text-muted);">Total available: <strong>${data.pagination.total_entries.toLocaleString()}</strong></span>` : ''}
+        </div>`;
+
+      countEl.textContent = `${data.results.length} results`;
+
+      if (data.results.length === 0) {
+        listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">No results found. Try different cities or titles.</div>';
+      } else {
+        listEl.innerHTML = `
+          <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border-subtle);text-align:left;">
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Name</th>
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Title</th>
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Company</th>
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Location</th>
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.results.map(r => `
+                <tr style="border-bottom:1px solid var(--border-subtle);">
+                  <td style="padding:10px 12px;">${r.name || '<span style="color:var(--text-muted)">—</span>'}</td>
+                  <td style="padding:10px 12px;color:var(--text-secondary);">${r.title || '—'}</td>
+                  <td style="padding:10px 12px;">${r.company || '—'}</td>
+                  <td style="padding:10px 12px;color:var(--text-secondary);">${r.location || '—'}</td>
+                  <td style="padding:10px 12px;">${r.has_email ? `<span style="color:var(--success);font-weight:600;">${r.email}</span>` : '<span style="color:var(--text-muted);font-size:0.82rem;">Needs enrichment</span>'}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`;
+      }
+    } catch (e) {
+      listEl.innerHTML = `<div style="padding:20px;color:var(--error);text-align:center;">Error: ${e.message}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="icon-inline" data-icon="search"></span> Search Apollo';
+      if (typeof initInlineIcons !== 'undefined') initInlineIcons(document.getElementById('apollo-search-btn'));
+    }
+  }
+
+  async function checkApolloEnrichQueue() {
+    const statsEl = document.getElementById('apollo-enrich-stats');
+    if (!statsEl) return;
+    statsEl.innerHTML = 'Checking...';
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/outreach/leads?per_page=1&no_email=true', { headers: { 'x-admin-password': adminPassword } });
+      const data = await resp.json();
+      const count = data.total || data.count || (Array.isArray(data) ? data.length : 0);
+      statsEl.innerHTML = `<span style="font-size:1rem;font-weight:700;color:var(--accent-gold);">${count.toLocaleString()}</span> leads without email addresses — ready to enrich via Apollo.`;
+    } catch (e) {
+      statsEl.innerHTML = `<span style="color:var(--error);">Error checking queue: ${e.message}</span>`;
+    }
+  }
+
+  async function apolloEnrich() {
+    const btn = document.getElementById('apollo-enrich-btn');
+    const resultEl = document.getElementById('apollo-enrich-result');
+    const limit = parseInt(document.getElementById('apollo-enrich-limit')?.value || '10');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span style="opacity:0.7">Enriching leads...</span>';
+    resultEl.style.display = 'none';
+
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify({ limit })
+      });
+      const data = await resp.json();
+
+      resultEl.style.display = 'block';
+      if (!resp.ok || data.error) {
+        resultEl.style.background = 'rgba(239,68,68,0.1)';
+        resultEl.innerHTML = `<span style="color:var(--error);">Error: ${data.error}</span>`;
+        return;
+      }
+
+      resultEl.style.background = 'var(--bg-elevated)';
+      resultEl.style.border = '1px solid var(--border-subtle)';
+      resultEl.innerHTML = `
+        <div style="margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap;">
+          <span>Processed: <strong>${data.total}</strong></span>
+          <span style="color:var(--success);">Enriched: <strong>${data.enriched}</strong></span>
+          <span style="color:var(--text-muted);">No match: <strong>${data.failed}</strong></span>
+        </div>
+        ${data.details?.length ? `<div style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;">
+          ${data.details.map(d => `<div style="display:flex;gap:8px;align-items:center;"><span style="color:${d.status==='enriched'?'var(--success)':'var(--text-muted)'};">●</span><span>${d.lead}</span>${d.email?`<span style="color:var(--success);margin-left:auto;font-size:0.82rem;">${d.email}</span>`:''}</div>`).join('')}
+        </div>` : ''}`;
+
+      if (data.enriched > 0 && typeof showToast !== 'undefined') showToast(`Enriched ${data.enriched} leads with verified emails!`, 'success');
+      await checkApolloEnrichQueue();
+    } catch (e) {
+      resultEl.style.display = 'block';
+      resultEl.style.background = 'rgba(239,68,68,0.1)';
+      resultEl.innerHTML = `<span style="color:var(--error);">Error: ${e.message}</span>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Enrich Leads Now';
+      if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn);
+    }
+  }
+
+  async function loadWefunderBlastStatus() {
+    const statsEl = document.getElementById('wefunder-blast-stats');
+    if (statsEl) statsEl.innerHTML = '<span style="color:var(--text-muted);font-size:0.88rem;">Checking...</span>';
+    try {
+      const resp = await fetch('/api/admin/outreach/wefunder-blast/status', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || ''}` }
+      });
+      const data = await resp.json();
+      if (statsEl) {
+        if (data.eligible === 0) {
+          statsEl.innerHTML = `<span style="color:var(--text-muted);font-size:0.88rem;">No eligible investor leads at this time. Total investor leads: <strong>${data.total_investor_leads}</strong> · Recently contacted (30d): <strong>${data.recently_contacted}</strong></span>`;
+        } else {
+          statsEl.innerHTML = `
+            <div style="display:flex;gap:20px;flex-wrap:wrap;">
+              <div><div style="font-size:1.6rem;font-weight:700;color:var(--accent-gold,#c9a84c);">${data.eligible}</div><div style="font-size:0.78rem;color:var(--text-muted);">Eligible to contact</div></div>
+              <div><div style="font-size:1.6rem;font-weight:700;">${data.total_investor_leads}</div><div style="font-size:0.78rem;color:var(--text-muted);">Total investor leads</div></div>
+              <div><div style="font-size:1.6rem;font-weight:700;">${data.recently_contacted}</div><div style="font-size:0.78rem;color:var(--text-muted);">Contacted last 30d</div></div>
+            </div>`;
+        }
+      }
+    } catch (e) {
+      if (statsEl) statsEl.innerHTML = `<span style="color:var(--error);font-size:0.88rem;">Error: ${e.message}</span>`;
+    }
+  }
+
+  async function launchWefunderBlast(dryRun = false) {
+    const resultEl = document.getElementById('wefunder-blast-result');
+    const btn = document.getElementById('wefunder-blast-btn');
+    if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = dryRun ? 'Checking eligible leads...' : 'Generating drafts — this may take a minute...'; }
+    if (!dryRun && btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
+    try {
+      const resp = await fetch('/api/admin/outreach/wefunder-blast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token') || ''}` },
+        body: JSON.stringify({ dry_run: dryRun })
+      });
+      const data = await resp.json();
+      if (resultEl) {
+        if (dryRun) {
+          const sampleHtml = (data.sample_leads || []).map(l =>
+            `<div style="padding:6px 0;border-bottom:1px solid var(--border-subtle);font-size:0.85rem;"><strong>${l.name || 'Unknown'}</strong>${l.company ? ` · ${l.company}` : ''}<span style="color:var(--text-muted);margin-left:8px;">${l.email || ''}</span>${l.location ? ` · ${l.location}` : ''}</div>`
+          ).join('');
+          resultEl.innerHTML = `
+            <strong style="color:var(--accent-gold,#c9a84c);">Dry Run Preview</strong><br>
+            <span>${data.eligible} eligible investor leads would receive a Wefunder campaign email.</span>
+            <span style="color:var(--text-muted);"> (${data.recently_contacted} skipped — contacted in last 30 days)</span>
+            ${sampleHtml ? `<div style="margin-top:10px;"><strong style="font-size:0.82rem;">Sample leads:</strong>${sampleHtml}</div>` : ''}`;
+        } else if (data.started) {
+          resultEl.innerHTML = `<span style="color:var(--success);">✓ Blast started — drafting emails for <strong>${data.eligible}</strong> investor leads in the background. Check the <strong>Messages</strong> tab in a minute to review and approve before they send.</span>`;
+          loadWefunderBlastStatus();
+        } else if (data.drafted !== undefined) {
+          resultEl.innerHTML = `<span style="color:var(--success);">✓ ${data.drafted} drafts created.</span> ${data.failed ? `<span style="color:var(--error);">${data.failed} failed.</span>` : ''} <br>${data.message || ''}`;
+          loadWefunderBlastStatus();
+        } else {
+          resultEl.innerHTML = `<span style="color:var(--text-muted);">${data.message || JSON.stringify(data)}</span>`;
+        }
+      }
+    } catch (e) {
+      if (resultEl) resultEl.innerHTML = `<span style="color:var(--error);">Error: ${e.message}</span>`;
+    } finally {
+      if (!dryRun && btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Generate Wefunder Blast Drafts';
+        if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn);
+      }
+    }
+  }
+
+  window.loadApolloStatus = loadApolloStatus;
+  window.loadApolloConfig = loadApolloConfig;
+  window.saveApolloConfig = saveApolloConfig;
+  window.runApolloCycle = runApolloCycle;
+  window.apolloSearch = apolloSearch;
+  window.checkApolloEnrichQueue = checkApolloEnrichQueue;
+  window.apolloEnrich = apolloEnrich;
+  window.loadWefunderBlastStatus = loadWefunderBlastStatus;
+  window.launchWefunderBlast = launchWefunderBlast;
+
   window.runManualCycle = runManualCycle;
   window.showEngineSettings = showEngineSettings;
   window.saveEngineSettings = saveEngineSettings;
@@ -1328,4 +1830,116 @@
   window.pauseCampaign = pauseCampaign;
   window.resumeCampaign = resumeCampaign;
   window.renderOutreachHistoryPanel = renderOutreachHistoryPanel;
+  window.loadConversions = loadConversions;
+
+  async function loadConversions() {
+    try {
+      const res = await outreachFetch('/conversions');
+      if (!res.ok) throw new Error('Failed to load conversions');
+      const data = await res.json();
+
+      const totalClicks = data.total_clicks || 0;
+      const totalConverted = data.total_converted || 0;
+      const warmLeads = data.warm_leads || 0;
+      const sentCount = data.total_sent || 0;
+      const clickRate = sentCount > 0 ? ((totalClicks / sentCount) * 100).toFixed(1) + '%' : '0%';
+
+      const elById = id => document.getElementById(id);
+      const set = (id, v) => { const el = elById(id); if (el) el.textContent = v; };
+
+      set('conv-total-clicks', totalClicks.toLocaleString());
+      set('conv-total-converted', totalConverted.toLocaleString());
+      set('conv-warm-leads', warmLeads.toLocaleString());
+      set('conv-click-rate', clickRate);
+
+      const cityEl = elById('conv-by-city');
+      if (cityEl) {
+        const cities = data.by_city || [];
+        if (cities.length) {
+          cityEl.innerHTML = cities.map(c => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
+              <span style="font-size:0.9rem;">${escapeHtml(c.city || 'Unknown')}</span>
+              <div style="text-align:right;">
+                <span style="font-weight:700;color:var(--accent-teal);">${c.count} clicks</span>
+                ${c.ctr && c.ctr !== 'N/A' ? `<span style="font-size:0.78rem;color:var(--text-muted);margin-left:6px;">(${escapeHtml(c.ctr)} CTR)</span>` : ''}
+              </div>
+            </div>`).join('');
+        } else {
+          cityEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No click data yet</p>';
+        }
+      }
+
+      const typeEl = elById('conv-by-type');
+      if (typeEl) {
+        const types = data.by_type || [];
+        if (types.length) {
+          typeEl.innerHTML = types.map(t => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
+              <span style="font-size:0.9rem;text-transform:capitalize;">${escapeHtml(t.type || 'unknown')}</span>
+              <span style="font-weight:700;color:var(--accent-blue);">${t.count}</span>
+            </div>`).join('');
+        } else {
+          typeEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No click data yet</p>';
+        }
+      }
+
+      const campaignEl = elById('conv-by-campaign');
+      if (campaignEl) {
+        const campaigns = data.by_campaign || [];
+        if (campaigns.length) {
+          campaignEl.innerHTML = `
+            <table style="width:100%;">
+              <thead>
+                <tr><th>Campaign</th><th style="text-align:right;">Sent</th><th style="text-align:right;">Clicks</th><th style="text-align:right;">CTR</th></tr>
+              </thead>
+              <tbody>
+                ${campaigns.map(c => `
+                  <tr>
+                    <td style="font-size:0.88rem;">${escapeHtml(c.campaign_name || 'No Campaign')}</td>
+                    <td style="text-align:right;font-size:0.88rem;color:var(--text-muted);">${c.sent}</td>
+                    <td style="text-align:right;font-weight:700;color:var(--accent-teal);">${c.clicks}</td>
+                    <td style="text-align:right;font-size:0.85rem;color:var(--accent-blue);">${escapeHtml(c.ctr)}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>`;
+        } else {
+          campaignEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No campaign data yet</p>';
+        }
+      }
+
+      const warmEl = elById('conv-warm-list');
+      if (warmEl) {
+        const warm = data.warm_list || [];
+        if (warm.length) {
+          warmEl.innerHTML = `
+            <table style="width:100%;">
+              <thead>
+                <tr>
+                  <th>Name</th><th>Company / City</th><th>Email</th><th>Clicked</th><th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${warm.map(l => `
+                  <tr>
+                    <td><strong>${escapeHtml(l.name || '—')}</strong></td>
+                    <td style="color:var(--text-muted);font-size:0.85rem;">${escapeHtml(l.location || l.company || '—')}</td>
+                    <td style="font-size:0.85rem;">${escapeHtml(l.email || '—')}</td>
+                    <td style="font-size:0.82rem;color:var(--text-muted);">${l.days_since_click != null ? l.days_since_click + 'd ago' : '—'}</td>
+                    <td>
+                      <button class="btn btn-sm btn-primary" onclick="window.draftForLead && window.draftForLead('${l.lead_id}')" title="Send follow-up">Follow Up</button>
+                    </td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>`;
+        } else {
+          warmEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No warm leads yet — ref clicks will appear here once providers open your emails.</p>';
+        }
+        if (typeof initInlineIcons !== 'undefined') initInlineIcons(warmEl);
+      }
+    } catch (e) {
+      console.error('[Conversions] Load error:', e);
+      const warmEl = document.getElementById('conv-warm-list');
+      if (warmEl) warmEl.innerHTML = `<p style="color:var(--accent-red);text-align:center;padding:20px;">Failed to load conversion data: ${e.message}</p>`;
+    }
+  }
 })();

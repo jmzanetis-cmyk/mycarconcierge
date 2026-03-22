@@ -91,7 +91,7 @@
       const container = document.getElementById('report-evidence-list');
       container.innerHTML = reportEvidenceFiles.map((file, i) => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-input);border-radius:var(--radius-sm);margin-bottom:4px;">
-          <span style="font-size:0.85rem;">📎 ${file.name}</span>
+          <span style="font-size:0.85rem;">${mccIcon('paperclip', 16)} ${file.name}</span>
           <button onclick="removeReportEvidence(${i})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;">×</button>
         </div>
       `).join('');
@@ -162,7 +162,7 @@
     }
 
     // ========== NOTIFICATIONS ==========
-    let notifications = [];
+    // notifications array is declared in members-core.js (shared global scope)
 
     async function loadNotifications() {
       try {
@@ -201,20 +201,20 @@
       const container = document.getElementById('notifications-list');
       
       if (!notifications.length) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔔</div><p>No notifications yet.</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('bell', 40) + '</div><p>No notifications yet.</p></div>';
         return;
       }
 
       const notifIcons = {
-        'bid_received': '💰',
-        'bid_accepted': '✅',
-        'work_started': '🔧',
-        'work_completed': '✓',
-        'message_received': '💬',
-        'payment_released': '💳',
-        'upsell_request': '⚠️',
-        'reminder': '🔔',
-        'default': '📢'
+        'bid_received': mccIcon('dollar-sign', 16),
+        'bid_accepted': mccIcon('check-circle', 16),
+        'work_started': mccIcon('wrench', 16),
+        'work_completed': mccIcon('check', 16),
+        'message_received': mccIcon('message-square', 16),
+        'payment_released': mccIcon('credit-card', 16),
+        'upsell_request': mccIcon('alert-triangle', 16),
+        'reminder': mccIcon('bell', 16),
+        'default': mccIcon('bell', 16)
       };
 
       container.innerHTML = notifications.map(n => {
@@ -335,6 +335,7 @@
         loadEvidenceTimeline(packageId);
         loadKeyExchangeTimeline(packageId);
         loadInspectionReport(packageId);
+        loadSlotBookingStatus(packageId);
         
         if (driverLocationRefreshInterval) {
           clearInterval(driverLocationRefreshInterval);
@@ -358,7 +359,7 @@
         container.innerHTML = `
           <div style="padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px dashed var(--border-subtle);">
             <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;">
-              <span style="font-size:1.5rem;display:block;margin-bottom:8px;">📅</span>
+              <span style="font-size:1.5rem;display:block;margin-bottom:8px;">${mccIcon('calendar', 24)}</span>
               No appointment scheduled yet. Propose a time to get started.
             </div>
           </div>
@@ -367,10 +368,10 @@
       }
 
       const statusColors = {
-        'proposed': { bg: 'var(--accent-gold-soft)', color: 'var(--accent-gold)', icon: '⏳' },
-        'counter_proposed': { bg: 'var(--accent-orange-soft)', color: 'var(--accent-orange)', icon: '🔄' },
-        'confirmed': { bg: 'var(--accent-green-soft)', color: 'var(--accent-green)', icon: '✓' },
-        'cancelled': { bg: 'rgba(239, 95, 95, 0.15)', color: 'var(--accent-red)', icon: '✗' }
+        'proposed': { bg: 'var(--accent-gold-soft)', color: 'var(--accent-gold)', icon: mccIcon('clock', 16) },
+        'counter_proposed': { bg: 'var(--accent-orange-soft)', color: 'var(--accent-orange)', icon: mccIcon('refresh-cw', 16) },
+        'confirmed': { bg: 'var(--accent-green-soft)', color: 'var(--accent-green)', icon: mccIcon('check', 16) },
+        'cancelled': { bg: 'rgba(239, 95, 95, 0.15)', color: 'var(--accent-red)', icon: mccIcon('x', 16) }
       };
       const status = statusColors[appointment.status] || statusColors['proposed'];
       const date = new Date(appointment.proposed_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
@@ -386,34 +387,117 @@
                 ${status.icon} ${appointment.status.replace('_', ' ').toUpperCase()}
               </div>
               <div style="font-size:1.1rem;font-weight:600;color:var(--text-primary);">${date}</div>
-              <div style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">🕐 ${timeStart} - ${timeEnd}</div>
+              <div style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">${mccIcon('clock', 16)} ${timeStart} - ${timeEnd}</div>
             </div>
             ${appointment.estimated_days ? `<div style="text-align:right;"><div style="font-size:0.8rem;color:var(--text-muted);">Est. Duration</div><div style="font-weight:600;color:var(--text-primary);">${appointment.estimated_days} day(s)</div></div>` : ''}
           </div>
           ${appointment.notes ? `<div style="font-size:0.85rem;color:var(--text-secondary);padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);margin-bottom:12px;">"${appointment.notes}"</div>` : ''}
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             ${appointment.status === 'proposed' && !proposedByMe ? `
-              <button class="btn btn-success btn-sm" onclick="confirmScheduleFromMember('${appointment.id}', '${packageId}')">✓ Confirm Time</button>
-              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromMember('${appointment.id}', '${packageId}')">🔄 Propose Different Time</button>
+              <button class="btn btn-success btn-sm" onclick="confirmScheduleFromMember('${appointment.id}', '${packageId}')">${mccIcon('check', 16)} Confirm Time</button>
+              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromMember('${appointment.id}', '${packageId}')">${mccIcon('refresh-cw', 16)} Propose Different Time</button>
             ` : ''}
             ${appointment.status === 'counter_proposed' && proposedByMe ? `
-              <button class="btn btn-success btn-sm" onclick="acceptCounterProposalFromMember('${appointment.id}', '${packageId}')">✓ Accept New Time</button>
-              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromMember('${appointment.id}', '${packageId}')">🔄 Counter Again</button>
+              <button class="btn btn-success btn-sm" onclick="acceptCounterProposalFromMember('${appointment.id}', '${packageId}')">${mccIcon('check', 16)} Accept New Time</button>
+              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromMember('${appointment.id}', '${packageId}')">${mccIcon('refresh-cw', 16)} Counter Again</button>
             ` : ''}
             ${appointment.status === 'proposed' && proposedByMe ? `
-              <div style="font-size:0.85rem;color:var(--text-muted);">⏳ Waiting for provider response...</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);">${mccIcon('clock', 16)} Waiting for provider response...</div>
             ` : ''}
             ${appointment.status === 'counter_proposed' && !proposedByMe ? `
-              <button class="btn btn-success btn-sm" onclick="acceptCounterProposalFromMember('${appointment.id}', '${packageId}')">✓ Accept New Time</button>
-              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromMember('${appointment.id}', '${packageId}')">🔄 Counter Again</button>
+              <button class="btn btn-success btn-sm" onclick="acceptCounterProposalFromMember('${appointment.id}', '${packageId}')">${mccIcon('check', 16)} Accept New Time</button>
+              <button class="btn btn-secondary btn-sm" onclick="proposeNewTimeFromMember('${appointment.id}', '${packageId}')">${mccIcon('refresh-cw', 16)} Counter Again</button>
             ` : ''}
             ${appointment.status === 'confirmed' ? `
-              <div style="font-size:0.85rem;color:var(--accent-green);">✓ Appointment confirmed! See you on ${date}.</div>
+              <div style="font-size:0.85rem;color:var(--accent-green);">${mccIcon('check', 16)} Appointment confirmed! See you on ${date}.</div>
             ` : ''}
           </div>
         </div>
       `;
     }
+
+    async function loadSlotBookingStatus(packageId) {
+      const container = document.getElementById(`slot-booking-status-${packageId}`);
+      if (!container) return;
+
+      try {
+        const token = localStorage.getItem('authToken') || localStorage.getItem('sb-token');
+        if (!token) return;
+
+        const resp = await fetch(`/api/booking/package/${packageId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!resp.ok) {
+          container.style.display = 'none';
+          return;
+        }
+
+        const result = await resp.json();
+        const b = result.booking;
+
+        if (!b || b.status !== 'booked') {
+          container.style.display = 'none';
+          return;
+        }
+
+        container.style.display = 'block';
+        const date = new Date(b.booking_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const startFormatted = formatSlotTime(b.start_time);
+        const endFormatted = formatSlotTime(b.end_time);
+        container.innerHTML = `
+          <div style="padding:14px;background:var(--accent-green-soft, rgba(74,222,128,0.1));border-radius:var(--radius-md);border:1px solid var(--accent-green, #4ade80)30;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <div style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--accent-green, #4ade80);margin-bottom:4px;">
+                  ${mccIcon('check', 14)} SLOT BOOKED
+                </div>
+                <div style="font-weight:600;color:var(--text-primary);">${date}</div>
+                <div style="font-size:0.9rem;color:var(--text-secondary);margin-top:2px;">${mccIcon('clock', 14)} ${startFormatted} - ${endFormatted} (${b.duration_minutes} min)</div>
+              </div>
+              <button class="btn btn-sm" style="background:rgba(239,95,95,0.15);color:var(--accent-red);border:1px solid var(--accent-red)30;" onclick="cancelSlotBooking('${b.id}', '${packageId}')">
+                ${mccIcon('x', 14)} Cancel
+              </button>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        console.error('Error loading slot booking status:', err);
+        container.style.display = 'none';
+      }
+    }
+
+    function formatSlotTime(timeStr) {
+      if (!timeStr) return 'TBD';
+      const [h, m] = timeStr.split(':').map(Number);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const hour12 = h % 12 || 12;
+      return `${hour12}:${String(m).padStart(2, '0')} ${ampm}`;
+    }
+
+    window.cancelSlotBooking = async function(bookingId, packageId) {
+      if (!confirm('Cancel this booked time slot?')) return;
+      try {
+        const token = localStorage.getItem('authToken') || localStorage.getItem('sb-token');
+        const resp = await fetch('/api/booking/cancel', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ booking_id: bookingId, cancel_reason: 'Cancelled by member' })
+        });
+        if (resp.ok) {
+          showToast('Booking cancelled', 'success');
+          loadSlotBookingStatus(packageId);
+        } else {
+          const err = await resp.json();
+          showToast(err.error || 'Failed to cancel booking', 'error');
+        }
+      } catch (err) {
+        showToast('Error cancelling booking', 'error');
+      }
+    };
 
     // Render transfer status with timeline
     function renderTransferStatus(packageId, transfer) {
@@ -424,7 +508,7 @@
         container.innerHTML = `
           <div style="padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px dashed var(--border-subtle);">
             <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;">
-              <span style="font-size:1.5rem;display:block;margin-bottom:8px;">🚗</span>
+              <span style="font-size:1.5rem;display:block;margin-bottom:8px;">${mccIcon('car', 24)}</span>
               No transfer method set. Configure how your vehicle will be delivered.
             </div>
           </div>
@@ -433,21 +517,21 @@
       }
 
       const transferTypes = {
-        'member_dropoff': { label: 'Member Drop-off', icon: '🚗', desc: 'You bring the vehicle to the provider' },
-        'provider_pickup': { label: 'Provider Pickup', icon: '🚚', desc: 'Provider picks up from your location' },
-        'mobile_service': { label: 'Mobile Service', icon: '🔧', desc: 'Service performed at your location' },
-        'towing': { label: 'Towing Required', icon: '🚜', desc: 'Vehicle will be towed' }
+        'member_dropoff': { label: 'Member Drop-off', icon: mccIcon('car', 16), desc: 'You bring the vehicle to the provider' },
+        'provider_pickup': { label: 'Provider Pickup', icon: mccIcon('truck', 16), desc: 'Provider picks up from your location' },
+        'mobile_service': { label: 'Mobile Service', icon: mccIcon('wrench', 16), desc: 'Service performed at your location' },
+        'towing': { label: 'Towing Required', icon: mccIcon('truck', 16), desc: 'Vehicle will be towed' }
       };
       const type = transferTypes[transfer.transfer_type] || transferTypes['member_dropoff'];
 
       const statusSteps = [
-        { key: 'pending', label: 'Pending', icon: '⏳' },
-        { key: 'scheduled', label: 'Scheduled', icon: '📅' },
-        { key: 'in_transit_to_provider', label: 'In Transit', icon: '🚗' },
-        { key: 'with_provider', label: 'With Provider', icon: '🔧' },
-        { key: 'work_complete', label: 'Work Complete', icon: '✅' },
-        { key: 'in_transit_to_member', label: 'Returning', icon: '🏠' },
-        { key: 'returned', label: 'Returned', icon: '✓' }
+        { key: 'pending', label: 'Pending', icon: mccIcon('clock', 16) },
+        { key: 'scheduled', label: 'Scheduled', icon: mccIcon('calendar', 16) },
+        { key: 'in_transit_to_provider', label: 'In Transit', icon: mccIcon('car', 16) },
+        { key: 'with_provider', label: 'With Provider', icon: mccIcon('wrench', 16) },
+        { key: 'work_complete', label: 'Work Complete', icon: mccIcon('check-circle', 16) },
+        { key: 'in_transit_to_member', label: 'Returning', icon: mccIcon('home', 16) },
+        { key: 'returned', label: 'Returned', icon: mccIcon('check', 16) }
       ];
 
       const currentStepIndex = statusSteps.findIndex(s => s.key === transfer.vehicle_status) || 0;
@@ -481,15 +565,15 @@
             </div>
           </div>
 
-          ${transfer.pickup_address ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">📍 Pickup: ${transfer.pickup_address}</div>` : ''}
-          ${transfer.return_address ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">🏠 Return: ${transfer.return_address}</div>` : ''}
+          ${transfer.pickup_address ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('map-pin', 16)} Pickup: ${transfer.pickup_address}</div>` : ''}
+          ${transfer.return_address ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('home', 16)} Return: ${transfer.return_address}</div>` : ''}
           
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
             ${transfer.vehicle_status === 'pending' || transfer.vehicle_status === 'scheduled' ? `
-              <button class="btn btn-success btn-sm" onclick="confirmVehicleHandoff('${transfer.id}', '${packageId}', 'pickup')">✓ Confirm Handoff</button>
+              <button class="btn btn-success btn-sm" onclick="confirmVehicleHandoff('${transfer.id}', '${packageId}', 'pickup')">${mccIcon('check', 16)} Confirm Handoff</button>
             ` : ''}
             ${transfer.vehicle_status === 'in_transit_to_member' || transfer.vehicle_status === 'work_complete' ? `
-              <button class="btn btn-success btn-sm" onclick="confirmVehicleHandoff('${transfer.id}', '${packageId}', 'return')">✓ Confirm Vehicle Received</button>
+              <button class="btn btn-success btn-sm" onclick="confirmVehicleHandoff('${transfer.id}', '${packageId}', 'return')">${mccIcon('check', 16)} Confirm Vehicle Received</button>
             ` : ''}
           </div>
         </div>
@@ -509,11 +593,11 @@
         const mapsUrl = `https://www.google.com/maps?q=${driverLocation.lat},${driverLocation.lng}`;
         const driverName = driverLocation.profiles?.business_name || driverLocation.profiles?.provider_alias || driverLocation.profiles?.full_name || 'Driver';
         const trackingTypeLabels = {
-          'pickup': '🚗 Picking up your vehicle',
-          'return': '🚗 Returning your vehicle',
-          'in_transit': '🚗 In transit'
+          'pickup': mccIcon('car', 16) + ' Picking up your vehicle',
+          'return': mccIcon('car', 16) + ' Returning your vehicle',
+          'in_transit': mccIcon('car', 16) + ' In transit'
         };
-        const trackingLabel = trackingTypeLabels[driverLocation.tracking_type] || '🚗 Driver is on the way';
+        const trackingLabel = trackingTypeLabels[driverLocation.tracking_type] || mccIcon('car', 16) + ' Driver is on the way';
         
         html += `
           <div style="padding:16px;background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);border-radius:var(--radius-md);margin-bottom:12px;">
@@ -529,7 +613,7 @@
               <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                 <div>
                   <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px;">
-                    📍 Live Location
+                    ${mccIcon('map-pin', 16)} Live Location
                   </div>
                   <div style="font-size:0.95rem;color:var(--text-primary);margin-bottom:4px;">
                     ${parseFloat(driverLocation.lat).toFixed(6)}, ${parseFloat(driverLocation.lng).toFixed(6)}
@@ -538,7 +622,7 @@
                   <div style="font-size:0.8rem;color:var(--text-muted);">Last update: ${updatedAt} on ${updatedDate}</div>
                 </div>
                 <a href="${mapsUrl}" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;">
-                  🗺️ Open Maps
+                  ${mccIcon('map-pin', 16)} Open Maps
                 </a>
               </div>
             </div>
@@ -566,14 +650,14 @@
             <div style="display:flex;justify-content:space-between;align-items:flex-start;">
               <div>
                 <div style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;color:${isFromMe ? 'var(--accent-green)' : 'var(--accent-blue)'};margin-bottom:4px;">
-                  ${isFromMe ? '📍 Your Shared Location' : '📍 Provider Location (One-time)'}
+                  ${isFromMe ? mccIcon('map-pin', 16) + ' Your Shared Location' : mccIcon('map-pin', 16) + ' Provider Location (One-time)'}
                 </div>
                 ${locationShare.address ? `<div style="font-size:0.95rem;color:var(--text-primary);margin-bottom:4px;">${locationShare.address}</div>` : ''}
                 <div style="font-size:0.8rem;color:var(--text-muted);">Shared: ${sharedAt}</div>
                 ${locationShare.message ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:8px;">"${locationShare.message}"</div>` : ''}
               </div>
               <a href="${mapsUrl}" target="_blank" class="btn btn-sm btn-secondary" style="text-decoration:none;">
-                🗺️ Open Maps
+                ${mccIcon('map-pin', 16)} Open Maps
               </a>
             </div>
           </div>
@@ -594,10 +678,10 @@
     // ========== MEMBER EVIDENCE FUNCTIONS ==========
 
     const memberEvidenceTypeLabels = {
-      'pre_pickup': { label: 'Pre-Pickup Condition', icon: '🔵', color: 'var(--accent-blue)' },
-      'arrival_shop': { label: 'Arrival at Shop', icon: '🟠', color: '#f59e0b' },
-      'post_service': { label: 'Post-Service Condition', icon: '🟢', color: 'var(--accent-green)' },
-      'return': { label: 'Vehicle Return', icon: '🟣', color: '#a855f7' }
+      'pre_pickup': { label: 'Pre-Pickup Condition', icon: mccIcon('circle-alert', 16), color: 'var(--accent-blue)' },
+      'arrival_shop': { label: 'Arrival at Shop', icon: mccIcon('alert-triangle', 16), color: '#f59e0b' },
+      'post_service': { label: 'Post-Service Condition', icon: mccIcon('check-circle', 16), color: 'var(--accent-green)' },
+      'return': { label: 'Vehicle Return', icon: mccIcon('circle-alert', 16), color: '#a855f7' }
     };
 
     async function loadEvidenceTimeline(packageId) {
@@ -611,7 +695,7 @@
           container.innerHTML = `
             <div style="padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px dashed var(--border-subtle);">
               <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;">
-                <span style="font-size:1.5rem;display:block;margin-bottom:8px;">📸</span>
+                <span style="font-size:1.5rem;display:block;margin-bottom:8px;">${mccIcon('camera', 24)}</span>
                 No evidence captured yet. Document your vehicle condition before pickup.
               </div>
             </div>
@@ -620,7 +704,7 @@
         }
 
         const timeline = evidence.map(e => {
-          const typeInfo = memberEvidenceTypeLabels[e.type] || { label: e.type, icon: '📷', color: 'var(--text-muted)' };
+          const typeInfo = memberEvidenceTypeLabels[e.type] || { label: e.type, icon: mccIcon('camera', 16), color: 'var(--text-muted)' };
           const photoGrid = e.photos?.length ? `
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
               ${e.photos.slice(0, 4).map(url => `
@@ -643,8 +727,8 @@
                   <div style="font-size:0.75rem;color:var(--text-muted);">by ${createdByName}</div>
                 </div>
                 <div style="display:flex;gap:16px;font-size:0.82rem;color:var(--text-secondary);margin-bottom:4px;">
-                  <span>🔢 ${e.odometer?.toLocaleString() || 'N/A'} mi</span>
-                  <span>⛽ ${e.fuel_level || 'N/A'}</span>
+                  <span>${mccIcon('bar-chart', 16)} ${e.odometer?.toLocaleString() || 'N/A'} mi</span>
+                  <span>${mccIcon('fuel', 16)} ${e.fuel_level || 'N/A'}</span>
                 </div>
                 ${e.exterior_condition ? `<div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;"><strong>Exterior:</strong> ${e.exterior_condition}</div>` : ''}
                 ${e.interior_condition ? `<div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;"><strong>Interior:</strong> ${e.interior_condition}</div>` : ''}
@@ -680,7 +764,7 @@
           container.innerHTML = `
             <div style="padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px dashed var(--border-subtle);">
               <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;">
-                <span style="font-size:1.5rem;display:block;margin-bottom:8px;">🔑</span>
+                <span style="font-size:1.5rem;display:block;margin-bottom:8px;">${mccIcon('key', 24)}</span>
                 No key exchanges recorded yet. The provider will document key handoffs at pickup and return.
               </div>
             </div>
@@ -689,12 +773,12 @@
         }
 
         const stageInfo = {
-          'pickup': { label: 'Pickup Key Exchange', icon: '🔵', color: 'var(--accent-blue)' },
-          'return': { label: 'Return Key Exchange', icon: '🟣', color: '#a855f7' }
+          'pickup': { label: 'Pickup Key Exchange', icon: mccIcon('circle-alert', 16), color: 'var(--accent-blue)' },
+          'return': { label: 'Return Key Exchange', icon: mccIcon('circle-alert', 16), color: '#a855f7' }
         };
 
         const timeline = keyExchanges.map(exchange => {
-          const info = stageInfo[exchange.stage] || { label: exchange.stage, icon: '🔑', color: 'var(--text-muted)' };
+          const info = stageInfo[exchange.stage] || { label: exchange.stage, icon: mccIcon('key', 16), color: 'var(--text-muted)' };
           
           const photoGrid = `
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
@@ -719,7 +803,7 @@
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
                   <div style="display:flex;align-items:center;gap:8px;">
                     <span style="font-weight:600;font-size:0.9rem;">${info.label}</span>
-                    ${exchange.verified_at ? `<span style="background:var(--accent-green);color:#fff;padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:600;">✓ Verified</span>` : ''}
+                    ${exchange.verified_at ? `<span style="background:var(--accent-green);color:#fff;padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:600;">${mccIcon('check', 16)} Verified</span>` : ''}
                   </div>
                   <div style="font-size:0.75rem;color:var(--text-muted);">by Provider</div>
                 </div>
@@ -794,7 +878,7 @@
       btn.disabled = true;
       btn.textContent = 'Uploading...';
       statusDiv.style.display = 'block';
-      statusDiv.innerHTML = '<p style="color:var(--accent-gold);">📤 Uploading photos...</p>';
+      statusDiv.innerHTML = '<p style="color:var(--accent-gold);">' + mccIcon('send', 16) + ' Uploading photos...</p>';
 
       try {
         const photoUrls = await window.uploadEvidencePhotos(packageId, files);
@@ -802,7 +886,7 @@
           throw new Error('Failed to upload photos');
         }
 
-        statusDiv.innerHTML = '<p style="color:var(--accent-gold);">📝 Saving evidence...</p>';
+        statusDiv.innerHTML = '<p style="color:var(--accent-gold);">' + mccIcon('file-text', 16) + ' Saving evidence...</p>';
 
         let lat = null, lng = null;
         try {
@@ -829,7 +913,7 @@
 
         if (error) throw error;
 
-        statusDiv.innerHTML = '<p style="color:var(--accent-green);">✅ Evidence saved successfully!</p>';
+        statusDiv.innerHTML = '<p style="color:var(--accent-green);">' + mccIcon('check-circle', 16) + ' Evidence saved successfully!</p>';
         showToast('Vehicle condition documented!', 'success');
 
         setTimeout(() => {
@@ -838,34 +922,309 @@
         }, 1500);
       } catch (err) {
         console.error('Evidence submission error:', err);
-        statusDiv.innerHTML = `<p style="color:var(--accent-red);">❌ Error: ${err.message || 'Failed to save evidence'}</p>`;
+        statusDiv.innerHTML = `<p style="color:var(--accent-red);">${mccIcon('x', 16)} Error: ${err.message || 'Failed to save evidence'}</p>`;
         showToast('Failed to save evidence', 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = '📸 Save Evidence';
+        btn.innerHTML = mccIcon('camera', 16) + ' Save Evidence';
       }
     }
 
+    // ========== SLOT BOOKING STATE ==========
+    let _scheduleCtx = { packageId: null, memberId: null, providerId: null };
+    let _calendarMonth = new Date().getMonth();
+    let _calendarYear = new Date().getFullYear();
+    let _providerWorkingHours = [];
+    let _selectedDate = null;
+    let _selectedSlot = null;
+
+    function _formatTimeTo12Hr(t) {
+      if (!t) return '';
+      const [h, m] = t.split(':').map(Number);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const hr = h % 12 || 12;
+      return `${hr}:${String(m).padStart(2,'0')} ${ampm}`;
+    }
+
     // Open schedule modal
-    function openScheduleModal(packageId, memberId, providerId) {
+    async function openScheduleModal(packageId, memberId, providerId) {
       currentLogisticsContext = { packageId, memberId, providerId };
+      _scheduleCtx = { packageId, memberId, providerId };
       document.getElementById('schedule-package-id').value = packageId;
       document.getElementById('schedule-member-id').value = memberId;
       document.getElementById('schedule-provider-id').value = providerId;
-      
-      // Set minimum date to today
-      const today = new Date().toISOString().split('T')[0];
-      document.getElementById('schedule-date').min = today;
-      document.getElementById('schedule-date').value = '';
-      document.getElementById('schedule-time-start').value = '09:00';
-      document.getElementById('schedule-time-end').value = '17:00';
-      document.getElementById('schedule-duration').value = '1';
-      document.getElementById('schedule-notes').value = '';
-      
+
+      _selectedDate = null;
+      _selectedSlot = null;
+
+      document.getElementById('schedule-slot-view').style.display = 'none';
+      document.getElementById('schedule-proposal-view').style.display = 'none';
+      document.getElementById('schedule-slot-btn').style.display = 'none';
+      document.getElementById('schedule-proposal-btn').style.display = 'none';
+      document.getElementById('schedule-loading-view').style.display = 'flex';
+      document.getElementById('available-slots-container').style.display = 'none';
+      document.getElementById('booking-details-section').style.display = 'none';
+
       openModal('schedule-modal');
+
+      try {
+        const hasAvailability = await checkProviderAvailability(providerId);
+        document.getElementById('schedule-loading-view').style.display = 'none';
+
+        if (hasAvailability) {
+          document.getElementById('schedule-slot-view').style.display = 'block';
+          document.getElementById('schedule-slot-btn').style.display = 'inline-flex';
+          _calendarMonth = new Date().getMonth();
+          _calendarYear = new Date().getFullYear();
+          renderBookingCalendar(providerId);
+        } else {
+          document.getElementById('schedule-proposal-view').style.display = 'block';
+          document.getElementById('schedule-proposal-btn').style.display = 'inline-flex';
+          const today = new Date().toISOString().split('T')[0];
+          document.getElementById('schedule-date').min = today;
+          document.getElementById('schedule-date').value = '';
+          document.getElementById('schedule-time-start').value = '09:00';
+          document.getElementById('schedule-time-end').value = '17:00';
+          document.getElementById('schedule-duration').value = '1';
+          document.getElementById('schedule-notes').value = '';
+        }
+      } catch (err) {
+        console.error('Error checking availability:', err);
+        document.getElementById('schedule-loading-view').style.display = 'none';
+        document.getElementById('schedule-proposal-view').style.display = 'block';
+        document.getElementById('schedule-proposal-btn').style.display = 'inline-flex';
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('schedule-date').min = today;
+        document.getElementById('schedule-date').value = '';
+        document.getElementById('schedule-time-start').value = '09:00';
+        document.getElementById('schedule-time-end').value = '17:00';
+        document.getElementById('schedule-duration').value = '1';
+        document.getElementById('schedule-notes').value = '';
+      }
     }
 
-    // Submit schedule proposal
+    async function checkProviderAvailability(providerId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session.access_token;
+        const resp = await fetch(`/api/provider/availability/${providerId}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!resp.ok) return false;
+        const data = await resp.json();
+        if (data.working_hours && data.working_hours.length > 0) {
+          _providerWorkingHours = data.working_hours;
+          return true;
+        }
+        return false;
+      } catch (e) {
+        console.log('checkProviderAvailability error:', e);
+        return false;
+      }
+    }
+
+    function renderBookingCalendar(providerId) {
+      const container = document.getElementById('booking-calendar-container');
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dayOfWeekNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+      const workingDaySet = new Set();
+      _providerWorkingHours.forEach(wh => {
+        if (wh.is_active !== false) {
+          const idx = dayOfWeekNames.indexOf(wh.day_of_week);
+          if (idx !== -1) workingDaySet.add(idx);
+        }
+      });
+
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      const firstDay = new Date(_calendarYear, _calendarMonth, 1);
+      const lastDay = new Date(_calendarYear, _calendarMonth + 1, 0);
+      const startDow = firstDay.getDay();
+      const daysInMonth = lastDay.getDate();
+
+      let html = `<div class="cal-nav">
+        <button onclick="navigateCalendarMonth(-1)" title="Previous month">&#8249;</button>
+        <span class="cal-month-label">${monthNames[_calendarMonth]} ${_calendarYear}</span>
+        <button onclick="navigateCalendarMonth(1)" title="Next month">&#8250;</button>
+      </div>`;
+      html += '<div class="mini-calendar">';
+      dayNames.forEach(d => { html += `<div class="cal-header">${d}</div>`; });
+
+      for (let i = 0; i < startDow; i++) {
+        html += '<div class="calendar-day empty"></div>';
+      }
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dt = new Date(_calendarYear, _calendarMonth, d);
+        dt.setHours(0,0,0,0);
+        const dow = dt.getDay();
+        const isPast = dt < today;
+        const isToday = dt.getTime() === today.getTime();
+        const hasWork = workingDaySet.has(dow);
+        const dateStr = `${_calendarYear}-${String(_calendarMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const isSelected = _selectedDate === dateStr;
+
+        let classes = 'calendar-day';
+        if (isPast) classes += ' disabled';
+        if (isToday) classes += ' today';
+        if (hasWork && !isPast) classes += ' has-availability';
+        if (isSelected) classes += ' selected';
+        if (!hasWork && !isPast) classes += ' disabled';
+
+        html += `<div class="${classes}" onclick="selectCalendarDate('${dateStr}')">${d}</div>`;
+      }
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function navigateCalendarMonth(direction) {
+      _calendarMonth += direction;
+      if (_calendarMonth > 11) { _calendarMonth = 0; _calendarYear++; }
+      if (_calendarMonth < 0) { _calendarMonth = 11; _calendarYear--; }
+      renderBookingCalendar(_scheduleCtx.providerId);
+    }
+
+    async function selectCalendarDate(dateStr) {
+      _selectedDate = dateStr;
+      _selectedSlot = null;
+      document.getElementById('booking-details-section').style.display = 'none';
+      renderBookingCalendar(_scheduleCtx.providerId);
+      await loadDateSlots(dateStr);
+    }
+
+    async function loadDateSlots(dateStr) {
+      const container = document.getElementById('available-slots-container');
+      const slotsList = document.getElementById('slots-list');
+      const slotsEmpty = document.getElementById('slots-empty');
+      const dateLabel = document.getElementById('slots-date-label');
+
+      container.style.display = 'block';
+      const dateParts = dateStr.split('-');
+      const dispDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1])-1, parseInt(dateParts[2]));
+      dateLabel.textContent = mccIcon('calendar', 16) + ' ' + dispDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+      slotsList.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);"><div class="spinner" style="width:24px;height:24px;border:2px solid var(--border-subtle);border-top-color:var(--accent-gold);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 8px;"></div>Loading slots...</div>';
+      slotsEmpty.style.display = 'none';
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session.access_token;
+        const resp = await fetch(`/api/provider/available-slots/${_scheduleCtx.providerId}?date=${dateStr}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!resp.ok) {
+          slotsList.innerHTML = '';
+          slotsEmpty.style.display = 'block';
+          slotsEmpty.textContent = 'Could not load slots. Try again.';
+          return;
+        }
+
+        const data = await resp.json();
+        const slots = data.slots || [];
+
+        if (!slots.length) {
+          slotsList.innerHTML = '';
+          slotsEmpty.style.display = 'block';
+          slotsEmpty.textContent = 'No available slots on this date.';
+          return;
+        }
+
+        slotsEmpty.style.display = 'none';
+        slotsList.innerHTML = slots.map((s, i) => {
+          const startFmt = _formatTimeTo12Hr(s.start_time);
+          const endFmt = _formatTimeTo12Hr(s.end_time);
+          const startMin = _timeToMinutes(s.start_time);
+          const endMin = _timeToMinutes(s.end_time);
+          const durHrs = ((endMin - startMin) / 60).toFixed(1).replace('.0', '');
+          const baysText = s.available_bays != null ? `${s.available_bays} bay${s.available_bays !== 1 ? 's' : ''} open` : '';
+
+          return `<div class="slot-card" id="slot-card-${i}" onclick="selectSlot(${i}, '${s.start_time}', '${s.end_time}', ${s.available_bays || 0})">
+            <div>
+              <div style="font-weight:600;font-size:1rem;">${mccIcon('clock', 16)} ${startFmt} – ${endFmt}</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">${durHrs} hr window${baysText ? ' • ' + baysText : ''}</div>
+            </div>
+            <div style="color:var(--accent-gold);font-size:1.2rem;">›</div>
+          </div>`;
+        }).join('');
+      } catch (err) {
+        console.error('loadDateSlots error:', err);
+        slotsList.innerHTML = '';
+        slotsEmpty.style.display = 'block';
+        slotsEmpty.textContent = 'Error loading slots.';
+      }
+    }
+
+    function _timeToMinutes(t) {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + (m || 0);
+    }
+
+    function selectSlot(index, startTime, endTime, availBays) {
+      _selectedSlot = { index, startTime, endTime, availBays };
+      document.querySelectorAll('.slot-card').forEach(c => c.classList.remove('selected'));
+      const card = document.getElementById('slot-card-' + index);
+      if (card) card.classList.add('selected');
+      document.getElementById('booking-details-section').style.display = 'block';
+    }
+
+    async function confirmSlotBooking() {
+      if (!_selectedDate) {
+        showToast('Please select a date', 'error');
+        return;
+      }
+      if (!_selectedSlot) {
+        showToast('Please select a time slot', 'error');
+        return;
+      }
+
+      const duration = document.getElementById('slot-duration').value;
+      const location = document.querySelector('input[name="slot-location"]:checked')?.value || 'dropoff';
+      const notes = document.getElementById('slot-notes').value.trim();
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session.access_token;
+
+        const resp = await fetch('/api/booking/create', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            package_id: _scheduleCtx.packageId,
+            member_id: _scheduleCtx.memberId,
+            provider_id: _scheduleCtx.providerId,
+            date: _selectedDate,
+            start_time: _selectedSlot.startTime,
+            end_time: _selectedSlot.endTime,
+            duration_minutes: parseInt(duration),
+            service_location: location,
+            notes: notes
+          })
+        });
+
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.error || 'Booking failed');
+        }
+
+        closeModal('schedule-modal');
+        showToast('Appointment booked successfully!', 'success');
+        loadLogisticsData(_scheduleCtx.packageId);
+        if (typeof loadAppointmentStatus === 'function') {
+          loadAppointmentStatus(_scheduleCtx.packageId);
+        }
+      } catch (err) {
+        console.error('confirmSlotBooking error:', err);
+        showToast('Failed to book slot: ' + err.message, 'error');
+      }
+    }
+
+    // Submit schedule proposal (fallback when provider has no availability set)
     async function submitScheduleProposal() {
       const packageId = document.getElementById('schedule-package-id').value;
       const memberId = document.getElementById('schedule-member-id').value;
@@ -1139,7 +1498,7 @@
 
         document.getElementById('view-location-body').innerHTML = `
           <div style="text-align:center;margin-bottom:20px;">
-            <div style="font-size:48px;margin-bottom:12px;">📍</div>
+            <div style="font-size:48px;margin-bottom:12px;">${mccIcon('map-pin', 40)}</div>
             <div style="font-size:1.1rem;font-weight:600;color:var(--text-primary);margin-bottom:4px;">
               ${location.shared_by === currentUser?.id ? 'Your Shared Location' : 'Provider Location'}
             </div>
@@ -1154,10 +1513,10 @@
           ` : ''}
           <div style="display:flex;flex-direction:column;gap:8px;">
             <a href="${mapsUrl}" target="_blank" class="btn btn-primary" style="justify-content:center;text-decoration:none;">
-              🗺️ Open in Google Maps
+              ${mccIcon('map-pin', 16)} Open in Google Maps
             </a>
             <a href="https://www.google.com/maps/dir/?api=1&destination=${location.latitude},${location.longitude}" target="_blank" class="btn btn-secondary" style="justify-content:center;text-decoration:none;">
-              🚗 Get Directions
+              ${mccIcon('car', 16)} Get Directions
             </a>
           </div>
         `;
@@ -1239,7 +1598,7 @@
             lat: position.coords.latitude,
             lng: position.coords.longitude
           };
-          document.getElementById('emergency-location-text').textContent = '📍 Location captured';
+          document.getElementById('emergency-location-text').innerHTML = mccIcon('map-pin', 16) + ' Location captured';
           
           try {
             const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${emergencyLocation.lat}&lon=${emergencyLocation.lng}`);
@@ -1253,7 +1612,7 @@
           }
         },
         (error) => {
-          document.getElementById('emergency-location-text').textContent = '⚠️ Could not get location';
+          document.getElementById('emergency-location-text').innerHTML = mccIcon('alert-triangle', 16) + ' Could not get location';
           document.getElementById('emergency-address-text').textContent = 'Please enable location services';
         },
         { enableHighAccuracy: true, timeout: 10000 }
@@ -1309,13 +1668,13 @@
     }
 
     const EMERGENCY_SERVICE_RATES = {
-      lockout: { base: 100, perMile: 0, includedMiles: 0, display: '🔐 Lockout' },
-      dead_battery: { base: 100, perMile: 0, includedMiles: 0, display: '🔋 Jump Start' },
-      flat_tire: { base: 125, perMile: 0, includedMiles: 0, display: '🛞 Flat Tire' },
-      fuel_delivery: { base: 125, perMile: 0, includedMiles: 0, display: '⛽ Fuel Delivery' },
-      tow_needed: { base: 200, perMile: 6, includedMiles: 10, display: '🚛 Towing' },
-      accident: { base: 250, perMile: 6, includedMiles: 10, display: '💥 Accident' },
-      other: { base: 150, perMile: 0, includedMiles: 0, display: '🔧 Other' }
+      lockout: { base: 100, perMile: 0, includedMiles: 0, display: mccIcon('lock', 16) + ' Lockout' },
+      dead_battery: { base: 100, perMile: 0, includedMiles: 0, display: mccIcon('zap', 16) + ' Jump Start' },
+      flat_tire: { base: 125, perMile: 0, includedMiles: 0, display: mccIcon('settings', 16) + ' Flat Tire' },
+      fuel_delivery: { base: 125, perMile: 0, includedMiles: 0, display: mccIcon('fuel', 16) + ' Fuel Delivery' },
+      tow_needed: { base: 200, perMile: 6, includedMiles: 10, display: mccIcon('truck', 16) + ' Towing' },
+      accident: { base: 250, perMile: 6, includedMiles: 10, display: mccIcon('circle-alert', 16) + ' Accident' },
+      other: { base: 150, perMile: 0, includedMiles: 0, display: mccIcon('wrench', 16) + ' Other' }
     };
     const EMERGENCY_ACTIVATION_FEE = 25;
     let pendingEmergencyPaymentData = null;
@@ -1453,7 +1812,7 @@
         updateEmergencyBanner();
         showSection('emergency');
         loadEmergencySection();
-        showToast('🚨 Emergency request submitted! Providers are being notified.', 'success');
+        showToast(mccIcon('circle-alert', 16) + ' Emergency request submitted! Providers are being notified.', 'success');
         
       } catch (err) {
         console.error('Error submitting emergency:', err);
@@ -1530,13 +1889,13 @@
       if (!e) return;
       
       const typeLabels = {
-        'flat_tire': '🛞 Flat Tire',
-        'dead_battery': '🔋 Dead Battery',
-        'lockout': '🔐 Locked Out',
-        'tow_needed': '🚛 Tow Needed',
-        'fuel_delivery': '⛽ Out of Fuel',
-        'accident': '💥 Accident',
-        'other': '❓ Other'
+        'flat_tire': mccIcon('settings', 16) + ' Flat Tire',
+        'dead_battery': mccIcon('zap', 16) + ' Dead Battery',
+        'lockout': mccIcon('lock', 16) + ' Locked Out',
+        'tow_needed': mccIcon('truck', 16) + ' Tow Needed',
+        'fuel_delivery': mccIcon('fuel', 16) + ' Out of Fuel',
+        'accident': mccIcon('circle-alert', 16) + ' Accident',
+        'other': mccIcon('circle-help', 16) + ' Other'
       };
       
       document.getElementById('emergency-active-type').textContent = typeLabels[e.emergency_type] || e.emergency_type;
@@ -1545,12 +1904,12 @@
       const currentIdx = statuses.indexOf(e.status);
       
       const statusLabels = {
-        'pending': { icon: '⏳', label: 'Waiting for provider' },
-        'accepted': { icon: '✓', label: 'Provider accepted' },
-        'en_route': { icon: '🚗', label: 'Provider en route' },
-        'arrived': { icon: '📍', label: 'Provider arrived' },
-        'in_progress': { icon: '🔧', label: 'Work in progress' },
-        'completed': { icon: '✅', label: 'Completed' }
+        'pending': { icon: mccIcon('clock', 16), label: 'Waiting for provider' },
+        'accepted': { icon: mccIcon('check', 16), label: 'Provider accepted' },
+        'en_route': { icon: mccIcon('car', 16), label: 'Provider en route' },
+        'arrived': { icon: mccIcon('map-pin', 16), label: 'Provider arrived' },
+        'in_progress': { icon: mccIcon('wrench', 16), label: 'Work in progress' },
+        'completed': { icon: mccIcon('check-circle', 16), label: 'Completed' }
       };
       
       // Show round info for pending status
@@ -1567,7 +1926,7 @@
         }
         roundInfoHtml = `
           <div style="background:var(--accent-orange-soft);border:1px solid var(--accent-orange);border-radius:var(--radius-md);padding:12px 16px;margin-bottom:16px;text-align:center;">
-            <div style="font-weight:600;color:var(--accent-orange);margin-bottom:4px;">🔍 Round ${currentRound} of 3</div>
+            <div style="font-weight:600;color:var(--accent-orange);margin-bottom:4px;">${mccIcon('search', 16)} Round ${currentRound} of 3</div>
             <div style="font-size:0.85rem;color:var(--text-secondary);">Searching for nearby providers... ${timeRemaining}</div>
           </div>
         `;
@@ -1593,7 +1952,7 @@
         document.getElementById('emergency-provider-info').innerHTML = `
           <div style="font-weight:600;margin-bottom:8px;">Your Provider</div>
           <div style="font-size:1.1rem;margin-bottom:4px;">${e.provider.business_name || e.provider.full_name}</div>
-          ${e.provider.phone ? `<a href="tel:${e.provider.phone}" class="btn btn-primary" style="margin-top:8px;width:100%;justify-content:center;">📞 Call Provider</a>` : ''}
+          ${e.provider.phone ? `<a href="tel:${e.provider.phone}" class="btn btn-primary" style="margin-top:8px;width:100%;justify-content:center;">${mccIcon('phone', 16)} Call Provider</a>` : ''}
           ${e.eta_minutes ? `<div style="color:var(--accent-gold);margin-top:8px;">ETA: ${e.eta_minutes} minutes</div>` : ''}
         `;
       }
@@ -1606,7 +1965,7 @@
       if (completed.length === 0) {
         container.innerHTML = `
           <div class="empty-state">
-            <div class="empty-state-icon">🆘</div>
+            <div class="empty-state-icon">${mccIcon('circle-alert', 40)}</div>
             <p>No emergency requests yet.</p>
           </div>
         `;
@@ -1614,13 +1973,13 @@
       }
       
       const typeLabels = {
-        'flat_tire': '🛞 Flat Tire',
-        'dead_battery': '🔋 Dead Battery',
-        'lockout': '🔐 Locked Out',
-        'tow_needed': '🚛 Tow Needed',
-        'fuel_delivery': '⛽ Out of Fuel',
-        'accident': '💥 Accident',
-        'other': '❓ Other'
+        'flat_tire': mccIcon('settings', 16) + ' Flat Tire',
+        'dead_battery': mccIcon('zap', 16) + ' Dead Battery',
+        'lockout': mccIcon('lock', 16) + ' Locked Out',
+        'tow_needed': mccIcon('truck', 16) + ' Tow Needed',
+        'fuel_delivery': mccIcon('fuel', 16) + ' Out of Fuel',
+        'accident': mccIcon('circle-alert', 16) + ' Accident',
+        'other': mccIcon('circle-help', 16) + ' Other'
       };
       
       container.innerHTML = completed.map(e => `
@@ -1666,25 +2025,25 @@
       if (!e) return;
       
       const typeLabels = {
-        'flat_tire': '🛞 Flat Tire',
-        'dead_battery': '🔋 Dead Battery',
-        'lockout': '🔐 Locked Out',
-        'tow_needed': '🚛 Tow Needed',
-        'fuel_delivery': '⛽ Out of Fuel',
-        'accident': '💥 Accident',
-        'other': '❓ Other'
+        'flat_tire': mccIcon('settings', 16) + ' Flat Tire',
+        'dead_battery': mccIcon('zap', 16) + ' Dead Battery',
+        'lockout': mccIcon('lock', 16) + ' Locked Out',
+        'tow_needed': mccIcon('truck', 16) + ' Tow Needed',
+        'fuel_delivery': mccIcon('fuel', 16) + ' Out of Fuel',
+        'accident': mccIcon('circle-alert', 16) + ' Accident',
+        'other': mccIcon('circle-help', 16) + ' Other'
       };
       
       const statuses = ['pending', 'accepted', 'en_route', 'arrived', 'in_progress', 'completed'];
       const currentIdx = statuses.indexOf(e.status);
       
       const statusLabels = {
-        'pending': { icon: '⏳', label: 'Waiting for provider' },
-        'accepted': { icon: '✓', label: 'Provider accepted' },
-        'en_route': { icon: '🚗', label: 'Provider en route' },
-        'arrived': { icon: '📍', label: 'Provider arrived' },
-        'in_progress': { icon: '🔧', label: 'Work in progress' },
-        'completed': { icon: '✅', label: 'Completed' }
+        'pending': { icon: mccIcon('clock', 16), label: 'Waiting for provider' },
+        'accepted': { icon: mccIcon('check', 16), label: 'Provider accepted' },
+        'en_route': { icon: mccIcon('car', 16), label: 'Provider en route' },
+        'arrived': { icon: mccIcon('map-pin', 16), label: 'Provider arrived' },
+        'in_progress': { icon: mccIcon('wrench', 16), label: 'Work in progress' },
+        'completed': { icon: mccIcon('check-circle', 16), label: 'Completed' }
       };
       
       const timelineHtml = statuses.slice(0, 5).map((status, idx) => {
@@ -1705,7 +2064,7 @@
         <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:16px;margin-top:20px;">
           <div style="font-weight:600;margin-bottom:8px;">Your Provider</div>
           <div style="font-size:1.1rem;margin-bottom:4px;">${e.provider.business_name || e.provider.full_name}</div>
-          ${e.provider.phone ? `<a href="tel:${e.provider.phone}" class="btn btn-primary" style="margin-top:12px;width:100%;justify-content:center;">📞 Call Provider</a>` : ''}
+          ${e.provider.phone ? `<a href="tel:${e.provider.phone}" class="btn btn-primary" style="margin-top:12px;width:100%;justify-content:center;">${mccIcon('phone', 16)} Call Provider</a>` : ''}
           ${e.eta_minutes ? `<div style="color:var(--accent-gold);margin-top:12px;">ETA: ${e.eta_minutes} minutes</div>` : ''}
         </div>
       ` : '';
@@ -1714,7 +2073,7 @@
       
       document.getElementById('emergency-status-content').innerHTML = `
         <div style="text-align:center;margin-bottom:20px;">
-          <div style="font-size:32px;margin-bottom:8px;">${typeLabels[e.emergency_type]?.split(' ')[0] || '🚨'}</div>
+          <div style="font-size:32px;margin-bottom:8px;">${typeLabels[e.emergency_type]?.split(' ')[0] || mccIcon('circle-alert', 16)}</div>
           <div style="font-size:1.1rem;font-weight:600;">${typeLabels[e.emergency_type] || e.emergency_type}</div>
           <div style="color:var(--text-muted);font-size:0.9rem;">${vehicleName}</div>
         </div>
@@ -1725,7 +2084,7 @@
         
         ${e.address ? `
           <div style="margin-top:20px;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);">
-            <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">📍 Your Location</div>
+            <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">${mccIcon('map-pin', 16)} Your Location</div>
             <div style="font-size:0.9rem;color:var(--text-secondary);">${e.address}</div>
           </div>
         ` : ''}
@@ -1799,7 +2158,7 @@
       
       container.innerHTML = `
         <div class="card" style="text-align:center;padding:40px 24px;">
-          <div style="font-size:48px;margin-bottom:16px;">😔</div>
+          <div style="font-size:48px;margin-bottom:16px;">${mccIcon('circle-alert', 40)}</div>
           <h3 style="margin-bottom:12px;color:var(--accent-red);">No Providers Available</h3>
           <p style="color:var(--text-secondary);margin-bottom:24px;line-height:1.6;">
             We're sorry, but no providers were able to respond to your emergency request after 15 minutes of searching.
@@ -1807,7 +2166,7 @@
           <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:16px;margin-bottom:24px;">
             <p style="font-weight:600;margin-bottom:8px;">Alternative Help:</p>
             <p style="color:var(--text-secondary);margin-bottom:12px;">Please try calling 911 or a local towing service.</p>
-            <a href="tel:911" class="btn btn-danger" style="width:100%;justify-content:center;margin-bottom:8px;">📞 Call 911</a>
+            <a href="tel:911" class="btn btn-danger" style="width:100%;justify-content:center;margin-bottom:8px;">${mccIcon('phone', 16)} Call 911</a>
           </div>
           <button class="btn btn-secondary" onclick="cancelActiveEmergency()" style="width:100%;justify-content:center;">Cancel Request & Try Again</button>
         </div>
@@ -1876,7 +2235,7 @@
         if (error || !inspection) {
           container.innerHTML = `
             <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;padding:16px;">
-              <span style="font-size:1.5rem;display:block;margin-bottom:8px;">📋</span>
+              <span style="font-size:1.5rem;display:block;margin-bottom:8px;">${mccIcon('clipboard-list', 24)}</span>
               No inspection report available yet. Your provider will complete an inspection during service.
             </div>
           `;
@@ -1900,7 +2259,7 @@
       
       const categories = [
         { 
-          name: '🛢️ Fluids', 
+          name: mccIcon('fuel', 16) + ' Fluids', 
           items: [
             { label: 'Engine Oil', field: 'engine_oil' },
             { label: 'Transmission Fluid', field: 'transmission_fluid' },
@@ -1910,7 +2269,7 @@
           ]
         },
         { 
-          name: '🛞 Brakes', 
+          name: mccIcon('settings', 16) + ' Brakes', 
           items: [
             { label: 'Front Brake Pads', field: 'brake_pads_front', extra: inspection.brake_pads_front_percent ? `${inspection.brake_pads_front_percent}%` : null },
             { label: 'Rear Brake Pads', field: 'brake_pads_rear', extra: inspection.brake_pads_rear_percent ? `${inspection.brake_pads_rear_percent}%` : null },
@@ -1918,7 +2277,7 @@
           ]
         },
         { 
-          name: '🚗 Tires', 
+          name: mccIcon('car', 16) + ' Tires', 
           items: [
             { label: 'Front Left', field: 'tire_front_left', extra: inspection.tire_front_left_tread ? `${inspection.tire_front_left_tread}/32"` : null },
             { label: 'Front Right', field: 'tire_front_right', extra: inspection.tire_front_right_tread ? `${inspection.tire_front_right_tread}/32"` : null },
@@ -1928,7 +2287,7 @@
           ]
         },
         { 
-          name: '⚡ Electrical & Lights', 
+          name: mccIcon('zap', 16) + ' Electrical & Lights', 
           items: [
             { label: 'Battery', field: 'battery', extra: inspection.battery_voltage ? `${inspection.battery_voltage}V` : null },
             { label: 'Headlights', field: 'headlights' },
@@ -1937,28 +2296,28 @@
           ]
         },
         { 
-          name: '🔗 Belts & Hoses', 
+          name: mccIcon('link', 16) + ' Belts & Hoses', 
           items: [
             { label: 'Serpentine Belt', field: 'serpentine_belt' },
             { label: 'Hoses', field: 'hoses' }
           ]
         },
         { 
-          name: '🌧️ Wipers & Glass', 
+          name: mccIcon('sparkles', 16) + ' Wipers & Glass', 
           items: [
             { label: 'Wiper Blades', field: 'wiper_blades' },
             { label: 'Windshield', field: 'windshield' }
           ]
         },
         { 
-          name: '🔧 Suspension & Steering', 
+          name: mccIcon('wrench', 16) + ' Suspension & Steering', 
           items: [
             { label: 'Shocks/Struts', field: 'shocks_struts' },
             { label: 'Alignment', field: 'alignment' }
           ]
         },
         { 
-          name: '🌬️ Filters', 
+          name: mccIcon('fuel', 16) + ' Filters', 
           items: [
             { label: 'Air Filter', field: 'air_filter' },
             { label: 'Cabin Filter', field: 'cabin_filter' }
@@ -1984,7 +2343,7 @@
           <div class="inspection-category-section ${hasIssues ? 'expanded' : ''}">
             <div class="inspection-category-toggle" onclick="this.parentElement.classList.toggle('expanded')">
               <span>${cat.name}</span>
-              <span style="font-size:0.8rem;color:var(--text-muted);">▼</span>
+              <span style="font-size:0.8rem;color:var(--text-muted);">${mccIcon('chevron-down', 12)}</span>
             </div>
             <div class="inspection-category-items">${itemsHtml}</div>
           </div>
@@ -1995,28 +2354,28 @@
         <div class="inspection-report-header">
           <div>
             <span class="inspection-overall-badge ${inspection.overall_condition}">${conditionLabels[inspection.overall_condition] || 'N/A'}</span>
-            <div class="inspection-date" style="margin-top:8px;">📅 Inspected: ${inspectionDate}</div>
+            <div class="inspection-date" style="margin-top:8px;">${mccIcon('calendar', 16)} Inspected: ${inspectionDate}</div>
           </div>
         </div>
         
         <div class="inspection-counts">
-          ${inspection.urgent_items > 0 ? `<div class="inspection-count-item urgent">🔴 ${inspection.urgent_items} Urgent</div>` : ''}
-          ${inspection.attention_items > 0 ? `<div class="inspection-count-item attention">🟠 ${inspection.attention_items} Need Attention</div>` : ''}
-          ${!inspection.urgent_items && !inspection.attention_items ? `<div class="inspection-count-item good">✅ All items in good condition</div>` : ''}
+          ${inspection.urgent_items > 0 ? `<div class="inspection-count-item urgent">${mccIcon('circle-alert', 16)} ${inspection.urgent_items} Urgent</div>` : ''}
+          ${inspection.attention_items > 0 ? `<div class="inspection-count-item attention">${mccIcon('alert-triangle', 16)} ${inspection.attention_items} Need Attention</div>` : ''}
+          ${!inspection.urgent_items && !inspection.attention_items ? `<div class="inspection-count-item good">${mccIcon('check-circle', 16)} All items in good condition</div>` : ''}
         </div>
         
         ${categoriesHtml}
         
         ${inspection.recommendations ? `
           <div class="inspection-recommendations">
-            <div class="inspection-recommendations-title">💡 Provider Recommendations</div>
+            <div class="inspection-recommendations-title">${mccIcon('lightbulb', 16)} Provider Recommendations</div>
             <div class="inspection-recommendations-text">${inspection.recommendations}</div>
           </div>
         ` : ''}
         
         ${inspection.technician_notes ? `
           <div class="inspection-recommendations" style="margin-top:12px;">
-            <div class="inspection-recommendations-title">📝 Technician Notes</div>
+            <div class="inspection-recommendations-title">${mccIcon('file-text', 16)} Technician Notes</div>
             <div class="inspection-recommendations-text">${inspection.technician_notes}</div>
           </div>
         ` : ''}
@@ -2051,7 +2410,7 @@
           const roleLabels = { owner: 'Owner', adult: 'Adult', driver: 'Driver', viewer: 'Viewer', member: 'Member' };
           pendingBanner.innerHTML = allMemberships.map(inv => `
             <div class="card" style="background:linear-gradient(135deg, rgba(212,168,85,0.08), rgba(212,168,85,0.03));border:2px solid rgba(212,168,85,0.3);margin-bottom:12px;position:relative;">
-              <div style="position:absolute;top:-8px;left:16px;background:var(--accent-gold);color:#0a0a0f;padding:2px 10px;border-radius:100px;font-size:0.7rem;font-weight:700;">📨 INVITATION</div>
+              <div style="position:absolute;top:-8px;left:16px;background:var(--accent-gold);color:#0a0a0f;padding:2px 10px;border-radius:100px;font-size:0.7rem;font-weight:700;">${mccIcon('mail', 16)} INVITATION</div>
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;padding-top:8px;">
                 <div style="flex:1;min-width:200px;">
                   <div style="font-size:1.1rem;font-weight:600;margin-bottom:6px;">${inv.household?.name || 'Household'}</div>
@@ -2061,8 +2420,8 @@
                   </div>
                 </div>
                 <div style="display:flex;gap:10px;">
-                  <button class="btn btn-primary" onclick="acceptInvitation('${inv.id}')" style="padding:10px 20px;">✓ Accept</button>
-                  <button class="btn btn-secondary" onclick="declineInvitation('${inv.id}')" style="padding:10px 20px;">✗ Decline</button>
+                  <button class="btn btn-primary" onclick="acceptInvitation('${inv.id}')" style="padding:10px 20px;">${mccIcon('check', 16)} Accept</button>
+                  <button class="btn btn-secondary" onclick="declineInvitation('${inv.id}')" style="padding:10px 20px;">${mccIcon('x', 16)} Decline</button>
                 </div>
               </div>
             </div>
@@ -2125,7 +2484,7 @@
       document.getElementById('household-name-display').textContent = data.name;
       
       const memberCount = householdMembers.filter(m => m.status === 'active').length + 1;
-      document.getElementById('household-member-count-badge').textContent = `👥 ${memberCount} member${memberCount !== 1 ? 's' : ''}`;
+      document.getElementById('household-member-count-badge').innerHTML = `${mccIcon('users', 16)} ${memberCount} member${memberCount !== 1 ? 's' : ''}`;
       
       document.getElementById('household-role-display').textContent = isHouseholdOwner ? 'Owner' : 
         (householdMembers.find(m => m.user_id === currentUser.id)?.role || 'Member');
@@ -2172,7 +2531,7 @@
         const isCurrentUserOwner = currentUser && owner.id === currentUser.id;
         membersHtml += `
           <div style="background:var(--bg-elevated);border:2px solid var(--accent-gold);border-radius:var(--radius-lg);padding:20px;position:relative;">
-            <div style="position:absolute;top:-8px;right:16px;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);color:#0a0a0f;padding:2px 10px;border-radius:100px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">👑 Owner</div>
+            <div style="position:absolute;top:-8px;right:16px;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);color:#0a0a0f;padding:2px 10px;border-radius:100px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${mccIcon('award', 16)} Owner</div>
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
               <div style="width:52px;height:52px;background:linear-gradient(135deg, var(--accent-gold), #e8bc5a);border:3px solid rgba(212,168,85,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#0a0a0f;box-shadow:0 4px 12px rgba(212,168,85,0.3);">
                 ${initial}
@@ -2187,9 +2546,9 @@
               </div>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;">
-              <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-blue-soft);color:var(--accent-blue);">📝 Can Request</span>
-              <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-green-soft);color:var(--accent-green);">✓ Can Approve</span>
-              <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-gold-soft);color:var(--accent-gold);">🔓 Full Access</span>
+              <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-blue-soft);color:var(--accent-blue);">${mccIcon('file-text', 16)} Can Request</span>
+              <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-green-soft);color:var(--accent-green);">${mccIcon('check', 16)} Can Approve</span>
+              <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-gold-soft);color:var(--accent-gold);">${mccIcon('lock', 16)} Full Access</span>
             </div>
           </div>
         `;
@@ -2206,9 +2565,9 @@
         const perms = member.permissions || {};
         
         let permsBadges = [];
-        if (perms.can_request_services) permsBadges.push('<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-blue-soft);color:var(--accent-blue);">📝 Can Request</span>');
-        if (perms.can_approve_services) permsBadges.push('<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-green-soft);color:var(--accent-green);">✓ Can Approve</span>');
-        if (perms.spending_limit) permsBadges.push(`<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-gold-soft);color:var(--accent-gold);">💰 $${perms.spending_limit} limit</span>`);
+        if (perms.can_request_services) permsBadges.push('<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-blue-soft);color:var(--accent-blue);">' + mccIcon('file-text', 16) + ' Can Request</span>');
+        if (perms.can_approve_services) permsBadges.push('<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-green-soft);color:var(--accent-green);">' + mccIcon('check', 16) + ' Can Approve</span>');
+        if (perms.spending_limit) permsBadges.push(`<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-gold-soft);color:var(--accent-gold);">${mccIcon('dollar-sign', 16)} $${perms.spending_limit} limit</span>`);
         
         const manageBtn = isHouseholdOwner ? `<button class="btn btn-ghost btn-sm" onclick="openManageMemberModal('${member.id}')">Manage</button>` : '';
         
@@ -2237,7 +2596,7 @@
         `;
       });
       
-      grid.innerHTML = membersHtml || '<div class="empty-state" style="grid-column:1/-1;padding:32px;"><div class="empty-state-icon">👥</div><p>No members yet.</p></div>';
+      grid.innerHTML = membersHtml || '<div class="empty-state" style="grid-column:1/-1;padding:32px;"><div class="empty-state-icon">' + mccIcon('users', 40) + '</div><p>No members yet.</p></div>';
     }
 
     function renderPendingInvitations() {
@@ -2261,16 +2620,16 @@
         return `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:10px;">
             <div style="display:flex;align-items:center;gap:12px;flex:1;">
-              <div style="width:40px;height:40px;background:var(--accent-orange-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--accent-orange);">📧</div>
+              <div style="width:40px;height:40px;background:var(--accent-orange-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--accent-orange);">${mccIcon('mail', 16)}</div>
               <div style="flex:1;">
                 <div style="font-weight:500;margin-bottom:4px;">${inv.email}</div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-                  <span style="padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:var(--accent-orange-soft);color:var(--accent-orange);">⏳ Pending</span>
+                  <span style="padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:var(--accent-orange-soft);color:var(--accent-orange);">${mccIcon('clock', 16)} Pending</span>
                   <span style="padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:500;background:${roleColor}22;color:${roleColor};">${roleLabels[role] || 'Member'}</span>
                 </div>
               </div>
             </div>
-            <button class="btn btn-danger btn-sm" onclick="cancelInvitation('${inv.id}')" title="Cancel invitation">✕ Cancel</button>
+            <button class="btn btn-danger btn-sm" onclick="cancelInvitation('${inv.id}')" title="Cancel invitation">${mccIcon('x', 16)} Cancel</button>
           </div>
         `;
       }).join('');
@@ -2287,7 +2646,7 @@
       
       const vehicleCountBadge = document.getElementById('household-vehicle-count-badge');
       if (vehicleCountBadge) {
-        vehicleCountBadge.textContent = `🚗 ${householdVehicles.length} vehicle${householdVehicles.length !== 1 ? 's' : ''}`;
+        vehicleCountBadge.innerHTML = `${mccIcon('car', 16)} ${householdVehicles.length} vehicle${householdVehicles.length !== 1 ? 's' : ''}`;
       }
       
       renderHouseholdVehicles();
@@ -2299,7 +2658,7 @@
       if (householdVehicles.length === 0) {
         grid.innerHTML = `
           <div class="empty-state" style="grid-column:1/-1;padding:32px;">
-            <div class="empty-state-icon">🚗</div>
+            <div class="empty-state-icon">${mccIcon('car', 40)}</div>
             <p>No vehicles shared yet.</p>
             ${isHouseholdOwner ? '<button class="btn btn-secondary" onclick="openShareVehicleModal()" style="margin-top:12px;">+ Share a Vehicle</button>' : ''}
           </div>
@@ -2336,13 +2695,13 @@
         } else if (canRequestService) {
           actionButtons = `<button class="btn btn-primary btn-sm" onclick="requestServiceForHouseholdVehicle('${v.id}', '${vehicleName}')">Request Service</button>`;
         } else if (isViewOnly) {
-          actionButtons = `<span style="font-size:0.8rem;color:var(--text-muted);font-style:italic;">👁️ View Only</span>`;
+          actionButtons = `<span style="font-size:0.8rem;color:var(--text-muted);font-style:italic;">${mccIcon('eye', 16)} View Only</span>`;
         }
         
         return `
           <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);overflow:hidden;transition:all 0.2s;" class="household-vehicle-card">
             <div style="height:140px;background:linear-gradient(135deg, rgba(74,124,255,0.1), rgba(212,168,85,0.1));display:flex;align-items:center;justify-content:center;font-size:56px;position:relative;">
-              🚗
+              ${mccIcon('car', 16)}
               <span style="position:absolute;top:12px;right:12px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:${accessColor}22;color:${accessColor};">
                 ${accessLabels[accessLevel]}
               </span>
@@ -2709,7 +3068,7 @@
         if (memberUserIds.length === 0 && sharedVehicleIds.length === 0) {
           activityList.innerHTML = `
             <div class="empty-state" style="padding:24px;">
-              <div class="empty-state-icon">📊</div>
+              <div class="empty-state-icon">${mccIcon('bar-chart', 40)}</div>
               <p>No recent activity.</p>
               <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Service requests from household members will appear here.</p>
             </div>
@@ -2738,7 +3097,7 @@
         if (error || !activity || activity.length === 0) {
           activityList.innerHTML = `
             <div class="empty-state" style="padding:24px;">
-              <div class="empty-state-icon">📊</div>
+              <div class="empty-state-icon">${mccIcon('bar-chart', 40)}</div>
               <p>No recent activity.</p>
               <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Service requests from household members will appear here.</p>
             </div>
@@ -2778,10 +3137,10 @@
                   <span style="padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:${status.bg};color:${status.color};white-space:nowrap;">${status.label}</span>
                 </div>
                 <div style="font-size:0.92rem;color:var(--text-secondary);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                  <span style="color:var(--accent-gold);">📦</span> ${item.title}
+                  <span style="color:var(--accent-gold);">${mccIcon('package', 16)}</span> ${item.title}
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;font-size:0.82rem;color:var(--text-muted);">
-                  <span>🚗 ${vehicleName}</span>
+                  <span>${mccIcon('car', 16)} ${vehicleName}</span>
                   <span>•</span>
                   <span>${timeAgo}</span>
                 </div>
@@ -2794,7 +3153,7 @@
         console.error('Error loading household activity:', err);
         activityList.innerHTML = `
           <div class="empty-state" style="padding:24px;">
-            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-icon">${mccIcon('alert-triangle', 40)}</div>
             <p>Could not load activity.</p>
           </div>
         `;
@@ -2873,10 +3232,10 @@
       
       if (data.billing_email || data.address || data.tax_id) {
         document.getElementById('fleet-company-info').style.display = 'block';
-        document.getElementById('fleet-billing-email-display').innerHTML = data.billing_email ? `📧 ${data.billing_email}` : '';
-        document.getElementById('fleet-address-display').innerHTML = data.address ? `📍 ${data.address}` : '';
+        document.getElementById('fleet-billing-email-display').innerHTML = data.billing_email ? `${mccIcon('mail', 16)} ${data.billing_email}` : '';
+        document.getElementById('fleet-address-display').innerHTML = data.address ? `${mccIcon('map-pin', 16)} ${data.address}` : '';
         const taxIdEl = document.getElementById('fleet-tax-id-display');
-        if (taxIdEl) taxIdEl.innerHTML = data.tax_id ? `🏛️ Tax ID: ${data.tax_id}` : '';
+        if (taxIdEl) taxIdEl.innerHTML = data.tax_id ? `${mccIcon('store', 16)} Tax ID: ${data.tax_id}` : '';
       } else {
         document.getElementById('fleet-company-info').style.display = 'none';
       }
@@ -2938,7 +3297,7 @@
       if (fleetPendingApprovals.length === 0) {
         container.innerHTML = `
           <div class="empty-state" style="padding:24px;">
-            <div class="empty-state-icon">✅</div>
+            <div class="empty-state-icon">${mccIcon('check-circle', 40)}</div>
             <p>No pending approvals.</p>
           </div>
         `;
@@ -2958,14 +3317,14 @@
                 <div style="font-weight:600;font-size:1rem;margin-bottom:4px;">${pkg.title || 'Service Request'}</div>
                 <div style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:8px;">${vehicleName}</div>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:0.85rem;color:var(--text-muted);">
-                  <span>👤 ${requesterName}</span>
-                  ${pkg.estimated_cost ? `<span>💰 ~$${Number(pkg.estimated_cost).toLocaleString()}</span>` : ''}
-                  <span>📅 ${new Date(pkg.created_at).toLocaleDateString()}</span>
+                  <span>${mccIcon('user', 16)} ${requesterName}</span>
+                  ${pkg.estimated_cost ? `<span>${mccIcon('dollar-sign', 16)} ~$${Number(pkg.estimated_cost).toLocaleString()}</span>` : ''}
+                  <span>${mccIcon('calendar', 16)} ${new Date(pkg.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
               <div style="display:flex;gap:8px;">
-                <button class="btn btn-success btn-sm" onclick="approveFleetServiceRequest('${pkg.id}')">✓ Approve</button>
-                <button class="btn btn-danger btn-sm" onclick="rejectFleetServiceRequest('${pkg.id}')">✕ Reject</button>
+                <button class="btn btn-success btn-sm" onclick="approveFleetServiceRequest('${pkg.id}')">${mccIcon('check', 16)} Approve</button>
+                <button class="btn btn-danger btn-sm" onclick="rejectFleetServiceRequest('${pkg.id}')">${mccIcon('x', 16)} Reject</button>
               </div>
             </div>
           </div>
@@ -3044,7 +3403,7 @@
         tbody.innerHTML = `
           <tr>
             <td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">
-              <div style="font-size:32px;margin-bottom:8px;">👥</div>
+              <div style="font-size:32px;margin-bottom:8px;">${mccIcon('users', 16)}</div>
               No fleet members yet. Add your first employee.
             </td>
           </tr>
@@ -3078,18 +3437,18 @@
             <td>${member.spending_limit ? '$' + Number(member.spending_limit).toLocaleString() : 'No limit'}</td>
             <td>
               ${member.requires_approval 
-                ? '<span class="approval-indicator">⚠️ Required</span>' 
-                : '<span class="approval-indicator no-approval">✓ Auto</span>'}
+                ? '<span class="approval-indicator">' + mccIcon('alert-triangle', 16) + ' Required</span>' 
+                : '<span class="approval-indicator no-approval">' + mccIcon('check', 16) + ' Auto</span>'}
             </td>
             <td><span class="fleet-status-badge ${status}">${status}</span></td>
             <td>
               <div style="display:flex;gap:6px;">
-                <button class="btn btn-ghost btn-sm" onclick="openEditFleetEmployee('${member.id}')" title="Edit">✏️</button>
+                <button class="btn btn-ghost btn-sm" onclick="openEditFleetEmployee('${member.id}')" title="Edit">${mccIcon('file-text', 16)}</button>
                 ${status === 'active' 
-                  ? `<button class="btn btn-ghost btn-sm" onclick="suspendFleetMember('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Suspend" style="color:var(--accent-orange);">⏸️</button>`
-                  : `<button class="btn btn-ghost btn-sm" onclick="activateFleetMember('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Activate" style="color:var(--accent-green);">▶️</button>`
+                  ? `<button class="btn btn-ghost btn-sm" onclick="suspendFleetMember('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Suspend" style="color:var(--accent-orange);">` + mccIcon('pause', 14) + `</button>`
+                  : `<button class="btn btn-ghost btn-sm" onclick="activateFleetMember('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Activate" style="color:var(--accent-green);">` + mccIcon('play', 14) + `</button>`
                 }
-                <button class="btn btn-ghost btn-sm" onclick="confirmRemoveFleetEmployee('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Remove" style="color:var(--accent-red);">🗑️</button>
+                <button class="btn btn-ghost btn-sm" onclick="confirmRemoveFleetEmployee('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Remove" style="color:var(--accent-red);">${mccIcon('x', 16)}</button>
               </div>
             </td>
           </tr>
@@ -3117,7 +3476,7 @@
       if (fleetVehicles.length === 0) {
         grid.innerHTML = `
           <div class="empty-state" style="grid-column:1/-1;padding:32px;">
-            <div class="empty-state-icon">🚗</div>
+            <div class="empty-state-icon">${mccIcon('car', 40)}</div>
             <p>No vehicles in fleet yet.</p>
             <button class="btn btn-primary btn-sm" onclick="openAddFleetVehicleModal()" style="margin-top:12px;">+ Add First Vehicle</button>
           </div>
@@ -3128,7 +3487,7 @@
       if (filteredVehicles.length === 0) {
         grid.innerHTML = `
           <div class="empty-state" style="grid-column:1/-1;padding:24px;">
-            <div class="empty-state-icon">🔍</div>
+            <div class="empty-state-icon">${mccIcon('search', 40)}</div>
             <p>No vehicles match this filter.</p>
           </div>
         `;
@@ -3148,19 +3507,19 @@
             <div class="fleet-vehicle-photo">
               ${v.photo_url 
                 ? `<img src="${v.photo_url}" alt="${v.make} ${v.model}">` 
-                : '🚗'}
+                : mccIcon('car', 16)}
               <span class="fleet-assignment-badge ${assignment}" style="position:absolute;top:8px;right:8px;">${assignment}</span>
-              ${needsService ? `<span class="fleet-assignment-badge" style="position:absolute;top:8px;left:8px;background:rgba(239,95,95,0.9);color:#fff;">⚠️ Needs Service</span>` : ''}
+              ${needsService ? `<span class="fleet-assignment-badge" style="position:absolute;top:8px;left:8px;background:rgba(239,95,95,0.9);color:#fff;">${mccIcon('alert-triangle', 16)} Needs Service</span>` : ''}
             </div>
             <div class="fleet-vehicle-body">
               <div class="fleet-vehicle-title">${v.year || ''} ${v.make || ''} ${v.model || ''}</div>
-              <div class="fleet-vehicle-driver">👤 ${driverName}</div>
+              <div class="fleet-vehicle-driver">${mccIcon('user', 16)} ${driverName}</div>
               <div class="fleet-vehicle-meta">
-                ${fv.department ? `<span style="font-size:0.78rem;color:var(--text-muted);">📁 ${fv.department}</span>` : ''}
+                ${fv.department ? `<span style="font-size:0.78rem;color:var(--text-muted);">${mccIcon('folder-open', 16)} ${fv.department}</span>` : ''}
                 <span class="fleet-status-badge ${healthStatus === 'excellent' || healthStatus === 'good' ? 'active' : healthStatus === 'fair' ? 'pending' : 'inactive'}" style="font-size:0.7rem;">${healthStatus}</span>
               </div>
               <div style="display:flex;gap:8px;">
-                <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="openEditFleetVehicle('${fv.id}')">✏️ Edit</button>
+                <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="openEditFleetVehicle('${fv.id}')">${mccIcon('file-text', 16)} Edit</button>
               </div>
             </div>
           </div>
@@ -3188,7 +3547,7 @@
       if (bulkBatches.length === 0) {
         container.innerHTML = `
           <div class="empty-state" style="padding:32px;">
-            <div class="empty-state-icon">📅</div>
+            <div class="empty-state-icon">${mccIcon('calendar', 40)}</div>
             <p>No bulk service batches yet.</p>
             <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Schedule maintenance for multiple vehicles at once.</p>
           </div>
@@ -3210,9 +3569,9 @@
               <span class="batch-status-badge ${statusClass}">${formatBatchStatus(batch.status)}</span>
             </div>
             <div class="batch-meta">
-              <span>🚗 ${vehicleCount} vehicle${vehicleCount !== 1 ? 's' : ''}</span>
-              <span>📅 ${formatDateRange(batch.start_date, batch.end_date)}</span>
-              ${batch.total_estimated_cost ? `<span>💰 ~$${Number(batch.total_estimated_cost).toLocaleString()}</span>` : ''}
+              <span>${mccIcon('car', 16)} ${vehicleCount} vehicle${vehicleCount !== 1 ? 's' : ''}</span>
+              <span>${mccIcon('calendar', 16)} ${formatDateRange(batch.start_date, batch.end_date)}</span>
+              ${batch.total_estimated_cost ? `<span>${mccIcon('dollar-sign', 16)} ~$${Number(batch.total_estimated_cost).toLocaleString()}</span>` : ''}
             </div>
             <div class="batch-actions">
               ${batch.status === 'draft' ? `<button class="btn btn-secondary btn-sm" onclick="editBulkBatch('${batch.id}')">Edit</button>` : ''}
@@ -3519,7 +3878,7 @@
       document.getElementById('edit-fleet-vehicle-content').innerHTML = `
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
           <div style="width:80px;height:60px;background:var(--bg-input);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:32px;overflow:hidden;">
-            ${v.photo_url ? `<img src="${v.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : '🚗'}
+            ${v.photo_url ? `<img src="${v.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : mccIcon('car', 16)}
           </div>
           <div>
             <div style="font-weight:600;font-size:1.1rem;">${v.year} ${v.make} ${v.model}</div>
@@ -3673,7 +4032,7 @@
           <label style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-input);border:2px solid ${isSelected ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:var(--radius-md);cursor:pointer;transition:all 0.15s;">
             <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleBulkVehicle('${fv.id}')">
             <div style="width:50px;height:40px;background:var(--bg-elevated);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;overflow:hidden;">
-              ${v.photo_url ? `<img src="${v.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : '🚗'}
+              ${v.photo_url ? `<img src="${v.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : mccIcon('car', 16)}
             </div>
             <div style="flex:1;">
               <div style="font-weight:500;">${v.year} ${v.make} ${v.model}</div>
@@ -3751,7 +4110,7 @@
       
       document.getElementById('bulk-review-content').innerHTML = `
         <div class="card" style="margin-bottom:16px;">
-          <h4 style="margin-bottom:12px;">📋 Batch Details</h4>
+          <h4 style="margin-bottom:12px;">${mccIcon('clipboard-list', 16)} Batch Details</h4>
           <div style="display:grid;gap:8px;font-size:0.9rem;">
             <div><strong>Title:</strong> ${title}</div>
             <div><strong>Service Type:</strong> ${serviceType}</div>
@@ -3761,12 +4120,12 @@
         </div>
         
         <div class="card">
-          <h4 style="margin-bottom:12px;">🚗 Vehicles (${bulkSelectedVehicles.length})</h4>
+          <h4 style="margin-bottom:12px;">${mccIcon('car', 16)} Vehicles (${bulkSelectedVehicles.length})</h4>
           ${vehiclesList}
         </div>
         
         <div style="margin-top:16px;padding:16px;background:var(--accent-gold-soft);border-radius:var(--radius-md);">
-          <strong style="color:var(--accent-gold);">ℹ️ What happens next:</strong>
+          <strong style="color:var(--accent-gold);">${mccIcon('info', 16)} What happens next:</strong>
           <p style="font-size:0.88rem;color:var(--text-secondary);margin-top:8px;">
             This batch will be submitted for approval. Once approved, individual maintenance packages will be created for each vehicle and sent out for provider bids.
           </p>
@@ -4234,7 +4593,7 @@
           video.muted = true;
           div.appendChild(video);
         } else if (file.type.startsWith('audio/')) {
-          div.innerHTML = '<div class="va-audio-icon">🎵</div>';
+          div.innerHTML = '<div class="va-audio-icon">' + mccIcon('sparkles', 16) + '</div>';
         }
         
         const removeBtn = document.createElement('button');
@@ -4340,11 +4699,11 @@
       document.getElementById('va-result').style.display = 'block';
       
       const severityLabels = {
-        low: '✅ Low Priority',
-        medium: '⚠️ Medium Priority',
-        high: '🔶 High Priority',
-        critical: '🚨 Critical - Address Immediately',
-        cosmetic: '✨ Cosmetic Work'
+        low: mccIcon('check-circle', 16) + ' Low Priority',
+        medium: mccIcon('alert-triangle', 16) + ' Medium Priority',
+        high: mccIcon('alert-triangle', 16) + ' High Priority',
+        critical: mccIcon('circle-alert', 16) + ' Critical - Address Immediately',
+        cosmetic: mccIcon('sparkles', 16) + ' Cosmetic Work'
       };
       
       const severityBadge = document.getElementById('va-severity-badge');
@@ -4444,52 +4803,52 @@ Note: This assessment was generated by AI and is for informational purposes only
     // Car Education Data
     const carEducation = {
       maintenance101: [
-        { title: 'Why Oil Changes Matter', content: 'Oil lubricates your engine\'s moving parts and removes heat. Old oil breaks down and can\'t protect your engine, leading to wear and expensive repairs. Most modern cars need synthetic oil every 5,000-10,000 miles.', icon: '🛢️' },
-        { title: 'Brake Basics', content: 'Brakes work by pressing pads against spinning rotors to slow your car. Brake pads wear down over time and need replacement every 30,000-70,000 miles. Squealing usually means pads are getting low.', icon: '🛑' },
-        { title: 'Tire Care Essentials', content: 'Tires are your only contact with the road. Rotate them every 5,000-7,500 miles for even wear. Check pressure monthly - underinflated tires waste gas and wear faster.', icon: '🔄' },
-        { title: 'Battery Health', content: 'Car batteries typically last 3-5 years. Extreme heat and cold shorten their life. Signs of a dying battery: slow engine crank, dim lights, and dashboard warning lights.', icon: '🔋' },
-        { title: 'Fluid Check Guide', content: 'Your car uses several fluids: engine oil, coolant, brake fluid, transmission fluid, and power steering fluid. Most have dipsticks or reservoirs you can check yourself.', icon: '💧' },
-        { title: 'Filter Fundamentals', content: 'Air filters keep dust out of your engine (replace every 15,000-30,000 miles). Cabin filters keep the air you breathe clean (replace every 15,000-25,000 miles).', icon: '💨' }
+        { title: 'Why Oil Changes Matter', content: '<p>Oil is the lifeblood of your engine. It lubricates hundreds of moving parts, reduces friction, carries away heat, and prevents harmful deposits from building up inside. Without clean oil, metal components grind against each other, generating excessive heat and accelerating wear.</p><h4>What Happens When You Skip Oil Changes</h4><p>Over time, oil breaks down and becomes contaminated with dirt, metal shavings, and combustion byproducts. When this happens, it loses its ability to protect your engine. The result can be <strong>sludge buildup</strong>, overheating, and eventually catastrophic engine failure. An engine replacement can cost <strong>$3,000 to $7,000 or more</strong>, while a routine oil change typically runs just <strong>$30 to $75</strong>.</p><h4>How Often Should You Change Your Oil?</h4><ul><li><strong>Conventional oil:</strong> Every 3,000-5,000 miles</li><li><strong>Synthetic blend:</strong> Every 5,000-7,500 miles</li><li><strong>Full synthetic:</strong> Every 7,500-10,000 miles</li></ul><p>Always check your owner\\\'s manual for the manufacturer\\\'s recommendation. Driving conditions matter too - frequent short trips, dusty roads, extreme temperatures, and stop-and-go traffic all call for more frequent changes.</p><p>My Car Concierge can help you track your oil change schedule and get competitive bids from verified providers when it\\\'s time for service, so you never overpay or miss an interval.</p>', icon: mccIcon('fuel', 16), readTime: '4 min' },
+        { title: 'Brake Basics', content: '<p>Your braking system is arguably the most important safety feature on your vehicle. Understanding how it works helps you recognize problems early and make informed decisions about repairs.</p><h4>How Your Brakes Work</h4><p>When you press the brake pedal, hydraulic fluid transmits that force to <strong>brake calipers</strong> at each wheel. The calipers squeeze <strong>brake pads</strong> against spinning <strong>rotors</strong> (metal discs), creating friction that slows your car. This friction generates intense heat, which is why brake components wear down over time.</p><h4>When to Replace Brake Components</h4><ul><li><strong>Brake pads:</strong> Every 30,000-70,000 miles depending on driving habits</li><li><strong>Rotors:</strong> Every 50,000-70,000 miles, or when they become too thin or warped</li><li><strong>Brake fluid:</strong> Every 2-3 years or 30,000 miles</li></ul><p>A high-pitched <strong>squealing sound</strong> when braking usually means your pads have built-in wear indicators telling you it\\\'s time for replacement. If you hear <strong>grinding</strong> (metal on metal), the pads are completely worn and you\\\'re damaging the rotors - this turns a <strong>$150-$300 pad replacement</strong> into a <strong>$400-$800 pad and rotor job</strong>.</p><p>Don\\\'t wait until brakes become a safety hazard. Through My Car Concierge, you can request brake service and receive competitive bids from multiple verified providers, ensuring you get quality work at a fair price.</p>', icon: mccIcon('circle-alert', 16), readTime: '4 min' },
+        { title: 'Tire Care Essentials', content: '<p>Your tires are the only part of your car that actually touches the road, making them critical for safety, fuel efficiency, and ride comfort. Proper tire care is one of the simplest and most impactful maintenance tasks you can perform.</p><h4>Tire Rotation</h4><p>Tires wear unevenly because front and rear tires handle different loads and forces. <strong>Rotate your tires every 5,000-7,500 miles</strong> to promote even wear and extend their lifespan. Most tire shops include free rotations when you purchase tires from them.</p><h4>Tire Pressure</h4><p>Check your tire pressure <strong>at least once a month</strong> and before long trips. The correct pressure is listed on a sticker inside your driver\\\'s door jamb (not the number on the tire sidewall). Underinflated tires increase fuel consumption by up to <strong>3%</strong>, wear out faster on the edges, and can overheat at highway speeds. Overinflated tires wear faster in the center and provide a harsher ride.</p><h4>When to Replace Tires</h4><ul><li>Tread depth below <strong>2/32 of an inch</strong> (use the penny test - if you can see all of Lincoln\\\'s head, it\\\'s time)</li><li>Visible cracks, bulges, or blisters on the sidewall</li><li>Tires older than <strong>6 years</strong> regardless of tread depth</li><li>Uneven wear patterns that don\\\'t correct with rotation</li></ul><p>A set of quality tires typically costs <strong>$400-$800</strong> for a standard sedan. Through My Car Concierge, you can get quotes from multiple tire shops to find the best deal on the right tires for your vehicle and driving needs.</p>', icon: mccIcon('refresh-cw', 16), readTime: '4 min' },
+        { title: 'Battery Health', content: '<p>Your car\\\'s battery provides the electrical energy needed to start the engine and power accessories when the engine is off. A dead battery is one of the most common reasons for roadside assistance calls, but with basic awareness, you can avoid being stranded.</p><h4>Battery Lifespan</h4><p>Most car batteries last <strong>3 to 5 years</strong>, though this varies significantly based on climate, driving habits, and vehicle type. <strong>Extreme heat</strong> actually damages batteries more than cold - it accelerates chemical degradation inside the battery. Cold weather just reveals the weakness by demanding more power to start a cold engine.</p><h4>Warning Signs of a Failing Battery</h4><ul><li><strong>Slow engine crank:</strong> The engine turns over sluggishly when starting</li><li><strong>Dim headlights:</strong> Noticeably dimmer than usual, especially at idle</li><li><strong>Dashboard warning light:</strong> Battery or charging system indicator illuminated</li><li><strong>Electrical issues:</strong> Power windows moving slowly, radio resetting</li><li><strong>Swollen battery case:</strong> Indicates internal damage from heat</li></ul><h4>Extending Battery Life</h4><p>Avoid frequent short trips that don\\\'t give the alternator time to fully recharge the battery. Keep battery terminals clean and free of corrosion (white or greenish buildup). If you park your car for extended periods, consider a <strong>battery maintainer</strong> ($25-$50) to keep it charged.</p><p>Replacement batteries typically cost <strong>$100-$250</strong> including installation. Many auto parts stores will test your battery for free - take advantage of this before cold weather hits.</p>', icon: mccIcon('zap', 16), readTime: '4 min' },
+        { title: 'Fluid Check Guide', content: '<p>Your vehicle relies on several different fluids to operate safely and efficiently. Learning to check these fluids yourself takes just a few minutes and can help you catch problems before they become expensive repairs.</p><h4>Essential Vehicle Fluids</h4><ul><li><strong>Engine oil:</strong> Check with the dipstick when the engine is warm. Oil should be amber to dark brown. Black, gritty oil needs changing. Low levels could indicate a leak or burning.</li><li><strong>Coolant (antifreeze):</strong> Check the overflow reservoir when the engine is cool. The level should be between the MIN and MAX marks. Never open the radiator cap when hot.</li><li><strong>Brake fluid:</strong> Located in a clear reservoir near the firewall. Should be clear to light amber. Dark brake fluid should be flushed. Low levels may indicate worn brake pads or a leak.</li><li><strong>Transmission fluid:</strong> Some vehicles have a dipstick; others are sealed. Healthy fluid is red or pink. Brown or burnt-smelling fluid needs attention.</li><li><strong>Power steering fluid:</strong> Check the reservoir under the hood. Low fluid or whining when turning indicates a possible leak.</li></ul><h4>How Often to Check</h4><p>Get in the habit of checking all fluids <strong>once a month</strong> or before any long road trip. It takes less than five minutes and could save you thousands in repairs. Pay attention to any spots under your car where you park - they can indicate leaks.</p><p>If you\\\'re unsure about any fluid\\\'s condition, My Car Concierge can connect you with a provider for a quick inspection and top-off service.</p>', icon: mccIcon('fuel', 16), readTime: '5 min' },
+        { title: 'Filter Fundamentals', content: '<p>Filters play a quiet but essential role in your vehicle\\\'s health. They trap contaminants that would otherwise damage your engine or make your cabin uncomfortable. Fortunately, they\\\'re among the cheapest and easiest maintenance items to address.</p><h4>Engine Air Filter</h4><p>Your engine needs clean air to burn fuel efficiently. The <strong>engine air filter</strong> traps dust, pollen, debris, and insects before they enter the engine. A clogged air filter restricts airflow, reducing fuel efficiency and engine performance. Replace every <strong>15,000-30,000 miles</strong>, or more often in dusty environments. Cost: <strong>$15-$40</strong> for the filter, and many car owners can replace it themselves in under five minutes.</p><h4>Cabin Air Filter</h4><p>The <strong>cabin air filter</strong> cleans the air that flows through your heating and air conditioning system. It catches dust, pollen, mold spores, and exhaust fumes. If you notice musty smells from your vents, weak airflow, or increased allergy symptoms while driving, your cabin filter likely needs replacement. Change every <strong>15,000-25,000 miles</strong>. Cost: <strong>$15-$30</strong>.</p><h4>Other Filters to Know About</h4><ul><li><strong>Oil filter:</strong> Replaced with every oil change to remove contaminants from engine oil</li><li><strong>Fuel filter:</strong> Keeps debris out of your fuel injection system (some are serviceable, some are built into the fuel pump)</li><li><strong>Transmission filter:</strong> Changed during transmission fluid service on some vehicles</li></ul><p>Keeping up with filter replacements is one of the most cost-effective ways to protect your vehicle. These are great items to handle during routine maintenance - ask your provider to check all filters during your next service visit.</p>', icon: mccIcon('fuel', 16), readTime: '4 min' }
       ],
       repairs: [
-        { title: 'Alternator vs Battery', content: 'If your car won\'t start, it could be either. A dead battery is more common. If you jump-start and it dies again quickly, the alternator (which charges the battery) may be failing.', icon: '⚡' },
-        { title: 'Suspension & Shocks', content: 'Suspension keeps your ride smooth and your tires on the road. Signs of worn shocks: bouncy ride, nose-diving when braking, uneven tire wear.', icon: '🚗' },
-        { title: 'Transmission Explained', content: 'The transmission transfers power from engine to wheels and changes gears. Automatic transmissions shift for you; manuals require clutch work. Fluid changes extend transmission life.', icon: '⚙️' },
-        { title: 'Timing Belt vs Chain', content: 'Timing belts are rubber and need replacement (60,000-100,000 miles). Timing chains are metal and usually last the life of the engine. Check your owner\'s manual.', icon: '🔗' },
-        { title: 'Catalytic Converter', content: 'This emissions device converts harmful gases into less harmful ones. They\'re expensive because they contain precious metals. Theft is common - consider a protective shield.', icon: '🌿' },
-        { title: 'CV Joints & Axles', content: 'CV (constant velocity) joints allow your wheels to turn while receiving power. Clicking sounds when turning often indicate worn CV joints. The rubber boots protect them from dirt.', icon: '🔘' }
+        { title: 'Alternator vs Battery', content: '<p>When your car won\\\'t start, the two most common culprits are the <strong>battery</strong> and the <strong>alternator</strong>. Knowing the difference can save you from replacing the wrong part and wasting money.</p><h4>How to Tell Them Apart</h4><p>The battery stores electrical energy and provides the initial jolt to start your engine. The alternator generates electricity while the engine runs, recharging the battery and powering your car\\\'s electrical systems. Here\\\'s a simple diagnostic approach:</p><ul><li><strong>Dead battery:</strong> Car won\\\'t start but dash lights may flicker. Jump-starting works and the car runs fine afterward. Battery may just need charging or replacement.</li><li><strong>Failing alternator:</strong> Jump-starting works but the car dies again within minutes. Dim or flickering headlights while driving. Battery warning light on the dashboard. Electrical accessories (radio, windows) acting erratic.</li></ul><h4>Cost Expectations</h4><p>A new battery typically costs <strong>$100-$250</strong> installed. An alternator replacement runs <strong>$400-$800</strong> including parts and labor. Before replacing either, have the charging system tested - many auto parts stores offer free battery and alternator testing.</p><p>If you\\\'re unsure which component is the problem, post a service request through My Car Concierge. Our verified providers can diagnose the issue accurately and provide competitive bids for the repair, so you\\\'re not guessing or overpaying.</p>', icon: mccIcon('zap', 16), readTime: '4 min' },
+        { title: 'Suspension & Shocks', content: '<p>Your suspension system does more than just give you a comfortable ride. It keeps your tires firmly planted on the road, maintains steering control, and plays a critical role in braking performance. When suspension components wear out, your safety is compromised.</p><h4>Key Suspension Components</h4><ul><li><strong>Shocks (shock absorbers):</strong> Dampen the bouncing motion after hitting bumps. They\\\'re purely dampers and don\\\'t support the vehicle\\\'s weight.</li><li><strong>Struts:</strong> Structural components that combine a shock absorber with a coil spring. They support the vehicle\\\'s weight and are more expensive to replace.</li><li><strong>Control arms and bushings:</strong> Connect the wheels to the frame and allow controlled movement.</li><li><strong>Ball joints:</strong> Pivot points that allow steering and suspension to work together.</li></ul><h4>Signs Your Suspension Needs Attention</h4><p>Watch for these warning signs: a <strong>bouncy ride</strong> that doesn\\\'t settle quickly after bumps, the front end <strong>nose-diving</strong> when braking, the car <strong>leaning excessively</strong> in turns, <strong>uneven tire wear</strong>, or <strong>clunking sounds</strong> over bumps.</p><p>Suspension repairs typically cost <strong>$200-$600 per corner</strong> for strut replacement and <strong>$150-$350</strong> for shock absorbers. Ignoring worn suspension increases braking distance and makes your vehicle harder to control in emergencies. Get a suspension inspection if your vehicle has over 50,000 miles or shows any of the symptoms above.</p>', icon: mccIcon('car', 16), readTime: '4 min' },
+        { title: 'Transmission Explained', content: '<p>The transmission is one of the most complex and expensive components in your vehicle. It transfers power from the engine to the wheels and shifts between gear ratios to match your speed and driving conditions. Understanding the basics helps you maintain it properly and recognize problems early.</p><h4>Types of Transmissions</h4><ul><li><strong>Automatic:</strong> Shifts gears for you using a torque converter. Most common in modern vehicles. Requires periodic fluid changes.</li><li><strong>Manual:</strong> You shift gears using a clutch pedal and gear lever. The clutch disc wears over time and eventually needs replacement.</li><li><strong>CVT (Continuously Variable):</strong> Uses a belt and pulley system instead of fixed gears. Common in newer vehicles for fuel efficiency. Requires special CVT fluid.</li></ul><h4>Maintenance Tips</h4><p>Transmission fluid lubricates and cools internal components. Check your owner\\\'s manual for service intervals, but generally plan for a <strong>transmission fluid change every 30,000-60,000 miles</strong>. Some modern transmissions are advertised as "sealed for life," but many mechanics recommend service at 60,000-80,000 miles regardless.</p><h4>Warning Signs of Transmission Problems</h4><p>Watch for <strong>delayed engagement</strong> when shifting from park, <strong>slipping</strong> (engine revs but car doesn\\\'t accelerate), <strong>rough shifting</strong>, <strong>grinding sounds</strong>, or <strong>transmission fluid leaks</strong> (red or brown fluid under your car). Catching issues early can mean the difference between a <strong>$150 fluid service</strong> and a <strong>$2,500-$5,000 transmission rebuild</strong>.</p><p>If you notice any transmission symptoms, don\\\'t delay. Use My Car Concierge to get diagnostic and repair bids from qualified providers quickly.</p>', icon: mccIcon('settings', 16), readTime: '5 min' },
+        { title: 'Timing Belt vs Chain', content: '<p>Your engine\\\'s timing belt or chain is a critical component that synchronizes the rotation of the crankshaft and camshaft, ensuring that engine valves open and close at precisely the right moments. If this timing is off, your engine won\\\'t run properly - or at all.</p><h4>Timing Belt (Rubber)</h4><p>Timing belts are made of reinforced rubber and are quieter but have a limited lifespan. They typically need replacement every <strong>60,000-100,000 miles</strong>, depending on the manufacturer. This is a critical maintenance item because a <strong>broken timing belt can cause catastrophic engine damage</strong> in interference engines, where pistons and valves occupy the same space at different times. A timing belt replacement costs <strong>$500-$1,000</strong>, but the engine damage from a failure can exceed <strong>$3,000-$5,000</strong>.</p><h4>Timing Chain (Metal)</h4><p>Timing chains are metal and generally designed to last the life of the engine. However, they\\\'re not maintenance-free. Chains can stretch over time, causing <strong>rattling sounds</strong> on startup or rough idle. Chain guides and tensioners can also wear out. Chain replacement, when needed, costs <strong>$800-$2,000</strong> due to the labor involved.</p><h4>Which Does Your Car Have?</h4><p>Check your owner\\\'s manual or look up your specific engine online. If your vehicle has a timing belt, note the recommended replacement interval and don\\\'t push past it. This is one maintenance item where the cost of prevention is dramatically less than the cost of failure.</p><p>Not sure about your vehicle\\\'s timing system? Ask any My Car Concierge provider during your next service visit - they can tell you what you have and when it\\\'s due for service.</p>', icon: mccIcon('link', 16), readTime: '4 min' },
+        { title: 'Catalytic Converter', content: '<p>The catalytic converter is a critical emissions control device located in your exhaust system. It converts harmful pollutants like carbon monoxide, nitrogen oxides, and unburned hydrocarbons into less harmful substances like carbon dioxide and water vapor.</p><h4>Why They\\\'re So Expensive</h4><p>Catalytic converters contain <strong>precious metals</strong> including platinum, palladium, and rhodium, which serve as catalysts for the chemical reactions. These metals make converters valuable - a replacement can cost <strong>$1,000 to $2,500 or more</strong> depending on your vehicle. This value is also why catalytic converter theft has become a widespread problem.</p><h4>Protecting Against Theft</h4><ul><li>Install a <strong>catalytic converter shield</strong> or cage (<strong>$150-$400</strong> installed)</li><li>Park in well-lit areas or garages when possible</li><li>Consider an aftermarket alarm that detects tampering</li><li>Have your VIN etched onto the converter to aid in recovery</li></ul><h4>Signs of a Failing Converter</h4><p>A failing catalytic converter may trigger a <strong>check engine light</strong> (often code P0420), cause <strong>reduced engine performance</strong>, produce a <strong>sulfur or rotten egg smell</strong>, or cause your vehicle to <strong>fail emissions testing</strong>. Sometimes the converter itself isn\\\'t the root problem - issues like bad spark plugs or oil burning can damage a healthy converter, so proper diagnosis is important.</p><p>If your check engine light points to catalytic converter issues, get a thorough diagnosis before agreeing to replacement. Through My Car Concierge, you can get multiple opinions and competitive bids to ensure you\\\'re getting an accurate diagnosis and fair pricing.</p>', icon: mccIcon('sparkles', 16), readTime: '4 min' },
+        { title: 'CV Joints & Axles', content: '<p>CV (Constant Velocity) joints are essential components in your drivetrain that allow power to transfer from the transmission to your wheels while accommodating the up-and-down motion of the suspension and the turning of the wheels. Most front-wheel-drive and all-wheel-drive vehicles rely heavily on CV joints.</p><h4>How CV Joints Work</h4><p>Each drive axle has two CV joints - an <strong>inner joint</strong> connected to the transmission and an <strong>outer joint</strong> connected to the wheel hub. These joints are packed with grease and protected by <strong>rubber boots</strong> (CV boots) that keep the grease in and contaminants out. When a boot cracks or tears, dirt and moisture get in and grease leaks out, rapidly destroying the joint.</p><h4>Warning Signs of CV Joint Problems</h4><ul><li><strong>Clicking or popping</strong> sounds when making turns, especially at low speeds</li><li><strong>Grease splattered</strong> on the inside of the wheel or under the car near the wheels</li><li><strong>Vibration</strong> while driving, particularly during acceleration</li><li><strong>Torn or cracked CV boot</strong> visible during inspection</li></ul><h4>Repair Costs</h4><p>If caught early, a <strong>CV boot replacement</strong> costs just <strong>$150-$350</strong> and saves the joint. Once the joint itself is damaged, you\\\'ll need a <strong>complete CV axle replacement</strong>, which runs <strong>$300-$800</strong> per side including parts and labor. Many mechanics recommend replacing the entire axle assembly rather than just the joint, as remanufactured axles are cost-effective and reliable.</p><p>Regular inspections can catch torn CV boots before the joint is damaged. Ask your provider to check CV boots during oil changes or tire rotations - it\\\'s a quick visual inspection that can save you hundreds.</p>', icon: mccIcon('settings', 16), readTime: '4 min' }
       ],
       warningSigns: [
-        { title: 'Squealing Brakes', content: 'A high-pitched squeal usually means brake pads are worn. Built-in wear indicators make this sound on purpose. Don\'t ignore it - metal-on-metal grinding is much more expensive to fix.', icon: '🔊', severity: 'medium' },
-        { title: 'Check Engine Light', content: 'This can mean anything from a loose gas cap to a serious engine problem. A steady light means get it checked soon. A flashing light means pull over - continued driving may cause damage.', icon: '🚨', severity: 'high' },
-        { title: 'Burning Smell', content: 'Different burns mean different problems: Sweet smell = coolant leak. Burning oil = oil leak onto hot engine. Burning rubber = belt slipping or stuck brake. Electrical = wiring issue.', icon: '👃', severity: 'high' },
-        { title: 'Vibrations', content: 'Steering wheel shake at highway speeds often means unbalanced or worn tires. Vibration when braking suggests warped rotors. General vibration could be engine mounts or drivetrain.', icon: '📳', severity: 'medium' },
-        { title: 'Pulling to One Side', content: 'If your car drifts left or right, it could be alignment, uneven tire pressure, or worn suspension. Start by checking tire pressure - it\'s the easiest fix.', icon: '↔️', severity: 'low' },
-        { title: 'Strange Noises', content: 'Clicking when turning = CV joint. Grinding = brakes or transmission. Knocking from engine = low oil or engine damage. Hissing = vacuum or coolant leak. Clunking over bumps = suspension.', icon: '👂', severity: 'medium' }
+        { title: 'Squealing Brakes', content: '<p>A high-pitched squealing or squeaking sound when you apply the brakes is one of the most common warning signs that your <strong>brake pads are wearing thin</strong>. This sound is actually by design - most brake pads have built-in metal wear indicators that contact the rotor when the pad material gets low, creating that distinctive squeal to alert you.</p><h4>What to Do When You Hear It</h4><p>Don\\\'t panic, but don\\\'t ignore it either. When you first notice brake squealing, you typically have some time before the pads are completely gone, but you should schedule service within the next <strong>1,000-2,000 miles</strong>. The longer you wait, the more you risk:</p><ul><li><strong>Metal-on-metal grinding:</strong> Once pads are completely worn, the metal backing plate grinds against the rotor, causing expensive rotor damage</li><li><strong>Reduced braking performance:</strong> Worn pads take longer to stop your vehicle</li><li><strong>Caliper damage:</strong> Extreme wear can damage the brake caliper pistons</li></ul><h4>Cost Comparison</h4><p>Acting promptly on squealing brakes saves significant money. A straightforward <strong>brake pad replacement costs $150-$300 per axle</strong>. If you wait until the pads damage the rotors, you\\\'re looking at <strong>$400-$800 per axle</strong> for pads and rotors. If calipers are damaged, add another <strong>$200-$400 per caliper</strong>.</p><p>Note that some light squealing when brakes are cold or wet is normal and usually goes away after a few stops. Consistent squealing during normal braking is the warning sign to watch for. Through My Car Concierge, you can quickly get competitive bids for brake service from trusted providers in your area.</p>', icon: mccIcon('bell', 16), severity: 'medium', readTime: '4 min' },
+        { title: 'Check Engine Light', content: '<p>The <strong>check engine light</strong> (also called the malfunction indicator lamp or MIL) is your vehicle\\\'s way of telling you that its onboard computer has detected a problem with the engine, emissions system, or related components. It can indicate anything from a minor issue to a serious problem.</p><h4>Steady Light vs. Flashing Light</h4><p>Understanding the difference is critical:</p><ul><li><strong>Steady check engine light:</strong> Indicates a problem that should be diagnosed soon but is not immediately dangerous. You can usually continue driving to your destination and schedule service within the next few days.</li><li><strong>Flashing check engine light:</strong> This is urgent. It typically indicates an <strong>engine misfire</strong> that could damage your catalytic converter. Reduce speed, avoid hard acceleration, and get to a service provider as soon as possible. Continuing to drive aggressively with a flashing light can turn a <strong>$200 repair into a $2,000+ problem</strong>.</li></ul><h4>Common Causes</h4><ul><li><strong>Loose gas cap:</strong> The simplest fix - tighten it and the light may clear after a few drive cycles</li><li><strong>Oxygen sensor failure:</strong> $200-$400 to replace</li><li><strong>Catalytic converter issues:</strong> $1,000-$2,500 to replace</li><li><strong>Mass airflow sensor:</strong> $200-$400 to replace</li><li><strong>Spark plugs or ignition coils:</strong> $100-$300 to replace</li></ul><h4>Getting It Diagnosed</h4><p>Many auto parts stores will read your <strong>OBD-II diagnostic codes</strong> for free. The code gives you a starting point but doesn\\\'t tell the full story - a proper diagnosis requires a trained technician. My Car Concierge\\\'s AI diagnostic tools and verified providers can help you understand what\\\'s wrong and get competitive repair bids.</p>', icon: mccIcon('circle-alert', 16), severity: 'high', readTime: '5 min' },
+        { title: 'Burning Smell', content: '<p>A burning smell from your vehicle is always worth investigating. Different types of burning odors point to different problems, and some require immediate attention. Learning to identify these smells can help you describe the issue to your mechanic and understand the urgency.</p><h4>Types of Burning Smells</h4><ul><li><strong>Sweet, syrupy smell:</strong> Almost certainly a <strong>coolant leak</strong>. Coolant (antifreeze) has a distinctive sweet odor. If you smell it inside the cabin, the heater core may be leaking. Outside the car, check for puddles of green, orange, or pink fluid. Driving with a coolant leak can lead to overheating and engine damage.</li><li><strong>Burning oil smell:</strong> Oil may be leaking onto the <strong>hot exhaust manifold</strong> or other engine components. Check for oil spots where you park. Common leak points include valve cover gaskets, oil pan gaskets, and oil filter seals. Cost to fix: <strong>$100-$500</strong> depending on the source.</li><li><strong>Burning rubber:</strong> A <strong>drive belt</strong> may be slipping on a pulley, or a <strong>brake caliper</strong> may be stuck, causing the brake pad to drag against the rotor. A slipping belt often accompanies a squealing sound.</li><li><strong>Electrical/plastic burning:</strong> This could indicate a <strong>wiring problem</strong>, overheating electrical component, or short circuit. This is potentially the most dangerous as it can lead to a vehicle fire.</li><li><strong>Burning carpet or hair:</strong> May indicate <strong>overheated brake pads</strong> from riding the brakes, especially going downhill.</li></ul><h4>What to Do</h4><p>If you smell something burning, try to identify when it occurs (at idle, while driving, after parking). Pull over safely if the smell is strong or accompanied by smoke. For electrical burning smells, stop driving immediately. For other smells, schedule a diagnostic inspection promptly through My Car Concierge to identify and address the source.</p>', icon: mccIcon('search', 16), severity: 'high', readTime: '5 min' },
+        { title: 'Vibrations', content: '<p>Unusual vibrations while driving are your vehicle\\\'s way of telling you something is out of balance, worn, or failing. The type of vibration and when it occurs can help narrow down the cause.</p><h4>Vibrations at Highway Speeds</h4><p>If your <strong>steering wheel shakes at 55-70 mph</strong>, the most common causes are:</p><ul><li><strong>Unbalanced tires:</strong> The most likely culprit. A tire balance costs just <strong>$40-$80</strong> for all four tires and usually solves the problem immediately.</li><li><strong>Worn or damaged tires:</strong> Flat spots, bulges, or uneven wear can cause vibration. Inspect your tires visually for obvious issues.</li><li><strong>Bent wheel:</strong> Hitting a pothole or curb can bend a wheel. Repair or replacement costs <strong>$100-$500</strong> per wheel.</li></ul><h4>Vibration When Braking</h4><p>If you feel pulsing or shaking through the <strong>brake pedal or steering wheel when braking</strong>, the most likely cause is <strong>warped brake rotors</strong>. Rotors can warp from excessive heat (hard braking, riding the brakes downhill) or simply from age and wear. Resurfacing rotors costs <strong>$50-$100 per rotor</strong>, while replacement runs <strong>$150-$400 per axle</strong> including pads.</p><h4>General Vibration</h4><p>Vibration felt throughout the entire vehicle at various speeds could point to:</p><ul><li><strong>Worn engine mounts:</strong> Rubber mounts that isolate engine vibration from the cabin. Replacement costs <strong>$200-$600</strong>.</li><li><strong>Drivetrain issues:</strong> Worn U-joints, CV joints, or driveshaft problems</li><li><strong>Suspension wear:</strong> Worn bushings, ball joints, or tie rod ends</li></ul><p>Start with the simplest and cheapest diagnosis first. Have your tires balanced and inspected. If the vibration persists, a My Car Concierge provider can perform a more thorough inspection to identify the root cause.</p>', icon: mccIcon('smartphone', 16), severity: 'medium', readTime: '4 min' },
+        { title: 'Pulling to One Side', content: '<p>If your vehicle drifts or pulls to the left or right when you\\\'re driving on a straight, flat road, something is causing unequal forces on your wheels. While this is usually not an emergency, it should be addressed because it affects tire wear, fuel efficiency, and your ability to control the vehicle.</p><h4>Common Causes (From Simplest to Most Complex)</h4><ul><li><strong>Uneven tire pressure:</strong> This is the most common cause and the easiest fix. If one tire has significantly less air pressure than the others, the car will pull toward that side. Check all four tires and inflate to the recommended pressure listed on your door jamb sticker. Cost: <strong>Free</strong>.</li><li><strong>Wheel alignment:</strong> If your wheels aren\\\'t pointing in the right direction, the car will drift. Alignment can shift from hitting potholes, curbs, or normal wear. A four-wheel alignment costs <strong>$80-$150</strong> and should be done annually or whenever you notice pulling.</li><li><strong>Uneven tire wear:</strong> If tires have worn unevenly (often from previous alignment issues), the car may pull even after alignment. Tire rotation or replacement may be needed.</li><li><strong>Stuck brake caliper:</strong> A caliper that doesn\\\'t release fully creates drag on one side. You may also notice a burning smell or the affected wheel being hot after driving.</li><li><strong>Worn suspension components:</strong> Ball joints, tie rod ends, or control arm bushings can wear out and affect alignment geometry.</li></ul><h4>Quick Self-Test</h4><p>On a straight, flat, empty road at low speed, briefly let go of the steering wheel. If the car drifts noticeably to one side, start by checking tire pressures. If pressures are correct, schedule an alignment check. Most alignment shops will inspect your vehicle and let you know if suspension repairs are needed before performing the alignment.</p>', icon: mccIcon('alert-triangle', 16), severity: 'low', readTime: '4 min' },
+        { title: 'Strange Noises', content: '<p>Your car communicates through sounds. Learning to identify unusual noises and where they come from can help you catch problems early and give your mechanic valuable diagnostic information. Here\\\'s a guide to the most common car noises and what they typically mean.</p><h4>Noise Diagnosis Guide</h4><ul><li><strong>Clicking or popping when turning:</strong> Almost always a worn <strong>CV joint</strong>, especially at low speeds in tight turns. The outer CV joint is the usual culprit. Fix it before the joint fails completely. Cost: <strong>$300-$800</strong> per axle.</li><li><strong>Grinding when braking:</strong> Brake pads are completely worn and metal is grinding against the rotor. This is causing damage with every stop. Get brake service immediately. Cost: <strong>$400-$800</strong> per axle for pads and rotors.</li><li><strong>Knocking or pinging from the engine:</strong> Could indicate <strong>low-quality fuel</strong>, incorrect fuel octane, <strong>carbon buildup</strong>, or in serious cases, <strong>rod knock</strong> from engine bearing wear. If the knocking is loud and persistent, stop driving and get it towed. Engine bearing failure is catastrophic.</li><li><strong>Hissing under the hood:</strong> A <strong>vacuum leak</strong> or <strong>coolant leak</strong> onto a hot surface. Check for visible steam or fluid. A vacuum leak affects engine performance; a coolant leak can lead to overheating.</li><li><strong>Clunking over bumps:</strong> Worn <strong>suspension components</strong> - likely ball joints, sway bar links, or control arm bushings. Cost: <strong>$100-$400</strong> per component.</li><li><strong>Humming or growling that changes with speed:</strong> Often a worn <strong>wheel bearing</strong>. The sound typically gets louder at higher speeds and may change when turning. Cost: <strong>$300-$600</strong> per wheel.</li><li><strong>Squealing from under the hood:</strong> A worn or loose <strong>serpentine belt</strong>. Usually worse when cold or when accessories are under load. Belt replacement costs <strong>$100-$200</strong>.</li></ul><p>When describing noises to your mechanic, note when they occur (speed, braking, turning, cold starts), where they seem to come from, and whether they\\\'re getting worse. This information significantly speeds up diagnosis. You can also use My Car Concierge\\\'s AI diagnostic tool to help identify potential causes before scheduling service.</p>', icon: mccIcon('search', 16), severity: 'medium', readTime: '5 min' }
       ],
       savingTips: [
-        { title: 'Get Multiple Quotes', content: 'For any repair over $300, get 2-3 quotes. Prices can vary significantly. My Car Concierge makes this easy with competitive bidding from verified providers.', icon: '📊' },
-        { title: 'Don\'t Skip Maintenance', content: 'Regular oil changes and inspections catch small problems before they become big ones. A $50 oil change prevents a $5,000 engine replacement.', icon: '📅' },
-        { title: 'Understand the Diagnosis', content: 'Ask your mechanic to explain what\'s wrong in plain language. A good provider will show you the worn parts and explain why repairs are needed.', icon: '🔍' },
-        { title: 'Know What\'s Urgent', content: 'Brakes, tires, steering = safety-critical, fix immediately. Oil leak = fix soon. Cosmetic issues = can wait. Don\'t let shops scare you into unnecessary rush jobs.', icon: '⏰' },
-        { title: 'OEM vs Aftermarket Parts', content: 'OEM (Original Equipment Manufacturer) parts are made by your car\'s brand. Aftermarket parts are often cheaper and work fine, but quality varies. For critical components, OEM may be worth it.', icon: '🏭' },
-        { title: 'DIY What You Can', content: 'Some things are easy to do yourself: wiper blades, air filters, tire pressure, washer fluid. YouTube tutorials make it simple. Save labor costs for complex repairs.', icon: '🛠️' }
+        { title: 'Get Multiple Quotes', content: '<p>One of the biggest mistakes car owners make is accepting the first repair quote they receive. Pricing for the same job can vary dramatically between shops, sometimes by <strong>50% or more</strong>. Taking a few minutes to compare prices can save you hundreds of dollars.</p><h4>Why Prices Vary So Much</h4><p>Auto repair pricing depends on several factors: shop overhead costs (rent, equipment, insurance), labor rates (which range from <strong>$80-$180 per hour</strong> depending on location and shop type), parts markup, and even the shop\\\'s current workload. Dealerships typically charge more than independent shops, but they have factory-trained technicians and OEM parts.</p><h4>How to Compare Effectively</h4><ul><li>For any repair estimated at <strong>$300 or more</strong>, get at least 2-3 quotes</li><li>Make sure quotes are for the <strong>same scope of work</strong> - ask for an itemized breakdown of parts and labor</li><li>Ask whether quotes include <strong>OEM or aftermarket parts</strong></li><li>Check if a <strong>warranty</strong> is included on parts and labor</li><li>Don\\\'t automatically choose the cheapest quote - consider reputation and reviews too</li></ul><h4>How My Car Concierge Makes This Easy</h4><p>Instead of calling around to multiple shops, My Car Concierge lets you post your service need once and receive <strong>competitive bids from verified providers</strong>. Each bid is transparent with itemized pricing, and you can compare providers based on ratings, reviews, and proximity. This competitive bidding process typically saves members <strong>15-30%</strong> compared to going to a single shop without shopping around.</p><p>Even for routine maintenance like oil changes and tire rotations, comparing prices over time helps you find reliable providers who offer fair, consistent pricing.</p>', icon: mccIcon('bar-chart', 16), readTime: '4 min' },
+        { title: 'Don\\\'t Skip Maintenance', content: '<p>Preventive maintenance is the single most effective way to save money on your vehicle over its lifetime. It might feel like an unnecessary expense when your car seems to be running fine, but skipping scheduled maintenance is a gamble that rarely pays off.</p><h4>The Math of Prevention</h4><p>Consider these real-world examples of what prevention costs versus what failure costs:</p><ul><li><strong>Oil change:</strong> $30-$75 vs. <strong>engine replacement:</strong> $3,000-$7,000</li><li><strong>Coolant flush:</strong> $100-$150 vs. <strong>head gasket repair:</strong> $1,500-$3,000</li><li><strong>Timing belt replacement:</strong> $500-$1,000 vs. <strong>engine rebuild:</strong> $3,000-$6,000</li><li><strong>Transmission fluid service:</strong> $150-$250 vs. <strong>transmission rebuild:</strong> $2,500-$5,000</li><li><strong>Brake pad replacement:</strong> $150-$300 vs. <strong>rotor + caliper damage:</strong> $600-$1,200</li></ul><h4>Building a Maintenance Schedule</h4><p>Your owner\\\'s manual contains a detailed maintenance schedule specific to your vehicle. At minimum, follow these intervals:</p><ul><li><strong>Every 5,000-7,500 miles:</strong> Oil change, tire rotation, multi-point inspection</li><li><strong>Every 15,000-30,000 miles:</strong> Air filter, cabin filter, brake inspection</li><li><strong>Every 30,000-60,000 miles:</strong> Transmission fluid, coolant, spark plugs</li><li><strong>Every 60,000-100,000 miles:</strong> Timing belt (if applicable), major fluid services</li></ul><p>My Car Concierge helps you stay on track by letting you log maintenance history and get reminders when services are due. Consistent records also increase your vehicle\\\'s resale value.</p>', icon: mccIcon('calendar', 16), readTime: '4 min' },
+        { title: 'Understand the Diagnosis', content: '<p>Knowledge is power when it comes to auto repair. You don\\\'t need to become a mechanic, but understanding the basics of what\\\'s being recommended helps you make informed decisions and avoid unnecessary work.</p><h4>Questions to Ask Your Mechanic</h4><ul><li><strong>"Can you show me the problem?"</strong> A reputable provider will show you worn brake pads, a leaking gasket, or a damaged belt. If they can\\\'t or won\\\'t show you, that\\\'s a red flag.</li><li><strong>"What happens if I wait?"</strong> Understanding urgency helps you prioritize. Some repairs are safety-critical; others can wait a few weeks or months.</li><li><strong>"Is this related to the original issue?"</strong> Sometimes additional repairs are genuinely needed, but upselling is common. Make sure add-on recommendations are connected to the problem you came in for.</li><li><strong>"What are my options?"</strong> There\\\'s often more than one solution. OEM vs. aftermarket parts, repair vs. replacement, or different levels of service.</li></ul><h4>Red Flags to Watch For</h4><p>Be cautious if a shop: pressures you to decide immediately, won\\\'t provide a written estimate, dramatically increases the price after work begins, or recommends services your owner\\\'s manual doesn\\\'t call for at your mileage.</p><p>A trustworthy provider takes time to explain repairs in plain language, provides written estimates before starting work, and respects your right to get a second opinion. My Car Concierge\\\'s verified providers are rated by other members, so you can choose providers known for transparency and honest communication.</p>', icon: mccIcon('search', 16), readTime: '4 min' },
+        { title: 'Know What\\\'s Urgent', content: '<p>Not every car problem requires an immediate trip to the mechanic. Understanding the difference between urgent, soon, and can-wait repairs helps you budget effectively, avoid panic decisions, and keep your vehicle safe.</p><h4>Fix Immediately (Safety-Critical)</h4><ul><li><strong>Brakes:</strong> Grinding sounds, spongy brake pedal, brake warning light, or pulling when braking</li><li><strong>Tires:</strong> Bulges, exposed cords, severe uneven wear, or tread below 2/32"</li><li><strong>Steering:</strong> Excessive play, power steering failure, or unusual resistance</li><li><strong>Flashing check engine light:</strong> Indicates active engine misfire</li><li><strong>Overheating:</strong> Temperature gauge in the red zone or steam from the hood</li></ul><h4>Fix Soon (Within 1-2 Weeks)</h4><ul><li><strong>Steady check engine light:</strong> Get diagnosed but not necessarily an emergency</li><li><strong>Oil leaks:</strong> Monitor oil level and fix before it becomes severe</li><li><strong>Unusual noises:</strong> Investigate before they become worse and more expensive</li><li><strong>AC or heater issues:</strong> Comfort-related but can affect defogging in winter</li></ul><h4>Can Wait (Plan and Budget)</h4><ul><li><strong>Cosmetic damage:</strong> Dents, scratches, faded paint</li><li><strong>Minor convenience items:</strong> Power window switch, interior light, non-critical sensors</li><li><strong>Upcoming maintenance:</strong> Services due within the next few thousand miles</li></ul><p>Don\\\'t let a shop use scare tactics to pressure you into same-day repairs for non-urgent issues. Get a written diagnosis, take it home, and use My Car Concierge to compare bids at your own pace.</p>', icon: mccIcon('clock', 16), readTime: '4 min' },
+        { title: 'OEM vs Aftermarket Parts', content: '<p>When your vehicle needs parts replaced, you\\\'ll often have a choice between <strong>OEM (Original Equipment Manufacturer)</strong> parts and <strong>aftermarket</strong> alternatives. Understanding the differences helps you make the right choice for your budget and your vehicle.</p><h4>OEM Parts</h4><p>OEM parts are made by or for your vehicle\\\'s manufacturer to the same specifications as the original parts in your car. They offer guaranteed fitment and quality, and they\\\'re what the dealership uses.</p><ul><li><strong>Pros:</strong> Exact fit, consistent quality, manufacturer warranty, maintains vehicle value</li><li><strong>Cons:</strong> More expensive (often 20-60% more than aftermarket), limited availability outside dealerships</li></ul><h4>Aftermarket Parts</h4><p>Aftermarket parts are made by third-party companies. Quality ranges widely from budget options to premium brands that meet or exceed OEM specifications.</p><ul><li><strong>Pros:</strong> Lower cost, wider availability, variety of quality levels and price points, some brands offer better-than-OEM performance</li><li><strong>Cons:</strong> Quality inconsistency between brands, fitment may vary, may not match exact specifications</li></ul><h4>When to Choose Which</h4><ul><li><strong>Use OEM for:</strong> Safety-critical components (brakes, steering, suspension), under-warranty vehicles, engine and transmission internals</li><li><strong>Use quality aftermarket for:</strong> Brake pads and rotors (reputable brands like Wagner, Bosch), filters, belts, hoses, sensors, exterior trim</li><li><strong>Avoid cheap aftermarket for:</strong> Any component where failure could leave you stranded or compromise safety</li></ul><p>When getting bids through My Car Concierge, providers specify what parts they\\\'ll use. You can compare quotes with OEM and aftermarket options side by side to make the best choice for your situation and budget.</p>', icon: mccIcon('store', 16), readTime: '4 min' },
+        { title: 'DIY What You Can', content: '<p>You don\\\'t need to be a mechanic to handle some basic car maintenance yourself. Several routine tasks require minimal tools and skill, and doing them yourself saves labor costs while helping you stay connected with your vehicle\\\'s condition.</p><h4>Easy DIY Tasks (No Experience Needed)</h4><ul><li><strong>Check and inflate tires:</strong> A tire pressure gauge costs $5-$10. Check monthly and use a gas station air pump to adjust. Proper pressure saves fuel and extends tire life.</li><li><strong>Replace wiper blades:</strong> Costs $15-$30 and takes 5 minutes. Most auto parts stores will even install them for free if you buy there.</li><li><strong>Top off washer fluid:</strong> Buy a gallon of washer fluid for $3-$5 and fill the clearly marked reservoir under the hood.</li><li><strong>Replace engine air filter:</strong> Costs $15-$40 and takes 5-10 minutes. Usually just unclip the airbox, swap the filter, and reclip.</li><li><strong>Replace cabin air filter:</strong> Costs $15-$30. Usually located behind the glove box - many can be accessed without any tools.</li></ul><h4>Intermediate DIY (Some Comfort Required)</h4><ul><li><strong>Battery replacement:</strong> Disconnect negative terminal first, then positive. Reverse the order when installing the new one.</li><li><strong>Headlight or taillight bulb replacement:</strong> Varies by vehicle but often straightforward.</li><li><strong>Brake pad inspection:</strong> You can visually check pad thickness through most wheels without removing anything.</li></ul><h4>Leave These to Professionals</h4><p>Some jobs require specialized tools, lifts, or expertise: brake repair, suspension work, engine or transmission service, electrical diagnostics, and anything involving the fuel system. For these jobs, use My Car Concierge to find qualified providers and get competitive bids. The money you save on DIY tasks can be put toward professional service where it\\\'s truly needed.</p>', icon: mccIcon('wrench', 16), readTime: '4 min' }
       ],
       rideshare: [
-        { title: 'Accelerated Maintenance Schedules', content: 'When you drive 30,000-50,000+ miles per year, standard maintenance intervals don\'t apply. Your oil changes may need to happen every 3,000-5,000 miles instead of 7,500. Brake pads might last only 20,000 miles with constant city stop-and-go. Create a mileage-based schedule and track everything - your car is your business asset.', icon: '📅', readTime: '3 min' },
-        { title: 'City Driving Wear Patterns', content: 'Stop-and-go traffic is the hardest on your vehicle. Brakes wear 2-3x faster than highway driving. Transmission fluid degrades faster from constant gear changes. Your cooling system works harder in traffic. Engine mounts and suspension take a beating from potholes. Understanding these patterns helps you budget for repairs.', icon: '🏙️', readTime: '3 min' },
-        { title: 'Cost-Per-Mile Calculations', content: 'Knowing your true cost per mile helps you understand profitability. Include: fuel, insurance, maintenance, repairs, depreciation, and car washes. Most drivers underestimate true costs. Track all expenses for accurate calculations. A well-maintained vehicle has lower cost-per-mile than one driven to failure.', icon: '💵', readTime: '4 min' },
-        { title: 'Tax Deduction Essentials', content: 'Vehicle expenses for business driving may be tax-deductible. Keep detailed mileage logs with dates, destinations, and purpose. Save all receipts for repairs, maintenance, fuel, and car washes. Consult a tax professional about standard mileage rate vs actual expenses method. Good records can save you thousands.', icon: '📋', readTime: '3 min' },
-        { title: 'Protecting Resale Value', content: 'High-mileage vehicles depreciate faster, but you can minimize the hit. Keep detailed maintenance records - they\'re worth money at resale. Address cosmetic issues promptly. Consider professional detailing before selling. Timing matters - selling at 100K miles gets better value than 150K. Plan your exit strategy.', icon: '💰', readTime: '3 min' },
-        { title: 'Passenger Comfort & Safety', content: 'Happy passengers mean better ratings and tips. Keep your cabin air filter fresh for clean air. Ensure AC works well year-round. Check that all seat belts function properly. Keep the interior clean and odor-free. Working USB ports and phone mounts show professionalism. First impressions matter.', icon: '⭐', readTime: '3 min' }
+        { title: 'Accelerated Maintenance Schedules', content: '<p>As a rideshare driver putting <strong>30,000-50,000+ miles per year</strong> on your vehicle, standard maintenance schedules simply don\\\'t apply. Your car is a business asset that\\\'s working harder and faster than a typical commuter vehicle, and your maintenance plan needs to reflect that reality.</p><h4>Adjusted Intervals for High-Mileage Drivers</h4><ul><li><strong>Oil changes:</strong> Every 3,000-5,000 miles instead of the standard 7,500-10,000. High-mileage driving accelerates oil breakdown, and your engine is under constant stress.</li><li><strong>Brake pads:</strong> May last only 15,000-25,000 miles with constant city stop-and-go, compared to 30,000-70,000 miles for normal driving.</li><li><strong>Tire rotation:</strong> Every 5,000 miles to maximize tire life. Consider replacing tires every 25,000-35,000 miles.</li><li><strong>Transmission fluid:</strong> Every 30,000 miles, especially with frequent city driving and constant gear changes.</li><li><strong>Coolant flush:</strong> Every 30,000 miles or 2 years, whichever comes first.</li></ul><h4>Building Your Schedule</h4><p>Create a <strong>mileage-based maintenance calendar</strong> rather than a time-based one. Track your current mileage and set reminders at each interval. Keep a detailed log of every service performed, including date, mileage, service type, cost, and provider. This record serves multiple purposes: it helps you budget, proves maintenance history for resale, and may be needed for tax documentation.</p><p>My Car Concierge makes tracking maintenance easy and helps you find competitive pricing for routine services. When you\\\'re putting this many miles on your vehicle, even small savings per service add up to hundreds of dollars annually.</p>', icon: mccIcon('calendar', 16), readTime: '4 min' },
+        { title: 'City Driving Wear Patterns', content: '<p>City driving is the most demanding environment for any vehicle. The constant acceleration, braking, idling in traffic, and navigating rough urban roads put significantly more stress on your car than highway cruising. Understanding these wear patterns helps you anticipate repairs and budget accordingly.</p><h4>Components That Wear Faster in City Driving</h4><ul><li><strong>Brakes:</strong> City brakes wear <strong>2-3 times faster</strong> than highway driving. Constant stop-and-go cycling generates more heat and friction. Budget for brake service every 15,000-25,000 miles.</li><li><strong>Transmission:</strong> Constant gear shifting in traffic (especially in automatic transmissions) causes the fluid to degrade faster and puts more stress on internal components. Change fluid every 30,000 miles.</li><li><strong>Cooling system:</strong> Idling in traffic with no airflow means your cooling system works overtime. The radiator fan runs more, coolant degrades faster, and thermostat cycling increases.</li><li><strong>Suspension:</strong> Potholes, speed bumps, and uneven roads beat up shocks, struts, control arm bushings, and ball joints. Inspect suspension components every 20,000 miles.</li><li><strong>Engine mounts:</strong> Constant vibration from stop-and-go driving can crack rubber engine mounts over time, leading to increased cabin vibration.</li></ul><h4>Budgeting for City Wear</h4><p>As a rule of thumb, expect to spend <strong>30-50% more on maintenance</strong> compared to a primarily highway-driven vehicle at the same mileage. Build a monthly maintenance fund based on your driving volume. Tracking your actual expenses through My Car Concierge helps you forecast future costs accurately and spot trends that might indicate emerging problems.</p>', icon: mccIcon('store', 16), readTime: '4 min' },
+        { title: 'Cost-Per-Mile Calculations', content: '<p>Understanding your true <strong>cost per mile</strong> is essential for determining whether rideshare driving is profitable for you. Many drivers focus only on fuel costs and dramatically underestimate what it truly costs to operate their vehicle.</p><h4>What to Include in Your Calculation</h4><p>Your total cost per mile should account for every expense related to your vehicle:</p><ul><li><strong>Fuel:</strong> Track every fill-up. Divide your total fuel cost by total miles driven.</li><li><strong>Insurance:</strong> Your annual premium divided by annual miles. Note: rideshare driving may require additional coverage.</li><li><strong>Maintenance:</strong> Oil changes, filters, brake service, tire rotations, fluid services - everything scheduled.</li><li><strong>Repairs:</strong> Unplanned fixes, from minor sensor replacements to major component failures.</li><li><strong>Depreciation:</strong> The decrease in your vehicle\\\'s value. High-mileage vehicles depreciate faster. Estimate <strong>$0.10-$0.20 per mile</strong> for depreciation on most vehicles.</li><li><strong>Car washes and detailing:</strong> Essential for maintaining passenger ratings.</li><li><strong>Phone mount, chargers, and accessories:</strong> Business expenses that add up.</li></ul><h4>Running the Numbers</h4><p>Most rideshare drivers find their true cost per mile falls between <strong>$0.30 and $0.60</strong>, depending on vehicle type, fuel efficiency, and maintenance discipline. Compare this to your earnings per mile from the platform to determine true profitability. If your costs approach or exceed your per-mile earnings, it may be time to evaluate whether a more fuel-efficient vehicle would improve your margins.</p><p>A well-maintained vehicle consistently has a <strong>lower cost per mile</strong> than one driven to failure. Preventive maintenance through My Car Concierge\\\'s competitive bidding helps keep those costs under control.</p>', icon: mccIcon('dollar-sign', 16), readTime: '5 min' },
+        { title: 'Tax Deduction Essentials', content: '<p>As a rideshare driver, your vehicle expenses may be <strong>tax-deductible</strong>, potentially saving you thousands of dollars annually. However, taking advantage of these deductions requires consistent, detailed record-keeping throughout the year.</p><h4>Two Methods for Vehicle Deductions</h4><ul><li><strong>Standard mileage rate:</strong> The IRS sets a rate per mile for business driving (check the current year\\\'s rate). You simply multiply your business miles by this rate. This method is simpler but may result in a smaller deduction if you have high actual expenses.</li><li><strong>Actual expense method:</strong> You deduct the actual costs of operating your vehicle for business, including fuel, insurance, maintenance, repairs, depreciation, and financing costs. You must calculate the percentage of total miles that were for business.</li></ul><h4>Essential Records to Keep</h4><ul><li><strong>Mileage log:</strong> Date, starting point, destination, purpose, and miles driven for every trip. Many apps can automate this tracking.</li><li><strong>Receipts:</strong> Save every receipt for fuel, maintenance, repairs, car washes, tolls, and parking fees.</li><li><strong>Insurance documentation:</strong> Your premium statements and any rideshare-specific coverage.</li><li><strong>Vehicle purchase records:</strong> If using the actual expense method, you\\\'ll need documentation of your vehicle\\\'s purchase price for depreciation calculations.</li></ul><h4>Important Notes</h4><p>You can only deduct expenses for <strong>business miles</strong>, not personal driving. Commuting from home to a regular job is not deductible, but miles driven while actively working for a rideshare platform generally are. Consult a tax professional who understands gig economy deductions to maximize your benefits and ensure compliance. My Car Concierge\\\'s maintenance tracking provides organized records that make tax time much easier.</p>', icon: mccIcon('clipboard-list', 16), readTime: '5 min' },
+        { title: 'Protecting Resale Value', content: '<p>High-mileage rideshare vehicles depreciate faster than average, but strategic decisions can help you <strong>minimize the financial hit</strong> when it\\\'s time to sell or trade in. Think of resale value protection as an ongoing investment, not a last-minute effort.</p><h4>Maintenance Records Are Worth Money</h4><p>A complete set of maintenance records can add <strong>$500-$2,000 or more</strong> to your vehicle\\\'s resale value. Buyers and dealers pay premium prices for vehicles with documented service history because it reduces their risk. Keep records of every oil change, tire rotation, brake service, and repair with dates, mileage, and receipts.</p><h4>Strategies to Maximize Resale</h4><ul><li><strong>Address cosmetic issues promptly:</strong> Small dents, scratches, and chips are inexpensive to fix early but create a negative impression if accumulated. Touch-up paint ($10-$20) can prevent rust from forming around chips.</li><li><strong>Professional detailing before selling:</strong> A $150-$300 professional detail (interior deep clean, exterior polish, engine bay cleaning) can increase your sale price by far more than its cost.</li><li><strong>Maintain interior quality:</strong> Use seat covers and floor mats to protect original surfaces. Clean regularly to prevent stains from setting permanently.</li><li><strong>Stay current on recalls:</strong> Complete all manufacturer recalls promptly - open recalls reduce buyer confidence.</li></ul><h4>Timing Your Exit</h4><p>Plan your vehicle transition strategically. Selling at <strong>80,000-100,000 miles</strong> typically gets significantly better value than waiting until 150,000+ miles. Many major maintenance items (timing belt, transmission service) come due around 100,000 miles, and buyers factor those upcoming costs into their offer. If you\\\'re approaching a major milestone, consider selling before those services are due.</p>', icon: mccIcon('dollar-sign', 16), readTime: '4 min' },
+        { title: 'Passenger Comfort & Safety', content: '<p>In the rideshare business, your vehicle\\\'s condition directly impacts your <strong>ratings, tips, and earning potential</strong>. Passengers form an impression within seconds of entering your car, and that impression affects every aspect of your income.</p><h4>Comfort Essentials</h4><ul><li><strong>Cabin air filter:</strong> Replace every 10,000-15,000 miles (more frequently than the standard interval) to keep the air fresh. A musty or stale smell is an instant rating killer. Cost: <strong>$15-$30</strong>.</li><li><strong>Climate control:</strong> Ensure your AC blows cold in summer and your heater works well in winter. AC system recharges cost <strong>$150-$300</strong> and are worth every penny.</li><li><strong>Interior cleanliness:</strong> Vacuum seats and floors at least weekly. Wipe down all surfaces including door handles, seat belt buckles, and center console. Use a subtle, non-overpowering air freshener or none at all.</li><li><strong>USB charging ports:</strong> Make sure all charging ports work. Carry both Lightning and USB-C cables. A $15 multi-port car charger is a worthwhile investment.</li><li><strong>Phone mount:</strong> A clean, professional-looking mount shows you\\\'re serious about the job and keeps navigation visible without holding your phone.</li></ul><h4>Safety Checks</h4><ul><li><strong>Seat belts:</strong> Test all passenger seat belts regularly. They must latch securely, retract properly, and release easily.</li><li><strong>Door handles and locks:</strong> All doors should open and close smoothly from inside and outside.</li><li><strong>Lights:</strong> Interior dome lights, headlights, brake lights, and turn signals all need to work properly.</li><li><strong>Tires:</strong> Bald or underinflated tires put passengers at risk. Maintain proper tread depth and pressure.</li></ul><p>Regular vehicle maintenance through My Car Concierge ensures your car is always passenger-ready. Happy passengers mean consistent 5-star ratings and better tips.</p>', icon: mccIcon('star', 16), readTime: '4 min' }
       ],
       commercial: [
-        { title: 'Heavy-Duty Brake Systems', content: 'Larger vehicles with passengers or cargo need more stopping power. Brake systems work much harder than passenger cars. Inspect brake pads, rotors, and drums more frequently. Listen for squealing or grinding - address immediately. Air brake systems require additional maintenance. Never compromise on brakes when carrying passengers.', icon: '🛑', readTime: '4 min' },
-        { title: 'Transmission Care for Heavy Loads', content: 'Transmissions in vans and buses work harder due to weight. Use the correct transmission fluid specified for your vehicle. Consider more frequent fluid changes - every 30,000 miles for heavy use. Avoid overloading - it accelerates wear dramatically. Towing or carrying maximum loads? Expect shorter component life.', icon: '⚙️', readTime: '4 min' },
-        { title: 'Pre-Trip Inspection Basics', content: 'Professional drivers should inspect their vehicle before each trip. Check tires for pressure and damage. Test all lights - headlights, brake lights, turn signals. Verify horn works. Check mirrors for proper adjustment. Look under the vehicle for leaks. Test brakes before leaving. This protects you and your passengers.', icon: '✅', readTime: '4 min' },
-        { title: 'Cooling System Demands', content: 'Engines in commercial vehicles run hotter due to constant operation and heavier loads. Check coolant levels regularly. Inspect belts and hoses for wear. Watch your temperature gauge - overheating destroys engines. Consider a heavy-duty radiator if you frequently operate at capacity. Don\'t ignore warning signs.', icon: '🌡️', readTime: '3 min' },
-        { title: 'Suspension & Steering Under Load', content: 'Heavy loads stress suspension components. Inspect shocks and struts for leaks or wear. Check ball joints and tie rod ends regularly. Listen for clunks over bumps - address immediately. Proper alignment extends tire life and improves handling. Worn suspension affects braking distance and safety.', icon: '🔧', readTime: '3 min' },
-        { title: 'Fleet Maintenance Records', content: 'Proper documentation is essential for commercial vehicles. Track all maintenance by date and mileage. Record fuel consumption to spot problems early. Keep repair receipts organized. Many jurisdictions require maintenance logs for commercial vehicles. Good records also help with resale and warranty claims.', icon: '📁', readTime: '3 min' }
+        { title: 'Heavy-Duty Brake Systems', content: '<p>Commercial vehicles carrying passengers or heavy cargo place enormous demands on their braking systems. Whether you\\\'re operating a shuttle bus, delivery van, or passenger transport vehicle, your brakes are working significantly harder than those on a standard passenger car, and your maintenance approach must reflect this.</p><h4>Understanding Commercial Brake Systems</h4><p>Commercial vehicles may use <strong>disc brakes, drum brakes, or a combination</strong> of both. Larger vehicles like buses often use <strong>air brake systems</strong> instead of hydraulic brakes. Each type requires specific maintenance knowledge:</p><ul><li><strong>Disc brakes:</strong> Similar to passenger cars but with larger, heavier-duty components. Pads and rotors wear faster under heavy loads.</li><li><strong>Drum brakes:</strong> Common on rear axles of vans and trucks. Shoes wear against drums and require periodic adjustment. Drums should be inspected for cracks and scoring.</li><li><strong>Air brakes:</strong> Use compressed air instead of hydraulic fluid. Require regular inspection of air compressors, air dryers, slack adjusters, brake chambers, and air lines. Air system leaks must be repaired immediately.</li></ul><h4>Inspection Frequency</h4><p>For commercial vehicles, inspect brake components at minimum every <strong>10,000-15,000 miles</strong>, or more frequently if you\\\'re carrying heavy loads daily. Listen for squealing, grinding, or air leaks. Feel for pulling, vibration, or spongy pedal response. Any abnormality should be addressed immediately - <strong>brake failure while carrying passengers or cargo is not an option</strong>.</p><p>Budget <strong>$300-$1,000 per axle</strong> for commercial brake service, depending on the vehicle type and components involved. My Car Concierge can connect you with providers experienced in commercial vehicle brake systems to ensure the work is done correctly.</p>', icon: mccIcon('circle-alert', 16), readTime: '5 min' },
+        { title: 'Transmission Care for Heavy Loads', content: '<p>The transmission in a commercial vehicle works significantly harder than one in a standard passenger car. Carrying heavy loads, towing, and constant stop-and-go operation all accelerate wear on transmission components. Proper care can extend your transmission\\\'s life and prevent costly breakdowns.</p><h4>Why Heavy Loads Stress Transmissions</h4><p>When your vehicle carries heavy passengers or cargo, the transmission must work harder to get the vehicle moving and to change gears. This generates more <strong>heat</strong> - the primary enemy of transmission longevity. Heat breaks down transmission fluid faster, hardens seals, and accelerates wear on clutch packs and bands. Towing or operating at maximum capacity amplifies these effects dramatically.</p><h4>Maintenance Best Practices</h4><ul><li><strong>Fluid changes:</strong> Change transmission fluid every <strong>25,000-30,000 miles</strong> for heavy-use commercial vehicles, compared to 60,000+ miles for normal passenger car use.</li><li><strong>Use the correct fluid:</strong> Commercial vehicles often require specific transmission fluid types. Using the wrong fluid can cause shifting problems and accelerate wear. Always check your owner\\\'s manual.</li><li><strong>Consider a transmission cooler:</strong> An auxiliary transmission cooler (<strong>$150-$400</strong> installed) can significantly reduce operating temperatures and extend transmission life.</li><li><strong>Avoid overloading:</strong> Know your vehicle\\\'s <strong>Gross Vehicle Weight Rating (GVWR)</strong> and never exceed it. Overloading doesn\\\'t just stress the transmission - it affects brakes, suspension, and tires too.</li><li><strong>Monitor for symptoms:</strong> Delayed shifts, slipping, harsh engagement, or unusual noises all indicate transmission problems developing.</li></ul><p>A transmission rebuild for a commercial vehicle can cost <strong>$3,000-$7,000 or more</strong>. Preventive maintenance is dramatically cheaper. Track your fluid service intervals through My Car Concierge and get competitive bids from providers experienced with commercial transmissions.</p>', icon: mccIcon('settings', 16), readTime: '5 min' },
+        { title: 'Pre-Trip Inspection Basics', content: '<p>A thorough <strong>pre-trip inspection</strong> is one of the most important habits a commercial driver can develop. For many commercial vehicle operators, it\\\'s not just good practice - it\\\'s a legal requirement. Even if regulations don\\\'t apply to your specific vehicle class, a systematic inspection before each trip protects you, your passengers, and your livelihood.</p><h4>Pre-Trip Inspection Checklist</h4><ul><li><strong>Tires:</strong> Check all tires for proper inflation, adequate tread depth, and visible damage (cuts, bulges, foreign objects). Don\\\'t forget the spare.</li><li><strong>Lights:</strong> Test headlights (low and high beam), brake lights, turn signals, hazard lights, reverse lights, and marker lights. Have someone walk around the vehicle while you activate each light.</li><li><strong>Brakes:</strong> Test brake pedal feel before moving. Check for air brake pressure buildup if applicable. Listen for unusual sounds during first stops.</li><li><strong>Fluids:</strong> Check engine oil, coolant, brake fluid, and windshield washer fluid levels.</li><li><strong>Under the vehicle:</strong> Look for fresh leaks - oil, coolant, brake fluid, or transmission fluid on the ground.</li><li><strong>Mirrors:</strong> Ensure all mirrors are properly adjusted and clean.</li><li><strong>Horn:</strong> Verify the horn works.</li><li><strong>Wipers and washers:</strong> Test windshield wipers for proper operation and washer fluid spray.</li><li><strong>Seat belts:</strong> Check that all passenger seat belts latch and release properly.</li><li><strong>Emergency equipment:</strong> Verify fire extinguisher is charged, first aid kit is stocked, and reflective triangles are accessible.</li></ul><h4>Documenting Your Inspections</h4><p>Keep a written or digital log of each pre-trip inspection. Note the date, time, mileage, and any issues found. This documentation protects you in case of incidents and demonstrates professionalism. Many jurisdictions require commercial drivers to maintain inspection logs. My Car Concierge\\\'s maintenance tracking features can help you organize these records efficiently.</p>', icon: mccIcon('check-circle', 16), readTime: '5 min' },
+        { title: 'Cooling System Demands', content: '<p>Commercial vehicles face unique cooling challenges. Engines running for extended periods, carrying heavy loads, and operating in stop-and-go traffic generate significantly more heat than typical passenger car driving. A cooling system failure can destroy an engine in minutes, so proactive maintenance is essential.</p><h4>Why Commercial Vehicles Run Hotter</h4><p>Several factors combine to stress your cooling system:</p><ul><li><strong>Extended operation:</strong> Commercial vehicles often run for hours without rest, giving the cooling system no break.</li><li><strong>Heavy loads:</strong> More weight means the engine works harder, generating more heat.</li><li><strong>Idling:</strong> Long idle periods (loading passengers, waiting in queues) reduce airflow through the radiator, forcing the cooling fan to work harder.</li><li><strong>Stop-and-go traffic:</strong> Constant acceleration under load without sustained airflow pushes temperatures higher.</li></ul><h4>Cooling System Maintenance</h4><ul><li><strong>Check coolant levels weekly:</strong> Low coolant is the most common cause of overheating. Top off as needed and investigate any persistent drops - they indicate a leak.</li><li><strong>Coolant flush:</strong> Every <strong>24,000-30,000 miles</strong> or 2 years for commercial use. Old coolant loses its ability to transfer heat and protect against corrosion.</li><li><strong>Inspect belts and hoses:</strong> Look for cracks, swelling, soft spots, or leaks at connections. A burst hose or broken belt while operating can leave you stranded with a potential engine damage situation.</li><li><strong>Radiator condition:</strong> Keep the radiator clean and free of debris. Blocked fins reduce cooling efficiency significantly.</li><li><strong>Temperature gauge awareness:</strong> Monitor your temperature gauge regularly. If it climbs above normal, take action immediately - pull over, let the engine cool, and investigate before proceeding.</li></ul><p>If you frequently operate at or near capacity, consider upgrading to a <strong>heavy-duty radiator</strong> or adding an <strong>auxiliary cooling fan</strong>. These investments (<strong>$300-$800</strong>) can prevent catastrophic engine failure that would cost thousands to repair.</p>', icon: mccIcon('search', 16), readTime: '5 min' },
+        { title: 'Suspension & Steering Under Load', content: '<p>Commercial vehicles carrying heavy loads place extraordinary stress on suspension and steering components. These systems are critical not only for ride comfort but for <strong>vehicle control, tire life, and braking performance</strong>. Worn suspension in a loaded commercial vehicle is a serious safety concern.</p><h4>How Heavy Loads Affect Suspension</h4><p>When your vehicle is loaded to capacity, every suspension component bears additional stress. Springs compress more, shocks work harder to control body motion, bushings flex more, and ball joints carry more weight. Over time, this accelerated wear leads to component failure that\\\'s more dangerous in a heavy vehicle than in a standard car.</p><h4>Components to Monitor</h4><ul><li><strong>Shocks and struts:</strong> Look for oil leaks on shock bodies, excessive bouncing, or nose-diving when braking. Replace immediately if leaking. Heavy-duty replacements cost <strong>$200-$500 per corner</strong>.</li><li><strong>Ball joints:</strong> Critical pivot points that wear under load. A failed ball joint can cause loss of steering control. Check for play and listen for popping sounds. Cost: <strong>$200-$500 per joint</strong> installed.</li><li><strong>Tie rod ends:</strong> Connect steering to wheels. Worn tie rods cause wandering steering and uneven tire wear. Cost: <strong>$150-$400 per side</strong>.</li><li><strong>Leaf springs (if equipped):</strong> Common on vans and trucks. Look for cracked or broken leaves and sagging. Heavy-duty replacement springs are available for vehicles that consistently carry maximum loads.</li><li><strong>Wheel alignment:</strong> Heavy loads can shift alignment settings. Get alignment checked every <strong>10,000-15,000 miles</strong> or whenever you notice pulling or uneven tire wear.</li></ul><h4>Safety Implications</h4><p>Worn suspension doesn\\\'t just cause a rough ride - it <strong>increases braking distances</strong>, reduces steering responsiveness, and accelerates tire wear. For a vehicle carrying passengers, these are unacceptable risks. Schedule regular suspension inspections through My Car Concierge and address issues before they compromise safety.</p>', icon: mccIcon('wrench', 16), readTime: '4 min' },
+        { title: 'Fleet Maintenance Records', content: '<p>Proper maintenance documentation is not just good practice for commercial vehicles - it\\\'s often a <strong>legal requirement</strong>. Beyond compliance, detailed records help you control costs, predict maintenance needs, prove vehicle condition, and maximize resale value.</p><h4>What to Document</h4><p>Every maintenance event should include the following information:</p><ul><li><strong>Date and mileage:</strong> When the service was performed and the odometer reading at that time.</li><li><strong>Service performed:</strong> Detailed description of work done, including parts replaced and fluids used.</li><li><strong>Provider information:</strong> Who performed the work, including business name, contact information, and technician name if possible.</li><li><strong>Cost breakdown:</strong> Itemized parts and labor costs for each service.</li><li><strong>Next service due:</strong> Mileage or date for the next scheduled maintenance of each type.</li></ul><h4>Fuel Consumption Tracking</h4><p>Tracking fuel consumption (miles per gallon over time) is a powerful diagnostic tool. A sudden drop in fuel efficiency can indicate developing problems:</p><ul><li><strong>5-10% drop:</strong> Check tire pressure, air filter, and spark plugs.</li><li><strong>10-20% drop:</strong> Possible fuel system, oxygen sensor, or engine management issue.</li><li><strong>20%+ drop:</strong> Significant mechanical problem developing - get a diagnostic inspection promptly.</li></ul><h4>Regulatory Compliance</h4><p>Many jurisdictions require commercial vehicles to maintain maintenance logs that include DOT inspection records, brake inspection documentation, and tire condition records. Failure to maintain proper records can result in fines and can affect your operating authority. Even if not legally required for your vehicle class, comprehensive records demonstrate professionalism and due diligence.</p><p>My Car Concierge\\\'s maintenance tracking features make it easy to organize and access your records digitally. Having everything in one place simplifies compliance, insurance claims, warranty disputes, and eventual vehicle resale.</p>', icon: mccIcon('folder-open', 16), readTime: '4 min' }
       ],
       glossary: [
         { term: 'Alignment', definition: 'Adjusting the angles of your wheels so they\'re perpendicular to the ground and parallel to each other. Proper alignment prevents uneven tire wear.' },
@@ -4528,12 +4887,12 @@ Note: This assessment was generated by AI and is for informational purposes only
     };
 
     const learnCategoryMeta = {
-      maintenance101: { title: 'Maintenance 101', icon: '🔧', desc: 'Understanding routine maintenance' },
-      repairs: { title: 'Understanding Repairs', icon: '🔩', desc: 'What mechanics mean when they say...' },
-      warningSigns: { title: 'Warning Signs', icon: '⚠️', desc: 'Sounds, smells, and symptoms to watch for' },
-      savingTips: { title: 'Money-Saving Tips', icon: '💰', desc: 'How to save on car care' },
-      rideshare: { title: 'Rideshare & High-Mileage Drivers', icon: '🚗', desc: 'Tips for drivers who put serious miles on their vehicles' },
-      commercial: { title: 'Commercial & Fleet Vehicles', icon: '🚐', desc: 'Maintenance for vans, buses, and commercial transport' }
+      maintenance101: { title: 'Maintenance 101', icon: mccIcon('wrench', 16), desc: 'Understanding routine maintenance' },
+      repairs: { title: 'Understanding Repairs', icon: mccIcon('wrench', 16), desc: 'What mechanics mean when they say...' },
+      warningSigns: { title: 'Warning Signs', icon: mccIcon('alert-triangle', 16), desc: 'Sounds, smells, and symptoms to watch for' },
+      savingTips: { title: 'Money-Saving Tips', icon: mccIcon('dollar-sign', 16), desc: 'How to save on auto care' },
+      rideshare: { title: 'Rideshare & High-Mileage Drivers', icon: mccIcon('car', 16), desc: 'Tips for drivers who put serious miles on their vehicles' },
+      commercial: { title: 'Commercial & Fleet Vehicles', icon: mccIcon('car', 16), desc: 'Maintenance for vans, buses, and commercial transport' }
     };
 
     let currentLearnCategory = null;
@@ -4542,6 +4901,8 @@ Note: This assessment was generated by AI and is for informational purposes only
     function renderLearnHub() {
       const categoriesContainer = document.getElementById('learn-categories');
       const articlesView = document.getElementById('learn-articles-view');
+      
+      if (!categoriesContainer || !articlesView) return;
       
       categoriesContainer.style.display = 'grid';
       articlesView.style.display = 'none';
@@ -4553,6 +4914,8 @@ Note: This assessment was generated by AI and is for informational purposes only
     function showLearnCategory(category) {
       const categoriesContainer = document.getElementById('learn-categories');
       const articlesView = document.getElementById('learn-articles-view');
+      
+      if (!categoriesContainer || !articlesView) return;
       
       categoriesContainer.style.display = 'none';
       articlesView.style.display = 'block';
@@ -4588,8 +4951,9 @@ Note: This assessment was generated by AI and is for informational purposes only
             <div class="learn-article-header" onclick="toggleArticle('${articleId}')">
               <span class="learn-article-icon">${article.icon}</span>
               <span class="learn-article-title">${article.title}</span>
+              ${article.readTime ? '<span class="learn-article-readtime">' + mccIcon('clock', 12) + ' ' + article.readTime + '</span>' : ''}
               ${severityBadge}
-              <span class="learn-article-expand">▼</span>
+              <span class="learn-article-expand">${mccIcon('chevron-down', 12)}</span>
             </div>
             <div class="learn-article-content">
               <div class="learn-article-text">${article.content}</div>
@@ -4612,6 +4976,8 @@ Note: This assessment was generated by AI and is for informational purposes only
       const glossaryList = document.getElementById('glossary-list');
       const alphabetContainer = document.getElementById('glossary-alphabet');
       
+      if (!glossaryList || !alphabetContainer) return;
+      
       currentGlossaryFilter = searchTerm.toLowerCase();
       
       const filteredTerms = carEducation.glossary.filter(item => 
@@ -4630,7 +4996,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       if (filteredTerms.length === 0) {
         glossaryList.innerHTML = `
           <div class="empty-state" style="padding:32px;">
-            <div class="empty-state-icon">🔍</div>
+            <div class="empty-state-icon">${mccIcon('search', 40)}</div>
             <p>No terms found matching "${searchTerm}"</p>
           </div>
         `;
@@ -4668,15 +5034,22 @@ Note: This assessment was generated by AI and is for informational purposes only
       }
     }
 
-    // Initialize Learn section when shown
+    window.showLearnCategory = showLearnCategory;
+    window.renderLearnHub = renderLearnHub;
+    window.renderGlossary = renderGlossary;
+    window.filterGlossary = filterGlossary;
+    window.toggleArticle = toggleArticle;
+    window.scrollToGlossaryLetter = scrollToGlossaryLetter;
+    window.renderEducationCategory = renderEducationCategory;
+
     const originalShowSection = showSection;
-    showSection = function(sectionId) {
-      originalShowSection(sectionId);
+    showSection = async function(sectionId) {
+      await originalShowSection(sectionId);
       if (sectionId === 'learn') {
-        renderLearnHub();
+        try { renderLearnHub(); } catch(e) { console.error('Learn hub render error:', e); }
       }
       if (sectionId === 'settings') {
-        load2FAStatus();
+        try { load2FAStatus(); } catch(e) { console.error('2FA status load error:', e); }
       }
     };
 
@@ -4713,6 +5086,21 @@ Note: This assessment was generated by AI and is for informational purposes only
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) return;
 
+        window._lastMarketIntel = null;
+
+        if (searchId) {
+          try {
+            const { data: searchData } = await supabaseClient
+              .from('dream_car_searches')
+              .select('market_intel')
+              .eq('id', searchId)
+              .single();
+            if (searchData && searchData.market_intel) {
+              window._lastMarketIntel = searchData.market_intel;
+            }
+          } catch (e) {}
+        }
+
         let query = supabaseClient
           .from('dream_car_matches')
           .select('*')
@@ -4742,7 +5130,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       if (dreamCarSearches.length === 0) {
         list.innerHTML = `
           <div class="empty-state" style="padding: 40px 20px;">
-            <div class="empty-state-icon">🤖</div>
+            <div class="empty-state-icon">${mccIcon('settings', 40)}</div>
             <p>No AI searches yet.</p>
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">Create a search and we'll automatically find matching cars for you.</p>
           </div>
@@ -4785,23 +5173,26 @@ Note: This assessment was generated by AI and is for informational purposes only
                   ${criteriaParts.length > 0 ? criteriaParts.join(' • ') : 'No criteria set'}
                 </p>
                 <div style="display: flex; gap: 16px; font-size: 0.82rem; color: var(--text-muted);">
-                  <span>📅 Last searched: ${lastSearched}</span>
-                  <span>🎯 Matches: ${matchCount}</span>
-                  <span>🔄 ${search.search_frequency === 'hourly' ? 'Every hour' : search.search_frequency === 'twice_daily' ? 'Twice daily' : 'Daily'}</span>
+                  <span>${mccIcon('calendar', 16)} Last searched: ${lastSearched}</span>
+                  <span>${mccIcon('target', 16)} Matches: ${matchCount}</span>
+                  <span>${mccIcon('refresh-cw', 16)} ${search.search_frequency === 'hourly' ? 'Every hour' : search.search_frequency === 'twice_daily' ? 'Twice daily' : 'Daily'}</span>
                 </div>
               </div>
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn btn-sm btn-primary" onclick="runDreamCarSearchNow('${search.id}')" id="run-btn-${search.id}">
+                  ${mccIcon('play', 16)} Run Now
+                </button>
                 <button class="btn btn-sm btn-secondary" onclick="viewSearchMatches('${search.id}')">
-                  🎯 View Matches
+                  ${mccIcon('bar-chart-2', 16)} View Intel
                 </button>
                 <button class="btn btn-sm btn-secondary" onclick="editDreamCarSearch('${search.id}')">
-                  ✏️ Edit
+                  ${mccIcon('file-text', 16)} Edit
                 </button>
                 <button class="btn btn-sm btn-secondary" onclick="toggleSearchActive('${search.id}')">
-                  ${search.is_active ? '⏸️ Pause' : '▶️ Resume'}
+                  ${search.is_active ? mccIcon('pause', 14) + ' Pause' : mccIcon('play', 14) + ' Resume'}
                 </button>
                 <button class="btn btn-sm btn-danger" onclick="deleteDreamCarSearch('${search.id}')">
-                  🗑️
+                  ${mccIcon('x', 16)}
                 </button>
               </div>
             </div>
@@ -4812,65 +5203,162 @@ Note: This assessment was generated by AI and is for informational purposes only
 
     function renderDreamCarMatches() {
       const grid = document.getElementById('ai-matches-grid');
-      const filter = document.getElementById('ai-matches-filter').value;
-      
-      let filtered = dreamCarMatches;
-      if (filter === 'unseen') {
-        filtered = dreamCarMatches.filter(m => !m.is_seen);
-      } else if (filter === 'saved') {
-        filtered = dreamCarMatches.filter(m => m.is_saved);
-      }
+      if (!grid) return;
 
-      if (filtered.length === 0) {
+      if (dreamCarMatches.length === 0 && !window._lastMarketIntel) {
         grid.innerHTML = `
-          <div class="empty-state" style="padding: 40px 20px; grid-column: 1 / -1;">
-            <div class="empty-state-icon">🚗</div>
-            <p>No matches found yet.</p>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">Create an AI search and matches will appear here.</p>
+          <div class="empty-state" style="padding: 40px 20px;">
+            <div class="empty-state-icon">${mccIcon('bar-chart-2', 40)}</div>
+            <p>No market data yet.</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">Run a search to get real price ranges, buying tips, and live inventory links.</p>
           </div>
         `;
         return;
       }
 
-      grid.innerHTML = filtered.map(match => {
-        const photo = match.photos && match.photos.length > 0 ? match.photos[0] : null;
-        const scoreColor = match.match_score >= 90 ? 'var(--accent-green)' : match.match_score >= 70 ? 'var(--accent-gold)' : 'var(--accent-blue)';
-        
-        return `
-          <div class="vehicle-card" style="cursor: pointer;" onclick="viewMatchDetail('${match.id}')">
-            <div class="vehicle-card-photo">
-              ${photo ? `<img src="${escapeHtml(photo)}" alt="Car photo" onerror="this.parentNode.innerHTML='<div class=\\'vehicle-emoji\\'>🚗</div>'">` : '<div class="vehicle-emoji">🚗</div>'}
-              <div style="position: absolute; top: 12px; right: 12px; padding: 6px 12px; border-radius: 100px; font-size: 0.8rem; font-weight: 600; background: linear-gradient(135deg, ${scoreColor}, ${scoreColor}88); color: white;">
-                ${match.match_score || 0}% Match
-              </div>
-              ${!match.is_seen ? '<div style="position: absolute; top: 12px; left: 12px; width: 10px; height: 10px; background: var(--accent-blue); border-radius: 50%;"></div>' : ''}
+      const intel = window._lastMarketIntel || buildLocalMarketIntel(dreamCarMatches);
+      grid.innerHTML = renderMarketIntelCard(intel);
+    }
+
+    function buildLocalMarketIntel(matches) {
+      const prices = matches
+        .map(m => parseFloat(m.price))
+        .filter(p => !isNaN(p) && p > 0)
+        .sort((a, b) => a - b);
+
+      let priceRange = { low: null, median: null, high: null };
+      if (prices.length > 0) {
+        priceRange.low = prices[0];
+        priceRange.high = prices[prices.length - 1];
+        const mid = Math.floor(prices.length / 2);
+        priceRange.median = prices.length % 2 === 0
+          ? Math.round((prices[mid - 1] + prices[mid]) / 2)
+          : prices[mid];
+      }
+
+      let trend = 'fair';
+      if (prices.length >= 3) {
+        const medianRatio = priceRange.median / priceRange.high;
+        if (medianRatio > 0.8) trend = 'hot';
+        else if (medianRatio < 0.6) trend = 'soft';
+      }
+
+      const makes = [...new Set(matches.map(m => m.make).filter(Boolean))];
+      const models = [...new Set(matches.map(m => m.model).filter(Boolean))];
+
+      return {
+        priceRange,
+        trend,
+        listingCount: matches.length,
+        searchUrls: null,
+        buyingChecklist: null,
+        searchCriteria: {
+          make: makes[0] || null,
+          model: models[0] || null
+        }
+      };
+    }
+
+    function renderMarketIntelCard(intel) {
+      const pr = intel.priceRange || {};
+      const trendColors = { hot: 'var(--accent-red, #ef5f5f)', fair: 'var(--accent-gold)', soft: 'var(--accent-green)' };
+      const trendLabels = { hot: 'Hot Market', fair: 'Fair Market', soft: "Buyer's Market" };
+      const trendIcons = { hot: 'trending-up', fair: 'minus', soft: 'trending-down' };
+      const trendColor = trendColors[intel.trend] || trendColors.fair;
+      const trendLabel = trendLabels[intel.trend] || 'Fair Market';
+
+      const criteriaLabel = [intel.searchCriteria?.make, intel.searchCriteria?.model].filter(Boolean).join(' ') || 'Your Search';
+
+      let priceGaugeHtml = '';
+      if (pr.low != null && pr.high != null) {
+        const fmtPrice = (v) => '$' + Number(v).toLocaleString();
+        priceGaugeHtml = `
+          <div style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+              <span style="font-size: 0.82rem; color: var(--text-muted);">Price Range (${intel.listingCount} listing${intel.listingCount !== 1 ? 's' : ''} analyzed)</span>
+              <span style="padding: 4px 12px; border-radius: 100px; font-size: 0.78rem; font-weight: 600; background: ${trendColor}22; color: ${trendColor};">${mccIcon(trendIcons[intel.trend] || 'minus', 14)} ${trendLabel}</span>
             </div>
-            <div class="vehicle-card-body">
-              <h3 class="vehicle-card-title">${match.year || ''} ${escapeHtml(match.make || '')} ${escapeHtml(match.model || '')}</h3>
-              <p class="vehicle-card-subtitle">${match.trim ? escapeHtml(match.trim) : ''}</p>
-              <div class="vehicle-card-meta">
-                ${match.price ? `<span>💰 $${Number(match.price).toLocaleString()}</span>` : ''}
-                ${match.mileage ? `<span>🛣️ ${Number(match.mileage).toLocaleString()} mi</span>` : ''}
+            <div style="background: var(--bg-elevated); border-radius: var(--radius-lg); padding: 20px; border: 1px solid var(--border-subtle);">
+              <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px;">
+                <div style="text-align: left;">
+                  <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Low</div>
+                  <div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-green);">${fmtPrice(pr.low)}</div>
+                </div>
+                <div style="text-align: center;">
+                  <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Median</div>
+                  <div style="font-size: 1.4rem; font-weight: 700; color: var(--accent-gold);">${fmtPrice(pr.median)}</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">High</div>
+                  <div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-red, #ef5f5f);">${fmtPrice(pr.high)}</div>
+                </div>
               </div>
-              <div style="display: flex; gap: 8px; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
-                ${match.location ? `<span>📍 ${escapeHtml(match.location)}</span>` : ''}
-                ${match.source ? `<span>🔗 ${escapeHtml(match.source)}</span>` : ''}
-              </div>
-              <div class="vehicle-card-actions" onclick="event.stopPropagation();">
-                <button class="btn btn-sm ${match.is_seen ? 'btn-ghost' : 'btn-secondary'}" onclick="markMatchSeen('${match.id}', ${!match.is_seen})">
-                  ${match.is_seen ? '👁️ Seen' : '👁️ Mark Seen'}
-                </button>
-                <button class="btn btn-sm ${match.is_saved ? 'btn-primary' : 'btn-secondary'}" onclick="saveMatch('${match.id}', ${!match.is_saved})">
-                  ${match.is_saved ? '⭐ Saved' : '☆ Save'}
-                </button>
-                <button class="btn btn-sm btn-ghost" onclick="dismissMatch('${match.id}')" title="Dismiss">
-                  ✕
-                </button>
+              <div style="height: 8px; background: linear-gradient(90deg, var(--accent-green), var(--accent-gold), var(--accent-red, #ef5f5f)); border-radius: 4px; position: relative;">
+                ${pr.median != null && pr.high > pr.low ? `<div style="position: absolute; top: -4px; left: ${((pr.median - pr.low) / (pr.high - pr.low)) * 100}%; width: 16px; height: 16px; background: var(--bg-card); border: 3px solid var(--accent-gold); border-radius: 50%; transform: translateX(-50%);"></div>` : ''}
               </div>
             </div>
           </div>
         `;
-      }).join('');
+      }
+
+      let checklistHtml = '';
+      if (intel.buyingChecklist && intel.buyingChecklist.length > 0) {
+        checklistHtml = `
+          <div style="margin-bottom: 24px;">
+            <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 12px;">${mccIcon('clipboard-check', 16)} Buying Checklist for ${escapeHtml(criteriaLabel)}</h4>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              ${intel.buyingChecklist.map((tip, i) => `
+                <div style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; background: var(--bg-elevated); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                  <span style="flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-gold); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700;">${i + 1}</span>
+                  <span style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.4;">${escapeHtml(tip)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      let searchButtonsHtml = '';
+      if (intel.searchUrls) {
+        searchButtonsHtml = `
+          <div style="margin-bottom: 24px;">
+            <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 12px;">${mccIcon('external-link', 16)} Search Live Inventory</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+              <a href="${escapeHtml(intel.searchUrls.autotrader)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 20px; font-weight: 600; text-decoration: none;">
+                ${mccIcon('search', 16)} Autotrader
+              </a>
+              <a href="${escapeHtml(intel.searchUrls.cargurus)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 20px; font-weight: 600; text-decoration: none;">
+                ${mccIcon('search', 16)} CarGurus
+              </a>
+              <a href="${escapeHtml(intel.searchUrls.cars_com)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 20px; font-weight: 600; text-decoration: none;">
+                ${mccIcon('search', 16)} Cars.com
+              </a>
+            </div>
+          </div>
+        `;
+      }
+
+      let saveProspectHtml = '';
+      if (intel.searchCriteria?.make) {
+        const sc = intel.searchCriteria;
+        window._pendingProspect = { make: sc.make, model: sc.model || '', year: sc.maxYear || sc.minYear || '', price: sc.maxPrice || pr.median || '' };
+        saveProspectHtml = `
+          <div style="border-top: 1px solid var(--border-subtle); padding-top: 20px;">
+            <button class="btn btn-primary" onclick="saveMarketIntelAsProspect(window._pendingProspect)" style="width: 100%; padding: 14px; font-weight: 600; border-radius: 100px;">
+              ${mccIcon('plus', 16)} Save as Prospect in My Next Car
+            </button>
+          </div>
+        `;
+      }
+
+      return `
+        <div style="padding: 4px 0;">
+          ${priceGaugeHtml}
+          ${checklistHtml}
+          ${searchButtonsHtml}
+          ${saveProspectHtml}
+        </div>
+      `;
     }
 
     function filterAIMatches() {
@@ -4918,7 +5406,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       if (dreamCarSearches.length === 0) {
         list.innerHTML = `
           <div class="empty-state" style="padding: 40px 20px;">
-            <div class="empty-state-icon">🚗</div>
+            <div class="empty-state-icon">${mccIcon('car', 40)}</div>
             <p style="margin-bottom: 16px;">No AI searches configured yet.</p>
             <button class="btn btn-primary" onclick="openAISearchModal()">Create Your First Search</button>
           </div>
@@ -4949,8 +5437,9 @@ Note: This assessment was generated by AI and is for informational purposes only
                 </div>
               </div>
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button class="btn btn-sm btn-secondary" onclick="openAISearchModal('${search.id}')">✏️ Edit</button>
-                <button class="btn btn-sm btn-ghost" onclick="deleteAISearch('${search.id}')">🗑️</button>
+                <button class="btn btn-sm btn-primary" onclick="runDreamCarSearchNow('${search.id}')" id="run-btn-${search.id}">${mccIcon('play', 16)} Run Now</button>
+                <button class="btn btn-sm btn-secondary" onclick="openAISearchModal('${search.id}')">${mccIcon('file-text', 16)} Edit</button>
+                <button class="btn btn-sm btn-ghost" onclick="deleteAISearch('${search.id}')">${mccIcon('x', 16)}</button>
               </div>
             </div>
           </div>
@@ -4973,63 +5462,101 @@ Note: This assessment was generated by AI and is for informational purposes only
       const list = document.getElementById('dream-car-matches-list');
       if (!list) return;
       
-      if (dreamCarMatches.length === 0) {
+      if (dreamCarMatches.length === 0 && !window._lastMarketIntel) {
         list.innerHTML = `
           <div class="empty-state" style="padding: 40px 20px;">
-            <div class="empty-state-icon">📭</div>
-            <p>No matches yet. Create a search to start finding vehicles!</p>
+            <div class="empty-state-icon">${mccIcon('bar-chart-2', 40)}</div>
+            <p>No market data yet. Run a search to get real price data and buying tips.</p>
           </div>
         `;
         return;
       }
 
       const matchesBadge = document.getElementById('dream-matches-badge');
-      const unseenCount = dreamCarMatches.filter(m => !m.is_seen).length;
-      if (matchesBadge) {
-        if (unseenCount > 0) {
-          matchesBadge.textContent = unseenCount;
-          matchesBadge.style.display = 'inline-flex';
-        } else {
-          matchesBadge.style.display = 'none';
-        }
-      }
+      if (matchesBadge) matchesBadge.style.display = 'none';
 
-      list.innerHTML = `
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
-          ${dreamCarMatches.slice(0, 12).map(match => {
-            const photo = match.photos && match.photos.length > 0 ? match.photos[0] : null;
-            const scoreColor = match.match_score >= 90 ? 'var(--accent-green)' : match.match_score >= 70 ? 'var(--accent-gold)' : 'var(--accent-blue)';
-            
-            return `
-              <div class="card" style="cursor: pointer; overflow: hidden;" onclick="viewMatchDetail('${match.id}')">
-                <div style="height: 140px; background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; position: relative;">
-                  ${photo ? `<img src="${escapeHtml(photo)}" alt="Car photo" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextSibling.style.display='flex';">` : ''}
-                  <div style="font-size: 3rem; ${photo ? 'display: none;' : ''}">🚗</div>
-                  <div style="position: absolute; top: 8px; right: 8px; padding: 4px 10px; border-radius: 100px; font-size: 0.75rem; font-weight: 600; background: ${scoreColor}; color: white;">
-                    ${match.match_score || 0}%
-                  </div>
-                  ${!match.is_seen ? '<div style="position: absolute; top: 8px; left: 8px; width: 8px; height: 8px; background: var(--accent-blue); border-radius: 50%;"></div>' : ''}
-                </div>
-                <div style="padding: 12px;">
-                  <h4 style="margin: 0 0 4px; font-size: 0.95rem;">${match.year || ''} ${escapeHtml(match.make || '')} ${escapeHtml(match.model || '')}</h4>
-                  <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 8px;">${match.trim ? escapeHtml(match.trim) : ''}</p>
-                  <div style="display: flex; gap: 12px; font-size: 0.85rem; color: var(--text-secondary);">
-                    ${match.price ? `<span>$${Number(match.price).toLocaleString()}</span>` : ''}
-                    ${match.mileage ? `<span>${Number(match.mileage).toLocaleString()} mi</span>` : ''}
-                  </div>
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-        ${dreamCarMatches.length > 12 ? `<p style="text-align: center; margin-top: 16px; color: var(--text-muted);">Showing 12 of ${dreamCarMatches.length} matches. <a href="#" onclick="showSection('my-next-car'); showProspectTab('ai-search'); return false;" style="color: var(--accent-gold);">View all →</a></p>` : ''}
-      `;
+      const intel = window._lastMarketIntel || buildLocalMarketIntel(dreamCarMatches);
+      list.innerHTML = renderMarketIntelCard(intel);
     }
 
     window.loadDreamCarFinderSection = loadDreamCarFinderSection;
 
+    window.showProspectTab = function(tabName) {
+      document.querySelectorAll('.prospect-tab-content').forEach(t => t.style.display = 'none');
+      document.querySelectorAll('[data-prospect-tab]').forEach(t => t.classList.remove('active'));
+      const tabEl = document.getElementById(tabName + '-tab');
+      if (tabEl) tabEl.style.display = 'block';
+      const tabBtn = document.querySelector(`[data-prospect-tab="${tabName}"]`);
+      if (tabBtn) tabBtn.classList.add('active');
+    };
+
     function viewSearchMatches(searchId) {
       loadDreamCarMatches(searchId);
+    }
+
+    async function runDreamCarSearchNow(searchId) {
+      const btn = document.getElementById('run-btn-' + searchId);
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = mccIcon('loader', 16) + ' Searching...';
+      }
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showToast('Please log in', 'error'); return; }
+
+        const resp = await fetch('/api/dream-car/run-search/' + searchId, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + session.access_token
+          }
+        });
+        const result = await resp.json();
+        if (!resp.ok) throw new Error(result.error || 'Search failed');
+
+        if (result.marketIntel) {
+          window._lastMarketIntel = result.marketIntel;
+        }
+
+        showToast(result.message || 'Search complete!', 'success');
+        await loadDreamCarMatches(searchId);
+        loadDreamCarSearches();
+      } catch (error) {
+        console.error('Error running search:', error);
+        showToast('Search failed: ' + error.message, 'error');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = mccIcon('play', 16) + ' Run Now';
+        }
+      }
+    }
+
+    async function saveMarketIntelAsProspect(prospectData) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showToast('Please log in', 'error'); return; }
+
+        const data = typeof prospectData === 'string' ? JSON.parse(prospectData) : prospectData;
+
+        const { error } = await supabaseClient
+          .from('prospect_vehicles')
+          .insert([{
+            user_id: session.user.id,
+            make: data.make || '',
+            model: data.model || '',
+            year: data.year ? parseInt(data.year) : null,
+            max_price: data.price ? parseFloat(data.price) : null,
+            status: 'considering',
+            notes: 'Saved from Dream Car Finder market intelligence'
+          }]);
+
+        if (error) throw error;
+        showToast('Saved as prospect in My Next Car!', 'success');
+      } catch (error) {
+        console.error('Error saving prospect:', error);
+        showToast('Failed to save prospect. Please try again.', 'error');
+      }
     }
 
     function toggleAISearchEmailInput() {
@@ -5347,7 +5874,7 @@ Note: This assessment was generated by AI and is for informational purposes only
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
           <div>
             <div style="height: 200px; background: var(--bg-input); border-radius: var(--radius-md); overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-              ${photo ? `<img src="${escapeHtml(photo)}" alt="Car photo" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentNode.innerHTML='<div style=\\'font-size: 60px;\\'>🚗</div>'">` : '<div style="font-size: 60px;">🚗</div>'}
+              ${photo ? `<img src="${escapeHtml(photo)}" alt="Car photo" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentNode.innerHTML='<div style=\\'font-size: 60px;\\'>' + mccIcon('car', 16) + '</div>'">` : '<div style="font-size: 60px;">' + mccIcon('car', 16) + '</div>'}
             </div>
             ${match.photos && match.photos.length > 1 ? `
               <div style="display: flex; gap: 8px; overflow-x: auto;">
@@ -5362,7 +5889,7 @@ Note: This assessment was generated by AI and is for informational purposes only
               <div style="padding: 8px 16px; border-radius: 100px; font-size: 1rem; font-weight: 600; background: linear-gradient(135deg, ${scoreColor}, ${scoreColor}88); color: white;">
                 ${match.match_score || 0}% Match
               </div>
-              ${match.is_saved ? '<span style="color: var(--accent-gold);">⭐ Saved</span>' : ''}
+              ${match.is_saved ? '<span style="color: var(--accent-gold);">' + mccIcon('star', 16) + ' Saved</span>' : ''}
             </div>
             <div style="display: grid; gap: 12px;">
               ${match.price ? `<div><span style="color: var(--text-muted);">Price:</span> <strong>$${Number(match.price).toLocaleString()}</strong></div>` : ''}
@@ -5374,7 +5901,7 @@ Note: This assessment was generated by AI and is for informational purposes only
             </div>
             ${match.listing_url ? `
               <a href="${escapeHtml(match.listing_url)}" target="_blank" rel="noopener" class="btn btn-secondary" style="margin-top: 16px; width: 100%; justify-content: center;">
-                🔗 View Original Listing
+                ${mccIcon('link', 16)} View Original Listing
               </a>
             ` : ''}
           </div>
@@ -5383,7 +5910,7 @@ Note: This assessment was generated by AI and is for informational purposes only
           <div style="margin-top: 20px; padding: 16px; background: var(--bg-input); border-radius: var(--radius-md);">
             <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 12px; color: var(--accent-gold);">Why this matches:</h4>
             <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-              ${match.match_reasons.map(r => `<span style="padding: 4px 10px; background: var(--accent-gold-soft); color: var(--accent-gold); border-radius: 100px; font-size: 0.82rem;">✓ ${escapeHtml(r)}</span>`).join('')}
+              ${match.match_reasons.map(r => `<span style="padding: 4px 10px; background: var(--accent-gold-soft); color: var(--accent-gold); border-radius: 100px; font-size: 0.82rem;">${mccIcon('check', 16)} ${escapeHtml(r)}</span>`).join('')}
             </div>
           </div>
         ` : ''}
@@ -5482,7 +6009,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       if (filtered.length === 0) {
         grid.innerHTML = `
           <div class="empty-state">
-            <div class="empty-state-icon">🚘</div>
+            <div class="empty-state-icon">${mccIcon('car-front', 40)}</div>
             <p>No prospect vehicles ${filter !== 'all' ? 'with this status' : 'yet'}.</p>
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">Add vehicles you're considering to compare them.</p>
           </div>
@@ -5510,17 +6037,17 @@ Note: This assessment was generated by AI and is for informational purposes only
         return `
           <div class="vehicle-card" style="cursor: pointer;" onclick="viewProspect('${p.id}')">
             <div class="vehicle-card-photo">
-              <div class="vehicle-emoji">🚘</div>
-              ${p.is_favorite ? '<div style="position:absolute;top:12px;left:12px;font-size:24px;">❤️</div>' : ''}
+              <div class="vehicle-emoji">${mccIcon('car-front', 16)}</div>
+              ${p.is_favorite ? '<div style="position:absolute;top:12px;left:12px;font-size:24px;">' + mccIcon('heart', 24) + '</div>' : ''}
               <div class="vehicle-card-badge" style="background:${statusColors[p.status] || statusColors.considering};color:${p.status === 'passed' ? 'var(--text-primary)' : '#fff'};">${statusLabels[p.status] || 'Considering'}</div>
             </div>
             <div class="vehicle-card-body">
               <div class="vehicle-card-title">${p.year || ''} ${p.make || ''} ${p.model || ''}</div>
               <div class="vehicle-card-subtitle">${p.trim || ''} ${p.body_style ? '• ' + p.body_style : ''}</div>
               <div class="vehicle-card-meta">
-                ${p.mileage ? `<span>🛣️ ${Number(p.mileage).toLocaleString()} mi</span>` : ''}
-                ${p.asking_price ? `<span>💰 $${Number(p.asking_price).toLocaleString()}</span>` : ''}
-                ${p.carfax_accidents !== null ? `<span>⚠️ ${p.carfax_accidents} accidents</span>` : ''}
+                ${p.mileage ? `<span>${mccIcon('car', 16)} ${Number(p.mileage).toLocaleString()} mi</span>` : ''}
+                ${p.asking_price ? `<span>${mccIcon('dollar-sign', 16)} $${Number(p.asking_price).toLocaleString()}</span>` : ''}
+                ${p.carfax_accidents !== null ? `<span>${mccIcon('alert-triangle', 16)} ${p.carfax_accidents} accidents</span>` : ''}
               </div>
               ${matchScore !== null ? `
                 <div style="margin-top:12px;padding:8px 12px;background:${matchScore >= 80 ? 'var(--accent-green-soft)' : matchScore >= 50 ? 'var(--accent-orange-soft)' : 'rgba(239,95,95,0.15)'};border-radius:var(--radius-sm);display:inline-flex;align-items:center;gap:6px;">
@@ -5529,13 +6056,14 @@ Note: This assessment was generated by AI and is for informational purposes only
               ` : ''}
               ${p.personal_rating ? `
                 <div style="margin-top:8px;color:var(--accent-gold);">
-                  ${'⭐'.repeat(p.personal_rating)}${'☆'.repeat(5 - p.personal_rating)}
+                  ${mccIcon('star', 16).repeat(p.personal_rating)}${mccIcon('star', 16).repeat(5 - p.personal_rating)}
                 </div>
               ` : ''}
               <div class="vehicle-card-actions" onclick="event.stopPropagation();">
-                <button class="btn btn-sm btn-secondary" onclick="editProspect('${p.id}')">✏️ Edit</button>
-                <button class="btn btn-sm btn-ghost" onclick="toggleFavorite('${p.id}')" title="${p.is_favorite ? 'Remove from favorites' : 'Add to favorites'}">${p.is_favorite ? '❤️' : '🤍'}</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteProspect('${p.id}')">🗑️</button>
+                <button class="btn btn-sm btn-primary" onclick="inspectThisCar('${p.id}')" title="Request a pre-purchase inspection">${mccIcon('search', 16)} Inspect This Car</button>
+                <button class="btn btn-sm btn-secondary" onclick="editProspect('${p.id}')">${mccIcon('file-text', 16)} Edit</button>
+                <button class="btn btn-sm btn-ghost" onclick="toggleFavorite('${p.id}')" title="${p.is_favorite ? 'Remove from favorites' : 'Add to favorites'}">${p.is_favorite ? mccIcon('heart', 16) : mccIcon('heart', 16)}</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteProspect('${p.id}')">${mccIcon('x', 16)}</button>
               </div>
             </div>
           </div>
@@ -5545,6 +6073,26 @@ Note: This assessment was generated by AI and is for informational purposes only
 
     function filterProspects() {
       renderProspects();
+    }
+
+    function inspectThisCar(id) {
+      const prospect = prospectVehicles.find(p => p.id === id);
+      if (!prospect) return;
+      const label = [prospect.year, prospect.make, prospect.model].filter(Boolean).join(' ');
+      if (typeof openPackageModal === 'function') {
+        openPackageModal();
+        setTimeout(() => {
+          const titleField = document.getElementById('p-title');
+          const categorySelect = document.getElementById('p-category');
+          if (titleField) titleField.value = `Pre-Purchase Inspection — ${label}`;
+          if (categorySelect) {
+            categorySelect.value = 'maintenance';
+            categorySelect.dispatchEvent(new Event('change'));
+          }
+        }, 200);
+      } else {
+        showToast('Open the Packages tab to create a service request.', 'info');
+      }
     }
 
     function calculateMatchScore(prospect) {
@@ -5635,10 +6183,14 @@ Note: This assessment was generated by AI and is for informational purposes only
 
       const btn = document.getElementById('vin-lookup-btn');
       btn.disabled = true;
-      btn.textContent = '⏳ Looking up...';
+      btn.innerHTML = mccIcon('clock', 16) + ' Looking up...';
 
       try {
-        const response = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`);
+        const response = await fetch(`/api/vin-proxy?vin=${encodeURIComponent(vin)}`);
+        if (!response.ok) {
+          showToast('VIN lookup failed. Please try again.', 'error');
+          return;
+        }
         const data = await response.json();
         
         if (data.Results) {
@@ -5682,7 +6234,7 @@ Note: This assessment was generated by AI and is for informational purposes only
         showToast('Failed to lookup VIN. Please try again.', 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = '🔍 Lookup';
+        btn.innerHTML = mccIcon('search', 16) + ' Lookup';
       }
     }
 
@@ -5891,7 +6443,7 @@ Note: This assessment was generated by AI and is for informational purposes only
               <div style="font-size:0.85rem;color:var(--text-muted);">Owners</div>
             </div>
             <div style="text-align:center;">
-              <div style="font-size:2rem;margin-bottom:4px;">${prospect.carfax_service_records ? '✅' : '❌'}</div>
+              <div style="font-size:2rem;margin-bottom:4px;">${prospect.carfax_service_records ? mccIcon('check-circle', 16) : mccIcon('x', 16)}</div>
               <div style="font-size:0.85rem;color:var(--text-muted);">Service Records</div>
             </div>
           </div>
@@ -5902,7 +6454,7 @@ Note: This assessment was generated by AI and is for informational purposes only
           <div style="flex:1;min-width:200px;">
             <h4 style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px;">Your Rating</h4>
             <div style="font-size:28px;color:var(--accent-gold);">
-              ${prospect.personal_rating ? '⭐'.repeat(prospect.personal_rating) + '☆'.repeat(5 - prospect.personal_rating) : '☆☆☆☆☆'}
+              ${prospect.personal_rating ? mccIcon('star', 16).repeat(prospect.personal_rating) + mccIcon('star', 16).repeat(5 - prospect.personal_rating) : mccIcon('star', 16).repeat(5)}
             </div>
           </div>
           ${matchScore !== null ? `
@@ -5931,9 +6483,9 @@ Note: This assessment was generated by AI and is for informational purposes only
         ` : ''}
 
         <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
-          <button class="btn btn-primary" onclick="editProspect('${prospect.id}');closeViewProspectModal();">✏️ Edit</button>
-          <button class="btn btn-secondary" onclick="toggleFavorite('${prospect.id}');closeViewProspectModal();">${prospect.is_favorite ? '❤️ Unfavorite' : '🤍 Favorite'}</button>
-          <button class="btn btn-danger" onclick="deleteProspect('${prospect.id}');closeViewProspectModal();">🗑️ Delete</button>
+          <button class="btn btn-primary" onclick="editProspect('${prospect.id}');closeViewProspectModal();">${mccIcon('file-text', 16)} Edit</button>
+          <button class="btn btn-secondary" onclick="toggleFavorite('${prospect.id}');closeViewProspectModal();">${prospect.is_favorite ? mccIcon('heart', 16) + ' Unfavorite' : mccIcon('heart', 16) + ' Favorite'}</button>
+          <button class="btn btn-danger" onclick="deleteProspect('${prospect.id}');closeViewProspectModal();">${mccIcon('x', 16)} Delete</button>
         </div>
       `;
 
@@ -6025,8 +6577,8 @@ Note: This assessment was generated by AI and is for informational purposes only
         { label: 'Exterior Color', key: 'exterior_color', format: v => v || 'N/A' },
         { label: 'Accidents', key: 'carfax_accidents', format: v => v !== null ? v : 'N/A', best: 'low' },
         { label: 'Previous Owners', key: 'carfax_owners', format: v => v || 'N/A', best: 'low' },
-        { label: 'Service Records', key: 'carfax_service_records', format: v => v ? '✅ Yes' : '❌ No' },
-        { label: 'Your Rating', key: 'personal_rating', format: v => v ? '⭐'.repeat(v) : 'N/A', best: 'high' },
+        { label: 'Service Records', key: 'carfax_service_records', format: v => v ? mccIcon('check-circle', 16) + ' Yes' : mccIcon('x', 16) + ' No' },
+        { label: 'Your Rating', key: 'personal_rating', format: v => v ? mccIcon('star', 16).repeat(v) : 'N/A', best: 'high' },
         { label: 'Match Score', key: null, format: (v, p) => { const s = calculateMatchScore(p); return s !== null ? s + '%' : 'N/A'; }, best: 'high', isComputed: true }
       ];
 
@@ -6380,10 +6932,10 @@ Note: This assessment was generated by AI and is for informational purposes only
 
     function getCategoryEmoji(category) {
       switch (category) {
-        case 'apparel': return '👕';
-        case 'accessories': return '🎒';
-        case 'decals': return '🏷️';
-        default: return '📦';
+        case 'apparel': return mccIcon('shopping-cart', 16);
+        case 'accessories': return mccIcon('shopping-cart', 16);
+        case 'decals': return mccIcon('ticket', 16);
+        default: return mccIcon('package', 16);
       }
     }
 
@@ -6482,7 +7034,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       if (shopCart.length === 0) {
         cartList.innerHTML = `
           <div class="empty-state" style="padding:24px 0;">
-            <div style="font-size:40px;margin-bottom:12px;">🛒</div>
+            <div style="font-size:40px;margin-bottom:12px;">${mccIcon('shopping-cart', 16)}</div>
             <p style="color:var(--text-muted);font-size:0.9rem;">Your cart is empty</p>
           </div>
         `;
@@ -6688,7 +7240,7 @@ Note: This assessment was generated by AI and is for informational purposes only
         const itemsHtml = (order.items || []).map(item => `
           <div class="order-item-row">
             <div class="order-item-image">
-              ${item.image_url ? `<img src="${item.image_url}" alt="${item.name}">` : '📦'}
+              ${item.image_url ? `<img src="${item.image_url}" alt="${item.name}">` : mccIcon('package', 16)}
             </div>
             <div class="order-item-info">
               <div class="order-item-name">${item.name || 'Product'}</div>
@@ -6719,7 +7271,7 @@ Note: This assessment was generated by AI and is for informational purposes only
               ${order.tracking_number ? `<p><strong>Tracking #:</strong> ${order.tracking_number}</p>` : ''}
               ${order.tracking_url ? `
                 <button class="btn btn-primary btn-sm order-tracking-btn" onclick="trackOrder('${order.id}')">
-                  📍 Track Shipment
+                  ${mccIcon('map-pin', 16)} Track Shipment
                 </button>
               ` : ''}
             </div>
@@ -6730,7 +7282,7 @@ Note: This assessment was generated by AI and is for informational purposes only
           <div class="order-card" id="order-${order.id}">
             <div class="order-card-header" onclick="toggleOrderDetails('${order.id}')">
               <div class="order-card-info">
-                <div class="order-icon">📦</div>
+                <div class="order-icon">${mccIcon('package', 16)}</div>
                 <div class="order-meta">
                   <div class="order-number">${orderNumber}</div>
                   <div class="order-date">${orderDate}</div>
@@ -6741,7 +7293,7 @@ Note: This assessment was generated by AI and is for informational purposes only
                 </div>
               </div>
               <span class="order-status ${status}">${statusLabel}</span>
-              <span class="order-expand-icon">▼</span>
+              <span class="order-expand-icon">${mccIcon('chevron-down', 12)}</span>
             </div>
             <div class="order-details">
               <div class="order-details-section">
@@ -6890,13 +7442,13 @@ Note: This assessment was generated by AI and is for informational purposes only
             case 'completed':
               statusClass = 'background:var(--accent-green-soft);color:var(--accent-green);';
               statusLabel = 'Completed';
-              statusIcon = '✅';
+              statusIcon = mccIcon('check-circle', 16);
               break;
             case 'pending':
             default:
               statusClass = 'background:var(--accent-orange-soft);color:var(--accent-orange);';
               statusLabel = 'Pending';
-              statusIcon = '⏳';
+              statusIcon = mccIcon('clock', 16);
               break;
           }
           
@@ -6905,7 +7457,7 @@ Note: This assessment was generated by AI and is for informational purposes only
           return `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:var(--bg-elevated);border-radius:12px;border:1px solid var(--border-subtle);">
               <div style="display:flex;align-items:center;gap:16px;">
-                <div style="width:48px;height:48px;border-radius:50%;background:var(--accent-blue-soft);display:flex;align-items:center;justify-content:center;font-size:20px;">👤</div>
+                <div style="width:48px;height:48px;border-radius:50%;background:var(--accent-blue-soft);display:flex;align-items:center;justify-content:center;font-size:20px;">${mccIcon('user', 20)}</div>
                 <div>
                   <div style="font-weight:600;margin-bottom:2px;">${referral.referred_name || 'Member'}</div>
                   <div style="font-size:0.85rem;color:var(--text-muted);">Joined ${date}</div>
@@ -6991,6 +7543,29 @@ See you there!`);
         window.open(`sms:?body=${message}`);
       }
     }
+
+    function shareReferralSocial(platform) {
+      if (!memberReferralCode) {
+        showToast('Referral code not loaded', 'error');
+        return;
+      }
+      const baseUrl = window.location.origin;
+      const referralLink = `${baseUrl}/signup-member.html?ref=${memberReferralCode}`;
+      const message = `Join My Car Concierge and get $10 off your first service! Use my code ${memberReferralCode} or sign up here: ${referralLink}`;
+
+      if (platform === 'facebook') {
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`, '_blank', 'width=600,height=400');
+      } else if (platform === 'twitter') {
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(message)}`, '_blank', 'width=600,height=400');
+      } else if (platform === 'whatsapp') {
+        window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+      }
+    }
+    window.shareReferralSocial = shareReferralSocial;
+    window.copyReferralCode = copyReferralCode;
+    window.copyReferralLink = copyReferralLink;
+    window.shareReferralEmail = shareReferralEmail;
+    window.shareReferralSMS = shareReferralSMS;
 
     const originalShowSectionForReferrals = showSection;
     showSection = function(sectionId) {
@@ -7100,7 +7675,7 @@ See you there!`);
       if (fuelLogs.length === 0) {
         container.innerHTML = `
           <div class="empty-state" style="padding:40px;">
-            <div class="empty-state-icon">⛽</div>
+            <div class="empty-state-icon">${mccIcon('fuel', 40)}</div>
             <p>No fuel logs yet.</p>
             <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Start tracking your fuel expenses to see stats and trends.</p>
           </div>
@@ -7140,8 +7715,8 @@ See you there!`);
                     <td style="padding:14px 8px;font-size:0.9rem;text-align:right;font-weight:600;color:var(--accent-gold);">$${parseFloat(log.total_cost).toFixed(2)}</td>
                     <td style="padding:14px 8px;font-size:0.9rem;color:var(--text-secondary);">${log.station_name || '-'}</td>
                     <td style="padding:14px 8px;text-align:center;">
-                      <button class="btn btn-ghost btn-sm" onclick="editFuelLog('${log.id}')" title="Edit">✏️</button>
-                      <button class="btn btn-ghost btn-sm" onclick="deleteFuelLog('${log.id}')" title="Delete" style="color:var(--accent-red);">🗑️</button>
+                      <button class="btn btn-ghost btn-sm" onclick="editFuelLog('${log.id}')" title="Edit">${mccIcon('file-text', 16)}</button>
+                      <button class="btn btn-ghost btn-sm" onclick="deleteFuelLog('${log.id}')" title="Delete" style="color:var(--accent-red);">${mccIcon('x', 16)}</button>
                     </td>
                   </tr>
                 `;
@@ -7154,18 +7729,18 @@ See you there!`);
 
     function getFuelTypeEmoji(type) {
       switch (type) {
-        case 'regular': return '⛽';
-        case 'mid-grade': return '⛽';
-        case 'premium': return '🏎️';
-        case 'diesel': return '🛢️';
-        case 'electric': return '🔋';
-        default: return '⛽';
+        case 'regular': return mccIcon('fuel', 16);
+        case 'mid-grade': return mccIcon('fuel', 16);
+        case 'premium': return mccIcon('car', 16);
+        case 'diesel': return mccIcon('fuel', 16);
+        case 'electric': return mccIcon('zap', 16);
+        default: return mccIcon('fuel', 16);
       }
     }
 
     function renderFuelCharts() {
       renderMpgTrendChart();
-      renderSpendingChart();
+      renderFuelSpendingChart();
     }
 
     function renderMpgTrendChart() {
@@ -7223,7 +7798,7 @@ See you there!`);
       });
     }
 
-    function renderSpendingChart() {
+    function renderFuelSpendingChart() {
       const canvas = document.getElementById('fuel-spending-chart');
       if (!canvas) return;
       
@@ -7533,7 +8108,7 @@ See you there!`);
       if (insuranceDocuments.length === 0) {
         container.innerHTML = `
           <div class="empty-state" style="padding:40px;">
-            <div class="empty-state-icon">📋</div>
+            <div class="empty-state-icon">${mccIcon('clipboard-list', 40)}</div>
             <p>No insurance documents yet.</p>
             <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Upload your insurance cards and policy documents to keep them handy.</p>
           </div>
@@ -7563,7 +8138,7 @@ See you there!`);
         html += `
           <div style="margin-bottom:24px;">
             <h3 style="font-size:0.95rem;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-              <span>🚗</span> ${vehicleName}
+              <span>${mccIcon('car', 16)}</span> ${vehicleName}
             </h3>
             <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));gap:12px;">
               ${group.documents.map(doc => renderInsuranceCard(doc)).join('')}
@@ -7620,11 +8195,11 @@ See you there!`);
           <div style="display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--border-subtle);">
             ${hasFile ? `
               <button class="btn btn-secondary btn-sm" onclick="downloadInsuranceDocument('${doc.id}')" style="flex:1;">
-                📥 Download
+                ${mccIcon('download', 16)} Download
               </button>
             ` : ''}
             <button class="btn btn-ghost btn-sm" onclick="deleteInsuranceDocument('${doc.id}')" style="color:var(--accent-red);" title="Delete">
-              🗑️
+              ${mccIcon('x', 16)}
             </button>
           </div>
         </div>
@@ -7682,6 +8257,7 @@ See you there!`);
       }
       
       selectedInsuranceFile = file;
+      window._pendingInsuranceFile = file;
       
       const dropzone = document.getElementById('insurance-file-dropzone');
       const preview = document.getElementById('insurance-file-preview');
@@ -7692,6 +8268,14 @@ See you there!`);
       if (preview) preview.style.display = 'flex';
       if (fileName) fileName.textContent = file.name;
       if (fileSize) fileSize.textContent = formatFileSize(file.size);
+      
+      const extractArea = document.getElementById('insurance-extract-area');
+      const extractionStatus = document.getElementById('insurance-extraction-status');
+      if (extractArea) {
+        const isImage = ['image/jpeg', 'image/jpg', 'image/png'].includes(file.type);
+        extractArea.style.display = isImage ? 'block' : 'none';
+      }
+      if (extractionStatus) extractionStatus.style.display = 'none';
     }
 
     function formatFileSize(bytes) {
@@ -7702,13 +8286,18 @@ See you there!`);
 
     function clearInsuranceFile() {
       selectedInsuranceFile = null;
+      window._pendingInsuranceFile = null;
       const fileInput = document.getElementById('insurance-file-input');
       const dropzone = document.getElementById('insurance-file-dropzone');
       const preview = document.getElementById('insurance-file-preview');
+      const extractArea = document.getElementById('insurance-extract-area');
+      const extractionStatus = document.getElementById('insurance-extraction-status');
       
       if (fileInput) fileInput.value = '';
       if (dropzone) dropzone.style.display = 'block';
       if (preview) preview.style.display = 'none';
+      if (extractArea) extractArea.style.display = 'none';
+      if (extractionStatus) extractionStatus.style.display = 'none';
     }
 
     async function saveInsuranceDocument(event) {
@@ -7740,7 +8329,13 @@ See you there!`);
         let fileName = null;
         let fileSize = null;
         
-        if (selectedInsuranceFile) {
+        if (window._insurancePreUploadedFile && selectedInsuranceFile) {
+          storagePath = window._insurancePreUploadedFile.storagePath;
+          fileUrl = window._insurancePreUploadedFile.url;
+          fileName = selectedInsuranceFile.name;
+          fileSize = selectedInsuranceFile.size;
+          window._insurancePreUploadedFile = null;
+        } else if (selectedInsuranceFile) {
           const uploadUrlResponse = await fetch(
             `/api/member/${currentUser.id}/insurance-document/upload-url?file_name=${encodeURIComponent(selectedInsuranceFile.name)}&file_type=${encodeURIComponent(selectedInsuranceFile.type)}`,
             {

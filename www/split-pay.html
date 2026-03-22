@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Split Payment – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
+      --accent-green: #34d399;
+      --accent-green-soft: rgba(52, 211, 153, 0.12);
+      --accent-red: #f87171;
+      --accent-orange: #fb923c;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --border-focus: rgba(56, 189, 248, 0.5);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background: radial-gradient(ellipse 80% 50% at 20% 10%, rgba(74, 124, 255, 0.06), transparent 50%),
+                  radial-gradient(ellipse 60% 60% at 80% 80%, rgba(212, 168, 85, 0.05), transparent 50%);
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .logo h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem;
+      color: var(--accent-gold);
+      font-weight: 600;
+    }
+
+    .logo p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      backdrop-filter: blur(20px);
+    }
+
+    .card-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .card-header h2 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .card-header p {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .amount-display {
+      text-align: center;
+      padding: 20px;
+      background: var(--accent-gold-soft);
+      border: 1px solid rgba(201, 162, 39, 0.3);
+      border-radius: var(--radius-md);
+      margin-bottom: 24px;
+    }
+
+    .amount-display .label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .amount-display .amount {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent-gold);
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 0.95rem;
+    }
+
+    .info-row:last-child { border-bottom: none; }
+
+    .info-row .label {
+      color: var(--text-muted);
+    }
+
+    .info-row .value {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    .info-section {
+      margin-bottom: 24px;
+    }
+
+    #card-element {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      min-height: 44px;
+      margin-bottom: 12px;
+    }
+
+    #card-errors {
+      color: var(--accent-red);
+      font-size: 0.85rem;
+      margin-bottom: 16px;
+      min-height: 20px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 24px;
+      border-radius: var(--radius-md);
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      width: 100%;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #c9a227 0%, #dbb84a 100%);
+      color: #12161c;
+    }
+
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(201, 162, 39, 0.4); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .btn-secondary {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-state {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .loading-state .spinner {
+      width: 32px;
+      height: 32px;
+      border-width: 3px;
+      margin: 0 auto 16px;
+      border-color: rgba(201, 162, 39, 0.3);
+      border-top-color: var(--accent-gold);
+    }
+
+    .error-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--accent-red);
+    }
+
+    .success-state {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .success-state .icon {
+      font-size: 3rem;
+      margin-bottom: 16px;
+    }
+
+    .success-state h2 {
+      color: var(--accent-green);
+      margin-bottom: 8px;
+    }
+
+    .success-state p {
+      color: var(--text-secondary);
+    }
+
+    .login-prompt {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .login-prompt a {
+      color: var(--accent-gold);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .login-prompt a:hover {
+      text-decoration: underline;
+    }
+
+    .secure-note {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-input);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      margin-bottom: 20px;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
+  </style>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+
+  <div class="container">
+    <div class="logo">
+      <h1>My Car Concierge</h1>
+      <p>Split Payment</p>
+    </div>
+
+    <div class="card" id="main-card">
+      <div class="loading-state" id="loading-state">
+        <div class="spinner"></div>
+        <p style="color:var(--text-muted);">Loading payment details...</p>
+      </div>
+
+      <div id="login-state" style="display:none;">
+        <div class="login-prompt">
+          <p style="font-size:1.1rem;margin-bottom:16px;">Please log in to pay your share</p>
+          <a href="/members.html" class="btn btn-primary">Log In</a>
+        </div>
+      </div>
+
+      <div id="guest-loading-state" style="display:none;">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p style="color:var(--text-muted);">Loading your payment details...</p>
+        </div>
+      </div>
+
+      <div id="payment-state" style="display:none;">
+        <div class="card-header">
+          <h2><span class="icon-inline" data-icon="users"></span> Pay Your Share</h2>
+          <p id="split-description"></p>
+        </div>
+
+        <div class="amount-display">
+          <div class="label">Your Share</div>
+          <div class="amount" id="share-amount">$0.00</div>
+        </div>
+
+        <div class="info-section" id="split-info"></div>
+
+        <div class="secure-note">
+          <span><span class="icon-inline" data-icon="lock"></span></span>
+          <span>Your payment is processed securely through Stripe.</span>
+        </div>
+
+        <div id="card-element"></div>
+        <div id="card-errors"></div>
+
+        <button id="pay-btn" class="btn btn-primary" onclick="handlePay()">
+          <span class="icon-inline" data-icon="credit-card"></span> Pay Now
+        </button>
+      </div>
+
+      <div id="success-state" style="display:none;">
+        <div class="success-state">
+          <div class="icon"><span class="icon-inline" data-icon="check-circle"></span></div>
+          <h2>Payment Complete!</h2>
+          <p id="success-message">Your share has been paid successfully.</p>
+          <div style="margin-top:24px;">
+            <a href="/" class="btn btn-secondary" id="success-link">Go to Dashboard</a>
+          </div>
+        </div>
+      </div>
+
+      <div id="already-paid-state" style="display:none;">
+        <div class="success-state">
+          <div class="icon"><span class="icon-inline" data-icon="check-circle"></span></div>
+          <h2>Already Paid</h2>
+          <p>You have already paid your share for this split payment.</p>
+          <div style="margin-top:24px;">
+            <a href="/members.html" class="btn btn-secondary">Go to Dashboard</a>
+          </div>
+        </div>
+      </div>
+
+      <div id="error-state" style="display:none;">
+        <div class="error-state">
+          <p style="font-size:2rem;margin-bottom:12px;"><span class="icon-inline" data-icon="alert-triangle"></span></p>
+          <p id="error-message">Something went wrong.</p>
+          <div style="margin-top:24px;">
+            <a href="/members.html" class="btn btn-secondary">Go to Dashboard</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="supabaseclient.js"></script>
+  <script src="stripeutils.js"></script>
+  <script src="split-pay.js"></script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
+</body>
+</html>
