@@ -148,6 +148,24 @@ async function searchWithGrounding(query, options = {}) {
 }
 
 const helpdeskConversations = new Map();
+const helpdeskLastActive = new Map();
+
+function cleanupHelpdeskConversations() {
+  const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+  let evicted = 0;
+  for (const [convId, lastActive] of helpdeskLastActive.entries()) {
+    if (lastActive < cutoff) {
+      helpdeskConversations.delete(convId);
+      helpdeskLastActive.delete(convId);
+      evicted++;
+    }
+  }
+  if (evicted > 0) {
+    console.log(`[Helpdesk] Evicted ${evicted} idle session(s). Active sessions: ${helpdeskConversations.size}`);
+  }
+}
+
+setInterval(cleanupHelpdeskConversations, 30 * 60 * 1000);
 
 const HELPDESK_BASE_PROMPT = `You are "My Car Concierge" — a friendly, practical car expert and helpdesk agent for a marketplace that connects drivers with vetted automotive service providers.
 
@@ -254,6 +272,7 @@ function getHelpdeskConversation(convId) {
   if (!helpdeskConversations.has(convId)) {
     helpdeskConversations.set(convId, []);
   }
+  helpdeskLastActive.set(convId, Date.now());
   return helpdeskConversations.get(convId);
 }
 
@@ -283,15 +302,21 @@ let global2faEnabled = process.env.GLOBAL_2FA_ENABLED !== 'false';
 
 const WWW_DIR = path.resolve(__dirname);
 
-const GUEST_TOKEN_SECRET = process.env.ADMIN_PASSWORD ? 
-  crypto.createHash('sha256').update('mcc-guest-split-' + process.env.ADMIN_PASSWORD).digest('hex') : 
-  'mcc-guest-token-fallback-dev';
+const GUEST_TOKEN_SECRET = process.env.ADMIN_PASSWORD
+  ? crypto.createHash('sha256').update('mcc-guest-split-' + process.env.ADMIN_PASSWORD).digest('hex')
+  : null;
+
+if (!GUEST_TOKEN_SECRET) {
+  console.warn('[Security] ADMIN_PASSWORD not set — split-payment guest links are disabled.');
+}
 
 function generateGuestToken(participantId) {
+  if (!GUEST_TOKEN_SECRET) return null;
   return crypto.createHmac('sha256', GUEST_TOKEN_SECRET).update(participantId).digest('hex').substring(0, 32);
 }
 
 function verifyGuestToken(participantId, token) {
+  if (!GUEST_TOKEN_SECRET) return false;
   if (!token || token.length !== 32) return false;
   try {
     return crypto.timingSafeEqual(
@@ -6750,32 +6775,8 @@ async function sendFCMPushNotification(memberIds, title, body, data = {}, catego
       return { sent: true, success: successCount, failure: failureCount };
     }
 
-    const tokens = eligibleTokenRows.map(r => r.token);
-    const payload = {
-      registration_ids: tokens,
-      notification: { title, body },
-      data: { ...data, title, body },
-      priority: 'high',
-      content_available: true
-    };
-    const response = await fetch('https://fcm.googleapis.com/fcm/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `key=${fcmKey}` },
-      body: JSON.stringify(payload)
-    });
-    const result = await response.json();
-    console.log(`[FCM legacy] Sent to ${tokens.length} device(s): success=${result.success} failure=${result.failure}`);
-    if (result.results) {
-      const stale = [];
-      result.results.forEach((r, i) => {
-        if (r.error === 'InvalidRegistration' || r.error === 'NotRegistered') stale.push(tokens[i]);
-      });
-      if (stale.length > 0) {
-        await supabase.from('device_push_tokens').update({ active: false }).in('token', stale);
-        console.log(`[FCM legacy] Deactivated ${stale.length} stale token(s)`);
-      }
-    }
-    return { sent: true, success: result.success, failure: result.failure };
+    console.warn('[FCM] FCM_SERVER_KEY (legacy API) is set but the legacy FCM HTTP API was shut down in June 2024. Set FCM_SERVICE_ACCOUNT_JSON to enable push notifications via the FCM v1 API.');
+    return { sent: false, reason: 'legacy_api_deprecated' };
   } catch (err) {
     console.error('[FCM] Send error:', err.message);
     return { sent: false, reason: 'error' };
@@ -31787,8 +31788,6 @@ const server = http.createServer(async (req, res) => {
     'https://pay.mycarconcierge.com',
     'capacitor://localhost',
     'ionic://localhost',
-    'http://localhost',
-    'http://localhost:5000',
     'file://'
   ];
   
