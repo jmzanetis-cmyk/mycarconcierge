@@ -493,7 +493,7 @@
     <div class="container">
       <div class="privacy-header">
         <h1>Privacy <span class="highlight">Policy</span></h1>
-        <div class="last-updated">Last Updated: January 19, 2026</div>
+        <div class="last-updated">Last Updated: March 22, 2026</div>
       </div>
 
       <div class="privacy-body">
@@ -579,11 +579,14 @@
 
           <h3>With Third-Party Service Providers</h3>
           <ul>
-            <li><strong>Cloud Hosting:</strong> Data storage and processing services</li>
-            <li><strong>Analytics:</strong> Services that help us understand platform usage</li>
-            <li><strong>Customer Support:</strong> Tools that help us respond to user inquiries</li>
-            <li><strong>SMS Communications (Twilio):</strong> We use Twilio to send SMS verification codes for two-factor authentication (2FA). When you enable 2FA, your phone number is shared with Twilio solely for the purpose of delivering security codes. Twilio processes this data in accordance with their privacy policy.</li>
-            <li><strong>Email Services:</strong> Platforms used to send transactional and promotional emails</li>
+            <li><strong>Supabase:</strong> Our primary database and authentication infrastructure. Your account data, vehicle records, service history, and messages are stored in Supabase-hosted PostgreSQL databases. Supabase processes data in accordance with their privacy policy at supabase.com/privacy.</li>
+            <li><strong>SMS Communications (Twilio):</strong> We use Twilio to send SMS verification codes for two-factor authentication (2FA) and appointment reminders. When you enable SMS features, your phone number is shared with Twilio solely for the purpose of delivering messages. Twilio processes this data in accordance with their privacy policy at twilio.com/legal/privacy.</li>
+            <li><strong>Push Notifications (Firebase Cloud Messaging / FCM):</strong> We use Google Firebase Cloud Messaging to send push notifications to your mobile device. Your device push token is stored in our system and shared with FCM to deliver notifications about bids, appointments, and account activity. FCM is subject to Google's Privacy Policy at policies.google.com/privacy.</li>
+            <li><strong>Email Delivery (Resend):</strong> Transactional emails (account confirmations, password resets, service notifications) are sent via Resend. Your email address is shared with Resend solely to deliver these messages. Resend's privacy policy is available at resend.com/legal/privacy-policy.</li>
+            <li><strong>Document Scanning (Google Cloud Vision):</strong> When you use the registration document scan or insurance card OCR feature, images you upload are processed by Google Cloud Vision API for text extraction. Images are transmitted to Google's servers for OCR processing and are not stored by Google beyond the processing request. See Google's Cloud Privacy Notice at cloud.google.com/terms/cloud-privacy-notice.</li>
+            <li><strong>AI Features (Anthropic / Google Gemini):</strong> Our AI-powered features — including the helpdesk chat, Dream Car Finder, OBD diagnostic explanations, and content generation — use Anthropic's Claude and Google's Gemini APIs. Text you submit through these features may be processed by these providers. We do not send personally identifiable information to AI providers beyond what is necessary for the specific feature. Anthropic's privacy policy is at anthropic.com/privacy; Google's AI privacy information is at policies.google.com/privacy.</li>
+            <li><strong>Analytics:</strong> Anonymized platform usage data (pages viewed, feature interactions) is used internally to understand how users interact with the Service and improve functionality.</li>
+            <li><strong>Background Screening (BackgroundChecks.com):</strong> Providers who opt in to background screening share identity information with BackgroundChecks.com for criminal record and motor vehicle record (MVR) checks. This data is handled exclusively by BackgroundChecks.com under their own privacy policy and is not stored on MCC servers beyond a reference check ID.</li>
           </ul>
 
           <h3>Legal and Safety</h3>
