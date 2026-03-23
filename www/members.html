@@ -3758,6 +3758,21 @@
         </div>
       </div>
 
+      <!-- SaaS Subscriptions / Billing -->
+      <div class="card" style="margin-top:20px;" id="billing-settings-card">
+        <div class="card-header">
+          <h2 class="card-title">📦 Platform Subscriptions</h2>
+          <p style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">Manage your Fleet, Shop, AI API, and other add-on subscriptions.</p>
+        </div>
+        <div id="billing-subscriptions-list">
+          <div style="color:var(--text-muted);padding:8px 0;font-size:0.9rem;">Loading subscription info…</div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-secondary" onclick="openSaasPricingModal()">Explore Plans</button>
+          <button class="btn btn-ghost" onclick="openBillingPortal()" id="billing-portal-btn" style="display:none;">Manage Billing</button>
+        </div>
+      </div>
+
       <!-- Danger Zone - Delete Account -->
       <div class="card" style="margin-top:24px;border:1px solid rgba(239,95,95,0.4);background:rgba(239,95,95,0.05);">
         <div class="card-header">
@@ -7626,6 +7641,191 @@
       // Initial onboarding check after a short delay for stats to load
       setTimeout(checkOnboardingStatus, 1500);
     });
+  </script>
+
+  <!-- SaaS Pricing Modal -->
+  <div class="modal-backdrop" id="saas-pricing-modal">
+    <div class="modal" style="max-width:900px;width:96vw;max-height:90vh;overflow-y:auto;">
+      <div class="modal-header">
+        <h3 class="modal-title">Platform Add-ons & SaaS Plans</h3>
+        <button class="modal-close" onclick="closeModal('saas-pricing-modal')">✕</button>
+      </div>
+      <div class="modal-body" style="padding:0;">
+        <div style="padding:16px 24px 0;">
+          <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+            <button class="btn btn-sm" id="saas-tab-fleet" onclick="switchSaasTab('fleet')" style="background:var(--accent-gold);color:#000;">Fleet</button>
+            <button class="btn btn-sm btn-secondary" id="saas-tab-shop" onclick="switchSaasTab('shop')">Provider Shop</button>
+            <button class="btn btn-sm btn-secondary" id="saas-tab-ai_api" onclick="switchSaasTab('ai_api')">AI API</button>
+            <button class="btn btn-sm btn-secondary" id="saas-tab-outreach" onclick="switchSaasTab('outreach')">Outreach</button>
+            <button class="btn btn-sm btn-secondary" id="saas-tab-white_label" onclick="switchSaasTab('white_label')">White-label</button>
+          </div>
+        </div>
+        <div id="saas-pricing-plans-container" style="padding:0 24px 24px;">
+          <div style="text-align:center;padding:32px;color:var(--text-muted);">Loading plans…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let saasPlanData = null;
+    let currentSaasTab = 'fleet';
+
+    async function openSaasPricingModal() {
+      openModal('saas-pricing-modal');
+      if (!saasPlanData) {
+        try {
+          const resp = await fetch('/api/saas/plans');
+          const data = await resp.json();
+          saasPlanData = data.plans;
+        } catch (e) {
+          document.getElementById('saas-pricing-plans-container').innerHTML = '<div style="color:var(--accent-red);padding:24px;">Failed to load plans.</div>';
+          return;
+        }
+      }
+      renderSaasPlans(currentSaasTab);
+    }
+
+    function switchSaasTab(tab) {
+      currentSaasTab = tab;
+      document.querySelectorAll('[id^="saas-tab-"]').forEach(btn => {
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.className = 'btn btn-sm btn-secondary';
+      });
+      const activeBtn = document.getElementById('saas-tab-' + tab);
+      if (activeBtn) { activeBtn.style.background = 'var(--accent-gold)'; activeBtn.style.color = '#000'; activeBtn.className = 'btn btn-sm'; }
+      renderSaasPlans(tab);
+    }
+
+    function renderSaasPlans(product) {
+      const container = document.getElementById('saas-pricing-plans-container');
+      if (!saasPlanData || !saasPlanData[product]) {
+        container.innerHTML = '<div style="color:var(--text-muted);padding:24px;">Plans unavailable.</div>';
+        return;
+      }
+      const plan = saasPlanData[product];
+      const tiers = plan.tiers;
+      const tierOrder = ['starter', 'pro', 'business'];
+      container.innerHTML = `
+        <div style="margin-bottom:12px;">
+          <div style="font-weight:600;font-size:1.05rem;">${plan.name}</div>
+          <div style="color:var(--text-muted);font-size:0.9rem;">${plan.description}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
+          ${tierOrder.map((tier, i) => {
+            const t = tiers[tier];
+            if (!t) return '';
+            const monthlyPrice = (t.price_monthly / 100).toFixed(0);
+            const isPopular = tier === 'pro';
+            return `
+              <div style="border:2px solid ${isPopular ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:var(--radius-lg);padding:24px;position:relative;background:var(--bg-elevated);">
+                ${isPopular ? '<div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--accent-gold);color:#000;font-size:0.72rem;font-weight:700;padding:3px 12px;border-radius:100px;">MOST POPULAR</div>' : ''}
+                <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">${t.name}</div>
+                <div style="font-size:2rem;font-weight:800;margin:12px 0 4px;">$${monthlyPrice}<span style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">/mo</span></div>
+                ${t.price_annual ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:16px;">$${(t.price_annual / 100 / 12).toFixed(0)}/mo billed annually</div>` : '<div style="margin-bottom:16px;"></div>'}
+                <ul style="list-style:none;padding:0;margin:0 0 20px;display:flex;flex-direction:column;gap:8px;">
+                  ${(t.features || []).map(f => `<li style="font-size:0.85rem;display:flex;align-items:flex-start;gap:8px;"><span style="color:var(--accent-green);flex-shrink:0;margin-top:1px;">✓</span>${f}</li>`).join('')}
+                </ul>
+                <button class="btn ${isPopular ? 'btn-primary' : 'btn-secondary'}" style="width:100%;" onclick="subscribeSaasPlan('${product}','${tier}')">
+                  ${t.stripe_price_id ? 'Get Started' : 'Contact Sales'}
+                </button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    async function subscribeSaasPlan(product, plan) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showToast('Please log in to subscribe', 'error'); return; }
+        const resp = await fetch('/api/saas/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+          body: JSON.stringify({ product, plan })
+        });
+        const data = await resp.json();
+        if (data.url) {
+          window.location.href = data.url;
+        } else if (data.error) {
+          showToast(data.error, 'error');
+        }
+      } catch (e) {
+        showToast('Failed to start checkout: ' + e.message, 'error');
+      }
+    }
+
+    async function openBillingPortal() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showToast('Please log in', 'error'); return; }
+        const resp = await fetch('/api/saas/billing-portal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+          body: JSON.stringify({ return_url: window.location.href })
+        });
+        const data = await resp.json();
+        if (data.url) window.location.href = data.url;
+        else showToast(data.error || 'Failed to open billing portal', 'error');
+      } catch (e) {
+        showToast('Failed to open billing portal', 'error');
+      }
+    }
+
+    async function loadBillingSubscriptions() {
+      const container = document.getElementById('billing-subscriptions-list');
+      const portalBtn = document.getElementById('billing-portal-btn');
+      if (!container) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const resp = await fetch('/api/saas/subscription/status', {
+          headers: { 'Authorization': 'Bearer ' + session.access_token }
+        });
+        if (!resp.ok) throw new Error('Failed');
+        const data = await resp.json();
+        const subs = data.subscriptions || {};
+        const productLabels = { fleet: 'Fleet Management', shop: 'Provider Shop', ai_api: 'AI API', outreach: 'Outreach Engine', white_label: 'White-label' };
+        const statusColors = { active: 'var(--accent-green)', trialing: 'var(--accent-blue)', canceled: 'var(--text-muted)', past_due: 'var(--accent-red)' };
+
+        if (Object.keys(subs).length === 0) {
+          container.innerHTML = '<div style="color:var(--text-muted);font-size:0.9rem;padding:4px 0;">No active subscriptions. Explore plans to unlock additional capabilities.</div>';
+          if (portalBtn) portalBtn.style.display = 'none';
+        } else {
+          container.innerHTML = Object.entries(subs).map(([product, sub]) => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
+              <div>
+                <div style="font-weight:600;font-size:0.9rem;">${productLabels[product] || product} — <span style="text-transform:capitalize;">${sub.plan}</span></div>
+                ${sub.current_period_end ? `<div style="font-size:0.78rem;color:var(--text-muted);">Renews ${new Date(sub.current_period_end).toLocaleDateString()}</div>` : ''}
+              </div>
+              <span style="padding:2px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;background:${statusColors[sub.status] || 'var(--text-muted)'}22;color:${statusColors[sub.status] || 'var(--text-muted)'};border:1px solid ${statusColors[sub.status] || 'var(--text-muted)'}44;">${sub.status}</span>
+            </div>
+          `).join('');
+          if (portalBtn) portalBtn.style.display = 'inline-flex';
+        }
+      } catch (e) {
+        if (container) container.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">Could not load billing info.</div>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('saas_success') === '1') {
+        setTimeout(() => {
+          showToast('Subscription activated! Welcome aboard.', 'success');
+          loadBillingSubscriptions();
+        }, 1000);
+        window.history.replaceState({}, '', '/members.html');
+      }
+    });
+
+    window.openSaasPricingModal = openSaasPricingModal;
+    window.openBillingPortal = openBillingPortal;
+    window.loadBillingSubscriptions = loadBillingSubscriptions;
+    window.subscribeSaasPlan = subscribeSaasPlan;
+    window.switchSaasTab = switchSaasTab;
   </script>
 </body>
 </html>

@@ -107,7 +107,8 @@
       crm: false,
       traffic: false,
       'marketing-outreach': false,
-      'ai-ops': false
+      'ai-ops': false,
+      'saas-subscriptions': false
     };
 
     const sectionLoaders = {
@@ -138,7 +139,8 @@
       traffic: async () => { await loadTrafficData(); },
       'marketing-outreach': async () => { await initMarketingHub(); if (typeof window.initOutreachEngine === 'function') await window.initOutreachEngine(); },
       'ai-ops': async () => { await initAiOps(); },
-      'sms-log': async () => { await loadSmsLog(1); }
+      'sms-log': async () => { await loadSmsLog(1); },
+      'saas-subscriptions': async () => { await loadSaasSubscriptions(); }
     };
 
     function showSectionLoading(sectionId) {
@@ -10486,3 +10488,117 @@
     window.refreshSingleSmsStatus = refreshSingleSmsStatus;
 
     // ========== END SMS LOG ==========
+
+    // ========== SAAS SUBSCRIPTIONS ADMIN ==========
+    async function loadSaasSubscriptions() {
+      const container = document.getElementById('saas-subscriptions-content');
+      if (!container) return;
+      container.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading subscription data…</div>';
+      try {
+        const resp = await safeFetch('/api/admin/saas/subscriptions', {
+          headers: { 'x-admin-token': window.__adminToken || '' }
+        });
+
+        const { subscriptions = [], stats = {}, by_product = {} } = resp;
+
+        const productLabels = {
+          fleet: 'Fleet Management', shop: 'Provider Shop', ai_api: 'AI API',
+          outreach: 'Outreach Engine', white_label: 'White-label'
+        };
+        const statusColors = {
+          active: 'var(--accent-green)', trialing: 'var(--accent-blue)',
+          canceled: 'var(--text-muted)', past_due: 'var(--accent-red)',
+          incomplete: 'var(--accent-orange)'
+        };
+
+        container.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:28px;">
+            <div class="stat-card" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Total Subscriptions</div>
+              <div style="font-size:1.8rem;font-weight:700;">${stats.total || 0}</div>
+            </div>
+            <div class="stat-card" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Active</div>
+              <div style="font-size:1.8rem;font-weight:700;color:var(--accent-green);">${stats.active || 0}</div>
+            </div>
+            <div class="stat-card" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Trialing</div>
+              <div style="font-size:1.8rem;font-weight:700;color:var(--accent-blue);">${stats.trialing || 0}</div>
+            </div>
+            <div class="stat-card" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Past Due</div>
+              <div style="font-size:1.8rem;font-weight:700;color:var(--accent-red);">${stats.past_due || 0}</div>
+            </div>
+            <div class="stat-card" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Est. MRR</div>
+              <div style="font-size:1.8rem;font-weight:700;color:var(--accent-gold);">$${stats.mrr_dollars || '0.00'}</div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:28px;">
+            ${Object.entries(by_product).map(([product, counts]) => `
+              <div style="padding:16px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+                <div style="font-weight:600;margin-bottom:10px;">${productLabels[product] || product}</div>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:0.82rem;">
+                  <span style="color:var(--accent-green);">Active: ${counts.active || 0}</span>
+                  <span style="color:var(--accent-blue);">Trial: ${counts.trialing || 0}</span>
+                  <span style="color:var(--text-muted);">Canceled: ${counts.canceled || 0}</span>
+                  <span style="font-weight:600;">Total: ${counts.total || 0}</span>
+                </div>
+              </div>
+            `).join('')}
+            ${Object.keys(by_product).length === 0 ? '<div style="color:var(--text-muted);padding:16px;">No subscriptions yet.</div>' : ''}
+          </div>
+
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);overflow:hidden;">
+            <div style="padding:16px 20px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between;">
+              <h3 style="margin:0;font-size:1rem;">All Subscriptions</h3>
+              <button class="btn btn-secondary btn-sm" onclick="loadSaasSubscriptions()">↻ Refresh</button>
+            </div>
+            ${subscriptions.length === 0 ? `
+              <div style="padding:40px;text-align:center;color:var(--text-muted);">
+                <div style="font-size:2.5rem;margin-bottom:12px;">📋</div>
+                <p>No SaaS subscriptions yet.</p>
+                <p style="font-size:0.85rem;">Once users subscribe to a SaaS product line, their subscriptions will appear here.</p>
+              </div>
+            ` : `
+              <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;">
+                  <thead>
+                    <tr style="background:var(--bg-input);">
+                      <th style="padding:10px 16px;text-align:left;font-size:0.8rem;color:var(--text-muted);font-weight:500;">User ID</th>
+                      <th style="padding:10px 16px;text-align:left;font-size:0.8rem;color:var(--text-muted);font-weight:500;">Product</th>
+                      <th style="padding:10px 16px;text-align:left;font-size:0.8rem;color:var(--text-muted);font-weight:500;">Plan</th>
+                      <th style="padding:10px 16px;text-align:left;font-size:0.8rem;color:var(--text-muted);font-weight:500;">Status</th>
+                      <th style="padding:10px 16px;text-align:left;font-size:0.8rem;color:var(--text-muted);font-weight:500;">Renews</th>
+                      <th style="padding:10px 16px;text-align:left;font-size:0.8rem;color:var(--text-muted);font-weight:500;">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${subscriptions.map(s => `
+                      <tr style="border-top:1px solid var(--border-subtle);">
+                        <td style="padding:10px 16px;font-size:0.82rem;color:var(--text-muted);">${s.user_id?.slice(0,8)}…</td>
+                        <td style="padding:10px 16px;font-weight:500;">${productLabels[s.product] || s.product}</td>
+                        <td style="padding:10px 16px;text-transform:capitalize;">${s.plan}</td>
+                        <td style="padding:10px 16px;">
+                          <span style="padding:2px 8px;border-radius:100px;font-size:0.75rem;font-weight:600;background:${statusColors[s.status] || 'var(--text-muted)'}22;color:${statusColors[s.status] || 'var(--text-muted)'};border:1px solid ${statusColors[s.status] || 'var(--text-muted)'}44;">${s.status}</span>
+                          ${s.cancel_at_period_end ? '<span style="margin-left:4px;font-size:0.72rem;color:var(--accent-orange);">Cancels at period end</span>' : ''}
+                        </td>
+                        <td style="padding:10px 16px;font-size:0.82rem;color:var(--text-muted);">${s.current_period_end ? new Date(s.current_period_end).toLocaleDateString() : '—'}</td>
+                        <td style="padding:10px 16px;font-size:0.82rem;color:var(--text-muted);">${new Date(s.created_at).toLocaleDateString()}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+        `;
+      } catch (err) {
+        container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Failed to load subscriptions: ${err.message}</div>`;
+      }
+    }
+
+    window.loadSaasSubscriptions = loadSaasSubscriptions;
+
+    // ========== END SAAS SUBSCRIPTIONS ADMIN ==========

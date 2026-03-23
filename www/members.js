@@ -460,6 +460,9 @@
       setupEventListeners();
       setupRealtimeSubscriptions();
       showBudgetForecastIfEligible();
+      if (typeof window.loadBillingSubscriptions === 'function') {
+        window.loadBillingSubscriptions().catch(() => {});
+      }
 
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('create') === 'true') {

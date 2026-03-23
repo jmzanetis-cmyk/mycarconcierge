@@ -5729,6 +5729,283 @@ const openai = new OpenAI({
 
 let stripeClient = null;
 
+// ========== SAAS PLANS CONFIG ==========
+const SAAS_PLANS = {
+  fleet: {
+    name: 'Fleet Management SaaS',
+    description: 'Complete fleet operations platform for businesses',
+    tiers: {
+      starter: {
+        name: 'Fleet Starter',
+        price_monthly: 4900,
+        price_annual: 39900,
+        vehicles: 10,
+        drivers: 5,
+        features: ['Vehicle tracking', 'Maintenance scheduling', 'Driver management', 'Service approvals', 'Basic reporting'],
+        stripe_price_id: process.env.STRIPE_PRICE_FLEET_STARTER || null
+      },
+      pro: {
+        name: 'Fleet Pro',
+        price_monthly: 9900,
+        price_annual: 89900,
+        vehicles: 50,
+        drivers: 25,
+        features: ['Everything in Starter', 'Bulk service requests', 'Advanced analytics', 'API access', 'Priority support', 'Custom workflows'],
+        stripe_price_id: process.env.STRIPE_PRICE_FLEET_PRO || null
+      },
+      business: {
+        name: 'Fleet Business',
+        price_monthly: 24900,
+        price_annual: 229900,
+        vehicles: -1,
+        drivers: -1,
+        features: ['Everything in Pro', 'Unlimited vehicles & drivers', 'White-label options', 'Dedicated account manager', 'SLA guarantee', 'Custom integrations'],
+        stripe_price_id: process.env.STRIPE_PRICE_FLEET_BUSINESS || null
+      }
+    }
+  },
+  shop: {
+    name: 'Provider Shop Management',
+    description: 'Booking, payments, and CRM for auto service shops',
+    tiers: {
+      starter: {
+        name: 'Shop Starter',
+        price_monthly: 2900,
+        price_annual: 24900,
+        features: ['Online booking', 'Customer management', 'Invoice generation', 'Service history', 'Email notifications'],
+        stripe_price_id: process.env.STRIPE_PRICE_SHOP_STARTER || null
+      },
+      pro: {
+        name: 'Shop Pro',
+        price_monthly: 5900,
+        price_annual: 54900,
+        features: ['Everything in Starter', 'Multi-tech scheduling', 'SMS reminders', 'Reviews management', 'Analytics dashboard', 'Loyalty program'],
+        stripe_price_id: process.env.STRIPE_PRICE_SHOP_PRO || null
+      },
+      business: {
+        name: 'Shop Business',
+        price_monthly: 12900,
+        price_annual: 119900,
+        features: ['Everything in Pro', 'Multi-location support', 'Custom branding', 'API access', 'Inventory management', 'Priority support'],
+        stripe_price_id: process.env.STRIPE_PRICE_SHOP_BUSINESS || null
+      }
+    }
+  },
+  ai_api: {
+    name: 'Automotive AI API',
+    description: 'AI-powered automotive intelligence for developers',
+    tiers: {
+      starter: {
+        name: 'AI Starter',
+        price_monthly: 4900,
+        price_annual: 44900,
+        calls_per_month: 5000,
+        features: ['5,000 API calls/month', 'VIN decoder', 'Recall lookup', 'Maintenance scheduler', 'Basic rate limiting'],
+        stripe_price_id: process.env.STRIPE_PRICE_AI_API_STARTER || null
+      },
+      pro: {
+        name: 'AI Pro',
+        price_monthly: 14900,
+        price_annual: 139900,
+        calls_per_month: 50000,
+        features: ['50,000 API calls/month', 'All Starter endpoints', 'Fair price estimator', 'OBD code analyzer', 'Dream car finder', 'Webhook support'],
+        stripe_price_id: process.env.STRIPE_PRICE_AI_API_PRO || null
+      },
+      business: {
+        name: 'AI Business',
+        price_monthly: 49900,
+        price_annual: 479900,
+        calls_per_month: -1,
+        features: ['Unlimited API calls', 'All Pro endpoints', 'Custom model fine-tuning', 'Dedicated infrastructure', 'SLA 99.9%', 'White-glove onboarding'],
+        stripe_price_id: process.env.STRIPE_PRICE_AI_API_BUSINESS || null
+      }
+    }
+  },
+  outreach: {
+    name: 'Outreach Engine SaaS',
+    description: 'AI-powered lead discovery and sales automation',
+    tiers: {
+      starter: {
+        name: 'Outreach Starter',
+        price_monthly: 9900,
+        price_annual: 89900,
+        leads_per_month: 500,
+        features: ['500 leads/month', 'Email campaigns', 'Lead scoring', 'CRM sync', 'Campaign analytics'],
+        stripe_price_id: process.env.STRIPE_PRICE_OUTREACH_STARTER || null
+      },
+      pro: {
+        name: 'Outreach Pro',
+        price_monthly: 24900,
+        price_annual: 229900,
+        leads_per_month: 5000,
+        features: ['5,000 leads/month', 'Everything in Starter', 'AI message drafting', 'Multi-channel outreach', 'A/B testing', 'Auto-send with guardrails'],
+        stripe_price_id: process.env.STRIPE_PRICE_OUTREACH_PRO || null
+      },
+      business: {
+        name: 'Outreach Business',
+        price_monthly: 79900,
+        price_annual: 749900,
+        leads_per_month: -1,
+        features: ['Unlimited leads', 'Everything in Pro', 'Custom AI training', 'Dedicated discovery cycles', 'White-label option', 'API access'],
+        stripe_price_id: process.env.STRIPE_PRICE_OUTREACH_BUSINESS || null
+      }
+    }
+  },
+  white_label: {
+    name: 'White-label Platform',
+    description: 'Full MCC platform under your brand',
+    tiers: {
+      starter: {
+        name: 'White-label Starter',
+        price_monthly: 49900,
+        price_annual: 479900,
+        features: ['Custom domain', 'Logo & colors', 'Up to 500 members', 'Up to 50 providers', 'Standard support'],
+        stripe_price_id: process.env.STRIPE_PRICE_WL_STARTER || null
+      },
+      pro: {
+        name: 'White-label Pro',
+        price_monthly: 149900,
+        price_annual: 1399900,
+        features: ['Everything in Starter', 'Up to 5,000 members', 'Up to 500 providers', 'Custom email templates', 'Analytics dashboard', 'API access'],
+        stripe_price_id: process.env.STRIPE_PRICE_WL_PRO || null
+      },
+      business: {
+        name: 'White-label Business',
+        price_monthly: 399900,
+        price_annual: 3799900,
+        features: ['Everything in Pro', 'Unlimited members & providers', 'Custom feature development', 'Dedicated infrastructure', 'SLA 99.9%', 'Executive support'],
+        stripe_price_id: process.env.STRIPE_PRICE_WL_BUSINESS || null
+      }
+    }
+  }
+};
+
+async function checkPlanAccess(userId, productLine, requiredPlan) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { access: false, reason: 'db_unavailable' };
+
+  const planHierarchy = { starter: 1, pro: 2, business: 3 };
+  const requiredLevel = planHierarchy[requiredPlan] || 1;
+
+  const { data: sub } = await supabase
+    .from('saas_subscriptions')
+    .select('plan, status')
+    .eq('user_id', userId)
+    .eq('product', productLine)
+    .in('status', ['active', 'trialing'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!sub) return { access: false, reason: 'no_subscription', upgrade_url: `/pricing?product=${productLine}` };
+
+  const subLevel = planHierarchy[sub.plan] || 0;
+  if (subLevel < requiredLevel) {
+    return { access: false, reason: 'plan_too_low', current_plan: sub.plan, required_plan: requiredPlan, upgrade_url: `/pricing?product=${productLine}&upgrade=true` };
+  }
+
+  return { access: true, plan: sub.plan, status: sub.status };
+}
+
+async function getOrCreateStripeCustomer(userId, userEmail) {
+  const supabase = getSupabaseClient();
+  const stripe = await getStripeClient();
+
+  const { data: existing } = await supabase
+    .from('saas_subscriptions')
+    .select('stripe_customer_id')
+    .eq('user_id', userId)
+    .not('stripe_customer_id', 'is', null)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.stripe_customer_id) return existing.stripe_customer_id;
+
+  const customer = await stripe.customers.create({
+    email: userEmail,
+    metadata: { mcc_user_id: userId }
+  });
+
+  return customer.id;
+}
+
+async function handleSaasSubscriptionWebhook(event, supabase, requestId) {
+  const sub = event.data.object;
+  const productId = sub.items?.data?.[0]?.price?.product;
+  const priceId = sub.items?.data?.[0]?.price?.id;
+
+  const planMap = {};
+  for (const [product, config] of Object.entries(SAAS_PLANS)) {
+    for (const [tier, tierConfig] of Object.entries(config.tiers)) {
+      if (tierConfig.stripe_price_id) {
+        planMap[tierConfig.stripe_price_id] = { product, plan: tier };
+      }
+    }
+  }
+
+  const planInfo = priceId ? planMap[priceId] : null;
+  if (!planInfo) {
+    console.log(`[${requestId}] SaaS webhook: unknown price ID ${priceId}, skipping`);
+    return;
+  }
+
+  const customerId = sub.customer;
+  const { data: existingSub } = await supabase
+    .from('saas_subscriptions')
+    .select('id, user_id')
+    .eq('stripe_subscription_id', sub.id)
+    .maybeSingle();
+
+  let userId = existingSub?.user_id;
+  if (!userId) {
+    const { data: customerSub } = await supabase
+      .from('saas_subscriptions')
+      .select('user_id')
+      .eq('stripe_customer_id', customerId)
+      .limit(1)
+      .maybeSingle();
+    userId = customerSub?.user_id;
+  }
+
+  if (!userId) {
+    console.log(`[${requestId}] SaaS webhook: cannot find user for customer ${customerId}`);
+    return;
+  }
+
+  const statusMap = {
+    'customer.subscription.created': sub.status,
+    'customer.subscription.updated': sub.status,
+    'customer.subscription.deleted': 'canceled',
+    'customer.subscription.trial_will_end': sub.status
+  };
+
+  const upsertData = {
+    user_id: userId,
+    product: planInfo.product,
+    plan: planInfo.plan,
+    status: statusMap[event.type] || sub.status,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: sub.id,
+    stripe_price_id: priceId,
+    current_period_start: sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null,
+    current_period_end: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
+    cancel_at_period_end: sub.cancel_at_period_end || false,
+    trial_end: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
+    canceled_at: sub.canceled_at ? new Date(sub.canceled_at * 1000).toISOString() : null,
+    updated_at: new Date().toISOString()
+  };
+
+  if (existingSub) {
+    const { error } = await supabase.from('saas_subscriptions').update(upsertData).eq('id', existingSub.id);
+    if (error) console.error(`[${requestId}] SaaS sub update error:`, error.message);
+    else console.log(`[${requestId}] SaaS subscription updated: ${sub.id} status=${upsertData.status}`);
+  } else {
+    const { error } = await supabase.from('saas_subscriptions').insert(upsertData);
+    if (error) console.error(`[${requestId}] SaaS sub insert error:`, error.message);
+    else console.log(`[${requestId}] SaaS subscription created: ${sub.id} product=${planInfo.product} plan=${planInfo.plan}`);
+  }
+}
+
 async function getStripeClient() {
   if (stripeClient) return stripeClient;
   
@@ -11754,6 +12031,18 @@ async function handleStripeWebhook(req, res, requestId) {
       }
     }
     
+    // Handle SaaS subscription lifecycle events
+    if (['customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted', 'customer.subscription.trial_will_end'].includes(event.type)) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        try {
+          await handleSaasSubscriptionWebhook(event, supabase, requestId);
+        } catch (saasErr) {
+          console.error(`[${requestId}] SaaS subscription webhook error:`, saasErr.message);
+        }
+      }
+    }
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ received: true }));
   });
@@ -38231,6 +38520,211 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
   }
 
   // ========== END PROVIDER PUBLIC DIRECTORY ==========
+
+  // ========== SAAS BILLING ROUTES ==========
+
+  // GET /api/saas/plans — public plan catalog
+  if (req.method === 'GET' && req.url === '/api/saas/plans') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' });
+    res.end(JSON.stringify({ plans: SAAS_PLANS }));
+    return;
+  }
+
+  // GET /api/saas/subscription/status — current user's subscriptions
+  if (req.method === 'GET' && req.url === '/api/saas/subscription/status') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB unavailable' })); return; }
+    try {
+      const { data: subs, error } = await supabase
+        .from('saas_subscriptions')
+        .select('id, product, plan, status, current_period_end, cancel_at_period_end, trial_end, stripe_customer_id')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      const byProduct = {};
+      for (const s of (subs || [])) {
+        if (!byProduct[s.product] || ['active', 'trialing'].includes(s.status)) {
+          byProduct[s.product] = s;
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ subscriptions: byProduct }));
+    } catch (err) {
+      console.error(`[${requestId}] SaaS status error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load subscriptions' }));
+    }
+    return;
+  }
+
+  // POST /api/saas/checkout — create Stripe Checkout session for a SaaS plan
+  if (req.method === 'POST' && req.url === '/api/saas/checkout') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    try {
+      const body = await getRequestBody(req);
+      const { product, plan, billing_period = 'monthly', success_url, cancel_url } = body;
+
+      if (!product || !plan || !SAAS_PLANS[product] || !SAAS_PLANS[product].tiers[plan]) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid product or plan' })); return;
+      }
+
+      const tierConfig = SAAS_PLANS[product].tiers[plan];
+      const priceId = billing_period === 'annual' ? tierConfig.stripe_price_id_annual : tierConfig.stripe_price_id;
+
+      if (!priceId) {
+        res.writeHead(400);
+        res.end(JSON.stringify({
+          error: 'Stripe price not configured for this plan. Contact support to subscribe.',
+          product, plan,
+          message: `To enable subscriptions, set STRIPE_PRICE_${product.toUpperCase()}_${plan.toUpperCase()} environment variable.`
+        }));
+        return;
+      }
+
+      const stripe = await getStripeClient();
+      const supabase = getSupabaseClient();
+      const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', user.id).single();
+      const email = profile?.email || user.email;
+
+      const customerId = await getOrCreateStripeCustomer(user.id, email);
+
+      const baseUrl = process.env.SITE_URL || 'https://mycarconcierge.com';
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        mode: 'subscription',
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: success_url || `${baseUrl}/members.html?saas_success=1&product=${product}&plan=${plan}`,
+        cancel_url: cancel_url || `${baseUrl}/members.html?saas_cancel=1`,
+        allow_promotion_codes: true,
+        subscription_data: {
+          metadata: { mcc_user_id: user.id, product, plan }
+        },
+        metadata: { type: 'saas_subscription', mcc_user_id: user.id, product, plan }
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ url: session.url, session_id: session.id }));
+    } catch (err) {
+      console.error(`[${requestId}] SaaS checkout error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to create checkout session' }));
+    }
+    return;
+  }
+
+  // POST /api/saas/billing-portal — redirect to Stripe Customer Portal
+  if (req.method === 'POST' && req.url === '/api/saas/billing-portal') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    try {
+      const body = await getRequestBody(req);
+      const supabase = getSupabaseClient();
+      const { data: sub } = await supabase
+        .from('saas_subscriptions')
+        .select('stripe_customer_id')
+        .eq('user_id', user.id)
+        .not('stripe_customer_id', 'is', null)
+        .limit(1)
+        .maybeSingle();
+
+      if (!sub?.stripe_customer_id) {
+        res.writeHead(404); res.end(JSON.stringify({ error: 'No billing account found' })); return;
+      }
+
+      const stripe = await getStripeClient();
+      const baseUrl = process.env.SITE_URL || 'https://mycarconcierge.com';
+      const portalSession = await stripe.billingPortal.sessions.create({
+        customer: sub.stripe_customer_id,
+        return_url: body.return_url || `${baseUrl}/members.html`
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ url: portalSession.url }));
+    } catch (err) {
+      console.error(`[${requestId}] SaaS billing portal error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to open billing portal' }));
+    }
+    return;
+  }
+
+  // POST /api/saas/check-access — check if user has required plan for a product
+  if (req.method === 'POST' && req.url === '/api/saas/check-access') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    try {
+      const body = await getRequestBody(req);
+      const { product, required_plan = 'starter' } = body;
+      if (!product) { res.writeHead(400); res.end(JSON.stringify({ error: 'product required' })); return; }
+      const result = await checkPlanAccess(user.id, product, required_plan);
+      res.writeHead(result.access ? 200 : 402, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      console.error(`[${requestId}] SaaS check-access error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to check access' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/saas/subscriptions — admin overview
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/saas/subscriptions')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const adminToken = req.headers['x-admin-token'];
+    const validAdmin = adminToken && process.env.ADMIN_PASSWORD && adminToken === process.env.ADMIN_PASSWORD;
+    if (!validAdmin) {
+      const user = await authenticateRequest(req);
+      if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const supabase = getSupabaseClient();
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+      if (!profile || !['admin', 'super_admin'].includes(profile.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+    }
+    try {
+      const supabase = getSupabaseClient();
+      const { data: subs, error } = await supabase
+        .from('saas_subscriptions')
+        .select('id, user_id, product, plan, status, current_period_end, cancel_at_period_end, created_at, updated_at')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+
+      const stats = { total: 0, active: 0, trialing: 0, canceled: 0, past_due: 0, mrr: 0 };
+      const byProduct = {};
+      for (const s of (subs || [])) {
+        stats.total++;
+        stats[s.status] = (stats[s.status] || 0) + 1;
+        if (['active', 'trialing'].includes(s.status)) {
+          const tierConfig = SAAS_PLANS[s.product]?.tiers?.[s.plan];
+          if (tierConfig) stats.mrr += tierConfig.price_monthly;
+        }
+        if (!byProduct[s.product]) byProduct[s.product] = { active: 0, trialing: 0, canceled: 0, total: 0 };
+        byProduct[s.product].total++;
+        byProduct[s.product][s.status] = (byProduct[s.product][s.status] || 0) + 1;
+      }
+      stats.mrr_dollars = (stats.mrr / 100).toFixed(2);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ subscriptions: subs, stats, by_product: byProduct }));
+    } catch (err) {
+      console.error(`[${requestId}] Admin SaaS subscriptions error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load subscriptions' }));
+    }
+    return;
+  }
+
+  // ========== END SAAS BILLING ROUTES ==========
 
   // Apple Pay domain verification file
   if (req.method === 'GET' && req.url === '/.well-known/apple-developer-merchantid-domain-association') {
