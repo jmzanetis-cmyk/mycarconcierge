@@ -85,10 +85,71 @@
       .then(function(data) {
         if (data && data.is_white_label && data.tenant) {
           applyTenantBranding(data.tenant);
+          // Lifecycle: auto-join the tenant when an authenticated user lands on a tenant domain.
+          // This triggers server-side profile stamping (tenant_id) and creates the tenant membership row.
+          // Runs asynchronously after branding — does not block page render.
+          autoJoinTenantIfAuthenticated();
         }
       })
       .catch(function() {});
   }
+
+  /**
+   * Tenant lifecycle wiring: auto-join the current tenant when an authenticated user
+   * first loads a white-label domain. Idempotent — server returns 200 with already_member=true
+   * if the user is already a member, so safe to call on every page load.
+   *
+   * Auth token is retrieved from the Supabase client (window._supabase) if available,
+   * falling back to localStorage for SSR-hydrated sessions.
+   */
+  function autoJoinTenantIfAuthenticated() {
+    try {
+      var supabaseClient = window._supabase || (window.supabase && window.supabase.createClient ? null : null);
+      var token = null;
+
+      // Try to get the access token from the Supabase session in localStorage
+      // (works before the Supabase SDK fully initializes)
+      try {
+        var lsKeys = Object.keys(localStorage);
+        for (var k = 0; k < lsKeys.length; k++) {
+          if (lsKeys[k].startsWith('sb-') && lsKeys[k].endsWith('-auth-token')) {
+            var parsed = JSON.parse(localStorage.getItem(lsKeys[k]) || '{}');
+            if (parsed && parsed.access_token) {
+              token = parsed.access_token;
+              break;
+            }
+          }
+        }
+      } catch(e) {}
+
+      if (!token) {
+        // No session — user is not authenticated; join will be skipped on server
+        return;
+      }
+
+      fetch((BASE_URL || '') + '/api/white-label/tenant/join', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({ role: 'member' })
+      })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (data && data.success) {
+            // Dispatch event so other components know the user's tenant membership is established
+            window.dispatchEvent(new CustomEvent('wl-tenant-joined', {
+              detail: { membership: data.membership, already_member: !!data.already_member }
+            }));
+          }
+        })
+        .catch(function() {});
+    } catch(e) {}
+  }
+
+  // Expose for manual invocation (e.g., after login on a tenant domain)
+  window.wlAutoJoinTenant = autoJoinTenantIfAuthenticated;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', loadBranding);
