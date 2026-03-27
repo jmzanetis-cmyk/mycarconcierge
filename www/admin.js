@@ -10720,86 +10720,225 @@
       }
     }
 
+    // ===== TENANT ONBOARDING WIZARD (Task #87) =====
+    let _tenantWizardStep = 1;
+    const _WIZARD_STEPS = 4;
+    const _WIZARD_SUBTITLES = [
+      'Step 1 of 4 — Tenant Identity',
+      'Step 2 of 4 — Domain Configuration',
+      'Step 3 of 4 — Branding',
+      'Step 4 of 4 — Plan & Review'
+    ];
+
+    function _tenantWizardShowStep(step) {
+      _tenantWizardStep = step;
+      for (let i = 1; i <= _WIZARD_STEPS; i++) {
+        const el = document.getElementById('tenant-wz-step-' + i);
+        if (el) el.style.display = i === step ? '' : 'none';
+        const bar = document.getElementById('wz-step-bar-' + i);
+        if (bar) bar.style.background = i <= step ? 'var(--accent-gold)' : 'var(--border-subtle)';
+      }
+      const sub = document.getElementById('tenant-wizard-subtitle');
+      if (sub) sub.textContent = _WIZARD_SUBTITLES[step - 1] || '';
+      const backBtn = document.getElementById('tenant-wz-back-btn');
+      if (backBtn) backBtn.style.display = step > 1 ? '' : 'none';
+      const nextBtn = document.getElementById('tenant-wz-next-btn');
+      if (nextBtn) nextBtn.textContent = step < _WIZARD_STEPS ? 'Next →' : 'Create Tenant';
+      // Update branding preview on step 3
+      if (step === 3) _updateBrandingPreview();
+      // Update review on step 4
+      if (step === 4) _updateTenantReview();
+      // Hide error on step change
+      const errEl = document.getElementById('tenant-modal-error');
+      if (errEl) errEl.style.display = 'none';
+    }
+
+    function _updateBrandingPreview() {
+      const primary = document.getElementById('tenant-primary-color')?.value || '#C9A227';
+      const accent = document.getElementById('tenant-accent-color')?.value || '#2CC4B4';
+      const bg = document.getElementById('tenant-bg-color')?.value || '#12161c';
+      const bgEl = document.getElementById('wz-preview-bg');
+      const btnEl = document.getElementById('wz-preview-btn');
+      const badgeEl = document.getElementById('wz-preview-badge');
+      if (bgEl) bgEl.style.background = bg;
+      if (btnEl) { btnEl.style.background = primary; btnEl.style.color = '#000'; }
+      if (badgeEl) badgeEl.style.background = accent;
+    }
+
+    function _updateTenantReview() {
+      const reviewEl = document.getElementById('tenant-wizard-review');
+      if (!reviewEl) return;
+      const name = document.getElementById('tenant-name')?.value || '—';
+      const brand = document.getElementById('tenant-brand-name')?.value || '—';
+      const ownerEmail = document.getElementById('tenant-owner-email')?.value || '—';
+      const domain = document.getElementById('tenant-domain')?.value || '—';
+      const subdomain = document.getElementById('tenant-subdomain')?.value || '—';
+      const plan = document.getElementById('tenant-plan')?.value || 'starter';
+      const planLabels = { starter: 'Starter (500 members)', pro: 'Pro (5,000 members)', business: 'Business (Unlimited)' };
+      const logo = document.getElementById('tenant-logo-url')?.value || '—';
+      reviewEl.innerHTML = `
+        <span style="color:var(--text-muted);">Internal Name</span><span style="font-weight:500;">${name}</span>
+        <span style="color:var(--text-muted);">Brand Name</span><span style="font-weight:500;">${brand}</span>
+        <span style="color:var(--text-muted);">Owner Email</span><span style="font-weight:500;">${ownerEmail}</span>
+        <span style="color:var(--text-muted);">Custom Domain</span><span style="font-weight:500;">${domain}</span>
+        <span style="color:var(--text-muted);">Subdomain</span><span style="font-weight:500;">${subdomain !== '—' ? subdomain + '.mycarconcierge.com' : '—'}</span>
+        <span style="color:var(--text-muted);">Plan</span><span style="font-weight:500;">${planLabels[plan] || plan}</span>
+        <span style="color:var(--text-muted);">Logo</span><span style="font-weight:500;word-break:break-all;">${logo}</span>
+      `;
+    }
+
+    function tenantWizardBack() {
+      if (_tenantWizardStep > 1) _tenantWizardShowStep(_tenantWizardStep - 1);
+    }
+
+    async function tenantWizardNext() {
+      const errEl = document.getElementById('tenant-modal-error');
+      if (errEl) errEl.style.display = 'none';
+      // Validate step 1
+      if (_tenantWizardStep === 1) {
+        const name = document.getElementById('tenant-name')?.value.trim();
+        const brand = document.getElementById('tenant-brand-name')?.value.trim();
+        if (!name || !brand) {
+          if (errEl) { errEl.textContent = 'Internal name and brand name are required.'; errEl.style.display = 'block'; }
+          return;
+        }
+      }
+      if (_tenantWizardStep < _WIZARD_STEPS) {
+        _tenantWizardShowStep(_tenantWizardStep + 1);
+      } else {
+        await _saveTenantFromWizard();
+      }
+    }
+
+    async function _saveTenantFromWizard() {
+      const errEl = document.getElementById('tenant-modal-error');
+      if (errEl) errEl.style.display = 'none';
+      const body = {
+        name: document.getElementById('tenant-name')?.value.trim(),
+        brand_name: document.getElementById('tenant-brand-name')?.value.trim(),
+        owner_email: document.getElementById('tenant-owner-email')?.value.trim() || null,
+        domain: document.getElementById('tenant-domain')?.value.trim() || null,
+        subdomain: document.getElementById('tenant-subdomain')?.value.trim() || null,
+        logo_url: document.getElementById('tenant-logo-url')?.value.trim() || null,
+        favicon_url: document.getElementById('tenant-favicon-url')?.value.trim() || null,
+        support_email: document.getElementById('tenant-support-email')?.value.trim() || null,
+        primary_color: document.getElementById('tenant-primary-color')?.value || '#C9A227',
+        accent_color: document.getElementById('tenant-accent-color')?.value || '#2CC4B4',
+        bg_color: document.getElementById('tenant-bg-color')?.value || '#12161c',
+        plan: document.getElementById('tenant-plan')?.value || 'starter',
+        status: document.getElementById('tenant-status')?.value || 'active'
+      };
+      if (!body.name || !body.brand_name) {
+        if (errEl) { errEl.textContent = 'Internal name and brand name are required.'; errEl.style.display = 'block'; }
+        return;
+      }
+      const nextBtn = document.getElementById('tenant-wz-next-btn');
+      if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = 'Creating…'; }
+      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
+      const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
+      try {
+        const res = await fetch('/api/admin/white-label/tenants', { method: 'POST', headers, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create tenant');
+        closeTenantModal();
+        loadedSections['white-label'] = false;
+        await loadWhiteLabelTenants();
+      } catch (err) {
+        if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+      } finally {
+        if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = 'Create Tenant'; }
+      }
+    }
+
     function openCreateTenantModal() {
       _editingTenantId = null;
       document.getElementById('tenant-modal-title').textContent = 'New White-label Tenant';
-      document.getElementById('save-tenant-btn').textContent = 'Create Tenant';
       document.getElementById('tenant-modal-id').value = '';
-      ['tenant-name','tenant-brand-name','tenant-domain','tenant-subdomain','tenant-logo-url','tenant-support-email'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-      document.getElementById('tenant-primary-color').value = '#C9A227';
-      document.getElementById('tenant-accent-color').value = '#2CC4B4';
-      document.getElementById('tenant-bg-color').value = '#12161c';
-      document.getElementById('tenant-plan').value = 'starter';
-      document.getElementById('tenant-status').value = 'active';
-      document.getElementById('tenant-modal-error').style.display = 'none';
-      const modal = document.getElementById('tenant-modal');
-      modal.style.display = 'flex';
+      const wizardProgress = document.getElementById('tenant-wizard-progress');
+      if (wizardProgress) wizardProgress.style.display = '';
+      const backBtn = document.getElementById('tenant-wz-back-btn');
+      if (backBtn) backBtn.style.display = 'none';
+      // Reset all wizard fields
+      ['tenant-name','tenant-brand-name','tenant-owner-email','tenant-domain','tenant-subdomain','tenant-logo-url','tenant-favicon-url','tenant-support-email'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      const pc = document.getElementById('tenant-primary-color'); if (pc) pc.value = '#C9A227';
+      const ac = document.getElementById('tenant-accent-color'); if (ac) ac.value = '#2CC4B4';
+      const bc = document.getElementById('tenant-bg-color'); if (bc) bc.value = '#12161c';
+      const plan = document.getElementById('tenant-plan'); if (plan) plan.value = 'starter';
+      const status = document.getElementById('tenant-status'); if (status) status.value = 'active';
+      const errEl = document.getElementById('tenant-modal-error'); if (errEl) errEl.style.display = 'none';
+      _tenantWizardShowStep(1);
+      document.getElementById('tenant-modal').style.display = 'flex';
     }
 
     function openEditTenantModal(id) {
       const t = (window._wlTenants || []).find(x => x.id === id);
       if (!t) return;
       _editingTenantId = id;
-      document.getElementById('tenant-modal-title').textContent = 'Edit Tenant';
-      document.getElementById('save-tenant-btn').textContent = 'Save Changes';
-      document.getElementById('tenant-modal-id').value = id;
-      document.getElementById('tenant-name').value = t.name || '';
-      document.getElementById('tenant-brand-name').value = t.brand_name || '';
-      document.getElementById('tenant-domain').value = t.domain || '';
-      document.getElementById('tenant-subdomain').value = t.subdomain || '';
-      document.getElementById('tenant-logo-url').value = t.logo_url || '';
-      document.getElementById('tenant-support-email').value = t.support_email || '';
-      document.getElementById('tenant-primary-color').value = t.primary_color || '#C9A227';
-      document.getElementById('tenant-accent-color').value = t.accent_color || '#2CC4B4';
-      document.getElementById('tenant-bg-color').value = t.bg_color || '#12161c';
-      document.getElementById('tenant-plan').value = t.plan || 'starter';
-      document.getElementById('tenant-status').value = t.status || 'active';
-      document.getElementById('tenant-modal-error').style.display = 'none';
-      document.getElementById('tenant-modal').style.display = 'flex';
+      const editModal = document.getElementById('tenant-edit-modal');
+      if (!editModal) return;
+      document.getElementById('tenant-edit-id').value = id;
+      document.getElementById('tenant-edit-name').value = t.name || '';
+      document.getElementById('tenant-edit-brand-name').value = t.brand_name || '';
+      document.getElementById('tenant-edit-domain').value = t.domain || '';
+      document.getElementById('tenant-edit-subdomain').value = t.subdomain || '';
+      document.getElementById('tenant-edit-logo-url').value = t.logo_url || '';
+      document.getElementById('tenant-edit-support-email').value = t.support_email || '';
+      document.getElementById('tenant-edit-primary-color').value = t.primary_color || '#C9A227';
+      document.getElementById('tenant-edit-accent-color').value = t.accent_color || '#2CC4B4';
+      document.getElementById('tenant-edit-bg-color').value = t.bg_color || '#12161c';
+      document.getElementById('tenant-edit-plan').value = t.plan || 'starter';
+      document.getElementById('tenant-edit-status').value = t.status || 'active';
+      const errEl = document.getElementById('tenant-edit-error'); if (errEl) errEl.style.display = 'none';
+      editModal.style.display = 'flex';
     }
 
     function closeTenantModal() {
       document.getElementById('tenant-modal').style.display = 'none';
     }
 
-    async function saveTenant() {
-      const errEl = document.getElementById('tenant-modal-error');
-      errEl.style.display = 'none';
-      const id = document.getElementById('tenant-modal-id').value;
+    function closeTenantEditModal() {
+      const m = document.getElementById('tenant-edit-modal'); if (m) m.style.display = 'none';
+    }
+
+    async function saveTenantEdit() {
+      const errEl = document.getElementById('tenant-edit-error');
+      if (errEl) errEl.style.display = 'none';
+      const id = document.getElementById('tenant-edit-id')?.value;
+      if (!id) return;
       const body = {
-        name: document.getElementById('tenant-name').value.trim(),
-        brand_name: document.getElementById('tenant-brand-name').value.trim(),
-        domain: document.getElementById('tenant-domain').value.trim() || null,
-        subdomain: document.getElementById('tenant-subdomain').value.trim() || null,
-        logo_url: document.getElementById('tenant-logo-url').value.trim() || null,
-        support_email: document.getElementById('tenant-support-email').value.trim() || null,
-        primary_color: document.getElementById('tenant-primary-color').value,
-        accent_color: document.getElementById('tenant-accent-color').value,
-        bg_color: document.getElementById('tenant-bg-color').value,
-        plan: document.getElementById('tenant-plan').value,
-        status: document.getElementById('tenant-status').value
+        name: document.getElementById('tenant-edit-name')?.value.trim(),
+        brand_name: document.getElementById('tenant-edit-brand-name')?.value.trim(),
+        domain: document.getElementById('tenant-edit-domain')?.value.trim() || null,
+        subdomain: document.getElementById('tenant-edit-subdomain')?.value.trim() || null,
+        logo_url: document.getElementById('tenant-edit-logo-url')?.value.trim() || null,
+        support_email: document.getElementById('tenant-edit-support-email')?.value.trim() || null,
+        primary_color: document.getElementById('tenant-edit-primary-color')?.value || '#C9A227',
+        accent_color: document.getElementById('tenant-edit-accent-color')?.value || '#2CC4B4',
+        bg_color: document.getElementById('tenant-edit-bg-color')?.value || '#12161c',
+        plan: document.getElementById('tenant-edit-plan')?.value || 'starter',
+        status: document.getElementById('tenant-edit-status')?.value || 'active'
       };
-      if (!body.name || !body.brand_name) { errEl.textContent = 'Internal name and brand name are required.'; errEl.style.display = 'block'; return; }
-      const btn = document.getElementById('save-tenant-btn');
-      btn.disabled = true; btn.textContent = 'Saving…';
+      if (!body.name || !body.brand_name) { if (errEl) { errEl.textContent = 'Name and brand name required.'; errEl.style.display = 'block'; } return; }
+      const btn = document.getElementById('save-tenant-edit-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
       const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
       const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
       try {
-        const url = id ? `/api/admin/white-label/tenants/${id}` : '/api/admin/white-label/tenants';
-        const method = id ? 'PUT' : 'POST';
-        const res = await fetch(url, { method, headers, body: JSON.stringify(body) });
+        const res = await fetch(`/api/admin/white-label/tenants/${id}`, { method: 'PUT', headers, body: JSON.stringify(body) });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to save');
-        closeTenantModal();
+        closeTenantEditModal();
         loadedSections['white-label'] = false;
         await loadWhiteLabelTenants();
       } catch (err) {
-        errEl.textContent = err.message;
-        errEl.style.display = 'block';
+        if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
       } finally {
-        btn.disabled = false; btn.textContent = id ? 'Save Changes' : 'Create Tenant';
+        if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
       }
     }
+
+    // Keep legacy saveTenant for backward compat (not called from new wizard)
+    async function saveTenant() { await _saveTenantFromWizard(); }
 
     async function deactivateTenant(id) {
       if (!confirm('Suspend this tenant? They will lose access to white-label features.')) return;

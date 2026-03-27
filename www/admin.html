@@ -4162,51 +4162,219 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
       </div>
     </section>
 
-    <!-- Create / Edit Tenant Modal -->
-    <div id="tenant-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9000;align-items:center;justify-content:center;">
-      <div style="background:var(--surface-2);border-radius:16px;padding:32px;width:min(560px,95vw);max-height:90vh;overflow-y:auto;position:relative;">
-        <button onclick="closeTenantModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
-        <h3 id="tenant-modal-title" style="margin:0 0 20px;">New White-label Tenant</h3>
+    <!-- White-label Tenant Onboarding Wizard Modal -->
+    <div id="tenant-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;align-items:center;justify-content:center;">
+      <div style="background:var(--surface-2);border-radius:16px;width:min(600px,96vw);max-height:92vh;overflow:hidden;display:flex;flex-direction:column;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+        <!-- Hidden fields for edit mode -->
+        <input type="hidden" id="tenant-modal-id">
+        <!-- Wizard Header -->
+        <div style="padding:24px 28px 0;flex-shrink:0;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
+            <div>
+              <h3 id="tenant-modal-title" style="margin:0 0 4px;font-size:1.2rem;">New White-label Tenant</h3>
+              <p id="tenant-wizard-subtitle" style="margin:0;font-size:0.85rem;color:var(--text-muted);">Step 1 of 4 — Tenant Identity</p>
+            </div>
+            <button onclick="closeTenantModal()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:0;line-height:1;">✕</button>
+          </div>
+          <!-- Progress bar -->
+          <div style="display:flex;gap:4px;margin-bottom:24px;" id="tenant-wizard-progress">
+            <div id="wz-step-bar-1" style="flex:1;height:4px;border-radius:2px;background:var(--accent-gold);transition:background 0.3s;"></div>
+            <div id="wz-step-bar-2" style="flex:1;height:4px;border-radius:2px;background:var(--border-subtle);transition:background 0.3s;"></div>
+            <div id="wz-step-bar-3" style="flex:1;height:4px;border-radius:2px;background:var(--border-subtle);transition:background 0.3s;"></div>
+            <div id="wz-step-bar-4" style="flex:1;height:4px;border-radius:2px;background:var(--border-subtle);transition:background 0.3s;"></div>
+          </div>
+        </div>
+
+        <!-- Wizard Steps Container -->
+        <div style="flex:1;overflow-y:auto;padding:0 28px;">
+
+          <!-- Step 1: Identity -->
+          <div id="tenant-wz-step-1" class="tenant-wz-step">
+            <div style="display:grid;gap:14px;padding-bottom:8px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div>
+                  <label class="form-label">Internal Name *</label>
+                  <input id="tenant-name" class="form-control" placeholder="Acme Auto Platform">
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Used for admin reference only</div>
+                </div>
+                <div>
+                  <label class="form-label">Brand Name *</label>
+                  <input id="tenant-brand-name" class="form-control" placeholder="Acme Auto">
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Shown to end users</div>
+                </div>
+              </div>
+              <div>
+                <label class="form-label">Owner Email</label>
+                <input id="tenant-owner-email" class="form-control" placeholder="owner@acmeauto.com">
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">MCC account email for this tenant's admin. They'll see the Tenant Portal in their settings.</div>
+              </div>
+              <div>
+                <label class="form-label">Support Email</label>
+                <input id="tenant-support-email" class="form-control" placeholder="support@acmeauto.com">
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Domain -->
+          <div id="tenant-wz-step-2" class="tenant-wz-step" style="display:none;">
+            <div style="display:grid;gap:14px;padding-bottom:8px;">
+              <div>
+                <label class="form-label">Custom Domain</label>
+                <input id="tenant-domain" class="form-control" placeholder="app.acmeauto.com">
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Point your DNS A record to MCC's server IP. Leave blank to use subdomain only.</div>
+              </div>
+              <div>
+                <label class="form-label">Subdomain</label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input id="tenant-subdomain" class="form-control" placeholder="acme" style="flex:1;">
+                  <span style="font-size:0.85rem;color:var(--text-muted);white-space:nowrap;">.mycarconcierge.com</span>
+                </div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Auto-provisioned subdomain (no DNS setup required)</div>
+              </div>
+              <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
+                <div style="font-size:0.85rem;font-weight:600;margin-bottom:6px;">DNS Setup Instructions</div>
+                <div style="font-size:0.82rem;color:var(--text-muted);line-height:1.6;">
+                  For custom domain: Add a CNAME record pointing to <code>app.mycarconcierge.com</code> or an A record pointing to the server IP.<br>
+                  SSL certificates are auto-provisioned after DNS propagation (up to 48h).
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Branding -->
+          <div id="tenant-wz-step-3" class="tenant-wz-step" style="display:none;">
+            <div style="display:grid;gap:14px;padding-bottom:8px;">
+              <div>
+                <label class="form-label">Logo URL</label>
+                <input id="tenant-logo-url" class="form-control" placeholder="https://cdn.acmeauto.com/logo.png">
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">PNG or SVG, min 200×60px recommended</div>
+              </div>
+              <div>
+                <label class="form-label">Favicon URL</label>
+                <input id="tenant-favicon-url" class="form-control" placeholder="https://cdn.acmeauto.com/favicon.ico">
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                <div>
+                  <label class="form-label">Primary Color</label>
+                  <input id="tenant-primary-color" type="color" class="form-control" value="#C9A227" style="height:42px;padding:4px;">
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Buttons, highlights</div>
+                </div>
+                <div>
+                  <label class="form-label">Accent Color</label>
+                  <input id="tenant-accent-color" type="color" class="form-control" value="#2CC4B4" style="height:42px;padding:4px;">
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Badges, tags</div>
+                </div>
+                <div>
+                  <label class="form-label">Background Color</label>
+                  <input id="tenant-bg-color" type="color" class="form-control" value="#12161c" style="height:42px;padding:4px;">
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Page background</div>
+                </div>
+              </div>
+              <!-- Live preview swatch -->
+              <div style="padding:16px;border-radius:10px;border:1px solid var(--border-subtle);background:var(--surface-3);">
+                <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">Live preview:</div>
+                <div id="tenant-branding-preview" style="display:flex;gap:10px;align-items:center;">
+                  <div id="wz-preview-bg" style="width:120px;height:60px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:600;color:#fff;">Brand BG</div>
+                  <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div id="wz-preview-btn" style="padding:6px 14px;border-radius:6px;font-size:0.82rem;font-weight:600;color:#000;cursor:default;">CTA Button</div>
+                    <div id="wz-preview-badge" style="padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;color:#fff;display:inline-block;">Tag / Badge</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4: Plan & Review -->
+          <div id="tenant-wz-step-4" class="tenant-wz-step" style="display:none;">
+            <div style="display:grid;gap:14px;padding-bottom:8px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div>
+                  <label class="form-label">Plan</label>
+                  <select id="tenant-plan" class="form-control">
+                    <option value="starter">Starter — 500 members, 50 providers</option>
+                    <option value="pro">Pro — 5,000 members, 500 providers</option>
+                    <option value="business">Business — Unlimited</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label">Status</label>
+                  <select id="tenant-status" class="form-control">
+                    <option value="active">Active</option>
+                    <option value="pending">Pending Setup</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="canceled">Canceled</option>
+                  </select>
+                </div>
+              </div>
+              <!-- Review summary -->
+              <div style="padding:16px;background:var(--surface-3);border-radius:10px;border:1px solid var(--border-subtle);">
+                <div style="font-size:0.85rem;font-weight:600;margin-bottom:12px;color:var(--text-primary);">Review Summary</div>
+                <div id="tenant-wizard-review" style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:0.85rem;"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Wizard Footer -->
+        <div style="padding:20px 28px;flex-shrink:0;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;">
+          <button class="btn btn-ghost" id="tenant-wz-back-btn" onclick="tenantWizardBack()" style="display:none;">← Back</button>
+          <div></div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button class="btn btn-secondary" onclick="closeTenantModal()">Cancel</button>
+            <button class="btn btn-primary" id="tenant-wz-next-btn" onclick="tenantWizardNext()">Next →</button>
+          </div>
+        </div>
+
+        <div id="tenant-modal-error" style="color:var(--accent-red);font-size:13px;display:none;padding:0 28px 16px;"></div>
+      </div>
+    </div>
+
+    <!-- Hidden save button for edit mode (flat form) - kept for compatibility -->
+    <div id="tenant-edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9001;align-items:center;justify-content:center;">
+      <div style="background:var(--surface-2);border-radius:16px;padding:28px;width:min(560px,95vw);max-height:90vh;overflow-y:auto;position:relative;">
+        <button onclick="closeTenantEditModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
+        <h3 style="margin:0 0 20px;">Edit Tenant</h3>
         <div style="display:grid;gap:14px;">
-          <input type="hidden" id="tenant-modal-id">
+          <input type="hidden" id="tenant-edit-id">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div><label class="form-label">Internal Name *</label><input id="tenant-name" class="form-control" placeholder="Acme Auto Platform"></div>
-            <div><label class="form-label">Brand Name *</label><input id="tenant-brand-name" class="form-control" placeholder="Acme Auto"></div>
+            <div><label class="form-label">Internal Name *</label><input id="tenant-edit-name" class="form-control"></div>
+            <div><label class="form-label">Brand Name *</label><input id="tenant-edit-brand-name" class="form-control"></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div><label class="form-label">Custom Domain</label><input id="tenant-domain" class="form-control" placeholder="app.acmeauto.com"></div>
-            <div><label class="form-label">Subdomain</label><input id="tenant-subdomain" class="form-control" placeholder="acme"></div>
+            <div><label class="form-label">Custom Domain</label><input id="tenant-edit-domain" class="form-control"></div>
+            <div><label class="form-label">Subdomain</label><input id="tenant-edit-subdomain" class="form-control"></div>
           </div>
-          <div><label class="form-label">Logo URL</label><input id="tenant-logo-url" class="form-control" placeholder="https://..."></div>
+          <div><label class="form-label">Logo URL</label><input id="tenant-edit-logo-url" class="form-control"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-            <div><label class="form-label">Primary Color</label><input id="tenant-primary-color" type="color" class="form-control" value="#C9A227" style="height:42px;padding:4px;"></div>
-            <div><label class="form-label">Accent Color</label><input id="tenant-accent-color" type="color" class="form-control" value="#2CC4B4" style="height:42px;padding:4px;"></div>
-            <div><label class="form-label">Background Color</label><input id="tenant-bg-color" type="color" class="form-control" value="#12161c" style="height:42px;padding:4px;"></div>
+            <div><label class="form-label">Primary Color</label><input id="tenant-edit-primary-color" type="color" class="form-control" value="#C9A227" style="height:42px;padding:4px;"></div>
+            <div><label class="form-label">Accent Color</label><input id="tenant-edit-accent-color" type="color" class="form-control" value="#2CC4B4" style="height:42px;padding:4px;"></div>
+            <div><label class="form-label">Background Color</label><input id="tenant-edit-bg-color" type="color" class="form-control" value="#12161c" style="height:42px;padding:4px;"></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div><label class="form-label">Support Email</label><input id="tenant-support-email" class="form-control" placeholder="support@acmeauto.com"></div>
+            <div><label class="form-label">Support Email</label><input id="tenant-edit-support-email" class="form-control"></div>
             <div>
               <label class="form-label">Plan</label>
-              <select id="tenant-plan" class="form-control">
-                <option value="starter">Starter — 500 members, 50 providers</option>
-                <option value="pro">Pro — 5,000 members, 500 providers</option>
-                <option value="business">Business — Unlimited</option>
+              <select id="tenant-edit-plan" class="form-control">
+                <option value="starter">Starter</option>
+                <option value="pro">Pro</option>
+                <option value="business">Business</option>
               </select>
             </div>
           </div>
           <div>
             <label class="form-label">Status</label>
-            <select id="tenant-status" class="form-control">
+            <select id="tenant-edit-status" class="form-control">
               <option value="active">Active</option>
               <option value="pending">Pending Setup</option>
               <option value="suspended">Suspended</option>
               <option value="canceled">Canceled</option>
             </select>
           </div>
-          <div id="tenant-modal-error" style="color:var(--accent-red);font-size:13px;display:none;"></div>
+          <div id="tenant-edit-error" style="color:var(--accent-red);font-size:13px;display:none;"></div>
           <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:8px;">
-            <button class="btn btn-secondary" onclick="closeTenantModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="saveTenant()" id="save-tenant-btn">Create Tenant</button>
+            <button class="btn btn-secondary" onclick="closeTenantEditModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveTenantEdit()" id="save-tenant-edit-btn">Save Changes</button>
           </div>
         </div>
       </div>

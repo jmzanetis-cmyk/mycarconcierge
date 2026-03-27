@@ -3813,6 +3813,17 @@
         </div>
       </div>
 
+      <!-- White-label Tenant Admin Portal Card (Task #87) -->
+      <div class="card" style="margin-top:24px;" id="wl-tenant-portal-card" style="display:none;">
+        <div class="card-header">
+          <h2 class="card-title">🏢 White-label Tenant Portal</h2>
+          <p style="font-size:0.88rem;color:var(--text-secondary);margin-top:4px;">Manage your branded platform instance, monitor seat usage, and configure your white-label environment.</p>
+        </div>
+        <div id="wl-tenant-portal-content">
+          <div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">Loading tenant info…</div>
+        </div>
+      </div>
+
       <!-- Danger Zone - Delete Account -->
       <div class="card" style="margin-top:24px;border:1px solid rgba(239,95,95,0.4);background:rgba(239,95,95,0.05);">
         <div class="card-header">
@@ -8170,6 +8181,101 @@
     }
 
     window.loadOutreachStatus = loadOutreachStatus;
+
+    // ========== WHITE-LABEL TENANT ADMIN PORTAL (Task #87) ==========
+
+    function wlSeatBar(current, limit, unlimited, label) {
+      if (unlimited) {
+        return `<div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;"><span>${label}</span><span>${current} / Unlimited</span></div>
+          <div style="height:6px;background:var(--accent-teal);border-radius:3px;opacity:0.3;"></div>
+        </div>`;
+      }
+      const pct = limit > 0 ? Math.min(100, Math.round((current / limit) * 100)) : 0;
+      const barColor = pct >= 90 ? 'var(--accent-red)' : pct >= 70 ? 'var(--accent-orange)' : 'var(--accent-teal)';
+      return `<div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;"><span>${label}</span><span>${current} / ${limit} (${pct}%)</span></div>
+        <div style="height:6px;background:var(--border-subtle);border-radius:3px;overflow:hidden;">
+          <div style="height:100%;background:${barColor};width:${pct}%;border-radius:3px;transition:width 0.4s;"></div>
+        </div>
+      </div>`;
+    }
+
+    async function loadWlTenantPortal() {
+      const card = document.getElementById('wl-tenant-portal-card');
+      const el = document.getElementById('wl-tenant-portal-content');
+      if (!card || !el) return;
+      try {
+        const token = window._currentSession?.access_token;
+        if (!token) return;
+        const res = await fetch('/api/tenant/me', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) {
+          // User is not a tenant admin — hide the card entirely
+          card.style.display = 'none';
+          return;
+        }
+        const { tenant, usage, user_role } = await res.json();
+        card.style.display = '';
+        const planBadgeColor = { starter: 'var(--accent-teal)', pro: 'var(--accent-gold)', business: '#7c3aed' }[tenant.plan] || 'var(--text-muted)';
+        const planLabel = { starter: 'Starter', pro: 'Pro', business: 'Business' }[tenant.plan] || tenant.plan;
+        const domain = tenant.domain || (tenant.subdomain ? `${tenant.subdomain}.mycarconcierge.com` : '—');
+
+        el.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
+            <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.5rem;font-weight:700;color:${planBadgeColor};">${planLabel}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">Plan</div>
+            </div>
+            <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.5rem;font-weight:700;color:var(--accent-teal);">${usage.members.current}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">Member Seats Used</div>
+            </div>
+            <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.5rem;font-weight:700;color:var(--accent-gold);">${usage.providers.current}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">Provider Seats Used</div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            ${wlSeatBar(usage.members.current, usage.members.limit, usage.members.unlimited, 'Member Seats')}
+            ${wlSeatBar(usage.providers.current, usage.providers.limit, usage.providers.unlimited, 'Provider Seats')}
+          </div>
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:0.88rem;">
+              <span style="color:var(--text-muted);">Brand Name</span><span style="font-weight:500;">${tenant.brand_name || tenant.name}</span>
+              <span style="color:var(--text-muted);">Domain</span><span style="font-weight:500;">${domain}</span>
+              <span style="color:var(--text-muted);">Status</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;">
+                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tenant.status === 'active' ? 'var(--accent-teal)' : 'var(--accent-red)'};"></span>
+                <span style="font-weight:500;text-transform:capitalize;">${tenant.status}</span>
+              </span>
+              <span style="color:var(--text-muted);">Your Role</span><span style="font-weight:500;text-transform:capitalize;">${user_role}</span>
+            </div>
+          </div>
+          ${(usage.members.current / usage.members.limit) >= 0.8 && !usage.members.unlimited ? `
+          <div style="padding:10px 14px;background:var(--accent-gold-soft);border-radius:8px;border:1px solid var(--accent-gold);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+            <span style="font-size:0.85rem;color:var(--accent-gold);font-weight:500;">⚡ Member seats nearly full</span>
+            <button class="btn btn-sm btn-primary" onclick="openSaasPricingModal('white_label')">Upgrade Plan</button>
+          </div>` : ''}
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="openSaasPricingModal('white_label')">View Plans</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadWlTenantPortal()">↻ Refresh</button>
+          </div>`;
+      } catch (err) {
+        if (el) el.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted);">Tenant portal not available.</div>`;
+        if (card) card.style.display = 'none';
+      }
+    }
+
+    window.loadWlTenantPortal = loadWlTenantPortal;
+
+    // Hook into showSection so tenant portal loads when settings tab opens
+    const _origShowSection = window.showSection;
+    window.showSection = function(section) {
+      if (_origShowSection) _origShowSection(section);
+      if (section === 'settings') {
+        loadWlTenantPortal();
+      }
+    };
 
     // ========== END SaaS UI TASKS ==========
   </script>

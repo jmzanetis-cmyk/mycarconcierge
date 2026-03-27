@@ -38924,7 +38924,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
   }
 
   // GET /api/white-label/check-limits — seat limit enforcement for tenant member/provider counts
-  // Called server-side before allowing new member/provider registration on a white-label domain
+  // Uses white_label_tenant_users table for real headcount enforcement per plan
   if (req.method === 'GET' && req.url.startsWith('/api/white-label/check-limits')) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
@@ -38949,17 +38949,27 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         res.end(JSON.stringify({ error: 'Tenant not found or inactive' }));
         return;
       }
-      // Unlimited plans bypass count check
       const limit = resourceType === 'member' ? tenant.max_members : tenant.max_providers;
+      // -1 = unlimited (Business plan)
       if (!limit || limit === -1) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ allowed: true, plan: tenant.plan, limit: -1 }));
+        res.end(JSON.stringify({ allowed: true, plan: tenant.plan, limit: -1, current: null }));
         return;
       }
-      // Count current usage via profiles table (tenant_id column if present, else skip)
-      // For now, return the limit info so callers can enforce if they track tenant_id
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ allowed: true, plan: tenant.plan, limit, type: resourceType }));
+      // Count actual tenant users of the requested role from white_label_tenant_users
+      const countRole = resourceType === 'member' ? 'member' : 'provider';
+      const { count: currentCount } = await supabase
+        .from('white_label_tenant_users')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .eq('role', countRole);
+      const current = currentCount || 0;
+      const allowed = current < limit;
+      res.writeHead(allowed ? 200 : 402, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        allowed, plan: tenant.plan, limit, current, type: resourceType,
+        ...(allowed ? {} : { error: `Seat limit reached (${current}/${limit}). Upgrade your plan to add more ${resourceType}s.` })
+      }));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Failed to check limits' }));
@@ -38967,7 +38977,61 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     return;
   }
 
-  // GET /api/tenant/me — authenticated tenant owner portal: returns own tenant config + plan limits
+  // POST /api/white-label/tenant/join — register authenticated user as a tenant member/provider
+  // Called during onboarding on a white-label domain to track seat usage
+  if (req.method === 'POST' && req.url === '/api/white-label/tenant/join') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { tenant_id, role = 'member' } = body;
+      if (!tenant_id) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'tenant_id required' })); return; }
+      if (!['member', 'provider', 'admin'].includes(role)) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Invalid role' })); return; }
+
+      // Verify tenant exists and is active
+      const { data: tenant } = await supabase
+        .from('white_label_tenants')
+        .select('id, plan, max_members, max_providers, status')
+        .eq('id', tenant_id)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (!tenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found or inactive' })); return; }
+
+      // Enforce seat limits before allowing join
+      const limit = role === 'provider' ? tenant.max_providers : tenant.max_members;
+      if (limit && limit !== -1) {
+        const countRole = role === 'provider' ? 'provider' : 'member';
+        const { count: current } = await supabase
+          .from('white_label_tenant_users')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenant_id)
+          .eq('role', countRole);
+        if ((current || 0) >= limit) {
+          res.writeHead(402, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Tenant seat limit reached (${current}/${limit})`, limit, current }));
+          return;
+        }
+      }
+
+      const { data: membership, error: joinErr } = await supabase
+        .from('white_label_tenant_users')
+        .upsert({ tenant_id, user_id: user.id, role }, { onConflict: 'tenant_id,user_id' })
+        .select().single();
+      if (joinErr) throw joinErr;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, membership }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message || 'Failed to join tenant' }));
+    }
+    return;
+  }
+
+  // GET /api/tenant/me — authenticated tenant owner/admin portal endpoint
+  // Returns own tenant config + live seat usage counts for members and providers
   if (req.method === 'GET' && req.url === '/api/tenant/me') {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
@@ -38975,16 +39039,58 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
     const supabase = getSupabaseClient();
     try {
+      // Find tenant where this user is owner OR a listed admin in white_label_tenant_users
+      const { data: membership } = await supabase
+        .from('white_label_tenant_users')
+        .select('tenant_id, role')
+        .eq('user_id', user.id)
+        .in('role', ['owner', 'admin'])
+        .maybeSingle();
+
+      let tenantId = membership?.tenant_id;
+
+      // Fallback: check owner_user_id column directly (for tenants created before membership tracking)
+      if (!tenantId) {
+        const { data: ownedTenant } = await supabase
+          .from('white_label_tenants')
+          .select('id')
+          .eq('owner_user_id', user.id)
+          .eq('status', 'active')
+          .maybeSingle();
+        tenantId = ownedTenant?.id;
+      }
+
+      if (!tenantId) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'No active tenant found for this user' })); return; }
+
       const { data: tenant, error } = await supabase
         .from('white_label_tenants')
         .select('id, name, brand_name, domain, subdomain, logo_url, favicon_url, primary_color, accent_color, bg_color, support_email, plan, status, max_members, max_providers, created_at, updated_at')
-        .eq('owner_user_id', user.id)
+        .eq('id', tenantId)
         .eq('status', 'active')
-        .maybeSingle();
-      if (error) throw error;
-      if (!tenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'No active tenant found for this user' })); return; }
+        .single();
+      if (error || !tenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found or inactive' })); return; }
+
+      // Get live seat usage counts from white_label_tenant_users
+      const { count: memberCount } = await supabase
+        .from('white_label_tenant_users').select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId).eq('role', 'member');
+      const { count: providerCount } = await supabase
+        .from('white_label_tenant_users').select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId).eq('role', 'provider');
+      const { count: adminCount } = await supabase
+        .from('white_label_tenant_users').select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId).in('role', ['owner', 'admin']);
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ tenant }));
+      res.end(JSON.stringify({
+        tenant,
+        usage: {
+          members: { current: memberCount || 0, limit: tenant.max_members, unlimited: tenant.max_members === -1 },
+          providers: { current: providerCount || 0, limit: tenant.max_providers, unlimited: tenant.max_providers === -1 },
+          admins: { current: adminCount || 0 }
+        },
+        user_role: membership?.role || 'owner'
+      }));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Failed to load tenant' }));
@@ -39023,7 +39129,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     return;
   }
 
-  // POST /api/admin/white-label/tenants — create white-label tenant
+  // POST /api/admin/white-label/tenants — create white-label tenant (admin auth required)
   if (req.method === 'POST' && req.url === '/api/admin/white-label/tenants') {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
@@ -39041,19 +39147,53 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     const supabase = getSupabaseClient();
     try {
       const body = await getRequestBody(req);
-      const { name, brand_name, domain, subdomain, logo_url, primary_color, accent_color, bg_color, support_email, plan, max_members, max_providers } = body;
+      const { name, brand_name, domain, subdomain, logo_url, favicon_url, primary_color, accent_color, bg_color, support_email, plan, max_members, max_providers, owner_user_id, owner_email } = body;
       if (!name || !brand_name) {
         res.writeHead(400); res.end(JSON.stringify({ error: 'name and brand_name required' })); return;
       }
       const planLimits = { starter: { max_members: 500, max_providers: 50 }, pro: { max_members: 5000, max_providers: 500 }, business: { max_members: -1, max_providers: -1 } };
       const limits = planLimits[plan || 'starter'];
+
+      // Resolve owner user — accept either owner_user_id or owner_email
+      let resolvedOwnerId = owner_user_id || null;
+      if (!resolvedOwnerId && owner_email) {
+        try {
+          const { data: userList } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+          const match = (userList?.users || []).find(u => u.email?.toLowerCase() === owner_email.toLowerCase());
+          if (match) resolvedOwnerId = match.id;
+          else console.warn(`[${requestId}] WL tenant: owner_email ${owner_email} not found in auth.users — tenant created without owner link`);
+        } catch (lookupErr) {
+          console.warn(`[${requestId}] WL owner email lookup failed:`, lookupErr.message);
+        }
+      }
+
+      // If owner resolved, check their white_label SaaS subscription (warn if missing)
+      if (resolvedOwnerId) {
+        const wlAccess = await checkPlanAccess(resolvedOwnerId, 'white_label', plan || 'starter');
+        if (!wlAccess.access) {
+          console.warn(`[${requestId}] WL tenant created without SaaS subscription for owner ${resolvedOwnerId}: ${wlAccess.reason}`);
+        }
+      }
+
       const { data, error } = await supabase.from('white_label_tenants').insert({
         name, brand_name, domain: domain || null, subdomain: subdomain || null,
-        logo_url, primary_color: primary_color || '#C9A227', accent_color: accent_color || '#2CC4B4',
-        bg_color: bg_color || '#12161c', support_email, plan: plan || 'starter', status: 'active',
-        max_members: max_members || limits.max_members, max_providers: max_providers || limits.max_providers
+        logo_url: logo_url || null, favicon_url: favicon_url || null,
+        primary_color: primary_color || '#C9A227',
+        accent_color: accent_color || '#2CC4B4', bg_color: bg_color || '#12161c',
+        support_email: support_email || null, plan: plan || 'starter', status: 'active',
+        max_members: max_members || limits.max_members, max_providers: max_providers || limits.max_providers,
+        owner_user_id: resolvedOwnerId || null
       }).select().single();
       if (error) throw error;
+
+      // Register owner as the first tenant user with 'owner' role (for seat tracking)
+      if (resolvedOwnerId && data?.id) {
+        await supabase.from('white_label_tenant_users').upsert(
+          { tenant_id: data.id, user_id: resolvedOwnerId, role: 'owner' },
+          { onConflict: 'tenant_id,user_id' }
+        );
+      }
+
       console.log(`[${requestId}] White-label tenant created: ${data.id} (${brand_name})`);
       res.writeHead(201, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ tenant: data }));
