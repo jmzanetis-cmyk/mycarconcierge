@@ -38871,10 +38871,10 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
   // ========== WHITE-LABEL PLATFORM ROUTES (Task #87) ==========
 
-  // GET /api/white-label/config — return public branding config for current domain
+  // GET /api/white-label/config (alias: /api/tenant/config) — return public branding config for current domain
   // Resolved via: X-Forwarded-Host > Host header (proxy-safe)
   // ?preview_domain= is admin-only (requires x-admin-token) for branding preview in admin UI
-  if (req.method === 'GET' && (req.url === '/api/white-label/config' || req.url.startsWith('/api/white-label/config?'))) {
+  if (req.method === 'GET' && (req.url === '/api/white-label/config' || req.url.startsWith('/api/white-label/config?') || req.url === '/api/tenant/config' || req.url.startsWith('/api/tenant/config?'))) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
     const wlUrlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
@@ -38978,7 +38978,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
   }
 
   // POST /api/white-label/tenant/join — register authenticated user as a tenant member/provider
-  // Called during onboarding on a white-label domain to track seat usage
+  // Security: tenant is resolved from the request hostname, NOT from client-supplied body.
+  // Role is restricted to 'member' or 'provider' — admin/owner roles cannot be self-assigned.
   if (req.method === 'POST' && req.url === '/api/white-label/tenant/join') {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
@@ -38987,28 +38988,64 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     const supabase = getSupabaseClient();
     try {
       const body = await getRequestBody(req);
-      const { tenant_id, role = 'member' } = body;
-      if (!tenant_id) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'tenant_id required' })); return; }
-      if (!['member', 'provider', 'admin'].includes(role)) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Invalid role' })); return; }
+      // Role may be provided by client but is strictly validated — admin/owner not allowed via self-service
+      const requestedRole = body?.role || 'member';
+      const ALLOWED_SELF_SERVICE_ROLES = ['member', 'provider'];
+      if (!ALLOWED_SELF_SERVICE_ROLES.includes(requestedRole)) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Role not allowed via self-service join. Admin/owner roles require admin assignment.' }));
+        return;
+      }
+      const role = requestedRole; // now safe: only 'member' or 'provider'
 
-      // Verify tenant exists and is active
-      const { data: tenant } = await supabase
-        .from('white_label_tenants')
-        .select('id, plan, max_members, max_providers, status')
-        .eq('id', tenant_id)
-        .eq('status', 'active')
-        .maybeSingle();
-      if (!tenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found or inactive' })); return; }
+      // Resolve tenant from request hostname (same logic as /api/white-label/config)
+      // Prevents arbitrary tenant_id injection from client
+      const hostname = req.headers['x-forwarded-host'] || req.headers.host || '';
+      const cleanHost = hostname.split(':')[0].toLowerCase();
+      let tenant = null;
+      if (cleanHost && cleanHost !== 'localhost' && !cleanHost.includes('replit') && !cleanHost.includes('127.0.0.1')) {
+        const subdomain = cleanHost.split('.')[0];
+        const { data: domainMatch } = await supabase
+          .from('white_label_tenants')
+          .select('id, plan, max_members, max_providers, status')
+          .or(`domain.eq.${cleanHost},subdomain.eq.${subdomain}`)
+          .eq('status', 'active')
+          .maybeSingle();
+        tenant = domainMatch;
+      }
 
-      // Enforce seat limits before allowing join
+      // Fallback: allow explicit tenant_id only if admin token is present (admin-initiated join)
+      if (!tenant && body?.tenant_id) {
+        const _adminToken = req.headers['x-admin-token'];
+        const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+        if (!_validAdmin) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Cannot specify tenant_id without admin authentication. Access this endpoint from your white-label domain.' }));
+          return;
+        }
+        const { data: adminTenant } = await supabase
+          .from('white_label_tenants')
+          .select('id, plan, max_members, max_providers, status')
+          .eq('id', body.tenant_id)
+          .eq('status', 'active')
+          .maybeSingle();
+        tenant = adminTenant;
+      }
+
+      if (!tenant) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'No active white-label tenant found for this domain. Access this endpoint from your white-label domain.' }));
+        return;
+      }
+
+      // Enforce seat limits
       const limit = role === 'provider' ? tenant.max_providers : tenant.max_members;
       if (limit && limit !== -1) {
-        const countRole = role === 'provider' ? 'provider' : 'member';
         const { count: current } = await supabase
           .from('white_label_tenant_users')
           .select('id', { count: 'exact', head: true })
-          .eq('tenant_id', tenant_id)
-          .eq('role', countRole);
+          .eq('tenant_id', tenant.id)
+          .eq('role', role);
         if ((current || 0) >= limit) {
           res.writeHead(402, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: `Tenant seat limit reached (${current}/${limit})`, limit, current }));
@@ -39016,9 +39053,23 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         }
       }
 
+      // Check if user already has a membership — do not downgrade existing role
+      const { data: existingMembership } = await supabase
+        .from('white_label_tenant_users')
+        .select('role')
+        .eq('tenant_id', tenant.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (existingMembership) {
+        // Already a member — return current membership without changing role
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, membership: existingMembership, already_member: true }));
+        return;
+      }
+
       const { data: membership, error: joinErr } = await supabase
         .from('white_label_tenant_users')
-        .upsert({ tenant_id, user_id: user.id, role }, { onConflict: 'tenant_id,user_id' })
+        .insert({ tenant_id: tenant.id, user_id: user.id, role })
         .select().single();
       if (joinErr) throw joinErr;
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -39120,8 +39171,30 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
+      const tenants = data || [];
+
+      // Enrich each tenant with live seat counts from white_label_tenant_users
+      const WL_PLAN_MRR = { starter: 149, pro: 499, business: 999 }; // estimated monthly value
+      const enrichedTenants = await Promise.all(tenants.map(async t => {
+        try {
+          const [{ count: memberCount }, { count: providerCount }] = await Promise.all([
+            supabase.from('white_label_tenant_users').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id).eq('role', 'member'),
+            supabase.from('white_label_tenant_users').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id).eq('role', 'provider')
+          ]);
+          return {
+            ...t,
+            _stats: {
+              member_count: memberCount || 0,
+              provider_count: providerCount || 0,
+              estimated_mrr: t.status === 'active' ? (WL_PLAN_MRR[t.plan] || 0) : 0
+            }
+          };
+        } catch { return { ...t, _stats: { member_count: 0, provider_count: 0, estimated_mrr: 0 } }; }
+      }));
+
+      const totalMrr = enrichedTenants.reduce((sum, t) => sum + (t._stats?.estimated_mrr || 0), 0);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ tenants: data || [] }));
+      res.end(JSON.stringify({ tenants: enrichedTenants, meta: { total_mrr: totalMrr } }));
     } catch (err) {
       console.error(`[${requestId}] WL tenants list error:`, err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load tenants' }));
@@ -39180,7 +39253,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         logo_url: logo_url || null, favicon_url: favicon_url || null,
         primary_color: primary_color || '#C9A227',
         accent_color: accent_color || '#2CC4B4', bg_color: bg_color || '#12161c',
-        support_email: support_email || null, plan: plan || 'starter', status: 'active',
+        support_email: support_email || null, plan: plan || 'starter', status: ['active','pending','suspended','canceled'].includes(body.status) ? body.status : 'active',
         max_members: max_members || limits.max_members, max_providers: max_providers || limits.max_providers,
         owner_user_id: resolvedOwnerId || null
       }).select().single();

@@ -10651,15 +10651,19 @@
       try {
         const res = await fetch('/api/admin/white-label/tenants', { headers });
         if (!res.ok) throw new Error('Failed to load tenants');
-        const { tenants } = await res.json();
+        const { tenants, meta } = await res.json();
 
         const active = tenants.filter(t => t.status === 'active').length;
         const byPlan = { starter: 0, pro: 0, business: 0 };
         for (const t of tenants) if (byPlan[t.plan] !== undefined) byPlan[t.plan]++;
+        const totalMrr = meta?.total_mrr || tenants.filter(t=>t.status==='active').reduce((s,t)=>s+({starter:149,pro:499,business:999}[t.plan]||0),0);
+        const totalMembers = tenants.reduce((s,t)=>s+(t._stats?.member_count||0),0);
 
         statsEl.innerHTML = `
           <div class="stat-card"><div class="stat-icon" style="background:var(--accent-blue-soft);color:var(--accent-blue);">🏢</div><div class="stat-value">${tenants.length}</div><div class="stat-label">Total Tenants</div></div>
           <div class="stat-card"><div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);">✅</div><div class="stat-value">${active}</div><div class="stat-label">Active</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-gold-soft);color:var(--accent-gold);">💰</div><div class="stat-value">$${totalMrr.toLocaleString()}</div><div class="stat-label">Est. MRR</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-teal-soft);color:var(--accent-teal);">👥</div><div class="stat-value">${totalMembers}</div><div class="stat-label">Total Members</div></div>
           <div class="stat-card"><div class="stat-icon" style="background:var(--accent-gold-soft);color:var(--accent-gold);">⭐</div><div class="stat-value">${byPlan.starter}</div><div class="stat-label">Starter</div></div>
           <div class="stat-card"><div class="stat-icon" style="background:var(--accent-teal-soft);color:var(--accent-teal);">🚀</div><div class="stat-value">${byPlan.pro}</div><div class="stat-label">Pro</div></div>
           <div class="stat-card"><div class="stat-icon" style="background:var(--accent-purple-soft,#7c3aed22);color:#7c3aed;">💼</div><div class="stat-value">${byPlan.business}</div><div class="stat-label">Business</div></div>
@@ -10691,24 +10695,33 @@
             <table class="data-table" style="width:100%;">
               <thead><tr>
                 <th>Brand Name</th><th>Domain</th><th>Plan</th><th>Status</th>
-                <th>Members / Providers</th><th>Created</th><th>Actions</th>
+                <th>Members Used</th><th>Providers Used</th><th>Est. MRR</th><th>Created</th><th>Actions</th>
               </tr></thead>
               <tbody>
-                ${tenants.map(t => `
+                ${tenants.map(t => {
+                  const stats = t._stats || {};
+                  const mLimit = t.max_members === -1 ? '∞' : t.max_members;
+                  const pLimit = t.max_providers === -1 ? '∞' : t.max_providers;
+                  const planMrr = { starter: 149, pro: 499, business: 999 };
+                  const mrr = t.status === 'active' ? (planMrr[t.plan] || 0) : 0;
+                  const tenantDomain = t.domain || (t.subdomain ? t.subdomain + '.mycarconcierge.com' : null);
+                  return `
                   <tr>
                     <td><div style="font-weight:600;">${t.brand_name}</div><div style="font-size:12px;color:var(--text-muted);">${t.name}</div></td>
-                    <td style="font-family:monospace;font-size:12px;">${t.domain || t.subdomain ? `${t.domain || ''}${t.subdomain ? `<br>${t.subdomain}.mycarconcierge.com` : ''}` : '<span style="color:var(--text-muted)">—</span>'}</td>
+                    <td style="font-family:monospace;font-size:12px;">${tenantDomain ? `<a href="https://${tenantDomain}" target="_blank" style="color:var(--accent-teal);">${tenantDomain}</a>` : '<span style="color:var(--text-muted)">—</span>'}</td>
                     <td>${planBadge(t.plan)}</td>
                     <td>${statusBadge(t.status)}</td>
-                    <td style="text-align:center;">${t.max_members === -1 ? '∞' : t.max_members} / ${t.max_providers === -1 ? '∞' : t.max_providers}</td>
+                    <td style="text-align:center;">${stats.member_count || 0} / ${mLimit}</td>
+                    <td style="text-align:center;">${stats.provider_count || 0} / ${pLimit}</td>
+                    <td style="font-weight:600;color:var(--accent-gold);">$${mrr}</td>
                     <td style="font-size:12px;color:var(--text-muted);">${new Date(t.created_at).toLocaleDateString()}</td>
-                    <td>
+                    <td style="white-space:nowrap;">
                       <button class="btn btn-sm btn-secondary" onclick="openEditTenantModal('${t.id}')">Edit</button>
-                      ${t.domain || t.subdomain ? `<button class="btn btn-sm btn-secondary" onclick="previewTenantBranding('${t.domain || t.subdomain + '.mycarconcierge.com'}')" style="margin-left:6px;" title="Preview branding">Preview</button>` : ''}
-                      ${t.status === 'active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateTenant('${t.id}')" style="margin-left:6px;">Suspend</button>` : ''}
+                      ${tenantDomain ? `<button class="btn btn-sm btn-secondary" onclick="previewTenantBranding('${tenantDomain}')" style="margin-left:4px;" title="Preview branding">Preview</button>` : ''}
+                      ${t.status === 'active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateTenant('${t.id}')" style="margin-left:4px;">Suspend</button>` : ''}
                     </td>
-                  </tr>
-                `).join('')}
+                  </tr>`;
+                }).join('')}
               </tbody>
             </table>
           </div>`;

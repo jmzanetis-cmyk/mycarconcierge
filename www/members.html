@@ -7756,6 +7756,92 @@
     </div>
   </div>
 
+  <!-- White-label Tenant First-Login Onboarding Wizard (Task #87) -->
+  <div id="wl-tenant-onboarding-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9500;align-items:center;justify-content:center;">
+    <div style="background:var(--bg-elevated);border-radius:16px;width:min(560px,95vw);max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);">
+      <!-- Header -->
+      <div style="padding:24px 28px 0;flex-shrink:0;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+          <div>
+            <h3 id="wl-ob-title" style="margin:0 0 4px;font-size:1.15rem;">Welcome to Your Tenant Portal</h3>
+            <p id="wl-ob-subtitle" style="margin:0;font-size:0.83rem;color:var(--text-muted);">Step 1 of 3 — Platform Overview</p>
+          </div>
+          <button onclick="dismissWlOnboarding()" style="background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;">✕</button>
+        </div>
+        <!-- Progress pills -->
+        <div style="display:flex;gap:6px;margin-bottom:20px;">
+          <div id="wl-ob-bar-1" style="flex:1;height:4px;border-radius:2px;background:var(--accent-gold);transition:background 0.3s;"></div>
+          <div id="wl-ob-bar-2" style="flex:1;height:4px;border-radius:2px;background:var(--border-subtle);transition:background 0.3s;"></div>
+          <div id="wl-ob-bar-3" style="flex:1;height:4px;border-radius:2px;background:var(--border-subtle);transition:background 0.3s;"></div>
+        </div>
+      </div>
+
+      <!-- Steps -->
+      <div style="flex:1;overflow-y:auto;padding:0 28px;">
+
+        <!-- Step 1: Platform Overview -->
+        <div id="wl-ob-step-1">
+          <div style="text-align:center;padding:20px 0 8px;">
+            <div style="font-size:48px;margin-bottom:12px;">🏢</div>
+            <h4 id="wl-ob-brand" style="margin:0 0 8px;font-size:1.2rem;">Your White-label Platform</h4>
+            <p style="color:var(--text-secondary);font-size:0.9rem;line-height:1.6;max-width:400px;margin:0 auto;">You're set up as a tenant admin. Your branded platform lets you onboard members and providers under your own name and domain.</p>
+          </div>
+          <div id="wl-ob-branding-preview" style="margin:20px 0;padding:16px;background:var(--surface-3);border-radius:10px;border:1px solid var(--border-subtle);">
+            <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">Your branding:</div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <div id="wl-ob-color-preview" style="width:80px;height:40px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:#fff;font-weight:600;">BG</div>
+              <div style="font-size:0.85rem;">
+                <div id="wl-ob-domain-display" style="color:var(--text-muted);font-size:0.8rem;font-family:monospace;"></div>
+                <div id="wl-ob-plan-display" style="margin-top:4px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Team Seats -->
+        <div id="wl-ob-step-2" style="display:none;">
+          <div style="padding:8px 0;">
+            <h4 style="margin:0 0 12px;">Team & Seat Management</h4>
+            <p style="color:var(--text-secondary);font-size:0.88rem;line-height:1.6;margin-bottom:16px;">Your plan includes member and provider seats. As people sign up through your white-label domain, they are automatically counted against your limits.</p>
+            <div id="wl-ob-seat-info" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;"></div>
+            <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
+              <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px;">How seat assignment works:</div>
+              <ul style="margin:0;padding-left:20px;font-size:0.83rem;color:var(--text-secondary);line-height:1.8;">
+                <li>Members sign up through your white-label domain</li>
+                <li>They're auto-assigned to your tenant as "member" seats</li>
+                <li>Service providers count against your provider seat limit</li>
+                <li>Upgrade your plan anytime to increase limits</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Go Live Checklist -->
+        <div id="wl-ob-step-3" style="display:none;">
+          <div style="padding:8px 0;">
+            <h4 style="margin:0 0 12px;">Go Live Checklist</h4>
+            <div id="wl-ob-checklist" style="display:flex;flex-direction:column;gap:10px;"></div>
+            <div style="margin-top:16px;padding:14px;background:var(--accent-teal-soft,rgba(44,196,180,0.1));border-radius:8px;border:1px solid var(--accent-teal);">
+              <div style="font-size:0.85rem;color:var(--accent-teal);font-weight:600;">You're all set!</div>
+              <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;">Access your Tenant Portal anytime from Settings → White-label Tenant Portal. Your members and providers will be tracked automatically.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div style="padding:20px 28px;flex-shrink:0;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;">
+        <button id="wl-ob-back-btn" onclick="wlObBack()" style="display:none;" class="btn btn-ghost">← Back</button>
+        <div></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-secondary" onclick="dismissWlOnboarding()">Do This Later</button>
+          <button class="btn btn-primary" id="wl-ob-next-btn" onclick="wlObNext()">Next →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     let saasPlanData = null;
     let currentSaasTab = 'fleet';
@@ -8214,8 +8300,11 @@
           card.style.display = 'none';
           return;
         }
-        const { tenant, usage, user_role } = await res.json();
+        const tenantResp = await res.json();
+        const { tenant, usage, user_role } = tenantResp;
         card.style.display = '';
+        // Trigger first-login onboarding wizard for owners/admins
+        if (['owner', 'admin'].includes(user_role)) _maybeShowWlOnboarding(tenantResp);
         const planBadgeColor = { starter: 'var(--accent-teal)', pro: 'var(--accent-gold)', business: '#7c3aed' }[tenant.plan] || 'var(--text-muted)';
         const planLabel = { starter: 'Starter', pro: 'Pro', business: 'Business' }[tenant.plan] || tenant.plan;
         const domain = tenant.domain || (tenant.subdomain ? `${tenant.subdomain}.mycarconcierge.com` : '—');
@@ -8267,6 +8356,100 @@
     }
 
     window.loadWlTenantPortal = loadWlTenantPortal;
+
+    // ========== TENANT FIRST-LOGIN ONBOARDING WIZARD ==========
+    let _wlObStep = 1;
+    let _wlObTenantData = null;
+
+    function _wlObShowStep(step) {
+      _wlObStep = step;
+      for (let i = 1; i <= 3; i++) {
+        const el = document.getElementById('wl-ob-step-' + i);
+        if (el) el.style.display = i === step ? '' : 'none';
+        const bar = document.getElementById('wl-ob-bar-' + i);
+        if (bar) bar.style.background = i <= step ? 'var(--accent-gold)' : 'var(--border-subtle)';
+      }
+      const subtitles = ['Step 1 of 3 — Platform Overview', 'Step 2 of 3 — Team Seats', 'Step 3 of 3 — Go Live'];
+      const sub = document.getElementById('wl-ob-subtitle'); if (sub) sub.textContent = subtitles[step - 1];
+      const backBtn = document.getElementById('wl-ob-back-btn'); if (backBtn) backBtn.style.display = step > 1 ? '' : 'none';
+      const nextBtn = document.getElementById('wl-ob-next-btn'); if (nextBtn) nextBtn.textContent = step < 3 ? 'Next →' : 'Get Started';
+      if (step === 2 && _wlObTenantData) _wlObRenderSeats();
+      if (step === 3 && _wlObTenantData) _wlObRenderChecklist();
+    }
+
+    function _wlObRenderSeats() {
+      const { tenant, usage } = _wlObTenantData;
+      const el = document.getElementById('wl-ob-seat-info');
+      if (!el) return;
+      el.innerHTML = `
+        <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+          <div style="font-size:1.4rem;font-weight:700;color:var(--accent-teal);">${usage.members.current}</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">of ${usage.members.unlimited ? '∞' : usage.members.limit} member seats</div>
+        </div>
+        <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+          <div style="font-size:1.4rem;font-weight:700;color:var(--accent-gold);">${usage.providers.current}</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">of ${usage.providers.unlimited ? '∞' : usage.providers.limit} provider seats</div>
+        </div>`;
+    }
+
+    function _wlObRenderChecklist() {
+      const { tenant, usage } = _wlObTenantData;
+      const el = document.getElementById('wl-ob-checklist');
+      if (!el) return;
+      const checks = [
+        { done: true, label: 'Tenant account created', detail: tenant.brand_name },
+        { done: !!(tenant.domain || tenant.subdomain), label: 'Domain configured', detail: tenant.domain || (tenant.subdomain ? `${tenant.subdomain}.mycarconcierge.com` : 'No domain set yet') },
+        { done: !!(tenant.logo_url), label: 'Logo uploaded', detail: tenant.logo_url ? 'Logo URL set' : 'No logo URL set' },
+        { done: usage.members.current > 0, label: 'First member joined', detail: usage.members.current > 0 ? `${usage.members.current} member(s)` : 'No members yet' }
+      ];
+      el.innerHTML = checks.map(c => `
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:var(--surface-3);border-radius:8px;">
+          <span style="font-size:18px;flex-shrink:0;">${c.done ? '✅' : '⬜'}</span>
+          <div>
+            <div style="font-weight:500;font-size:0.88rem;">${c.label}</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">${c.detail}</div>
+          </div>
+        </div>`).join('');
+    }
+
+    function wlObNext() {
+      if (_wlObStep < 3) _wlObShowStep(_wlObStep + 1);
+      else dismissWlOnboarding();
+    }
+
+    function wlObBack() {
+      if (_wlObStep > 1) _wlObShowStep(_wlObStep - 1);
+    }
+
+    function dismissWlOnboarding() {
+      const modal = document.getElementById('wl-tenant-onboarding-modal');
+      if (modal) modal.style.display = 'none';
+      if (_wlObTenantData?.tenant?.id) {
+        try { localStorage.setItem('mcc_tenant_ob_done_' + _wlObTenantData.tenant.id, '1'); } catch {}
+      }
+    }
+
+    function _maybeShowWlOnboarding(tenantData) {
+      if (!tenantData?.tenant?.id) return;
+      if (!['owner', 'admin'].includes(tenantData.user_role)) return;
+      try {
+        if (localStorage.getItem('mcc_tenant_ob_done_' + tenantData.tenant.id)) return;
+      } catch {}
+      _wlObTenantData = tenantData;
+      const { tenant, usage } = tenantData;
+      // Populate step 1 content
+      const brandEl = document.getElementById('wl-ob-brand'); if (brandEl) brandEl.textContent = `Welcome, ${tenant.brand_name}`;
+      const colorEl = document.getElementById('wl-ob-color-preview'); if (colorEl) colorEl.style.background = tenant.bg_color || '#12161c';
+      const domainEl = document.getElementById('wl-ob-domain-display'); if (domainEl) domainEl.textContent = tenant.domain || (tenant.subdomain ? `${tenant.subdomain}.mycarconcierge.com` : 'No domain configured');
+      const planEl = document.getElementById('wl-ob-plan-display'); if (planEl) planEl.innerHTML = `<span style="background:var(--accent-gold);color:#000;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">${tenant.plan?.toUpperCase()}</span>`;
+      _wlObShowStep(1);
+      const modal = document.getElementById('wl-tenant-onboarding-modal');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    window.dismissWlOnboarding = dismissWlOnboarding;
+    window.wlObNext = wlObNext;
+    window.wlObBack = wlObBack;
 
     // Hook into showSection so tenant portal loads when settings tab opens
     const _origShowSection = window.showSection;
