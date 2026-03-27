@@ -10704,6 +10704,7 @@
                     <td style="font-size:12px;color:var(--text-muted);">${new Date(t.created_at).toLocaleDateString()}</td>
                     <td>
                       <button class="btn btn-sm btn-secondary" onclick="openEditTenantModal('${t.id}')">Edit</button>
+                      ${t.domain || t.subdomain ? `<button class="btn btn-sm btn-secondary" onclick="previewTenantBranding('${t.domain || t.subdomain + '.mycarconcierge.com'}')" style="margin-left:6px;" title="Preview branding">Preview</button>` : ''}
                       ${t.status === 'active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateTenant('${t.id}')" style="margin-left:6px;">Suspend</button>` : ''}
                     </td>
                   </tr>
@@ -10811,11 +10812,63 @@
       } catch (err) { alert('Error: ' + err.message); }
     }
 
+    async function previewTenantBranding(domain) {
+      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
+      if (!token) { alert('Admin auth required to preview branding.'); return; }
+      try {
+        const res = await fetch(`/api/white-label/config?preview_domain=${encodeURIComponent(domain)}`, {
+          headers: { 'x-admin-token': token }
+        });
+        const data = await res.json();
+        if (!data.is_white_label || !data.tenant) {
+          alert(`No active white-label tenant found for domain: ${domain}`);
+          return;
+        }
+        const t = data.tenant;
+        const preview = document.createElement('div');
+        preview.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;`;
+        preview.innerHTML = `
+          <div style="background:${t.bg_color||'#12161c'};border-radius:16px;padding:32px;width:min(480px,95vw);position:relative;">
+            <button onclick="this.closest('div[style*=fixed]').remove()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:${t.primary_color||'#C9A227'};font-size:20px;cursor:pointer;">✕</button>
+            <div style="margin-bottom:20px;">
+              ${t.logo_url ? `<img src="${t.logo_url}" alt="${t.brand_name}" style="height:48px;object-fit:contain;margin-bottom:12px;">` : ''}
+              <h2 style="color:${t.primary_color||'#C9A227'};margin:0 0 4px;font-size:1.4rem;">${t.brand_name}</h2>
+              <p style="color:${t.accent_color||'#2CC4B4'};margin:0;font-size:0.85rem;">White-label Branding Preview</p>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">
+              <div style="text-align:center;">
+                <div style="width:100%;height:40px;border-radius:8px;background:${t.primary_color||'#C9A227'};margin-bottom:6px;"></div>
+                <div style="font-size:11px;color:#888;">Primary</div>
+                <div style="font-size:11px;color:#ccc;">${t.primary_color||'#C9A227'}</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="width:100%;height:40px;border-radius:8px;background:${t.accent_color||'#2CC4B4'};margin-bottom:6px;"></div>
+                <div style="font-size:11px;color:#888;">Accent</div>
+                <div style="font-size:11px;color:#ccc;">${t.accent_color||'#2CC4B4'}</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="width:100%;height:40px;border-radius:8px;background:${t.bg_color||'#12161c'};border:1px solid #333;margin-bottom:6px;"></div>
+                <div style="font-size:11px;color:#888;">Background</div>
+                <div style="font-size:11px;color:#ccc;">${t.bg_color||'#12161c'}</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;">
+              <button style="flex:1;padding:12px;border-radius:8px;background:${t.primary_color||'#C9A227'};border:none;color:#12161c;font-weight:600;cursor:pointer;">Sample CTA Button</button>
+              <button style="flex:1;padding:12px;border-radius:8px;background:transparent;border:1px solid ${t.accent_color||'#2CC4B4'};color:${t.accent_color||'#2CC4B4'};font-weight:600;cursor:pointer;">Secondary Action</button>
+            </div>
+            ${t.plan ? `<div style="margin-top:16px;font-size:12px;color:#888;">Plan: <strong style="color:#ccc;">${t.plan}</strong> · Domain: <strong style="color:#ccc;">${domain}</strong></div>` : ''}
+          </div>`;
+        document.body.appendChild(preview);
+        preview.addEventListener('click', (e) => { if (e.target === preview) preview.remove(); });
+      } catch (err) { alert('Preview failed: ' + err.message); }
+    }
+
     window.loadWhiteLabelTenants = loadWhiteLabelTenants;
     window.openCreateTenantModal = openCreateTenantModal;
     window.openEditTenantModal = openEditTenantModal;
     window.closeTenantModal = closeTenantModal;
     window.saveTenant = saveTenant;
     window.deactivateTenant = deactivateTenant;
+    window.previewTenantBranding = previewTenantBranding;
 
     // ========== END WHITE-LABEL TENANTS ==========

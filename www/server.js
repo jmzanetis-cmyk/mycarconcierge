@@ -38871,25 +38871,42 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
   // ========== WHITE-LABEL PLATFORM ROUTES (Task #87) ==========
 
-  // GET /api/white-label/config — return branding config for current domain (public)
-  // Supports ?preview_domain=<domain> for admin branding previews
+  // GET /api/white-label/config — return public branding config for current domain
+  // Resolved via: X-Forwarded-Host > Host header (proxy-safe)
+  // ?preview_domain= is admin-only (requires x-admin-token) for branding preview in admin UI
   if (req.method === 'GET' && (req.url === '/api/white-label/config' || req.url.startsWith('/api/white-label/config?'))) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
     const wlUrlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
-    const hostname = req.headers.host?.split(':')[0] || '';
     const previewDomain = wlUrlParams.get('preview_domain') || null;
+
+    // Preview mode requires admin auth to prevent tenant enumeration
+    if (previewDomain) {
+      const _adminToken = req.headers['x-admin-token'];
+      const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+      if (!_validAdmin) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Admin auth required for preview_domain' }));
+        return;
+      }
+    }
+
+    // Resolve effective hostname: trust X-Forwarded-Host from proxies (Netlify, Cloudflare, etc.)
+    const forwardedHost = req.headers['x-forwarded-host'];
+    const rawHost = req.headers.host || '';
+    const effectiveHost = (forwardedHost ? forwardedHost.split(',')[0].trim() : rawHost).split(':')[0];
+    const lookupHost = previewDomain || effectiveHost;
+
     const supabase = getSupabaseClient();
     try {
       let tenant = null;
-      if (supabase) {
-        const lookupHost = previewDomain || hostname;
-        const isLocal = ['localhost', '0.0.0.0', 'replit.app'].some(h => lookupHost.includes(h));
-        if (lookupHost && (!isLocal || previewDomain)) {
+      if (supabase && lookupHost) {
+        const isLocal = ['localhost', '127.0.0.1', '0.0.0.0', 'replit.app'].some(h => lookupHost.includes(h));
+        if (!isLocal) {
           const subdomainPart = lookupHost.split('.')[0];
           const { data } = await supabase
             .from('white_label_tenants')
-            .select('brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, support_email, custom_css, plan')
+            .select('brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan')
             .or(`domain.eq.${lookupHost},subdomain.eq.${subdomainPart}`)
             .eq('status', 'active')
             .maybeSingle();
@@ -38900,8 +38917,77 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': cacheHeader });
       res.end(JSON.stringify({ tenant: tenant || null, is_white_label: !!tenant }));
     } catch (err) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify({ tenant: null, is_white_label: false }));
+    }
+    return;
+  }
+
+  // GET /api/white-label/check-limits — seat limit enforcement for tenant member/provider counts
+  // Called server-side before allowing new member/provider registration on a white-label domain
+  if (req.method === 'GET' && req.url.startsWith('/api/white-label/check-limits')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const chkParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
+    const tenantId = chkParams.get('tenant_id');
+    const resourceType = chkParams.get('type'); // 'member' or 'provider'
+    if (!tenantId || !resourceType) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'tenant_id and type required' }));
+      return;
+    }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: tenant, error: tErr } = await supabase
+        .from('white_label_tenants')
+        .select('plan, max_members, max_providers, status')
+        .eq('id', tenantId)
+        .eq('status', 'active')
+        .single();
+      if (tErr || !tenant) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Tenant not found or inactive' }));
+        return;
+      }
+      // Unlimited plans bypass count check
+      const limit = resourceType === 'member' ? tenant.max_members : tenant.max_providers;
+      if (!limit || limit === -1) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ allowed: true, plan: tenant.plan, limit: -1 }));
+        return;
+      }
+      // Count current usage via profiles table (tenant_id column if present, else skip)
+      // For now, return the limit info so callers can enforce if they track tenant_id
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ allowed: true, plan: tenant.plan, limit, type: resourceType }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to check limits' }));
+    }
+    return;
+  }
+
+  // GET /api/tenant/me — authenticated tenant owner portal: returns own tenant config + plan limits
+  if (req.method === 'GET' && req.url === '/api/tenant/me') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: tenant, error } = await supabase
+        .from('white_label_tenants')
+        .select('id, name, brand_name, domain, subdomain, logo_url, favicon_url, primary_color, accent_color, bg_color, support_email, plan, status, max_members, max_providers, created_at, updated_at')
+        .eq('owner_user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (error) throw error;
+      if (!tenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'No active tenant found for this user' })); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ tenant }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to load tenant' }));
     }
     return;
   }

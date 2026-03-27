@@ -79,13 +79,7 @@
   }
 
   function loadBranding() {
-    var params = new URLSearchParams(window.location.search);
-    var previewDomain = params.get('wl_preview');
     var url = (BASE_URL || '') + '/api/white-label/config';
-    if (previewDomain) {
-      url += '?preview_domain=' + encodeURIComponent(previewDomain);
-    }
-
     fetch(url, { cache: 'default' })
       .then(function(r) { return r.ok ? r.json() : null; })
       .then(function(data) {
