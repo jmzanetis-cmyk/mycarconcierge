@@ -7874,10 +7874,10 @@
           container.innerHTML = Object.entries(subs).map(([product, sub]) => `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
               <div>
-                <div style="font-weight:600;font-size:0.9rem;">${productLabels[product] || product} — <span style="text-transform:capitalize;">${sub.plan}</span></div>
-                ${sub.current_period_end ? `<div style="font-size:0.78rem;color:var(--text-muted);">Renews ${new Date(sub.current_period_end).toLocaleDateString()}</div>` : ''}
+                <div style="font-weight:600;font-size:0.9rem;margin-bottom:3px;">${productLabels[product] || product}</div>
+                <div>${getPlanBadge(sub.plan, sub.status)}</div>
+                ${sub.current_period_end ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">Renews ${new Date(sub.current_period_end).toLocaleDateString()}</div>` : ''}
               </div>
-              <span style="padding:2px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;background:${statusColors[sub.status] || 'var(--text-muted)'}22;color:${statusColors[sub.status] || 'var(--text-muted)'};border:1px solid ${statusColors[sub.status] || 'var(--text-muted)'}44;">${sub.status}</span>
             </div>
           `).join('');
           if (portalBtn) portalBtn.style.display = 'inline-flex';
@@ -7898,6 +7898,34 @@
       }
     });
 
+    /**
+     * getPlanBadge(plan, status) → HTML string
+     * Returns a styled inline badge for a given SaaS plan tier and subscription status.
+     * Usage: element.innerHTML = getPlanBadge('pro', 'active')
+     * Available globally as window.getPlanBadge
+     */
+    function getPlanBadge(plan, status) {
+      const planStyles = {
+        starter:  { label: 'Starter',  bg: 'var(--bg-input)',           color: 'var(--text-secondary)' },
+        pro:      { label: 'Pro',       bg: 'var(--accent-blue-soft)',   color: 'var(--accent-blue)'    },
+        business: { label: 'Business',  bg: 'var(--accent-gold-soft)',   color: 'var(--accent-gold)'    }
+      };
+      const statusStyles = {
+        active:    { label: 'Active',    bg: 'var(--accent-green-soft)', color: 'var(--accent-green)' },
+        trialing:  { label: 'Trial',     bg: 'var(--accent-blue-soft)',  color: 'var(--accent-blue)'  },
+        past_due:  { label: 'Past Due',  bg: 'rgba(239,68,68,0.12)',    color: 'var(--accent-red)'   },
+        canceled:  { label: 'Canceled',  bg: 'var(--bg-input)',          color: 'var(--text-muted)'   },
+        inactive:  { label: 'Inactive',  bg: 'var(--bg-input)',          color: 'var(--text-muted)'   }
+      };
+      const p = planStyles[plan] || planStyles.starter;
+      const s = status ? (statusStyles[status] || statusStyles.inactive) : null;
+      const planBadge = `<span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;background:${p.bg};color:${p.color};border:1px solid ${p.color}44;">${p.label}</span>`;
+      if (!s) return planBadge;
+      const statusBadge = `<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;background:${s.bg};color:${s.color};margin-left:4px;">${s.label}</span>`;
+      return planBadge + statusBadge;
+    }
+
+    window.getPlanBadge = getPlanBadge;
     window.openSaasPricingModal = openSaasPricingModal;
     window.openBillingPortal = openBillingPortal;
     window.loadBillingSubscriptions = loadBillingSubscriptions;

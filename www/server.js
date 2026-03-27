@@ -11993,20 +11993,11 @@ async function handleStripeWebhook(req, res, requestId) {
               console.log(`[${requestId}] SaaS subscription updated at checkout: ${existing.id}`);
             }
 
-            // Post-checkout entity updates: stamp plan onto relevant records
-            const planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-            if (product === 'fleet') {
-              await supabase.from('profiles').update({ fleet_plan: plan, fleet_plan_expires_at: planExpiresAt }).eq('id', userId).then(() => {});
-            } else if (product === 'shop') {
-              await supabase.from('providers').update({ shop_plan: plan, shop_plan_expires_at: planExpiresAt }).eq('user_id', userId).then(() => {});
-            } else if (product === 'white_label') {
-              await supabase.from('profiles').update({ white_label_plan: plan, white_label_plan_expires_at: planExpiresAt }).eq('id', userId).then(() => {});
-            } else if (product === 'ai_api') {
-              await supabase.from('profiles').update({ api_plan: plan, api_plan_expires_at: planExpiresAt }).eq('id', userId).then(() => {});
-            } else if (product === 'outreach') {
-              await supabase.from('profiles').update({ outreach_plan: plan, outreach_plan_expires_at: planExpiresAt }).eq('id', userId).then(() => {});
-            }
-            console.log(`[${requestId}] Post-checkout entity updated: product=${product} plan=${plan} user=${userId}`);
+            // saas_subscriptions is the authoritative source of truth for plan access.
+            // checkPlanAccess() reads directly from saas_subscriptions — no redundant column
+            // writes to profiles/providers are needed. Subscription events will update the
+            // saas_subscriptions row with accurate Stripe period dates.
+            console.log(`[${requestId}] SaaS checkout complete: product=${product} plan=${plan} user=${userId}`);
           }
         } catch (saasCheckoutErr) {
           console.error(`[${requestId}] SaaS checkout seed error:`, saasCheckoutErr.message);
@@ -38658,16 +38649,17 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         .from('saas_subscriptions')
         .select('id, product, plan, status, current_period_end, cancel_at_period_end, trial_end, stripe_customer_id')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false });
       if (productFilter) query = query.eq('product', productFilter);
 
       const { data: subs, error } = await query;
       if (error) throw error;
 
-      // Build keyed object (for members.html) — prefer active/trialing over older records
+      // Build keyed object (for members.html) — take most-recently-updated row per product
+      // (rows are sorted by updated_at DESC, so the first occurrence per product is authoritative)
       const byProduct = {};
       for (const s of (subs || [])) {
-        if (!byProduct[s.product] || ['active', 'trialing'].includes(s.status)) {
+        if (!byProduct[s.product]) {
           byProduct[s.product] = s;
         }
       }
