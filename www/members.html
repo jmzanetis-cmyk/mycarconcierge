@@ -7748,8 +7748,23 @@
     let saasPlanData = null;
     let currentSaasTab = 'fleet';
 
-    async function openSaasPricingModal() {
+    async function openSaasPricingModal(product) {
+      // If a product is specified, switch to its tab before opening
+      const validProducts = ['fleet', 'shop', 'ai_api', 'outreach', 'white_label'];
+      if (product && validProducts.includes(product)) {
+        currentSaasTab = product;
+      }
       openModal('saas-pricing-modal');
+      // Visually activate the correct tab button
+      if (product && validProducts.includes(product)) {
+        document.querySelectorAll('[id^="saas-tab-"]').forEach(btn => {
+          btn.style.background = '';
+          btn.style.color = '';
+          btn.className = 'btn btn-sm btn-secondary';
+        });
+        const activeBtn = document.getElementById('saas-tab-' + product);
+        if (activeBtn) { activeBtn.style.background = 'var(--accent-gold)'; activeBtn.style.color = '#000'; activeBtn.className = 'btn btn-sm'; }
+      }
       if (!saasPlanData) {
         try {
           const resp = await fetch('/api/saas/plans');

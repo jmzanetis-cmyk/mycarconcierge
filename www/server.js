@@ -6031,6 +6031,24 @@ async function handleSaasSubscriptionWebhook(event, supabase, requestId) {
     if (error) console.error(`[${requestId}] SaaS sub insert error:`, error.message);
     else console.log(`[${requestId}] SaaS subscription created: ${sub.id} product=${planInfo.product} plan=${planInfo.plan}`);
   }
+
+  // Keep profiles.saas_plans_cache in sync with subscription lifecycle changes
+  try {
+    const { data: prof } = await supabase.from('profiles').select('saas_plans_cache, saas_plans_expires_at').eq('id', userId).maybeSingle();
+    const isCanceled = upsertData.status === 'canceled';
+    const cacheUpdate = Object.assign({}, prof?.saas_plans_cache || {});
+    const expiryUpdate = Object.assign({}, prof?.saas_plans_expires_at || {});
+    if (isCanceled) {
+      delete cacheUpdate[planInfo.product];
+      delete expiryUpdate[planInfo.product];
+    } else {
+      cacheUpdate[planInfo.product] = planInfo.plan;
+      expiryUpdate[planInfo.product] = upsertData.current_period_end || null;
+    }
+    await supabase.from('profiles').update({ saas_plans_cache: cacheUpdate, saas_plans_expires_at: expiryUpdate }).eq('id', userId);
+  } catch (cacheErr) {
+    console.warn(`[${requestId}] SaaS cache update failed (non-critical):`, cacheErr.message);
+  }
 }
 
 async function getStripeClient() {
@@ -11993,11 +12011,14 @@ async function handleStripeWebhook(req, res, requestId) {
               console.log(`[${requestId}] SaaS subscription updated at checkout: ${existing.id}`);
             }
 
-            // saas_subscriptions is the authoritative source of truth for plan access.
-            // checkPlanAccess() reads directly from saas_subscriptions — no redundant column
-            // writes to profiles/providers are needed. Subscription events will update the
-            // saas_subscriptions row with accurate Stripe period dates.
-            console.log(`[${requestId}] SaaS checkout complete: product=${product} plan=${plan} user=${userId}`);
+            // Also update profiles.saas_plans_cache for quick plan lookups without joins
+            // (authoritative source remains saas_subscriptions; this is a denormalized cache)
+            const planExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+            const { data: existingProfile } = await supabase.from('profiles').select('saas_plans_cache, saas_plans_expires_at').eq('id', userId).maybeSingle();
+            const updatedCache = Object.assign({}, existingProfile?.saas_plans_cache || {}, { [product]: plan });
+            const updatedExpiry = Object.assign({}, existingProfile?.saas_plans_expires_at || {}, { [product]: planExpiry });
+            await supabase.from('profiles').update({ saas_plans_cache: updatedCache, saas_plans_expires_at: updatedExpiry }).eq('id', userId);
+            console.log(`[${requestId}] SaaS checkout complete: product=${product} plan=${plan} user=${userId} expiry=${planExpiry}`);
           }
         } catch (saasCheckoutErr) {
           console.error(`[${requestId}] SaaS checkout seed error:`, saasCheckoutErr.message);
@@ -39089,12 +39110,20 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
   // ========== DEVELOPER AI API (Task #90) ==========
 
-  // GET /api/developer/keys — list user's API keys
+  // GET /api/developer/keys — list user's API keys (requires ai_api plan)
   if (req.method === 'GET' && req.url === '/api/developer/keys') {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
     const user = await authenticateRequest(req);
     if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    const access = await checkPlanAccess(user.id, 'ai_api', 'starter');
+    if (!access.access) {
+      res.writeHead(402, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'AI API subscription required', upgrade_url: '/members.html?section=settings', keys: [] }));
+      return;
+    }
+
     const supabase = getSupabaseClient();
     try {
       const { data: keys, error } = await supabase
