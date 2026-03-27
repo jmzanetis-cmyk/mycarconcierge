@@ -212,7 +212,7 @@ CREATE POLICY "Tenant scoped profile update"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (id = auth.uid()
-        AND tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID) = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped profile delete" ON profiles;
@@ -247,7 +247,7 @@ CREATE POLICY "Tenant scoped maint pkg insert"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (member_id = auth.uid()
-        AND tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID) = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped maint pkg update" ON maintenance_packages;
@@ -296,7 +296,7 @@ CREATE POLICY "Tenant scoped vehicle insert"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (owner_id = auth.uid()
-        AND tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID) = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped vehicle update" ON vehicles;
@@ -396,7 +396,7 @@ CREATE POLICY "Tenant scoped bid insert"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (provider_id = auth.uid()
-        AND tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID) = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped bid update" ON bids;
@@ -449,7 +449,7 @@ CREATE POLICY "Tenant scoped provider stats insert"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (provider_id = auth.uid()
-        AND tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID) = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped provider stats update" ON provider_stats;
