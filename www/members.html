@@ -8396,18 +8396,28 @@
       const { tenant, usage } = _wlObTenantData;
       const el = document.getElementById('wl-ob-checklist');
       if (!el) return;
+      const hasStripeSubscription = !!(tenant.stripe_subscription_id && tenant.status === 'active');
       const checks = [
         { done: true, label: 'Tenant account created', detail: tenant.brand_name },
         { done: !!(tenant.domain || tenant.subdomain), label: 'Domain configured', detail: tenant.domain || (tenant.subdomain ? `${tenant.subdomain}.mycarconcierge.com` : 'No domain set yet') },
         { done: !!(tenant.logo_url), label: 'Logo uploaded', detail: tenant.logo_url ? 'Logo URL set' : 'No logo URL set' },
+        {
+          done: hasStripeSubscription,
+          label: 'Billing subscription active',
+          detail: hasStripeSubscription
+            ? `Plan: ${tenant.plan?.toUpperCase()} — active`
+            : 'No active subscription detected',
+          cta: hasStripeSubscription ? null : { label: 'Set Up Billing →', action: `openSaasPricingModal('white_label')` }
+        },
         { done: usage.members.current > 0, label: 'First member joined', detail: usage.members.current > 0 ? `${usage.members.current} member(s)` : 'No members yet' }
       ];
       el.innerHTML = checks.map(c => `
-        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:var(--surface-3);border-radius:8px;">
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:var(--surface-3);border-radius:8px;${!c.done && c.cta ? 'border:1px solid var(--accent-gold);' : ''}">
           <span style="font-size:18px;flex-shrink:0;">${c.done ? '✅' : '⬜'}</span>
-          <div>
+          <div style="flex:1;">
             <div style="font-weight:500;font-size:0.88rem;">${c.label}</div>
             <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">${c.detail}</div>
+            ${c.cta ? `<button class="btn btn-sm" onclick="${c.cta.action}" style="margin-top:8px;background:var(--accent-gold);color:#000;font-size:12px;padding:4px 12px;">${c.cta.label}</button>` : ''}
           </div>
         </div>`).join('');
     }

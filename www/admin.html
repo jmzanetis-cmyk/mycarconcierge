@@ -4380,6 +4380,23 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
       </div>
     </div>
 
+    <!-- Tenant Portal Access Modal (Admin Impersonation-Lite) -->
+    <div id="tenant-access-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9100;align-items:center;justify-content:center;">
+      <div style="background:var(--surface-2);border-radius:16px;padding:28px;width:min(580px,95vw);max-height:90vh;overflow-y:auto;position:relative;">
+        <button onclick="closeTenantAccessModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+          <span style="font-size:24px;">🔍</span>
+          <div>
+            <h3 id="tenant-access-title" style="margin:0;font-size:1.1rem;">Tenant Portal View</h3>
+            <p style="margin:0;font-size:0.82rem;color:var(--text-muted);">Admin read-only view of this tenant's portal state</p>
+          </div>
+        </div>
+        <div id="tenant-access-content">
+          <div style="padding:32px;text-align:center;color:var(--text-muted);">Loading tenant data…</div>
+        </div>
+      </div>
+    </div>
+
     <section id="saas-subscriptions" class="section">
       <div class="section-title-bar">
         <h2>SaaS Subscriptions</h2>

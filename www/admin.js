@@ -10717,6 +10717,7 @@
                     <td style="font-size:12px;color:var(--text-muted);">${new Date(t.created_at).toLocaleDateString()}</td>
                     <td style="white-space:nowrap;">
                       <button class="btn btn-sm btn-secondary" onclick="openEditTenantModal('${t.id}')">Edit</button>
+                      <button class="btn btn-sm btn-secondary" onclick="openTenantAccessModal('${t.id}')" style="margin-left:4px;" title="View tenant portal as admin">View Portal</button>
                       ${tenantDomain ? `<button class="btn btn-sm btn-secondary" onclick="previewTenantBranding('${tenantDomain}')" style="margin-left:4px;" title="Preview branding">Preview</button>` : ''}
                       ${t.status === 'active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateTenant('${t.id}')" style="margin-left:4px;">Suspend</button>` : ''}
                     </td>
@@ -11022,5 +11023,93 @@
     window.saveTenant = saveTenant;
     window.deactivateTenant = deactivateTenant;
     window.previewTenantBranding = previewTenantBranding;
+
+    // ===== TENANT PORTAL ACCESS MODAL (Admin Impersonation-Lite) =====
+    async function openTenantAccessModal(tenantId) {
+      const modal = document.getElementById('tenant-access-modal');
+      const contentEl = document.getElementById('tenant-access-content');
+      if (!modal || !contentEl) return;
+      contentEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading tenant data…</div>';
+      modal.style.display = 'flex';
+      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
+      const headers = token ? { 'x-admin-token': token } : {};
+      try {
+        const res = await fetch(`/api/admin/white-label/tenants/${tenantId}/portal`, { headers });
+        if (!res.ok) throw new Error('Failed to load tenant portal');
+        const { tenant, usage, estimated_mrr, recent_members } = await res.json();
+        const titleEl = document.getElementById('tenant-access-title');
+        if (titleEl) titleEl.textContent = `Portal View — ${tenant.brand_name}`;
+        const planColors = { starter: 'var(--accent-teal)', pro: 'var(--accent-gold)', business: '#7c3aed' };
+        const planColor = planColors[tenant.plan] || 'var(--text-muted)';
+        const domain = tenant.domain || (tenant.subdomain ? `${tenant.subdomain}.mycarconcierge.com` : '—');
+        const mPct = usage.members.unlimited ? 0 : Math.min(100, Math.round((usage.members.current / usage.members.limit) * 100));
+        const pPct = usage.providers.unlimited ? 0 : Math.min(100, Math.round((usage.providers.current / usage.providers.limit) * 100));
+        const barColor = (pct) => pct >= 90 ? 'var(--accent-red)' : pct >= 70 ? 'var(--accent-orange)' : 'var(--accent-teal)';
+
+        contentEl.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px;">
+            <div style="padding:12px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.3rem;font-weight:700;color:${planColor};">${tenant.plan?.toUpperCase()}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">Plan</div>
+            </div>
+            <div style="padding:12px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.3rem;font-weight:700;color:var(--accent-teal);">${usage.members.current}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">Members</div>
+            </div>
+            <div style="padding:12px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.3rem;font-weight:700;color:var(--accent-gold);">${usage.providers.current}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">Providers</div>
+            </div>
+            <div style="padding:12px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.3rem;font-weight:700;color:var(--accent-gold);">$${estimated_mrr}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">Est. MRR</div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;"><span>Member Seats</span><span>${usage.members.current} / ${usage.members.unlimited ? '∞' : usage.members.limit}</span></div>
+            <div style="height:6px;background:var(--border-subtle);border-radius:3px;overflow:hidden;margin-bottom:8px;"><div style="height:100%;background:${barColor(mPct)};width:${mPct}%;border-radius:3px;"></div></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;"><span>Provider Seats</span><span>${usage.providers.current} / ${usage.providers.unlimited ? '∞' : usage.providers.limit}</span></div>
+            <div style="height:6px;background:var(--border-subtle);border-radius:3px;overflow:hidden;"><div style="height:100%;background:${barColor(pPct)};width:${pPct}%;border-radius:3px;"></div></div>
+          </div>
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:0.83rem;">
+              <span style="color:var(--text-muted);">Brand</span><span>${tenant.brand_name}</span>
+              <span style="color:var(--text-muted);">Domain</span><span style="font-family:monospace;">${domain}</span>
+              <span style="color:var(--text-muted);">Status</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;">
+                <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${tenant.status === 'active' ? 'var(--accent-teal)' : 'var(--accent-red)'}"></span>
+                <span style="text-transform:capitalize;">${tenant.status}</span>
+              </span>
+              <span style="color:var(--text-muted);">Created</span><span>${new Date(tenant.created_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+          ${recent_members.length ? `
+          <div>
+            <div style="font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Recent Members</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${recent_members.map(m => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface-3);border-radius:6px;font-size:0.83rem;">
+                  <span style="font-family:monospace;color:var(--text-muted);">${m.user_id.slice(0,12)}…</span>
+                  <span style="background:var(--accent-teal-soft,rgba(44,196,180,0.1));color:var(--accent-teal);padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;">${m.role}</span>
+                  <span style="color:var(--text-muted);font-size:11px;">${new Date(m.joined_at).toLocaleDateString()}</span>
+                </div>`).join('')}
+            </div>
+          </div>` : '<div style="color:var(--text-muted);font-size:0.85rem;padding:8px 0;">No members have joined yet.</div>'}
+          <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">
+            <button class="btn btn-secondary" onclick="closeTenantAccessModal()">Close</button>
+            <button class="btn btn-primary" onclick="openEditTenantModal('${tenant.id}');closeTenantAccessModal();">Edit Tenant</button>
+          </div>`;
+      } catch (err) {
+        contentEl.innerHTML = `<div style="color:var(--accent-red);padding:16px;">Error: ${err.message}</div>`;
+      }
+    }
+
+    function closeTenantAccessModal() {
+      const modal = document.getElementById('tenant-access-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    window.openTenantAccessModal = openTenantAccessModal;
+    window.closeTenantAccessModal = closeTenantAccessModal;
 
     // ========== END WHITE-LABEL TENANTS ==========

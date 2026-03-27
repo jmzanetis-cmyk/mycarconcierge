@@ -39340,6 +39340,67 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     return;
   }
 
+  // GET /api/admin/white-label/tenants/:id/portal — admin view of tenant portal data (impersonation-lite)
+  // Returns full tenant config + live seat counts without requiring tenant auth credentials.
+  if (req.method === 'GET' && /^\/api\/admin\/white-label\/tenants\/[^/]+\/portal$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _adminToken = req.headers['x-admin-token'];
+    const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+    if (!_validAdmin) {
+      const _adminUser = await authenticateRequest(req);
+      if (!_adminUser) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const _adminSupa = getSupabaseClient();
+      const { data: _adminProfile } = await _adminSupa.from('profiles').select('role').eq('id', _adminUser.id).single();
+      if (!_adminProfile || !['admin','super_admin'].includes(_adminProfile.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+    }
+    const tenantId = req.url.split('/api/admin/white-label/tenants/')[1]?.split('/portal')[0];
+    const supabase = getSupabaseClient();
+    try {
+      const { data: tenant, error } = await supabase
+        .from('white_label_tenants')
+        .select('*')
+        .eq('id', tenantId)
+        .single();
+      if (error || !tenant) { res.writeHead(404); res.end(JSON.stringify({ error: 'Tenant not found' })); return; }
+
+      const [{ count: memberCount }, { count: providerCount }, { count: adminCount }] = await Promise.all([
+        supabase.from('white_label_tenant_users').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('role', 'member'),
+        supabase.from('white_label_tenant_users').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('role', 'provider'),
+        supabase.from('white_label_tenant_users').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).in('role', ['owner', 'admin'])
+      ]);
+
+      // Fetch recent members for admin view
+      const { data: recentMembers } = await supabase
+        .from('white_label_tenant_users')
+        .select('user_id, role, joined_at')
+        .eq('tenant_id', tenantId)
+        .order('joined_at', { ascending: false })
+        .limit(10);
+
+      const WL_PLAN_MRR = { starter: 149, pro: 499, business: 999 };
+      const estimatedMrr = tenant.status === 'active' ? (WL_PLAN_MRR[tenant.plan] || 0) : 0;
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        tenant,
+        usage: {
+          members: { current: memberCount || 0, limit: tenant.max_members, unlimited: tenant.max_members === -1 },
+          providers: { current: providerCount || 0, limit: tenant.max_providers, unlimited: tenant.max_providers === -1 },
+          admins: { current: adminCount || 0 }
+        },
+        estimated_mrr: estimatedMrr,
+        recent_members: recentMembers || []
+      }));
+    } catch (err) {
+      console.error(`[${requestId}] WL admin portal error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load tenant portal' }));
+    }
+    return;
+  }
+
   // ========== END WHITE-LABEL ROUTES ==========
 
   // ========== FLEET SAAS LIMIT CHECK (Task #88) ==========

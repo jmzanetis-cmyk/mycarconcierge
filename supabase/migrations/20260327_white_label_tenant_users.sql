@@ -18,24 +18,32 @@ CREATE INDEX IF NOT EXISTS idx_wl_tenant_users_role ON white_label_tenant_users(
 
 ALTER TABLE white_label_tenant_users ENABLE ROW LEVEL SECURITY;
 
--- Tenant owners and admins can view their roster
+-- SECURITY DEFINER helper to check admin/owner role WITHOUT triggering recursive policy evaluation.
+-- This function runs as the definer (postgres) and bypasses RLS, preventing infinite recursion
+-- when used inside a policy on the same table.
+CREATE OR REPLACE FUNCTION wl_is_tenant_admin(p_tenant_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE SQL
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM white_label_tenant_users
+    WHERE tenant_id = p_tenant_id
+      AND user_id = p_user_id
+      AND role IN ('owner', 'admin')
+  );
+$$;
+
+-- Users can see their own membership row, OR rows in any tenant where they are owner/admin.
+-- Uses the SECURITY DEFINER helper to break potential recursive policy evaluation.
 DROP POLICY IF EXISTS "Tenant owners can view roster" ON white_label_tenant_users;
 CREATE POLICY "Tenant owners can view roster"
   ON white_label_tenant_users FOR SELECT
   USING (
-    -- The user is already in the roster
     user_id = auth.uid()
-    OR
-    -- Or the user is an owner/admin of the tenant
-    EXISTS (
-      SELECT 1 FROM white_label_tenant_users wtu
-      WHERE wtu.tenant_id = white_label_tenant_users.tenant_id
-        AND wtu.user_id = auth.uid()
-        AND wtu.role IN ('owner', 'admin')
-    )
-    OR
-    -- MCC platform admins
-    EXISTS (
+    OR wl_is_tenant_admin(tenant_id, auth.uid())
+    OR EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
         AND profiles.role IN ('admin', 'super_admin')
@@ -48,3 +56,9 @@ CREATE POLICY "Service role can manage tenant users"
   ON white_label_tenant_users FOR ALL
   TO service_role
   USING (true);
+
+-- Users can insert their own membership (self-service join — role enforced at API layer)
+DROP POLICY IF EXISTS "Users can join tenant" ON white_label_tenant_users;
+CREATE POLICY "Users can join tenant"
+  ON white_label_tenant_users FOR INSERT
+  WITH CHECK (user_id = auth.uid() AND role IN ('member', 'provider'));
