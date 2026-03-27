@@ -188,7 +188,7 @@ CREATE POLICY "Tenant scoped profile read"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR id = auth.uid()
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped profile insert" ON profiles;
@@ -212,7 +212,7 @@ CREATE POLICY "Tenant scoped profile update"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (id = auth.uid()
-        AND tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+        AND tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped profile delete" ON profiles;
@@ -237,7 +237,7 @@ CREATE POLICY "Tenant scoped maint pkg read"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR member_id = auth.uid()
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped maint pkg insert" ON maintenance_packages;
@@ -247,7 +247,7 @@ CREATE POLICY "Tenant scoped maint pkg insert"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (member_id = auth.uid()
-        AND tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+        AND tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped maint pkg update" ON maintenance_packages;
@@ -261,7 +261,7 @@ CREATE POLICY "Tenant scoped maint pkg update"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped maint pkg delete" ON maintenance_packages;
@@ -286,7 +286,7 @@ CREATE POLICY "Tenant scoped vehicle read"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR owner_id = auth.uid()
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped vehicle insert" ON vehicles;
@@ -296,7 +296,7 @@ CREATE POLICY "Tenant scoped vehicle insert"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (owner_id = auth.uid()
-        AND tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+        AND tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped vehicle update" ON vehicles;
@@ -310,7 +310,7 @@ CREATE POLICY "Tenant scoped vehicle update"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped vehicle delete" ON vehicles;
@@ -333,7 +333,7 @@ CREATE POLICY "Tenant scoped package read"
   USING (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped package insert" ON packages;
@@ -342,7 +342,7 @@ CREATE POLICY "Tenant scoped package insert"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped package update" ON packages;
@@ -355,7 +355,7 @@ CREATE POLICY "Tenant scoped package update"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped package delete" ON packages;
@@ -386,7 +386,7 @@ CREATE POLICY "Tenant scoped bid read"
       WHERE mp.id = bids.package_id
         AND mp.member_id = auth.uid()
     )
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped bid insert" ON bids;
@@ -396,7 +396,7 @@ CREATE POLICY "Tenant scoped bid insert"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (provider_id = auth.uid()
-        AND tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+        AND tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped bid update" ON bids;
@@ -415,7 +415,7 @@ CREATE POLICY "Tenant scoped bid update"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped bid delete" ON bids;
@@ -439,7 +439,7 @@ CREATE POLICY "Tenant scoped provider stats read"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR provider_id = auth.uid()
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped provider stats insert" ON provider_stats;
@@ -449,7 +449,7 @@ CREATE POLICY "Tenant scoped provider stats insert"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (provider_id = auth.uid()
-        AND tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+        AND tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped provider stats update" ON provider_stats;
@@ -463,7 +463,7 @@ CREATE POLICY "Tenant scoped provider stats update"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped provider stats delete" ON provider_stats;
@@ -487,7 +487,7 @@ CREATE POLICY "Tenant scoped page view read"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (user_id IS NOT NULL AND user_id = auth.uid())
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped page view insert" ON page_views;
@@ -496,7 +496,7 @@ CREATE POLICY "Tenant scoped page view insert"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped page view delete" ON page_views;

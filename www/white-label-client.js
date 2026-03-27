@@ -99,16 +99,19 @@
    * first loads a white-label domain. Idempotent — server returns 200 with already_member=true
    * if the user is already a member, so safe to call on every page load.
    *
-   * Auth token is retrieved from the Supabase client (window._supabase) if available,
-   * falling back to localStorage for SSR-hydrated sessions.
+   * SECURITY: Always uses a same-origin relative URL (/api/white-label/tenant/join).
+   * White-label custom domains point directly to the MCC API server, so relative URLs
+   * are correct. Bearer tokens are NEVER sent to cross-origin destinations.
+   *
+   * Role is determined server-side from the user's platform profile — the client
+   * does not supply a role, preventing member→provider self-promotion exploits.
    */
   function autoJoinTenantIfAuthenticated() {
     try {
-      var supabaseClient = window._supabase || (window.supabase && window.supabase.createClient ? null : null);
       var token = null;
 
-      // Try to get the access token from the Supabase session in localStorage
-      // (works before the Supabase SDK fully initializes)
+      // Read Supabase access token from localStorage (populated by Supabase SDK after login).
+      // Works before full SDK initialization because localStorage is synchronous.
       try {
         var lsKeys = Object.keys(localStorage);
         for (var k = 0; k < lsKeys.length; k++) {
@@ -123,22 +126,25 @@
       } catch(e) {}
 
       if (!token) {
-        // No session — user is not authenticated; join will be skipped on server
+        // No authenticated session — skip join silently
         return;
       }
 
-      fetch((BASE_URL || '') + '/api/white-label/tenant/join', {
+      // ALWAYS use relative URL — ensures the bearer token stays same-origin.
+      // White-label domains (e.g., partner.mycarconcierge.com, partner.com) are configured
+      // via DNS to point to the MCC API server, so /api paths resolve to the correct origin.
+      fetch('/api/white-label/tenant/join', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + token
         },
-        body: JSON.stringify({ role: 'member' })
+        body: JSON.stringify({})
+        // No role field — server derives role from user's platform profile to prevent self-promotion
       })
         .then(function(r) { return r.ok ? r.json() : null; })
         .then(function(data) {
           if (data && data.success) {
-            // Dispatch event so other components know the user's tenant membership is established
             window.dispatchEvent(new CustomEvent('wl-tenant-joined', {
               detail: { membership: data.membership, already_member: !!data.already_member }
             }));

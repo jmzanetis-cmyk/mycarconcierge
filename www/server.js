@@ -39016,15 +39016,19 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     const supabase = getSupabaseClient();
     try {
       const body = await getRequestBody(req);
-      // Role may be provided by client but is strictly validated — admin/owner not allowed via self-service
-      const requestedRole = body?.role || 'member';
-      const ALLOWED_SELF_SERVICE_ROLES = ['member', 'provider'];
-      if (!ALLOWED_SELF_SERVICE_ROLES.includes(requestedRole)) {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Role not allowed via self-service join. Admin/owner roles require admin assignment.' }));
-        return;
-      }
-      const role = requestedRole; // now safe: only 'member' or 'provider'
+      // Role resolution — SECURITY HARDENED
+      // The server determines the authoritative role from the user's platform profile,
+      // ignoring any role supplied by the client. This prevents a member from self-promoting
+      // to 'provider' seat and a provider from being incorrectly assigned a 'member' seat.
+      // Admin/owner tenant roles still require admin assignment via x-admin-token.
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      const platformRole = userProfile?.role || 'member';
+      // Map platform roles to tenant seat types
+      const role = ['provider', 'pending_provider'].includes(platformRole) ? 'provider' : 'member';
 
       // Resolve tenant from request hostname — SECURITY HARDENED
       // Join is a security-sensitive write; we do NOT trust X-Forwarded-Host (spoofable without proxy).
