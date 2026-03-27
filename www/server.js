@@ -5958,6 +5958,8 @@ async function handleSaasSubscriptionWebhook(event, supabase, requestId) {
   }
 
   const customerId = sub.customer;
+
+  // Step 1: look up by stripe_subscription_id (fastest path, covers updates/deletes)
   const { data: existingSub } = await supabase
     .from('saas_subscriptions')
     .select('id, user_id')
@@ -5965,30 +5967,35 @@ async function handleSaasSubscriptionWebhook(event, supabase, requestId) {
     .maybeSingle();
 
   let userId = existingSub?.user_id;
+
+  // Step 2: look up by stripe_customer_id across existing subscriptions (covers newly-seeded records)
   if (!userId) {
     const { data: customerSub } = await supabase
       .from('saas_subscriptions')
       .select('user_id')
       .eq('stripe_customer_id', customerId)
+      .not('user_id', 'is', null)
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
     userId = customerSub?.user_id;
   }
 
+  // Step 3: look up Stripe customer metadata (set at customer creation via getOrCreateStripeCustomer)
   if (!userId) {
-    // Final fallback: look up via profiles table (stripe_customer_id stored at checkout)
-    const { data: custProfile } = await supabase
-      .from('saas_subscriptions')
-      .select('user_id')
-      .eq('stripe_customer_id', customerId)
-      .not('user_id', 'is', null)
-      .limit(1)
-      .maybeSingle();
-    userId = custProfile?.user_id;
+    try {
+      const stripe = await getStripeClient();
+      const customer = await stripe.customers.retrieve(customerId);
+      if (customer && !customer.deleted && customer.metadata?.mcc_user_id) {
+        userId = customer.metadata.mcc_user_id;
+      }
+    } catch (stripeErr) {
+      console.warn(`[${requestId}] SaaS webhook: Stripe customer lookup failed:`, stripeErr.message);
+    }
   }
+
   if (!userId) {
-    // Last resort: look up stripe_customer metadata in Stripe (via Supabase stripe_customers if exists)
-    console.log(`[${requestId}] SaaS webhook: cannot find user for Stripe customer ${customerId}. Ensure checkout.session.completed is also registered in webhook. Skipping.`);
+    console.log(`[${requestId}] SaaS webhook: cannot resolve user for Stripe customer ${customerId} (sub ${sub.id}). Ensure checkout.session.completed fires first.`);
     return;
   }
 
@@ -11970,25 +11977,24 @@ async function handleStripeWebhook(req, res, requestId) {
               .eq('user_id', userId)
               .eq('product', product)
               .maybeSingle();
-            const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
             if (!existing) {
+              // Seed identity linkage only — period dates will be set by subscription.created webhook with Stripe's actual values
               await supabase.from('saas_subscriptions').insert({
                 user_id: userId, product, plan, status: 'active',
                 stripe_customer_id: customerId, stripe_subscription_id: subscriptionId,
-                current_period_end: periodEnd,
                 created_at: new Date().toISOString(), updated_at: new Date().toISOString()
               });
               console.log(`[${requestId}] SaaS subscription seeded: user=${userId} product=${product} plan=${plan}`);
             } else {
               await supabase.from('saas_subscriptions').update({
                 stripe_customer_id: customerId, stripe_subscription_id: subscriptionId,
-                plan, status: 'active', current_period_end: periodEnd, updated_at: new Date().toISOString()
+                plan, status: 'active', updated_at: new Date().toISOString()
               }).eq('id', existing.id);
               console.log(`[${requestId}] SaaS subscription updated at checkout: ${existing.id}`);
             }
 
             // Post-checkout entity updates: stamp plan onto relevant records
-            const planExpiresAt = periodEnd;
+            const planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
             if (product === 'fleet') {
               await supabase.from('profiles').update({ fleet_plan: plan, fleet_plan_expires_at: planExpiresAt }).eq('id', userId).then(() => {});
             } else if (product === 'shop') {
@@ -38596,12 +38602,43 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
   // ========== SAAS BILLING ROUTES ==========
 
-  // GET /api/saas/plans — public plan catalog
+  // GET /api/saas/plans — public plan catalog (reads from saas_plans table, fallback to config)
   if (req.method === 'GET' && req.url === '/api/saas/plans') {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' });
-    res.end(JSON.stringify({ plans: SAAS_PLANS }));
+    try {
+      const supabase = getSupabaseClient();
+      let dbPlans = null;
+      if (supabase) {
+        const { data } = await supabase
+          .from('saas_plans')
+          .select('product, plan, display_name, price_monthly, price_annual, features, limits, stripe_price_id, stripe_price_id_annual, is_active')
+          .eq('is_active', true)
+          .order('product')
+          .order('price_monthly');
+        if (data && data.length > 0) {
+          // Reshape to same structure as SAAS_PLANS for backward compat
+          const plansByProduct = {};
+          for (const row of data) {
+            if (!plansByProduct[row.product]) plansByProduct[row.product] = { name: SAAS_PLANS[row.product]?.name || row.product, tiers: {} };
+            plansByProduct[row.product].tiers[row.plan] = {
+              name: row.display_name,
+              price_monthly: row.price_monthly,
+              price_annual: row.price_annual,
+              features: row.features || [],
+              limits: row.limits || {},
+              stripe_price_id: row.stripe_price_id || SAAS_PLANS[row.product]?.tiers?.[row.plan]?.stripe_price_id || null
+            };
+          }
+          dbPlans = plansByProduct;
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' });
+      res.end(JSON.stringify({ plans: dbPlans || SAAS_PLANS, source: dbPlans ? 'db' : 'config' }));
+    } catch (err) {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' });
+      res.end(JSON.stringify({ plans: SAAS_PLANS, source: 'config' }));
+    }
     return;
   }
 

@@ -7923,7 +7923,7 @@
         }
         if (planEl) {
           const planNames = { starter: 'Fleet Starter', pro: 'Fleet Pro', business: 'Fleet Business' };
-          const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000).toLocaleDateString() : null;
+          const periodEnd = sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : null;
           planEl.innerHTML = `<span style="color:var(--accent-green);font-weight:600;">${planNames[plan] || plan}</span>${periodEnd ? ` · Renews ${periodEnd}` : ''}${sub.cancel_at_period_end ? ' · <span style="color:var(--accent-orange);">Cancels at period end</span>' : ''}`;
         }
         if (limits && limits.vehicles > 0) {
