@@ -7863,7 +7863,7 @@
         });
         if (!resp.ok) throw new Error('Failed');
         const data = await resp.json();
-        const subs = data.subscriptions || {};
+        const subs = data.by_product || {};
         const productLabels = { fleet: 'Fleet Management', shop: 'Provider Shop', ai_api: 'AI API', outreach: 'Outreach Engine', white_label: 'White-label' };
         const statusColors = { active: 'var(--accent-green)', trialing: 'var(--accent-blue)', canceled: 'var(--text-muted)', past_due: 'var(--accent-red)' };
 

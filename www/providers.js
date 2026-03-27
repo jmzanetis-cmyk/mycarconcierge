@@ -12815,7 +12815,7 @@
         const plan = shopSub.plan;
         const planNames = { starter: 'Shop Starter', pro: 'Shop Pro', business: 'Shop Business' };
         if (labelEl) {
-          const periodEnd = shopSub.current_period_end ? new Date(shopSub.current_period_end * 1000).toLocaleDateString() : null;
+          const periodEnd = shopSub.current_period_end ? new Date(shopSub.current_period_end).toLocaleDateString() : null;
           labelEl.innerHTML = `<span style="color:var(--accent-green);font-weight:600;">${planNames[plan] || plan}</span>${periodEnd ? ` · Renews ${periodEnd}` : ''}`;
         }
         if (badgeEl) {

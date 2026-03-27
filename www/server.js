@@ -5889,7 +5889,7 @@ async function checkPlanAccess(userId, productLine, requiredPlan) {
 
   const { data: sub } = await supabase
     .from('saas_subscriptions')
-    .select('plan, status')
+    .select('plan, status, current_period_end')
     .eq('user_id', userId)
     .eq('product', productLine)
     .in('status', ['active', 'trialing'])
@@ -5898,6 +5898,14 @@ async function checkPlanAccess(userId, productLine, requiredPlan) {
     .maybeSingle();
 
   if (!sub) return { access: false, reason: 'no_subscription', upgrade_url: `/pricing?product=${productLine}` };
+
+  // Enforce expiration: if current_period_end is set and in the past, deny access
+  if (sub.current_period_end) {
+    const expiry = new Date(sub.current_period_end);
+    if (!isNaN(expiry) && expiry < new Date()) {
+      return { access: false, reason: 'subscription_expired', expired_at: sub.current_period_end, upgrade_url: `/pricing?product=${productLine}&renew=true` };
+    }
+  }
 
   const subLevel = planHierarchy[sub.plan] || 0;
   if (subLevel < requiredLevel) {
