@@ -39072,6 +39072,16 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         .insert({ tenant_id: tenant.id, user_id: user.id, role })
         .select().single();
       if (joinErr) throw joinErr;
+
+      // Lifecycle: stamp tenant_id on the user's profile so all downstream
+      // RLS policies resolve their tenant correctly from the profiles table.
+      // Uses service_role key (bypasses RLS) to ensure the update always lands.
+      await supabase
+        .from('profiles')
+        .update({ tenant_id: tenant.id })
+        .eq('id', user.id)
+        .is('tenant_id', null); // only stamp if not already set — never override
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true, membership }));
     } catch (err) {
