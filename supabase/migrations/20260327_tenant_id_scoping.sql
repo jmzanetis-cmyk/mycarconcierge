@@ -33,6 +33,15 @@ ALTER TABLE bids
   ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES white_label_tenants(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_bids_tenant_id ON bids(tenant_id) WHERE tenant_id IS NOT NULL;
 
+-- Analytics tables
+ALTER TABLE provider_stats
+  ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES white_label_tenants(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_provider_stats_tenant_id ON provider_stats(tenant_id) WHERE tenant_id IS NOT NULL;
+
+ALTER TABLE page_views
+  ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES white_label_tenants(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_page_views_tenant_id ON page_views(tenant_id) WHERE tenant_id IS NOT NULL;
+
 -- ============================================================
 -- HELPER FUNCTIONS (SECURITY DEFINER to avoid RLS recursion)
 -- ============================================================
@@ -342,13 +351,15 @@ CREATE POLICY "Tenant scoped bid read"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR provider_id = auth.uid()
-    -- Member can see bids on their own service requests (via JOIN — RLS on service_requests handles member access)
-    OR EXISTS (
-      SELECT 1 FROM service_requests sr
-      WHERE sr.id = bids.package_id
-        AND sr.user_id = auth.uid()
-    )
+    -- Member bid visibility is served via service_role (server.js); Supabase client reads scoped by tenant.
+    -- Tenant members can see all bids within their tenant (for marketplace transparency).
     OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+    -- Package owner access: member who owns the service package being bid on
+    OR EXISTS (
+      SELECT 1 FROM packages p
+      WHERE p.id = bids.package_id
+        AND p.user_id = auth.uid()
+    )
   );
 
 DROP POLICY IF EXISTS "Tenant scoped bid insert" ON bids;
@@ -388,6 +399,96 @@ CREATE POLICY "Tenant scoped bid delete"
     OR is_mcc_admin()
     OR provider_id = auth.uid()
   );
+
+-- ============================================================
+-- RLS — PROVIDER STATS analytics (full matrix)
+-- ============================================================
+ALTER TABLE provider_stats ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Tenant scoped provider stats read" ON provider_stats;
+CREATE POLICY "Tenant scoped provider stats read"
+  ON provider_stats FOR SELECT
+  USING (
+    (current_setting('role', TRUE) = 'service_role')
+    OR is_mcc_admin()
+    OR provider_id = auth.uid()
+    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+  );
+
+DROP POLICY IF EXISTS "Tenant scoped provider stats insert" ON provider_stats;
+CREATE POLICY "Tenant scoped provider stats insert"
+  ON provider_stats FOR INSERT
+  WITH CHECK (
+    (current_setting('role', TRUE) = 'service_role')
+    OR is_mcc_admin()
+    OR (provider_id = auth.uid()
+        AND tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+  );
+
+DROP POLICY IF EXISTS "Tenant scoped provider stats update" ON provider_stats;
+CREATE POLICY "Tenant scoped provider stats update"
+  ON provider_stats FOR UPDATE
+  USING (
+    (current_setting('role', TRUE) = 'service_role')
+    OR is_mcc_admin()
+    OR provider_id = auth.uid()
+  )
+  WITH CHECK (
+    (current_setting('role', TRUE) = 'service_role')
+    OR is_mcc_admin()
+    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+  );
+
+DROP POLICY IF EXISTS "Tenant scoped provider stats delete" ON provider_stats;
+CREATE POLICY "Tenant scoped provider stats delete"
+  ON provider_stats FOR DELETE
+  USING (
+    (current_setting('role', TRUE) = 'service_role')
+    OR is_mcc_admin()
+  );
+
+-- ============================================================
+-- RLS — PAGE VIEWS analytics (full matrix)
+-- ============================================================
+ALTER TABLE page_views ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Tenant scoped page view read" ON page_views;
+CREATE POLICY "Tenant scoped page view read"
+  ON page_views FOR SELECT
+  USING (
+    (current_setting('role', TRUE) = 'service_role')
+    OR is_mcc_admin()
+    OR user_id = auth.uid()
+    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+  );
+
+DROP POLICY IF EXISTS "Tenant scoped page view insert" ON page_views;
+CREATE POLICY "Tenant scoped page view insert"
+  ON page_views FOR INSERT
+  WITH CHECK (
+    (current_setting('role', TRUE) = 'service_role')
+    OR is_mcc_admin()
+    OR (tenant_or_sentinel(tenant_id) = tenant_or_sentinel(get_current_user_tenant_id()))
+  );
+
+DROP POLICY IF EXISTS "Tenant scoped page view delete" ON page_views;
+CREATE POLICY "Tenant scoped page view delete"
+  ON page_views FOR DELETE
+  USING (
+    (current_setting('role', TRUE) = 'service_role')
+    OR is_mcc_admin()
+  );
+
+-- Analytics stamp triggers
+DROP TRIGGER IF EXISTS trg_stamp_tenant_id_provider_stats ON provider_stats;
+CREATE TRIGGER trg_stamp_tenant_id_provider_stats
+  BEFORE INSERT ON provider_stats
+  FOR EACH ROW EXECUTE FUNCTION stamp_tenant_id();
+
+DROP TRIGGER IF EXISTS trg_stamp_tenant_id_page_views ON page_views;
+CREATE TRIGGER trg_stamp_tenant_id_page_views
+  BEFORE INSERT ON page_views
+  FOR EACH ROW EXECUTE FUNCTION stamp_tenant_id();
 
 -- ============================================================
 -- PROFILE CREATION LIFECYCLE — stamp tenant_id on profile create
