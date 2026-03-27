@@ -38872,23 +38872,32 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
   // ========== WHITE-LABEL PLATFORM ROUTES (Task #87) ==========
 
   // GET /api/white-label/config — return branding config for current domain (public)
-  if (req.method === 'GET' && req.url === '/api/white-label/config') {
+  // Supports ?preview_domain=<domain> for admin branding previews
+  if (req.method === 'GET' && (req.url === '/api/white-label/config' || req.url.startsWith('/api/white-label/config?'))) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
+    const wlUrlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
     const hostname = req.headers.host?.split(':')[0] || '';
+    const previewDomain = wlUrlParams.get('preview_domain') || null;
     const supabase = getSupabaseClient();
     try {
       let tenant = null;
-      if (supabase && hostname && !['localhost', '0.0.0.0', 'replit.app'].some(h => hostname.includes(h))) {
-        const { data } = await supabase
-          .from('white_label_tenants')
-          .select('brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, support_email, custom_css, plan')
-          .or(`domain.eq.${hostname},subdomain.eq.${hostname.split('.')[0]}`)
-          .eq('status', 'active')
-          .maybeSingle();
-        tenant = data;
+      if (supabase) {
+        const lookupHost = previewDomain || hostname;
+        const isLocal = ['localhost', '0.0.0.0', 'replit.app'].some(h => lookupHost.includes(h));
+        if (lookupHost && (!isLocal || previewDomain)) {
+          const subdomainPart = lookupHost.split('.')[0];
+          const { data } = await supabase
+            .from('white_label_tenants')
+            .select('brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, support_email, custom_css, plan')
+            .or(`domain.eq.${lookupHost},subdomain.eq.${subdomainPart}`)
+            .eq('status', 'active')
+            .maybeSingle();
+          tenant = data;
+        }
       }
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' });
+      const cacheHeader = previewDomain ? 'no-store' : 'public, max-age=60';
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': cacheHeader });
       res.end(JSON.stringify({ tenant: tenant || null, is_white_label: !!tenant }));
     } catch (err) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
