@@ -108,7 +108,8 @@
       traffic: false,
       'marketing-outreach': false,
       'ai-ops': false,
-      'saas-subscriptions': false
+      'saas-subscriptions': false,
+      'white-label': false
     };
 
     const sectionLoaders = {
@@ -140,7 +141,8 @@
       'marketing-outreach': async () => { await initMarketingHub(); if (typeof window.initOutreachEngine === 'function') await window.initOutreachEngine(); },
       'ai-ops': async () => { await initAiOps(); },
       'sms-log': async () => { await loadSmsLog(1); },
-      'saas-subscriptions': async () => { await loadSaasSubscriptions(); }
+      'saas-subscriptions': async () => { await loadSaasSubscriptions(); },
+      'white-label': async () => { await loadWhiteLabelTenants(); }
     };
 
     function showSectionLoading(sectionId) {
@@ -10602,3 +10604,187 @@
     window.loadSaasSubscriptions = loadSaasSubscriptions;
 
     // ========== END SAAS SUBSCRIPTIONS ADMIN ==========
+
+    // ========== WHITE-LABEL TENANTS (Task #87) ==========
+
+    let _editingTenantId = null;
+
+    async function loadWhiteLabelTenants() {
+      const statsEl = document.getElementById('white-label-stats');
+      const contentEl = document.getElementById('white-label-content');
+      if (!statsEl || !contentEl) return;
+
+      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
+      const headers = token ? { 'x-admin-token': token } : {};
+
+      try {
+        const res = await fetch('/api/admin/white-label/tenants', { headers });
+        if (!res.ok) throw new Error('Failed to load tenants');
+        const { tenants } = await res.json();
+
+        const active = tenants.filter(t => t.status === 'active').length;
+        const byPlan = { starter: 0, pro: 0, business: 0 };
+        for (const t of tenants) if (byPlan[t.plan] !== undefined) byPlan[t.plan]++;
+
+        statsEl.innerHTML = `
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-blue-soft);color:var(--accent-blue);">🏢</div><div class="stat-value">${tenants.length}</div><div class="stat-label">Total Tenants</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);">✅</div><div class="stat-value">${active}</div><div class="stat-label">Active</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-gold-soft);color:var(--accent-gold);">⭐</div><div class="stat-value">${byPlan.starter}</div><div class="stat-label">Starter</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-teal-soft);color:var(--accent-teal);">🚀</div><div class="stat-value">${byPlan.pro}</div><div class="stat-label">Pro</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-purple-soft,#7c3aed22);color:#7c3aed;">💼</div><div class="stat-value">${byPlan.business}</div><div class="stat-label">Business</div></div>
+        `;
+
+        if (!tenants.length) {
+          contentEl.innerHTML = `
+            <div style="padding:64px;text-align:center;color:var(--text-muted);">
+              <div style="font-size:48px;margin-bottom:16px;">🏢</div>
+              <h3 style="margin:0 0 8px;">No White-label Tenants Yet</h3>
+              <p style="margin:0 0 20px;">Create your first branded platform instance for an enterprise client.</p>
+              <button class="btn btn-primary" onclick="openCreateTenantModal()">Create First Tenant</button>
+            </div>`;
+          return;
+        }
+
+        const planBadge = (plan) => {
+          const colors = { starter: 'var(--accent-blue)', pro: 'var(--accent-teal)', business: '#7c3aed' };
+          return `<span style="background:${colors[plan] || '#888'}22;color:${colors[plan] || '#888'};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;">${plan}</span>`;
+        };
+        const statusBadge = (s) => {
+          const m = { active: ['var(--accent-green)','Active'], suspended: ['var(--accent-orange)','Suspended'], canceled: ['var(--accent-red)','Canceled'], pending: ['var(--accent-blue)','Pending'] };
+          const [col, label] = m[s] || ['#888', s];
+          return `<span style="background:${col}22;color:${col};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">${label}</span>`;
+        };
+
+        contentEl.innerHTML = `
+          <div style="overflow-x:auto;">
+            <table class="data-table" style="width:100%;">
+              <thead><tr>
+                <th>Brand Name</th><th>Domain</th><th>Plan</th><th>Status</th>
+                <th>Members / Providers</th><th>Created</th><th>Actions</th>
+              </tr></thead>
+              <tbody>
+                ${tenants.map(t => `
+                  <tr>
+                    <td><div style="font-weight:600;">${t.brand_name}</div><div style="font-size:12px;color:var(--text-muted);">${t.name}</div></td>
+                    <td style="font-family:monospace;font-size:12px;">${t.domain || t.subdomain ? `${t.domain || ''}${t.subdomain ? `<br>${t.subdomain}.mycarconcierge.com` : ''}` : '<span style="color:var(--text-muted)">—</span>'}</td>
+                    <td>${planBadge(t.plan)}</td>
+                    <td>${statusBadge(t.status)}</td>
+                    <td style="text-align:center;">${t.max_members === -1 ? '∞' : t.max_members} / ${t.max_providers === -1 ? '∞' : t.max_providers}</td>
+                    <td style="font-size:12px;color:var(--text-muted);">${new Date(t.created_at).toLocaleDateString()}</td>
+                    <td>
+                      <button class="btn btn-sm btn-secondary" onclick="openEditTenantModal('${t.id}')">Edit</button>
+                      ${t.status === 'active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateTenant('${t.id}')" style="margin-left:6px;">Suspend</button>` : ''}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>`;
+
+        // Store for edit lookups
+        window._wlTenants = tenants;
+      } catch (err) {
+        contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${err.message}</div>`;
+      }
+    }
+
+    function openCreateTenantModal() {
+      _editingTenantId = null;
+      document.getElementById('tenant-modal-title').textContent = 'New White-label Tenant';
+      document.getElementById('save-tenant-btn').textContent = 'Create Tenant';
+      document.getElementById('tenant-modal-id').value = '';
+      ['tenant-name','tenant-brand-name','tenant-domain','tenant-subdomain','tenant-logo-url','tenant-support-email'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      document.getElementById('tenant-primary-color').value = '#C9A227';
+      document.getElementById('tenant-accent-color').value = '#2CC4B4';
+      document.getElementById('tenant-bg-color').value = '#12161c';
+      document.getElementById('tenant-plan').value = 'starter';
+      document.getElementById('tenant-status').value = 'active';
+      document.getElementById('tenant-modal-error').style.display = 'none';
+      const modal = document.getElementById('tenant-modal');
+      modal.style.display = 'flex';
+    }
+
+    function openEditTenantModal(id) {
+      const t = (window._wlTenants || []).find(x => x.id === id);
+      if (!t) return;
+      _editingTenantId = id;
+      document.getElementById('tenant-modal-title').textContent = 'Edit Tenant';
+      document.getElementById('save-tenant-btn').textContent = 'Save Changes';
+      document.getElementById('tenant-modal-id').value = id;
+      document.getElementById('tenant-name').value = t.name || '';
+      document.getElementById('tenant-brand-name').value = t.brand_name || '';
+      document.getElementById('tenant-domain').value = t.domain || '';
+      document.getElementById('tenant-subdomain').value = t.subdomain || '';
+      document.getElementById('tenant-logo-url').value = t.logo_url || '';
+      document.getElementById('tenant-support-email').value = t.support_email || '';
+      document.getElementById('tenant-primary-color').value = t.primary_color || '#C9A227';
+      document.getElementById('tenant-accent-color').value = t.accent_color || '#2CC4B4';
+      document.getElementById('tenant-bg-color').value = t.bg_color || '#12161c';
+      document.getElementById('tenant-plan').value = t.plan || 'starter';
+      document.getElementById('tenant-status').value = t.status || 'active';
+      document.getElementById('tenant-modal-error').style.display = 'none';
+      document.getElementById('tenant-modal').style.display = 'flex';
+    }
+
+    function closeTenantModal() {
+      document.getElementById('tenant-modal').style.display = 'none';
+    }
+
+    async function saveTenant() {
+      const errEl = document.getElementById('tenant-modal-error');
+      errEl.style.display = 'none';
+      const id = document.getElementById('tenant-modal-id').value;
+      const body = {
+        name: document.getElementById('tenant-name').value.trim(),
+        brand_name: document.getElementById('tenant-brand-name').value.trim(),
+        domain: document.getElementById('tenant-domain').value.trim() || null,
+        subdomain: document.getElementById('tenant-subdomain').value.trim() || null,
+        logo_url: document.getElementById('tenant-logo-url').value.trim() || null,
+        support_email: document.getElementById('tenant-support-email').value.trim() || null,
+        primary_color: document.getElementById('tenant-primary-color').value,
+        accent_color: document.getElementById('tenant-accent-color').value,
+        bg_color: document.getElementById('tenant-bg-color').value,
+        plan: document.getElementById('tenant-plan').value,
+        status: document.getElementById('tenant-status').value
+      };
+      if (!body.name || !body.brand_name) { errEl.textContent = 'Internal name and brand name are required.'; errEl.style.display = 'block'; return; }
+      const btn = document.getElementById('save-tenant-btn');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
+      const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
+      try {
+        const url = id ? `/api/admin/white-label/tenants/${id}` : '/api/admin/white-label/tenants';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to save');
+        closeTenantModal();
+        loadedSections['white-label'] = false;
+        await loadWhiteLabelTenants();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled = false; btn.textContent = id ? 'Save Changes' : 'Create Tenant';
+      }
+    }
+
+    async function deactivateTenant(id) {
+      if (!confirm('Suspend this tenant? They will lose access to white-label features.')) return;
+      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
+      const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
+      try {
+        await fetch(`/api/admin/white-label/tenants/${id}`, { method: 'PUT', headers, body: JSON.stringify({ status: 'suspended' }) });
+        loadedSections['white-label'] = false;
+        await loadWhiteLabelTenants();
+      } catch (err) { alert('Error: ' + err.message); }
+    }
+
+    window.loadWhiteLabelTenants = loadWhiteLabelTenants;
+    window.openCreateTenantModal = openCreateTenantModal;
+    window.openEditTenantModal = openEditTenantModal;
+    window.closeTenantModal = closeTenantModal;
+    window.saveTenant = saveTenant;
+    window.deactivateTenant = deactivateTenant;
+
+    // ========== END WHITE-LABEL TENANTS ==========

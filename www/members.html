@@ -3773,6 +3773,46 @@
         </div>
       </div>
 
+      <!-- Developer API Key Management Card (Task #90) -->
+      <div class="card" style="margin-top:24px;" id="developer-api-card">
+        <div class="card-header" style="align-items:flex-start;">
+          <div>
+            <h2 class="card-title">🔑 Developer API Keys</h2>
+            <p style="font-size:0.88rem;color:var(--text-secondary);margin-top:4px;">Use MCC's Automotive AI API to integrate VIN decodes, recall lookups, and OBD analysis into your own apps.</p>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="generateApiKey()" id="generate-key-btn" style="white-space:nowrap;margin-left:auto;">+ Generate Key</button>
+        </div>
+        <div id="api-keys-list" style="margin-top:4px;">
+          <div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">Loading API keys…</div>
+        </div>
+        <div id="new-key-reveal" style="display:none;margin-top:16px;padding:16px;background:var(--accent-green-soft);border-radius:8px;border:1px solid var(--accent-green);">
+          <div style="font-weight:600;color:var(--accent-green);margin-bottom:6px;">✅ New API Key Created — Save it now!</div>
+          <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:8px;">This key will only be shown once. Copy it to a safe place.</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <code id="new-key-value" style="flex:1;background:var(--surface-3);padding:8px 12px;border-radius:6px;font-size:0.85rem;overflow:auto;word-break:break-all;"></code>
+            <button class="btn btn-sm btn-secondary" onclick="copyApiKey()">Copy</button>
+          </div>
+          <button class="btn btn-sm btn-ghost" onclick="document.getElementById('new-key-reveal').style.display='none'" style="margin-top:8px;">Dismiss</button>
+        </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle);">
+          <div style="font-size:0.8rem;color:var(--text-muted);">
+            Endpoints: <code>GET /api/v1/vin/:vin</code> · <code>GET /api/v1/recalls/:vin</code> · <code>POST /api/v1/obd-codes</code> · <code>POST /api/v1/price-estimate</code>
+          </div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Include your key as <code>x-api-key: mcc_...</code> header. AI features require Pro plan.</div>
+        </div>
+      </div>
+
+      <!-- Outreach Engine SaaS Card (Task #91) -->
+      <div class="card" style="margin-top:24px;" id="outreach-saas-card">
+        <div class="card-header">
+          <h2 class="card-title">📡 Outreach Engine</h2>
+          <p style="font-size:0.88rem;color:var(--text-secondary);margin-top:4px;">AI-powered lead discovery and outreach campaigns, scoped to your subscription plan.</p>
+        </div>
+        <div id="outreach-saas-status">
+          <div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">Loading outreach status…</div>
+        </div>
+      </div>
+
       <!-- Danger Zone - Delete Account -->
       <div class="card" style="margin-top:24px;border:1px solid rgba(239,95,95,0.4);background:rgba(239,95,95,0.05);">
         <div class="card-header">
@@ -4560,6 +4600,43 @@
               <span id="fleet-address-display" style="display:flex;align-items:center;gap:6px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></span></span>
               <span id="fleet-tax-id-display" style="display:flex;align-items:center;gap:6px;"></span>
             </div>
+          </div>
+        </div>
+
+        <!-- Fleet Subscription Status Card (Task #88) -->
+        <div id="fleet-subscription-card" class="card" style="margin-bottom:24px;display:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="width:44px;height:44px;background:var(--accent-gold-soft);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;">🚛</div>
+              <div>
+                <div style="font-weight:600;font-size:0.95rem;">Fleet Management Plan</div>
+                <div id="fleet-sub-plan-label" style="font-size:0.82rem;color:var(--text-muted);">Loading…</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+              <div id="fleet-sub-usage" style="font-size:0.82rem;color:var(--text-secondary);"></div>
+              <button class="btn btn-sm btn-secondary" onclick="openSaasPricingModal('fleet')">Manage Plan</button>
+            </div>
+          </div>
+          <div id="fleet-sub-limit-bar" style="margin-top:12px;display:none;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;">
+              <span id="fleet-limit-label">Vehicles used</span>
+              <span id="fleet-limit-pct"></span>
+            </div>
+            <div style="height:6px;background:var(--border-subtle);border-radius:3px;overflow:hidden;">
+              <div id="fleet-limit-bar-fill" style="height:100%;background:var(--accent-gold);border-radius:3px;transition:width 0.4s;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upgrade Banner (shown when near limit) -->
+        <div id="fleet-upgrade-banner" class="card" style="display:none;margin-bottom:24px;background:linear-gradient(135deg, var(--accent-gold-soft), transparent);border:1px solid var(--accent-gold);">
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:220px;">
+              <div style="font-weight:600;color:var(--accent-gold);">⚡ Approaching Your Fleet Limit</div>
+              <div id="fleet-upgrade-msg" style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;"></div>
+            </div>
+            <button class="btn btn-primary" onclick="openSaasPricingModal('fleet')" style="white-space:nowrap;">Upgrade Plan</button>
           </div>
         </div>
 
@@ -7826,6 +7903,231 @@
     window.loadBillingSubscriptions = loadBillingSubscriptions;
     window.subscribeSaasPlan = subscribeSaasPlan;
     window.switchSaasTab = switchSaasTab;
+
+    // ========== FLEET SUBSCRIPTION STATUS (Task #88) ==========
+
+    async function loadFleetSubscription() {
+      const card = document.getElementById('fleet-subscription-card');
+      const banner = document.getElementById('fleet-upgrade-banner');
+      if (!card) return;
+      try {
+        const token = window._currentSession?.access_token;
+        const res = await fetch('/api/fleet/subscription', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+        if (!res.ok) return;
+        const { subscription: sub, plan, limits } = await res.json();
+        card.style.display = 'block';
+        const planEl = document.getElementById('fleet-sub-plan-label');
+        if (!sub || !plan) {
+          if (planEl) planEl.textContent = 'No active fleet plan — features limited to 3 vehicles.';
+          return;
+        }
+        if (planEl) {
+          const planNames = { starter: 'Fleet Starter', pro: 'Fleet Pro', business: 'Fleet Business' };
+          const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000).toLocaleDateString() : null;
+          planEl.innerHTML = `<span style="color:var(--accent-green);font-weight:600;">${planNames[plan] || plan}</span>${periodEnd ? ` · Renews ${periodEnd}` : ''}${sub.cancel_at_period_end ? ' · <span style="color:var(--accent-orange);">Cancels at period end</span>' : ''}`;
+        }
+        if (limits && limits.vehicles > 0) {
+          const barContainer = document.getElementById('fleet-sub-limit-bar');
+          if (barContainer) {
+            barContainer.style.display = 'block';
+            const vehicleCount = parseInt(document.getElementById('fleet-stat-total-vehicles')?.textContent || '0');
+            const pct = limits.vehicles === -1 ? 0 : Math.min(100, Math.round((vehicleCount / limits.vehicles) * 100));
+            const barFill = document.getElementById('fleet-limit-bar-fill');
+            const pctEl = document.getElementById('fleet-limit-pct');
+            const labelEl = document.getElementById('fleet-limit-label');
+            if (barFill) barFill.style.width = `${pct}%`;
+            if (barFill) barFill.style.background = pct >= 90 ? 'var(--accent-red)' : pct >= 70 ? 'var(--accent-orange)' : 'var(--accent-gold)';
+            if (pctEl) pctEl.textContent = limits.vehicles === -1 ? '∞ (Unlimited)' : `${vehicleCount} / ${limits.vehicles}`;
+            if (labelEl) labelEl.textContent = 'Vehicles used';
+            if (pct >= 80 && banner) {
+              banner.style.display = 'block';
+              const msg = document.getElementById('fleet-upgrade-msg');
+              if (msg) msg.textContent = `You've used ${vehicleCount} of ${limits.vehicles} vehicles on your ${plan} plan. Upgrade to expand capacity.`;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Fleet Sub]', err.message);
+      }
+    }
+
+    window.loadFleetSubscription = loadFleetSubscription;
+
+    // ========== DEVELOPER API KEY MANAGEMENT (Task #90) ==========
+
+    async function loadApiKeys() {
+      const listEl = document.getElementById('api-keys-list');
+      if (!listEl) return;
+      try {
+        const token = window._currentSession?.access_token;
+        const res = await fetch('/api/developer/keys', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+        if (!res.ok) {
+          if (res.status === 402) {
+            listEl.innerHTML = `<div style="padding:16px;background:var(--accent-gold-soft);border-radius:8px;border:1px solid var(--accent-gold);">
+              <div style="font-weight:600;color:var(--accent-gold);margin-bottom:4px;">AI API Subscription Required</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:10px;">Subscribe to the Automotive AI API plan to generate API keys and start building.</div>
+              <button class="btn btn-sm btn-primary" onclick="openSaasPricingModal('ai_api')">View AI API Plans →</button>
+            </div>`;
+          } else if (res.status === 401) {
+            listEl.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted);">Sign in to manage API keys.</div>`;
+          }
+          return;
+        }
+        const { keys } = await res.json();
+        if (!keys.length) {
+          listEl.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted);padding:8px 0;">No API keys yet. Generate your first key to start using the Automotive AI API.</div>`;
+          return;
+        }
+        const planColors = { starter: 'var(--accent-blue)', pro: 'var(--accent-teal)', business: '#7c3aed' };
+        listEl.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+            ${keys.map(k => `
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface-3);border-radius:8px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:150px;">
+                  <div style="font-weight:600;font-size:0.9rem;">${k.name}</div>
+                  <div style="font-family:monospace;font-size:0.8rem;color:var(--text-muted);">${k.key_prefix}</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <span style="background:${planColors[k.plan] || '#888'}22;color:${planColors[k.plan] || '#888'};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;">${k.plan}</span>
+                  <span style="font-size:0.8rem;color:var(--text-muted);">${k.calls_made.toLocaleString()} / ${k.calls_limit === -1 ? '∞' : k.calls_limit.toLocaleString()} calls</span>
+                  ${k.last_used_at ? `<span style="font-size:0.78rem;color:var(--text-muted);">Last used ${new Date(k.last_used_at).toLocaleDateString()}</span>` : ''}
+                  <button class="btn btn-sm" style="background:rgba(239,95,95,0.15);color:var(--accent-red);font-size:11px;" onclick="revokeApiKey('${k.id}')">Revoke</button>
+                </div>
+              </div>`).join('')}
+          </div>`;
+      } catch (err) {
+        if (listEl) listEl.innerHTML = `<div style="font-size:0.9rem;color:var(--accent-red);">Failed to load keys: ${err.message}</div>`;
+      }
+    }
+
+    async function generateApiKey() {
+      const btn = document.getElementById('generate-key-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+      try {
+        const token = window._currentSession?.access_token;
+        const name = prompt('Name this API key (e.g., "My App"):', 'My API Key') || 'My API Key';
+        const res = await fetch('/api/developer/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ name })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 402) {
+            alert('An Automotive AI API subscription is required. Click "Explore Plans" to subscribe.');
+            openSaasPricingModal('ai_api');
+          } else {
+            alert(data.error || 'Failed to generate key');
+          }
+          return;
+        }
+        document.getElementById('new-key-value').textContent = data.key.raw_key;
+        document.getElementById('new-key-reveal').style.display = 'block';
+        await loadApiKeys();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '+ Generate Key'; }
+      }
+    }
+
+    async function revokeApiKey(id) {
+      if (!confirm('Revoke this API key? Any apps using it will stop working immediately.')) return;
+      try {
+        const token = window._currentSession?.access_token;
+        const res = await fetch(`/api/developer/keys/${id}`, {
+          method: 'DELETE',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+        await loadApiKeys();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    function copyApiKey() {
+      const key = document.getElementById('new-key-value')?.textContent;
+      if (!key) return;
+      navigator.clipboard.writeText(key).then(() => alert('API key copied to clipboard!')).catch(() => {});
+    }
+
+    window.loadApiKeys = loadApiKeys;
+    window.generateApiKey = generateApiKey;
+    window.revokeApiKey = revokeApiKey;
+    window.copyApiKey = copyApiKey;
+
+    // ========== OUTREACH SAAS STATUS (Task #91) ==========
+
+    async function loadOutreachStatus() {
+      const el = document.getElementById('outreach-saas-status');
+      if (!el) return;
+      try {
+        const token = window._currentSession?.access_token;
+        const res = await fetch('/api/saas/outreach/status', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+        if (!res.ok) {
+          el.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted);padding:8px 0;">Outreach Engine is available as an add-on. <button class="btn btn-sm btn-secondary" onclick="openSaasPricingModal('outreach')" style="margin-left:8px;">View Plans</button></div>`;
+          return;
+        }
+        const d = await res.json();
+        if (!d.subscribed) {
+          el.innerHTML = `
+            <div style="padding:16px;background:linear-gradient(135deg, var(--surface-3), transparent);border-radius:8px;border:1px solid var(--border-subtle);">
+              <div style="font-weight:600;margin-bottom:6px;">Not Subscribed</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">Subscribe to the Outreach Engine to run AI-powered lead discovery and automated campaigns.</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:160px;padding:12px;background:var(--surface-2);border-radius:8px;text-align:center;">
+                  <div style="font-size:1.4rem;font-weight:700;color:var(--accent-teal);">500</div>
+                  <div style="font-size:0.78rem;color:var(--text-muted);">Leads/month · Starter</div>
+                </div>
+                <div style="flex:1;min-width:160px;padding:12px;background:var(--surface-2);border-radius:8px;text-align:center;">
+                  <div style="font-size:1.4rem;font-weight:700;color:var(--accent-gold);">5,000</div>
+                  <div style="font-size:0.78rem;color:var(--text-muted);">Leads/month · Pro</div>
+                </div>
+                <div style="flex:1;min-width:160px;padding:12px;background:var(--surface-2);border-radius:8px;text-align:center;">
+                  <div style="font-size:1.4rem;font-weight:700;color:#7c3aed;">Unlimited</div>
+                  <div style="font-size:0.78rem;color:var(--text-muted);">Leads/month · Business</div>
+                </div>
+              </div>
+              <button class="btn btn-primary" onclick="openSaasPricingModal('outreach')" style="margin-top:12px;width:100%;">Subscribe to Outreach Engine →</button>
+            </div>`;
+          return;
+        }
+        const pct = d.pct_used || 0;
+        const barColor = pct >= 90 ? 'var(--accent-red)' : pct >= 70 ? 'var(--accent-orange)' : 'var(--accent-teal)';
+        const leadsLimit = d.limits?.leads_per_month;
+        el.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+            <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-teal);">${d.current.leads_this_month.toLocaleString()}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">Leads this month</div>
+            </div>
+            <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-gold);">${leadsLimit === -1 ? '∞' : leadsLimit?.toLocaleString() || '—'}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">Monthly limit</div>
+            </div>
+          </div>
+          ${leadsLimit !== -1 ? `
+          <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;">
+              <span>Lead usage</span><span>${pct}% used</span>
+            </div>
+            <div style="height:6px;background:var(--border-subtle);border-radius:3px;overflow:hidden;">
+              <div style="height:100%;background:${barColor};width:${pct}%;border-radius:3px;transition:width 0.4s;"></div>
+            </div>
+          </div>` : ''}
+          ${pct >= 80 ? `<div style="padding:10px 14px;background:var(--accent-gold-soft);border-radius:8px;border:1px solid var(--accent-gold);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:0.85rem;color:var(--accent-gold);font-weight:500;">⚡ Approaching monthly limit</span>
+            <button class="btn btn-sm btn-primary" onclick="openSaasPricingModal('outreach')">Upgrade Plan</button>
+          </div>` : ''}`;
+      } catch (err) {
+        if (el) el.innerHTML = `<div style="font-size:0.9rem;color:var(--accent-red);">Failed to load: ${err.message}</div>`;
+      }
+    }
+
+    window.loadOutreachStatus = loadOutreachStatus;
+
+    // ========== END SaaS UI TASKS ==========
   </script>
 </body>
 </html>

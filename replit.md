@@ -35,6 +35,12 @@ Key architectural patterns and features include:
 - **Referral & Commission System**: Founder referral program with lifetime commissions and instant payouts.
 - **Payout Management**: Comprehensive payout management for founders, including multiple methods and a Tax Center.
 - **Payment System**: Escrow payment system using Stripe Connect for marketplace transactions, supporting manual capture, additional work requests, provider discounts, post-capture refunds, and split payments.
+- **SaaS Billing Foundation**: `SAAS_PLANS` config (5 product lines × 3 tiers each), `checkPlanAccess()` helper, `saas_subscriptions` table, Stripe webhook handling for subscription lifecycle events, 6 `/api/saas/*` endpoints + `/api/admin/saas/subscriptions`, SaaS pricing modal + billing card in members.html.
+- **White-label Platform (#87)**: `white_label_tenants` table with custom domain, branding colors, logo, and plan limits. CRUD `/api/admin/white-label/tenants` endpoints. Admin dashboard section with tenant management UI + create/edit modal. `GET /api/white-label/config` returns branding for custom domains.
+- **Fleet SaaS (#88)**: Subscription status card + vehicle limit usage bar in fleet dashboard. Upgrade banner when near tier limit. `GET /api/fleet/subscription` and `POST /api/fleet/check-limits` endpoints with plan-based vehicle/driver limits (Starter: 10/5, Pro: 50/25, Business: unlimited).
+- **Provider Shop SaaS (#89)**: Shop subscription status card in providers.html subscription section. Feature gating badges for SMS Reminders, Advanced Analytics, Car Club Loyalty. Upgrade prompt when on Starter plan.
+- **Automotive AI API (#90)**: `developer_api_keys` table with SHA-256 key hashing. `POST/GET/DELETE /api/developer/keys` for key management. API key dashboard in members.html settings with one-time key reveal. Public AI API endpoints: `GET /api/v1/vin/:vin`, `GET /api/v1/recalls/:vin`, `POST /api/v1/obd-codes` (Pro+), `POST /api/v1/price-estimate`. Rate limiting by plan (Starter: 5K/mo, Pro: 50K/mo, Business: unlimited).
+- **Outreach Engine SaaS (#91)**: `GET /api/saas/outreach/status` with plan-based lead limits (Starter: 500/mo, Pro: 5K/mo, Business: unlimited). Outreach SaaS status card in members.html settings with usage bar, monthly lead count, and upgrade prompt.
 - **Job Workflow**: Member QR check-in for active jobs, provider confirmation.
 - **Analytics**: Provider and Admin dashboards with Chart.js.
 - **Security**: API Rate Limiting and Login Activity Log.

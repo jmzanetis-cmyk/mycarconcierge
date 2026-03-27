@@ -588,6 +588,7 @@
 
       <div class="nav-label">Revenue</div>
       <div class="nav-item" data-section="saas-subscriptions"><span class="icon-inline" data-icon="layers"></span> SaaS Subscriptions</div>
+      <div class="nav-item" data-section="white-label"><span class="icon-inline" data-icon="globe"></span> White-label Tenants</div>
 
       <div class="nav-label">System</div>
       <div class="nav-item" data-section="sms-log"><span class="icon-inline" data-icon="message-circle"></span> SMS Log</div>
@@ -4147,6 +4148,69 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
         </div>
       </div>
     </section>
+
+    <!-- White-label Tenants Section (Task #87) -->
+    <section id="white-label" class="section">
+      <div class="section-title-bar">
+        <h2>White-label Tenants</h2>
+        <p class="section-subtitle">Manage branded platform instances for enterprise clients</p>
+        <button class="btn btn-primary" onclick="openCreateTenantModal()" style="margin-left:auto;"><span class="icon-inline" data-icon="plus"></span> New Tenant</button>
+      </div>
+      <div id="white-label-stats" class="stats-grid" style="margin-bottom:24px;"></div>
+      <div id="white-label-content">
+        <div style="padding:48px;text-align:center;color:var(--text-muted);">Loading…</div>
+      </div>
+    </section>
+
+    <!-- Create / Edit Tenant Modal -->
+    <div id="tenant-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9000;align-items:center;justify-content:center;">
+      <div style="background:var(--surface-2);border-radius:16px;padding:32px;width:min(560px,95vw);max-height:90vh;overflow-y:auto;position:relative;">
+        <button onclick="closeTenantModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
+        <h3 id="tenant-modal-title" style="margin:0 0 20px;">New White-label Tenant</h3>
+        <div style="display:grid;gap:14px;">
+          <input type="hidden" id="tenant-modal-id">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div><label class="form-label">Internal Name *</label><input id="tenant-name" class="form-control" placeholder="Acme Auto Platform"></div>
+            <div><label class="form-label">Brand Name *</label><input id="tenant-brand-name" class="form-control" placeholder="Acme Auto"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div><label class="form-label">Custom Domain</label><input id="tenant-domain" class="form-control" placeholder="app.acmeauto.com"></div>
+            <div><label class="form-label">Subdomain</label><input id="tenant-subdomain" class="form-control" placeholder="acme"></div>
+          </div>
+          <div><label class="form-label">Logo URL</label><input id="tenant-logo-url" class="form-control" placeholder="https://..."></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+            <div><label class="form-label">Primary Color</label><input id="tenant-primary-color" type="color" class="form-control" value="#C9A227" style="height:42px;padding:4px;"></div>
+            <div><label class="form-label">Accent Color</label><input id="tenant-accent-color" type="color" class="form-control" value="#2CC4B4" style="height:42px;padding:4px;"></div>
+            <div><label class="form-label">Background Color</label><input id="tenant-bg-color" type="color" class="form-control" value="#12161c" style="height:42px;padding:4px;"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div><label class="form-label">Support Email</label><input id="tenant-support-email" class="form-control" placeholder="support@acmeauto.com"></div>
+            <div>
+              <label class="form-label">Plan</label>
+              <select id="tenant-plan" class="form-control">
+                <option value="starter">Starter — 500 members, 50 providers</option>
+                <option value="pro">Pro — 5,000 members, 500 providers</option>
+                <option value="business">Business — Unlimited</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="form-label">Status</label>
+            <select id="tenant-status" class="form-control">
+              <option value="active">Active</option>
+              <option value="pending">Pending Setup</option>
+              <option value="suspended">Suspended</option>
+              <option value="canceled">Canceled</option>
+            </select>
+          </div>
+          <div id="tenant-modal-error" style="color:var(--accent-red);font-size:13px;display:none;"></div>
+          <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:8px;">
+            <button class="btn btn-secondary" onclick="closeTenantModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveTenant()" id="save-tenant-btn">Create Tenant</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <section id="saas-subscriptions" class="section">
       <div class="section-title-bar">

@@ -38726,6 +38726,508 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
   // ========== END SAAS BILLING ROUTES ==========
 
+  // ========== WHITE-LABEL PLATFORM ROUTES (Task #87) ==========
+
+  // GET /api/white-label/config — return branding config for current domain (public)
+  if (req.method === 'GET' && req.url === '/api/white-label/config') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const hostname = req.headers.host?.split(':')[0] || '';
+    const supabase = getSupabaseClient();
+    try {
+      let tenant = null;
+      if (supabase && hostname && !['localhost', '0.0.0.0', 'replit.app'].some(h => hostname.includes(h))) {
+        const { data } = await supabase
+          .from('white_label_tenants')
+          .select('brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, support_email, custom_css, plan')
+          .or(`domain.eq.${hostname},subdomain.eq.${hostname.split('.')[0]}`)
+          .eq('status', 'active')
+          .maybeSingle();
+        tenant = data;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' });
+      res.end(JSON.stringify({ tenant: tenant || null, is_white_label: !!tenant }));
+    } catch (err) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ tenant: null, is_white_label: false }));
+    }
+    return;
+  }
+
+  // GET /api/admin/white-label/tenants — list all white-label tenants
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/white-label/tenants')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _adminToken = req.headers['x-admin-token'];
+    const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+    if (!_validAdmin) {
+      const _adminUser = await authenticateRequest(req);
+      if (!_adminUser) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const _adminSupa = getSupabaseClient();
+      const { data: _adminProfile } = await _adminSupa.from('profiles').select('role').eq('id', _adminUser.id).single();
+      if (!_adminProfile || !['admin','super_admin'].includes(_adminProfile.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+    }
+    const supabase = getSupabaseClient();
+    try {
+      const { data, error } = await supabase
+        .from('white_label_tenants')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ tenants: data || [] }));
+    } catch (err) {
+      console.error(`[${requestId}] WL tenants list error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load tenants' }));
+    }
+    return;
+  }
+
+  // POST /api/admin/white-label/tenants — create white-label tenant
+  if (req.method === 'POST' && req.url === '/api/admin/white-label/tenants') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _adminToken = req.headers['x-admin-token'];
+    const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+    if (!_validAdmin) {
+      const _adminUser = await authenticateRequest(req);
+      if (!_adminUser) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const _adminSupa = getSupabaseClient();
+      const { data: _adminProfile } = await _adminSupa.from('profiles').select('role').eq('id', _adminUser.id).single();
+      if (!_adminProfile || !['admin','super_admin'].includes(_adminProfile.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+    }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { name, brand_name, domain, subdomain, logo_url, primary_color, accent_color, bg_color, support_email, plan, max_members, max_providers } = body;
+      if (!name || !brand_name) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'name and brand_name required' })); return;
+      }
+      const planLimits = { starter: { max_members: 500, max_providers: 50 }, pro: { max_members: 5000, max_providers: 500 }, business: { max_members: -1, max_providers: -1 } };
+      const limits = planLimits[plan || 'starter'];
+      const { data, error } = await supabase.from('white_label_tenants').insert({
+        name, brand_name, domain: domain || null, subdomain: subdomain || null,
+        logo_url, primary_color: primary_color || '#C9A227', accent_color: accent_color || '#2CC4B4',
+        bg_color: bg_color || '#12161c', support_email, plan: plan || 'starter', status: 'active',
+        max_members: max_members || limits.max_members, max_providers: max_providers || limits.max_providers
+      }).select().single();
+      if (error) throw error;
+      console.log(`[${requestId}] White-label tenant created: ${data.id} (${brand_name})`);
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ tenant: data }));
+    } catch (err) {
+      console.error(`[${requestId}] WL tenant create error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: err.message || 'Failed to create tenant' }));
+    }
+    return;
+  }
+
+  // PUT /api/admin/white-label/tenants/:id — update white-label tenant
+  if (req.method === 'PUT' && req.url.startsWith('/api/admin/white-label/tenants/')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _adminToken = req.headers['x-admin-token'];
+    const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+    if (!_validAdmin) {
+      const _adminUser = await authenticateRequest(req);
+      if (!_adminUser) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const _adminSupa = getSupabaseClient();
+      const { data: _adminProfile } = await _adminSupa.from('profiles').select('role').eq('id', _adminUser.id).single();
+      if (!_adminProfile || !['admin','super_admin'].includes(_adminProfile.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+    }
+    const tenantId = req.url.split('/api/admin/white-label/tenants/')[1]?.split('?')[0];
+    if (!tenantId) { res.writeHead(400); res.end(JSON.stringify({ error: 'Tenant ID required' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const allowed = ['name','brand_name','domain','subdomain','logo_url','favicon_url','primary_color','accent_color','bg_color','support_email','support_phone','plan','status','max_members','max_providers','custom_css','features'];
+      const updateData = { updated_at: new Date().toISOString() };
+      for (const key of allowed) { if (body[key] !== undefined) updateData[key] = body[key]; }
+      const { data, error } = await supabase.from('white_label_tenants').update(updateData).eq('id', tenantId).select().single();
+      if (error) throw error;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ tenant: data }));
+    } catch (err) {
+      console.error(`[${requestId}] WL tenant update error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update tenant' }));
+    }
+    return;
+  }
+
+  // DELETE /api/admin/white-label/tenants/:id — deactivate (soft delete) tenant
+  if (req.method === 'DELETE' && req.url.startsWith('/api/admin/white-label/tenants/')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _adminToken = req.headers['x-admin-token'];
+    const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+    if (!_validAdmin) {
+      const _adminUser = await authenticateRequest(req);
+      if (!_adminUser) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const _adminSupa = getSupabaseClient();
+      const { data: _adminProfile } = await _adminSupa.from('profiles').select('role').eq('id', _adminUser.id).single();
+      if (!_adminProfile || !['admin','super_admin'].includes(_adminProfile.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+    }
+    const tenantId = req.url.split('/api/admin/white-label/tenants/')[1]?.split('?')[0];
+    const supabase = getSupabaseClient();
+    try {
+      const { error } = await supabase.from('white_label_tenants').update({ status: 'canceled', updated_at: new Date().toISOString() }).eq('id', tenantId);
+      if (error) throw error;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error(`[${requestId}] WL tenant delete error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to deactivate tenant' }));
+    }
+    return;
+  }
+
+  // ========== END WHITE-LABEL ROUTES ==========
+
+  // ========== FLEET SAAS LIMIT CHECK (Task #88) ==========
+
+  // POST /api/fleet/check-limits — check current fleet plan limits
+  if (req.method === 'POST' && req.url === '/api/fleet/check-limits') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { fleet_id } = body;
+      const planLimits = { starter: { vehicles: 10, drivers: 5 }, pro: { vehicles: 50, drivers: 25 }, business: { vehicles: -1, drivers: -1 } };
+
+      const access = await checkPlanAccess(user.id, 'fleet', 'starter');
+      const plan = access.plan || 'none';
+      const limits = planLimits[plan] || { vehicles: 0, drivers: 0 };
+
+      let vehicleCount = 0, driverCount = 0;
+      if (fleet_id && supabase) {
+        const [vRes, dRes] = await Promise.all([
+          supabase.from('fleet_vehicles').select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id),
+          supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id).eq('fleet_role', 'driver')
+        ]);
+        vehicleCount = vRes.count || 0;
+        driverCount = dRes.count || 0;
+      }
+
+      const canAddVehicle = limits.vehicles === -1 || vehicleCount < limits.vehicles;
+      const canAddDriver = limits.drivers === -1 || driverCount < limits.drivers;
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        plan, limits, current: { vehicles: vehicleCount, drivers: driverCount },
+        can_add_vehicle: canAddVehicle, can_add_driver: canAddDriver,
+        subscribed: access.access,
+        upgrade_url: access.upgrade_url || '/members.html?section=settings'
+      }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet limits error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to check limits' }));
+    }
+    return;
+  }
+
+  // GET /api/fleet/subscription — fleet subscription status for dashboard
+  if (req.method === 'GET' && req.url === '/api/fleet/subscription') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: sub } = await supabase
+        .from('saas_subscriptions')
+        .select('plan, status, current_period_end, cancel_at_period_end')
+        .eq('user_id', user.id)
+        .eq('product', 'fleet')
+        .in('status', ['active', 'trialing'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const planLimits = { starter: { vehicles: 10, drivers: 5 }, pro: { vehicles: 50, drivers: 25 }, business: { vehicles: -1, drivers: -1 } };
+      const plan = sub?.plan || null;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ subscription: sub || null, plan, limits: plan ? planLimits[plan] : null }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load fleet subscription' }));
+    }
+    return;
+  }
+
+  // ========== END FLEET SAAS ROUTES ==========
+
+  // ========== DEVELOPER AI API (Task #90) ==========
+
+  // GET /api/developer/keys — list user's API keys
+  if (req.method === 'GET' && req.url === '/api/developer/keys') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: keys, error } = await supabase
+        .from('developer_api_keys')
+        .select('id, name, key_prefix, plan, status, calls_made, calls_limit, last_used_at, created_at')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ keys: keys || [] }));
+    } catch (err) {
+      console.error(`[${requestId}] API keys list error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load API keys' }));
+    }
+    return;
+  }
+
+  // POST /api/developer/keys — generate a new API key
+  if (req.method === 'POST' && req.url === '/api/developer/keys') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    const access = await checkPlanAccess(user.id, 'ai_api', 'starter');
+    if (!access.access) {
+      res.writeHead(402, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'AI API subscription required', upgrade_url: '/members.html?section=settings' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { name = 'My API Key' } = body;
+
+      const rawKey = 'mcc_' + crypto.randomBytes(32).toString('base64url');
+      const keyPrefix = rawKey.substring(0, 12) + '...';
+      const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
+      const planLimits = { starter: 5000, pro: 50000, business: -1 };
+      const callsLimit = planLimits[access.plan] || 5000;
+
+      const { data: key, error } = await supabase.from('developer_api_keys').insert({
+        user_id: user.id, name, key_prefix: keyPrefix, key_hash: keyHash,
+        plan: access.plan, calls_limit: callsLimit, status: 'active'
+      }).select('id, name, key_prefix, plan, status, calls_made, calls_limit, created_at').single();
+
+      if (error) throw error;
+
+      console.log(`[${requestId}] API key created for user ${user.id}: ${key.id}`);
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ key: { ...key, raw_key: rawKey }, message: 'Save this key — it will only be shown once.' }));
+    } catch (err) {
+      console.error(`[${requestId}] API key create error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to create API key' }));
+    }
+    return;
+  }
+
+  // DELETE /api/developer/keys/:id — revoke an API key
+  if (req.method === 'DELETE' && req.url.startsWith('/api/developer/keys/')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const keyId = req.url.split('/api/developer/keys/')[1]?.split('?')[0];
+    const supabase = getSupabaseClient();
+    try {
+      const { error } = await supabase.from('developer_api_keys')
+        .update({ status: 'revoked', updated_at: new Date().toISOString() })
+        .eq('id', keyId).eq('user_id', user.id);
+      if (error) throw error;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error(`[${requestId}] API key revoke error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to revoke key' }));
+    }
+    return;
+  }
+
+  // Public AI API v1 endpoints (authenticated by API key)
+  if (req.url.startsWith('/api/v1/')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+
+    const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+    if (!apiKey || !apiKey.startsWith('mcc_')) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Valid API key required. Get one at mycarconcierge.com/members.html' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    let apiKeyRecord = null;
+    try {
+      const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+      const { data } = await supabase.from('developer_api_keys')
+        .select('id, user_id, plan, status, calls_made, calls_limit')
+        .eq('key_hash', keyHash).eq('status', 'active').maybeSingle();
+      apiKeyRecord = data;
+    } catch (e) { /* fallthrough to 401 */ }
+
+    if (!apiKeyRecord) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid or revoked API key' }));
+      return;
+    }
+
+    if (apiKeyRecord.calls_limit !== -1 && apiKeyRecord.calls_made >= apiKeyRecord.calls_limit) {
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Monthly call limit exceeded. Please upgrade your plan.' }));
+      return;
+    }
+
+    // Increment usage counter async
+    supabase.from('developer_api_keys').update({ calls_made: apiKeyRecord.calls_made + 1, last_used_at: new Date().toISOString() }).eq('id', apiKeyRecord.id).then(() => {}).catch(() => {});
+
+    // Route the actual API call
+    const v1Path = req.url.split('/api/v1/')[1]?.split('?')[0];
+
+    // GET /api/v1/vin/:vin — VIN decode
+    if (req.method === 'GET' && v1Path?.startsWith('vin/')) {
+      const vin = v1Path.split('vin/')[1];
+      if (!vin || vin.length < 17) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid VIN (must be 17 characters)' })); return;
+      }
+      try {
+        const nhtsa = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/${vin}?format=json`);
+        const nhtsaData = await nhtsa.json();
+        const results = nhtsaData.Results || [];
+        const get = (v) => results.find(r => r.Variable === v)?.Value || null;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          vin,
+          year: get('Model Year'), make: get('Make'), model: get('Model'),
+          trim: get('Trim'), body_class: get('Body Class'), drive_type: get('Drive Type'),
+          fuel_type: get('Fuel Type - Primary'), engine: get('Engine Number of Cylinders'),
+          transmission: get('Transmission Style'), plant_country: get('Plant Country'),
+          source: 'NHTSA vPIC'
+        }));
+      } catch (e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'VIN decode failed' }));
+      }
+      return;
+    }
+
+    // GET /api/v1/recalls/:vin — NHTSA recall lookup
+    if (req.method === 'GET' && v1Path?.startsWith('recalls/')) {
+      const vin = v1Path.split('recalls/')[1];
+      try {
+        const recallRes = await fetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?vin=${vin}`);
+        const recallData = await recallRes.json();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ vin, recalls: recallData.results || [], count: recallData.count || 0, source: 'NHTSA' }));
+      } catch (e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Recall lookup failed' }));
+      }
+      return;
+    }
+
+    // POST /api/v1/obd-codes — OBD code analysis
+    if (req.method === 'POST' && v1Path === 'obd-codes') {
+      const planRequired = 'pro';
+      if (['starter'].includes(apiKeyRecord.plan)) {
+        res.writeHead(402); res.end(JSON.stringify({ error: 'OBD analysis requires AI Pro plan or higher' })); return;
+      }
+      try {
+        const body = await getRequestBody(req);
+        const { codes = [], vehicle } = body;
+        if (!codes.length) { res.writeHead(400); res.end(JSON.stringify({ error: 'codes array required' })); return; }
+        const Anthropic = require('@anthropic-ai/sdk');
+        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+        const prompt = `You are an expert automotive diagnostic technician. Analyze these OBD-II codes${vehicle ? ` for a ${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}` : ''}: ${codes.join(', ')}. For each code provide: description, severity (1-10), likely causes (top 3), recommended actions, estimated repair cost range in USD. Return JSON: {"codes": [{"code":"...","description":"...","severity":5,"causes":[],"actions":[],"cost_estimate":"$X-$Y"}]}`;
+        const response = await anthropic.messages.create({ model: 'claude-3-haiku-20240307', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] });
+        const text = response.content?.[0]?.text || '{}';
+        let parsed;
+        try { const m = text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : text); } catch { parsed = { raw: text }; }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...parsed, powered_by: 'MCC AI API' }));
+      } catch (e) {
+        console.error(`[${requestId}] OBD API error:`, e.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'OBD analysis failed' }));
+      }
+      return;
+    }
+
+    // POST /api/v1/price-estimate — fair price estimate
+    if (req.method === 'POST' && v1Path === 'price-estimate') {
+      try {
+        const body = await getRequestBody(req);
+        const { category, zip_code, vehicle } = body;
+        if (!category) { res.writeHead(400); res.end(JSON.stringify({ error: 'category required' })); return; }
+        const lookupRes = await fetch(`http://localhost:${process.env.PORT || 5000}/api/fair-price?category=${encodeURIComponent(category)}&zip=${zip_code || ''}`);
+        const lookupData = lookupRes.ok ? await lookupRes.json() : {};
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ category, zip_code, vehicle, ...lookupData, powered_by: 'MCC AI API' }));
+      } catch (e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Price estimate failed' }));
+      }
+      return;
+    }
+
+    // Unknown v1 endpoint
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unknown API endpoint', docs: 'https://mycarconcierge.com/api-docs' }));
+    return;
+  }
+
+  // ========== END DEVELOPER AI API ==========
+
+  // ========== OUTREACH SAAS STATUS (Task #91) ==========
+
+  // GET /api/saas/outreach/status — outreach usage summary for current user
+  if (req.method === 'GET' && req.url === '/api/saas/outreach/status') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const access = await checkPlanAccess(user.id, 'outreach', 'starter');
+      const planLimits = { starter: 500, pro: 5000, business: -1 };
+      const leadsLimit = access.plan ? planLimits[access.plan] : 0;
+
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      let leadsThisMonth = 0;
+      if (supabase && access.access) {
+        const { count } = await supabase.from('outreach_leads')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', monthStart);
+        leadsThisMonth = count || 0;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        subscribed: access.access,
+        plan: access.plan || null,
+        limits: { leads_per_month: leadsLimit },
+        current: { leads_this_month: leadsThisMonth },
+        upgrade_url: access.upgrade_url || null,
+        pct_used: leadsLimit > 0 ? Math.round((leadsThisMonth / leadsLimit) * 100) : 0
+      }));
+    } catch (err) {
+      console.error(`[${requestId}] Outreach SaaS status error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load outreach status' }));
+    }
+    return;
+  }
+
+  // ========== END OUTREACH SAAS ==========
+
   // Apple Pay domain verification file
   if (req.method === 'GET' && req.url === '/.well-known/apple-developer-merchantid-domain-association') {
     const verificationFile = './.well-known/apple-developer-merchantid-domain-association';

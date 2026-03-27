@@ -413,7 +413,8 @@
         const user = await getCurrentUser();
         if (!user) return window.location.href = 'login.html';
         currentUser = user;
-        
+        supabaseClient.auth.getSession().then(({ data }) => { if (data.session) window._currentSession = data.session; });
+
         // Check 2FA authorization before loading dashboard
         const authorized = await checkAccessAuthorization();
         if (!authorized) return;
@@ -5446,6 +5447,9 @@
       if (sectionId === 'settings') {
         initPushNotifications();
         loadLoginActivity();
+        if (typeof window.loadBillingSubscriptions === 'function') window.loadBillingSubscriptions();
+        if (typeof window.loadApiKeys === 'function') window.loadApiKeys();
+        if (typeof window.loadOutreachStatus === 'function') window.loadOutreachStatus();
       }
       if (sectionId === 'order-history') {
         loadOrderHistory();
@@ -12281,6 +12285,7 @@
         document.getElementById('fleet-no-fleet').style.display = 'none';
         document.getElementById('fleet-dashboard').style.display = 'block';
         await loadFleetDetails(currentFleet.id);
+        if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
       } else {
         document.getElementById('fleet-no-fleet').style.display = 'block';
         document.getElementById('fleet-dashboard').style.display = 'none';
