@@ -10501,7 +10501,7 @@
           headers: { 'x-admin-token': window.__adminToken || '' }
         });
 
-        const { subscriptions = [], stats = {}, by_product = {} } = resp;
+        const { subscriptions = [], stats = {}, by_product = {}, recent_churns = [] } = resp;
 
         const productLabels = {
           fleet: 'Fleet Management', shop: 'Provider Shop', ai_api: 'AI API',
@@ -10535,7 +10535,38 @@
               <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Est. MRR</div>
               <div style="font-size:1.8rem;font-weight:700;color:var(--accent-gold);">$${stats.mrr_dollars || '0.00'}</div>
             </div>
+            <div class="stat-card" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Churned (30d)</div>
+              <div style="font-size:1.8rem;font-weight:700;color:var(--accent-orange);">${stats.recent_churns || 0}</div>
+            </div>
           </div>
+
+          ${recent_churns.length > 0 ? `
+          <div style="margin-bottom:24px;">
+            <div style="font-weight:600;margin-bottom:10px;color:var(--accent-orange);">Recent Churns (Last 30 Days)</div>
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                <thead>
+                  <tr style="background:var(--bg-input);">
+                    <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:500;">User</th>
+                    <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Product</th>
+                    <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Plan</th>
+                    <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Canceled At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${recent_churns.map(c => `
+                    <tr style="border-top:1px solid var(--border-subtle);">
+                      <td style="padding:8px 12px;color:var(--text-muted);">${c.user_id?.slice(0,8)}…</td>
+                      <td style="padding:8px 12px;font-weight:500;">${{ fleet: 'Fleet', shop: 'Shop', ai_api: 'AI API', outreach: 'Outreach', white_label: 'White-label' }[c.product] || c.product}</td>
+                      <td style="padding:8px 12px;text-transform:capitalize;">${c.plan}</td>
+                      <td style="padding:8px 12px;color:var(--text-muted);">${new Date(c.canceled_at).toLocaleDateString()}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>` : ''}
 
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:28px;">
             ${Object.entries(by_product).map(([product, counts]) => `

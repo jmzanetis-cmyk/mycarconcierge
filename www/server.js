@@ -5968,7 +5968,19 @@ async function handleSaasSubscriptionWebhook(event, supabase, requestId) {
   }
 
   if (!userId) {
-    console.log(`[${requestId}] SaaS webhook: cannot find user for customer ${customerId}`);
+    // Final fallback: look up via profiles table (stripe_customer_id stored at checkout)
+    const { data: custProfile } = await supabase
+      .from('saas_subscriptions')
+      .select('user_id')
+      .eq('stripe_customer_id', customerId)
+      .not('user_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+    userId = custProfile?.user_id;
+  }
+  if (!userId) {
+    // Last resort: look up stripe_customer metadata in Stripe (via Supabase stripe_customers if exists)
+    console.log(`[${requestId}] SaaS webhook: cannot find user for Stripe customer ${customerId}. Ensure checkout.session.completed is also registered in webhook. Skipping.`);
     return;
   }
 
@@ -11931,6 +11943,59 @@ async function handleStripeWebhook(req, res, requestId) {
           }
         } catch (clubMerchErr) {
           console.error(`[${requestId}] Error updating club merch order:`, clubMerchErr.message);
+        }
+      } else if (metadata.type === 'saas_subscription') {
+        // SaaS subscription checkout completed — seed user/customer identity BEFORE subscription.created fires
+        console.log(`[${requestId}] SaaS subscription checkout completed: ${session.id}`);
+        try {
+          const supabase = getSupabaseClient();
+          const userId = metadata.mcc_user_id;
+          const product = metadata.product;
+          const plan = metadata.plan;
+          const customerId = session.customer;
+          const subscriptionId = session.subscription;
+          if (supabase && userId && product && plan) {
+            // Seed the saas_subscriptions record so webhook events can find the user
+            const { data: existing } = await supabase
+              .from('saas_subscriptions')
+              .select('id')
+              .eq('user_id', userId)
+              .eq('product', product)
+              .maybeSingle();
+            const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+            if (!existing) {
+              await supabase.from('saas_subscriptions').insert({
+                user_id: userId, product, plan, status: 'active',
+                stripe_customer_id: customerId, stripe_subscription_id: subscriptionId,
+                current_period_end: periodEnd,
+                created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+              });
+              console.log(`[${requestId}] SaaS subscription seeded: user=${userId} product=${product} plan=${plan}`);
+            } else {
+              await supabase.from('saas_subscriptions').update({
+                stripe_customer_id: customerId, stripe_subscription_id: subscriptionId,
+                plan, status: 'active', current_period_end: periodEnd, updated_at: new Date().toISOString()
+              }).eq('id', existing.id);
+              console.log(`[${requestId}] SaaS subscription updated at checkout: ${existing.id}`);
+            }
+
+            // Post-checkout entity updates: stamp plan onto relevant records
+            const planExpiresAt = periodEnd;
+            if (product === 'fleet') {
+              await supabase.from('profiles').update({ fleet_plan: plan, fleet_plan_expires_at: planExpiresAt }).eq('id', userId).then(() => {});
+            } else if (product === 'shop') {
+              await supabase.from('providers').update({ shop_plan: plan, shop_plan_expires_at: planExpiresAt }).eq('user_id', userId).then(() => {});
+            } else if (product === 'white_label') {
+              await supabase.from('profiles').update({ white_label_plan: plan, white_label_plan_expires_at: planExpiresAt }).eq('id', userId).then(() => {});
+            } else if (product === 'ai_api') {
+              await supabase.from('profiles').update({ api_plan: plan, api_plan_expires_at: planExpiresAt }).eq('id', userId).then(() => {});
+            } else if (product === 'outreach') {
+              await supabase.from('profiles').update({ outreach_plan: plan, outreach_plan_expires_at: planExpiresAt }).eq('id', userId).then(() => {});
+            }
+            console.log(`[${requestId}] Post-checkout entity updated: product=${product} plan=${plan} user=${userId}`);
+          }
+        } catch (saasCheckoutErr) {
+          console.error(`[${requestId}] SaaS checkout seed error:`, saasCheckoutErr.message);
         }
       } else {
         const providerId = metadata.provider_id;
@@ -38532,8 +38597,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     return;
   }
 
-  // GET /api/saas/subscription/status — current user's subscriptions
-  if (req.method === 'GET' && req.url === '/api/saas/subscription/status') {
+  // GET /api/saas/subscription/status — current user's subscriptions (supports ?product= filter)
+  if (req.method === 'GET' && req.url.startsWith('/api/saas/subscription/status')) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
     const user = await authenticateRequest(req);
@@ -38541,20 +38606,31 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     const supabase = getSupabaseClient();
     if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB unavailable' })); return; }
     try {
-      const { data: subs, error } = await supabase
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const productFilter = parsedUrl.searchParams.get('product');
+
+      let query = supabase
         .from('saas_subscriptions')
         .select('id, product, plan, status, current_period_end, cancel_at_period_end, trial_end, stripe_customer_id')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
+      if (productFilter) query = query.eq('product', productFilter);
+
+      const { data: subs, error } = await query;
       if (error) throw error;
+
+      // Build keyed object (for members.html) — prefer active/trialing over older records
       const byProduct = {};
       for (const s of (subs || [])) {
         if (!byProduct[s.product] || ['active', 'trialing'].includes(s.status)) {
           byProduct[s.product] = s;
         }
       }
+      // Also return as array (for providers.js .find() pattern)
+      const subscriptions = Object.values(byProduct);
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ subscriptions: byProduct }));
+      res.end(JSON.stringify({ subscriptions, by_product: byProduct }));
     } catch (err) {
       console.error(`[${requestId}] SaaS status error:`, err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load subscriptions' }));
@@ -38700,14 +38776,23 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         .limit(500);
       if (error) throw error;
 
-      const stats = { total: 0, active: 0, trialing: 0, canceled: 0, past_due: 0, mrr: 0 };
+      const stats = { total: 0, active: 0, trialing: 0, canceled: 0, past_due: 0, mrr: 0, recent_churns: 0 };
       const byProduct = {};
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const recentChurns = [];
       for (const s of (subs || [])) {
         stats.total++;
         stats[s.status] = (stats[s.status] || 0) + 1;
         if (['active', 'trialing'].includes(s.status)) {
           const tierConfig = SAAS_PLANS[s.product]?.tiers?.[s.plan];
           if (tierConfig) stats.mrr += tierConfig.price_monthly;
+        }
+        if (s.status === 'canceled') {
+          const cancelDate = s.updated_at ? new Date(s.updated_at) : null;
+          if (cancelDate && cancelDate >= thirtyDaysAgo) {
+            stats.recent_churns++;
+            recentChurns.push({ id: s.id, user_id: s.user_id, product: s.product, plan: s.plan, canceled_at: s.updated_at });
+          }
         }
         if (!byProduct[s.product]) byProduct[s.product] = { active: 0, trialing: 0, canceled: 0, total: 0 };
         byProduct[s.product].total++;
@@ -38716,7 +38801,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       stats.mrr_dollars = (stats.mrr / 100).toFixed(2);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ subscriptions: subs, stats, by_product: byProduct }));
+      res.end(JSON.stringify({ subscriptions: subs, stats, by_product: byProduct, recent_churns: recentChurns }));
     } catch (err) {
       console.error(`[${requestId}] Admin SaaS subscriptions error:`, err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load subscriptions' }));
@@ -39206,6 +39291,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       if (supabase && access.access) {
         const { count } = await supabase.from('outreach_leads')
           .select('id', { count: 'exact', head: true })
+          .eq('created_by', user.id)
           .gte('created_at', monthStart);
         leadsThisMonth = count || 0;
       }
