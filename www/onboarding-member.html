@@ -1341,47 +1341,71 @@
     // ===== POST-SIGNUP SURVEY =====
     const SURVEY_QUESTIONS = [
       {
-        key: 'source',
-        tag: 'Quick question 1 of 4',
-        q: 'How did you hear about us?',
+        key: 'mech_satisfaction',
+        tag: 'Question 1 of 6',
+        q: 'How satisfied are you with your current mechanic?',
         opts: [
-          { val: 'google', label: 'Google search' },
-          { val: 'friend', label: 'Friend or family' },
-          { val: 'social', label: 'Social media' },
-          { val: 'ad', label: 'Saw an ad' },
-          { val: 'other', label: 'Other' }
+          { val: 'very_satisfied', label: "Very satisfied — I've found a great one" },
+          { val: 'hit_or_miss', label: "It's hit or miss" },
+          { val: 'not_satisfied', label: 'Not satisfied at all' },
+          { val: 'no_mechanic', label: "I don't have a regular mechanic" }
+        ]
+      },
+      {
+        key: 'cosmetic_satisfaction',
+        tag: 'Question 2 of 6',
+        q: 'How about your cosmetic car care — detailing, paint, body work?',
+        opts: [
+          { val: 'have_provider', label: 'I have a reliable provider I love' },
+          { val: 'fine_but_expensive', label: "It's fine but always feels expensive" },
+          { val: 'hard_to_find', label: 'Hard to find trustworthy options' },
+          { val: 'skip_it', label: "I skip it — too much hassle to arrange" }
         ]
       },
       {
         key: 'pain_point',
-        tag: 'Quick question 2 of 4',
-        q: "What's your biggest car care frustration?",
+        tag: 'Question 3 of 6',
+        q: "What's your biggest frustration with auto services?",
         opts: [
-          { val: 'cost', label: 'Cost & pricing' },
-          { val: 'trust', label: 'Finding a trustworthy shop' },
-          { val: 'scheduling', label: 'Scheduling hassle' },
-          { val: 'tracking', label: 'Keeping track of maintenance' },
-          { val: 'other', label: 'Other' }
+          { val: 'cost', label: "Not knowing if I'm being overcharged" },
+          { val: 'trust', label: "Finding providers I can actually trust" },
+          { val: 'communication', label: "Poor communication during the job" },
+          { val: 'quality', label: "Work quality that doesn't meet expectations" },
+          { val: 'scheduling', label: "Booking hassle and scheduling delays" }
         ]
       },
       {
-        key: 'has_trusted_mechanic',
-        tag: 'Quick question 3 of 4',
-        q: 'Do you have a trusted mechanic already?',
+        key: 'improvement_priority',
+        tag: 'Question 4 of 6',
+        q: 'What would improve your auto care experience most?',
         opts: [
-          { val: 'yes', label: 'Yes, always' },
-          { val: 'sometimes', label: 'Sometimes' },
-          { val: 'no', label: "No, I'm looking" }
+          { val: 'transparent_pricing', label: 'Upfront, transparent pricing before I commit' },
+          { val: 'one_app', label: 'One app for all my car needs' },
+          { val: 'verified_providers', label: 'Verified, background-checked providers' },
+          { val: 'real_time_updates', label: 'Real-time updates while my car is being worked on' },
+          { val: 'competitive_bids', label: 'Getting multiple quotes so I can compare' }
         ]
       },
       {
-        key: 'vehicle_count',
-        tag: 'Quick question 4 of 4',
-        q: 'How many vehicles do you own?',
+        key: 'provider_discovery',
+        tag: 'Question 5 of 6',
+        q: 'How do you usually find new service providers?',
         opts: [
-          { val: '1', label: '1' },
-          { val: '2', label: '2' },
-          { val: '3plus', label: '3 or more' }
+          { val: 'word_of_mouth', label: 'Word of mouth from people I trust' },
+          { val: 'google', label: 'Google search and reviews' },
+          { val: 'stick_with_known', label: 'I just go back to whoever I have before' },
+          { val: 'trial_error', label: "Trial and error — it's frustrating" }
+        ]
+      },
+      {
+        key: 'services_needed',
+        tag: 'Question 6 of 6',
+        q: 'Which services do you need most?',
+        opts: [
+          { val: 'routine', label: 'Routine maintenance (oil, tires, brakes)' },
+          { val: 'repairs', label: 'Diagnostics & repairs' },
+          { val: 'cosmetic', label: 'Detailing & cosmetic care' },
+          { val: 'all', label: 'All of the above — I need a full solution' }
         ]
       }
     ];

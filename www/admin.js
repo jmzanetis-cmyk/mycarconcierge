@@ -11293,10 +11293,12 @@
     window.loadSurveyAnalytics = loadSurveyAnalytics;
 
     // ===== MEMBER SURVEY ANALYTICS =====
-    const MS_SOURCE_LABELS = { google: 'Google search', friend: 'Friend/family', social: 'Social media', ad: 'Saw an ad', other: 'Other' };
-    const MS_PAIN_LABELS = { cost: 'Cost & pricing', trust: 'Finding trustworthy shop', scheduling: 'Scheduling hassle', tracking: 'Keeping track', other: 'Other' };
-    const MS_MECHANIC_LABELS = { yes: 'Yes, always', sometimes: 'Sometimes', no: 'No, looking' };
-    const MS_VEHICLE_LABELS = { '1': '1 vehicle', '2': '2 vehicles', '3plus': '3+', fleet: 'Fleet' };
+    const MS_MECH_SAT_LABELS = { very_satisfied: 'Very satisfied', hit_or_miss: 'Hit or miss', not_satisfied: 'Not satisfied', no_mechanic: 'No regular mechanic' };
+    const MS_COSMETIC_LABELS = { have_provider: 'Have a provider', fine_but_expensive: 'Fine but expensive', hard_to_find: 'Hard to find', skip_it: 'Skip it' };
+    const MS_PAIN_LABELS = { cost: 'Overcharged / pricing', trust: 'Finding trustworthy providers', communication: 'Poor communication', quality: 'Work quality', scheduling: 'Booking & scheduling' };
+    const MS_IMPROVEMENT_LABELS = { transparent_pricing: 'Transparent pricing', one_app: 'One app for all', verified_providers: 'Verified providers', real_time_updates: 'Real-time updates', competitive_bids: 'Competitive bids' };
+    const MS_DISCOVERY_LABELS = { word_of_mouth: 'Word of mouth', google: 'Google search', stick_with_known: 'Stick with known', trial_error: 'Trial & error' };
+    const MS_SERVICES_LABELS = { routine: 'Routine maintenance', repairs: 'Diagnostics & repairs', cosmetic: 'Detailing & cosmetics', all: 'Full solution' };
     const MS_CHART_COLORS = ['#c9a227','#22d3ee','#38bdf8','#34d399','#fb923c','#f87171','#a78bfa'];
     let _msCharts = {};
 
@@ -11353,16 +11355,18 @@
         if (el('ms-total')) el('ms-total').textContent = (data.total || 0).toLocaleString();
         if (el('ms-week')) el('ms-week').textContent = (data.recent_week || 0).toLocaleString();
 
-        const topSource = Object.entries(data.by_source || {}).sort((a,b) => b[1]-a[1])[0];
-        if (el('ms-top-source')) el('ms-top-source').textContent = topSource ? (MS_SOURCE_LABELS[topSource[0]] || topSource[0]) : '—';
-
         const topPain = Object.entries(data.by_pain_point || {}).sort((a,b) => b[1]-a[1])[0];
         if (el('ms-top-pain')) el('ms-top-pain').textContent = topPain ? (MS_PAIN_LABELS[topPain[0]] || topPain[0]) : '—';
 
-        buildMsDoughnut('ms-source-chart', MS_SOURCE_LABELS, data.by_source || {});
+        const topImprovement = Object.entries(data.by_improvement || {}).sort((a,b) => b[1]-a[1])[0];
+        if (el('ms-top-improvement')) el('ms-top-improvement').textContent = topImprovement ? (MS_IMPROVEMENT_LABELS[topImprovement[0]] || topImprovement[0]) : '—';
+
+        buildMsDoughnut('ms-mech-sat-chart', MS_MECH_SAT_LABELS, data.by_mech_satisfaction || {});
+        buildMsDoughnut('ms-cosmetic-chart', MS_COSMETIC_LABELS, data.by_cosmetic_satisfaction || {});
         buildMsDoughnut('ms-pain-chart', MS_PAIN_LABELS, data.by_pain_point || {});
-        buildMsDoughnut('ms-mechanic-chart', MS_MECHANIC_LABELS, data.by_mechanic || {});
-        buildMsDoughnut('ms-vehicles-chart', MS_VEHICLE_LABELS, data.by_vehicle_count || {});
+        buildMsDoughnut('ms-improvement-chart', MS_IMPROVEMENT_LABELS, data.by_improvement || {});
+        buildMsDoughnut('ms-discovery-chart', MS_DISCOVERY_LABELS, data.by_provider_discovery || {});
+        buildMsDoughnut('ms-services-chart', MS_SERVICES_LABELS, data.by_services_needed || {});
       } catch (err) {
         console.error('[MemberSurveys] load error:', err.message);
       }
