@@ -386,72 +386,41 @@
       var statusEl = document.getElementById('setup-status');
 
       try {
-        // Step 1: Create Supabase auth account
         statusEl.textContent = 'Creating your account...';
-        var { data: authData, error: authError } = await supabaseClient.auth.signUp({
-          email: signupData.email,
-          password: signupData.password,
-          options: {
-            data: {
-              full_name: signupData.name,
-              account_type: 'fleet',
-              company_name: signupData.company,
-              industry: signupData.industry,
-              fleet_size: signupData.fleetSize,
-              phone: signupData.phone || null
-            }
-          }
-        });
 
-        if (authError) throw new Error(authError.message);
-        var userId = authData.user?.id;
-        if (!userId) throw new Error('Account creation failed. Please try again.');
-
-        // Step 2: Create fleet in DB
-        statusEl.textContent = 'Setting up your fleet workspace...';
-        var session = authData.session;
-        var accessToken = session?.access_token;
-
-        // Update profile with fleet-specific fields if profile exists
-        if (accessToken) {
-          await supabaseClient.from('profiles').upsert({
-            id: userId,
-            full_name: signupData.name,
+        // Use server-side atomic setup endpoint (creates auth + profile + fleet + owner-membership)
+        var res = await fetch('/api/fleet/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: signupData.name,
             email: signupData.email,
+            password: signupData.password,
+            company: signupData.company,
+            industry: signupData.industry || null,
+            fleet_size: signupData.fleetSize || null,
             phone: signupData.phone || null,
-            company_name: signupData.company,
-            account_type: 'fleet',
-            industry: signupData.industry
-          }, { onConflict: 'id' });
-        }
-
-        // Create the fleet record (ATOMIC — must succeed or we abort)
-        statusEl.textContent = 'Creating your fleet...';
-        var { data: fleet, error: fleetErr } = await supabaseClient.from('fleets').insert({
-          owner_id: userId,
-          name: signupData.company + ' Fleet',
-          company_name: signupData.company,
-          business_type: signupData.industry,
-          status: 'active'
-        }).select('id').single();
-
-        if (fleetErr || !fleet?.id) {
-          throw new Error('Fleet workspace creation failed: ' + (fleetErr?.message || 'Unknown error. Please contact support.'));
-        }
-
-        // Add fleet owner as fleet member
-        statusEl.textContent = 'Finalizing fleet setup...';
-        var { error: memberErr } = await supabaseClient.from('fleet_members').insert({
-          fleet_id: fleet.id,
-          user_id: userId,
-          email: signupData.email,
-          role: 'owner',
-          status: 'active'
+            plan: signupData.plan || 'starter'
+          })
         });
 
-        if (memberErr) {
-          // Non-fatal (duplicate key is OK if member already exists)
-          console.warn('Fleet member creation warning:', memberErr.message);
+        statusEl.textContent = 'Finalizing fleet setup...';
+        var data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Fleet account setup failed. Please try again.');
+        }
+
+        // Sign in the newly created user
+        statusEl.textContent = 'Signing you in...';
+        var { error: signInErr } = await supabaseClient.auth.signInWithPassword({
+          email: signupData.email,
+          password: signupData.password
+        });
+
+        if (signInErr) {
+          // Not fatal — user can sign in manually
+          console.warn('Auto sign-in after signup failed:', signInErr.message);
         }
 
         // Show success

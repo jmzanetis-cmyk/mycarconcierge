@@ -12943,39 +12943,37 @@
         return;
       }
 
-      // Check vehicle limit before adding
+      // Use server-side endpoint for authoritative vehicle limit enforcement
+      const token = window._currentSession?.access_token;
       try {
-        const token = window._currentSession?.access_token;
-        const limRes = await fetch('/api/fleet/check-limits', {
+        const addRes = await fetch('/api/fleet/add-vehicle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ fleet_id: currentFleet.id })
+          body: JSON.stringify({
+            fleet_id: currentFleet.id,
+            vehicle_id: vehicleId,
+            assigned_driver_id: driverId || null,
+            assignment_type: assignmentType,
+            department: department || null,
+            start_date: startDate || null,
+            end_date: endDate || null
+          })
         });
-        if (limRes.ok) {
-          const limData = await limRes.json();
-          if (!limData.can_add_vehicle) {
-            showToast(`Vehicle limit reached (${limData.current.vehicles}/${limData.limits.vehicles === -1 ? '∞' : limData.limits.vehicles}) on ${limData.plan} plan. Please upgrade to add more vehicles.`, 'error');
-            if (typeof openSaasPricingModal === 'function') {
-              setTimeout(() => openSaasPricingModal('fleet'), 300);
-            }
-            return;
+        const addData = await addRes.json();
+        if (!addRes.ok) {
+          if (addRes.status === 402) {
+            showToast(addData.error || 'Vehicle limit reached. Please upgrade your fleet plan.', 'error');
+            if (typeof openSaasPricingModal === 'function') setTimeout(() => openSaasPricingModal('fleet'), 300);
+          } else {
+            showToast(addData.error || 'Failed to add vehicle to fleet', 'error');
           }
+          return;
         }
-      } catch (_) { /* non-blocking */ }
-      
-      const { error } = await assignVehicleToFleet(currentFleet.id, vehicleId, {
-        assigned_driver_id: driverId,
-        assignment_type: assignmentType,
-        department: department || null,
-        start_date: startDate || null,
-        end_date: endDate || null
-      });
-      
-      if (error) {
-        showToast('Failed to add vehicle to fleet: ' + error.message, 'error');
+      } catch (fetchErr) {
+        showToast('Network error adding vehicle. Please try again.', 'error');
         return;
       }
-      
+
       showToast('Vehicle added to fleet!', 'success');
       closeModal('add-fleet-vehicle-modal');
       await loadFleetDetails(currentFleet.id);

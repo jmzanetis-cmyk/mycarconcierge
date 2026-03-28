@@ -39873,16 +39873,20 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         res.writeHead(403); res.end(JSON.stringify({ error: 'Not authorized to invite fleet members' })); return;
       }
 
-      // Check driver limits on fleet plan
+      // Check driver limits on fleet plan (active members + pending non-expired invites)
       const access = await checkPlanAccess(fleet.owner_id, 'fleet', 'starter');
       const planLimits = { starter: { drivers: 5 }, pro: { drivers: 25 }, business: { drivers: -1 } };
       const limits = planLimits[access.plan] || { drivers: 3 };
       if (limits.drivers !== -1) {
-        const { count: driverCount } = await supabase.from('fleet_members')
+        const { count: activeDriverCount } = await supabase.from('fleet_members')
           .select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id).eq('status', 'active');
-        if ((driverCount || 0) >= limits.drivers) {
+        const { count: pendingInviteCount } = await supabase.from('fleet_invites')
+          .select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id).eq('status', 'pending')
+          .gt('expires_at', new Date().toISOString());
+        const totalSeatUsage = (activeDriverCount || 0) + (pendingInviteCount || 0);
+        if (totalSeatUsage >= limits.drivers) {
           res.writeHead(402); res.end(JSON.stringify({
-            error: `Driver limit reached (${limits.drivers} on ${access.plan || 'free'} plan). Please upgrade to add more drivers.`,
+            error: `Driver limit reached (${totalSeatUsage}/${limits.drivers} on ${access.plan || 'free'} plan including pending invites). Please upgrade to add more drivers.`,
             upgrade_url: '/members.html?section=settings'
           })); return;
         }
@@ -40013,16 +40017,17 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         })); return;
       }
 
-      // Re-check driver limit at accept time (prevents over-provisioning via pending invites)
+      // Re-check driver limit at accept time (active members + remaining pending invites excluding this one)
       const { data: acceptFleet } = await supabase.from('fleets').select('owner_id').eq('id', invite.fleet_id).maybeSingle();
       if (acceptFleet?.owner_id) {
         const acceptAccess = await checkPlanAccess(acceptFleet.owner_id, 'fleet', 'starter');
         const acceptPlanLimits = { starter: { drivers: 5 }, pro: { drivers: 25 }, business: { drivers: -1 } };
         const acceptLimits = acceptPlanLimits[acceptAccess.plan] || { drivers: 3 };
         if (acceptLimits.drivers !== -1) {
-          const { count: driverCount } = await supabase.from('fleet_members')
+          const { count: activeDriverCount } = await supabase.from('fleet_members')
             .select('id', { count: 'exact', head: true }).eq('fleet_id', invite.fleet_id).eq('status', 'active');
-          if ((driverCount || 0) >= acceptLimits.drivers) {
+          // At accept time, only count active members (this invite is now being consumed)
+          if ((activeDriverCount || 0) >= acceptLimits.drivers) {
             res.writeHead(402); res.end(JSON.stringify({
               error: `Driver limit reached on fleet's ${acceptAccess.plan || 'current'} plan. The fleet manager must upgrade before more members can join.`
             })); return;
@@ -40056,6 +40061,168 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     } catch (err) {
       console.error(`[${requestId}] Fleet invite accept error:`, err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to accept invite' }));
+    }
+    return;
+  }
+
+  // POST /api/fleet/add-vehicle — authoritative server-side single vehicle add with plan limit check
+  if (req.method === 'POST' && req.url === '/api/fleet/add-vehicle') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { fleet_id, vehicle_id, assigned_driver_id, assignment_type, department, start_date, end_date } = body;
+      if (!fleet_id || !vehicle_id) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'fleet_id and vehicle_id are required' })); return;
+      }
+
+      // Verify fleet ownership/management
+      const { data: fleet } = await supabase.from('fleets').select('id, owner_id').eq('id', fleet_id).maybeSingle();
+      if (!fleet) { res.writeHead(404); res.end(JSON.stringify({ error: 'Fleet not found' })); return; }
+      const isOwner = fleet.owner_id === user.id;
+      if (!isOwner) {
+        const { data: membership } = await supabase.from('fleet_members')
+          .select('id').eq('fleet_id', fleet_id).eq('user_id', user.id)
+          .in('role', ['manager', 'owner']).eq('status', 'active').maybeSingle();
+        if (!membership) { res.writeHead(403); res.end(JSON.stringify({ error: 'Not authorized to add vehicles to this fleet' })); return; }
+      }
+
+      // Authoritative vehicle plan limit check
+      const access = await checkPlanAccess(fleet.owner_id, 'fleet', 'starter');
+      const planLimits = { starter: { vehicles: 5 }, pro: { vehicles: 25 }, business: { vehicles: -1 } };
+      const limits = planLimits[access.plan] || { vehicles: 3 };
+      if (limits.vehicles !== -1) {
+        const { count: currentVehicleCount } = await supabase.from('fleet_vehicles')
+          .select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id).eq('status', 'active');
+        if ((currentVehicleCount || 0) >= limits.vehicles) {
+          res.writeHead(402); res.end(JSON.stringify({
+            error: `Vehicle limit reached (${currentVehicleCount}/${limits.vehicles} on ${access.plan || 'free'} plan). Please upgrade to add more vehicles.`,
+            upgrade_url: '/members.html?section=settings',
+            limit: limits.vehicles, current: currentVehicleCount
+          })); return;
+        }
+      }
+
+      // Add vehicle to fleet
+      const { data: fv, error: fvErr } = await supabase.from('fleet_vehicles').insert({
+        fleet_id,
+        vehicle_id,
+        assigned_driver_id: assigned_driver_id || null,
+        assignment_type: assignment_type || 'pool',
+        department: department || null,
+        start_date: start_date || null,
+        end_date: end_date || null,
+        status: 'active'
+      }).select('id').single();
+
+      if (fvErr) {
+        console.error('[Fleet AddVehicle] Insert error:', fvErr.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to add vehicle to fleet: ' + fvErr.message })); return;
+      }
+
+      console.log(`[Fleet AddVehicle] fleet=${fleet_id} vehicle=${vehicle_id} fv=${fv?.id}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, fleet_vehicle_id: fv?.id }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet add-vehicle error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to add vehicle' }));
+    }
+    return;
+  }
+
+  // POST /api/fleet/setup — atomic fleet account creation (auth+profile+fleet+owner-membership)
+  if (req.method === 'POST' && req.url === '/api/fleet/setup') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    try {
+      const body = await getRequestBody(req);
+      const { name, email, password, company, industry, fleet_size, phone, plan } = body;
+      if (!name || !email || !password || !company) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'name, email, password, and company are required' })); return;
+      }
+      if (password.length < 8) { res.writeHead(400); res.end(JSON.stringify({ error: 'Password must be at least 8 characters' })); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid email address' })); return; }
+
+      const supabase = getSupabaseClient();
+      // Service role client already has admin privileges for auth.admin
+      const supabaseAdmin = supabase;
+
+      // 1. Create auth user via admin API
+      const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: false,
+        user_metadata: {
+          full_name: name,
+          account_type: 'fleet',
+          company_name: company,
+          industry: industry || null,
+          fleet_size: fleet_size || null,
+          phone: phone || null
+        }
+      });
+
+      if (authErr) {
+        console.error('[Fleet Setup] Auth create error:', authErr.message);
+        if (authErr.message?.includes('already registered') || authErr.message?.includes('already been registered')) {
+          res.writeHead(409); res.end(JSON.stringify({ error: 'An account with this email already exists. Please sign in.' }));
+        } else {
+          res.writeHead(400); res.end(JSON.stringify({ error: authErr.message || 'Failed to create account' }));
+        }
+        return;
+      }
+      const userId = authData.user?.id;
+      if (!userId) { res.writeHead(500); res.end(JSON.stringify({ error: 'Auth user creation returned no ID' })); return; }
+
+      // 2. Upsert profile
+      const { error: profileErr } = await supabase.from('profiles').upsert({
+        id: userId,
+        full_name: name,
+        email,
+        phone: phone || null,
+        company_name: company,
+        account_type: 'fleet',
+        industry: industry || null
+      }, { onConflict: 'id' });
+      if (profileErr) { console.warn('[Fleet Setup] Profile upsert warning:', profileErr.message); }
+
+      // 3. Create fleet record (authoritative)
+      const { data: fleet, error: fleetErr } = await supabase.from('fleets').insert({
+        owner_id: userId,
+        name: company + ' Fleet',
+        company_name: company,
+        business_type: industry || null,
+        status: 'active'
+      }).select('id').single();
+
+      if (fleetErr || !fleet?.id) {
+        // Rollback: delete auth user so signup can be retried
+        try { await supabaseAdmin.auth.admin.deleteUser(userId); } catch (_) {}
+        console.error('[Fleet Setup] Fleet create error:', fleetErr?.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Fleet creation failed. Please try again or contact support.' })); return;
+      }
+
+      // 4. Add owner as fleet member
+      const { error: memberErr } = await supabase.from('fleet_members').insert({
+        fleet_id: fleet.id,
+        user_id: userId,
+        email,
+        role: 'owner',
+        status: 'active'
+      });
+      if (memberErr && !memberErr.message?.includes('duplicate')) {
+        console.warn('[Fleet Setup] Member insert warning:', memberErr.message);
+      }
+
+      console.log(`[Fleet Setup] Created account+fleet for ${email} (userId=${userId}, fleetId=${fleet.id})`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, user_id: userId, fleet_id: fleet.id, email }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet setup error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Fleet account setup failed' }));
     }
     return;
   }
