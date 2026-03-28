@@ -8601,7 +8601,8 @@
     function wlLoadSettings() {
       const el = document.getElementById('wl-settings-content');
       if (!el || !window._wlPortalTenantData) return;
-      const { tenant } = window._wlPortalTenantData;
+      const { tenant, plan_features } = window._wlPortalTenantData;
+      const pf = plan_features || {};
       el.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:12px;">
           <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
@@ -8621,10 +8622,106 @@
               <span style="color:var(--text-muted);">Member Seats</span><span>${tenant.max_members === -1 ? 'Unlimited' : (tenant.max_members || 0)}</span>
               <span style="color:var(--text-muted);">Provider Seats</span><span>${tenant.max_providers === -1 ? 'Unlimited' : (tenant.max_providers || 0)}</span>
             </div>
+            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;font-size:0.78rem;">
+              ${pf.custom_domain ? '<span style="color:var(--accent-teal);">✓ Custom Domain</span>' : '<span style="color:var(--text-muted);">✗ Custom Domain</span>'}
+              ${pf.analytics ? '<span style="color:var(--accent-teal);">✓ Analytics</span>' : '<span style="color:var(--text-muted);">✗ Analytics</span>'}
+              ${pf.sms_reminders ? '<span style="color:var(--accent-teal);">✓ SMS Reminders</span>' : '<span style="color:var(--text-muted);">✗ SMS Reminders</span>'}
+              ${pf.api_access ? '<span style="color:var(--accent-teal);">✓ API Access</span>' : '<span style="color:var(--text-muted);">✗ API Access</span>'}
+            </div>
             <button class="btn btn-sm btn-primary" style="margin-top:12px;" onclick="openSaasPricingModal('white_label')">Manage Billing &amp; Upgrade</button>
           </div>
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;">Loyalty Program</div>
+            <div id="wl-loyalty-form"><div style="color:var(--text-muted);font-size:0.85rem;">Loading…</div></div>
+          </div>
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;">Approval Workflow</div>
+            <div id="wl-approval-form"><div style="color:var(--text-muted);font-size:0.85rem;">Loading…</div></div>
+          </div>
         </div>`;
+      wlLoadLoyaltyConfig();
+      wlLoadApprovalWorkflow();
     }
+
+    async function wlLoadLoyaltyConfig() {
+      const el = document.getElementById('wl-loyalty-form');
+      if (!el) return;
+      try {
+        const token = getAuthToken ? getAuthToken() : null;
+        const res = await fetch('/api/tenant/loyalty-config', { headers: { 'Authorization': 'Bearer ' + token } });
+        const data = res.ok ? await res.json() : {};
+        const lp = data.loyalty_program || {};
+        el.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;">
+              <input type="checkbox" id="wl-loyalty-enabled" ${lp.enabled ? 'checked' : ''} style="width:16px;height:16px;">
+              Enable punch card loyalty program
+            </label>
+            <div>
+              <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:4px;">Punch card goal (visits to earn reward)</label>
+              <input type="number" id="wl-loyalty-goal" value="${lp.punch_card_goal || 10}" min="1" max="50" style="width:80px;padding:6px 8px;background:var(--surface-2);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:0.85rem;">
+            </div>
+            <div>
+              <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:4px;">Reward description</label>
+              <input type="text" id="wl-loyalty-reward" value="${(lp.reward_description || '').replace(/"/g,'&quot;')}" placeholder="e.g. Free oil change" style="width:100%;max-width:320px;padding:6px 8px;background:var(--surface-2);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:0.85rem;">
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="wlSaveLoyaltyConfig()">Save Loyalty Settings</button>
+          </div>`;
+      } catch(e) { el.innerHTML = '<p style="color:var(--accent-red);font-size:0.85rem;">Failed to load loyalty config.</p>'; }
+    }
+
+    window.wlSaveLoyaltyConfig = async function() {
+      const token = getAuthToken ? getAuthToken() : null;
+      const body = {
+        enabled: document.getElementById('wl-loyalty-enabled')?.checked,
+        punch_card_goal: parseInt(document.getElementById('wl-loyalty-goal')?.value, 10) || 10,
+        reward_description: document.getElementById('wl-loyalty-reward')?.value || ''
+      };
+      try {
+        const res = await fetch('/api/tenant/loyalty-config', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify(body) });
+        if (res.ok) { showToast('Loyalty settings saved', 'success'); } else { showToast('Failed to save', 'error'); }
+      } catch(e) { showToast('Error saving loyalty config', 'error'); }
+    };
+
+    async function wlLoadApprovalWorkflow() {
+      const el = document.getElementById('wl-approval-form');
+      if (!el) return;
+      try {
+        const token = getAuthToken ? getAuthToken() : null;
+        const res = await fetch('/api/tenant/approval-workflow', { headers: { 'Authorization': 'Bearer ' + token } });
+        const data = res.ok ? await res.json() : {};
+        const aw = data.approval_workflow || {};
+        el.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;">
+              <input type="checkbox" id="wl-aw-provider" ${aw.require_provider_approval ? 'checked' : ''} style="width:16px;height:16px;">
+              Require approval before providers can take jobs
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;">
+              <input type="checkbox" id="wl-aw-member" ${aw.require_member_approval ? 'checked' : ''} style="width:16px;height:16px;">
+              Require approval before members can post requests
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;">
+              <input type="checkbox" id="wl-aw-auto" ${aw.auto_approve_verified !== false ? 'checked' : ''} style="width:16px;height:16px;">
+              Auto-approve verified accounts
+            </label>
+            <button class="btn btn-sm btn-primary" onclick="wlSaveApprovalWorkflow()">Save Workflow Settings</button>
+          </div>`;
+      } catch(e) { el.innerHTML = '<p style="color:var(--accent-red);font-size:0.85rem;">Failed to load workflow config.</p>'; }
+    }
+
+    window.wlSaveApprovalWorkflow = async function() {
+      const token = getAuthToken ? getAuthToken() : null;
+      const body = {
+        require_provider_approval: document.getElementById('wl-aw-provider')?.checked,
+        require_member_approval: document.getElementById('wl-aw-member')?.checked,
+        auto_approve_verified: document.getElementById('wl-aw-auto')?.checked
+      };
+      try {
+        const res = await fetch('/api/tenant/approval-workflow', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify(body) });
+        if (res.ok) { showToast('Workflow settings saved', 'success'); } else { showToast('Failed to save', 'error'); }
+      } catch(e) { showToast('Error saving workflow config', 'error'); }
+    };
 
     window.dismissWlOnboarding = dismissWlOnboarding;
     window.wlObNext = wlObNext;

@@ -39060,17 +39060,31 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         const expectedSig = crypto.createHmac('sha256', _invTenant.join_token).update(`${_invTid}:${_invExp}`).digest('hex');
         if (_invSig !== expectedSig) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Invalid invite token signature.' })); return; }
         tenant = _invTenant;
+      } else if (body?.domain_join === true) {
+        // Domain-based auto-join: server resolves tenant from Host/X-Forwarded-Host header.
+        // User visits a white-label subdomain/custom-domain — no invite token required.
+        const reqHost = (req.headers['x-forwarded-host'] || req.headers['host'] || '').split(':')[0].toLowerCase();
+        const { data: domainTenant } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('domain', reqHost).eq('status', 'active').maybeSingle();
+        if (domainTenant) {
+          tenant = domainTenant;
+        } else {
+          const sub = reqHost.split('.')[0];
+          if (sub && sub !== reqHost) {
+            const { data: subTenant } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('subdomain', sub).eq('status', 'active').maybeSingle();
+            if (subTenant) tenant = subTenant;
+          }
+        }
+        if (!tenant) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'No active tenant found for this domain.' })); return; }
       } else if (body?.tenant_id) {
         // Admin fallback: explicit tenant_id + admin token
         const _adminToken = req.headers['x-admin-token'];
-        const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
-        if (!_validAdmin) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'An invite_token is required.' })); return; }
+        if (!_adminToken || _adminToken !== process.env.ADMIN_PASSWORD) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'An invite_token is required.' })); return; }
         const { data: adminTenant } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('id', body.tenant_id).eq('status', 'active').maybeSingle();
         if (!adminTenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found.' })); return; }
         tenant = adminTenant;
       } else {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'invite_token is required.' }));
+        res.end(JSON.stringify({ error: 'invite_token or domain_join is required.' }));
         return;
       }
 
@@ -39262,7 +39276,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     const _dTargetId = req.url.split('/api/tenant/roster/')[1];
     const supabase = getSupabaseClient();
     try {
-      const { data: _dMembership } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _dUser.id).in('role', ['owner', 'admin']).maybeSingle();
+      const { data: _dMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _dUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _dMembership = (_dMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
       let _dTenantId = _dMembership?.tenant_id;
       if (!_dTenantId) {
         const { data: _dOwned } = await supabase.from('white_label_tenants').select('id').eq('owner_user_id', _dUser.id).eq('status', 'active').maybeSingle();
@@ -39299,7 +39314,99 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     return;
   }
 
-  // GET /api/tenant/analytics — basic tenant analytics (tenant admin only)
+  // GET /api/tenant/loyalty-config — get tenant loyalty program settings
+  if (req.method === 'GET' && req.url === '/api/tenant/loyalty-config') {
+    setSecurityHeaders(res, true); setCorsHeaders(res);
+    const _lcUser = await authenticateRequest(req);
+    if (!_lcUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: _lcMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _lcUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _lcMembership = (_lcMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
+      const _lcTenantId = _lcMembership?.tenant_id;
+      if (!_lcTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      const { data: _lcTenant } = await supabase.from('white_label_tenants').select('features').eq('id', _lcTenantId).maybeSingle();
+      const loyaltyConfig = (_lcTenant?.features || {}).loyalty_program || { enabled: false, punch_card_goal: 10, reward_description: '' };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ loyalty_program: loyaltyConfig }));
+    } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Failed to load loyalty config' })); }
+    return;
+  }
+
+  // POST /api/tenant/loyalty-config — update tenant loyalty program settings
+  if (req.method === 'POST' && req.url === '/api/tenant/loyalty-config') {
+    setSecurityHeaders(res, true); setCorsHeaders(res);
+    const _luUser = await authenticateRequest(req);
+    if (!_luUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { data: _luMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _luUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _luMembership = (_luMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
+      const _luTenantId = _luMembership?.tenant_id;
+      if (!_luTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      const { data: _luTenant } = await supabase.from('white_label_tenants').select('features').eq('id', _luTenantId).maybeSingle();
+      const currentFeatures = _luTenant?.features || {};
+      currentFeatures.loyalty_program = {
+        enabled: !!body.enabled,
+        punch_card_goal: Math.max(1, parseInt(body.punch_card_goal, 10) || 10),
+        reward_description: String(body.reward_description || '').slice(0, 255)
+      };
+      const { error: _luErr } = await supabase.from('white_label_tenants').update({ features: currentFeatures }).eq('id', _luTenantId);
+      if (_luErr) throw _luErr;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, loyalty_program: currentFeatures.loyalty_program }));
+    } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Failed to update loyalty config' })); }
+    return;
+  }
+
+  // GET /api/tenant/approval-workflow — get tenant approval workflow settings
+  if (req.method === 'GET' && req.url === '/api/tenant/approval-workflow') {
+    setSecurityHeaders(res, true); setCorsHeaders(res);
+    const _awUser = await authenticateRequest(req);
+    if (!_awUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: _awMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _awUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _awMembership = (_awMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
+      const _awTenantId = _awMembership?.tenant_id;
+      if (!_awTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      const { data: _awTenant } = await supabase.from('white_label_tenants').select('features').eq('id', _awTenantId).maybeSingle();
+      const approvalWorkflow = (_awTenant?.features || {}).approval_workflow || { require_provider_approval: false, require_member_approval: false, auto_approve_verified: true };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ approval_workflow: approvalWorkflow }));
+    } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Failed to load approval workflow' })); }
+    return;
+  }
+
+  // POST /api/tenant/approval-workflow — update tenant approval workflow settings
+  if (req.method === 'POST' && req.url === '/api/tenant/approval-workflow') {
+    setSecurityHeaders(res, true); setCorsHeaders(res);
+    const _apUser = await authenticateRequest(req);
+    if (!_apUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { data: _apMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _apUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _apMembership = (_apMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
+      const _apTenantId = _apMembership?.tenant_id;
+      if (!_apTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      const { data: _apTenant } = await supabase.from('white_label_tenants').select('features').eq('id', _apTenantId).maybeSingle();
+      const currentFeatures = _apTenant?.features || {};
+      currentFeatures.approval_workflow = {
+        require_provider_approval: !!body.require_provider_approval,
+        require_member_approval: !!body.require_member_approval,
+        auto_approve_verified: body.auto_approve_verified !== false
+      };
+      const { error: _apErr } = await supabase.from('white_label_tenants').update({ features: currentFeatures }).eq('id', _apTenantId);
+      if (_apErr) throw _apErr;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, approval_workflow: currentFeatures.approval_workflow }));
+    } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Failed to update approval workflow' })); }
+    return;
+  }
+
+    // GET /api/tenant/analytics — basic tenant analytics (tenant admin only)
   if (req.method === 'GET' && req.url.startsWith('/api/tenant/analytics')) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
