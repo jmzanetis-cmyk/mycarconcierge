@@ -42217,7 +42217,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         const [onboardRes, profileRes, vehicleRes, packageRes, bidRes] = await Promise.all([
           supabase.from('member_onboarding').select('*').eq('user_id', user.id).maybeSingle().catch(() => ({ data: null })),
           supabase.from('profiles').select('zip_code, bio, services, verification_status, stripe_onboarding_complete, push_token, sms_notifications_enabled').eq('id', user.id).maybeSingle().catch(() => ({ data: null })),
-          supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('user_id', user.id).catch(() => ({ count: 0 })),
+          supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('owner_id', user.id).catch(() => ({ count: 0 })),
           supabase.from('maintenance_packages').select('id', { count: 'exact', head: true }).eq('member_id', user.id).catch(() => ({ count: 0 })),
           supabase.from('plan_bids').select('id', { count: 'exact', head: true }).eq('provider_id', user.id).eq('status', 'accepted').catch(() => ({ count: 0 }))
         ]);
