@@ -34,14 +34,17 @@ CREATE INDEX IF NOT EXISTS idx_survey_responses_created_at ON survey_responses(c
 ALTER TABLE survey_responses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE member_onboarding ENABLE ROW LEVEL SECURITY;
 
--- survey_responses: users can insert anonymously or view their own; admin via service role
-CREATE POLICY "Users can insert survey responses"
+-- survey_responses: anyone can INSERT (anonymous submissions allowed)
+-- SELECT is restricted to authenticated owners only; admin reads via service role key (bypasses RLS)
+CREATE POLICY "Anyone can insert survey responses"
   ON survey_responses FOR INSERT
   WITH CHECK (true);
 
+-- Only the owning authenticated user can view their own survey response
+-- Anonymous (user_id IS NULL) rows are NOT accessible via RLS; admin API uses service_role
 CREATE POLICY "Users can view own survey responses"
   ON survey_responses FOR SELECT
-  USING (auth.uid() = user_id OR user_id IS NULL);
+  USING (auth.uid() IS NOT NULL AND auth.uid() = user_id);
 
 -- member_onboarding: users access only their own row
 CREATE POLICY "Users can read own onboarding"

@@ -11261,8 +11261,8 @@
         }
 
         renderBars('survey-source-bars', data.by_source || {}, {
-          social_media: 'Social Media', google: 'Google Search', friend_referral: 'Friend / Referral',
-          podcast_ad: 'Podcast / Ad', other: 'Other'
+          google: 'Google / Online Search', friend: 'Friend or Family Referral',
+          social: 'Social Media', ad: 'I Saw an Ad', event: 'Event / Local Promotion', other: 'Other'
         });
         renderBars('survey-pain-bars', data.by_pain_point || {}, {
           cost: 'Unpredictable Costs', trust: 'Finding Trustworthy Providers',
