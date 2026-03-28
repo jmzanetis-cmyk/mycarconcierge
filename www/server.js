@@ -41332,6 +41332,10 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     // Route the actual API call
     const v1Path = req.url.split('/api/v1/')[1]?.split('?')[0];
 
+    // Track usage atomically for ALL valid v1 requests (before routing so all endpoints are counted)
+    const _trackMonth = new Date().toISOString().slice(0,7);
+    getSupabaseClient()?.rpc('upsert_api_usage', { p_key_id: apiKeyRecord.id, p_month: _trackMonth, p_endpoint: v1Path || 'unknown' }).then(() => {}).catch(() => {});
+
     // GET /api/v1/vin/:vin — VIN decode
     if (req.method === 'GET' && v1Path?.startsWith('vin/')) {
       const vin = v1Path.split('vin/')[1];
@@ -41435,9 +41439,7 @@ Return ONLY valid JSON: {"score":<0-100>,"factors":{"positive":[],"negative":[]}
         const aiResult = await generateAIContent(prompt, { maxTokens: 512, preferredProvider: 'anthropic' });
         let parsed;
         try { const m = aiResult.text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : aiResult.text); } catch { parsed = { score: 75, factors: { positive: [], negative: [] }, summary: 'Analysis complete.' }; }
-        // Track usage atomically via DB function
-        const monthYear = new Date().toISOString().slice(0,7);
-        getSupabaseClient()?.rpc('upsert_api_usage', { p_key_id: apiKeyRecord.id, p_month: monthYear, p_endpoint: 'vehicle/health' }).then(() => {}).catch(() => {});
+        // Usage already tracked above (pre-routing)
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ...parsed, vehicle: { vin, year, make, model, mileage }, powered_by: 'MCC AI API' }));
       } catch (e) {
@@ -41463,9 +41465,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         const aiResult = await generateAIContent(prompt, { maxTokens: 1024, preferredProvider: 'gemini' });
         let parsed;
         try { const m = aiResult.text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : aiResult.text); } catch { parsed = { forecast: [], summary: 'Could not generate forecast.' }; }
-        // Track usage atomically via DB function
-        const monthYear = new Date().toISOString().slice(0,7);
-        getSupabaseClient()?.rpc('upsert_api_usage', { p_key_id: apiKeyRecord.id, p_month: monthYear, p_endpoint: 'vehicle/forecast' }).then(() => {}).catch(() => {});
+        // Usage already tracked above (pre-routing)
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ...parsed, vehicle: { year, make, model, mileage }, powered_by: 'MCC AI API' }));
       } catch (e) {
@@ -41475,9 +41475,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       return;
     }
 
-    // Track usage atomically for all other v1 endpoints (vin, recalls, obd-codes, price-estimate)
-    const _monthYear = new Date().toISOString().slice(0,7);
-    getSupabaseClient()?.rpc('upsert_api_usage', { p_key_id: apiKeyRecord.id, p_month: _monthYear, p_endpoint: v1Path || 'unknown' }).then(() => {}).catch(() => {});
+    // Usage tracking moved to pre-routing block above (covers all endpoints)
 
     // Unknown v1 endpoint
     res.writeHead(404, { 'Content-Type': 'application/json' });
