@@ -9,20 +9,24 @@ CREATE TABLE IF NOT EXISTS survey_responses (
   provider_satisfaction text,   -- very_satisfied / somewhat_satisfied / not_satisfied / avoid_service
   service_frequency     text,   -- monthly_plus / few_times_year / once_a_year / only_problems
   service_types         text,   -- routine / repairs / cosmetic / mixed
-  pricing_confidence    text,   -- very_confident / somewhat_confident / not_confident / not_at_all
-  estimate_surprise     text,   -- yes_often / yes_once / rarely / never
+  pricing_confidence    text,   -- very_fair / mostly_fair / not_sure / not_fair
+  estimate_surprise     text,   -- yes_regularly / yes_once / rarely / never
   quote_behavior        text,   -- trust_one / compare_few / online_research / just_pay
+  provider_honesty      text,   -- very_honest / mostly_honest / skeptical / very_skeptical
+  provider_vetting      text,   -- yes_nervous / yes_went_anyway / rarely / never
   history_tracking      text,   -- no_system / manual / mechanic_tracks / app
-  maintenance_avoidance  text,  -- yes_regularly / yes_sometimes / rarely / never
-  job_status_updates     text,  -- i_call / they_call / just_show_up / has_system
-  provider_vetting       text,  -- yes_nervous / yes_went_anyway / rarely / never
-  app_usage              text,  -- yes_regularly / tried_none_stuck / no_old_fashioned / didnt_know
-  payment_comfort        text,  -- very_comfortable / open_to_it / prefer_in_person / not_comfortable
-  dispute_history        text,  -- yes_hard_to_resolve / yes_resolved / concerns_not_voiced / never
-  maintenance_reminders  text,  -- from_shop / self_set / no_try_to_remember / dashboard_light
-  top_priority           text,  -- trust / pricing / convenience / quality / proximity
-  travel_distance       text,   -- under_5 / 5_to_15 / 15_to_30 / wherever
-  vehicle_count         text,   -- 1 / 2 / 3plus
+  maintenance_avoidance text,   -- yes_regularly / yes_sometimes / rarely / never
+  job_status_updates    text,   -- i_call / they_call / just_show_up / has_system
+  maintenance_reminders text,   -- from_shop / self_set / no_try_to_remember / dashboard_light
+  competitive_bids      text,   -- love_it / open_to_it / unsure / prefer_one_shop
+  app_usage             text,   -- yes_regularly / tried_none_stuck / no_old_fashioned / didnt_know
+  payment_comfort       text,   -- very_comfortable / open_to_it / prefer_in_person / not_comfortable
+  dispute_history       text,   -- yes_hard_to_resolve / yes_resolved / concerns_not_voiced / never
+  annual_spend          text,   -- under_500 / 500_to_1500 / 1500_to_3000 / over_3000
+  decision_maker        text,   -- yes_primary / shared / mostly_me / not_me
+  near_term_need        text,   -- yes_urgent / yes_routine / not_right_now / no_need
+  top_priority          text,   -- trust / pricing / convenience / quality / proximity
+  vehicle_count         text    -- 1 / 2 / 3plus
   raw                   jsonb,
   ip_hash               text,   -- hashed IP for dedup (no PII stored)
   created_at            timestamptz NOT NULL DEFAULT now()
@@ -36,19 +40,20 @@ ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS service_types         text
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS pricing_confidence    text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS estimate_surprise     text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS quote_behavior        text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS provider_honesty      text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS provider_vetting      text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS history_tracking      text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS maintenance_avoidance text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS competitive_bids        text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS best_value             text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS provider_honesty       text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS job_status_updates    text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS provider_vetting      text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS maintenance_reminders text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS competitive_bids      text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS app_usage             text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS payment_comfort       text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS dispute_history       text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS maintenance_reminders text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS annual_spend          text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS decision_maker        text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS near_term_need        text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS top_priority          text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS travel_distance       text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS vehicle_count         text;
 
 -- Member onboarding checklist state

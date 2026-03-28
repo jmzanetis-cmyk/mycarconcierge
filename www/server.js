@@ -42416,7 +42416,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     const supabase = getSupabaseClient();
     try {
       const body = await getRequestBody(req);
-      const { provider_discovery, provider_satisfaction, service_frequency, service_types, pricing_confidence, estimate_surprise, quote_behavior, history_tracking, maintenance_avoidance, competitive_bids, best_value, provider_honesty, job_status_updates, provider_vetting, app_usage, payment_comfort, dispute_history, maintenance_reminders, top_priority, travel_distance, vehicle_count } = body;
+      const { provider_discovery, provider_satisfaction, service_frequency, service_types, pricing_confidence, estimate_surprise, quote_behavior, provider_honesty, provider_vetting, history_tracking, maintenance_avoidance, job_status_updates, maintenance_reminders, competitive_bids, app_usage, payment_comfort, dispute_history, annual_spend, decision_maker, near_term_need, top_priority, vehicle_count } = body;
       if (!provider_satisfaction && !top_priority && !vehicle_count) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing survey data' })); return; }
 
       let userId = null;
@@ -42456,19 +42456,20 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
           pricing_confidence,
           estimate_surprise,
           quote_behavior,
+          provider_honesty,
+          provider_vetting,
           history_tracking,
           maintenance_avoidance,
-          competitive_bids,
-          best_value,
-          provider_honesty,
           job_status_updates,
-          provider_vetting,
+          maintenance_reminders,
+          competitive_bids,
           app_usage,
           payment_comfort,
           dispute_history,
-          maintenance_reminders,
+          annual_spend,
+          decision_maker,
+          near_term_need,
           top_priority,
-          travel_distance,
           vehicle_count,
           raw: body,
           ip_hash: ipHash
@@ -42662,12 +42663,12 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         const { count: trueCount, error: cErr } = await supabase.from('survey_responses').select('*', { count: 'exact', head: true });
         if (!cErr) total = trueCount || 0;
         // Sample last 1000 for chart breakdown
-        const { data, error: qErr } = await supabase.from('survey_responses').select('provider_discovery, provider_satisfaction, service_frequency, service_types, pricing_confidence, estimate_surprise, quote_behavior, history_tracking, maintenance_avoidance, competitive_bids, best_value, provider_honesty, job_status_updates, provider_vetting, app_usage, payment_comfort, dispute_history, maintenance_reminders, top_priority, travel_distance, vehicle_count, created_at').order('created_at', { ascending: false }).limit(1000);
+        const { data, error: qErr } = await supabase.from('survey_responses').select('provider_discovery, provider_satisfaction, service_frequency, service_types, pricing_confidence, estimate_surprise, quote_behavior, provider_honesty, provider_vetting, history_tracking, maintenance_avoidance, job_status_updates, maintenance_reminders, competitive_bids, app_usage, payment_comfort, dispute_history, annual_spend, decision_maker, near_term_need, top_priority, vehicle_count, created_at').order('created_at', { ascending: false }).limit(1000);
         if (qErr && qErr.code === '42P01') { rows = []; total = 0; } // table not yet migrated
         else rows = data || [];
       } catch (_) { rows = []; total = 0; }
       const agg = {};
-      const keys = ['provider_discovery','provider_satisfaction','service_frequency','service_types','pricing_confidence','estimate_surprise','quote_behavior','history_tracking','maintenance_avoidance','competitive_bids','best_value','provider_honesty','job_status_updates','provider_vetting','app_usage','payment_comfort','dispute_history','maintenance_reminders','top_priority','travel_distance','vehicle_count'];
+      const keys = ['provider_discovery','provider_satisfaction','service_frequency','service_types','pricing_confidence','estimate_surprise','quote_behavior','provider_honesty','provider_vetting','history_tracking','maintenance_avoidance','job_status_updates','maintenance_reminders','competitive_bids','app_usage','payment_comfort','dispute_history','annual_spend','decision_maker','near_term_need','top_priority','vehicle_count'];
       for (const k of keys) agg[k] = {};
       for (const r of (rows || [])) {
         for (const k of keys) {
