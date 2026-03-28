@@ -339,7 +339,8 @@ const rateLimitConfig = {
   apiAuth: { limit: 100, windowMs: 60000 },
   public: { limit: 30, windowMs: 60000 },
   adminVerify: { limit: 10, windowMs: 60000 },
-  helpdesk: { limit: 10, windowMs: 60000 }
+  helpdesk: { limit: 10, windowMs: 60000 },
+  memberSurvey: { limit: 5, windowMs: 300000 }
 };
 
 function getClientIP(req) {
@@ -42413,11 +42414,64 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
   if (req.method === 'POST' && req.url === '/api/member/survey') {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
+
+    // Rate limit: 5 submissions per IP per 5 minutes
+    const rl = applyRateLimit(req, res, 'memberSurvey');
+    if (!rl.allowed) return;
+
     const supabase = getSupabaseClient();
     try {
-      const body = await getRequestBody(req);
-      const { provider_discovery, provider_satisfaction, service_frequency, service_types, pricing_confidence, estimate_surprise, quote_behavior, provider_honesty, provider_vetting, history_tracking, maintenance_avoidance, job_status_updates, maintenance_reminders, competitive_bids, app_usage, payment_comfort, dispute_history, annual_spend, decision_maker, near_term_need, top_priority, vehicle_count } = body;
-      if (!provider_satisfaction && !top_priority && !vehicle_count) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing survey data' })); return; }
+      let body;
+      try {
+        body = await getRequestBody(req, 32768); // 32 KB hard cap
+      } catch (parseErr) {
+        res.writeHead(400); res.end(JSON.stringify({ error: parseErr.message || 'Invalid request body' })); return;
+      }
+
+      // Allowed enum values per field — reject anything not on the list (or empty string for optional)
+      const ALLOWED = {
+        provider_discovery: ['word_of_mouth','google_search','social_media','ad','app_store','other',''],
+        provider_satisfaction: ['very_satisfied','somewhat_satisfied','neutral','somewhat_dissatisfied','very_dissatisfied',''],
+        service_frequency: ['monthly_or_more','every_2_3_months','twice_a_year','once_a_year','less_often',''],
+        service_types: ['routine','tires_brakes','repairs','detailing','body_work','mix',''],
+        pricing_confidence: ['very_fair','mostly_fair','sometimes_questionable','often_too_high',''],
+        estimate_surprise: ['yes_regularly','yes_once','no_never',''],
+        quote_behavior: ['go_with_first','compare_few','always_shop',''],
+        provider_honesty: ['very_honest','mostly_honest','sometimes_questionable','often_dishonest',''],
+        provider_vetting: ['always','sometimes','rarely','never',''],
+        history_tracking: ['spreadsheet','notes_app','memory','no_system',''],
+        maintenance_avoidance: ['yes_often','yes_sometimes','rarely','never',''],
+        job_status_updates: ['they_call','i_call','no_updates',''],
+        maintenance_reminders: ['yes_use_them','no_try_to_remember','no_just_go',''],
+        competitive_bids: ['yes_always','open_to_it','prefer_one_provider','never_tried',''],
+        app_usage: ['yes_multiple','yes_one','no_old_fashioned',''],
+        payment_comfort: ['already_do','open_to_it','prefer_traditional',''],
+        dispute_history: ['never','once','multiple_times',''],
+        annual_spend: ['under_500','500_to_1500','1500_to_3000','over_3000',''],
+        decision_maker: ['yes_primary','shared','no_someone_else',''],
+        near_term_need: ['yes_routine','yes_repair','yes_shopping','no_not_now',''],
+        top_priority: ['trust','pricing','convenience','quality','proximity',''],
+        vehicle_count: ['1','2','3_or_more','']
+      };
+
+      const SURVEY_KEYS = Object.keys(ALLOWED);
+      const MAX_FIELD_LEN = 100;
+      const sanitized = {};
+      for (const k of SURVEY_KEYS) {
+        const raw = body[k];
+        if (raw === undefined || raw === null) { sanitized[k] = ''; continue; }
+        const val = String(raw).slice(0, MAX_FIELD_LEN).trim();
+        if (ALLOWED[k] && !ALLOWED[k].includes(val)) {
+          res.writeHead(400); res.end(JSON.stringify({ error: `Invalid value for field: ${k}` })); return;
+        }
+        sanitized[k] = val;
+      }
+
+      const { provider_discovery, provider_satisfaction, service_frequency, service_types, pricing_confidence, estimate_surprise, quote_behavior, provider_honesty, provider_vetting, history_tracking, maintenance_avoidance, job_status_updates, maintenance_reminders, competitive_bids, app_usage, payment_comfort, dispute_history, annual_spend, decision_maker, near_term_need, top_priority, vehicle_count } = sanitized;
+
+      // Require at least 3 core fields to be non-empty
+      const filledCount = SURVEY_KEYS.filter(k => sanitized[k]).length;
+      if (filledCount < 3) { res.writeHead(400); res.end(JSON.stringify({ error: 'Insufficient survey data' })); return; }
 
       let userId = null;
       try {
@@ -42471,7 +42525,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
           near_term_need,
           top_priority,
           vehicle_count,
-          raw: body,
+          raw: sanitized,
           ip_hash: ipHash
         });
         // Graceful fallback for pre-migration state (table not yet created)
