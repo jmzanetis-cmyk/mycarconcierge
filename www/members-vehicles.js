@@ -1107,17 +1107,29 @@
       // Upload new photo if one was selected
       if (pendingEditVehiclePhoto) {
         showToast('Uploading photo...', 'success');
-        const fileName = `${currentUser.id}/${editingVehicleId}-${Date.now()}-${pendingEditVehiclePhoto.file.name}`;
+        // Path must be {userId}/{vehicleId}/{timestamp}-{filename} so server validation passes
+        const safeFileName = pendingEditVehiclePhoto.file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileName = `${currentUser.id}/${editingVehicleId}/${Date.now()}-${safeFileName}`;
         
         try {
-          const { data: uploadData, error: uploadError } = await supabaseClient.storage
+          const { error: uploadError } = await supabaseClient.storage
             .from('vehicle-photos')
             .upload(fileName, pendingEditVehiclePhoto.file);
           
           if (!uploadError) {
-            // Generate a signed URL so photo_url stays renderable in existing UI
-            const { data: signData } = await supabaseClient.storage.from('vehicle-photos').createSignedUrl(fileName, 3600 * 24 * 7);
-            photoUrl = signData?.signedUrl || null;
+            // Get a server-signed URL via the vehicle-photos API — no client-side signing
+            const session = (await supabaseClient.auth.getSession()).data.session;
+            const regRes = await fetch(`/api/vehicle-photos/${editingVehicleId}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+              body: JSON.stringify({ storage_path: fileName, is_primary: true })
+            });
+            if (regRes.ok) {
+              const regData = await regRes.json();
+              photoUrl = regData.photo?.url || null;
+            } else {
+              console.error('Photo registration failed:', await regRes.text());
+            }
           } else {
             console.error('Photo upload error:', uploadError);
             showToast('Photo upload failed, but updating vehicle info...', 'error');

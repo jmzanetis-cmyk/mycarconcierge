@@ -42056,21 +42056,26 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         if (!isVerified) {
           res.writeHead(403); res.end(JSON.stringify({ error: 'verification_required', message: 'Your provider account must be verified before you can place bids.' })); return;
         }
-        const { data: bid, error } = await supabase.from('plan_bids').upsert({
+        // Reject if a bid from this provider already exists — edits must go through PATCH
+        const { data: dupCheck } = await supabase.from('plan_bids').select('id').eq('care_plan_id', care_plan_id).eq('provider_id', user.id).maybeSingle();
+        if (dupCheck) {
+          res.writeHead(409); res.end(JSON.stringify({ error: 'Bid already placed. Use the edit action to change your bid.' })); return;
+        }
+        const { data: bid, error } = await supabase.from('plan_bids').insert({
           care_plan_id, provider_id: user.id, amount: parseFloat(amount), note: note || null, is_auto_bid: false
-        }, { onConflict: 'care_plan_id,provider_id' }).select().single();
+        }).select().single();
         if (error) throw error;
         // Notify member via push/SMS (best-effort)
-        try {
-          const { data: member } = await supabase.from('profiles').select('phone, push_token, sms_notifications_enabled').eq('id', plan.member_id).single();
+        const { data: member } = await supabase.from('profiles').select('phone, push_token, sms_notifications_enabled').eq('id', plan.member_id).single().catch(() => ({ data: null }));
+        if (member) {
           const provName = prov.business_name || prov.full_name || 'A provider';
-          if (member?.push_token) {
-            await sendPushNotification(member.push_token, { title: 'New Bid Received', body: `${provName} placed a $${parseFloat(amount).toFixed(2)} bid on your care plan.`, data: { care_plan_id } }).catch(() => {});
+          if (member.push_token) {
+            sendPushNotification(member.push_token, { title: 'New Bid Received', body: `${provName} placed a $${parseFloat(amount).toFixed(2)} bid on your care plan.`, data: { care_plan_id } }).catch(e => console.warn('[PlanBids] Push notify failed:', e.message));
           }
-          if (member?.sms_notifications_enabled && member?.phone) {
-            await sendSms(member.phone, `${provName} placed a $${parseFloat(amount).toFixed(2)} bid on your care plan. Log in to review.`).catch(() => {});
+          if (member.sms_notifications_enabled && member.phone) {
+            sendSms(member.phone, `${provName} placed a $${parseFloat(amount).toFixed(2)} bid on your care plan. Log in to review.`).catch(e => console.warn('[PlanBids] SMS notify failed:', e.message));
           }
-        } catch {}
+        }
         res.writeHead(201, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, bid }));
       } catch (err) {
@@ -42280,7 +42285,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     return;
   }
 
-  // POST /api/vehicle-photos/:vehicleId — upload a vehicle photo (multipart forwarded as JSON with base64)
+  // POST /api/vehicle-photos/:vehicleId — register an already-uploaded storage object and return a server-signed URL
   if (req.method === 'POST' && /^\/api\/vehicle-photos\/[^/]+$/.test(req.url)) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
