@@ -41876,16 +41876,35 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     return;
   }
 
+  // Helper: validate admin auth (password, token session, or Supabase admin role)
+  async function surveyAdminAuth(req, res, supabase) {
+    const adminPassHeader  = req.headers['x-admin-password'];
+    const adminTokenHeader = req.headers['x-admin-token'];
+    const authHeader       = req.headers.authorization;
+    const expectedPass     = process.env.ADMIN_PASSWORD;
+    if (adminPassHeader && expectedPass && adminPassHeader === expectedPass) return true;
+    if (adminTokenHeader) {
+      const session = getAdminSessionFromReq(req);
+      if (!session) { res.writeHead(401); res.end(JSON.stringify({ error: 'Invalid or expired admin session' })); return false; }
+      return true;
+    }
+    if (authHeader && authHeader.startsWith('Bearer ') && supabase) {
+      const token = authHeader.split(' ')[1];
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (error || !user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Invalid or expired token' })); return false; }
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+      if (!profile || profile.role !== 'admin') { res.writeHead(403); res.end(JSON.stringify({ error: 'Admin access required' })); return false; }
+      return true;
+    }
+    res.writeHead(401); res.end(JSON.stringify({ error: 'Authentication required' })); return false;
+  }
+
   // GET /api/admin/survey-stats — aggregate counts + feature rating breakdown (admin only)
   if (req.method === 'GET' && req.url === '/api/admin/survey-stats') {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
-    const adminPw = req.headers['x-admin-password'];
-    const envPw   = process.env.ADMIN_PASSWORD;
-    if (!adminPw || !envPw || adminPw !== envPw) {
-      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
-    }
     const supabase = getSupabaseClient();
+    if (!(await surveyAdminAuth(req, res, supabase))) return;
     try {
       const [{ data: responses }, { data: profiles }, { data: jobs }] = await Promise.all([
         supabase.from('survey_responses').select('id, interested, feature_ratings, created_at').order('created_at', { ascending: false }).limit(2000),
@@ -41939,57 +41958,65 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
   }
 
   // GET /api/admin/survey-leads — paginated lead list (admin only)
+  // Base table: survey_responses (filter at DB level); LEFT JOIN customer_profiles + job_listings
   if (req.method === 'GET' && req.url.startsWith('/api/admin/survey-leads') && !req.url.includes('export')) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
-    const adminPw = req.headers['x-admin-password'];
-    const envPw   = process.env.ADMIN_PASSWORD;
-    if (!adminPw || !envPw || adminPw !== envPw) {
-      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
-    }
     const supabase = getSupabaseClient();
+    if (!(await surveyAdminAuth(req, res, supabase))) return;
     try {
       const urlObj = new URL(req.url, 'http://localhost');
       const page   = Math.max(1, parseInt(urlObj.searchParams.get('page')  || '1', 10));
       const limit  = Math.min(50, Math.max(1, parseInt(urlObj.searchParams.get('limit') || '25', 10)));
-      const search = (urlObj.searchParams.get('search') || '').trim().toLowerCase().slice(0, 100);
+      const search = (urlObj.searchParams.get('search') || '').trim().slice(0, 100);
       const filter = urlObj.searchParams.get('filter') || 'all'; // 'all' | 'interested' | 'not_interested'
       const offset = (page - 1) * limit;
 
-      // Fetch profiles + join survey_response + job
-      let query = supabase.from('customer_profiles')
-        .select('id, first_name, last_name, email, phone, zip, vehicle_year, vehicle_make, vehicle_model, created_at, survey_response_id, survey_responses(interested, feature_ratings), job_listings(service_type, issue_description, urgency, budget_range)', { count: 'exact' })
+      // Query survey_responses as base — DB-level filter so pagination is accurate
+      // LEFT JOIN customer_profiles (via survey_response_id FK) and nested job_listings
+      let query = supabase.from('survey_responses')
+        .select(
+          'id, first_name, last_name, email, phone, zip, interested, feature_ratings, created_at, customer_profiles(id, vehicle_year, vehicle_make, vehicle_model, job_listings(service_type, issue_description, urgency, zip, budget_range))',
+          { count: 'exact' }
+        )
+        .not('interested', 'is', null)  // must have been through survey
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
+
+      // DB-level interest filter
+      if (filter === 'interested')     query = query.eq('interested', true);
+      if (filter === 'not_interested') query = query.eq('interested', false);
+
+      // DB-level search on survey_responses columns
       if (search) {
         query = query.or(`email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,zip.ilike.%${search}%`);
       }
-      const { data, count } = await query;
+
+      const { data, count, error: qErr } = await query;
+      if (qErr) throw qErr;
+
       const rows = (data || []).map(r => {
-        const sr = Array.isArray(r.survey_responses) ? r.survey_responses[0] : r.survey_responses;
-        const job = Array.isArray(r.job_listings) ? r.job_listings[0] : r.job_listings;
-        const featureRatings = sr?.feature_ratings || {};
-        const topFeature = Object.entries(featureRatings).filter(([,v]) => v === 'yes').map(([k]) => k)[0] || null;
+        const cp  = Array.isArray(r.customer_profiles) ? r.customer_profiles[0] : r.customer_profiles;
+        const job = cp ? (Array.isArray(cp.job_listings) ? cp.job_listings[0] : cp.job_listings) : null;
+        const fr  = r.feature_ratings || {};
+        const topFeature = Object.entries(fr).filter(([,v]) => v === 'yes').map(([k]) => k)[0] || null;
+        const vehicle = cp ? [cp.vehicle_year, cp.vehicle_make, cp.vehicle_model].filter(Boolean).join(' ') || null : null;
         return {
           id: r.id,
-          name: (r.first_name || '') + ' ' + (r.last_name || ''),
-          email: r.email,
-          phone: r.phone,
-          zip: r.zip,
-          vehicle: [r.vehicle_year, r.vehicle_make, r.vehicle_model].filter(Boolean).join(' ') || null,
-          interested: sr?.interested ?? null,
-          feature_ratings: featureRatings,
+          name: ((r.first_name || '') + ' ' + (r.last_name || '')).trim() || null,
+          email: r.email || null,
+          phone: r.phone || cp?.phone || null,
+          zip:   r.zip   || cp?.zip   || null,
+          vehicle,
+          interested: r.interested,
+          feature_ratings: fr,
           top_feature: topFeature,
-          job_service: job?.service_type || null,
-          job_urgency: job?.urgency || null,
-          job_budget: job?.budget_range || null,
-          job_issue: job?.issue_description || null,
-          created_at: r.created_at
+          job_service: job?.service_type  || null,
+          job_urgency: job?.urgency       || null,
+          job_budget:  job?.budget_range  || null,
+          job_issue:   job?.issue_description || null,
+          created_at:  r.created_at
         };
-      }).filter(r => {
-        if (filter === 'interested') return r.interested === true;
-        if (filter === 'not_interested') return r.interested === false;
-        return true;
       });
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -42005,15 +42032,13 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
   if (req.method === 'GET' && req.url.startsWith('/api/admin/survey-leads/export')) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
-    const adminPw = req.headers['x-admin-password'];
-    const envPw   = process.env.ADMIN_PASSWORD;
-    if (!adminPw || !envPw || adminPw !== envPw) {
-      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
-    }
     const supabase = getSupabaseClient();
+    if (!(await surveyAdminAuth(req, res, supabase))) return;
     try {
-      const { data } = await supabase.from('customer_profiles')
-        .select('id, first_name, last_name, email, phone, zip, vehicle_year, vehicle_make, vehicle_model, created_at, survey_response_id, survey_responses(interested, feature_ratings), job_listings(service_type, issue_description, urgency, zip, budget_range)')
+      // Export from survey_responses as base (covers both interested and not-interested)
+      const { data } = await supabase.from('survey_responses')
+        .select('id, first_name, last_name, email, phone, zip, interested, feature_ratings, created_at, customer_profiles(vehicle_year, vehicle_make, vehicle_model, job_listings(service_type, issue_description, urgency, zip, budget_range))')
+        .not('interested', 'is', null)
         .order('created_at', { ascending: false })
         .limit(5000);
 
@@ -42032,15 +42057,15 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
 
       const csvRows = [headers.join(',')];
       for (const r of rows) {
-        const sr = Array.isArray(r.survey_responses) ? r.survey_responses[0] : r.survey_responses;
-        const job = Array.isArray(r.job_listings) ? r.job_listings[0] : r.job_listings;
-        const fr = sr?.feature_ratings || {};
+        const cp  = Array.isArray(r.customer_profiles) ? r.customer_profiles[0] : r.customer_profiles;
+        const job = cp ? (Array.isArray(cp.job_listings) ? cp.job_listings[0] : cp.job_listings) : null;
+        const fr  = r.feature_ratings || {};
         const esc = v => v ? '"' + String(v).replace(/"/g, '""').slice(0, 500) + '"' : '';
-        const vehicle = [r.vehicle_year, r.vehicle_make, r.vehicle_model].filter(Boolean).join(' ');
+        const vehicle = cp ? [cp.vehicle_year, cp.vehicle_make, cp.vehicle_model].filter(Boolean).join(' ') : '';
         csvRows.push([
-          esc((r.first_name || '') + ' ' + (r.last_name || '')),
+          esc(((r.first_name || '') + ' ' + (r.last_name || '')).trim()),
           esc(r.email), esc(r.phone), esc(r.zip), esc(vehicle),
-          sr?.interested === true ? 'Yes' : sr?.interested === false ? 'No' : '',
+          r.interested === true ? 'Yes' : r.interested === false ? 'No' : '',
           r.created_at ? new Date(r.created_at).toISOString().slice(0, 10) : '',
           fr.get_quotes || '', fr.manage_vehicles || '', fr.maintenance || '', fr.shop_smarter || '',
           fr.booking || '', fr.obd_diagnostics || '', fr.provider_ratings || '', fr.price_estimator || '',
@@ -42067,12 +42092,8 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
   if (req.method === 'GET' && req.url.startsWith('/api/admin/survey-not-interested')) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
-    const adminPw = req.headers['x-admin-password'];
-    const envPw   = process.env.ADMIN_PASSWORD;
-    if (!adminPw || !envPw || adminPw !== envPw) {
-      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
-    }
     const supabase = getSupabaseClient();
+    if (!(await surveyAdminAuth(req, res, supabase))) return;
     try {
       const urlObj = new URL(req.url, 'http://localhost');
       const page  = Math.max(1, parseInt(urlObj.searchParams.get('page') || '1', 10));
