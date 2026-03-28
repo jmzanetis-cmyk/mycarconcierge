@@ -42179,6 +42179,11 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
     } catch (err) {
+      if (err.code === '42P01' || (err.message && err.message.includes('does not exist'))) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, fallback: true }));
+        return;
+      }
       console.error('[Survey] POST error:', err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save survey' }));
     }
@@ -42186,7 +42191,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
   }
 
   // GET /api/member/onboarding — fetch checklist + survey status
-  if (req.method === 'GET' && req.url === '/api/member/onboarding') {
+  if (req.method === 'GET' && (req.url === '/api/member/onboarding' || req.url.startsWith('/api/member/onboarding?'))) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
     const user = await authenticateRequest(req);
@@ -42194,11 +42199,17 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     const supabase = getSupabaseClient();
     try {
       let row = null;
+      let profileZip = null;
       if (supabase) {
-        const { data } = await supabase.from('member_onboarding').select('*').eq('user_id', user.id).maybeSingle();
-        row = data;
+        const [onboardRes, profileRes] = await Promise.all([
+          supabase.from('member_onboarding').select('*').eq('user_id', user.id).maybeSingle(),
+          supabase.from('profiles').select('zip_code').eq('id', user.id).maybeSingle()
+        ]);
+        row = onboardRes.data;
+        profileZip = profileRes.data?.zip_code || null;
       }
       const checklist = row?.checklist || {};
+      const profileCompleted = !!(profileZip || checklist.profile_completed);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         survey_completed: row?.survey_completed || false,
@@ -42206,7 +42217,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         pain_point: checklist.pain_point || null,
         checklist: {
           account_created: true,
-          survey: checklist.survey || false,
+          profile_completed: profileCompleted,
           vehicle_added: checklist.vehicle_added || false,
           request_posted: checklist.request_posted || false,
           notifications_enabled: checklist.notifications_enabled || false,
@@ -42218,6 +42229,12 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         }
       }));
     } catch (err) {
+      if (err.code === '42P01' || (err.message && err.message.includes('does not exist'))) {
+        // Table not yet created — return safe empty payload
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ survey_completed: false, welcome_shown: false, pain_point: null, checklist: { account_created: true, profile_completed: false, vehicle_added: false, request_posted: false, notifications_enabled: false, provider_profile: false, provider_docs: false, provider_services: false, provider_stripe: false, provider_first_booking: false } }));
+        return;
+      }
       console.error('[Onboarding] GET error:', err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load onboarding status' }));
     }
@@ -42257,6 +42274,11 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
     } catch (err) {
+      if (err.code === '42P01' || (err.message && err.message.includes('does not exist'))) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, fallback: true }));
+        return;
+      }
       console.error('[Onboarding] POST step error:', err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update onboarding step' }));
     }

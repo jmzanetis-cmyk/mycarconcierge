@@ -1198,11 +1198,11 @@
             </div>
             <span class="step-arrow" style="color:var(--accent-green);">✓</span>
           </div>
-          <div class="onboarding-step" id="step-take-survey" onclick="window.open('/survey','_blank')">
-            <span class="step-check" id="check-survey">2</span>
+          <div class="onboarding-step" id="step-complete-profile" onclick="showSection('profile')">
+            <span class="step-check" id="check-profile">2</span>
             <div class="step-content">
-              <span class="step-name">Take our 1-minute survey</span>
-              <span class="step-desc">Help us improve — takes under 60 seconds</span>
+              <span class="step-name">Complete your profile</span>
+              <span class="step-desc">Add your zip code so providers know your area</span>
             </div>
             <span class="step-arrow">→</span>
           </div>
@@ -1222,12 +1222,20 @@
             </div>
             <span class="step-arrow">→</span>
           </div>
+          <div class="onboarding-step" id="step-enable-notifications" onclick="document.getElementById('notification-settings')?.scrollIntoView({behavior:'smooth'})">
+            <span class="step-check" id="check-notifications">5</span>
+            <div class="step-content">
+              <span class="step-name">Enable notifications</span>
+              <span class="step-desc">Stay updated on bids and job status</span>
+            </div>
+            <span class="step-arrow">→</span>
+          </div>
         </div>
         <div class="onboarding-progress">
           <div class="progress-bar">
             <div class="progress-fill" id="onboarding-progress-fill" style="width: 0%;"></div>
           </div>
-          <span class="progress-text" id="onboarding-progress-text">1 of 4 complete</span>
+          <span class="progress-text" id="onboarding-progress-text">1 of 5 complete</span>
         </div>
       </div>
 
@@ -7769,7 +7777,7 @@
     
     // ===== ONBOARDING CHECKLIST & WELCOME MODAL =====
     const CHECK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
-    const TOTAL_STEPS = 4;
+    const TOTAL_STEPS = 5;
 
     function markStepDone(el, checkId) {
       if (!el) return;
@@ -7781,14 +7789,14 @@
     }
 
     function updateOnboardingUI(data) {
-      const { checklist, survey_completed, welcome_shown } = data;
+      const { checklist, welcome_shown } = data;
       const vehicleCount = parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
       const packageCount = parseInt(document.getElementById('stat-packages')?.textContent || '0');
 
       let completed = 1; // account_created always done
 
-      if (survey_completed || checklist.survey) {
-        markStepDone(document.getElementById('step-take-survey'), 'check-survey');
+      if (checklist.profile_completed) {
+        markStepDone(document.getElementById('step-complete-profile'), 'check-profile');
         completed++;
       }
       if (vehicleCount > 0 || checklist.vehicle_added) {
@@ -7797,6 +7805,10 @@
       }
       if (packageCount > 0 || checklist.request_posted) {
         markStepDone(document.getElementById('step-create-request'), 'check-request');
+        completed++;
+      }
+      if (checklist.notifications_enabled) {
+        markStepDone(document.getElementById('step-enable-notifications'), 'check-notifications');
         completed++;
       }
 
