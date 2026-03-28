@@ -109,7 +109,8 @@
       'marketing-outreach': false,
       'ai-ops': false,
       'saas-subscriptions': false,
-      'white-label': false
+      'white-label': false,
+      'survey-analytics': false
     };
 
     const sectionLoaders = {
@@ -11229,52 +11230,343 @@
     window.adminRevokeApiKey = adminRevokeApiKey;
     // ========== END AI API USAGE DASHBOARD ==========
 
-    // ========== SURVEY ANALYTICS ==========
+    // ========== SURVEY LEADS (Task #93) ==========
+
+    const SURVEY_FEATURE_NAMES = {
+      get_quotes:       'Get Instant Quotes',
+      manage_vehicles:  'Manage Your Vehicles',
+      maintenance:      'Maintenance Tracking',
+      shop_smarter:     'Shop Smarter',
+      booking:          'Easy Service Booking',
+      obd_diagnostics:  'OBD Diagnostics',
+      provider_ratings: 'Verified Ratings',
+      price_estimator:  'AI Price Estimator'
+    };
+
+    const SURVEY_SERVICE_NAMES = {
+      oil_change: 'Oil Change', tire_rotation: 'Tire Rotation', brake_service: 'Brake Service',
+      diagnostic: 'Diagnostic', ac_repair: 'A/C Repair', transmission: 'Transmission',
+      body_paint: 'Body Work', detailing: 'Detailing', towing: 'Towing',
+      inspection: 'Inspection', windshield: 'Windshield', electrical: 'Electrical',
+      suspension: 'Suspension', snow_removal: 'Snow Removal', other: 'Other'
+    };
+
+    let surveyLeadsState = { page: 1, limit: 25, total: 0, totalPages: 0 };
+    let surveyNiState    = { page: 1, limit: 50, total: 0, totalPages: 0 };
+    let surveyTrendData  = null;
+    let surveyTrendChart = null;
+    let surveyTrendView  = 'daily';
+    let surveySearchTimer = null;
+
     async function loadSurveyAnalytics() {
       try {
-        const res = await adminFetch('/api/admin/survey-analytics');
-        if (!res.ok) throw new Error('not ok');
+        const headers = getAdminHeaders();
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(apiBase + '/api/admin/survey-stats', { headers });
+        if (!res.ok) throw new Error('Stats fetch failed');
         const data = await res.json();
 
         const el = id => document.getElementById(id);
-        if (el('survey-total')) el('survey-total').textContent = data.total || 0;
-        if (el('survey-week')) el('survey-week').textContent = data.recent_week || 0;
+        if (el('sl-total'))          el('sl-total').textContent          = (data.total_responses || 0).toLocaleString();
+        if (el('sl-pct-interested')) el('sl-pct-interested').textContent = (data.pct_interested || 0) + '%';
+        if (el('sl-profiles'))       el('sl-profiles').textContent       = (data.total_profiles || 0).toLocaleString();
+        if (el('sl-jobs'))           el('sl-jobs').textContent           = (data.total_jobs || 0).toLocaleString();
 
-        function renderBars(containerId, obj, labelMap) {
-          const container = el(containerId);
-          if (!container) return;
-          const total = Object.values(obj).reduce((a, b) => a + b, 0) || 1;
-          const sorted = Object.entries(obj).sort((a, b) => b[1] - a[1]);
-          container.innerHTML = sorted.length ? sorted.map(([key, count]) => {
-            const pct = Math.round((count / total) * 100);
-            const label = labelMap?.[key] || key;
-            return `<div style="margin-bottom:12px;">
-              <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:4px;">
-                <span style="color:var(--text-primary);">${label}</span>
-                <span style="color:var(--text-muted);">${count} (${pct}%)</span>
-              </div>
-              <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden;">
-                <div style="background:var(--accent-gold);height:100%;width:${pct}%;border-radius:4px;transition:width 0.6s ease;"></div>
-              </div>
-            </div>`;
-          }).join('') : '<p style="color:var(--text-muted);font-size:0.85rem;">No data yet.</p>';
-        }
+        // Render heatmap
+        renderSurveyHeatmap(data.feature_heatmap || {});
 
-        renderBars('survey-source-bars', data.by_source || {}, {
-          google: 'Google / Online Search', friend: 'Friend or Family Referral',
-          social: 'Social Media', ad: 'I Saw an Ad', event: 'Event / Local Promotion', other: 'Other'
-        });
-        renderBars('survey-pain-bars', data.by_pain_point || {}, {
-          cost: 'Unpredictable Costs', trust: 'Finding Trustworthy Providers',
-          scheduling: 'Booking & Scheduling', tracking: 'Tracking Service History', other: 'Other'
-        });
-        renderBars('survey-mechanic-bars', data.by_mechanic || {}, {
-          yes: 'Yes — I have someone I trust', no: 'No — always searching', sometimes: 'Sometimes'
-        });
-        renderBars('survey-vehicle-bars', data.by_vehicle_count || {});
+        // Store trend data for chart
+        surveyTrendData = data.daily_counts || {};
+        if (document.getElementById('sl-trend-chart')) renderSurveyTrendChart();
+
+        // Load leads table
+        await loadSurveyLeads(1);
+
       } catch (err) {
-        console.error('[SurveyAnalytics] Load error:', err.message);
+        console.error('[SurveyLeads] loadSurveyAnalytics error:', err.message);
       }
     }
     window.loadSurveyAnalytics = loadSurveyAnalytics;
-    // ========== END SURVEY ANALYTICS ==========
+
+    function renderSurveyHeatmap(heatmap) {
+      const container = document.getElementById('sl-heatmap');
+      if (!container) return;
+      const FEATURE_IDS = Object.keys(SURVEY_FEATURE_NAMES);
+      if (!FEATURE_IDS.some(fid => (heatmap[fid]?.yes || 0) + (heatmap[fid]?.maybe || 0) + (heatmap[fid]?.no || 0) > 0)) {
+        container.innerHTML = '<p style="color:var(--text-muted);padding:24px;text-align:center;">No feature ratings yet.</p>';
+        return;
+      }
+      container.innerHTML = FEATURE_IDS.map(fid => {
+        const counts = heatmap[fid] || { yes: 0, maybe: 0, no: 0 };
+        const total  = counts.yes + counts.maybe + counts.no || 1;
+        const yPct   = Math.round((counts.yes   / total) * 100);
+        const mPct   = Math.round((counts.maybe / total) * 100);
+        const nPct   = 100 - yPct - mPct;
+        return `
+          <div style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+              <span style="font-size:0.88rem;font-weight:500;color:var(--text-primary);">${escapeHtml(SURVEY_FEATURE_NAMES[fid] || fid)}</span>
+              <span style="font-size:0.78rem;color:var(--text-muted);">${counts.yes}👍 ${counts.maybe}🤔 ${counts.no}👎</span>
+            </div>
+            <div style="display:flex;height:10px;border-radius:6px;overflow:hidden;gap:2px;">
+              <div style="width:${yPct}%;background:#22c55e;border-radius:6px 0 0 6px;" title="Yes: ${yPct}%"></div>
+              <div style="width:${mPct}%;background:var(--accent-gold);" title="Maybe: ${mPct}%"></div>
+              <div style="width:${nPct}%;background:#94a3b8;border-radius:0 6px 6px 0;" title="No: ${nPct}%"></div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function renderSurveyTrendChart() {
+      if (!surveyTrendData) return;
+      const canvas = document.getElementById('sl-trend-chart');
+      if (!canvas) return;
+      if (typeof Chart === 'undefined') {
+        // Lazy-load Chart.js
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+        s.onload = () => renderSurveyTrendChart();
+        document.head.appendChild(s);
+        return;
+      }
+      if (surveyTrendChart) { surveyTrendChart.destroy(); surveyTrendChart = null; }
+
+      const daily   = Object.entries(surveyTrendData).sort((a, b) => a[0].localeCompare(b[0]));
+      let labels, values;
+      if (surveyTrendView === 'weekly') {
+        const weekMap = {};
+        for (const [date, count] of daily) {
+          const d = new Date(date);
+          const wStart = new Date(d); wStart.setDate(d.getDate() - d.getDay());
+          const key = wStart.toISOString().slice(0, 10);
+          weekMap[key] = (weekMap[key] || 0) + count;
+        }
+        const weeks = Object.entries(weekMap).sort((a, b) => a[0].localeCompare(b[0]));
+        labels = weeks.map(([d]) => 'Wk ' + d.slice(5));
+        values = weeks.map(([, v]) => v);
+      } else {
+        labels = daily.map(([d]) => d.slice(5));
+        values = daily.map(([, v]) => v);
+      }
+
+      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+      const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+      const textColor = isDark ? '#a0a8b8' : '#4a5568';
+      surveyTrendChart = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Responses',
+            data: values,
+            borderColor: '#C9A84C',
+            backgroundColor: 'rgba(201,168,76,0.12)',
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.3,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: textColor, maxTicksLimit: 14 }, grid: { color: gridColor } },
+            y: { ticks: { color: textColor, stepSize: 1, precision: 0 }, grid: { color: gridColor }, beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function switchTrendView(view) {
+      surveyTrendView = view;
+      const dailyBtn  = document.getElementById('sl-trend-daily');
+      const weeklyBtn = document.getElementById('sl-trend-weekly');
+      if (dailyBtn)  dailyBtn.style.background  = view === 'daily'  ? 'var(--accent-blue-soft)' : '';
+      if (dailyBtn)  dailyBtn.style.color        = view === 'daily'  ? 'var(--accent-blue)' : '';
+      if (weeklyBtn) weeklyBtn.style.background  = view === 'weekly' ? 'var(--accent-blue-soft)' : '';
+      if (weeklyBtn) weeklyBtn.style.color        = view === 'weekly' ? 'var(--accent-blue)' : '';
+      renderSurveyTrendChart();
+    }
+    window.switchTrendView = switchTrendView;
+
+    async function loadSurveyLeads(page) {
+      page = page || surveyLeadsState.page;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const search  = (document.getElementById('sl-search')?.value || '').trim();
+      const filter  = document.getElementById('sl-filter')?.value || 'all';
+      const params  = new URLSearchParams({ page, limit: surveyLeadsState.limit, search, filter });
+      const tbody   = document.getElementById('sl-table-body');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Loading…</td></tr>';
+      try {
+        const res = await fetch(apiBase + '/api/admin/survey-leads?' + params.toString(), { headers: getAdminHeaders() });
+        if (!res.ok) throw new Error('Fetch failed');
+        const data = await res.json();
+        surveyLeadsState.page       = page;
+        surveyLeadsState.total      = data.total || 0;
+        surveyLeadsState.totalPages = Math.max(1, Math.ceil((data.total || 0) / surveyLeadsState.limit));
+
+        if (tbody) {
+          const leads = data.leads || [];
+          if (!leads.length) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">No leads found.</td></tr>';
+          } else {
+            tbody.innerHTML = leads.map(lead => {
+              const badge = lead.interested === true
+                ? '<span class="badge badge-green">✅ Yes</span>'
+                : lead.interested === false
+                  ? '<span class="badge badge-gray">👎 No</span>'
+                  : '<span class="badge badge-gray">—</span>';
+              const topFeature = lead.top_feature ? (SURVEY_FEATURE_NAMES[lead.top_feature] || lead.top_feature) : '—';
+              const service    = lead.job_service  ? (SURVEY_SERVICE_NAMES[lead.job_service]  || lead.job_service)  : '—';
+              const date       = lead.created_at   ? new Date(lead.created_at).toLocaleDateString() : '—';
+              return `<tr style="cursor:pointer;" onclick="openSurveyLeadDetail(${JSON.stringify(JSON.stringify(lead))})">
+                <td><span style="font-weight:500;">${escapeHtml(lead.name || '—')}</span></td>
+                <td><a href="mailto:${escapeHtml(lead.email||'')}" onclick="event.stopPropagation();" style="color:var(--accent-blue);">${escapeHtml(lead.email||'—')}</a></td>
+                <td>${escapeHtml(lead.zip||'—')}</td>
+                <td style="font-size:0.83rem;">${escapeHtml(lead.vehicle||'—')}</td>
+                <td>${badge}</td>
+                <td style="font-size:0.83rem;">${escapeHtml(topFeature)}</td>
+                <td style="font-size:0.83rem;">${escapeHtml(service)}</td>
+                <td style="font-size:0.83rem;color:var(--text-muted);">${date}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+
+        const pagEl = document.getElementById('sl-pagination');
+        if (pagEl) pagEl.innerHTML = renderPaginationControls(surveyLeadsState, 'loadSurveyLeads');
+      } catch (err) {
+        console.error('[SurveyLeads] loadSurveyLeads error:', err.message);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--accent-red);">Failed to load leads.</td></tr>';
+      }
+    }
+    window.loadSurveyLeads = loadSurveyLeads;
+
+    function openSurveyLeadDetail(leadJson) {
+      const lead = typeof leadJson === 'string' ? JSON.parse(leadJson) : leadJson;
+      const modal = document.getElementById('sl-detail-modal');
+      const body  = document.getElementById('sl-detail-body');
+      if (!modal || !body) return;
+
+      const fr = lead.feature_ratings || {};
+      const featureRows = Object.entries(fr).map(([fid, val]) => {
+        const icon = val === 'yes' ? '👍' : val === 'maybe' ? '🤔' : '👎';
+        return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border-subtle);font-size:0.85rem;">
+          <span style="color:var(--text-secondary);">${escapeHtml(SURVEY_FEATURE_NAMES[fid] || fid)}</span>
+          <span>${icon} ${escapeHtml(val)}</span>
+        </div>`;
+      }).join('') || '<p style="color:var(--text-muted);font-size:0.83rem;">No feature ratings.</p>';
+
+      const urgencyMap = { asap: '🚨 ASAP', this_week: '📅 This Week', this_month: '🗓️ This Month', just_curious: '👀 Just Pricing' };
+      const budgetMap  = { under_100: 'Under $100', '100_500': '$100–$500', '500_1000': '$500–$1,000', '1000_plus': '$1,000+', unsure: 'Not sure' };
+
+      body.innerHTML = `
+        <div style="margin-bottom:20px;">
+          <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Contact</div>
+          <div class="detail-grid">
+            <span class="detail-label">Name</span><span class="detail-value">${escapeHtml(lead.name||'—')}</span>
+            <span class="detail-label">Email</span><span class="detail-value"><a href="mailto:${escapeHtml(lead.email||'')}" style="color:var(--accent-blue);">${escapeHtml(lead.email||'—')}</a></span>
+            <span class="detail-label">Phone</span><span class="detail-value">${escapeHtml(lead.phone||'—')}</span>
+            <span class="detail-label">ZIP</span><span class="detail-value">${escapeHtml(lead.zip||'—')}</span>
+            <span class="detail-label">Vehicle</span><span class="detail-value">${escapeHtml(lead.vehicle||'—')}</span>
+            <span class="detail-label">Interested</span><span class="detail-value">${lead.interested === true ? '✅ Yes' : lead.interested === false ? '👎 No' : '—'}</span>
+            <span class="detail-label">Date</span><span class="detail-value">${lead.created_at ? new Date(lead.created_at).toLocaleString() : '—'}</span>
+          </div>
+        </div>
+        ${lead.job_service || lead.job_issue ? `
+        <div style="margin-bottom:20px;">
+          <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Job Request</div>
+          <div class="detail-grid">
+            <span class="detail-label">Service</span><span class="detail-value">${escapeHtml(SURVEY_SERVICE_NAMES[lead.job_service] || lead.job_service || '—')}</span>
+            <span class="detail-label">Urgency</span><span class="detail-value">${escapeHtml(urgencyMap[lead.job_urgency] || lead.job_urgency || '—')}</span>
+            <span class="detail-label">Budget</span><span class="detail-value">${escapeHtml(budgetMap[lead.job_budget] || lead.job_budget || '—')}</span>
+            <span class="detail-label" style="align-self:start;">Issue</span><span class="detail-value" style="white-space:pre-wrap;">${escapeHtml(lead.job_issue || '—')}</span>
+          </div>
+        </div>` : ''}
+        <div>
+          <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Feature Ratings</div>
+          ${featureRows}
+        </div>`;
+
+      modal.classList.add('active');
+    }
+    window.openSurveyLeadDetail = openSurveyLeadDetail;
+
+    async function loadSurveyNotInterested(page) {
+      page = page || surveyNiState.page;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const tbody   = document.getElementById('sl-ni-body');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text-muted);">Loading…</td></tr>';
+      try {
+        const params = new URLSearchParams({ page, limit: surveyNiState.limit });
+        const res = await fetch(apiBase + '/api/admin/survey-not-interested?' + params.toString(), { headers: getAdminHeaders() });
+        if (!res.ok) throw new Error('Fetch failed');
+        const data = await res.json();
+        surveyNiState.page       = page;
+        surveyNiState.total      = data.total || 0;
+        surveyNiState.totalPages = Math.max(1, Math.ceil((data.total || 0) / surveyNiState.limit));
+
+        if (tbody) {
+          const emails = data.emails || [];
+          if (!emails.length) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:32px;color:var(--text-muted);">No not-interested emails yet.</td></tr>';
+          } else {
+            tbody.innerHTML = emails.map(row => {
+              const hasRatings = row.feature_ratings && Object.keys(row.feature_ratings).length > 0;
+              return `<tr>
+                <td><a href="mailto:${escapeHtml(row.email||'')}" style="color:var(--accent-blue);">${escapeHtml(row.email||'—')}</a></td>
+                <td style="color:var(--text-muted);font-size:0.85rem;">${row.created_at ? new Date(row.created_at).toLocaleDateString() : '—'}</td>
+                <td>${hasRatings ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-gray">No</span>'}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+
+        const pagEl = document.getElementById('sl-ni-pagination');
+        if (pagEl) pagEl.innerHTML = renderPaginationControls(surveyNiState, 'loadSurveyNotInterested');
+      } catch (err) {
+        console.error('[SurveyLeads] loadSurveyNotInterested error:', err.message);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--accent-red);">Failed to load emails.</td></tr>';
+      }
+    }
+    window.loadSurveyNotInterested = loadSurveyNotInterested;
+
+    function switchSurveyTab(tab, el) {
+      document.querySelectorAll('#survey-leads-tabs .tab').forEach(t => t.classList.remove('active'));
+      if (el) el.classList.add('active');
+      ['leads','not-interested','heatmap','trends'].forEach(t => {
+        const div = document.getElementById('survey-tab-' + t);
+        if (div) div.style.display = t === tab ? '' : 'none';
+      });
+      if (tab === 'not-interested') loadSurveyNotInterested(1);
+      if (tab === 'trends' && surveyTrendData) setTimeout(renderSurveyTrendChart, 50);
+    }
+    window.switchSurveyTab = switchSurveyTab;
+
+    function debounceSurveySearch() {
+      if (surveySearchTimer) clearTimeout(surveySearchTimer);
+      surveySearchTimer = setTimeout(() => loadSurveyLeads(1), 300);
+    }
+    window.debounceSurveySearch = debounceSurveySearch;
+
+    function exportSurveyLeads() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const headers = getAdminHeaders();
+      const pw      = headers['x-admin-password'] || headers['x-admin-token'] || '';
+      const url     = apiBase + '/api/admin/survey-leads/export';
+      const a       = document.createElement('a');
+      a.href = url + (pw ? '?_t=' + Date.now() : '');
+      // Pass password via fetch and redirect to blob URL
+      fetch(url, { headers }).then(r => r.blob()).then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        a.href = blobUrl;
+        a.download = 'survey-leads-' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      }).catch(err => { console.error('[SurveyLeads] export error:', err); alert('Export failed.'); });
+    }
+    window.exportSurveyLeads = exportSurveyLeads;
+
+    // ========== END SURVEY LEADS ==========

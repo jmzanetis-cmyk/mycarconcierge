@@ -572,7 +572,7 @@
       <div class="nav-item" data-section="members"><span class="icon-inline" data-icon="users"></span> Members</div>
       <div class="nav-item" data-section="user-roles"><span class="icon-inline" data-icon="refresh-cw"></span> User Roles</div>
       <div class="nav-item" data-section="user-management"><span class="icon-inline" data-icon="users"></span> User Management</div>
-      <div class="nav-item" data-section="survey-analytics"><span class="icon-inline" data-icon="bar-chart-2"></span> Survey Analytics</div>
+      <div class="nav-item" data-section="survey-analytics"><span class="icon-inline" data-icon="bar-chart-2"></span> Survey Leads</div>
       <div class="nav-item" data-section="agreements"><span class="icon-inline" data-icon="file-text"></span> Agreements</div>
 
       <div class="nav-label">Commerce</div>
@@ -3192,35 +3192,145 @@
       </div>
     </div>
 
-    <!-- Survey Analytics Section -->
+    <!-- Survey Leads Section -->
     <section id="survey-analytics" class="section">
       <div class="page-header">
         <button class="back-to-dashboard" onclick="navigateToSection('dashboard')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Dashboard</button>
-        <h1 class="page-title"><span class="icon-inline" data-icon="bar-chart-2"></span> Survey Analytics</h1>
+        <h1 class="page-title"><span class="icon-inline" data-icon="bar-chart-2"></span> Survey Leads</h1>
+        <p class="page-subtitle">Prospect interest data from the public /survey page &mdash; pre-signup leads</p>
       </div>
+
+      <!-- Stat Cards -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:28px;">
-        <div class="stat-card"><div class="stat-value" id="survey-total">—</div><div class="stat-label">Total Responses</div></div>
-        <div class="stat-card"><div class="stat-value" id="survey-week">—</div><div class="stat-label">Last 7 Days</div></div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-blue-soft);">📋</div>
+          <div class="stat-value" id="sl-total">—</div>
+          <div class="stat-label">Total Responses</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-green-soft);">✅</div>
+          <div class="stat-value" id="sl-pct-interested">—</div>
+          <div class="stat-label">% Interested</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-gold-soft);">👤</div>
+          <div class="stat-value" id="sl-profiles">—</div>
+          <div class="stat-label">Profiles Created</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-orange-soft);">🔧</div>
+          <div class="stat-value" id="sl-jobs">—</div>
+          <div class="stat-label">Jobs Posted</div>
+        </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px;" class="grid-responsive">
-        <div class="card" style="padding:24px;">
-          <h3 style="font-size:1rem;margin-bottom:16px;color:var(--text-secondary);">How did you hear about us?</h3>
-          <div id="survey-source-bars"></div>
+
+      <!-- Tabs -->
+      <div class="tabs" id="survey-leads-tabs">
+        <div class="tab active" onclick="switchSurveyTab('leads',this)">All Leads</div>
+        <div class="tab" onclick="switchSurveyTab('not-interested',this)">Not-Interested Emails</div>
+        <div class="tab" onclick="switchSurveyTab('heatmap',this)">Feature Heatmap</div>
+        <div class="tab" onclick="switchSurveyTab('trends',this)">Response Trends</div>
+      </div>
+
+      <!-- TAB: All Leads -->
+      <div id="survey-tab-leads">
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <input type="text" class="form-input" id="sl-search" placeholder="Search name, email, ZIP…" oninput="debounceSurveySearch()" style="flex:1;min-width:180px;" />
+            <select class="form-select" id="sl-filter" onchange="loadSurveyLeads(1)" style="min-width:160px;">
+              <option value="all">All Leads</option>
+              <option value="interested">Interested Only</option>
+              <option value="not_interested">Not Interested</option>
+            </select>
+            <button class="btn btn-gold btn-sm" onclick="exportSurveyLeads()">
+              <span class="icon-inline" data-icon="download"></span> Export CSV
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="loadSurveyAnalytics()">Refresh</button>
+          </div>
         </div>
-        <div class="card" style="padding:24px;">
-          <h3 style="font-size:1rem;margin-bottom:16px;color:var(--text-secondary);">Biggest pain point</h3>
-          <div id="survey-pain-bars"></div>
+
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div style="overflow-x:auto;">
+            <table id="sl-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>ZIP</th>
+                  <th>Vehicle</th>
+                  <th>Interested</th>
+                  <th>Top Feature</th>
+                  <th>Service Needed</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody id="sl-table-body">
+                <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="sl-pagination" style="padding:0 16px;"></div>
         </div>
-        <div class="card" style="padding:24px;">
-          <h3 style="font-size:1rem;margin-bottom:16px;color:var(--text-secondary);">Has a trusted mechanic?</h3>
-          <div id="survey-mechanic-bars"></div>
-        </div>
-        <div class="card" style="padding:24px;">
-          <h3 style="font-size:1rem;margin-bottom:16px;color:var(--text-secondary);">Number of vehicles</h3>
-          <div id="survey-vehicle-bars"></div>
+
+        <!-- Lead Detail Modal -->
+        <div class="modal-backdrop" id="sl-detail-modal">
+          <div class="modal" style="max-width:600px;">
+            <div class="modal-header">
+              <span class="modal-title">Lead Detail</span>
+              <button class="modal-close" onclick="document.getElementById('sl-detail-modal').classList.remove('active')">✕</button>
+            </div>
+            <div class="modal-body" id="sl-detail-body"></div>
+          </div>
         </div>
       </div>
-      <button class="btn btn-secondary" onclick="loadSurveyAnalytics()">Refresh Data</button>
+
+      <!-- TAB: Not-Interested Emails -->
+      <div id="survey-tab-not-interested" style="display:none;">
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div style="overflow-x:auto;">
+            <table id="sl-ni-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Date</th>
+                  <th>Rated Any Features?</th>
+                </tr>
+              </thead>
+              <tbody id="sl-ni-body">
+                <tr><td colspan="3" style="text-align:center;padding:32px;color:var(--text-muted);">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="sl-ni-pagination" style="padding:0 16px;"></div>
+        </div>
+      </div>
+
+      <!-- TAB: Feature Heatmap -->
+      <div id="survey-tab-heatmap" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Feature Interest Heatmap</span>
+            <span style="font-size:0.82rem;color:var(--text-muted);">How prospects rated each feature</span>
+          </div>
+          <div id="sl-heatmap"></div>
+        </div>
+      </div>
+
+      <!-- TAB: Response Trends -->
+      <div id="survey-tab-trends" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Responses Over Time</span>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-secondary btn-sm" id="sl-trend-daily" onclick="switchTrendView('daily')" style="background:var(--accent-blue-soft);color:var(--accent-blue);">Daily</button>
+              <button class="btn btn-secondary btn-sm" id="sl-trend-weekly" onclick="switchTrendView('weekly')">Weekly</button>
+            </div>
+          </div>
+          <div style="position:relative;height:280px;">
+            <canvas id="sl-trend-chart"></canvas>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- Signed Agreements Section -->

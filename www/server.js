@@ -41749,6 +41749,352 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
 
   // ========== END OUTREACH SAAS ==========
 
+  // ========== PROSPECT SURVEY & LEAD CAPTURE (Task #93) ==========
+
+  // POST /api/survey/response — save prospect feature ratings (public, no auth)
+  if (req.method === 'POST' && req.url === '/api/survey/response') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'survey:' + ip);
+    if (!rl.allowed) return;
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req, 50000);
+      const { feature_ratings, interested, session_id, email, response_id } = body;
+      // If response_id provided, it means we're updating an existing NI row with email
+      if (response_id && email) {
+        if (supabase) {
+          await supabase.from('survey_responses').update({ email: email.trim().toLowerCase().slice(0, 254) }).eq('id', response_id);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+      const ipHash = ip ? crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16) : null;
+      let inserted = null;
+      if (supabase) {
+        const { data } = await supabase.from('survey_responses').insert({
+          feature_ratings: feature_ratings || null,
+          interested: typeof interested === 'boolean' ? interested : null,
+          session_id: session_id || null,
+          email: email ? email.trim().toLowerCase().slice(0, 254) : null,
+          ip_hash: ipHash
+        }).select('id').single();
+        inserted = data;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, id: inserted?.id || null }));
+    } catch (err) {
+      console.error('[Survey] POST /api/survey/response error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save survey response' }));
+    }
+    return;
+  }
+
+  // POST /api/survey/profile — save prospect profile (public, no auth)
+  if (req.method === 'POST' && req.url === '/api/survey/profile') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'survey-profile:' + ip);
+    if (!rl.allowed) return;
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req, 50000);
+      const { survey_response_id, session_id, first_name, last_name, email, phone, zip, vehicle_year, vehicle_make, vehicle_model } = body;
+      if (!first_name || !last_name || !email) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'first_name, last_name, and email are required' })); return;
+      }
+      let inserted = null;
+      if (supabase) {
+        // If we have a survey_response_id, update it with profile data too
+        if (survey_response_id) {
+          await supabase.from('survey_responses').update({
+            first_name: first_name.trim().slice(0, 100),
+            last_name:  last_name.trim().slice(0, 100),
+            email:      email.trim().toLowerCase().slice(0, 254),
+            phone:      phone ? phone.trim().slice(0, 30) : null,
+            zip:        zip   ? zip.trim().slice(0, 20) : null
+          }).eq('id', survey_response_id);
+        }
+        const { data } = await supabase.from('customer_profiles').insert({
+          survey_response_id: survey_response_id || null,
+          first_name: first_name.trim().slice(0, 100),
+          last_name:  last_name.trim().slice(0, 100),
+          email:      email.trim().toLowerCase().slice(0, 254),
+          phone:      phone ? phone.trim().slice(0, 30) : null,
+          zip:        zip   ? zip.trim().slice(0, 20) : null,
+          vehicle_year:  vehicle_year  ? vehicle_year.trim().slice(0, 10) : null,
+          vehicle_make:  vehicle_make  ? vehicle_make.trim().slice(0, 60) : null,
+          vehicle_model: vehicle_model ? vehicle_model.trim().slice(0, 80) : null
+        }).select('id').single();
+        inserted = data;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, id: inserted?.id || null }));
+    } catch (err) {
+      console.error('[Survey] POST /api/survey/profile error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save profile' }));
+    }
+    return;
+  }
+
+  // POST /api/survey/job — save prospect job listing (public, no auth)
+  if (req.method === 'POST' && req.url === '/api/survey/job') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'survey-job:' + ip);
+    if (!rl.allowed) return;
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req, 50000);
+      const { customer_profile_id, session_id, service_type, vehicle_description, issue_description, urgency, zip, budget_range } = body;
+      if (!issue_description) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'issue_description is required' })); return;
+      }
+      let inserted = null;
+      if (supabase) {
+        const { data } = await supabase.from('job_listings').insert({
+          customer_profile_id: customer_profile_id || null,
+          service_type:        service_type        ? service_type.slice(0, 80) : null,
+          vehicle_description: vehicle_description ? vehicle_description.slice(0, 300) : null,
+          issue_description:   issue_description.slice(0, 2000),
+          urgency:             urgency             ? urgency.slice(0, 40) : null,
+          zip:                 zip                 ? zip.trim().slice(0, 20) : null,
+          budget_range:        budget_range        ? budget_range.slice(0, 40) : null
+        }).select('id').single();
+        inserted = data;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, id: inserted?.id || null }));
+    } catch (err) {
+      console.error('[Survey] POST /api/survey/job error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save job listing' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/survey-stats — aggregate counts + feature rating breakdown (admin only)
+  if (req.method === 'GET' && req.url === '/api/admin/survey-stats') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const adminPw = req.headers['x-admin-password'];
+    const envPw   = process.env.ADMIN_PASSWORD;
+    if (!adminPw || !envPw || adminPw !== envPw) {
+      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
+    }
+    const supabase = getSupabaseClient();
+    try {
+      const [{ data: responses }, { data: profiles }, { data: jobs }] = await Promise.all([
+        supabase.from('survey_responses').select('id, interested, feature_ratings, created_at').order('created_at', { ascending: false }).limit(2000),
+        supabase.from('customer_profiles').select('id', { count: 'exact', head: false }),
+        supabase.from('job_listings').select('id', { count: 'exact', head: false })
+      ]);
+      const rows = responses || [];
+      const prospectRows = rows.filter(r => r.feature_ratings !== null || r.interested !== null);
+      const interestedRows = prospectRows.filter(r => r.interested === true);
+      const pctInterested = prospectRows.length ? Math.round((interestedRows.length / prospectRows.length) * 100) : 0;
+
+      // Feature heatmap: { featureId: { yes:N, maybe:N, no:N } }
+      const FEATURE_IDS = ['get_quotes','manage_vehicles','maintenance','shop_smarter','booking','obd_diagnostics','provider_ratings','price_estimator'];
+      const heatmap = {};
+      for (const fid of FEATURE_IDS) heatmap[fid] = { yes: 0, maybe: 0, no: 0 };
+      for (const row of prospectRows) {
+        if (!row.feature_ratings || typeof row.feature_ratings !== 'object') continue;
+        for (const [fid, val] of Object.entries(row.feature_ratings)) {
+          if (heatmap[fid] && (val === 'yes' || val === 'maybe' || val === 'no')) {
+            heatmap[fid][val]++;
+          }
+        }
+      }
+
+      // Responses over time (last 30 days, daily)
+      const now = Date.now();
+      const dailyCounts = {};
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now - i * 86400000).toISOString().slice(0, 10);
+        dailyCounts[d] = 0;
+      }
+      for (const row of prospectRows) {
+        const d = new Date(row.created_at).toISOString().slice(0, 10);
+        if (dailyCounts[d] !== undefined) dailyCounts[d]++;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        total_responses: prospectRows.length,
+        pct_interested: pctInterested,
+        total_profiles: (profiles || []).length,
+        total_jobs: (jobs || []).length,
+        feature_heatmap: heatmap,
+        daily_counts: dailyCounts
+      }));
+    } catch (err) {
+      console.error('[Survey] GET /api/admin/survey-stats error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load survey stats' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/survey-leads — paginated lead list (admin only)
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/survey-leads') && !req.url.includes('export')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const adminPw = req.headers['x-admin-password'];
+    const envPw   = process.env.ADMIN_PASSWORD;
+    if (!adminPw || !envPw || adminPw !== envPw) {
+      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
+    }
+    const supabase = getSupabaseClient();
+    try {
+      const urlObj = new URL(req.url, 'http://localhost');
+      const page   = Math.max(1, parseInt(urlObj.searchParams.get('page')  || '1', 10));
+      const limit  = Math.min(50, Math.max(1, parseInt(urlObj.searchParams.get('limit') || '25', 10)));
+      const search = (urlObj.searchParams.get('search') || '').trim().toLowerCase().slice(0, 100);
+      const filter = urlObj.searchParams.get('filter') || 'all'; // 'all' | 'interested' | 'not_interested'
+      const offset = (page - 1) * limit;
+
+      // Fetch profiles + join survey_response + job
+      let query = supabase.from('customer_profiles')
+        .select('id, first_name, last_name, email, phone, zip, vehicle_year, vehicle_make, vehicle_model, created_at, survey_response_id, survey_responses(interested, feature_ratings), job_listings(service_type, issue_description, urgency, budget_range)', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+      if (search) {
+        query = query.or(`email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,zip.ilike.%${search}%`);
+      }
+      const { data, count } = await query;
+      const rows = (data || []).map(r => {
+        const sr = Array.isArray(r.survey_responses) ? r.survey_responses[0] : r.survey_responses;
+        const job = Array.isArray(r.job_listings) ? r.job_listings[0] : r.job_listings;
+        const featureRatings = sr?.feature_ratings || {};
+        const topFeature = Object.entries(featureRatings).filter(([,v]) => v === 'yes').map(([k]) => k)[0] || null;
+        return {
+          id: r.id,
+          name: (r.first_name || '') + ' ' + (r.last_name || ''),
+          email: r.email,
+          phone: r.phone,
+          zip: r.zip,
+          vehicle: [r.vehicle_year, r.vehicle_make, r.vehicle_model].filter(Boolean).join(' ') || null,
+          interested: sr?.interested ?? null,
+          feature_ratings: featureRatings,
+          top_feature: topFeature,
+          job_service: job?.service_type || null,
+          job_urgency: job?.urgency || null,
+          job_budget: job?.budget_range || null,
+          job_issue: job?.issue_description || null,
+          created_at: r.created_at
+        };
+      }).filter(r => {
+        if (filter === 'interested') return r.interested === true;
+        if (filter === 'not_interested') return r.interested === false;
+        return true;
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ leads: rows, total: count || 0, page, limit }));
+    } catch (err) {
+      console.error('[Survey] GET /api/admin/survey-leads error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load survey leads' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/survey-leads/export — CSV download (admin only)
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/survey-leads/export')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const adminPw = req.headers['x-admin-password'];
+    const envPw   = process.env.ADMIN_PASSWORD;
+    if (!adminPw || !envPw || adminPw !== envPw) {
+      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
+    }
+    const supabase = getSupabaseClient();
+    try {
+      const { data } = await supabase.from('customer_profiles')
+        .select('id, first_name, last_name, email, phone, zip, vehicle_year, vehicle_make, vehicle_model, created_at, survey_response_id, survey_responses(interested, feature_ratings), job_listings(service_type, issue_description, urgency, zip, budget_range)')
+        .order('created_at', { ascending: false })
+        .limit(5000);
+
+      const rows = data || [];
+      const FEATURE_NAMES = {
+        get_quotes: 'Get Quotes', manage_vehicles: 'Manage Vehicles', maintenance: 'Maintenance',
+        shop_smarter: 'Shop Smarter', booking: 'Easy Booking', obd_diagnostics: 'OBD Diagnostics',
+        provider_ratings: 'Provider Ratings', price_estimator: 'Price Estimator'
+      };
+      const headers = [
+        'Name','Email','Phone','ZIP','Vehicle','Interested','Created',
+        'Rating: Get Quotes','Rating: Manage Vehicles','Rating: Maintenance','Rating: Shop Smarter',
+        'Rating: Easy Booking','Rating: OBD Diagnostics','Rating: Provider Ratings','Rating: Price Estimator',
+        'Job: Service Type','Job: Issue','Job: Urgency','Job: ZIP','Job: Budget'
+      ];
+
+      const csvRows = [headers.join(',')];
+      for (const r of rows) {
+        const sr = Array.isArray(r.survey_responses) ? r.survey_responses[0] : r.survey_responses;
+        const job = Array.isArray(r.job_listings) ? r.job_listings[0] : r.job_listings;
+        const fr = sr?.feature_ratings || {};
+        const esc = v => v ? '"' + String(v).replace(/"/g, '""').slice(0, 500) + '"' : '';
+        const vehicle = [r.vehicle_year, r.vehicle_make, r.vehicle_model].filter(Boolean).join(' ');
+        csvRows.push([
+          esc((r.first_name || '') + ' ' + (r.last_name || '')),
+          esc(r.email), esc(r.phone), esc(r.zip), esc(vehicle),
+          sr?.interested === true ? 'Yes' : sr?.interested === false ? 'No' : '',
+          r.created_at ? new Date(r.created_at).toISOString().slice(0, 10) : '',
+          fr.get_quotes || '', fr.manage_vehicles || '', fr.maintenance || '', fr.shop_smarter || '',
+          fr.booking || '', fr.obd_diagnostics || '', fr.provider_ratings || '', fr.price_estimator || '',
+          esc(job?.service_type), esc(job?.issue_description), esc(job?.urgency), esc(job?.zip), esc(job?.budget_range)
+        ].join(','));
+      }
+
+      const csv = csvRows.join('\r\n');
+      const filename = 'survey-leads-' + new Date().toISOString().slice(0, 10) + '.csv';
+      res.writeHead(200, {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': Buffer.byteLength(csv, 'utf8')
+      });
+      res.end(csv);
+    } catch (err) {
+      console.error('[Survey] GET /api/admin/survey-leads/export error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to export leads' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/survey-not-interested — email list for not-interested prospects (admin only)
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/survey-not-interested')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const adminPw = req.headers['x-admin-password'];
+    const envPw   = process.env.ADMIN_PASSWORD;
+    if (!adminPw || !envPw || adminPw !== envPw) {
+      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
+    }
+    const supabase = getSupabaseClient();
+    try {
+      const urlObj = new URL(req.url, 'http://localhost');
+      const page  = Math.max(1, parseInt(urlObj.searchParams.get('page') || '1', 10));
+      const limit = Math.min(100, Math.max(1, parseInt(urlObj.searchParams.get('limit') || '50', 10)));
+      const offset = (page - 1) * limit;
+      const { data, count } = await supabase.from('survey_responses')
+        .select('id, email, created_at, feature_ratings', { count: 'exact' })
+        .eq('interested', false)
+        .not('email', 'is', null)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ emails: data || [], total: count || 0, page, limit }));
+    } catch (err) {
+      console.error('[Survey] GET /api/admin/survey-not-interested error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load not-interested list' }));
+    }
+    return;
+  }
+
+  // ========== END PROSPECT SURVEY & LEAD CAPTURE ==========
+
   // ========== MEMBER ONBOARDING & SURVEY (Task #94) ==========
 
   // POST /api/member/survey — submit survey answers (works anonymous or authenticated)

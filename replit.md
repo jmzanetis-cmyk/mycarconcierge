@@ -29,6 +29,7 @@ Key architectural patterns and features include:
 - **Notification System**: User-controlled push, email, and SMS notifications.
 - **E-commerce**: Integrated Merch Store via Printful with Stripe checkout.
 - **Automated Reminders**: Maintenance and appointment reminders.
+- **Prospect Survey & Lead Capture**: Public `/survey` page (no auth required) with 8-feature rating cards (👍/🤔/👎), 3-step flow (rate → profile → job listing), not-interested email capture branch, and animated progress bar. Admin "Survey Leads" panel with stat cards, paginated lead table + CSV export, feature heatmap, Chart.js trend chart, and not-interested emails tab.
 - **Referral & Commission System**: Founder referral program with lifetime commissions and instant payouts.
 - **Payment System**: Escrow payment system using Stripe Connect with support for manual capture, additional work, discounts, refunds, and split payments.
 - **SaaS Billing Foundation**: Configurable plans, access control, and Stripe webhook integration for subscription management.
