@@ -7830,10 +7830,22 @@
       }
     }
 
+    // Reliable auth token: prefers existing session, falls back to supabaseClient.auth.getSession()
+    async function getAuthToken() {
+      if (window._currentSession?.access_token) return window._currentSession.access_token;
+      try {
+        if (window.supabaseClient) {
+          const { data: { session } } = await window.supabaseClient.auth.getSession();
+          if (session?.access_token) return session.access_token;
+        }
+      } catch (_) {}
+      return null;
+    }
+
     // Helper: persist a single onboarding step completion to the DB
     async function markOnboardingStep(step) {
       try {
-        const token = window._currentSession?.access_token;
+        const token = await getAuthToken();
         if (!token) return;
         await fetch('/api/member/onboarding/step', {
           method: 'POST',
@@ -7851,13 +7863,20 @@
     async function checkOnboardingStatus() {
       const dismissed = localStorage.getItem('mcc_onboarding_dismissed');
       try {
-        const token = window._currentSession?.access_token;
+        const token = await getAuthToken();
         if (!token) throw new Error('no token');
         const res = await fetch('/api/member/onboarding', {
           headers: { 'Authorization': 'Bearer ' + token }
         });
         if (!res.ok) throw new Error('not ok');
         const data = await res.json();
+        // If survey not yet completed, redirect to onboarding-member survey page so the
+        // response is reliably user-linked (the page uses getSession() which is always authenticated).
+        if (!data.survey_completed && !sessionStorage.getItem('mcc_survey_redirect_done')) {
+          sessionStorage.setItem('mcc_survey_redirect_done', '1');
+          window.location.href = '/onboarding-member.html?from=dashboard';
+          return;
+        }
         if (!dismissed) updateOnboardingUI(data);
         // Persist any server-detected-complete steps that haven't been written yet this session.
         // sessionStorage dedup ensures each step is written at most once per browser session.
@@ -7910,12 +7929,12 @@
       modal.classList.add('active');
     }
 
-    function closeWelcomeModal() {
+    async function closeWelcomeModal() {
       const modal = document.getElementById('welcome-modal');
       if (modal) modal.classList.remove('active');
       localStorage.setItem('mcc_welcome_shown', 'true');
       try {
-        const token = window._currentSession?.access_token;
+        const token = await getAuthToken();
         if (token) {
           fetch('/api/member/onboarding/step', {
             method: 'POST',

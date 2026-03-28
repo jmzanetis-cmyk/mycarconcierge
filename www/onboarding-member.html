@@ -1396,6 +1396,13 @@
       renderSurveyQuestion();
     }
 
+    // When redirected from members.html dashboard (?from=dashboard), jump straight to survey
+    if (new URLSearchParams(window.location.search).get('from') === 'dashboard') {
+      document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(showSurveyOverlay, 300);
+      });
+    }
+
     function renderSurveyQuestion() {
       const q = SURVEY_QUESTIONS[surveyStep];
       if (!q) { submitSurveyAndClose(); return; }
@@ -1459,6 +1466,11 @@
     function closeSurveyOverlay() {
       const overlay = document.getElementById('survey-overlay');
       if (overlay) overlay.classList.add('hidden');
+      // If we came from the members dashboard, send the user back so the welcome modal shows
+      const fromDash = new URLSearchParams(window.location.search).get('from') === 'dashboard';
+      if (fromDash) {
+        setTimeout(() => { window.location.href = '/members.html'; }, 400);
+      }
     }
 
     document.addEventListener('keydown', function(e) {
