@@ -4803,6 +4803,20 @@
           </div>
         </div>
 
+        <!-- Department Approval Rules Card -->
+        <div class="card" id="fleet-dept-rules-card" style="margin-bottom:24px;display:none;">
+          <div class="card-header">
+            <h2 class="card-title">Department Approval Rules</h2>
+            <button class="btn btn-primary btn-sm" onclick="openAddDeptRuleModal()">+ Add Rule</button>
+          </div>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px;">
+            Set per-department spending limits and approval thresholds. Requests from drivers in a department will be evaluated against these rules before being auto-approved or flagged for manager review.
+          </p>
+          <div id="dept-rules-list">
+            <div class="empty-state" style="padding:24px;text-align:center;color:var(--text-muted);">No department rules configured. Add a rule to enforce spending controls by department.</div>
+          </div>
+        </div>
+
         <!-- Fleet Vehicles Section -->
         <div class="card" style="margin-bottom:24px;">
           <div class="card-header">

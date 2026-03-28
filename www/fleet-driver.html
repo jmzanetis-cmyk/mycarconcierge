@@ -562,16 +562,40 @@
         return;
       }
 
+      const fleetId = fleetMembership?.fleet?.id || fleetMembership?.fleet_id;
+      if (!fleetId) {
+        alert('Fleet context unavailable. Please refresh and try again.');
+        return;
+      }
+
+      // Evaluate per-department and per-member approval rules via server
+      let requiresApproval = fleetMembership?.requires_approval || false;
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const token = session?.data?.session?.access_token;
+        const approvalRes = await fetch('/api/fleet/check-approval', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': 'Bearer ' + token } : {}) },
+          body: JSON.stringify({ fleet_id: fleetId, vehicle_id: assignedVehicle.vehicle.id, estimated_cost: 0 })
+        });
+        if (approvalRes.ok) {
+          const approvalData = await approvalRes.json();
+          requiresApproval = approvalData.requires_approval;
+        }
+      } catch (approvalErr) {
+        console.warn('Approval check failed, falling back to member setting:', approvalErr.message);
+      }
+
       // Create service request through members portal
       try {
         const { data: pkg, error } = await supabaseClient.from('maintenance_packages').insert({
           member_id: currentUser.id,
           vehicle_id: assignedVehicle.vehicle.id,
-          fleet_id: fleetMembership.fleet.id,
+          fleet_id: fleetId,
           title: `Driver Report: ${type.replace(/_/g, ' ')}`,
           description: desc,
           service_category: type,
-          status: fleetMembership.requires_approval ? 'pending_approval' : 'open',
+          status: requiresApproval ? 'pending_approval' : 'open',
           pending_approval_amount: null
         }).select().single();
 
@@ -579,7 +603,10 @@
 
         document.getElementById('report-type').value = '';
         document.getElementById('report-description').value = '';
-        alert('Report submitted! Your fleet manager will review it.');
+        const msg = requiresApproval
+          ? 'Report submitted! It is pending your fleet manager\'s approval.'
+          : 'Report submitted! Your fleet manager will be notified.';
+        alert(msg);
       } catch (err) {
         alert('Failed to submit report. Please try again.');
         console.error(err);

@@ -12333,6 +12333,7 @@
       renderFleetHealthDashboard();
       await loadBulkBatches();
       await loadFleetApprovals();
+      await loadDeptRules();
     }
     
     function updateFleetStats() {
@@ -12740,6 +12741,107 @@
       }).join('');
     }
     
+    // ===== Department Approval Rules =====
+    let deptRules = [];
+
+    async function loadDeptRules() {
+      if (!currentFleet) return;
+      const card = document.getElementById('fleet-dept-rules-card');
+      const isOwnerOrManager = currentFleet.owner_id === currentUser?.id ||
+        fleetMembers.some(m => m.user_id === currentUser?.id && ['owner', 'manager'].includes(m.role));
+      if (!card) return;
+      if (!isOwnerOrManager) { card.style.display = 'none'; return; }
+      card.style.display = 'block';
+
+      const { data, error } = await supabaseClient
+        .from('fleet_department_rules')
+        .select('*')
+        .eq('fleet_id', currentFleet.id)
+        .order('department');
+      if (error) { console.error('Dept rules load error:', error.message); return; }
+      deptRules = data || [];
+      renderDeptRules();
+    }
+
+    function renderDeptRules() {
+      const container = document.getElementById('dept-rules-list');
+      if (!container) return;
+      if (!deptRules.length) {
+        container.innerHTML = '<div class="empty-state" style="padding:24px;text-align:center;color:var(--text-muted);">No department rules configured. Click "+ Add Rule" to create one.</div>';
+        return;
+      }
+      container.innerHTML = `
+        <table class="fleet-table">
+          <thead><tr>
+            <th>Department</th><th>Spending Limit</th><th>Auto-Approve Under</th><th>Always Require Approval</th><th>Actions</th>
+          </tr></thead>
+          <tbody>
+            ${deptRules.map(r => `
+              <tr>
+                <td><strong>${r.department}</strong></td>
+                <td>${r.spending_limit !== null ? '$' + Number(r.spending_limit).toLocaleString() : '<span style="color:var(--text-muted);">None</span>'}</td>
+                <td>${r.auto_approve_under !== null ? '$' + Number(r.auto_approve_under).toLocaleString() : '<span style="color:var(--text-muted);">Off</span>'}</td>
+                <td>${r.requires_approval ? '<span style="color:var(--accent-orange);">Yes</span>' : 'No'}</td>
+                <td>
+                  <button class="btn btn-ghost btn-sm" onclick="editDeptRule('${r.id}')">Edit</button>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--accent-red);" onclick="deleteDeptRule('${r.id}')">Remove</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    function openAddDeptRuleModal() {
+      const dept = prompt('Department name (e.g. Operations, Sales):');
+      if (!dept || !dept.trim()) return;
+      const limit = prompt('Spending limit per request (leave blank for no limit):');
+      const autoApprove = prompt('Auto-approve requests under this amount (leave blank to disable):');
+      const requireApproval = confirm('Always require manager approval for this department?');
+
+      const payload = {
+        fleet_id: currentFleet.id,
+        department: dept.trim(),
+        spending_limit: limit ? parseFloat(limit) : null,
+        auto_approve_under: autoApprove ? parseFloat(autoApprove) : null,
+        requires_approval: requireApproval
+      };
+
+      supabaseClient.from('fleet_department_rules').upsert(payload, { onConflict: 'fleet_id,department' })
+        .then(({ error }) => {
+          if (error) { alert('Error saving rule: ' + error.message); return; }
+          loadDeptRules();
+        });
+    }
+
+    function editDeptRule(ruleId) {
+      const rule = deptRules.find(r => r.id === ruleId);
+      if (!rule) return;
+      const limit = prompt('Spending limit per request (leave blank to remove):', rule.spending_limit !== null ? rule.spending_limit : '');
+      const autoApprove = prompt('Auto-approve under (leave blank to disable):', rule.auto_approve_under !== null ? rule.auto_approve_under : '');
+      const requireApproval = confirm('Always require manager approval?\n\nCurrent: ' + (rule.requires_approval ? 'Yes' : 'No'));
+
+      supabaseClient.from('fleet_department_rules').update({
+        spending_limit: limit !== '' && limit !== null ? parseFloat(limit) : null,
+        auto_approve_under: autoApprove !== '' && autoApprove !== null ? parseFloat(autoApprove) : null,
+        requires_approval: requireApproval,
+        updated_at: new Date().toISOString()
+      }).eq('id', ruleId).then(({ error }) => {
+        if (error) { alert('Error updating rule: ' + error.message); return; }
+        loadDeptRules();
+      });
+    }
+
+    function deleteDeptRule(ruleId) {
+      const rule = deptRules.find(r => r.id === ruleId);
+      if (!rule || !confirm(`Remove approval rules for "${rule.department}"?`)) return;
+      supabaseClient.from('fleet_department_rules').delete().eq('id', ruleId).then(({ error }) => {
+        if (error) { alert('Error removing rule: ' + error.message); return; }
+        loadDeptRules();
+      });
+    }
+    // ===== End Department Approval Rules =====
+
     async function loadBulkBatches() {
       if (!currentFleet) return;
       
