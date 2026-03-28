@@ -39061,17 +39061,31 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         if (_invSig !== expectedSig) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Invalid invite token signature.' })); return; }
         tenant = _invTenant;
       } else if (body?.domain_join === true) {
-        // Domain-based auto-join: server resolves tenant from Host/X-Forwarded-Host header.
-        // User visits a white-label subdomain/custom-domain — no invite token required.
-        const reqHost = (req.headers['x-forwarded-host'] || req.headers['host'] || '').split(':')[0].toLowerCase();
-        const { data: domainTenant } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('domain', reqHost).eq('status', 'active').maybeSingle();
-        if (domainTenant) {
-          tenant = domainTenant;
+        // Domain-based auto-join: server resolves tenant from request host using the same
+        // hardened trust rules as /api/white-label/config (DB is the security gate).
+        const _DJ_BASE = 'mycarconcierge.com';
+        const _DJ_SKIP = ['localhost', '127.0.0.1', '0.0.0.0'];
+        const _djFwd = (req.headers['x-forwarded-host'] || '').split(',')[0].trim().split(':')[0].toLowerCase();
+        const _djRaw = (req.headers.host || '').split(':')[0].toLowerCase().trim();
+        const _djFwdIsMCC = _djFwd && (_djFwd === _DJ_BASE || _djFwd.endsWith(`.${_DJ_BASE}`));
+        const _djMccHost = _djFwdIsMCC ? _djFwd : (_djRaw === _DJ_BASE || _djRaw.endsWith(`.${_DJ_BASE}`) ? _djRaw : null);
+        const _djCustom = [...new Set([_djFwd, _djRaw].filter(h => h && h !== _DJ_BASE && !h.endsWith(`.${_DJ_BASE}`)))];
+        const _djIsLocal = (h) => _DJ_SKIP.some(s => h.includes(s)) || h.includes('replit');
+        if (_djMccHost) {
+          // MCC-managed subdomain (*.mycarconcierge.com)
+          if (!_djIsLocal(_djMccHost) && _djMccHost !== _DJ_BASE) {
+            const sub = _djMccHost.split('.')[0];
+            if (sub && sub !== 'www' && sub !== 'mycarconcierge') {
+              const { data: subT } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('subdomain', sub).eq('status', 'active').maybeSingle();
+              if (subT) tenant = subT;
+            }
+          }
         } else {
-          const sub = reqHost.split('.')[0];
-          if (sub && sub !== reqHost) {
-            const { data: subTenant } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('subdomain', sub).eq('status', 'active').maybeSingle();
-            if (subTenant) tenant = subTenant;
+          // Custom domain: DB exact match is the security gate — forged headers return nothing
+          for (const candidate of _djCustom) {
+            if (_djIsLocal(candidate)) continue;
+            const { data: cT } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('domain', candidate).eq('status', 'active').maybeSingle();
+            if (cT) { tenant = cT; break; }
           }
         }
         if (!tenant) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'No active tenant found for this domain.' })); return; }
