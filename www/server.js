@@ -38918,9 +38918,17 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       const WL_COLS = 'id, brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan';
       if (supabase) {
         if (_effectiveLookup) {
-          // Preview domain override (admin) — direct domain lookup
-          const { data } = await supabase.from('white_label_tenants').select(WL_COLS).eq('domain', _effectiveLookup).eq('status', 'active').maybeSingle();
-          tenant = data;
+          // Preview: try exact custom domain match first, then subdomain extraction (for FQDNs like partner.mycarconcierge.com)
+          const { data: previewByDomain } = await supabase.from('white_label_tenants').select(WL_COLS).eq('domain', _effectiveLookup).eq('status', 'active').maybeSingle();
+          if (previewByDomain) {
+            tenant = previewByDomain;
+          } else {
+            const _prevSub = _effectiveLookup.split('.')[0];
+            if (_prevSub && _prevSub !== 'www' && _prevSub !== 'mycarconcierge') {
+              const { data: previewBySub } = await supabase.from('white_label_tenants').select(WL_COLS).eq('subdomain', _prevSub).eq('status', 'active').maybeSingle();
+              tenant = previewBySub;
+            }
+          }
         } else if (_mccHost) {
           // MCC-managed subdomain: resolve by subdomain column
           const isLocal = _WL_SKIP.some(h => _mccHost.includes(h)) || _mccHost.includes('replit');
@@ -39517,7 +39525,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       const _adminUser = await authenticateRequest(req);
       if (!_adminUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
       const { data: _ap } = await getSupabaseClient().from('profiles').select('role').eq('id', _adminUser.id).maybeSingle();
-      if (_ap?.role !== 'admin') { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Admin required' })); return; }
+      if (!['admin', 'super_admin'].includes(_ap?.role)) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Admin required' })); return; }
     }
     const _invTenantId = req.url.split('/api/admin/white-label/tenants/')[1]?.split('/generate-invite')[0];
     const supabase = getSupabaseClient();
