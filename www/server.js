@@ -38950,9 +38950,29 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           }
         }
       }
-      const cacheHeader = previewDomain ? 'no-store' : 'public, max-age=60';
+      // Optionally issue a short-lived signed domain assertion token for authenticated users.
+      // This allows secure domain-based auto-join without trusting Host headers in the join endpoint.
+      let domainJoinToken = null;
+      if (tenant && !previewDomain) {
+        try {
+          const _wlAuthHeader = req.headers['authorization'] || '';
+          const _wlBearerToken = _wlAuthHeader.startsWith('Bearer ') ? _wlAuthHeader.slice(7) : null;
+          if (_wlBearerToken) {
+            const { data: { user: _wlUser } } = await supabase.auth.getUser(_wlBearerToken);
+            if (_wlUser) {
+              const crypto = require('crypto');
+              const _djSecret = process.env.ADMIN_PASSWORD || 'wl-domain-secret';
+              const _djExp = Date.now() + 10 * 60 * 1000; // 10-minute TTL
+              const _djPayload = `${tenant.id}:${_wlUser.id}:${_djExp}`;
+              const _djSig = crypto.createHmac('sha256', _djSecret).update(_djPayload).digest('hex');
+              domainJoinToken = Buffer.from(JSON.stringify({ tenant_id: tenant.id, user_id: _wlUser.id, exp: _djExp, sig: _djSig })).toString('base64url');
+            }
+          }
+        } catch (_djErr) { /* non-fatal */ }
+      }
+      const cacheHeader = (previewDomain || domainJoinToken) ? 'no-store' : 'public, max-age=60';
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': cacheHeader });
-      res.end(JSON.stringify({ tenant: tenant || null, is_white_label: !!tenant }));
+      res.end(JSON.stringify({ tenant: tenant || null, is_white_label: !!tenant, domain_join_token: domainJoinToken }));
     } catch (err) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify({ tenant: null, is_white_label: false }));
@@ -39060,35 +39080,24 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         const expectedSig = crypto.createHmac('sha256', _invTenant.join_token).update(`${_invTid}:${_invExp}`).digest('hex');
         if (_invSig !== expectedSig) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Invalid invite token signature.' })); return; }
         tenant = _invTenant;
-      } else if (body?.domain_join === true) {
-        // Domain-based auto-join: server resolves tenant from request host using the same
-        // hardened trust rules as /api/white-label/config (DB is the security gate).
-        const _DJ_BASE = 'mycarconcierge.com';
-        const _DJ_SKIP = ['localhost', '127.0.0.1', '0.0.0.0'];
-        const _djFwd = (req.headers['x-forwarded-host'] || '').split(',')[0].trim().split(':')[0].toLowerCase();
-        const _djRaw = (req.headers.host || '').split(':')[0].toLowerCase().trim();
-        const _djFwdIsMCC = _djFwd && (_djFwd === _DJ_BASE || _djFwd.endsWith(`.${_DJ_BASE}`));
-        const _djMccHost = _djFwdIsMCC ? _djFwd : (_djRaw === _DJ_BASE || _djRaw.endsWith(`.${_DJ_BASE}`) ? _djRaw : null);
-        const _djCustom = [...new Set([_djFwd, _djRaw].filter(h => h && h !== _DJ_BASE && !h.endsWith(`.${_DJ_BASE}`)))];
-        const _djIsLocal = (h) => _DJ_SKIP.some(s => h.includes(s)) || h.includes('replit');
-        if (_djMccHost) {
-          // MCC-managed subdomain (*.mycarconcierge.com)
-          if (!_djIsLocal(_djMccHost) && _djMccHost !== _DJ_BASE) {
-            const sub = _djMccHost.split('.')[0];
-            if (sub && sub !== 'www' && sub !== 'mycarconcierge') {
-              const { data: subT } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('subdomain', sub).eq('status', 'active').maybeSingle();
-              if (subT) tenant = subT;
-            }
-          }
-        } else {
-          // Custom domain: DB exact match is the security gate — forged headers return nothing
-          for (const candidate of _djCustom) {
-            if (_djIsLocal(candidate)) continue;
-            const { data: cT } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('domain', candidate).eq('status', 'active').maybeSingle();
-            if (cT) { tenant = cT; break; }
-          }
-        }
-        if (!tenant) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'No active tenant found for this domain.' })); return; }
+      } else if (body?.domain_join_token) {
+        // Domain-based auto-join via server-signed assertion token.
+        // Token issued by GET /api/white-label/config when user is authenticated on a tenant domain.
+        // Server performs hostname validation at config-fetch time; join endpoint trusts the token sig.
+        const crypto = require('crypto');
+        let _djtParsed;
+        try { _djtParsed = JSON.parse(Buffer.from(body.domain_join_token, 'base64url').toString()); }
+        catch (e) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Malformed domain join token.' })); return; }
+        const { tenant_id: _djtTid, user_id: _djtUid, exp: _djtExp, sig: _djtSig } = _djtParsed || {};
+        if (!_djtTid || !_djtUid || !_djtExp || !_djtSig) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Malformed domain join token.' })); return; }
+        if (Date.now() > _djtExp) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Domain join token expired. Reload the page and try again.' })); return; }
+        if (_djtUid !== user.id) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Domain join token user mismatch.' })); return; }
+        const _djtSecret = process.env.ADMIN_PASSWORD || 'wl-domain-secret';
+        const _djtExpectedSig = crypto.createHmac('sha256', _djtSecret).update(`${_djtTid}:${_djtUid}:${_djtExp}`).digest('hex');
+        if (_djtSig !== _djtExpectedSig) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Invalid domain join token signature.' })); return; }
+        const { data: _djtTenant } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('id', _djtTid).eq('status', 'active').maybeSingle();
+        if (!_djtTenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found.' })); return; }
+        tenant = _djtTenant;
       } else if (body?.tenant_id) {
         // Admin fallback: explicit tenant_id + admin token
         const _adminToken = req.headers['x-admin-token'];
@@ -39197,7 +39206,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
       const { data: tenant, error } = await supabase
         .from('white_label_tenants')
-        .select('id, name, brand_name, domain, subdomain, logo_url, favicon_url, primary_color, accent_color, bg_color, support_email, plan, status, max_members, max_providers, created_at, updated_at')
+        .select('id, name, brand_name, domain, subdomain, logo_url, favicon_url, primary_color, accent_color, bg_color, support_email, plan, status, max_members, max_providers, stripe_subscription_id, created_at, updated_at')
         .eq('id', tenantId)
         .eq('status', 'active')
         .single();

@@ -104,31 +104,36 @@
   }
 
   function loadBranding() {
+    var authToken = getStoredAuthToken();
     var url = (BASE_URL || '') + '/api/white-label/config';
-    fetch(url, { cache: 'default' })
+    var headers = {};
+    // Pass auth token so server can issue a signed domain_join_token for auto-join
+    if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+    fetch(url, { cache: authToken ? 'no-store' : 'default', headers: headers })
       .then(function(r) { return r.ok ? r.json() : null; })
       .then(function(data) {
         if (data && data.is_white_label && data.tenant) {
           applyTenantBranding(data.tenant);
-          // Auto-join tenant: invite token takes priority; falls back to domain-based join
-          autoJoinTenant();
+          // Auto-join: invite token takes priority, then server-issued domain assertion token
+          autoJoinTenant(data.domain_join_token || null);
         }
       })
       .catch(function() {});
   }
 
-  // Auto-join the white-label tenant on page load when the user is authenticated.
-  // Prefers HMAC-signed invite token (?wl_invite=...) if present.
-  // Falls back to domain-based auto-join — server resolves tenant from Host header,
-  // so no tenant_id needs to be sent from the client.
-  function autoJoinTenant() {
+  // Auto-join the white-label tenant when the user is authenticated.
+  // Uses HMAC-signed invite token (?wl_invite=) or a server-issued domain_join_token.
+  // The domain_join_token is issued by /api/white-label/config when the server validates
+  // the request host — the join endpoint verifies its signature without trusting Host headers.
+  function autoJoinTenant(domainJoinToken) {
     try {
       var token = getStoredAuthToken();
       if (!token) return;
       var inviteToken = getInviteToken();
+      if (!inviteToken && !domainJoinToken) return; // No valid join credential
       var body = inviteToken
         ? JSON.stringify({ invite_token: inviteToken })
-        : JSON.stringify({ domain_join: true });
+        : JSON.stringify({ domain_join_token: domainJoinToken });
       fetch('/api/white-label/tenant/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -149,7 +154,7 @@
     } catch(e) {}
   }
 
-  window.wlAutoJoinTenant = autoJoinTenant;
+  window.wlAutoJoinTenant = function() { autoJoinTenant(null); };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', loadBranding);
