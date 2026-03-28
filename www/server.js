@@ -39843,6 +39843,199 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     return;
   }
 
+  // POST /api/fleet/invite — invite a driver/manager to join the fleet via email
+  if (req.method === 'POST' && req.url === '/api/fleet/invite') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { fleet_id, email, role, department, employee_id, spending_limit, requires_approval } = body;
+      if (!fleet_id || !email) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'fleet_id and email are required' })); return;
+      }
+
+      // Verify user is owner or manager of this fleet
+      const { data: fleet } = await supabase.from('fleets').select('id, name, owner_id').eq('id', fleet_id).maybeSingle();
+      if (!fleet) { res.writeHead(404); res.end(JSON.stringify({ error: 'Fleet not found' })); return; }
+
+      const isOwner = fleet.owner_id === user.id;
+      let isManager = false;
+      if (!isOwner) {
+        const { data: membership } = await supabase.from('fleet_members')
+          .select('id, role').eq('fleet_id', fleet_id).eq('user_id', user.id)
+          .in('role', ['manager', 'owner']).eq('status', 'active').maybeSingle();
+        isManager = !!membership;
+      }
+      if (!isOwner && !isManager) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Not authorized to invite fleet members' })); return;
+      }
+
+      // Check driver limits on fleet plan
+      const access = await checkPlanAccess(fleet.owner_id, 'fleet', 'starter');
+      const planLimits = { starter: { drivers: 5 }, pro: { drivers: 25 }, business: { drivers: -1 } };
+      const limits = planLimits[access.plan] || { drivers: 3 };
+      if (limits.drivers !== -1) {
+        const { count: driverCount } = await supabase.from('fleet_members')
+          .select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id).eq('status', 'active');
+        if ((driverCount || 0) >= limits.drivers) {
+          res.writeHead(402); res.end(JSON.stringify({
+            error: `Driver limit reached (${limits.drivers} on ${access.plan || 'free'} plan). Please upgrade to add more drivers.`,
+            upgrade_url: '/members.html?section=settings'
+          })); return;
+        }
+      }
+
+      // Generate signed invite token
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+
+      // Save invite in DB
+      const { error: insertErr } = await supabase.from('fleet_invites').insert({
+        fleet_id,
+        invited_by: user.id,
+        email,
+        role: role || 'driver',
+        department: department || null,
+        employee_id: employee_id || null,
+        spending_limit: spending_limit ? Number(spending_limit) : null,
+        requires_approval: !!requires_approval,
+        token,
+        expires_at: expiresAt,
+        status: 'pending'
+      });
+
+      if (insertErr) {
+        console.error('[Fleet Invite] DB insert error:', insertErr.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to create invite' })); return;
+      }
+
+      // Send invite email via Resend
+      const inviteUrl = `${process.env.REPLIT_DEV_DOMAIN || 'https://mycarconcierge.com'}/fleet-join.html?token=${token}`;
+      const senderName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Fleet Manager';
+
+      if (resend) {
+        try {
+          await resend.emails.send({
+            from: 'My Car Concierge <noreply@mycarconcierge.com>',
+            to: email,
+            subject: `You've been invited to join ${fleet.name} fleet on My Car Concierge`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; background: #f9fafb;">
+                <div style="text-align: center; margin-bottom: 32px;">
+                  <img src="https://mycarconcierge.com/logo.png" alt="My Car Concierge" style="height: 80px;">
+                </div>
+                <div style="background: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                  <h2 style="color: #12161c; margin-bottom: 8px;">You're invited to join a fleet!</h2>
+                  <p style="color: #6b7280; margin-bottom: 24px;">
+                    <strong>${senderName}</strong> has invited you to join <strong>${fleet.name}</strong> as a <strong>${role || 'driver'}</strong> on My Car Concierge.
+                  </p>
+                  ${department ? `<p style="color: #6b7280; margin-bottom: 16px;">Department: <strong>${department}</strong></p>` : ''}
+                  <div style="text-align: center; margin: 32px 0;">
+                    <a href="${inviteUrl}" style="display: inline-block; background: linear-gradient(135deg, #c9a227, #e8b843); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 1rem;">
+                      Accept Fleet Invitation
+                    </a>
+                  </div>
+                  <p style="color: #9ca3af; font-size: 0.85rem; text-align: center;">
+                    This invitation expires in 7 days. If you don't have an account yet, you'll be guided to create one.
+                  </p>
+                </div>
+                <p style="color: #9ca3af; font-size: 0.8rem; text-align: center; margin-top: 24px;">
+                  My Car Concierge &mdash; Your complete auto ownership platform
+                </p>
+              </div>
+            `
+          });
+        } catch (emailErr) {
+          console.error('[Fleet Invite] Email send error:', emailErr.message);
+        }
+      }
+
+      console.log(`[Fleet Invite] Sent invite to ${email} for fleet ${fleet_id} (token: ${token.substring(0, 8)}...)`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: `Invitation sent to ${email}`, invite_url: inviteUrl }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet invite error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to send invite' }));
+    }
+    return;
+  }
+
+  // GET /api/fleet/invite/:token — look up an invite by token (public)
+  if (req.method === 'GET' && req.url?.startsWith('/api/fleet/invite/')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const token = req.url.split('/api/fleet/invite/')[1]?.split('?')[0];
+    if (!token) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing token' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: invite } = await supabase.from('fleet_invites')
+        .select('id, fleet_id, email, role, department, employee_id, spending_limit, requires_approval, expires_at, status, fleets(name, company_name, business_type)')
+        .eq('token', token)
+        .maybeSingle();
+
+      if (!invite) { res.writeHead(404); res.end(JSON.stringify({ error: 'Invite not found or expired' })); return; }
+      if (invite.status === 'accepted') { res.writeHead(200); res.end(JSON.stringify({ invite, already_accepted: true })); return; }
+      if (new Date(invite.expires_at) < new Date()) {
+        res.writeHead(410); res.end(JSON.stringify({ error: 'This invitation has expired' })); return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ invite, already_accepted: false }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet invite lookup error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to look up invite' }));
+    }
+    return;
+  }
+
+  // POST /api/fleet/invite/:token/accept — accept a fleet invite (requires auth)
+  if (req.method === 'POST' && req.url?.match(/^\/api\/fleet\/invite\/[^/]+\/accept$/)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Sign in to accept this invitation' })); return; }
+    const token = req.url.split('/api/fleet/invite/')[1]?.split('/accept')[0];
+    const supabase = getSupabaseClient();
+    try {
+      const { data: invite } = await supabase.from('fleet_invites')
+        .select('*').eq('token', token).eq('status', 'pending').maybeSingle();
+
+      if (!invite) { res.writeHead(404); res.end(JSON.stringify({ error: 'Invite not found or already used' })); return; }
+      if (new Date(invite.expires_at) < new Date()) { res.writeHead(410); res.end(JSON.stringify({ error: 'Invite has expired' })); return; }
+
+      // Add user to fleet_members
+      const { error: memberErr } = await supabase.from('fleet_members').insert({
+        fleet_id: invite.fleet_id,
+        user_id: user.id,
+        email: user.email,
+        role: invite.role,
+        department: invite.department || null,
+        employee_id: invite.employee_id || null,
+        spending_limit: invite.spending_limit || null,
+        requires_approval: invite.requires_approval || false,
+        status: 'active'
+      });
+
+      if (memberErr && !memberErr.message?.includes('duplicate')) {
+        console.error('[Fleet Accept] Member insert error:', memberErr.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to join fleet' })); return;
+      }
+
+      // Mark invite as accepted
+      await supabase.from('fleet_invites').update({ status: 'accepted', accepted_at: new Date().toISOString() }).eq('id', invite.id);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, fleet_id: invite.fleet_id, role: invite.role }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet invite accept error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to accept invite' }));
+    }
+    return;
+  }
+
   // ========== END FLEET SAAS ROUTES ==========
 
   // ========== DEVELOPER AI API (Task #90) ==========

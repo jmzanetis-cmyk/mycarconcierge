@@ -8738,6 +8738,11 @@
       if (section === 'settings') {
         loadWlTenantPortal();
       }
+      if (section === 'fleet') {
+        if (typeof window.loadFleetSubscription === 'function') {
+          setTimeout(window.loadFleetSubscription, 200);
+        }
+      }
     };
 
     // ========== END SaaS UI TASKS ==========

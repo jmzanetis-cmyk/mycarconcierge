@@ -12741,7 +12741,54 @@
         showToast('Please enter an email address', 'error');
         return;
       }
-      
+
+      // Send invite via server (handles limit check + email)
+      try {
+        const token = window._currentSession?.access_token;
+        const inviteRes = await fetch('/api/fleet/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+          body: JSON.stringify({
+            fleet_id: currentFleet.id,
+            email,
+            role,
+            department: department || null,
+            employee_id: employeeId || null,
+            spending_limit: spendingLimit ? Number(spendingLimit) : null,
+            requires_approval: requiresApproval
+          })
+        });
+        const inviteData = await inviteRes.json();
+        if (!inviteRes.ok) {
+          if (inviteRes.status === 402) {
+            showToast(inviteData.error || 'Driver limit reached. Please upgrade your fleet plan.', 'error');
+            if (typeof openSaasPricingModal === 'function') setTimeout(() => openSaasPricingModal('fleet'), 300);
+          } else {
+            showToast(inviteData.error || 'Failed to send invitation', 'error');
+          }
+          return;
+        }
+        showToast(`Invitation sent to ${email}!`, 'success');
+        closeModal('add-fleet-employee-modal');
+        // Also add to fleet_members locally if user exists
+        const { data: userLookup } = await supabaseClient.from('profiles').select('id').eq('email', email).maybeSingle();
+        if (userLookup?.id) {
+          await addFleetMember(currentFleet.id, userLookup.id, role, {
+            email,
+            employee_id: employeeId || null,
+            department: department || null,
+            spending_limit: spendingLimit ? Number(spendingLimit) : null,
+            requires_approval: requiresApproval
+          });
+        }
+        await loadFleetDetails(currentFleet.id);
+        if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
+        return;
+      } catch (fetchErr) {
+        console.warn('[Fleet Employee] Invite fetch error:', fetchErr.message);
+      }
+
+      // Fallback: add directly if server invite fails
       const { data: userLookup } = await supabaseClient
         .from('profiles')
         .select('id')
@@ -12931,6 +12978,26 @@
         showToast('Please select a vehicle', 'error');
         return;
       }
+
+      // Check vehicle limit before adding
+      try {
+        const token = window._currentSession?.access_token;
+        const limRes = await fetch('/api/fleet/check-limits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ fleet_id: currentFleet.id })
+        });
+        if (limRes.ok) {
+          const limData = await limRes.json();
+          if (!limData.can_add_vehicle) {
+            showToast(`Vehicle limit reached (${limData.current.vehicles}/${limData.limits.vehicles === -1 ? '∞' : limData.limits.vehicles}) on ${limData.plan} plan. Please upgrade to add more vehicles.`, 'error');
+            if (typeof openSaasPricingModal === 'function') {
+              setTimeout(() => openSaasPricingModal('fleet'), 300);
+            }
+            return;
+          }
+        }
+      } catch (_) { /* non-blocking */ }
       
       const { error } = await assignVehicleToFleet(currentFleet.id, vehicleId, {
         assigned_driver_id: driverId,
@@ -12948,6 +13015,7 @@
       showToast('Vehicle added to fleet!', 'success');
       closeModal('add-fleet-vehicle-modal');
       await loadFleetDetails(currentFleet.id);
+      if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
     }
     
     function openEditFleetVehicle(assignmentId) {

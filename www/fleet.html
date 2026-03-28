@@ -331,7 +331,7 @@
 
       <div style="display:flex;gap:12px;margin-bottom:24px;">
         <button class="btn btn-primary" onclick="openAddVehicleModal()">+ Add Vehicle</button>
-        <button class="btn btn-secondary"><span class="icon-inline" data-icon="download"></span> Import CSV</button>
+        <button class="btn btn-secondary" onclick="openFleetCsvImport()"><span class="icon-inline" data-icon="download"></span> Import CSV</button>
       </div>
 
       <div class="card">
@@ -736,6 +736,60 @@
       I18n.createLanguageSwitcher('language-switcher');
     });
   </script>
+  <!-- CSV Import Modal -->
+  <div id="fleet-csv-import-modal" class="modal" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal-overlay" onclick="closeFleetCsvImport()"></div>
+    <div class="modal-container" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Import Vehicles from CSV</h3>
+        <button class="modal-close" onclick="closeFleetCsvImport()" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:16px;">
+          Upload a CSV file with one vehicle per row. Required columns: <strong>year</strong>, <strong>make</strong>, <strong>model</strong>. Optional: <em>color, license_plate, vin, mileage, fleet_number, department</em>.
+        </p>
+        <div style="background:var(--bg-input,#1e2630);border:1px solid var(--border-subtle);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-family:monospace;font-size:0.78rem;color:var(--text-muted);">
+          year,make,model,color,license_plate,vin,mileage,fleet_number,department<br>
+          2021,Ford,F-150,White,ABC123,1FTFW1ET0MFA12345,42000,F-01,Operations<br>
+          2020,Toyota,Camry,Black,XYZ789,,25000,C-01,Sales
+        </div>
+        <div id="csv-drop-zone" style="border:2px dashed var(--border-medium,rgba(160,168,184,0.3));border-radius:12px;padding:36px;text-align:center;cursor:pointer;transition:border-color 0.2s;"
+          ondragover="event.preventDefault();this.style.borderColor='var(--accent-gold)'"
+          ondragleave="this.style.borderColor=''"
+          ondrop="handleCsvDrop(event)">
+          <div style="font-size:32px;margin-bottom:10px;">📄</div>
+          <div style="font-weight:500;margin-bottom:6px;">Drop your CSV file here</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">or</div>
+          <button class="btn btn-secondary" style="font-size:0.85rem;padding:8px 20px;" onclick="document.getElementById('csv-file-input').click()">Browse File</button>
+          <input type="file" id="csv-file-input" accept=".csv,text/csv" style="display:none;" onchange="handleCsvFile(this.files[0])">
+        </div>
+        <div id="csv-preview" style="display:none;margin-top:16px;">
+          <div style="font-weight:600;margin-bottom:10px;" id="csv-preview-title"></div>
+          <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border-subtle);border-radius:10px;background:var(--bg-input,#1e2630);">
+            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+              <thead id="csv-preview-head" style="position:sticky;top:0;background:var(--bg-elevated,#242c38);"></thead>
+              <tbody id="csv-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="csv-import-error" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.3);color:#f87171;font-size:0.88rem;"></div>
+        <div id="csv-import-progress" style="display:none;margin-top:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;">
+            <span id="csv-progress-label">Importing...</span>
+            <span id="csv-progress-pct">0%</span>
+          </div>
+          <div style="background:var(--border-subtle);border-radius:4px;height:8px;">
+            <div id="csv-progress-bar" style="background:var(--accent-gold);border-radius:4px;height:8px;width:0%;transition:width 0.3s;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeFleetCsvImport()">Cancel</button>
+        <button class="btn btn-primary" id="csv-import-btn" onclick="runCsvImport()" disabled>Import Vehicles</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/mcc-icons.js?v=20260211"></script>
   <script>
     document.querySelectorAll('[data-icon]').forEach(function(el) {
@@ -743,6 +797,160 @@
       var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
       if (svg) el.innerHTML = svg;
     });
+  </script>
+  <script>
+    // ===== Fleet CSV Import =====
+    var _csvRows = [];
+
+    function openFleetCsvImport() {
+      document.getElementById('fleet-csv-import-modal').style.display = 'flex';
+      _csvRows = [];
+      document.getElementById('csv-preview').style.display = 'none';
+      document.getElementById('csv-import-error').style.display = 'none';
+      document.getElementById('csv-import-progress').style.display = 'none';
+      document.getElementById('csv-import-btn').disabled = true;
+    }
+
+    function closeFleetCsvImport() {
+      document.getElementById('fleet-csv-import-modal').style.display = 'none';
+    }
+
+    function handleCsvDrop(event) {
+      event.preventDefault();
+      document.getElementById('csv-drop-zone').style.borderColor = '';
+      var file = event.dataTransfer.files[0];
+      if (file) handleCsvFile(file);
+    }
+
+    function handleCsvFile(file) {
+      if (!file || !file.name.endsWith('.csv')) {
+        showCsvError('Please upload a .csv file.');
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        parseCsv(e.target.result);
+      };
+      reader.readAsText(file);
+    }
+
+    function parseCsv(text) {
+      var lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) { showCsvError('CSV must have a header row and at least one data row.'); return; }
+      var headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[\s-]/g, '_'));
+      var yearIdx = headers.indexOf('year');
+      var makeIdx = headers.indexOf('make');
+      var modelIdx = headers.indexOf('model');
+      if (yearIdx < 0 || makeIdx < 0 || modelIdx < 0) {
+        showCsvError('CSV must include "year", "make", and "model" columns.');
+        return;
+      }
+      _csvRows = [];
+      var errors = [];
+      lines.slice(1).forEach(function(line, i) {
+        var cols = line.split(',').map(c => c.trim().replace(/^"|"$/g,''));
+        var row = {};
+        headers.forEach((h, idx) => { row[h] = cols[idx] || null; });
+        if (!row.year || !row.make || !row.model) {
+          errors.push('Row ' + (i + 2) + ': missing year/make/model');
+          return;
+        }
+        _csvRows.push(row);
+      });
+      if (!_csvRows.length) { showCsvError('No valid rows found. ' + errors.join('; ')); return; }
+
+      document.getElementById('csv-import-error').style.display = 'none';
+      document.getElementById('csv-preview-title').textContent = _csvRows.length + ' vehicles ready to import' + (errors.length ? ' (' + errors.length + ' rows skipped)' : '');
+
+      var previewHeaders = ['year','make','model','color','license_plate','vin','fleet_number','department'].filter(h => headers.includes(h));
+      document.getElementById('csv-preview-head').innerHTML = '<tr>' + previewHeaders.map(h => '<th style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);text-align:left;font-size:0.78rem;color:var(--text-muted);">' + h + '</th>').join('') + '</tr>';
+      document.getElementById('csv-preview-body').innerHTML = _csvRows.slice(0, 8).map(row =>
+        '<tr>' + previewHeaders.map(h => '<td style="padding:7px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.8rem;">' + (row[h] || '-') + '</td>').join('') + '</tr>'
+      ).join('');
+      document.getElementById('csv-preview').style.display = 'block';
+      document.getElementById('csv-import-btn').disabled = false;
+    }
+
+    function showCsvError(msg) {
+      var el = document.getElementById('csv-import-error');
+      el.textContent = msg;
+      el.style.display = 'block';
+      _csvRows = [];
+      document.getElementById('csv-import-btn').disabled = true;
+    }
+
+    async function runCsvImport() {
+      if (!_csvRows.length) return;
+      if (typeof currentFleet === 'undefined' || !currentFleet || !currentFleet.id) {
+        showCsvError('No fleet selected. Please open a fleet first.');
+        return;
+      }
+
+      document.getElementById('csv-import-btn').disabled = true;
+      document.getElementById('csv-import-progress').style.display = 'block';
+
+      var supabase = window.supabaseClient;
+      var session = await supabase.auth.getSession();
+      var userId = session?.data?.session?.user?.id;
+      var fleetId = currentFleet.id;
+
+      var total = _csvRows.length;
+      var done = 0;
+      var failed = 0;
+
+      for (var i = 0; i < _csvRows.length; i++) {
+        var row = _csvRows[i];
+        try {
+          // Upsert vehicle into user's vehicles table
+          var vPayload = {
+            user_id: userId,
+            year: parseInt(row.year) || null,
+            make: row.make,
+            model: row.model,
+            color: row.color || null,
+            license_plate: row.license_plate || null,
+            vin: row.vin || null,
+            mileage: row.mileage ? parseInt(row.mileage) : null
+          };
+          var { data: vehicle, error: vErr } = await supabase.from('vehicles').insert(vPayload).select('id').single();
+          if (vErr) { failed++; done++; updateCsvProgress(done, total); continue; }
+
+          // Link vehicle to fleet
+          var fvPayload = {
+            fleet_id: fleetId,
+            vehicle_id: vehicle.id,
+            fleet_number: row.fleet_number || null,
+            department: row.department || null,
+            assignment_type: 'pool',
+            status: 'active'
+          };
+          await supabase.from('fleet_vehicles').insert(fvPayload);
+          done++;
+          updateCsvProgress(done, total);
+        } catch(err) {
+          failed++;
+          done++;
+          updateCsvProgress(done, total);
+        }
+      }
+
+      var label = 'Imported ' + (done - failed) + '/' + total + ' vehicles';
+      if (failed) label += ' (' + failed + ' failed)';
+      document.getElementById('csv-progress-label').textContent = label;
+
+      setTimeout(function() {
+        closeFleetCsvImport();
+        if (typeof loadFleetDetails === 'function') loadFleetDetails(fleetId);
+        if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
+      }, 1200);
+    }
+
+    function updateCsvProgress(done, total) {
+      var pct = Math.round((done / total) * 100);
+      document.getElementById('csv-progress-pct').textContent = pct + '%';
+      document.getElementById('csv-progress-bar').style.width = pct + '%';
+      document.getElementById('csv-progress-label').textContent = 'Imported ' + done + ' of ' + total + '...';
+    }
   </script>
 </body>
 </html>
