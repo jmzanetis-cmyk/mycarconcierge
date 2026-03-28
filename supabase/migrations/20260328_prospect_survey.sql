@@ -1,5 +1,9 @@
 -- Prospect Survey & Lead Capture Flow (Task #93)
 -- Extends survey_responses for prospect (pre-signup) data and adds customer_profiles + job_listings
+--
+-- DEPENDENCY: Requires supabase/migrations/20260328_member_onboarding.sql (or earlier) to have been
+-- applied first, as it creates the survey_responses table that this migration alters.
+-- If applying in a fresh environment, run 20260328_member_onboarding.sql before this file.
 
 -- Add prospect-specific columns to survey_responses
 -- (existing member rows have user_id set and feature_ratings/email NULL — prospect rows have user_id NULL and feature_ratings set)

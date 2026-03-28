@@ -41906,47 +41906,56 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     const supabase = getSupabaseClient();
     if (!(await surveyAdminAuth(req, res, supabase))) return;
     try {
-      const [{ data: responses }, { data: profiles }, { data: jobs }] = await Promise.all([
-        supabase.from('survey_responses').select('id, interested, feature_ratings, created_at').order('created_at', { ascending: false }).limit(2000),
-        supabase.from('customer_profiles').select('id', { count: 'exact', head: false }),
-        supabase.from('job_listings').select('id', { count: 'exact', head: false })
+      // Use exact COUNT queries for scalar totals — accurate at any scale
+      const [
+        { count: totalProspects },
+        { count: totalInterested },
+        { count: totalProfiles },
+        { count: totalJobs },
+        { data: heatmapRows },
+        { data: trendRows }
+      ] = await Promise.all([
+        supabase.from('survey_responses').select('*', { count: 'exact', head: true }).not('interested', 'is', null),
+        supabase.from('survey_responses').select('*', { count: 'exact', head: true }).eq('interested', true),
+        supabase.from('customer_profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('job_listings').select('*', { count: 'exact', head: true }),
+        // Fetch only feature_ratings for heatmap — limit generous (100k rows feasible as JSONB is small)
+        supabase.from('survey_responses').select('feature_ratings').not('interested', 'is', null).not('feature_ratings', 'is', null).limit(100000),
+        // Fetch only created_at for last 30 days trend — filtered server-side for efficiency
+        supabase.from('survey_responses').select('created_at').not('interested', 'is', null)
+          .gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString()).order('created_at', { ascending: true }).limit(100000)
       ]);
-      const rows = responses || [];
-      const prospectRows = rows.filter(r => r.feature_ratings !== null || r.interested !== null);
-      const interestedRows = prospectRows.filter(r => r.interested === true);
-      const pctInterested = prospectRows.length ? Math.round((interestedRows.length / prospectRows.length) * 100) : 0;
+
+      const pctInterested = totalProspects ? Math.round(((totalInterested || 0) / totalProspects) * 100) : 0;
 
       // Feature heatmap: { featureId: { yes:N, maybe:N, no:N } }
       const FEATURE_IDS = ['get_quotes','manage_vehicles','maintenance','shop_smarter','booking','obd_diagnostics','provider_ratings','price_estimator'];
       const heatmap = {};
       for (const fid of FEATURE_IDS) heatmap[fid] = { yes: 0, maybe: 0, no: 0 };
-      for (const row of prospectRows) {
+      for (const row of (heatmapRows || [])) {
         if (!row.feature_ratings || typeof row.feature_ratings !== 'object') continue;
         for (const [fid, val] of Object.entries(row.feature_ratings)) {
-          if (heatmap[fid] && (val === 'yes' || val === 'maybe' || val === 'no')) {
-            heatmap[fid][val]++;
-          }
+          if (heatmap[fid] && (val === 'yes' || val === 'maybe' || val === 'no')) heatmap[fid][val]++;
         }
       }
 
-      // Responses over time (last 30 days, daily)
-      const now = Date.now();
+      // Daily counts: last 30 days (fetched server-side from DB, already filtered)
       const dailyCounts = {};
       for (let i = 29; i >= 0; i--) {
-        const d = new Date(now - i * 86400000).toISOString().slice(0, 10);
+        const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
         dailyCounts[d] = 0;
       }
-      for (const row of prospectRows) {
+      for (const row of (trendRows || [])) {
         const d = new Date(row.created_at).toISOString().slice(0, 10);
         if (dailyCounts[d] !== undefined) dailyCounts[d]++;
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        total_responses: prospectRows.length,
+        total_responses: totalProspects || 0,
         pct_interested: pctInterested,
-        total_profiles: (profiles || []).length,
-        total_jobs: (jobs || []).length,
+        total_profiles: totalProfiles || 0,
+        total_jobs: totalJobs || 0,
         feature_heatmap: heatmap,
         daily_counts: dailyCounts
       }));
