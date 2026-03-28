@@ -39783,7 +39783,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     try {
       const body = await getRequestBody(req);
       const { fleet_id } = body;
-      const planLimits = { starter: { vehicles: 10, drivers: 5 }, pro: { vehicles: 50, drivers: 25 }, business: { vehicles: -1, drivers: -1 } };
+      const planLimits = { starter: { vehicles: 5, drivers: 5 }, pro: { vehicles: 25, drivers: 25 }, business: { vehicles: -1, drivers: -1 } };
 
       const access = await checkPlanAccess(user.id, 'fleet', 'starter');
       const plan = access.plan || 'none';
@@ -39833,7 +39833,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      const planLimits = { starter: { vehicles: 10, drivers: 5 }, pro: { vehicles: 50, drivers: 25 }, business: { vehicles: -1, drivers: -1 } };
+      const planLimits = { starter: { vehicles: 5, drivers: 5 }, pro: { vehicles: 25, drivers: 25 }, business: { vehicles: -1, drivers: -1 } };
       const plan = sub?.plan || null;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ subscription: sub || null, plan, limits: plan ? planLimits[plan] : null }));
@@ -40013,6 +40013,23 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         })); return;
       }
 
+      // Re-check driver limit at accept time (prevents over-provisioning via pending invites)
+      const { data: acceptFleet } = await supabase.from('fleets').select('owner_id').eq('id', invite.fleet_id).maybeSingle();
+      if (acceptFleet?.owner_id) {
+        const acceptAccess = await checkPlanAccess(acceptFleet.owner_id, 'fleet', 'starter');
+        const acceptPlanLimits = { starter: { drivers: 5 }, pro: { drivers: 25 }, business: { drivers: -1 } };
+        const acceptLimits = acceptPlanLimits[acceptAccess.plan] || { drivers: 3 };
+        if (acceptLimits.drivers !== -1) {
+          const { count: driverCount } = await supabase.from('fleet_members')
+            .select('id', { count: 'exact', head: true }).eq('fleet_id', invite.fleet_id).eq('status', 'active');
+          if ((driverCount || 0) >= acceptLimits.drivers) {
+            res.writeHead(402); res.end(JSON.stringify({
+              error: `Driver limit reached on fleet's ${acceptAccess.plan || 'current'} plan. The fleet manager must upgrade before more members can join.`
+            })); return;
+          }
+        }
+      }
+
       // Add user to fleet_members
       const { error: memberErr } = await supabase.from('fleet_members').insert({
         fleet_id: invite.fleet_id,
@@ -40070,7 +40087,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
       // Enforce vehicle plan limits (AUTHORITATIVE server-side check)
       const access = await checkPlanAccess(fleet.owner_id, 'fleet', 'starter');
-      const planLimits = { starter: { vehicles: 10 }, pro: { vehicles: 50 }, business: { vehicles: -1 } };
+      const planLimits = { starter: { vehicles: 5 }, pro: { vehicles: 25 }, business: { vehicles: -1 } };
       const limits = planLimits[access.plan] || { vehicles: 3 };
 
       if (limits.vehicles !== -1) {

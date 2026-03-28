@@ -248,7 +248,7 @@
             <input type="radio" name="plan" value="starter" checked>
             <div class="plan-option-body">
               <div class="plan-option-name">Fleet Starter</div>
-              <div class="plan-option-meta">Up to 10 vehicles · 5 drivers</div>
+              <div class="plan-option-meta">Up to 5 vehicles · 5 drivers</div>
             </div>
             <div class="plan-option-price">$49/mo</div>
           </label>
@@ -256,7 +256,7 @@
             <input type="radio" name="plan" value="pro">
             <div class="plan-option-body">
               <div class="plan-option-name">Fleet Pro ⭐ Most Popular</div>
-              <div class="plan-option-meta">Up to 50 vehicles · 25 drivers · Analytics</div>
+              <div class="plan-option-meta">Up to 25 vehicles · 25 drivers · Analytics</div>
             </div>
             <div class="plan-option-price">$99/mo</div>
           </label>
@@ -425,7 +425,7 @@
           }, { onConflict: 'id' });
         }
 
-        // Create the fleet record
+        // Create the fleet record (ATOMIC — must succeed or we abort)
         statusEl.textContent = 'Creating your fleet...';
         var { data: fleet, error: fleetErr } = await supabaseClient.from('fleets').insert({
           owner_id: userId,
@@ -435,20 +435,23 @@
           status: 'active'
         }).select('id').single();
 
-        if (fleetErr) {
-          console.warn('Fleet creation error:', fleetErr.message);
+        if (fleetErr || !fleet?.id) {
+          throw new Error('Fleet workspace creation failed: ' + (fleetErr?.message || 'Unknown error. Please contact support.'));
         }
 
-        // Step 3: Add fleet owner as fleet member
-        if (fleet?.id) {
-          statusEl.textContent = 'Finalizing fleet setup...';
-          await supabaseClient.from('fleet_members').insert({
-            fleet_id: fleet.id,
-            user_id: userId,
-            email: signupData.email,
-            role: 'owner',
-            status: 'active'
-          });
+        // Add fleet owner as fleet member
+        statusEl.textContent = 'Finalizing fleet setup...';
+        var { error: memberErr } = await supabaseClient.from('fleet_members').insert({
+          fleet_id: fleet.id,
+          user_id: userId,
+          email: signupData.email,
+          role: 'owner',
+          status: 'active'
+        });
+
+        if (memberErr) {
+          // Non-fatal (duplicate key is OK if member already exists)
+          console.warn('Fleet member creation warning:', memberErr.message);
         }
 
         // Show success
