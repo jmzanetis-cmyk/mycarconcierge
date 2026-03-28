@@ -40006,6 +40006,13 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       if (!invite) { res.writeHead(404); res.end(JSON.stringify({ error: 'Invite not found or already used' })); return; }
       if (new Date(invite.expires_at) < new Date()) { res.writeHead(410); res.end(JSON.stringify({ error: 'Invite has expired' })); return; }
 
+      // Verify authenticated user's email matches the invited email
+      if (invite.email && user.email && invite.email.toLowerCase() !== user.email.toLowerCase()) {
+        res.writeHead(403); res.end(JSON.stringify({
+          error: `This invitation was sent to ${invite.email}. Please sign in with that email address to accept it.`
+        })); return;
+      }
+
       // Add user to fleet_members
       const { error: memberErr } = await supabase.from('fleet_members').insert({
         fleet_id: invite.fleet_id,
@@ -40032,6 +40039,100 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     } catch (err) {
       console.error(`[${requestId}] Fleet invite accept error:`, err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to accept invite' }));
+    }
+    return;
+  }
+
+  // POST /api/fleet/import-vehicles — server-side CSV import with plan limit enforcement
+  if (req.method === 'POST' && req.url === '/api/fleet/import-vehicles') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { fleet_id, vehicles } = body;
+      if (!fleet_id || !Array.isArray(vehicles) || vehicles.length === 0) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'fleet_id and vehicles array are required' })); return;
+      }
+
+      // Verify fleet ownership/management
+      const { data: fleet } = await supabase.from('fleets').select('id, owner_id').eq('id', fleet_id).maybeSingle();
+      if (!fleet) { res.writeHead(404); res.end(JSON.stringify({ error: 'Fleet not found' })); return; }
+      const isOwner = fleet.owner_id === user.id;
+      if (!isOwner) {
+        const { data: membership } = await supabase.from('fleet_members')
+          .select('id').eq('fleet_id', fleet_id).eq('user_id', user.id)
+          .in('role', ['manager', 'owner']).eq('status', 'active').maybeSingle();
+        if (!membership) { res.writeHead(403); res.end(JSON.stringify({ error: 'Not authorized' })); return; }
+      }
+
+      // Enforce vehicle plan limits (AUTHORITATIVE server-side check)
+      const access = await checkPlanAccess(fleet.owner_id, 'fleet', 'starter');
+      const planLimits = { starter: { vehicles: 10 }, pro: { vehicles: 50 }, business: { vehicles: -1 } };
+      const limits = planLimits[access.plan] || { vehicles: 3 };
+
+      if (limits.vehicles !== -1) {
+        const { count: currentVehicleCount } = await supabase.from('fleet_vehicles')
+          .select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id).eq('status', 'active');
+        const currentCount = currentVehicleCount || 0;
+        const available = limits.vehicles - currentCount;
+        if (available <= 0) {
+          res.writeHead(402); res.end(JSON.stringify({
+            error: `Vehicle limit reached (${currentCount}/${limits.vehicles} on ${access.plan || 'free'} plan). Please upgrade to import more vehicles.`,
+            upgrade_url: '/members.html?section=settings',
+            imported: 0, skipped: vehicles.length
+          })); return;
+        }
+        // Trim import to available slots
+        if (vehicles.length > available) {
+          vehicles.splice(available);
+        }
+      }
+
+      // Process import
+      let imported = 0;
+      let failed = 0;
+      const errors = [];
+
+      for (const v of vehicles) {
+        if (!v.year || !v.make || !v.model) { failed++; errors.push('Row missing required fields'); continue; }
+        try {
+          const { data: vehicle, error: vErr } = await supabase.from('vehicles').insert({
+            user_id: user.id,
+            year: parseInt(v.year) || null,
+            make: String(v.make).trim(),
+            model: String(v.model).trim(),
+            color: v.color ? String(v.color).trim() : null,
+            license_plate: v.license_plate ? String(v.license_plate).trim().toUpperCase() : null,
+            vin: v.vin ? String(v.vin).trim().toUpperCase() : null,
+            mileage: v.mileage ? parseInt(v.mileage) : null
+          }).select('id').single();
+
+          if (vErr) { failed++; errors.push(vErr.message); continue; }
+
+          await supabase.from('fleet_vehicles').insert({
+            fleet_id: fleet_id,
+            vehicle_id: vehicle.id,
+            fleet_number: v.fleet_number ? String(v.fleet_number).trim() : null,
+            department: v.department ? String(v.department).trim() : null,
+            assignment_type: 'pool',
+            status: 'active'
+          });
+          imported++;
+        } catch (rowErr) {
+          failed++;
+          errors.push(rowErr.message);
+        }
+      }
+
+      console.log(`[Fleet Import] fleet=${fleet_id} imported=${imported} failed=${failed}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, imported, failed, errors: errors.slice(0, 5) }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet CSV import error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to import vehicles' }));
     }
     return;
   }
@@ -40336,7 +40437,12 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     '/founding-member': '/member-founder.html',
     '/founding-provider': '/provider-pilot.html',
     '/provider-founder.html': '/provider-pilot.html',
-    '/providers': '/providers-directory.html'
+    '/providers': '/providers-directory.html',
+    // Fleet SaaS clean URLs
+    '/fleet': '/fleet-landing.html',
+    '/fleet/driver': '/fleet-driver.html',
+    '/fleet/join': '/fleet-join.html',
+    '/fleet/signup': '/fleet-signup.html'
   };
   
   const urlPath = req.url.split('?')[0];

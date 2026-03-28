@@ -302,7 +302,25 @@ CREATE POLICY "Fleet invite access" ON fleet_invites
     )
   );
 
--- Anyone can view an invite by token (for the accept flow)
+-- IMPORTANT: The invite token lookup is handled exclusively by the server-side
+-- service role key (in /api/fleet/invite/:token). Direct client-side access to
+-- fleet_invites is NOT granted for unauthenticated users. Authenticated invitees
+-- can only see their own invite (matched by email) to prevent enumeration.
 DROP POLICY IF EXISTS "Public invite lookup by token" ON fleet_invites;
-CREATE POLICY "Public invite lookup by token" ON fleet_invites
-  FOR SELECT USING (true);
+CREATE POLICY "Invitee reads their own invite" ON fleet_invites
+  FOR SELECT USING (
+    -- fleet owner/manager can read all invites for their fleet
+    EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_invites.fleet_id AND fleets.owner_id = auth.uid())
+    OR EXISTS (
+      SELECT 1 FROM fleet_members fm
+      WHERE fm.fleet_id = fleet_invites.fleet_id
+        AND fm.user_id = auth.uid()
+        AND fm.role IN ('manager', 'owner')
+        AND fm.status = 'active'
+    )
+    -- invited user can read their own invite (matched by email)
+    OR (
+      auth.uid() IS NOT NULL
+      AND email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    )
+  );

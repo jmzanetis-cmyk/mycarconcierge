@@ -888,61 +888,49 @@
 
       document.getElementById('csv-import-btn').disabled = true;
       document.getElementById('csv-import-progress').style.display = 'block';
+      updateCsvProgress(0, _csvRows.length);
 
-      var supabase = window.supabaseClient;
-      var session = await supabase.auth.getSession();
-      var userId = session?.data?.session?.user?.id;
       var fleetId = currentFleet.id;
+      var session = await window.supabaseClient.auth.getSession();
+      var token = session?.data?.session?.access_token;
 
-      var total = _csvRows.length;
-      var done = 0;
-      var failed = 0;
+      try {
+        // Use server-side endpoint for authoritative limit enforcement
+        var res = await fetch('/api/fleet/import-vehicles', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+          },
+          body: JSON.stringify({ fleet_id: fleetId, vehicles: _csvRows })
+        });
+        var data = await res.json();
 
-      for (var i = 0; i < _csvRows.length; i++) {
-        var row = _csvRows[i];
-        try {
-          // Upsert vehicle into user's vehicles table
-          var vPayload = {
-            user_id: userId,
-            year: parseInt(row.year) || null,
-            make: row.make,
-            model: row.model,
-            color: row.color || null,
-            license_plate: row.license_plate || null,
-            vin: row.vin || null,
-            mileage: row.mileage ? parseInt(row.mileage) : null
-          };
-          var { data: vehicle, error: vErr } = await supabase.from('vehicles').insert(vPayload).select('id').single();
-          if (vErr) { failed++; done++; updateCsvProgress(done, total); continue; }
-
-          // Link vehicle to fleet
-          var fvPayload = {
-            fleet_id: fleetId,
-            vehicle_id: vehicle.id,
-            fleet_number: row.fleet_number || null,
-            department: row.department || null,
-            assignment_type: 'pool',
-            status: 'active'
-          };
-          await supabase.from('fleet_vehicles').insert(fvPayload);
-          done++;
-          updateCsvProgress(done, total);
-        } catch(err) {
-          failed++;
-          done++;
-          updateCsvProgress(done, total);
+        if (!res.ok) {
+          if (res.status === 402) {
+            document.getElementById('csv-import-progress').style.display = 'none';
+            showCsvError(data.error || 'Vehicle limit reached. Please upgrade your fleet plan.');
+            document.getElementById('csv-import-btn').disabled = false;
+            return;
+          }
+          throw new Error(data.error || 'Import failed');
         }
+
+        updateCsvProgress(data.imported, _csvRows.length);
+        var label = 'Imported ' + data.imported + '/' + _csvRows.length + ' vehicles';
+        if (data.failed) label += ' (' + data.failed + ' failed)';
+        document.getElementById('csv-progress-label').textContent = label;
+
+        setTimeout(function() {
+          closeFleetCsvImport();
+          if (typeof loadFleetDetails === 'function') loadFleetDetails(fleetId);
+          if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
+        }, 1200);
+      } catch (err) {
+        document.getElementById('csv-import-progress').style.display = 'none';
+        document.getElementById('csv-import-btn').disabled = false;
+        showCsvError('Import error: ' + err.message);
       }
-
-      var label = 'Imported ' + (done - failed) + '/' + total + ' vehicles';
-      if (failed) label += ' (' + failed + ' failed)';
-      document.getElementById('csv-progress-label').textContent = label;
-
-      setTimeout(function() {
-        closeFleetCsvImport();
-        if (typeof loadFleetDetails === 'function') loadFleetDetails(fleetId);
-        if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
-      }, 1200);
     }
 
     function updateCsvProgress(done, total) {

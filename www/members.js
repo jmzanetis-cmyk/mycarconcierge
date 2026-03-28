@@ -12770,49 +12770,13 @@
         }
         showToast(`Invitation sent to ${email}!`, 'success');
         closeModal('add-fleet-employee-modal');
-        // Also add to fleet_members locally if user exists
-        const { data: userLookup } = await supabaseClient.from('profiles').select('id').eq('email', email).maybeSingle();
-        if (userLookup?.id) {
-          await addFleetMember(currentFleet.id, userLookup.id, role, {
-            email,
-            employee_id: employeeId || null,
-            department: department || null,
-            spending_limit: spendingLimit ? Number(spendingLimit) : null,
-            requires_approval: requiresApproval
-          });
-        }
         await loadFleetDetails(currentFleet.id);
         if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
         return;
       } catch (fetchErr) {
         console.warn('[Fleet Employee] Invite fetch error:', fetchErr.message);
+        showToast('Network error — please try again', 'error');
       }
-
-      // Fallback: add directly if server invite fails
-      const { data: userLookup } = await supabaseClient
-        .from('profiles')
-        .select('id')
-        .eq('email', email)
-        .single();
-      
-      const userId = userLookup?.id || null;
-      
-      const { error } = await addFleetMember(currentFleet.id, userId, role, {
-        email,
-        employee_id: employeeId || null,
-        department: department || null,
-        spending_limit: spendingLimit ? Number(spendingLimit) : null,
-        requires_approval: requiresApproval
-      });
-      
-      if (error) {
-        showToast('Failed to add employee: ' + error.message, 'error');
-        return;
-      }
-      
-      showToast('Employee added to fleet!', 'success');
-      closeModal('add-fleet-employee-modal');
-      await loadFleetDetails(currentFleet.id);
     }
     
     function openEditFleetEmployee(memberId) {
