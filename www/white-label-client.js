@@ -140,6 +140,8 @@
         .then(function(r) { return r.ok ? r.json() : null; })
         .then(function(data) {
           if (data && data.success) {
+            // Clear cached invite token after successful join to avoid repeated attempts
+            if (!data.already_member) { try { sessionStorage.removeItem('wl_invite_token'); } catch(e) {} }
             window.dispatchEvent(new CustomEvent('wl-tenant-joined', {
               detail: { membership: data.membership, already_member: !!data.already_member }
             }));

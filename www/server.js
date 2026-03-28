@@ -39323,7 +39323,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
   // GET /api/admin/white-label/tenants — list all white-label tenants
   // NOTE: .endsWith('/portal') routes are handled separately below and must not match here
-  if (req.method === 'GET' && req.url.startsWith('/api/admin/white-label/tenants') && !req.url.endsWith('/portal')) {
+  if (req.method === 'GET' && /^\/api\/admin\/white-label\/tenants(\?.*)?$/.test(req.url)) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
     const _adminToken = req.headers['x-admin-token'];
