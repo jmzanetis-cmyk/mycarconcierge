@@ -41947,46 +41947,69 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       const maxDistance = parseInt(qs.get('max_distance') || '0');
       const minValue = parseFloat(qs.get('min_value') || '0');
       const sort = qs.get('sort') || 'newest';
-      const tab = qs.get('tab') || 'open';
+      const tab = qs.get('tab') || 'all';
+      const searchQ = (qs.get('q') || '').trim();
       const from = (page - 1) * pageSize;
-      let query = supabase.from('care_plans')
-        .select(`id, title, description, services, value_min, value_max, service_types, city, state, zip_code, status, bid_count, bid_closes_at, created_at, member_id,
-          vehicles!care_plans_vehicle_id_fkey(id, year, make, model, mileage, color),
-          member:profiles!care_plans_member_id_fkey(full_name, city, state, zip_code)`, { count: 'exact' });
+      const SELECT_FIELDS = `id, title, description, services, value_min, value_max, service_types, city, state, zip_code, status, bid_count, bid_closes_at, created_at, member_id,
+        vehicle_id, vehicles!care_plans_vehicle_id_fkey(id, year, make, model, mileage, color),
+        member:profiles!care_plans_member_id_fkey(full_name, city, state, zip_code)`;
+
+      // Fetch my-bids plan IDs up front
+      let myBidMap = {};
+      const { data: myBidRows } = await supabase.from('plan_bids').select('care_plan_id, id, amount, status, note').eq('provider_id', user.id);
+      (myBidRows || []).forEach(b => { myBidMap[b.care_plan_id] = b; });
+      const myBidPlanIds = Object.keys(myBidMap);
+
+      // When distance filtering, we must fetch all candidates and paginate in memory
+      const needsDistanceFilter = maxDistance > 0;
+      let query = supabase.from('care_plans').select(SELECT_FIELDS, { count: needsDistanceFilter ? undefined : 'exact' });
+
+      // Tab semantics
       if (tab === 'my-bids') {
-        const { data: myBids } = await supabase.from('plan_bids').select('care_plan_id').eq('provider_id', user.id);
-        const myBidPlanIds = (myBids || []).map(b => b.care_plan_id);
         if (!myBidPlanIds.length) {
-          res.writeHead(200); res.end(JSON.stringify({ plans: [], total: 0, page, pageSize })); return;
+          res.writeHead(200); res.end(JSON.stringify({ plans: [], total: 0, page, pageSize, provider_verified: isVerified })); return;
         }
         query = query.in('id', myBidPlanIds);
       } else {
-        query = query.eq('status', 'open').gt('bid_closes_at', new Date().toISOString());
+        const nowIso = new Date().toISOString();
+        query = query.eq('status', 'open').gt('bid_closes_at', nowIso);
+        if (tab === 'no-bids') query = query.eq('bid_count', 0);
+        if (tab === 'closing-soon') query = query.lte('bid_closes_at', new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString());
       }
+
       if (serviceType) query = query.contains('service_types', [serviceType]);
       if (minValue > 0) query = query.gte('value_min', minValue);
-      if (sort === 'newest') query = query.order('created_at', { ascending: false });
-      else if (sort === 'closing') query = query.order('bid_closes_at', { ascending: true });
+      if (searchQ) query = query.or(`title.ilike.%${searchQ}%,description.ilike.%${searchQ}%`);
+
+      // Sort
+      if (sort === 'closing') query = query.order('bid_closes_at', { ascending: true });
       else if (sort === 'value_high') query = query.order('value_max', { ascending: false });
       else if (sort === 'bids_low') query = query.order('bid_count', { ascending: true });
-      else query = query.order('created_at', { ascending: false });
-      const { data: plans, count, error } = await query.range(from, from + pageSize - 1);
-      if (error) throw error;
-      let result = (plans || []).map(p => {
-        const dist = estimateZipDistanceSrv(prov.zip_code, p.zip_code || p.member?.zip_code);
-        return { ...p, estimated_distance_miles: dist };
-      });
-      if (maxDistance > 0) result = result.filter(p => p.estimated_distance_miles <= maxDistance);
-      if (sort === 'nearest') result = result.sort((a, b) => a.estimated_distance_miles - b.estimated_distance_miles);
-      const bidPlanIds = result.map(p => p.id);
-      let myBidMap = {};
-      if (bidPlanIds.length) {
-        const { data: myBids } = await supabase.from('plan_bids').select('care_plan_id, amount, status').eq('provider_id', user.id).in('care_plan_id', bidPlanIds);
-        (myBids || []).forEach(b => { myBidMap[b.care_plan_id] = b; });
+      else query = query.order('created_at', { ascending: false }); // newest, nearest both start with full set
+
+      if (needsDistanceFilter) {
+        // Fetch all (up to 500) and filter by distance before paginating
+        const { data: allPlans, error } = await query.range(0, 499);
+        if (error) throw error;
+        let result = (allPlans || []).map(p => ({
+          ...p, estimated_distance_miles: estimateZipDistanceSrv(prov.zip_code, p.zip_code || p.member?.zip_code)
+        })).filter(p => p.estimated_distance_miles <= maxDistance);
+        if (sort === 'nearest') result.sort((a, b) => a.estimated_distance_miles - b.estimated_distance_miles);
+        const total = result.length;
+        const paged = result.slice(from, from + pageSize).map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ plans: paged, total, page, pageSize, provider_verified: isVerified }));
+      } else {
+        const { data: plans, count, error } = await query.range(from, from + pageSize - 1);
+        if (error) throw error;
+        let result = (plans || []).map(p => ({
+          ...p, estimated_distance_miles: estimateZipDistanceSrv(prov.zip_code, p.zip_code || p.member?.zip_code)
+        }));
+        if (sort === 'nearest') result.sort((a, b) => a.estimated_distance_miles - b.estimated_distance_miles);
+        result = result.map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ plans: result, total: count || result.length, page, pageSize, provider_verified: isVerified }));
       }
-      result = result.map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ plans: result, total: count || result.length, page, pageSize, provider_verified: isVerified }));
     } catch (err) {
       console.error('[JobBoard] GET error:', err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load job board' }));
@@ -42045,7 +42068,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     return;
   }
 
-  // PATCH /api/plan-bids/:id — update own bid (amount / note)
+  // PATCH /api/plan-bids/:id — update own bid (amount / note) — only while plan is still open
   if (req.method === 'PATCH' && /^\/api\/plan-bids\/[^/]+$/.test(req.url)) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
@@ -42057,6 +42080,16 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     req.on('end', async () => {
       try {
         const updates = JSON.parse(body || '{}');
+        // Check plan is still open (except for withdraw)
+        if (updates.status !== 'withdrawn') {
+          const { data: existingBid } = await supabase.from('plan_bids').select('care_plan_id').eq('id', bidId).eq('provider_id', user.id).single();
+          if (existingBid) {
+            const { data: plan } = await supabase.from('care_plans').select('status, bid_closes_at').eq('id', existingBid.care_plan_id).single();
+            if (!plan || plan.status !== 'open' || new Date(plan.bid_closes_at) < new Date()) {
+              res.writeHead(409); res.end(JSON.stringify({ error: 'Care plan is no longer accepting bid changes' })); return;
+            }
+          }
+        }
         const allowed = {};
         if (updates.amount !== undefined && parseFloat(updates.amount) > 0) allowed.amount = parseFloat(updates.amount);
         if (updates.note !== undefined) allowed.note = updates.note;
@@ -42166,8 +42199,10 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         if (!care_plan_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'care_plan_id required' })); return; }
         const { data: plan } = await supabase.from('care_plans').select('*').eq('id', care_plan_id).single();
         if (!plan || plan.status !== 'open') { res.writeHead(200); res.end(JSON.stringify({ placed: 0 })); return; }
-        const { data: providers } = await supabase.from('profiles').select('id, zip_code, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate')
-          .eq('auto_bid_enabled', true).in('role', ['provider', 'admin']);
+        const { data: providers } = await supabase.from('profiles')
+          .select('id, zip_code, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate, verification_status')
+          .eq('auto_bid_enabled', true).in('role', ['provider', 'admin'])
+          .or('verification_status.is.null,verification_status.eq.verified');
         let placed = 0;
         for (const prov of (providers || [])) {
           const dist = estimateZipDistanceSrv(prov.zip_code, plan.zip_code);
@@ -42219,11 +42254,15 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       }
       const { data: photos, error } = await query;
       if (error) throw error;
-      // Generate signed URLs if url column is empty
-      const enriched = (photos || []).map(p => ({
-        ...p,
-        url: p.url || `${process.env.SUPABASE_URL}/storage/v1/object/public/vehicle-photos/${p.storage_path}`
-      }));
+      // Always generate short-lived signed URLs (1 hour) via service role — never expose public URLs
+      let enriched = photos || [];
+      if (enriched.length) {
+        const paths = enriched.map(p => p.storage_path).filter(Boolean);
+        const { data: signedData } = await supabase.storage.from('vehicle-photos').createSignedUrls(paths, 3600);
+        const signedMap = {};
+        (signedData || []).forEach(s => { if (s.signedUrl) signedMap[s.path] = s.signedUrl; });
+        enriched = enriched.map(p => ({ ...p, url: signedMap[p.storage_path] || null }));
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ photos: enriched }));
     } catch (err) {
@@ -42255,8 +42294,10 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
           member_id: user.id, vehicle_id: vehicleId, storage_path, url: url || null, is_primary: makePrimary
         }).select().single();
         if (error) throw error;
+        // Generate short-lived signed URL for immediate display
+        const { data: signedData } = await supabase.storage.from('vehicle-photos').createSignedUrl(storage_path, 3600);
         res.writeHead(201, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, photo: { ...photo, url: photo.url || `${process.env.SUPABASE_URL}/storage/v1/object/public/vehicle-photos/${storage_path}` } }));
+        res.end(JSON.stringify({ success: true, photo: { ...photo, url: signedData?.signedUrl || null } }));
       } catch (err) {
         res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save photo record' }));
       }
@@ -43775,14 +43816,19 @@ function startCarePlanClosingScheduler() {
         .eq('status', 'open').gt('bid_closes_at', new Date().toISOString())
         .order('created_at', { ascending: false }).limit(10);
       if (!openPlans?.length) return;
+      // Digest targets providers who have NOT enabled auto-bid (those who opted in already get bids placed automatically)
       const { data: providers } = await supabase.from('profiles')
-        .select('id, phone, email, full_name, business_name, zip_code, sms_notifications_enabled, auto_bid_max_distance_miles')
-        .in('role', ['provider', 'admin']).eq('sms_notifications_enabled', true).not('phone', 'is', null);
+        .select('id, phone, email, full_name, business_name, zip_code, sms_notifications_enabled, auto_bid_max_distance_miles, verification_status')
+        .in('role', ['provider', 'admin']).eq('sms_notifications_enabled', true)
+        .or('auto_bid_enabled.is.null,auto_bid_enabled.eq.false')
+        .or('verification_status.is.null,verification_status.eq.verified')
+        .not('phone', 'is', null);
       for (const prov of (providers || [])) {
         const maxDist = prov.auto_bid_max_distance_miles || 50;
+        // Only show zero-bid plans (First Mover opportunity)
         const matching = openPlans.filter(p => {
           const dist = estimateZipDistanceSrv(prov.zip_code, p.zip_code);
-          return dist <= maxDist;
+          return dist <= maxDist && (p.bid_count || 0) === 0;
         });
         if (!matching.length) continue;
         const summary = matching.slice(0, 3).map(p =>

@@ -158,6 +158,18 @@
     .photo-strip::-webkit-scrollbar-thumb { background: var(--border-medium); }
     .photo-thumb { width: 80px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s; flex-shrink: 0; }
     .photo-thumb:hover { border-color: var(--accent-gold); }
+    /* Card thumbnail photo */
+    .card-photo-thumb, .card-photo-placeholder { width: 64px; height: 64px; border-radius: var(--radius-sm); flex-shrink: 0; object-fit: cover; border: 1px solid var(--border-subtle); }
+    .card-photo-placeholder { width: 64px; height: 64px; border-radius: var(--radius-sm); flex-shrink: 0; border: 1px solid var(--border-subtle); overflow: hidden; }
+    /* Locked (unverified) state */
+    .locked-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 40px 24px; text-align: center; }
+    .locked-icon { font-size: 2.5rem; }
+    .locked-title { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); }
+    .locked-sub { font-size: 0.85rem; color: var(--text-muted); max-width: 280px; line-height: 1.5; }
+    .locked-summary { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; width: 100%; text-align: left; margin: 0; }
+    .locked-summary .ls-row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 0.82rem; }
+    .locked-summary .ls-label { color: var(--text-muted); }
+    .locked-summary .ls-value { color: var(--text-primary); font-weight: 500; }
     .location-detail { font-size: 0.88rem; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
     .distance-pill { padding: 3px 10px; border-radius: 100px; font-size: 0.78rem; font-weight: 600; background: var(--accent-blue-soft); color: var(--accent-blue); border: 1px solid rgba(56,189,248,0.25); }
     .countdown-detail { font-size: 1.1rem; font-weight: 700; color: var(--accent-gold); }
@@ -250,13 +262,21 @@
 
     <!-- TABS -->
     <div class="tabs">
-      <div class="tab active" id="tab-open" onclick="switchTab('open')">
-        Open Plans
-        <span class="tab-badge" id="badge-open">0</span>
+      <div class="tab active" id="tab-all" onclick="switchTab('all')">
+        All Jobs
+        <span class="tab-badge" id="badge-all">0</span>
+      </div>
+      <div class="tab" id="tab-no-bids" onclick="switchTab('no-bids')">
+        No Bids Yet
+        <span class="tab-badge" id="badge-no-bids" style="display:none;background:var(--accent-teal);color:#0c1a1f;">0</span>
+      </div>
+      <div class="tab" id="tab-closing-soon" onclick="switchTab('closing-soon')">
+        Closing Soon
+        <span class="tab-badge" id="badge-closing-soon" style="display:none;background:var(--accent-orange);color:#fff;">0</span>
       </div>
       <div class="tab" id="tab-my-bids" onclick="switchTab('my-bids')">
         My Bids
-        <span class="tab-badge" id="badge-my-bids" style="display:none;background:var(--accent-teal);color:#0c1a1f;">0</span>
+        <span class="tab-badge" id="badge-my-bids" style="display:none;background:var(--accent-gold);color:var(--bg-deep);">0</span>
       </div>
     </div>
 
@@ -304,8 +324,9 @@
     </div>
 
     <!-- LOAD MORE -->
-    <div class="load-more-area" id="load-more-area" style="display:none;">
-      <button class="btn-load-more" id="load-more-btn" onclick="loadMorePlans()">Load More</button>
+    <!-- Infinite scroll sentinel — becomes visible when user nears bottom -->
+    <div id="scroll-sentinel" style="height:40px;display:flex;align-items:center;justify-content:center;">
+      <div id="scroll-spinner" style="display:none;width:20px;height:20px;border:2px solid var(--border-subtle);border-top-color:var(--accent-gold);border-radius:50%;animation:spin 0.7s linear infinite;"></div>
     </div>
 
   </div>
@@ -364,7 +385,7 @@ let providerProfile = null;
 let plans = [];
 let currentPage = 1;
 let totalPlans = 0;
-let currentTab = 'open';
+let currentTab = 'all';
 let currentServiceType = 'all';
 let selectedPlanId = null;
 let planPhotos = {};
@@ -415,7 +436,7 @@ function setServiceType(type, el) {
 
 function debounceSearch() {
   clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => reloadPlans(), 400);
+  searchTimeout = setTimeout(() => reloadPlans(), 300);
 }
 
 function reloadPlans() {
@@ -424,11 +445,30 @@ function reloadPlans() {
   loadPlans(true);
 }
 
+// ===== INFINITE SCROLL =====
+let isLoading = false;
+let scrollObserver = null;
+function setupInfiniteScroll() {
+  if (scrollObserver) scrollObserver.disconnect();
+  const sentinel = document.getElementById('scroll-sentinel');
+  if (!sentinel) return;
+  scrollObserver = new IntersectionObserver(entries => {
+    if (entries[0].isIntersecting && !isLoading && plans.length < totalPlans) {
+      currentPage++;
+      loadPlans(false);
+    }
+  }, { rootMargin: '200px' });
+  scrollObserver.observe(sentinel);
+}
+
 // ===== LOAD PLANS =====
 async function loadPlans(reset = false) {
+  if (isLoading) return;
+  isLoading = true;
+  const spinner = document.getElementById('scroll-spinner');
+  if (spinner) spinner.style.display = reset ? 'none' : 'block';
   if (reset) {
     document.getElementById('job-list').innerHTML = '<div class="loading-state"><div class="spinner"></div><p style="margin-top:12px">Loading care plans...</p></div>';
-    document.getElementById('load-more-area').style.display = 'none';
   }
   const { data: { session } } = await supabaseClient.auth.getSession();
   const params = new URLSearchParams({
@@ -450,50 +490,62 @@ async function loadPlans(reset = false) {
     if (reset) plans = data.plans || [];
     else plans = [...plans, ...(data.plans || [])];
     totalPlans = data.total || 0;
-    window.providerVerified = data.provider_verified !== false; // default true for legacy
-    renderPlanList();
+    window.providerVerified = data.provider_verified !== false;
+    renderPlanList(reset);
     updateBadges();
-    // Show load more
-    if (plans.length < totalPlans) {
-      document.getElementById('load-more-area').style.display = 'block';
-      document.getElementById('load-more-btn').disabled = false;
-    } else {
-      document.getElementById('load-more-area').style.display = 'none';
-    }
   } catch (err) {
-    document.getElementById('job-list').innerHTML = `<div class="loading-state" style="color:var(--accent-red)">Failed to load plans. ${err.message}</div>`;
+    if (reset) document.getElementById('job-list').innerHTML = `<div class="loading-state" style="color:var(--accent-red)">Failed to load plans. ${err.message}</div>`;
+  } finally {
+    isLoading = false;
+    if (spinner) spinner.style.display = 'none';
+    if (reset) setupInfiniteScroll();
   }
 }
 
-async function loadMorePlans() {
-  document.getElementById('load-more-btn').disabled = true;
-  document.getElementById('load-more-btn').textContent = 'Loading...';
-  currentPage++;
-  await loadPlans(false);
-}
-
 function updateBadges() {
-  document.getElementById('badge-open').textContent = totalPlans;
+  // "All Jobs" badge shows total count for the current result set
+  const allBadge = document.getElementById('badge-all');
+  if (allBadge) { allBadge.textContent = totalPlans; }
+  // My Bids badge: count plans that have my_bid in current full set (best effort)
   const myBidCount = plans.filter(p => p.my_bid).length;
-  if (currentTab === 'my-bids') {
-    const badge = document.getElementById('badge-my-bids');
-    badge.textContent = totalPlans;
-    badge.style.display = totalPlans > 0 ? 'inline-flex' : 'none';
-  } else if (myBidCount > 0) {
-    document.getElementById('badge-my-bids').textContent = myBidCount;
-    document.getElementById('badge-my-bids').style.display = 'inline-flex';
+  const myBidBadge = document.getElementById('badge-my-bids');
+  if (myBidBadge) {
+    const count = currentTab === 'my-bids' ? totalPlans : myBidCount;
+    myBidBadge.textContent = count;
+    myBidBadge.style.display = count > 0 ? 'inline-flex' : 'none';
+  }
+  // No-bids / closing-soon badges only shown when on that tab
+  const noBidsBadge = document.getElementById('badge-no-bids');
+  if (noBidsBadge && currentTab === 'no-bids') {
+    noBidsBadge.textContent = totalPlans;
+    noBidsBadge.style.display = totalPlans > 0 ? 'inline-flex' : 'none';
+  }
+  const closingSoonBadge = document.getElementById('badge-closing-soon');
+  if (closingSoonBadge && currentTab === 'closing-soon') {
+    closingSoonBadge.textContent = totalPlans;
+    closingSoonBadge.style.display = totalPlans > 0 ? 'inline-flex' : 'none';
   }
 }
 
 // ===== RENDER CARD LIST =====
-function renderPlanList() {
+function renderPlanList(reset = true) {
   const list = document.getElementById('job-list');
   if (!plans.length) {
     list.innerHTML = `<div class="loading-state"><div style="font-size:2.5rem;margin-bottom:10px">📭</div><p>No care plans found.</p><p style="font-size:0.8rem;margin-top:4px;color:var(--text-muted)">Try adjusting your filters.</p></div>`;
     return;
   }
-  list.innerHTML = plans.map(p => renderPlanCard(p)).join('');
+  if (reset) {
+    list.innerHTML = plans.map(p => renderPlanCard(p)).join('');
+  } else {
+    // Append new page of cards without clobbering existing ones
+    const newCards = plans.slice(-PAGE_SIZE).map(p => renderPlanCard(p)).join('');
+    list.insertAdjacentHTML('beforeend', newCards);
+  }
   startCountdowns();
+  // Fetch primary photos for new cards in the background
+  plans.slice(reset ? 0 : -PAGE_SIZE).forEach(p => {
+    if (p.vehicles?.id && !planPhotos[p.vehicles.id]) prefetchCardPhoto(p);
+  });
 }
 
 function renderPlanCard(p) {
@@ -504,22 +556,61 @@ function renderPlanCard(p) {
   const svcChips = (p.service_types || []).slice(0, 3).map(s => `<span class="svc-chip">${escH(capitalize(s))}</span>`).join('');
   const loc = [p.city, p.state].filter(Boolean).join(', ') || p.member?.city || '';
   const dist = p.estimated_distance_miles < 900 ? `~${Math.round(p.estimated_distance_miles)} mi` : '';
+  // Show cached primary photo or gold/navy placeholder
+  const cachedPhotos = p.vehicles?.id ? (planPhotos[p.vehicles.id] || []) : [];
+  const primaryPhoto = cachedPhotos.find(ph => ph.is_primary) || cachedPhotos[0];
+  const photoHtml = primaryPhoto?.url
+    ? `<img class="card-photo-thumb" id="card-photo-${p.id}" src="${primaryPhoto.url}" alt="Vehicle" loading="lazy" onerror="this.style.display='none'">`
+    : `<div class="card-photo-placeholder" id="card-photo-${p.id}" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e3a5f 0%,#12161c 100%);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#b8942d" stroke-width="1.5" opacity="0.7"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>`;
   return `
-    <div class="job-card${p.my_bid ? ' my-bid' : ''}${p.id === selectedPlanId ? ' selected' : ''}" onclick="selectPlan('${p.id}')" data-plan-id="${p.id}">
-      ${isNew ? '<span class="new-badge">NEW</span>' : ''}
-      <div class="card-header">
-        <div class="card-title">${escH(p.title)}</div>
-        <div class="card-value">${val}</div>
-      </div>
-      ${vehicle ? `<div class="card-vehicle"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> ${escH(vehicle)}</div>` : ''}
-      <div class="card-chips">${svcChips}</div>
-      <div class="card-footer">
-        <span class="countdown-label ${countdown.cls}" data-closes="${p.bid_closes_at}">${countdown.icon} <span class="ct-value">${countdown.text}</span></span>
-        <span class="bids-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ${p.bid_count || 0}</span>
-        ${loc ? `<span class="location-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> ${escH(loc)}${dist ? ` · ${dist}` : ''}</span>` : ''}
-        ${p.my_bid ? `<span class="my-bid-badge">Bid: $${parseFloat(p.my_bid.amount).toFixed(2)}</span>` : ''}
+    <div class="job-card${p.my_bid ? ' my-bid' : ''}${p.id === selectedPlanId ? ' selected' : ''}" onclick="selectPlan('${p.id}')" data-plan-id="${p.id}" style="display:flex;gap:10px;align-items:flex-start;">
+      ${photoHtml}
+      <div style="flex:1;min-width:0;">
+        ${isNew ? '<span class="new-badge">NEW</span>' : ''}
+        <div class="card-header">
+          <div class="card-title">${escH(p.title)}</div>
+          <div class="card-value">${val}</div>
+        </div>
+        ${vehicle ? `<div class="card-vehicle"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> ${escH(vehicle)}</div>` : ''}
+        <div class="card-chips">${svcChips}</div>
+        <div class="card-footer">
+          <span class="countdown-label ${countdown.cls}" data-closes="${p.bid_closes_at}">${countdown.icon} <span class="ct-value">${countdown.text}</span></span>
+          <span class="bids-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ${p.bid_count || 0}</span>
+          ${loc ? `<span class="location-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> ${escH(loc)}${dist ? ` · ${dist}` : ''}</span>` : ''}
+          ${p.my_bid ? `<span class="my-bid-badge">Bid: $${parseFloat(p.my_bid.amount).toFixed(2)}</span>` : ''}
+        </div>
       </div>
     </div>`;
+}
+
+// Pre-fetch primary photo for card thumbnail in background
+async function prefetchCardPhoto(plan) {
+  const vehicleId = plan.vehicles?.id;
+  if (!vehicleId) return;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const resp = await fetch(`${API}/api/vehicle-photos/${vehicleId}`, { headers: { 'Authorization': `Bearer ${session.access_token}` } });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const photos = data.photos || [];
+    planPhotos[vehicleId] = photos;
+    const primary = photos.find(ph => ph.is_primary) || photos[0];
+    if (!primary?.url) return;
+    // Swap placeholder with real photo in card
+    const el = document.getElementById(`card-photo-${plan.id}`);
+    if (el && !el.src) {
+      el.outerHTML = `<img class="card-photo-thumb" id="card-photo-${plan.id}" src="${primary.url}" alt="Vehicle" loading="lazy" onerror="this.style.display='none'">`;
+    } else if (el && el.tagName === 'DIV') {
+      const img = document.createElement('img');
+      img.className = 'card-photo-thumb';
+      img.id = `card-photo-${plan.id}`;
+      img.src = primary.url;
+      img.alt = 'Vehicle';
+      img.loading = 'lazy';
+      img.onerror = function() { this.style.display = 'none'; };
+      el.replaceWith(img);
+    }
+  } catch {}
 }
 
 // ===== SELECT PLAN =====
@@ -563,6 +654,38 @@ function renderDetailPanel(plan) {
 
   const hasBid = !!plan.my_bid;
   const bidStatus = hasBid ? plan.my_bid.status : null;
+  const isVerified = window.providerVerified !== false;
+
+  // Unverified providers see only a locked summary — no contact details or bid button
+  if (!isVerified) {
+    const svcLabels = (plan.service_types || []).slice(0, 3).map(s => capitalize(s)).join(', ') || 'General';
+    panel.innerHTML = `
+      <div class="detail-view" style="height:100%;display:flex;flex-direction:column;">
+        <div class="detail-header">
+          <div class="detail-title">${escH(plan.title)}</div>
+          <div class="detail-meta">
+            <span><span class="countdown-detail ${countdown.cls}">${countdown.text}</span></span>
+            <span>${plan.bid_count || 0} bid${plan.bid_count !== 1 ? 's' : ''}</span>
+            ${dist ? `<span>${dist}</span>` : ''}
+          </div>
+        </div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;">
+          <div class="locked-panel">
+            <div class="locked-icon">🔒</div>
+            <div class="locked-title">Verification Required to Bid</div>
+            <div class="locked-sub">Complete your provider verification to access full job details and place bids on care plans.</div>
+            <div class="locked-summary">
+              <div class="ls-row"><span class="ls-label">Estimated Value</span><span class="ls-value">${val}</span></div>
+              <div class="ls-row"><span class="ls-label">Services</span><span class="ls-value">${escH(svcLabels)}</span></div>
+              <div class="ls-row"><span class="ls-label">Location</span><span class="ls-value">${escH([plan.city, plan.state].filter(Boolean).join(', ') || '—')}</span></div>
+              <div class="ls-row" style="margin-bottom:0"><span class="ls-label">Current Bids</span><span class="ls-value">${plan.bid_count || 0}</span></div>
+            </div>
+            <a href="/providers.html#verification" class="btn btn-gold" style="text-decoration:none;margin-top:8px;">Complete Verification</a>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
 
   panel.innerHTML = `
     <div class="detail-view">
