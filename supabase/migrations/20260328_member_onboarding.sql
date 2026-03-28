@@ -39,6 +39,8 @@ ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS quote_behavior        text
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS history_tracking      text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS maintenance_avoidance text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS competitive_bids        text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS best_value             text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS provider_honesty       text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS job_status_updates    text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS provider_vetting      text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS app_usage             text;

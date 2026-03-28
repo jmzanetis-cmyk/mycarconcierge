@@ -1342,7 +1342,7 @@
     const SURVEY_QUESTIONS = [
       {
         key: 'provider_discovery',
-        tag: 'Question 1 of 18',
+        tag: 'Question 1 of 21',
         q: 'How do you typically find auto service providers — mechanics, detailers, body shops?',
         opts: [
           { val: 'word_of_mouth', label: 'Word of mouth from friends or family' },
@@ -1353,7 +1353,7 @@
       },
       {
         key: 'provider_satisfaction',
-        tag: 'Question 2 of 18',
+        tag: 'Question 2 of 21',
         q: 'Overall, how satisfied are you with the auto service providers you currently use?',
         opts: [
           { val: 'very_satisfied', label: 'Very satisfied — I have reliable providers I trust' },
@@ -1364,7 +1364,7 @@
       },
       {
         key: 'service_frequency',
-        tag: 'Question 3 of 18',
+        tag: 'Question 3 of 21',
         q: 'How often do you take your vehicle in for any type of service or maintenance?',
         opts: [
           { val: 'monthly_plus', label: 'More than once a month' },
@@ -1375,7 +1375,7 @@
       },
       {
         key: 'service_types',
-        tag: 'Question 4 of 18',
+        tag: 'Question 4 of 21',
         q: 'What types of auto service do you get done most often?',
         opts: [
           { val: 'routine', label: 'Routine maintenance — oil changes, tire rotations, filters' },
@@ -1386,7 +1386,7 @@
       },
       {
         key: 'pricing_confidence',
-        tag: 'Question 5 of 18',
+        tag: 'Question 5 of 21',
         q: 'How confident are you that you get a fair price when you have car work done?',
         opts: [
           { val: 'very_confident', label: 'Very confident — I know what to expect' },
@@ -1397,7 +1397,7 @@
       },
       {
         key: 'estimate_surprise',
-        tag: 'Question 6 of 18',
+        tag: 'Question 6 of 21',
         q: 'Have you ever received a final bill that was significantly higher than what you were originally quoted?',
         opts: [
           { val: 'yes_often', label: 'Yes, it has happened more than once' },
@@ -1408,7 +1408,7 @@
       },
       {
         key: 'quote_behavior',
-        tag: 'Question 7 of 18',
+        tag: 'Question 7 of 21',
         q: 'When facing a larger repair job, how do you typically handle getting a price?',
         opts: [
           { val: 'trust_one', label: 'I go with whoever I trust and don\'t shop around' },
@@ -1419,7 +1419,7 @@
       },
       {
         key: 'history_tracking',
-        tag: 'Question 8 of 18',
+        tag: 'Question 8 of 21',
         q: 'How do you keep track of your vehicle\'s service history?',
         opts: [
           { val: 'no_system', label: "I don't — I rely on memory or old receipts" },
@@ -1430,7 +1430,7 @@
       },
       {
         key: 'maintenance_avoidance',
-        tag: 'Question 9 of 18',
+        tag: 'Question 9 of 21',
         q: 'Have you ever delayed or skipped necessary maintenance because dealing with a shop felt like too much trouble?',
         opts: [
           { val: 'yes_regularly', label: 'Yes, regularly' },
@@ -1441,7 +1441,7 @@
       },
       {
         key: 'competitive_bids',
-        tag: 'Question 10 of 19',
+        tag: 'Question 10 of 21',
         q: 'How would you feel about getting competitive bids for both your mechanical and cosmetic auto jobs?',
         opts: [
           { val: 'love_it', label: "I'd love it — competition keeps prices fair and quality high" },
@@ -1451,8 +1451,30 @@
         ]
       },
       {
+        key: 'best_value',
+        tag: 'Question 11 of 21',
+        q: 'When you pay for auto work — repairs, car washes, or detailing — do you feel you\'re getting the best value for your money?',
+        opts: [
+          { val: 'yes_always', label: 'Yes — I feel I get fair value consistently' },
+          { val: 'sometimes', label: 'Sometimes — it varies a lot depending on the provider' },
+          { val: 'not_really', label: "Not really — I often wonder if I'm overpaying" },
+          { val: 'no_overcharged', label: "No — I feel overcharged more often than not" }
+        ]
+      },
+      {
+        key: 'provider_honesty',
+        tag: 'Question 12 of 21',
+        q: 'How honest and straightforward do you find auto service providers when explaining what work needs to be done and why?',
+        opts: [
+          { val: 'very_honest', label: 'Very honest — I trust what they tell me' },
+          { val: 'mostly_honest', label: 'Mostly honest — but I sometimes question their recommendations' },
+          { val: 'skeptical', label: 'Somewhat skeptical — I often feel upsold or misled' },
+          { val: 'very_skeptical', label: "Very skeptical — I rarely trust what I'm told without a second opinion" }
+        ]
+      },
+      {
         key: 'job_status_updates',
-        tag: 'Question 11 of 19',
+        tag: 'Question 13 of 21',
         q: 'When you drop your car off for service, how do you typically find out what\'s happening while it\'s being worked on?',
         opts: [
           { val: 'i_call', label: 'I call the shop to check in' },
@@ -1463,7 +1485,7 @@
       },
       {
         key: 'provider_vetting',
-        tag: 'Question 12 of 19',
+        tag: 'Question 14 of 21',
         q: 'Have you ever felt uncertain about whether a service provider was properly qualified or legitimate?',
         opts: [
           { val: 'yes_nervous', label: 'Yes, and it genuinely concerned me' },
@@ -1474,7 +1496,7 @@
       },
       {
         key: 'app_usage',
-        tag: 'Question 13 of 19',
+        tag: 'Question 15 of 21',
         q: 'Do you currently use any app or digital tool specifically for managing your vehicles?',
         opts: [
           { val: 'yes_regularly', label: 'Yes, I use one regularly' },
@@ -1485,7 +1507,7 @@
       },
       {
         key: 'payment_comfort',
-        tag: 'Question 14 of 19',
+        tag: 'Question 16 of 21',
         q: 'How comfortable are you paying for auto service through a secure app that holds your payment until the job is confirmed complete?',
         opts: [
           { val: 'very_comfortable', label: 'Very comfortable — that actually sounds safer' },
@@ -1496,7 +1518,7 @@
       },
       {
         key: 'dispute_history',
-        tag: 'Question 15 of 19',
+        tag: 'Question 17 of 21',
         q: 'Have you ever had a dispute with a service provider over billing, work quality, or a job that wasn\'t finished correctly?',
         opts: [
           { val: 'yes_hard_to_resolve', label: 'Yes, and it was difficult or impossible to resolve' },
@@ -1507,7 +1529,7 @@
       },
       {
         key: 'maintenance_reminders',
-        tag: 'Question 16 of 19',
+        tag: 'Question 18 of 21',
         q: 'Do you currently receive any reminders for routine vehicle maintenance — oil changes, tire rotations, inspections, etc.?',
         opts: [
           { val: 'from_shop', label: 'Yes, my mechanic or dealership sends them' },
@@ -1518,7 +1540,7 @@
       },
       {
         key: 'top_priority',
-        tag: 'Question 17 of 19',
+        tag: 'Question 19 of 21',
         q: 'What matters most to you when choosing an auto service provider?',
         opts: [
           { val: 'trust', label: 'Trustworthiness and reputation' },
@@ -1530,7 +1552,7 @@
       },
       {
         key: 'travel_distance',
-        tag: 'Question 18 of 19',
+        tag: 'Question 20 of 21',
         q: 'How far are you willing to travel for an auto service provider you truly trust?',
         opts: [
           { val: 'under_5', label: 'Under 5 miles — convenience is key' },
@@ -1541,7 +1563,7 @@
       },
       {
         key: 'vehicle_count',
-        tag: 'Question 19 of 19',
+        tag: 'Question 21 of 21',
         q: 'How many vehicles does your household currently have?',
         opts: [
           { val: '1', label: '1' },

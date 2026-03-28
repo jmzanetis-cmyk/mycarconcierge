@@ -11304,6 +11304,8 @@
       history_tracking: { no_system: 'No system', manual: 'Manual notes', mechanic_tracks: 'Mechanic tracks it', app: 'Uses an app' },
       maintenance_avoidance: { yes_regularly: 'Yes, regularly', yes_sometimes: 'Yes, sometimes', rarely: 'Rarely', never: 'Never' },
       competitive_bids: { love_it: "Love it", open_to_it: 'Open to it', unsure: 'Unsure', prefer_one_shop: 'Prefer one shop' },
+      best_value: { yes_always: 'Yes, always', sometimes: 'Sometimes', not_really: 'Not really', no_overcharged: 'Feels overcharged' },
+      provider_honesty: { very_honest: 'Very honest', mostly_honest: 'Mostly honest', skeptical: 'Skeptical', very_skeptical: 'Very skeptical' },
       job_status_updates: { i_call: 'I call the shop', they_call: 'They call when ready', just_show_up: 'Just show up', has_system: 'Shop has a system' },
       provider_vetting: { yes_nervous: 'Yes, concerned me', yes_went_anyway: 'Yes, went anyway', rarely: 'Rarely', never: 'Never' },
       app_usage: { yes_regularly: 'Uses app regularly', tried_none_stuck: 'Tried, nothing stuck', no_old_fashioned: 'No app', didnt_know: 'Didn't know apps exist' },
