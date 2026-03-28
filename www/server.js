@@ -39186,6 +39186,13 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         .from('white_label_tenant_users').select('id', { count: 'exact', head: true })
         .eq('tenant_id', tenantId).in('role', ['owner', 'admin']);
 
+      // Plan-gated features: explicit per-feature enforcement tied to plan tier
+      const _wlPlanFeatures = {
+        starter: { custom_domain: false, custom_css: false, analytics: false, sms_reminders: false, api_access: false, white_label_branding: true },
+        pro:     { custom_domain: true,  custom_css: true,  analytics: true,  sms_reminders: true,  api_access: false, white_label_branding: true },
+        business:{ custom_domain: true,  custom_css: true,  analytics: true,  sms_reminders: true,  api_access: true,  white_label_branding: true }
+      };
+      const planFeatures = _wlPlanFeatures[tenant.plan || 'starter'] || _wlPlanFeatures.starter;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         tenant,
@@ -39194,6 +39201,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           providers: { current: providerCount || 0, limit: tenant.max_providers, unlimited: tenant.max_providers === -1 },
           admins: { current: adminCount || 0 }
         },
+        plan_features: planFeatures,
         user_role: membership?.role || 'owner'
       }));
     } catch (err) {
