@@ -1115,8 +1115,9 @@
             .upload(fileName, pendingEditVehiclePhoto.file);
           
           if (!uploadError) {
-            // URL will be retrieved via signed URL endpoint on next load — do not expose public URL
-            photoUrl = fileName; // store storage path for reference; display handled server-side
+            // Generate a signed URL so photo_url stays renderable in existing UI
+            const { data: signData } = await supabaseClient.storage.from('vehicle-photos').createSignedUrl(fileName, 3600 * 24 * 7);
+            photoUrl = signData?.signedUrl || null;
           } else {
             console.error('Photo upload error:', uploadError);
             showToast('Photo upload failed, but updating vehicle info...', 'error');

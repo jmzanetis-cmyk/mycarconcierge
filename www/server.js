@@ -42093,10 +42093,15 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     req.on('end', async () => {
       try {
         const updates = JSON.parse(body || '{}');
-        // Check plan is still open (except for withdraw)
-        if (updates.status !== 'withdrawn') {
-          const { data: existingBid } = await supabase.from('plan_bids').select('care_plan_id').eq('id', bidId).eq('provider_id', user.id).single();
-          if (existingBid) {
+        // Check bid status and plan openness
+        const { data: existingBid } = await supabase.from('plan_bids').select('care_plan_id, status').eq('id', bidId).eq('provider_id', user.id).single();
+        if (existingBid) {
+          // Block edits (amount/note/status) once the bid has been accepted — only withdrawal is still allowed
+          if (existingBid.status === 'accepted' && updates.status !== 'withdrawn') {
+            res.writeHead(409); res.end(JSON.stringify({ error: 'Cannot edit an accepted bid' })); return;
+          }
+          // Check plan is still open (except for withdraw)
+          if (updates.status !== 'withdrawn') {
             const { data: plan } = await supabase.from('care_plans').select('status, bid_closes_at').eq('id', existingBid.care_plan_id).single();
             if (!plan || plan.status !== 'open' || new Date(plan.bid_closes_at) < new Date()) {
               res.writeHead(409); res.end(JSON.stringify({ error: 'Care plan is no longer accepting bid changes' })); return;

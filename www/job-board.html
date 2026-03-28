@@ -522,10 +522,18 @@ function startRealtime() {
   realtimeChannel = supabaseClient
     .channel('job-board-live')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'care_plans' }, (payload) => {
-      // New care plan: reload if on "all" or "no-bids" tab
+      const newPlan = payload.new;
+      if (!newPlan?.id || newPlan.status !== 'open') return;
       if (currentTab === 'all' || currentTab === 'no-bids') {
+        // Prepend new plan in-place without full reload — member profile and distance will be null until detail drawer opens
+        const enriched = { ...newPlan, my_bid: null, bid_count: newPlan.bid_count || 0, member: null, estimated_distance_miles: null, vehicles: null };
+        plans.unshift(enriched);
+        totalPlans++;
+        tabCounts.all = (tabCounts.all || 0) + 1;
+        tabCounts['no-bids'] = (tabCounts['no-bids'] || 0) + 1;
+        updateBadges();
+        renderPlanList(true);
         showToast('New care plan posted!', 'info');
-        reloadPlans();
       }
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'care_plans' }, (payload) => {
