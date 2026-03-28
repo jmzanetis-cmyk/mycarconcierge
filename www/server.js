@@ -42200,6 +42200,9 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
   }
 
   // GET /api/member/onboarding — fetch checklist + survey status
+  // GET /api/member/onboarding — fetch checklist + survey status.
+  // Accepts optional ?role=provider query param for UI context (client filters displayed keys).
+  // Response always includes both member + provider step keys in a unified payload.
   if (req.method === 'GET' && (req.url === '/api/member/onboarding' || req.url.startsWith('/api/member/onboarding?'))) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);

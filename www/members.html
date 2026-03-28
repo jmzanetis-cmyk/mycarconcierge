@@ -7824,8 +7824,9 @@
         if (checklist2) checklist2.style.display = 'block';
       }
 
-      // Show welcome modal once (data.local_welcome_shown is pre-fetched user-scoped value)
-      if (!welcome_shown && !data.local_welcome_shown) {
+      // Show welcome modal once — gated to new members (is_new_member) to avoid disrupting legacy users
+      const isNew = data.is_new_member !== false; // true for new members; only false for accounts > 7 days old
+      if (!welcome_shown && !data.local_welcome_shown && isNew) {
         showWelcomeModal(data);
       }
     }
@@ -7896,6 +7897,8 @@
         }
         // Pre-fetch user-scoped welcome state so updateOnboardingUI doesn't need async
         data.local_welcome_shown = await _lsGet('mcc_welcome_shown');
+        // Spec: explicitly POST account_created from client on first dashboard load
+        if (!data.checklist?.account_created) markOnboardingStep('account_created');
         if (!dismissed) updateOnboardingUI(data);
         // Persist any server-detected-complete steps that haven't been written yet this session.
         // sessionStorage dedup ensures each step is written at most once per browser session.
