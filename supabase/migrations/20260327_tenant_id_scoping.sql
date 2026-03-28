@@ -447,15 +447,19 @@ CREATE POLICY "Tenant scoped bid update"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    -- Provider updating their own bid; sentinel equality covers platform and tenant paths.
+    -- Provider updating their own bid; tenant_id must match caller's tenant (sentinel covers platform users)
     OR (provider_id = auth.uid()
         AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID)
             = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
-    -- Member accepting/rejecting bids on their own packages (tenant stays unchanged)
-    OR EXISTS (
-      SELECT 1 FROM maintenance_packages mp
-      WHERE mp.id = bids.package_id
-        AND mp.member_id = auth.uid()
+    -- Member accepting/rejecting bids on their own packages; tenant_id must remain unchanged
+    OR (
+      COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID)
+          = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID)
+      AND EXISTS (
+        SELECT 1 FROM maintenance_packages mp
+        WHERE mp.id = bids.package_id
+          AND mp.member_id = auth.uid()
+      )
     )
   );
 
