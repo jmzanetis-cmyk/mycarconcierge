@@ -42156,6 +42156,15 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
             res.end(JSON.stringify({ ok: true, already_submitted: true }));
             return;
           }
+        } else if (ipHash) {
+          // Anonymous rate-limit: one submission per IP per 24h
+          const since = new Date(Date.now() - 86400000).toISOString();
+          const { data: anonExisting } = await supabase.from('survey_responses').select('id').eq('ip_hash', ipHash).is('user_id', null).gte('created_at', since).limit(1).maybeSingle();
+          if (anonExisting) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, already_submitted: true }));
+            return;
+          }
         }
         await supabase.from('survey_responses').insert({
           user_id: userId,
@@ -42323,8 +42332,13 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
         res.writeHead(403); res.end(JSON.stringify({ error: 'Admin access required' })); return;
       }
-      const { data: rows } = await supabase.from('survey_responses').select('source, pain_point, has_trusted_mechanic, vehicle_count, created_at').order('created_at', { ascending: false }).limit(1000);
-      const total = (rows || []).length;
+      let rows = [];
+      try {
+        const { data, error: qErr } = await supabase.from('survey_responses').select('source, pain_point, has_trusted_mechanic, vehicle_count, created_at').order('created_at', { ascending: false }).limit(1000);
+        if (qErr && qErr.code === '42P01') { rows = []; } // table not yet migrated
+        else rows = data || [];
+      } catch (_) { rows = []; }
+      const total = rows.length;
       const bySource = {}, byPainPoint = {}, byMechanic = {}, byVehicleCount = {};
       for (const r of (rows || [])) {
         if (r.source) bySource[r.source] = (bySource[r.source] || 0) + 1;
