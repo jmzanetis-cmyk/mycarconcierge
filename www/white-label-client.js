@@ -5,12 +5,17 @@
  * Safe to include on non-white-label domains — it no-ops if no tenant is found.
  */
 (function() {
+  // Source API base from runtime config (mcc-config.js) when available;
+  // fall back to same detection logic so this script can run standalone.
   var BASE_URL = (function() {
-    var REPLIT_API_URL = 'https://my-car-concierge--jmzanetis.replit.app';
+    if (window.MCC_CONFIG && typeof window.MCC_CONFIG.apiBaseUrl === 'string') {
+      return window.MCC_CONFIG.apiBaseUrl;
+    }
     var hostname = window.location.hostname;
     var isNetlify = hostname.includes('netlify') || hostname === 'mycarconcierge.com' || hostname === 'www.mycarconcierge.com';
     var isNativeApp = typeof window.Capacitor !== 'undefined' || window.location.protocol === 'capacitor:' || window.location.protocol === 'file:';
-    return (isNetlify || isNativeApp) ? REPLIT_API_URL : '';
+    // API base resolved from mcc-config.js at runtime; do not hardcode here
+    return (isNetlify || isNativeApp) ? (window.MCC_API_BASE_URL || '') : '';
   })();
 
   function applyTenantBranding(tenant) {

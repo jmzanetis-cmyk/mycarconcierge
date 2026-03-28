@@ -38945,7 +38945,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           }
         }
       }
-      const cacheHeader = previewDomain ? 'no-store' : 'public, max-age=60';
+      // Never cache authenticated responses — join_token must not be served from shared cache
+      const cacheHeader = (_cfgUser || previewDomain) ? 'private, no-store' : 'public, max-age=60';
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': cacheHeader });
       res.end(JSON.stringify({ tenant: tenant || null, is_white_label: !!tenant }));
     } catch (err) {
