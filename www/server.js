@@ -42261,7 +42261,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         pain_point: checklist.pain_point || null,
         is_new_member: isNewMember,
         checklist: {
-          account_created: true,
+          account_created: row ? (checklist.account_created ?? true) : true,
           profile_completed: profileCompleted,
           vehicle_added: vehicleAdded,
           request_posted: requestPosted,
@@ -42276,7 +42276,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     } catch (err) {
       if (err.code === '42P01' || (err.message && err.message.includes('does not exist'))) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ survey_completed: false, welcome_shown: false, pain_point: null, checklist: EMPTY_CHECKLIST }));
+        res.end(JSON.stringify({ survey_completed: false, welcome_shown: false, pain_point: null, is_new_member: false, checklist: EMPTY_CHECKLIST }));
         return;
       }
       console.error('[Onboarding] GET error:', err.message);
