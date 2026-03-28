@@ -527,7 +527,7 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
     if (!resp.ok) return;
     const data = await resp.json();
     const el = document.getElementById('dev-usage-summary');
-    if (el) el.textContent = `${data.month} · ${(data.total_calls_this_month||0).toLocaleString()} calls this month`;
+    if (el) el.textContent = `${data.month} · ${(data.total_calls_this_month||0).toLocaleString()} calls this month · ${(data.calls_today||0).toLocaleString()} today`;
   }
 
   // ── Generate key ──

@@ -41609,13 +41609,20 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     const supabase = getSupabaseClient();
     if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
     try {
-      const monthYear = new Date().toISOString().slice(0,7);
+      const now = new Date();
+      const monthYear = now.toISOString().slice(0,7);
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       const { data: keys } = await supabase.from('developer_api_keys').select('id, name, plan, calls_made, calls_limit, status').eq('user_id', user.id).eq('status', 'active');
       const keyIds = (keys || []).map(k => k.id);
       let usageByEndpoint = [];
+      let callsToday = 0;
       if (keyIds.length > 0) {
-        const { data: usage } = await supabase.from('api_key_usage').select('api_key_id, endpoint, calls').in('api_key_id', keyIds).eq('month_year', monthYear);
+        const [{ data: usage }, { count: todayCount }] = await Promise.all([
+          supabase.from('api_key_usage').select('api_key_id, endpoint, calls').in('api_key_id', keyIds).eq('month_year', monthYear),
+          supabase.from('api_usage_log').select('id', { count: 'exact', head: true }).in('api_key_id', keyIds).gte('created_at', todayStart)
+        ]);
         usageByEndpoint = usage || [];
+        callsToday = todayCount || 0;
       }
       const planPrices = { starter: 0, pro: 0.02, business: 0.01 };
       const keyStats = (keys || []).map(k => {
@@ -41627,7 +41634,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       const totalCallsThisMonth = keyStats.reduce((sum, k) => sum + k.calls_this_month, 0);
       const totalCostCents = keyStats.reduce((sum, k) => sum + k.estimated_cost_cents, 0);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ month: monthYear, keys: keyStats, total_calls_this_month: totalCallsThisMonth, estimated_cost_cents: totalCostCents, estimated_cost_display: '$' + (totalCostCents / 100).toFixed(2) }));
+      res.end(JSON.stringify({ month: monthYear, keys: keyStats, total_calls_this_month: totalCallsThisMonth, calls_today: callsToday, estimated_cost_cents: totalCostCents, estimated_cost_display: '$' + (totalCostCents / 100).toFixed(2) }));
     } catch (err) {
       console.error(`[${requestId}] Developer usage error:`, err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load usage stats' }));
