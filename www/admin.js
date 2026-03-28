@@ -142,7 +142,8 @@
       'ai-ops': async () => { await initAiOps(); },
       'sms-log': async () => { await loadSmsLog(1); },
       'saas-subscriptions': async () => { await loadSaasSubscriptions(); },
-      'white-label': async () => { await loadWhiteLabelTenants(); }
+      'white-label': async () => { await loadWhiteLabelTenants(); },
+      'api-usage': async () => { await loadApiUsage(); }
     };
 
     function showSectionLoading(sectionId) {
@@ -11113,3 +11114,69 @@
     window.closeTenantAccessModal = closeTenantAccessModal;
 
     // ========== END WHITE-LABEL TENANTS ==========
+
+    // ========== AI API USAGE DASHBOARD (Task #90) ==========
+    let _apiUsageChart = null;
+    async function loadApiUsage() {
+      const adminPassword = sessionStorage.getItem('adminPassword');
+      if (!adminPassword) return;
+      const keysEl = document.getElementById('api-stat-keys');
+      const callsEl = document.getElementById('api-stat-calls');
+      const revenueEl = document.getElementById('api-stat-revenue');
+      const monthEl = document.getElementById('api-stat-month');
+      const tableEl = document.getElementById('api-keys-table');
+      if (callsEl) callsEl.textContent = '…';
+      try {
+        const resp = await fetch('/api/admin/api-usage', { headers: { 'x-admin-password': adminPassword } });
+        if (!resp.ok) throw new Error('Failed to load API usage');
+        const data = await resp.json();
+        if (keysEl) keysEl.textContent = data.active_keys ?? '--';
+        if (callsEl) callsEl.textContent = (data.total_calls_this_month || 0).toLocaleString();
+        if (revenueEl) revenueEl.textContent = '$' + ((data.estimated_revenue_cents || 0) / 100).toFixed(2);
+        if (monthEl) monthEl.textContent = data.month || '--';
+        // Chart
+        const canvas = document.getElementById('api-endpoint-chart');
+        if (canvas && data.by_endpoint) {
+          const labels = Object.keys(data.by_endpoint);
+          const values = Object.values(data.by_endpoint);
+          if (_apiUsageChart) _apiUsageChart.destroy();
+          _apiUsageChart = new Chart(canvas, {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'Calls', data: values, backgroundColor: 'rgba(201,168,76,0.7)', borderColor: '#c9a84c', borderWidth: 1 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(156,163,175,0.1)' } }, x: { ticks: { color: '#9ca3af' }, grid: { display: false } } } }
+          });
+        }
+        // Table
+        if (tableEl) {
+          if (!data.top_keys || data.top_keys.length === 0) {
+            tableEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">No API keys found.</div>';
+          } else {
+            tableEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+              <thead><tr style="border-bottom:1px solid var(--border-subtle);">
+                <th style="text-align:left;padding:10px 8px;color:var(--text-muted);">Key Name</th>
+                <th style="text-align:left;padding:10px 8px;color:var(--text-muted);">Plan</th>
+                <th style="text-align:right;padding:10px 8px;color:var(--text-muted);">Total Calls</th>
+                <th style="text-align:right;padding:10px 8px;color:var(--text-muted);">Limit</th>
+                <th style="text-align:left;padding:10px 8px;color:var(--text-muted);">Last Used</th>
+                <th style="text-align:left;padding:10px 8px;color:var(--text-muted);">Status</th>
+              </tr></thead>
+              <tbody>${data.top_keys.map(k => `
+                <tr style="border-bottom:1px solid var(--border-subtle);">
+                  <td style="padding:10px 8px;">${k.name || 'Unnamed'}</td>
+                  <td style="padding:10px 8px;"><span class="badge" style="background:var(--accent-gold-soft);color:var(--accent-gold);text-transform:capitalize;">${k.plan}</span></td>
+                  <td style="padding:10px 8px;text-align:right;">${(k.calls_made || 0).toLocaleString()}</td>
+                  <td style="padding:10px 8px;text-align:right;">${k.calls_limit === -1 ? '∞' : (k.calls_limit || 0).toLocaleString()}</td>
+                  <td style="padding:10px 8px;color:var(--text-muted);">${k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : 'Never'}</td>
+                  <td style="padding:10px 8px;"><span class="badge" style="background:${k.status === 'active' ? 'var(--accent-green-soft)' : 'var(--accent-red-soft)'};color:${k.status === 'active' ? 'var(--accent-green)' : 'var(--accent-red)'};">${k.status}</span></td>
+                </tr>`).join('')}
+              </tbody>
+            </table>`;
+          }
+        }
+      } catch (err) {
+        if (callsEl) callsEl.textContent = 'Error';
+        console.error('[Admin] API usage load error:', err.message);
+      }
+    }
+    window.loadApiUsage = loadApiUsage;
+    // ========== END AI API USAGE DASHBOARD ==========

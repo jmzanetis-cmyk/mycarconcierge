@@ -589,6 +589,7 @@
       <div class="nav-label">Revenue</div>
       <div class="nav-item" data-section="saas-subscriptions"><span class="icon-inline" data-icon="layers"></span> SaaS Subscriptions</div>
       <div class="nav-item" data-section="white-label"><span class="icon-inline" data-icon="globe"></span> White-label Tenants</div>
+      <div class="nav-item" data-section="api-usage"><span class="icon-inline" data-icon="code"></span> AI API Usage</div>
 
       <div class="nav-label">System</div>
       <div class="nav-item" data-section="sms-log"><span class="icon-inline" data-icon="message-circle"></span> SMS Log</div>
@@ -4159,6 +4160,47 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
       <div id="white-label-stats" class="stats-grid" style="margin-bottom:24px;"></div>
       <div id="white-label-content">
         <div style="padding:48px;text-align:center;color:var(--text-muted);">Loading…</div>
+      </div>
+    </section>
+
+    <!-- AI API Usage Section -->
+    <section id="api-usage" class="section">
+      <div class="section-title-bar">
+        <h2>AI API Usage</h2>
+        <p class="section-subtitle">Monitor API key activity, endpoint usage, and estimated revenue from the Automotive AI API product</p>
+        <button class="btn btn-secondary" onclick="loadApiUsage()" style="margin-left:auto;"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+      </div>
+      <div class="stats-grid" id="api-usage-stats" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-blue-soft);color:var(--accent-blue);">🔑</div>
+          <div class="stat-value" id="api-stat-keys">--</div>
+          <div class="stat-label">Active API Keys</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-gold-soft);color:var(--accent-gold);">📡</div>
+          <div class="stat-value" id="api-stat-calls">--</div>
+          <div class="stat-label">Calls This Month</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);">💰</div>
+          <div class="stat-value" id="api-stat-revenue">--</div>
+          <div class="stat-label">Est. Overage Revenue</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-teal-soft);color:var(--accent-teal);">📊</div>
+          <div class="stat-value" id="api-stat-month">--</div>
+          <div class="stat-label">Billing Period</div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:20px;">
+        <div class="form-section-title">Calls by Endpoint (This Month)</div>
+        <div id="api-endpoint-chart-wrap" style="height:220px;position:relative;">
+          <canvas id="api-endpoint-chart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="form-section-title">Top API Keys by Usage</div>
+        <div id="api-keys-table"><div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div></div>
       </div>
     </section>
 

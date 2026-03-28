@@ -41254,6 +41254,16 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     return;
   }
 
+  // GET /api/v1/openapi.json — Public OpenAPI spec (no auth required)
+  if (req.method === 'GET' && req.url === '/api/v1/openapi.json') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const spec = {"openapi":"3.0.3","info":{"title":"My Car Concierge Automotive AI API","version":"1.0.0","description":"AI-powered automotive intelligence for developers — VIN decode, recall lookup, OBD diagnostics, vehicle health scoring, maintenance forecasting, and fair price estimation.","contact":{"name":"MCC Developer Support","email":"developers@mycarconcierge.com","url":"https://mycarconcierge.com/developers"},"license":{"name":"Commercial","url":"https://mycarconcierge.com/terms"}},"servers":[{"url":"https://mycarconcierge.com/api/v1","description":"Production"}],"security":[{"BearerAuth":[]}],"components":{"securitySchemes":{"BearerAuth":{"type":"http","scheme":"bearer","bearerFormat":"mcc_...","description":"Get your API key at mycarconcierge.com/developers"}},"schemas":{"Error":{"type":"object","properties":{"error":{"type":"string"}}},"VehicleRef":{"type":"object","properties":{"year":{"type":"integer","example":2020},"make":{"type":"string","example":"Toyota"},"model":{"type":"string","example":"Camry"},"mileage":{"type":"integer","example":45000}}}}},"paths":{"/vin/{vin}":{"get":{"summary":"Decode VIN","operationId":"decodeVin","parameters":[{"name":"vin","in":"path","required":true,"schema":{"type":"string","minLength":17,"maxLength":17}}],"responses":{"200":{"description":"VIN decoded"},"400":{"description":"Invalid VIN"},"401":{"description":"Unauthorized"}}}},"/recalls/{vin}":{"get":{"summary":"NHTSA recall lookup","operationId":"getRecalls","parameters":[{"name":"vin","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Recalls"},"401":{"description":"Unauthorized"}}}},"/obd-codes":{"post":{"summary":"Analyze OBD-II codes (Pro+)","operationId":"analyzeObd","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["codes"],"properties":{"codes":{"type":"array","items":{"type":"string"}},"vehicle":{"$ref":"#/components/schemas/VehicleRef"}}}}}},"responses":{"200":{"description":"OBD analysis"},"402":{"description":"Plan upgrade required"}}}},"/price-estimate":{"post":{"summary":"Fair price estimate","operationId":"getPriceEstimate","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["category"],"properties":{"category":{"type":"string"},"zip_code":{"type":"string"},"vehicle":{"$ref":"#/components/schemas/VehicleRef"}}}}}},"responses":{"200":{"description":"Price range"}}}},"/vehicle/health":{"post":{"summary":"AI vehicle health score (Pro+)","operationId":"getVehicleHealth","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["year","make","model"],"properties":{"vin":{"type":"string"},"year":{"type":"integer"},"make":{"type":"string"},"model":{"type":"string"},"mileage":{"type":"integer"},"active_codes":{"type":"array","items":{"type":"string"}},"last_services":{"type":"object"}}}}}},"responses":{"200":{"description":"Health score 0-100"},"402":{"description":"Plan upgrade required"}}}},"/vehicle/forecast":{"post":{"summary":"Maintenance forecast","operationId":"getVehicleForecast","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["year","make","model"],"properties":{"year":{"type":"integer"},"make":{"type":"string"},"model":{"type":"string"},"mileage":{"type":"integer"},"last_services":{"type":"object"}}}}}},"responses":{"200":{"description":"Upcoming services"}}}}}}
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(spec));
+    return;
+  }
+
   // Public AI API v1 endpoints (authenticated by API key)
   if (req.url.startsWith('/api/v1/')) {
     setSecurityHeaders(res, true);
@@ -41376,9 +41386,172 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       return;
     }
 
+    // POST /api/v1/vehicle/health — AI vehicle health score (no DB vehicle needed)
+    if (req.method === 'POST' && v1Path === 'vehicle/health') {
+      if (['starter'].includes(apiKeyRecord.plan)) {
+        res.writeHead(402); res.end(JSON.stringify({ error: 'Vehicle health requires AI Pro plan or higher' })); return;
+      }
+      try {
+        const body = await getRequestBody(req);
+        const { vin, year, make, model, mileage, active_codes = [], last_services = {} } = body;
+        if (!year || !make || !model) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'year, make, and model are required' })); return;
+        }
+        const overdueServices = Object.entries(last_services || {}).filter(([, s]) => s?.overdue).map(([k]) => k);
+        const prompt = `You are an automotive health assessment AI. Compute a vehicle health score (0-100) based on:
+Vehicle: ${year} ${make} ${model}${vin ? ' (VIN: ' + vin + ')' : ''}
+Mileage: ${mileage ? mileage.toLocaleString() + ' miles' : 'Unknown'}
+Active OBD codes: ${active_codes.length > 0 ? active_codes.join(', ') : 'None'}
+Overdue services: ${overdueServices.length > 0 ? overdueServices.join(', ') : 'None'}
+Return ONLY valid JSON: {"score":<0-100>,"factors":{"positive":[],"negative":[]},"summary":"one sentence"}`;
+        const aiResult = await generateAIContent(prompt, { maxTokens: 512, preferredProvider: 'anthropic' });
+        let parsed;
+        try { const m = aiResult.text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : aiResult.text); } catch { parsed = { score: 75, factors: { positive: [], negative: [] }, summary: 'Analysis complete.' }; }
+        // Track usage
+        const monthYear = new Date().toISOString().slice(0,7);
+        getSupabaseClient()?.from('api_key_usage').upsert({ api_key_id: apiKeyRecord.id, month_year: monthYear, endpoint: 'vehicle/health', calls: 1 }, { onConflict: 'api_key_id,month_year,endpoint', ignoreDuplicates: false }).then(() => {}).catch(() => {});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...parsed, vehicle: { vin, year, make, model, mileage }, powered_by: 'MCC AI API' }));
+      } catch (e) {
+        console.error(`[${requestId}] Vehicle health API error:`, e.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Vehicle health analysis failed' }));
+      }
+      return;
+    }
+
+    // POST /api/v1/vehicle/forecast — maintenance forecast for API consumers
+    if (req.method === 'POST' && v1Path === 'vehicle/forecast') {
+      try {
+        const body = await getRequestBody(req);
+        const { year, make, model, mileage, last_services = {} } = body;
+        if (!year || !make || !model) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'year, make, and model are required' })); return;
+        }
+        const prompt = `You are an automotive maintenance expert. Generate a maintenance forecast for a ${year} ${make} ${model} with ${mileage ? mileage.toLocaleString() + ' miles' : 'unknown mileage'}.
+Last known services: ${Object.keys(last_services).length > 0 ? JSON.stringify(last_services) : 'None provided'}.
+Return ONLY valid JSON:
+{"forecast":[{"service":"Oil Change","due_miles":${mileage ? mileage + 3000 : 50000},"due_date":"${new Date(Date.now()+90*24*60*60*1000).toISOString().slice(0,10)}","priority":"high","estimated_cost":"$40-$80"},{"service":"Tire Rotation","due_miles":${mileage ? mileage + 5000 : 55000},"due_date":"${new Date(Date.now()+120*24*60*60*1000).toISOString().slice(0,10)}","priority":"medium","estimated_cost":"$20-$40"}],"summary":"Brief maintenance outlook"}
+Generate 3-5 relevant services based on vehicle age and mileage.`;
+        const aiResult = await generateAIContent(prompt, { maxTokens: 1024, preferredProvider: 'gemini' });
+        let parsed;
+        try { const m = aiResult.text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : aiResult.text); } catch { parsed = { forecast: [], summary: 'Could not generate forecast.' }; }
+        // Track usage
+        const monthYear = new Date().toISOString().slice(0,7);
+        getSupabaseClient()?.from('api_key_usage').upsert({ api_key_id: apiKeyRecord.id, month_year: monthYear, endpoint: 'vehicle/forecast', calls: 1 }, { onConflict: 'api_key_id,month_year,endpoint', ignoreDuplicates: false }).then(() => {}).catch(() => {});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...parsed, vehicle: { year, make, model, mileage }, powered_by: 'MCC AI API' }));
+      } catch (e) {
+        console.error(`[${requestId}] Forecast API error:`, e.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Maintenance forecast failed' }));
+      }
+      return;
+    }
+
+    // Track usage for all other v1 endpoints (vin, recalls, obd-codes, price-estimate)
+    const monthYear = new Date().toISOString().slice(0,7);
+    getSupabaseClient()?.from('api_key_usage').upsert({ api_key_id: apiKeyRecord.id, month_year: monthYear, endpoint: v1Path || 'unknown', calls: 1 }, { onConflict: 'api_key_id,month_year,endpoint', ignoreDuplicates: false }).then(() => {}).catch(() => {});
+
     // Unknown v1 endpoint
     res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unknown API endpoint', docs: 'https://mycarconcierge.com/api-docs' }));
+    res.end(JSON.stringify({ error: 'Unknown API endpoint', docs: 'https://mycarconcierge.com/developers/docs' }));
+    return;
+  }
+
+  // GET /api/v1/openapi.json — OpenAPI spec
+  if (req.method === 'GET' && req.url === '/api/v1/openapi.json') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const spec = {
+      openapi: '3.0.3',
+      info: { title: 'My Car Concierge Automotive AI API', version: '1.0.0', description: 'AI-powered automotive intelligence: OBD diagnostics, vehicle health scoring, maintenance forecasting, recall enrichment, and fair price estimation.', contact: { name: 'MCC Developer Support', email: 'developers@mycarconcierge.com', url: 'https://mycarconcierge.com/developers' }, license: { name: 'Commercial', url: 'https://mycarconcierge.com/terms' } },
+      servers: [{ url: 'https://mycarconcierge.com/api/v1', description: 'Production' }],
+      security: [{ BearerAuth: [] }],
+      components: {
+        securitySchemes: { BearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'mcc_...', description: 'Get your API key at mycarconcierge.com/developers' } },
+        schemas: {
+          Error: { type: 'object', properties: { error: { type: 'string' } } },
+          VehicleRef: { type: 'object', properties: { year: { type: 'integer', example: 2020 }, make: { type: 'string', example: 'Toyota' }, model: { type: 'string', example: 'Camry' }, mileage: { type: 'integer', example: 45000 } } }
+        }
+      },
+      paths: {
+        '/vin/{vin}': { get: { summary: 'Decode VIN', operationId: 'decodeVin', parameters: [{ name: 'vin', in: 'path', required: true, schema: { type: 'string', minLength: 17, maxLength: 17 } }], responses: { '200': { description: 'VIN decoded successfully', content: { 'application/json': { schema: { type: 'object', properties: { vin: { type: 'string' }, year: { type: 'string' }, make: { type: 'string' }, model: { type: 'string' }, source: { type: 'string' } } } } } }, '400': { description: 'Invalid VIN' }, '401': { description: 'Unauthorized' } } } },
+        '/recalls/{vin}': { get: { summary: 'Get NHTSA recalls for VIN', operationId: 'getRecalls', parameters: [{ name: 'vin', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Recall data', content: { 'application/json': { schema: { type: 'object', properties: { vin: { type: 'string' }, recalls: { type: 'array', items: { type: 'object' } }, count: { type: 'integer' } } } } } }, '401': { description: 'Unauthorized' } } } },
+        '/obd-codes': { post: { summary: 'Analyze OBD-II codes', operationId: 'analyzeObd', description: 'Requires AI Pro plan or higher', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['codes'], properties: { codes: { type: 'array', items: { type: 'string' }, example: ['P0420', 'P0171'] }, vehicle: { '$ref': '#/components/schemas/VehicleRef' } } } } } }, responses: { '200': { description: 'OBD analysis', content: { 'application/json': { schema: { type: 'object', properties: { codes: { type: 'array', items: { type: 'object', properties: { code: { type: 'string' }, description: { type: 'string' }, severity: { type: 'integer' }, causes: { type: 'array', items: { type: 'string' } }, actions: { type: 'array', items: { type: 'string' } }, cost_estimate: { type: 'string' } } } } } } } } }, '402': { description: 'Plan upgrade required' } } } },
+        '/price-estimate': { post: { summary: 'Get fair price estimate', operationId: 'getPriceEstimate', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['category'], properties: { category: { type: 'string', example: 'Oil Change' }, zip_code: { type: 'string', example: '10001' }, vehicle: { '$ref': '#/components/schemas/VehicleRef' } } } } } }, responses: { '200': { description: 'Price estimate', content: { 'application/json': { schema: { type: 'object', properties: { category: { type: 'string' }, min_price: { type: 'number' }, max_price: { type: 'number' }, avg_price: { type: 'number' } } } } } } } } },
+        '/vehicle/health': { post: { summary: 'AI vehicle health score', operationId: 'getVehicleHealth', description: 'Requires AI Pro plan or higher', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['year','make','model'], properties: { vin: { type: 'string' }, year: { type: 'integer' }, make: { type: 'string' }, model: { type: 'string' }, mileage: { type: 'integer' }, active_codes: { type: 'array', items: { type: 'string' } }, last_services: { type: 'object' } } } } } }, responses: { '200': { description: 'Vehicle health score', content: { 'application/json': { schema: { type: 'object', properties: { score: { type: 'integer', minimum: 0, maximum: 100 }, factors: { type: 'object', properties: { positive: { type: 'array', items: { type: 'string' } }, negative: { type: 'array', items: { type: 'string' } } } }, summary: { type: 'string' } } } } } } } } },
+        '/vehicle/forecast': { post: { summary: 'Maintenance forecast', operationId: 'getVehicleForecast', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['year','make','model'], properties: { year: { type: 'integer' }, make: { type: 'string' }, model: { type: 'string' }, mileage: { type: 'integer' }, last_services: { type: 'object' } } } } } }, responses: { '200': { description: 'Maintenance forecast', content: { 'application/json': { schema: { type: 'object', properties: { forecast: { type: 'array', items: { type: 'object', properties: { service: { type: 'string' }, due_miles: { type: 'integer' }, due_date: { type: 'string', format: 'date' }, priority: { type: 'string', enum: ['high','medium','low'] }, estimated_cost: { type: 'string' } } } }, summary: { type: 'string' } } } } } } } } }
+      }
+    };
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(spec));
+    return;
+  }
+
+  // GET /api/developer/usage — usage stats for authenticated user's API keys
+  if (req.method === 'GET' && req.url === '/api/developer/usage') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+    try {
+      const monthYear = new Date().toISOString().slice(0,7);
+      const { data: keys } = await supabase.from('developer_api_keys').select('id, name, plan, calls_made, calls_limit, status').eq('user_id', user.id).eq('status', 'active');
+      const keyIds = (keys || []).map(k => k.id);
+      let usageByEndpoint = [];
+      if (keyIds.length > 0) {
+        const { data: usage } = await supabase.from('api_key_usage').select('api_key_id, endpoint, calls').in('api_key_id', keyIds).eq('month_year', monthYear);
+        usageByEndpoint = usage || [];
+      }
+      const planPrices = { starter: 0, pro: 0.02, business: 0.01 };
+      const keyStats = (keys || []).map(k => {
+        const keyUsage = usageByEndpoint.filter(u => u.api_key_id === k.id);
+        const callsThisMonth = keyUsage.reduce((sum, u) => sum + (u.calls || 0), 0);
+        const rate = planPrices[k.plan] || 0;
+        return { ...k, calls_this_month: callsThisMonth, estimated_cost_cents: Math.round(callsThisMonth * rate * 100), by_endpoint: keyUsage };
+      });
+      const totalCallsThisMonth = keyStats.reduce((sum, k) => sum + k.calls_this_month, 0);
+      const totalCostCents = keyStats.reduce((sum, k) => sum + k.estimated_cost_cents, 0);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ month: monthYear, keys: keyStats, total_calls_this_month: totalCallsThisMonth, estimated_cost_cents: totalCostCents, estimated_cost_display: '$' + (totalCostCents / 100).toFixed(2) }));
+    } catch (err) {
+      console.error(`[${requestId}] Developer usage error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load usage stats' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/api-usage — admin: all API usage stats
+  if (req.method === 'GET' && req.url === '/api/admin/api-usage') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const adminPassword = req.headers['x-admin-password'];
+    if (!adminPassword || adminPassword !== process.env.ADMIN_PASSWORD) {
+      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
+    }
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+    try {
+      const monthYear = new Date().toISOString().slice(0,7);
+      const { data: keys } = await supabase.from('developer_api_keys').select('id, user_id, name, plan, status, calls_made, calls_limit, last_used_at, created_at').order('calls_made', { ascending: false }).limit(100);
+      const { data: usage } = await supabase.from('api_key_usage').select('api_key_id, endpoint, calls, month_year').eq('month_year', monthYear).order('calls', { ascending: false });
+      const endpointTotals = {};
+      for (const u of (usage || [])) {
+        endpointTotals[u.endpoint] = (endpointTotals[u.endpoint] || 0) + u.calls;
+      }
+      const totalCallsThisMonth = Object.values(endpointTotals).reduce((a, b) => a + b, 0);
+      const planPrices = { starter: 0, pro: 0.02, business: 0.01 };
+      const revenueThisMonth = (usage || []).reduce((sum, u) => {
+        const keyPlan = (keys || []).find(k => k.id === u.api_key_id)?.plan;
+        return sum + u.calls * (planPrices[keyPlan] || 0);
+      }, 0);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ month: monthYear, total_keys: (keys || []).length, active_keys: (keys || []).filter(k => k.status === 'active').length, total_calls_this_month: totalCallsThisMonth, estimated_revenue_cents: Math.round(revenueThisMonth * 100), by_endpoint: endpointTotals, top_keys: (keys || []).slice(0,10) }));
+    } catch (err) {
+      console.error(`[${requestId}] Admin API usage error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load API usage' }));
+    }
     return;
   }
 
@@ -41461,9 +41634,19 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     '/fleet/join': '/fleet-join.html',
     '/fleet/signup': '/fleet-signup.html',
     // Provider Shop SaaS clean URLs
-    '/for-shops': '/for-shops.html'
+    '/for-shops': '/for-shops.html',
+    // Developer Portal clean URLs
+    '/developers': '/developers.html'
   };
   
+  // GET /developers/docs — Swagger UI for AI API
+  if (req.url === '/developers/docs' || req.url === '/developers/docs/') {
+    setSecurityHeaders(res);
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MCC AI API Docs</title><link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css"><style>body{margin:0;background:#1a1e24}#swagger-ui .topbar{background:#12161c;padding:12px 16px}#swagger-ui .topbar .download-url-wrapper{display:none}#swagger-ui .info .title{color:#c9a84c}#swagger-ui .info__contact a{color:#4db6ac}</style></head><body><div id="swagger-ui"></div><script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script><script>SwaggerUIBundle({url:'/api/v1/openapi.json',dom_id:'#swagger-ui',presets:[SwaggerUIBundle.presets.apis,SwaggerUIBundle.SwaggerUIStandalonePreset],layout:'BaseLayout',deepLinking:true,displayRequestDuration:true,filter:true})</script></body></html>`);
+    return;
+  }
+
   const urlPath = req.url.split('?')[0];
   if (urlRedirects[urlPath]) {
     const queryString = req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
