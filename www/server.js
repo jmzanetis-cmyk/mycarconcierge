@@ -39963,7 +39963,9 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       }
 
       // Send invite email via Resend
-      const inviteUrl = `${process.env.REPLIT_DEV_DOMAIN || 'https://mycarconcierge.com'}/fleet-join.html?token=${token}`;
+      const devDomain = process.env.REPLIT_DEV_DOMAIN;
+      const baseUrl = devDomain ? (devDomain.startsWith('http') ? devDomain : `https://${devDomain}`) : 'https://mycarconcierge.com';
+      const inviteUrl = `${baseUrl}/fleet/join?token=${token}`;
       const senderName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Fleet Manager';
 
       if (resend) {
@@ -40155,12 +40157,18 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       // Validate vehicle ownership: vehicle must belong to the fleet owner (or be unassigned to a fleet)
       const { data: vehicleRecord } = await supabase.from('vehicles').select('id, user_id').eq('id', vehicle_id).maybeSingle();
       if (!vehicleRecord) { res.writeHead(404); res.end(JSON.stringify({ error: 'Vehicle not found' })); return; }
+
+      // Idempotency: if vehicle is already active in this fleet, return success (no duplicate insert)
+      const { data: existingFv } = await supabase.from('fleet_vehicles')
+        .select('id').eq('fleet_id', fleet_id).eq('vehicle_id', vehicle_id).eq('status', 'active').maybeSingle();
+      if (existingFv) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, fleet_vehicle_id: existingFv.id, already_added: true }));
+        return;
+      }
+
       if (vehicleRecord.user_id !== fleet.owner_id && vehicleRecord.user_id !== user.id) {
-        // Also accept if the vehicle is already in this fleet (idempotent re-add)
-        const { data: existingFv } = await supabase.from('fleet_vehicles').select('id').eq('fleet_id', fleet_id).eq('vehicle_id', vehicle_id).maybeSingle();
-        if (!existingFv) {
-          res.writeHead(403); res.end(JSON.stringify({ error: 'Vehicle does not belong to the fleet owner and cannot be added' })); return;
-        }
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Vehicle does not belong to the fleet owner and cannot be added' })); return;
       }
 
       // Add vehicle to fleet
