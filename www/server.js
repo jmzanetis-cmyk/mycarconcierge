@@ -40106,6 +40106,17 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         }
       }
 
+      // Validate vehicle ownership: vehicle must belong to the fleet owner (or be unassigned to a fleet)
+      const { data: vehicleRecord } = await supabase.from('vehicles').select('id, user_id').eq('id', vehicle_id).maybeSingle();
+      if (!vehicleRecord) { res.writeHead(404); res.end(JSON.stringify({ error: 'Vehicle not found' })); return; }
+      if (vehicleRecord.user_id !== fleet.owner_id && vehicleRecord.user_id !== user.id) {
+        // Also accept if the vehicle is already in this fleet (idempotent re-add)
+        const { data: existingFv } = await supabase.from('fleet_vehicles').select('id').eq('fleet_id', fleet_id).eq('vehicle_id', vehicle_id).maybeSingle();
+        if (!existingFv) {
+          res.writeHead(403); res.end(JSON.stringify({ error: 'Vehicle does not belong to the fleet owner and cannot be added' })); return;
+        }
+      }
+
       // Add vehicle to fleet
       const { data: fv, error: fvErr } = await supabase.from('fleet_vehicles').insert({
         fleet_id,
@@ -40252,17 +40263,24 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       }
 
       // Persist the saas_subscriptions record (authoritative plan state for limit checks)
+      // Plan rules: starter is always granted; pro/business require confirmed Stripe trial or fall back to starter
+      const grantedPlan = (selectedPlan === 'starter' || stripeSubscriptionId) ? selectedPlan : 'starter';
+      const subStatus = stripeSubscriptionId ? 'trialing' : (selectedPlan === 'starter' ? 'active' : 'active');
+      const periodEnd = stripeSubscriptionId ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() : null;
       const { error: subErr } = await supabase.from('saas_subscriptions').upsert({
         user_id: userId,
         product: 'fleet',
-        plan: selectedPlan,
-        status: stripeSubscriptionId ? 'trialing' : 'active',
+        plan: grantedPlan,
+        status: subStatus,
         stripe_customer_id: stripeCustomerId,
         stripe_subscription_id: stripeSubscriptionId,
         current_period_start: new Date().toISOString(),
-        current_period_end: stripeSubscriptionId ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() : null
+        current_period_end: periodEnd
       }, { onConflict: 'user_id,product' });
       if (subErr) { console.warn('[Fleet Setup] saas_subscriptions upsert warning:', subErr.message); }
+      if (grantedPlan !== selectedPlan) {
+        console.warn(`[Fleet Setup] Stripe unavailable or price_id missing for ${selectedPlan}; granted plan set to starter for ${email}. User can upgrade after billing configured.`);
+      }
 
       console.log(`[Fleet Setup] Created account+fleet+subscription for ${email} (userId=${userId}, fleetId=${fleet.id}, plan=${selectedPlan})`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -40330,8 +40348,10 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       for (const v of vehicles) {
         if (!v.year || !v.make || !v.model) { failed++; errors.push('Row missing required fields'); continue; }
         try {
+          // Vehicles are owned by the fleet owner for consistent RLS/ownership model
+          const vehicleOwnerId = fleet.owner_id;
           const { data: vehicle, error: vErr } = await supabase.from('vehicles').insert({
-            user_id: user.id,
+            user_id: vehicleOwnerId,
             year: parseInt(v.year) || null,
             make: String(v.make).trim(),
             model: String(v.model).trim(),
