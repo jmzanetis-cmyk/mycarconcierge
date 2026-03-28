@@ -731,9 +731,49 @@
   <script src="fleet.js"></script>
   <script src="/pwa-init.js?v=20260202"></script>
   <script>
+    var currentFleet = null; // Current fleet context for CSV import and other operations
+
+    async function loadCurrentFleet() {
+      try {
+        var session = await window.supabaseClient.auth.getSession();
+        var user = session?.data?.session?.user;
+        if (!user) return;
+
+        // Fetch the fleet where the logged-in user is the owner
+        var { data: fleet, error } = await window.supabaseClient
+          .from('fleets')
+          .select('id, name, company_name, owner_id, status')
+          .eq('owner_id', user.id)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (fleet && !error) {
+          currentFleet = fleet;
+          var nameEl = document.getElementById('fleet-name-nav');
+          if (nameEl && currentFleet.name) nameEl.textContent = currentFleet.name;
+        } else {
+          // Fallback: user may be a fleet member (manager), look up via fleet_members
+          var { data: membership } = await window.supabaseClient
+            .from('fleet_members')
+            .select('fleet_id, role, fleets(id, name, company_name, owner_id, status)')
+            .eq('user_id', user.id)
+            .in('role', ['owner', 'manager'])
+            .eq('status', 'active')
+            .limit(1)
+            .maybeSingle();
+          if (membership?.fleets) {
+            currentFleet = membership.fleets;
+          }
+        }
+      } catch (e) {
+        console.warn('Fleet context load error:', e.message);
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
+      await loadCurrentFleet();
     });
   </script>
   <!-- CSV Import Modal -->
@@ -881,8 +921,12 @@
 
     async function runCsvImport() {
       if (!_csvRows.length) return;
-      if (typeof currentFleet === 'undefined' || !currentFleet || !currentFleet.id) {
-        showCsvError('No fleet selected. Please open a fleet first.');
+      // Guard: if fleet hasn't loaded yet, attempt to load it now (handles early-click race)
+      if (!currentFleet || !currentFleet.id) {
+        await loadCurrentFleet();
+      }
+      if (!currentFleet || !currentFleet.id) {
+        showCsvError('No fleet found for your account. Please ensure you have an active fleet.');
         return;
       }
 
