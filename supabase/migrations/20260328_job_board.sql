@@ -197,13 +197,32 @@ CREATE POLICY "Service role full vehicle photos" ON vehicle_photos
 
 -- plan_bids policies
 DROP POLICY IF EXISTS "Providers manage own bids" ON plan_bids;
-CREATE POLICY "Providers manage own bids" ON plan_bids
+DROP POLICY IF EXISTS "Verified providers select own bids" ON plan_bids;
+DROP POLICY IF EXISTS "Verified providers write own bids" ON plan_bids;
+-- Separate SELECT and write (INSERT/UPDATE/DELETE) policies for clarity
+CREATE POLICY "Verified providers select own bids" ON plan_bids
+  FOR SELECT USING (
+    provider_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid()
+        AND (role = 'admin' OR (role = 'provider' AND verification_status = 'verified'))
+    )
+  );
+CREATE POLICY "Verified providers write own bids" ON plan_bids
   FOR ALL USING (
     provider_id = auth.uid()
     AND EXISTS (
       SELECT 1 FROM profiles
       WHERE id = auth.uid()
-        AND role IN ('provider', 'admin')
+        AND (role = 'admin' OR (role = 'provider' AND verification_status = 'verified'))
+    )
+  ) WITH CHECK (
+    provider_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid()
+        AND (role = 'admin' OR (role = 'provider' AND verification_status = 'verified'))
     )
   );
 

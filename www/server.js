@@ -42139,8 +42139,11 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
     try {
       const { data } = await supabase.from('profiles')
-        .select('auto_bid_enabled, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate')
+        .select('role, auto_bid_enabled, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate')
         .eq('id', user.id).single();
+      if (!data || !['provider', 'admin'].includes(data.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         auto_bid_enabled: data?.auto_bid_enabled || false,
@@ -42164,6 +42167,10 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     req.on('data', c => { body += c; });
     req.on('end', async () => {
       try {
+        const { data: provRole } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+        if (!provRole || !['provider', 'admin'].includes(provRole.role)) {
+          res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
+        }
         const { auto_bid_enabled, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate } = JSON.parse(body || '{}');
         const updates = {};
         if (auto_bid_enabled !== undefined) updates.auto_bid_enabled = !!auto_bid_enabled;
@@ -42181,7 +42188,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     return;
   }
 
-  // GET /api/care-plans/preview — count of open plans matching auto-bid criteria
+  // GET /api/care-plans/preview — count of open plans matching auto-bid criteria (providers only)
   if (req.method === 'GET' && req.url.startsWith('/api/care-plans/preview')) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
@@ -42191,7 +42198,10 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       const qs = new URLSearchParams(req.url.split('?')[1] || '');
       const maxDist = parseInt(qs.get('max_distance') || '25');
       const serviceTypes = qs.get('service_types') ? qs.get('service_types').split(',').filter(Boolean) : [];
-      const { data: prov } = await supabase.from('profiles').select('zip_code').eq('id', user.id).single();
+      const { data: prov } = await supabase.from('profiles').select('role, zip_code').eq('id', user.id).single();
+      if (!prov || !['provider', 'admin'].includes(prov.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
+      }
       // Look at the most recent 10 care plans to show "X of the last 10 plans would match"
       let query = supabase.from('care_plans').select('id, zip_code, service_types')
         .eq('status', 'open').gt('bid_closes_at', new Date().toISOString())
