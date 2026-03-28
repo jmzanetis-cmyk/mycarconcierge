@@ -6638,9 +6638,9 @@
     // Provider onboarding checklist
     (function initProviderChecklist() {
       const STEPS = [
-        { key: 'provider_profile',       icon: '👤', label: 'Complete your profile',       action: "showSection('settings')",       hint: 'Add bio, photo, and service area' },
-        { key: 'provider_docs',          icon: '📄', label: 'Upload verification docs',     action: "showSection('verification')",   hint: 'ID, insurance, and certifications' },
-        { key: 'provider_services',      icon: '🔧', label: 'Add your services',            action: "showSection('settings')",       hint: 'Set the services you offer' },
+        { key: 'provider_profile',       icon: '👤', label: 'Complete your profile',       action: "showSection('profile')",         hint: 'Add bio, photo, and service area' },
+        { key: 'provider_docs',          icon: '📄', label: 'Upload verification docs',     action: "showSection('background-checks')", hint: 'ID, insurance, and certifications' },
+        { key: 'provider_services',      icon: '🔧', label: 'Add your services',            action: "showSection('profile')",         hint: 'Set the services you offer' },
         { key: 'provider_stripe',        icon: '💳', label: 'Connect Stripe payouts',       action: "showSection('subscription')",   hint: 'Required to receive payments' },
         { key: 'provider_first_booking', icon: '🎉', label: 'Receive your first booking',  action: null,                           hint: 'Post a job or wait for requests' }
       ];

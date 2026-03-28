@@ -307,9 +307,12 @@ function setupNav() {
 async function showSection(id) {
   // Load required module before showing section
   await loadModuleForSection(id);
-  
+
+  const target = document.getElementById(id);
+  if (!target) { console.warn('[showSection] Unknown section:', id); return; }
+
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  target.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector(`.nav-item[data-section="${id}"]`)?.classList.add('active');
   document.getElementById('sidebar').classList.remove('open');

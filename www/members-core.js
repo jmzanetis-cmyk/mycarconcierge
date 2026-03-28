@@ -2759,9 +2759,12 @@ function loadModuleForSection(section) {
 async function showSection(sectionId) {
   // Load required module first
   await loadModuleForSection(sectionId);
-  
+
+  const target = document.getElementById(sectionId);
+  if (!target) { console.warn('[showSection] Unknown section:', sectionId); return; }
+
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById(sectionId).classList.add('active');
+  target.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector(`.nav-item[data-section="${sectionId}"]`)?.classList.add('active');
   document.getElementById('sidebar').classList.remove('open');
