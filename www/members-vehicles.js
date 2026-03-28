@@ -1117,7 +1117,7 @@
             .upload(fileName, pendingEditVehiclePhoto.file);
           
           if (!uploadError) {
-            // Get a server-signed URL via the vehicle-photos API — no client-side signing
+            // Register photo in vehicle_photos table via server (generates signed URL for immediate display)
             const session = (await supabaseClient.auth.getSession()).data.session;
             const regRes = await fetch(`/api/vehicle-photos/${editingVehicleId}`, {
               method: 'POST',
@@ -1125,8 +1125,9 @@
               body: JSON.stringify({ storage_path: fileName, is_primary: true })
             });
             if (regRes.ok) {
-              const regData = await regRes.json();
-              photoUrl = regData.photo?.url || null;
+              // Photo is registered in vehicle_photos table; signed URLs are resolved at read time.
+              // Do NOT update vehicles.photo_url — that legacy field keeps its existing value.
+              // The new photo will be served through the vehicle-photos API.
             } else {
               console.error('Photo registration failed:', await regRes.text());
             }
