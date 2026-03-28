@@ -41913,20 +41913,6 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
 
   // ========== PROVIDER JOB BOARD ==========
 
-  // Helper: zip-prefix distance estimate (server-side, mirrors client providers-bids.js)
-  function estimateZipDistanceSrv(zip1, zip2) {
-    if (!zip1 || !zip2) return 999;
-    if (zip1 === zip2) return 0;
-    if (zip1.substring(0, 3) === zip2.substring(0, 3)) {
-      return Math.abs(parseInt(zip1) - parseInt(zip2)) * 0.5;
-    }
-    const diff = Math.abs(parseInt(zip1.substring(0, 3)) - parseInt(zip2.substring(0, 3)));
-    if (diff <= 2) return 15 + diff * 10;
-    if (diff <= 5) return 30 + diff * 8;
-    if (diff <= 10) return 50 + diff * 5;
-    return 100 + diff * 3;
-  }
-
   // GET /api/job-board — paginated open care plans for verified providers
   if (req.method === 'GET' && req.url.startsWith('/api/job-board')) {
     setSecurityHeaders(res, true);
@@ -41962,6 +41948,16 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       (myBidRows || []).forEach(b => { myBidMap[b.care_plan_id] = b; });
       const myBidPlanIds = Object.keys(myBidMap);
 
+      // Authoritative tab badge counts — run in parallel on first page load
+      const nowForCounts = new Date().toISOString();
+      const sixHForCounts = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+      const [cAll, cNoBids, cClosing] = await Promise.all([
+        supabase.from('care_plans').select('id', { count: 'exact', head: true }).eq('status', 'open').gt('bid_closes_at', nowForCounts),
+        supabase.from('care_plans').select('id', { count: 'exact', head: true }).eq('status', 'open').eq('bid_count', 0).gt('bid_closes_at', nowForCounts),
+        supabase.from('care_plans').select('id', { count: 'exact', head: true }).eq('status', 'open').lte('bid_closes_at', sixHForCounts).gte('bid_closes_at', nowForCounts),
+      ]);
+      const tabCounts = { all: cAll.count || 0, no_bids: cNoBids.count || 0, closing_soon: cClosing.count || 0, my_bids: myBidPlanIds.length };
+
       // When distance filtering OR sort=nearest, fetch all candidates and paginate in memory for correct ordering
       const needsDistanceFilter = maxDistance > 0 || sort === 'nearest';
       let query = supabase.from('care_plans').select(SELECT_FIELDS, { count: needsDistanceFilter ? undefined : 'exact' });
@@ -41969,7 +41965,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       // Tab semantics
       if (tab === 'my-bids') {
         if (!myBidPlanIds.length) {
-          res.writeHead(200); res.end(JSON.stringify({ plans: [], total: 0, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled) })); return;
+          res.writeHead(200); res.end(JSON.stringify({ plans: [], total: 0, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled), tab_counts: tabCounts })); return;
         }
         query = query.in('id', myBidPlanIds);
       } else {
@@ -42010,7 +42006,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         const total = result.length;
         const paged = result.slice(from, from + pageSize).map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ plans: paged, total, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled) }));
+        res.end(JSON.stringify({ plans: paged, total, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled), tab_counts: tabCounts }));
       } else {
         const { data: plans, count, error } = await query.range(from, from + pageSize - 1);
         if (error) throw error;
@@ -42020,7 +42016,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         if (sort === 'nearest') result.sort((a, b) => a.estimated_distance_miles - b.estimated_distance_miles);
         result = result.map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ plans: result, total: count || result.length, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled) }));
+        res.end(JSON.stringify({ plans: result, total: count || result.length, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled), tab_counts: tabCounts }));
       }
     } catch (err) {
       console.error('[JobBoard] GET error:', err.message);
@@ -42239,18 +42235,18 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
     const vehicleId = req.url.split('/').pop();
     try {
-      // Determine if caller is the vehicle owner or a provider viewing an open care plan
-      const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-      const isProvider = callerProfile && ['provider', 'admin'].includes(callerProfile.role);
+      // Determine if caller is the vehicle owner or a verified provider viewing an open care plan
+      const { data: callerProfile } = await supabase.from('profiles').select('role, verification_status').eq('id', user.id).single();
+      const isVerifiedProvider = callerProfile && (callerProfile.role === 'admin' || (callerProfile.role === 'provider' && callerProfile.verification_status === 'verified'));
       let query = supabase.from('vehicle_photos')
         .select('id, storage_path, url, is_primary, created_at')
         .eq('vehicle_id', vehicleId)
         .order('is_primary', { ascending: false }).order('created_at', { ascending: true });
-      if (!isProvider) {
-        // Member can only see own photos
+      if (!isVerifiedProvider) {
+        // Non-provider or unverified provider can only see own photos (member flow)
         query = query.eq('member_id', user.id);
       } else {
-        // Provider can only see photos if the vehicle has an open care plan
+        // Verified provider can only see photos if the vehicle has an open care plan
         const { data: openPlan } = await supabase.from('care_plans')
           .select('id').eq('vehicle_id', vehicleId).eq('status', 'open').limit(1).maybeSingle();
         if (!openPlan) { res.writeHead(403); res.end(JSON.stringify({ error: 'No open care plan for this vehicle' })); return; }
@@ -43760,6 +43756,22 @@ function startBidDeadlineScheduler() {
 // SQL migration for deadline_warning_sent:
 // ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE;
 
+// ========== MODULE-LEVEL HELPER: zip-prefix distance estimate ==========
+// Shared by job-board route handler, auto-bid engine, and schedulers.
+// Mirrors client-side estimateZipDistance in providers-bids.js.
+function estimateZipDistanceSrv(zip1, zip2) {
+  if (!zip1 || !zip2) return 999;
+  if (zip1 === zip2) return 0;
+  if (zip1.substring(0, 3) === zip2.substring(0, 3)) {
+    return Math.abs(parseInt(zip1) - parseInt(zip2)) * 0.5;
+  }
+  const diff = Math.abs(parseInt(zip1.substring(0, 3)) - parseInt(zip2.substring(0, 3)));
+  if (diff <= 2) return 15 + diff * 10;
+  if (diff <= 5) return 30 + diff * 8;
+  if (diff <= 10) return 50 + diff * 5;
+  return 100 + diff * 3;
+}
+
 // ========== AUTO-BID CORE LOGIC (shared by API endpoint + Realtime trigger) ==========
 async function runAutoBidForPlan(care_plan_id) {
   const supabase = getSupabaseClient();
@@ -43768,7 +43780,7 @@ async function runAutoBidForPlan(care_plan_id) {
   const { data: providers } = await supabase.from('profiles')
     .select('id, zip_code, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate, verification_status')
     .eq('auto_bid_enabled', true).in('role', ['provider', 'admin'])
-    .or('verification_status.is.null,verification_status.eq.verified');
+    .or('role.eq.admin,verification_status.eq.verified');
   let placed = 0;
   for (const prov of (providers || [])) {
     const dist = estimateZipDistanceSrv(prov.zip_code, plan.zip_code);
@@ -43825,12 +43837,14 @@ function startCarePlanClosingScheduler() {
         .lt('bid_closes_at', new Date().toISOString()).select('id, title, member_id');
       if (expired?.length) console.log(`[CarePlanScheduler] Expired ${expired.length} care plans`);
 
-      // 2. Closing-soon (< 6 hours): notify ALL verified providers who haven't bid yet
+      // 2. Closing-soon (< 6 hours): notify ALL verified providers who haven't bid yet.
+      // closing_soon_notified_at guards against re-notifying on subsequent hourly runs.
       const sixHoursLater = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
       const now = new Date().toISOString();
       const { data: closingSoon } = await supabase.from('care_plans')
         .select('id, title, zip_code, service_types, value_min, value_max, bid_closes_at')
-        .eq('status', 'open').lte('bid_closes_at', sixHoursLater).gte('bid_closes_at', now);
+        .eq('status', 'open').lte('bid_closes_at', sixHoursLater).gte('bid_closes_at', now)
+        .is('closing_soon_notified_at', null);
       if (!closingSoon?.length) return;
 
       // Load all verified providers (SMS + push; each channel checks its own preferences)
@@ -43869,6 +43883,10 @@ function startCarePlanClosingScheduler() {
           ).catch(() => {});
           closingSoonNotified.add(dedupeKey);
         }
+        // Mark plan as notified so subsequent hourly runs skip it
+        await supabase.from('care_plans')
+          .update({ closing_soon_notified_at: new Date().toISOString() })
+          .eq('id', plan.id).catch(() => {});
       }
     } catch (err) { console.error('[CarePlanScheduler] Closing-soon error:', err.message); }
   }

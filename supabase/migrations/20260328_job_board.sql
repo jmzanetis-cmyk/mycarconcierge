@@ -68,6 +68,9 @@ CREATE TRIGGER trg_care_plan_updated_at
   BEFORE UPDATE ON care_plans
   FOR EACH ROW EXECUTE FUNCTION update_care_plan_updated_at();
 
+-- Add closing_soon_notified_at to prevent duplicate hourly notifications per plan
+ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS closing_soon_notified_at TIMESTAMPTZ;
+
 -- ============================================================
 -- 3. VEHICLE PHOTOS
 -- ============================================================

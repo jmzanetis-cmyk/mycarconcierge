@@ -614,6 +614,8 @@ async function loadPlans(reset = false) {
     // Show/hide verification banner
     const banner = document.getElementById('unverified-banner');
     if (banner) banner.style.display = window.providerVerified ? 'none' : 'block';
+    // Apply server-side authoritative counts for all tabs at once
+    applyServerTabCounts(data.tab_counts);
     renderPlanList(reset);
     updateBadges();
   } catch (err) {
@@ -625,15 +627,20 @@ async function loadPlans(reset = false) {
   }
 }
 
-// Persistent badge counts — updated whenever each tab is visited
+// Authoritative badge counts sourced from server on each API load
 const tabCounts = { all: 0, 'no-bids': 0, 'closing-soon': 0, 'my-bids': 0 };
 
+function applyServerTabCounts(serverCounts) {
+  if (!serverCounts) return;
+  if (serverCounts.all !== undefined) tabCounts.all = serverCounts.all;
+  if (serverCounts.no_bids !== undefined) tabCounts['no-bids'] = serverCounts.no_bids;
+  if (serverCounts.closing_soon !== undefined) tabCounts['closing-soon'] = serverCounts.closing_soon;
+  if (serverCounts.my_bids !== undefined) tabCounts['my-bids'] = serverCounts.my_bids;
+}
+
 function updateBadges() {
-  // Always update the current tab's count
-  tabCounts[currentTab] = totalPlans;
-  // Also update my-bids count from in-memory data (best effort across all tabs)
-  const myBidCount = plans.filter(p => p.my_bid).length;
-  if (myBidCount > 0 || currentTab === 'my-bids') tabCounts['my-bids'] = currentTab === 'my-bids' ? totalPlans : Math.max(tabCounts['my-bids'], myBidCount);
+  // If server provided authoritative counts for current tab total, trust it
+  if (!tabCounts[currentTab] && totalPlans > 0) tabCounts[currentTab] = totalPlans;
 
   const allBadge = document.getElementById('badge-all');
   if (allBadge) allBadge.textContent = tabCounts.all;
