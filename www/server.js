@@ -19773,16 +19773,16 @@ async function handleSendTeamInvitation(req, res, requestId, providerId) {
       // Seat limit enforcement for Shop SaaS plan
       const { data: shopSub } = await supabase
         .from('saas_subscriptions')
-        .select('plan_id, metadata')
+        .select('plan')
         .eq('user_id', providerId)
-        .eq('product_line', 'provider_shop')
-        .in('status', ['active', 'trial'])
+        .eq('product', 'shop')
+        .in('status', ['active', 'trialing'])
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
       if (shopSub) {
-        const seatLimitMap = { 'shop_solo': 1, 'shop_team': 5, 'shop_unlimited': 999 };
-        const seatLimit = seatLimitMap[shopSub.plan_id] ?? 999;
+        const seatLimitMap = { 'starter': 1, 'pro': 5, 'business': 999 };
+        const seatLimit = seatLimitMap[shopSub.plan] ?? 999;
         if (seatLimit < 999) {
           const { count: memberCount } = await supabase
             .from('provider_team_members')
@@ -40886,18 +40886,18 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
 
     try {
-      // Check SAAS subscriptions table
+      // Check SAAS subscriptions table (product='shop', plan='starter'|'pro'|'business')
       const { data: sub } = await supabase
         .from('saas_subscriptions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('product_line', 'provider_shop')
-        .in('status', ['active', 'trial'])
+        .eq('product', 'shop')
+        .in('status', ['active', 'trialing'])
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
-      // Count team members
+      // Count active team members
       const { data: team } = await supabase
         .from('provider_team_members')
         .select('id', { count: 'exact' })
@@ -40905,20 +40905,21 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         .eq('status', 'active');
 
       const teamCount = team?.length || 0;
-      const plan = sub?.plan_tier || 'none';
+      const plan = sub?.plan || 'none'; // 'starter' | 'pro' | 'business' | 'none'
 
-      const planLimits = { solo: 1, team: 5, shop: Infinity, none: 0 };
-      const planPrices = { solo: 49, team: 99, shop: 199, none: 0 };
+      // starter=$29 = 1 seat, pro=$59 = 5 seats, business=$129 = unlimited
+      const planLimits = { starter: 1, pro: 5, business: 999, none: 0 };
+      const planPrices = { starter: 2900, pro: 5900, business: 12900, none: 0 };
       const seatLimit = planLimits[plan] ?? 0;
       const planPrice = planPrices[plan] ?? 0;
 
       const featureAccess = {
-        sms_reminders: ['team', 'shop'].includes(plan),
-        advanced_analytics: ['team', 'shop'].includes(plan),
-        car_club_loyalty: ['team', 'shop'].includes(plan),
-        white_label_widget: plan === 'shop',
-        api_access: plan === 'shop',
-        unlimited_seats: plan === 'shop'
+        sms_reminders: ['pro', 'business'].includes(plan),
+        advanced_analytics: ['pro', 'business'].includes(plan),
+        car_club_loyalty: ['pro', 'business'].includes(plan),
+        white_label_widget: plan === 'business',
+        api_access: plan === 'business',
+        unlimited_seats: plan === 'business'
       };
 
       res.writeHead(200, { 'Content-Type': 'application/json' });

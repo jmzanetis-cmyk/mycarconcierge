@@ -1344,21 +1344,22 @@ async function loadShopSubscription() {
     const featBadgeLoyalty = document.getElementById('shop-feat-loyalty');
 
     if (planBadge) {
-      const labels = { solo: 'Solo – $49/mo', team: 'Team – $99/mo', shop: 'Shop – $199/mo', none: 'No Plan' };
+      const labels = { starter: 'Starter – $29/mo', pro: 'Pro – $59/mo', business: 'Business – $129/mo', none: 'No Plan' };
       planBadge.textContent = labels[data.plan] || 'No Plan';
     }
     if (statusBadge) {
-      statusBadge.textContent = data.status === 'active' ? 'Active' : (data.status === 'trial' ? 'Trial' : 'Inactive');
-      statusBadge.style.color = data.status === 'active' || data.status === 'trial' ? '#34d399' : '#f87171';
+      const isActive = data.status === 'active' || data.status === 'trialing';
+      statusBadge.textContent = data.status === 'trialing' ? 'Trial' : (data.status === 'active' ? 'Active' : 'Inactive');
+      statusBadge.style.color = isActive ? '#34d399' : '#f87171';
     }
 
-    if (seatBar && data.seat_limit && data.seat_limit > 0) {
+    if (seatBar && data.seat_limit && data.seat_limit > 0 && data.seat_limit < 999) {
       const pct = Math.min(100, Math.round((data.seat_count / data.seat_limit) * 100));
       seatBar.style.width = pct + '%';
       seatBar.style.background = pct >= 100 ? '#f87171' : '#c9a227';
     }
     if (seatText) {
-      if (data.plan === 'shop') {
+      if (data.plan === 'business') {
         seatText.textContent = `${data.seat_count} technicians (unlimited)`;
       } else if (data.seat_limit > 0) {
         seatText.textContent = `${data.seat_count} / ${data.seat_limit} technician seats used`;
@@ -1368,14 +1369,14 @@ async function loadShopSubscription() {
     }
 
     const access = data.feature_access || {};
-    if (featBadgeSms) { featBadgeSms.textContent = access.sms_reminders ? '✓ Active' : '— Upgrade to Team'; featBadgeSms.style.color = access.sms_reminders ? '#34d399' : '#f87171'; }
-    if (featBadgeAnalytics) { featBadgeAnalytics.textContent = access.advanced_analytics ? '✓ Active' : '— Upgrade to Team'; featBadgeAnalytics.style.color = access.advanced_analytics ? '#34d399' : '#f87171'; }
-    if (featBadgeLoyalty) { featBadgeLoyalty.textContent = access.car_club_loyalty ? '✓ Active' : '— Upgrade to Team'; featBadgeLoyalty.style.color = access.car_club_loyalty ? '#34d399' : '#f87171'; }
+    if (featBadgeSms) { featBadgeSms.textContent = access.sms_reminders ? '✓ Active' : '— Upgrade to Pro'; featBadgeSms.style.color = access.sms_reminders ? '#34d399' : '#f87171'; }
+    if (featBadgeAnalytics) { featBadgeAnalytics.textContent = access.advanced_analytics ? '✓ Active' : '— Upgrade to Pro'; featBadgeAnalytics.style.color = access.advanced_analytics ? '#34d399' : '#f87171'; }
+    if (featBadgeLoyalty) { featBadgeLoyalty.textContent = access.car_club_loyalty ? '✓ Active' : '— Upgrade to Pro'; featBadgeLoyalty.style.color = access.car_club_loyalty ? '#34d399' : '#f87171'; }
 
-    // Show upgrade prompt if on Solo or no plan
+    // Show upgrade prompt if on Starter or no plan
     const upgradePrompt = document.getElementById('shop-upgrade-prompt');
     if (upgradePrompt) {
-      upgradePrompt.style.display = (data.plan === 'none' || data.plan === 'solo') ? 'block' : 'none';
+      upgradePrompt.style.display = (data.plan === 'none' || data.plan === 'starter') ? 'block' : 'none';
     }
 
     window._shopSaasData = data;
@@ -1395,9 +1396,9 @@ function openShopUpgradeModal() {
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:24px;">
           ${[
-            { key: 'solo', name: 'Solo', price: '$49', desc: '1 technician', color: '#6b7280' },
-            { key: 'team', name: 'Team', price: '$99', desc: 'Up to 5 techs', color: '#c9a227', popular: true },
-            { key: 'shop', name: 'Shop', price: '$199', desc: 'Unlimited techs', color: '#22d3ee' }
+            { key: 'starter', name: 'Starter', price: '$29', desc: '1 technician', color: '#6b7280' },
+            { key: 'pro', name: 'Pro', price: '$59', desc: 'Up to 5 techs', color: '#c9a227', popular: true },
+            { key: 'business', name: 'Business', price: '$129', desc: 'Unlimited techs', color: '#22d3ee' }
           ].map(p => `
             <div style="background:${p.popular ? 'rgba(201,162,39,0.12)' : 'rgba(30,38,48,0.8)'};border:1px solid ${p.popular ? 'rgba(201,162,39,0.4)' : 'rgba(160,168,184,0.15)'};border-radius:14px;padding:20px;text-align:center;">
               ${p.popular ? '<div style="font-size:0.7rem;font-weight:700;color:#c9a227;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Most Popular</div>' : ''}
@@ -1419,20 +1420,17 @@ async function selectShopPlan(planKey) {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) return;
     const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-    const res = await fetch(`${apiBase}/api/saas/subscribe`, {
+    const res = await fetch(`${apiBase}/api/saas/checkout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ product_line: 'provider_shop', plan_tier: planKey })
+      body: JSON.stringify({ product: 'shop', plan: planKey })
     });
     const data = await res.json();
     document.getElementById('shop-upgrade-modal')?.remove();
-    if (data.checkout_url) {
-      window.location.href = data.checkout_url;
-    } else if (data.success) {
-      if (typeof showToast === 'function') showToast(`Subscribed to Shop ${planKey.charAt(0).toUpperCase() + planKey.slice(1)} plan!`, 'success');
-      loadShopSubscription();
+    if (data.url) {
+      window.location.href = data.url;
     } else {
-      if (typeof showToast === 'function') showToast(data.error || 'Subscription failed', 'error');
+      if (typeof showToast === 'function') showToast(data.error || 'Subscription failed. Please contact support.', 'error');
     }
   } catch (err) {
     console.error('[ShopPlan] Error:', err);
