@@ -7824,8 +7824,8 @@
         if (checklist2) checklist2.style.display = 'block';
       }
 
-      // Show welcome modal once
-      if (!welcome_shown && !localStorage.getItem('mcc_welcome_shown')) {
+      // Show welcome modal once (data.local_welcome_shown is pre-fetched user-scoped value)
+      if (!welcome_shown && !data.local_welcome_shown) {
         showWelcomeModal(data);
       }
     }
@@ -7841,6 +7841,22 @@
       } catch (_) {}
       return null;
     }
+
+    // User-scoped localStorage helpers — prevents cross-user bleed on shared browsers
+    let _cachedUserId = null;
+    async function _getUserId() {
+      if (_cachedUserId) return _cachedUserId;
+      try {
+        if (window._currentSession?.user?.id) { _cachedUserId = window._currentSession.user.id; return _cachedUserId; }
+        if (window.supabaseClient) {
+          const { data: { session } } = await window.supabaseClient.auth.getSession();
+          if (session?.user?.id) { _cachedUserId = session.user.id; return _cachedUserId; }
+        }
+      } catch (_) {}
+      return 'anon';
+    }
+    async function _lsGet(key) { const uid = await _getUserId(); return localStorage.getItem(key + '_' + uid); }
+    async function _lsSet(key, val) { const uid = await _getUserId(); localStorage.setItem(key + '_' + uid, val); }
 
     // Helper: persist a single onboarding step completion to the DB
     async function markOnboardingStep(step) {
@@ -7861,7 +7877,7 @@
     function _savePersistedStep(step) { const s = _getPersistedSteps(); s.add(step); try { sessionStorage.setItem('mcc_persisted_steps', JSON.stringify([...s])); } catch (_) {} }
 
     async function checkOnboardingStatus() {
-      const dismissed = localStorage.getItem('mcc_onboarding_dismissed');
+      const dismissed = await _lsGet('mcc_onboarding_dismissed');
       try {
         const token = await getAuthToken();
         if (!token) throw new Error('no token');
@@ -7878,6 +7894,8 @@
           window.location.href = '/onboarding-member.html?from=dashboard';
           return;
         }
+        // Pre-fetch user-scoped welcome state so updateOnboardingUI doesn't need async
+        data.local_welcome_shown = await _lsGet('mcc_welcome_shown');
         if (!dismissed) updateOnboardingUI(data);
         // Persist any server-detected-complete steps that haven't been written yet this session.
         // sessionStorage dedup ensures each step is written at most once per browser session.
@@ -7901,8 +7919,8 @@
       }
     }
 
-    function dismissOnboarding() {
-      localStorage.setItem('mcc_onboarding_dismissed', 'true');
+    async function dismissOnboarding() {
+      await _lsSet('mcc_onboarding_dismissed', 'true');
       const checklist = document.getElementById('onboarding-checklist');
       if (checklist) checklist.style.display = 'none';
     }
@@ -7933,7 +7951,7 @@
     async function closeWelcomeModal() {
       const modal = document.getElementById('welcome-modal');
       if (modal) modal.classList.remove('active');
-      localStorage.setItem('mcc_welcome_shown', 'true');
+      await _lsSet('mcc_welcome_shown', 'true');
       try {
         const token = await getAuthToken();
         if (token) {
@@ -7950,9 +7968,10 @@
     window.markOnboardingStep = markOnboardingStep;
     window.recheckOnboardingStatus = checkOnboardingStatus;
 
-    // Re-check checklist when stats update
+    // Re-check checklist when stats update; use cached user ID for scoped dismiss check
     const statsObserver = new MutationObserver(() => {
-      const dismissed = localStorage.getItem('mcc_onboarding_dismissed');
+      const uid = _cachedUserId || 'anon';
+      const dismissed = localStorage.getItem('mcc_onboarding_dismissed_' + uid);
       if (!dismissed) checkOnboardingStatus();
     });
     const vehicleStat = document.getElementById('stat-vehicles');
