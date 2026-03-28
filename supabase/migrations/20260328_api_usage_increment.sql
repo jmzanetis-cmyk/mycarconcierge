@@ -46,3 +46,15 @@ CREATE TABLE IF NOT EXISTS api_usage_log (
 CREATE INDEX IF NOT EXISTS idx_api_usage_log_key_id ON api_usage_log(api_key_id);
 CREATE INDEX IF NOT EXISTS idx_api_usage_log_created_at ON api_usage_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_api_usage_log_endpoint ON api_usage_log(endpoint);
+
+-- RLS: restrict api_usage_log to service role only (server-side writes only)
+ALTER TABLE api_usage_log ENABLE ROW LEVEL SECURITY;
+
+-- No public access — only service role (bypasses RLS) may read/write
+-- Authenticated users may not access this table directly
+CREATE POLICY "No public access to api_usage_log"
+  ON api_usage_log
+  FOR ALL
+  TO authenticated
+  USING (false)
+  WITH CHECK (false);
