@@ -42244,20 +42244,30 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       const providerStripe = !!(profile?.stripe_onboarding_complete || checklist.provider_stripe);
       const providerFirstBooking = acceptedBidCount > 0 || !!checklist.provider_first_booking;
 
-      // Auto-upsert account_created on first load so state is anchored in DB
+      // Auto-upsert account_created on first load so state is anchored in DB.
+      // Grandfather pre-launch users (account > 7 days old): auto-mark survey_completed to prevent
+      // legacy members from being forced into the post-signup survey flow.
+      const isNewMember = user.created_at
+        ? (Date.now() - new Date(user.created_at).getTime()) < 7 * 24 * 3600 * 1000
+        : false;
       if (supabase && !row) {
-        supabase.from('member_onboarding').upsert({ user_id: user.id, checklist: { account_created: true }, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }).catch(() => {});
+        const grandfathered = !isNewMember; // legacy accounts skip survey requirement
+        supabase.from('member_onboarding').upsert({
+          user_id: user.id,
+          survey_completed: grandfathered,
+          welcome_shown: grandfathered,
+          checklist: { account_created: true },
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' }).catch(() => {});
       }
 
       // Unified payload: always returns all keys (member + provider).
       // Clients use the role param to selectively render relevant subset of checklist.
-      const isNewMember = user.created_at
-        ? (Date.now() - new Date(user.created_at).getTime()) < 7 * 24 * 3600 * 1000
-        : false;
+      // isNewMember is already computed above (used for grandfathering logic).
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        survey_completed: row?.survey_completed || false,
-        welcome_shown: row?.welcome_shown || false,
+        survey_completed: row?.survey_completed || (!row && !isNewMember) || false,
+        welcome_shown: row?.welcome_shown || (!row && !isNewMember) || false,
         pain_point: checklist.pain_point || null,
         is_new_member: isNewMember,
         checklist: {
