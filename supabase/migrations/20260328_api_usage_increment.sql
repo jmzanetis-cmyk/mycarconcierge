@@ -29,3 +29,20 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION increment_api_key_calls(UUID) TO service_role;
+
+-- Per-request API usage log for detailed analytics
+CREATE TABLE IF NOT EXISTS api_usage_log (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  api_key_id UUID REFERENCES developer_api_keys(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL,
+  method TEXT DEFAULT 'GET',
+  status_code INT,
+  latency_ms INT,
+  plan TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_usage_log_key_id ON api_usage_log(api_key_id);
+CREATE INDEX IF NOT EXISTS idx_api_usage_log_created_at ON api_usage_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_api_usage_log_endpoint ON api_usage_log(endpoint);

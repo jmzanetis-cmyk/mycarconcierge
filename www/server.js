@@ -8,6 +8,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleGenAI } = require('@google/genai');
 const Stripe = require('stripe');
+const bcryptjs = require('bcryptjs');
 const { createClient } = require('@supabase/supabase-js');
 const vision = require('@google-cloud/vision');
 const sharp = require('sharp');
@@ -41214,9 +41215,9 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       const body = await getRequestBody(req);
       const { name = 'My API Key' } = body;
 
-      const rawKey = 'mcc_' + crypto.randomBytes(32).toString('base64url');
-      const keyPrefix = rawKey.substring(0, 12) + '...';
-      const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
+      const rawKey = 'mcc_live_' + crypto.randomBytes(32).toString('base64url');
+      const keyPrefix = rawKey.slice(0, 16); // 16-char prefix stored for lookup
+      const keyHash = await bcryptjs.hash(rawKey, 4); // bcrypt cost=4 (API key has high entropy)
       const planLimits = { starter: 5000, pro: 50000, business: -1 };
       const callsLimit = planLimits[access.plan] || 5000;
 
@@ -41263,7 +41264,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
   if (req.method === 'GET' && req.url === '/api/v1/openapi.json') {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
-    const spec = {"openapi":"3.0.3","info":{"title":"My Car Concierge Automotive AI API","version":"1.0.0","description":"AI-powered automotive intelligence for developers — VIN decode, recall lookup, OBD diagnostics, vehicle health scoring, maintenance forecasting, and fair price estimation.","contact":{"name":"MCC Developer Support","email":"developers@mycarconcierge.com","url":"https://mycarconcierge.com/developers"},"license":{"name":"Commercial","url":"https://mycarconcierge.com/terms"}},"servers":[{"url":"https://mycarconcierge.com/api/v1","description":"Production"}],"security":[{"BearerAuth":[]}],"components":{"securitySchemes":{"BearerAuth":{"type":"http","scheme":"bearer","bearerFormat":"mcc_...","description":"Get your API key at mycarconcierge.com/developers"}},"schemas":{"Error":{"type":"object","properties":{"error":{"type":"string"}}},"VehicleRef":{"type":"object","properties":{"year":{"type":"integer","example":2020},"make":{"type":"string","example":"Toyota"},"model":{"type":"string","example":"Camry"},"mileage":{"type":"integer","example":45000}}}}},"paths":{"/vin/{vin}":{"get":{"summary":"Decode VIN","operationId":"decodeVin","parameters":[{"name":"vin","in":"path","required":true,"schema":{"type":"string","minLength":17,"maxLength":17}}],"responses":{"200":{"description":"VIN decoded"},"400":{"description":"Invalid VIN"},"401":{"description":"Unauthorized"}}}},"/recalls/{vin}":{"get":{"summary":"NHTSA recall lookup","operationId":"getRecalls","parameters":[{"name":"vin","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Recalls"},"401":{"description":"Unauthorized"}}}},"/obd-codes":{"post":{"summary":"Analyze OBD-II codes (Pro+)","operationId":"analyzeObd","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["codes"],"properties":{"codes":{"type":"array","items":{"type":"string"}},"vehicle":{"$ref":"#/components/schemas/VehicleRef"}}}}}},"responses":{"200":{"description":"OBD analysis"},"402":{"description":"Plan upgrade required"}}}},"/price-estimate":{"post":{"summary":"Fair price estimate","operationId":"getPriceEstimate","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["category"],"properties":{"category":{"type":"string"},"zip_code":{"type":"string"},"vehicle":{"$ref":"#/components/schemas/VehicleRef"}}}}}},"responses":{"200":{"description":"Price range"}}}},"/vehicle/health":{"post":{"summary":"AI vehicle health score (Pro+)","operationId":"getVehicleHealth","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["year","make","model"],"properties":{"vin":{"type":"string"},"year":{"type":"integer"},"make":{"type":"string"},"model":{"type":"string"},"mileage":{"type":"integer"},"active_codes":{"type":"array","items":{"type":"string"}},"last_services":{"type":"object"}}}}}},"responses":{"200":{"description":"Health score 0-100"},"402":{"description":"Plan upgrade required"}}}},"/vehicle/forecast":{"post":{"summary":"Maintenance forecast","operationId":"getVehicleForecast","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["year","make","model"],"properties":{"year":{"type":"integer"},"make":{"type":"string"},"model":{"type":"string"},"mileage":{"type":"integer"},"last_services":{"type":"object"}}}}}},"responses":{"200":{"description":"Upcoming services"}}}}}}
+    const spec = {"openapi":"3.0.3","info":{"title":"My Car Concierge Automotive AI API","version":"1.0.0","description":"AI-powered automotive intelligence for developers — VIN decode, recall lookup, OBD diagnostics, vehicle health scoring, maintenance forecasting, and fair price estimation.","contact":{"name":"MCC Developer Support","email":"developers@mycarconcierge.com","url":"https://mycarconcierge.com/developers"},"license":{"name":"Commercial","url":"https://mycarconcierge.com/terms"}},"servers":[{"url":"https://mycarconcierge.com/api/v1","description":"Production"}],"security":[{"BearerAuth":[]}],"components":{"securitySchemes":{"BearerAuth":{"type":"http","scheme":"bearer","bearerFormat":"mcc_...","description":"Get your API key at mycarconcierge.com/developers"}},"schemas":{"Error":{"type":"object","properties":{"error":{"type":"string"}}},"VehicleRef":{"type":"object","properties":{"year":{"type":"integer","example":2020},"make":{"type":"string","example":"Toyota"},"model":{"type":"string","example":"Camry"},"mileage":{"type":"integer","example":45000}}}}},"paths":{"/vin/{vin}":{"get":{"summary":"Decode VIN","operationId":"decodeVin","parameters":[{"name":"vin","in":"path","required":true,"schema":{"type":"string","minLength":17,"maxLength":17}}],"responses":{"200":{"description":"VIN decoded"},"400":{"description":"Invalid VIN"},"401":{"description":"Unauthorized"}}}},"/recalls/{vin}":{"get":{"summary":"NHTSA recall lookup","operationId":"getRecalls","parameters":[{"name":"vin","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Recalls"},"401":{"description":"Unauthorized"}}}},"/recalls/enrich":{"post":{"summary":"AI-enriched recall analysis (Pro+)","operationId":"enrichRecalls","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["vin"],"properties":{"vin":{"type":"string"},"make":{"type":"string"},"model":{"type":"string"},"year":{"type":"integer"}}}}}},"responses":{"200":{"description":"Enriched recalls with AI analysis"},"402":{"description":"Plan upgrade required"}}}},"/obd-codes":{"post":{"summary":"Analyze OBD-II codes (Pro+)","operationId":"analyzeObd","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["codes"],"properties":{"codes":{"type":"array","items":{"type":"string"}},"vehicle":{"$ref":"#/components/schemas/VehicleRef"}}}}}},"responses":{"200":{"description":"OBD analysis"},"402":{"description":"Plan upgrade required"}}}},"/price-estimate":{"post":{"summary":"Fair price estimate","operationId":"getPriceEstimate","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["category"],"properties":{"category":{"type":"string"},"zip_code":{"type":"string"},"vehicle":{"$ref":"#/components/schemas/VehicleRef"}}}}}},"responses":{"200":{"description":"Price range"}}}},"/vehicle/health":{"post":{"summary":"AI vehicle health score (Pro+)","operationId":"getVehicleHealth","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["year","make","model"],"properties":{"vin":{"type":"string"},"year":{"type":"integer"},"make":{"type":"string"},"model":{"type":"string"},"mileage":{"type":"integer"},"active_codes":{"type":"array","items":{"type":"string"}},"last_services":{"type":"object"}}}}}},"responses":{"200":{"description":"Health score 0-100"},"402":{"description":"Plan upgrade required"}}}},"/vehicle/forecast":{"post":{"summary":"Maintenance forecast","operationId":"getVehicleForecast","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["year","make","model"],"properties":{"year":{"type":"integer"},"make":{"type":"string"},"model":{"type":"string"},"mileage":{"type":"integer"},"last_services":{"type":"object"}}}}}},"responses":{"200":{"description":"Upcoming services"}}}}}}
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(spec));
     return;
@@ -41284,11 +41285,22 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     const supabase = getSupabaseClient();
     let apiKeyRecord = null;
     try {
-      const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
-      const { data } = await supabase.from('developer_api_keys')
-        .select('id, user_id, plan, status, calls_made, calls_limit')
-        .eq('key_hash', keyHash).eq('status', 'active').maybeSingle();
-      apiKeyRecord = data;
+      const keyPrefix = apiKey.slice(0, 16); // first 16 chars used as lookup prefix
+      const { data: candidates } = await supabase.from('developer_api_keys')
+        .select('id, user_id, plan, status, calls_made, calls_limit, key_hash')
+        .eq('key_prefix', keyPrefix).eq('status', 'active');
+      // Verify with bcrypt (or SHA-256 fallback for legacy keys)
+      for (const candidate of (candidates || [])) {
+        let valid = false;
+        if (candidate.key_hash?.startsWith('$2')) {
+          valid = await bcryptjs.compare(apiKey, candidate.key_hash);
+        } else {
+          // Legacy SHA-256 fallback
+          const sha = crypto.createHash('sha256').update(apiKey).digest('hex');
+          valid = sha === candidate.key_hash;
+        }
+        if (valid) { apiKeyRecord = candidate; break; }
+      }
     } catch (e) { /* fallthrough to 401 */ }
 
     if (!apiKeyRecord) {
@@ -41322,9 +41334,26 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       return;
     }
 
-    // Inject X-RateLimit-* headers into all subsequent v1 responses for this request
+    // Inject X-RateLimit-* headers into all subsequent v1 responses + capture status for api_usage_log
     const _origWriteHead = res.writeHead.bind(res);
-    res.writeHead = (code, hdrs) => _origWriteHead(code, Object.assign({ 'X-RateLimit-Limit': String(_rlLimit), 'X-RateLimit-Remaining': String(_rlRemaining), 'X-RateLimit-Reset': String(_rlReset) }, hdrs || {}));
+    let _capturedStatus = 200;
+    res.writeHead = (code, hdrs) => {
+      _capturedStatus = code;
+      return _origWriteHead(code, Object.assign({ 'X-RateLimit-Limit': String(_rlLimit), 'X-RateLimit-Remaining': String(_rlRemaining), 'X-RateLimit-Reset': String(_rlReset) }, hdrs || {}));
+    };
+    // Fire-and-forget api_usage_log write after response ends
+    res.on('finish', () => {
+      const _latency = Date.now() - (_reqStart || Date.now());
+      getSupabaseClient()?.from('api_usage_log').insert({
+        api_key_id: apiKeyRecord.id,
+        endpoint: v1Path || 'unknown',
+        method: req.method,
+        status_code: _capturedStatus,
+        latency_ms: _latency,
+        plan: apiKeyRecord.plan,
+        user_agent: (req.headers['user-agent'] || '').slice(0, 200)
+      }).then(() => {}).catch(() => {});
+    });
 
     // Monthly call cap check
     if (apiKeyRecord.calls_limit !== -1 && apiKeyRecord.calls_made >= apiKeyRecord.calls_limit) {
@@ -41367,6 +41396,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
     // Route the actual API call
     const v1Path = req.url.split('/api/v1/')[1]?.split('?')[0];
+    const _reqStart = Date.now(); // for latency tracking in api_usage_log
 
     // Track usage atomically for ALL valid v1 requests (before routing so all endpoints are counted)
     const _trackMonth = new Date().toISOString().slice(0,7);
@@ -41408,6 +41438,45 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         res.end(JSON.stringify({ vin, recalls: recallData.results || [], count: recallData.count || 0, source: 'NHTSA' }));
       } catch (e) {
         res.writeHead(500); res.end(JSON.stringify({ error: 'Recall lookup failed' }));
+      }
+      return;
+    }
+
+    // POST /api/v1/recalls/enrich — AI-enriched recall analysis (Pro+)
+    if (req.method === 'POST' && v1Path === 'recalls/enrich') {
+      if (apiKeyRecord.plan === 'starter') {
+        res.writeHead(402); res.end(JSON.stringify({ error: 'Recall enrichment requires AI Pro plan or higher' })); return;
+      }
+      try {
+        const body = await getRequestBody(req);
+        const { vin, make, model, year } = body;
+        if (!vin) { res.writeHead(400); res.end(JSON.stringify({ error: 'vin is required' })); return; }
+        const recallRes = await fetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?vin=${encodeURIComponent(vin)}`);
+        const recallData = recallRes.ok ? await recallRes.json() : { results: [] };
+        const rawRecalls = recallData.results || [];
+        if (!rawRecalls.length) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ vin, recalls: [], enriched: true, message: 'No open recalls found', powered_by: 'MCC AI API' }));
+          return;
+        }
+        const Anthropic = require('@anthropic-ai/sdk');
+        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+                const recallSummary = rawRecalls.slice(0, 5).map(r => 'ID: ' + r.NHTSACampaignNumber + ', Component: ' + r.Component + ', Summary: ' + (r.Summary || '').slice(0, 200)).join('; ');
+        const vehicleDesc = [year, make, model].filter(Boolean).join(' ') || `VIN ${vin}`;
+        const prompt = `You are an automotive safety expert. Enrich these NHTSA recall records for a ${vehicleDesc} with plain-English analysis. For each recall, provide: plain_description (1-2 sentences in plain English for a car owner), safety_severity (critical/high/medium/low), recommended_action, and estimated_repair_time. Return JSON: {"recalls":[{"campaign_number":"...","plain_description":"...","safety_severity":"high","recommended_action":"...","estimated_repair_time":"..."}]}
+
+Recalls:
+${recallSummary}`;
+        const aiRes = await anthropic.messages.create({ model: 'claude-3-haiku-20240307', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] });
+        const aiText = aiRes.content?.[0]?.text || '{}';
+        let enriched;
+        try { const m = aiText.match(/\{[\s\S]*\}/); enriched = JSON.parse(m ? m[0] : aiText); } catch { enriched = { recalls: [] }; }
+        const merged = rawRecalls.map((r, i) => ({ ...r, ...(enriched.recalls?.[i] || {}), campaign_number: r.NHTSACampaignNumber }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ vin, count: merged.length, recalls: merged, enriched: true, powered_by: 'MCC AI API' }));
+      } catch (e) {
+        console.error(`Recall enrichment error:`, e.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Recall enrichment failed' }));
       }
       return;
     }
