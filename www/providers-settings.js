@@ -1299,3 +1299,290 @@ async function saveProviderPushPreferences() {
 }
 
 console.log('providers-settings.js loaded');
+
+// ========== PROVIDER SHOP SAAS (Task #89) ==========
+
+async function loadShopSubscription() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const res = await fetch(`${apiBase}/api/saas/shop-status`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    const data = await res.json();
+
+    const planBadge = document.getElementById('shop-sub-plan');
+    const statusBadge = document.getElementById('shop-sub-status');
+    const seatBar = document.getElementById('shop-seat-bar');
+    const seatText = document.getElementById('shop-seat-text');
+    const featBadgeSms = document.getElementById('shop-feat-sms');
+    const featBadgeAnalytics = document.getElementById('shop-feat-analytics');
+    const featBadgeLoyalty = document.getElementById('shop-feat-loyalty');
+
+    if (planBadge) {
+      const labels = { solo: 'Solo – $49/mo', team: 'Team – $99/mo', shop: 'Shop – $199/mo', none: 'No Plan' };
+      planBadge.textContent = labels[data.plan] || 'No Plan';
+    }
+    if (statusBadge) {
+      statusBadge.textContent = data.status === 'active' ? 'Active' : (data.status === 'trial' ? 'Trial' : 'Inactive');
+      statusBadge.style.color = data.status === 'active' || data.status === 'trial' ? '#34d399' : '#f87171';
+    }
+
+    if (seatBar && data.seat_limit && data.seat_limit > 0) {
+      const pct = Math.min(100, Math.round((data.seat_count / data.seat_limit) * 100));
+      seatBar.style.width = pct + '%';
+      seatBar.style.background = pct >= 100 ? '#f87171' : '#c9a227';
+    }
+    if (seatText) {
+      if (data.plan === 'shop') {
+        seatText.textContent = `${data.seat_count} technicians (unlimited)`;
+      } else if (data.seat_limit > 0) {
+        seatText.textContent = `${data.seat_count} / ${data.seat_limit} technician seats used`;
+      } else {
+        seatText.textContent = 'Subscribe to add team members';
+      }
+    }
+
+    const access = data.feature_access || {};
+    if (featBadgeSms) { featBadgeSms.textContent = access.sms_reminders ? '✓ Active' : '— Upgrade to Team'; featBadgeSms.style.color = access.sms_reminders ? '#34d399' : '#f87171'; }
+    if (featBadgeAnalytics) { featBadgeAnalytics.textContent = access.advanced_analytics ? '✓ Active' : '— Upgrade to Team'; featBadgeAnalytics.style.color = access.advanced_analytics ? '#34d399' : '#f87171'; }
+    if (featBadgeLoyalty) { featBadgeLoyalty.textContent = access.car_club_loyalty ? '✓ Active' : '— Upgrade to Team'; featBadgeLoyalty.style.color = access.car_club_loyalty ? '#34d399' : '#f87171'; }
+
+    // Show upgrade prompt if on Solo or no plan
+    const upgradePrompt = document.getElementById('shop-upgrade-prompt');
+    if (upgradePrompt) {
+      upgradePrompt.style.display = (data.plan === 'none' || data.plan === 'solo') ? 'block' : 'none';
+    }
+
+    window._shopSaasData = data;
+  } catch (err) {
+    console.error('[ShopSaaS] Failed to load shop subscription:', err);
+  }
+}
+
+function openShopUpgradeModal() {
+  const plan = window._shopSaasData?.plan || 'none';
+  const modalHtml = `
+    <div id="shop-upgrade-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:#1a2029;border:1px solid rgba(201,162,39,0.3);border-radius:20px;max-width:580px;width:100%;padding:32px;max-height:90vh;overflow-y:auto;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+          <h3 style="font-family:'Playfair Display',serif;font-size:1.4rem;">Shop Subscription Plans</h3>
+          <button onclick="document.getElementById('shop-upgrade-modal').remove()" style="background:none;border:none;color:#6b7280;cursor:pointer;font-size:1.4rem;line-height:1;">&times;</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:24px;">
+          ${[
+            { key: 'solo', name: 'Solo', price: '$49', desc: '1 technician', color: '#6b7280' },
+            { key: 'team', name: 'Team', price: '$99', desc: 'Up to 5 techs', color: '#c9a227', popular: true },
+            { key: 'shop', name: 'Shop', price: '$199', desc: 'Unlimited techs', color: '#22d3ee' }
+          ].map(p => `
+            <div style="background:${p.popular ? 'rgba(201,162,39,0.12)' : 'rgba(30,38,48,0.8)'};border:1px solid ${p.popular ? 'rgba(201,162,39,0.4)' : 'rgba(160,168,184,0.15)'};border-radius:14px;padding:20px;text-align:center;">
+              ${p.popular ? '<div style="font-size:0.7rem;font-weight:700;color:#c9a227;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Most Popular</div>' : ''}
+              <div style="font-weight:700;font-size:1rem;margin-bottom:6px;">${p.name}</div>
+              <div style="font-size:1.6rem;font-weight:700;color:${p.color};margin-bottom:4px;">${p.price}<span style="font-size:0.8rem;color:#6b7280;font-weight:400;">/mo</span></div>
+              <div style="font-size:0.8rem;color:#a0a8b8;margin-bottom:16px;">${p.desc}</div>
+              ${plan === p.key ? '<div style="font-size:0.8rem;color:#34d399;font-weight:600;">✓ Current Plan</div>' : `<button onclick="selectShopPlan('${p.key}')" style="width:100%;padding:9px;background:${p.popular ? 'linear-gradient(135deg,#c9a227,#e8bc5a)' : 'transparent'};color:${p.popular ? '#12161c' : '#f5f5f7'};border:1px solid ${p.popular ? 'transparent' : 'rgba(160,168,184,0.3)'};border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">Select ${p.name}</button>`}
+            </div>
+          `).join('')}
+        </div>
+        <p style="font-size:0.82rem;color:#6b7280;text-align:center;">All plans include a 14-day free trial. Cancel anytime. Billed monthly.</p>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+async function selectShopPlan(planKey) {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const res = await fetch(`${apiBase}/api/saas/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ product_line: 'provider_shop', plan_tier: planKey })
+    });
+    const data = await res.json();
+    document.getElementById('shop-upgrade-modal')?.remove();
+    if (data.checkout_url) {
+      window.location.href = data.checkout_url;
+    } else if (data.success) {
+      if (typeof showToast === 'function') showToast(`Subscribed to Shop ${planKey.charAt(0).toUpperCase() + planKey.slice(1)} plan!`, 'success');
+      loadShopSubscription();
+    } else {
+      if (typeof showToast === 'function') showToast(data.error || 'Subscription failed', 'error');
+    }
+  } catch (err) {
+    console.error('[ShopPlan] Error:', err);
+  }
+}
+
+// Marketplace visibility toggle
+async function loadMarketplaceVisibility() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const res = await fetch(`${apiBase}/api/provider/marketplace-visibility`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    const data = await res.json();
+    const toggle = document.getElementById('marketplace-visible-toggle');
+    const shopOnlyToggle = document.getElementById('shop-only-mode-toggle');
+    const statusText = document.getElementById('marketplace-status-text');
+    if (toggle) toggle.checked = data.marketplace_visible !== false;
+    if (shopOnlyToggle) shopOnlyToggle.checked = data.shop_only_mode === true;
+    if (statusText) statusText.textContent = data.marketplace_visible !== false ? 'Visible in marketplace' : 'Hidden from marketplace';
+  } catch (err) {
+    console.error('[Marketplace Visibility] Load error:', err);
+  }
+}
+
+async function saveMarketplaceVisibility() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const toggle = document.getElementById('marketplace-visible-toggle');
+    const shopOnlyToggle = document.getElementById('shop-only-mode-toggle');
+    const statusText = document.getElementById('marketplace-status-text');
+    const visible = toggle ? toggle.checked : true;
+    const shopOnly = shopOnlyToggle ? shopOnlyToggle.checked : false;
+
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    await fetch(`${apiBase}/api/provider/marketplace-visibility`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ marketplace_visible: visible, shop_only_mode: shopOnly })
+    });
+    if (statusText) statusText.textContent = visible ? 'Visible in marketplace' : 'Hidden from marketplace';
+    if (typeof showToast === 'function') showToast('Marketplace visibility updated', 'success');
+  } catch (err) {
+    console.error('[Marketplace Visibility] Save error:', err);
+  }
+}
+
+// Walk-in customer kiosk lookup
+async function walkinLookupByPhone() {
+  const phoneInput = document.getElementById('walkin-phone-input');
+  const resultArea = document.getElementById('walkin-lookup-result');
+  if (!phoneInput || !resultArea) return;
+  const phone = phoneInput.value.trim();
+  if (!phone) return;
+
+  resultArea.innerHTML = '<span style="color:#6b7280;font-size:0.9rem;">Looking up…</span>';
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const res = await fetch(`${apiBase}/api/shop/walkin-lookup?phone=${encodeURIComponent(phone)}`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    const data = await res.json();
+
+    if (data.found && data.customer) {
+      const c = data.customer;
+      const vehicles = c.vehicles || [];
+      resultArea.innerHTML = `
+        <div style="background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.25);border-radius:12px;padding:16px;margin-top:12px;">
+          <div style="font-weight:600;font-size:1rem;margin-bottom:4px;">${c.name || 'Returning Customer'} <span style="font-size:0.78rem;font-weight:400;color:#6b7280;">· ${c.visit_count || 1} visit${c.visit_count !== 1 ? 's' : ''}</span></div>
+          ${c.email ? `<div style="font-size:0.85rem;color:#a0a8b8;">${c.email}</div>` : ''}
+          ${vehicles.length > 0 ? `<div style="font-size:0.85rem;color:#a0a8b8;margin-top:8px;">Vehicles: ${vehicles.slice(0,3).map(v => v.description).join(', ')}</div>` : ''}
+          <div style="margin-top:12px;display:flex;gap:8px;">
+            <button onclick="walkinAutoFill(${JSON.stringify(c).replace(/"/g, '&quot;')})" style="padding:7px 14px;background:linear-gradient(135deg,#c9a227,#e8bc5a);color:#12161c;border:none;border-radius:8px;cursor:pointer;font-size:0.83rem;font-weight:600;">Auto-Fill Check-In</button>
+          </div>
+        </div>`;
+    } else {
+      resultArea.innerHTML = '<div style="font-size:0.88rem;color:#6b7280;margin-top:8px;">New customer — no previous visits found.</div>';
+    }
+  } catch (err) {
+    resultArea.innerHTML = '<div style="font-size:0.88rem;color:#f87171;margin-top:8px;">Lookup failed. Please try again.</div>';
+  }
+}
+
+function walkinAutoFill(customer) {
+  const nameField = document.getElementById('walkin-name-field');
+  const vehicleField = document.getElementById('walkin-vehicle-field');
+  if (nameField && customer.name) nameField.value = customer.name;
+  if (vehicleField && customer.vehicles?.[0]) vehicleField.value = customer.vehicles[0].description;
+  if (typeof showToast === 'function') showToast('Customer details pre-filled', 'success');
+}
+
+async function saveWalkinCustomer(phone, name, vehicle, email) {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    await fetch(`${apiBase}/api/shop/walkin-save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ phone, name, vehicle, email })
+    });
+  } catch (err) {
+    console.error('[Walkin] Save error:', err);
+  }
+}
+
+// Shop onboarding checklist
+async function loadShopOnboardingChecklist() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const res = await fetch(`${apiBase}/api/shop/onboarding-status`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    const data = await res.json();
+    renderShopOnboardingChecklist(data.steps || {});
+  } catch (err) {
+    console.error('[Onboarding] Load error:', err);
+  }
+}
+
+function renderShopOnboardingChecklist(steps) {
+  const container = document.getElementById('shop-onboarding-checklist');
+  if (!container) return;
+
+  const items = [
+    { key: 'profile_complete', label: 'Complete your business profile', action: "document.getElementById('provider-nav-profile')?.click()", actionLabel: 'Go to Profile' },
+    { key: 'services_added', label: 'Add your services & pricing', action: "document.getElementById('provider-nav-profile')?.click()", actionLabel: 'Add Services' },
+    { key: 'bio_written', label: 'Write a shop bio', action: null, actionLabel: null },
+    { key: 'slug_set', label: 'Get your public shop URL', action: "document.getElementById('provider-nav-profile')?.click()", actionLabel: 'Set Slug' },
+    { key: 'subscription_active', label: 'Activate your shop subscription', action: 'openShopUpgradeModal()', actionLabel: 'View Plans' },
+    { key: 'rate_set', label: 'Set your hourly rate', action: "document.getElementById('provider-nav-profile')?.click()", actionLabel: 'Set Rate' }
+  ];
+
+  const completed = items.filter(i => steps[i.key]).length;
+  const total = items.length;
+  const pct = Math.round((completed / total) * 100);
+
+  container.innerHTML = `
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:0.85rem;font-weight:600;">Setup Progress</span>
+        <span style="font-size:0.82rem;color:#6b7280;">${completed}/${total} complete</span>
+      </div>
+      <div style="height:6px;background:rgba(160,168,184,0.15);border-radius:3px;">
+        <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#c9a227,#e8bc5a);border-radius:3px;transition:width 0.4s;"></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${items.map(item => `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:${steps[item.key] ? 'rgba(52,211,153,0.06)' : 'rgba(30,38,48,0.6)'};border:1px solid ${steps[item.key] ? 'rgba(52,211,153,0.2)' : 'rgba(160,168,184,0.12)'};border-radius:10px;">
+          <span style="font-size:1rem;flex-shrink:0;">${steps[item.key] ? '✅' : '⬜'}</span>
+          <span style="font-size:0.88rem;flex:1;color:${steps[item.key] ? '#a0a8b8' : '#f5f5f7'};${steps[item.key] ? 'text-decoration:line-through;' : ''}">${item.label}</span>
+          ${!steps[item.key] && item.action ? `<button onclick="${item.action}" style="padding:4px 10px;background:transparent;border:1px solid rgba(201,162,39,0.4);color:#c9a227;border-radius:6px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">${item.actionLabel}</button>` : ''}
+        </div>
+      `).join('')}
+    </div>
+    ${pct === 100 ? '<div style="margin-top:12px;padding:10px;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);border-radius:10px;text-align:center;font-size:0.88rem;color:#34d399;font-weight:600;">🎉 Setup complete! Your shop is ready.</div>' : ''}
+  `;
+
+  // Hide checklist entirely if dismissed
+  const wrapper = document.getElementById('shop-onboarding-card');
+  if (wrapper && pct === 100) {
+    setTimeout(() => { wrapper.style.display = 'none'; }, 3000);
+  }
+}
+
+console.log('providers-settings.js shop extensions loaded');
+// ========== END PROVIDER SHOP SAAS ==========

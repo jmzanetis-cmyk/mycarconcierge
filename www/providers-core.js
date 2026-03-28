@@ -289,6 +289,10 @@ async function initializeProviderDashboard(user) {
   
   if (typeof applyFilters === 'function') applyFilters();
   
+  // Task #89: Shop SaaS initial loads
+  if (typeof loadShopSubscription === 'function') loadShopSubscription();
+  if (typeof loadShopOnboardingChecklist === 'function') loadShopOnboardingChecklist();
+  
   setupRealtimeSubscriptions();
   initProviderPushNotifications();
 }
@@ -344,6 +348,15 @@ async function showSection(id) {
     if (typeof loadProviderPushPreferences === 'function') {
       loadProviderPushPreferences();
     }
+    if (typeof loadMarketplaceVisibility === 'function') {
+      loadMarketplaceVisibility();
+    }
+  }
+  if (id === 'subscription' && typeof loadShopSubscription === 'function') {
+    loadShopSubscription();
+  }
+  if (id === 'overview' && typeof loadShopOnboardingChecklist === 'function') {
+    loadShopOnboardingChecklist();
   }
 }
 

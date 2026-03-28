@@ -40581,6 +40581,402 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     return;
   }
 
+
+  // ========== PROVIDER SHOP SAAS (Task #89) ==========
+
+  // GET /api/shop/profile/:slug — public shop profile (no auth)
+  if (req.method === 'GET' && req.url?.match(/^\/api\/shop\/profile\/[^/]+$/)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const rateLimit = applyRateLimit(req, res, 'public');
+    if (!rateLimit.allowed) return;
+
+    const slug = decodeURIComponent(req.url.replace('/api/shop/profile/', '').split('?')[0]);
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      // Try to find by directory_slug
+      const { data: shop, error } = await supabase
+        .from('profiles')
+        .select('id, business_name, full_name, bio, description, city, state, address, phone, services, certifications, hourly_rate, years_in_business, directory_slug, rating, review_count, marketplace_visible, shop_only_mode, is_verified')
+        .eq('directory_slug', slug)
+        .in('role', ['provider', 'pending_provider'])
+        .single();
+
+      if (error || !shop) {
+        res.writeHead(404); res.end(JSON.stringify({ error: 'Shop not found' })); return;
+      }
+
+      // Fetch recent reviews
+      const { data: reviews } = await supabase
+        .from('reviews')
+        .select('id, rating, comment, created_at, member_name')
+        .eq('provider_id', shop.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ shop, reviews: reviews || [] }));
+    } catch (err) {
+      console.error('[Shop Profile]', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load shop profile' }));
+    }
+    return;
+  }
+
+  // POST /api/shop/book — public booking request (no auth required)
+  if (req.method === 'POST' && req.url === '/api/shop/book') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const rateLimit = applyRateLimit(req, res, 'public');
+    if (!rateLimit.allowed) return;
+
+    let body = {};
+    try {
+      body = await parseBody(req);
+    } catch { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid body' })); return; }
+
+    const { provider_id, slug, name, phone, vehicle, service, details, email, source } = body;
+    if (!name || !phone || !vehicle || !service) {
+      res.writeHead(400); res.end(JSON.stringify({ error: 'name, phone, vehicle, and service are required' })); return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      let resolvedProviderId = provider_id;
+      let resolvedSlug = slug;
+
+      if (!resolvedProviderId && slug) {
+        const { data: p } = await supabase.from('profiles').select('id').eq('directory_slug', slug).single();
+        if (p) resolvedProviderId = p.id;
+      } else if (resolvedProviderId && !resolvedSlug) {
+        const { data: p } = await supabase.from('profiles').select('directory_slug').eq('id', resolvedProviderId).single();
+        if (p) resolvedSlug = p.directory_slug;
+      }
+
+      const { error } = await supabase.from('shop_booking_requests').insert({
+        provider_id: resolvedProviderId || null,
+        provider_slug: resolvedSlug || null,
+        requester_name: name,
+        requester_phone: phone,
+        requester_email: email || null,
+        vehicle_description: vehicle,
+        service_type: service,
+        details: details || null,
+        source: source || 'profile',
+        status: 'pending'
+      });
+
+      if (error) {
+        // If table doesn't exist yet, return success gracefully
+        if (error.message?.includes('does not exist')) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, note: 'Migration pending' }));
+          return;
+        }
+        throw error;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error('[Shop Book]', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to submit booking request' }));
+    }
+    return;
+  }
+
+  // GET/POST /api/provider/marketplace-visibility — toggle marketplace visibility
+  if (req.url === '/api/provider/marketplace-visibility') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    if (req.method === 'GET') {
+      try {
+        const { data: p } = await supabase.from('profiles').select('marketplace_visible, shop_only_mode').eq('id', user.id).single();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ marketplace_visible: p?.marketplace_visible !== false, shop_only_mode: p?.shop_only_mode === true }));
+      } catch (err) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ marketplace_visible: true, shop_only_mode: false }));
+      }
+      return;
+    }
+
+    if (req.method === 'POST') {
+      let body = {};
+      try { body = await parseBody(req); } catch { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid body' })); return; }
+
+      try {
+        const updateData = {};
+        if (body.marketplace_visible !== undefined) updateData.marketplace_visible = !!body.marketplace_visible;
+        if (body.shop_only_mode !== undefined) updateData.shop_only_mode = !!body.shop_only_mode;
+        if (Object.keys(updateData).length === 0) { res.writeHead(400); res.end(JSON.stringify({ error: 'No fields to update' })); return; }
+
+        const { error } = await supabase.from('profiles').update(updateData).eq('id', user.id);
+        if (error && error.message?.includes('does not exist')) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, note: 'Migration pending' }));
+          return;
+        }
+        if (error) throw error;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        console.error('[Marketplace Visibility]', err.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update visibility' }));
+      }
+      return;
+    }
+  }
+
+  // GET /api/shop/walkin-lookup — look up a walk-in customer by phone (provider auth)
+  if (req.method === 'GET' && req.url?.startsWith('/api/shop/walkin-lookup')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    const urlObj = new URL(req.url, `http://${req.headers.host}`);
+    const phone = urlObj.searchParams.get('phone') || '';
+    if (!phone) { res.writeHead(400); res.end(JSON.stringify({ error: 'phone is required' })); return; }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      const normalizedPhone = phone.replace(/\D/g, '');
+      const { data, error } = await supabase
+        .from('walkin_customers')
+        .select('*')
+        .eq('provider_id', user.id)
+        .eq('phone', normalizedPhone)
+        .single();
+
+      if (error || !data) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ found: false }));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ found: true, customer: data }));
+    } catch (err) {
+      // Table may not exist yet
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ found: false }));
+    }
+    return;
+  }
+
+  // POST /api/shop/walkin-save — save or update a walk-in customer record (provider auth)
+  if (req.method === 'POST' && req.url === '/api/shop/walkin-save') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    let body = {};
+    try { body = await parseBody(req); } catch { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid body' })); return; }
+
+    const { phone, name, email, vehicle, notes } = body;
+    if (!phone) { res.writeHead(400); res.end(JSON.stringify({ error: 'phone is required' })); return; }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      const normalizedPhone = phone.replace(/\D/g, '');
+
+      // Fetch existing record
+      const { data: existing } = await supabase
+        .from('walkin_customers')
+        .select('*')
+        .eq('provider_id', user.id)
+        .eq('phone', normalizedPhone)
+        .single();
+
+      let vehicles = existing?.vehicles || [];
+      if (vehicle && !vehicles.find(v => v.description === vehicle)) {
+        vehicles = [{ description: vehicle, added_at: new Date().toISOString() }, ...vehicles].slice(0, 10);
+      }
+
+      const upsertData = {
+        provider_id: user.id,
+        phone: normalizedPhone,
+        name: name || existing?.name || null,
+        email: email || existing?.email || null,
+        vehicles,
+        visit_count: (existing?.visit_count || 0) + 1,
+        last_visit_at: new Date().toISOString(),
+        notes: notes || existing?.notes || null,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase.from('walkin_customers').upsert(upsertData, { onConflict: 'provider_id,phone' });
+      if (error && error.message?.includes('does not exist')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, note: 'Migration pending' }));
+        return;
+      }
+      if (error) throw error;
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error('[Walkin Save]', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save customer' }));
+    }
+    return;
+  }
+
+  // GET /api/saas/shop-status — shop subscription status for provider dashboard
+  if (req.method === 'GET' && req.url === '/api/saas/shop-status') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      // Check SAAS subscriptions table
+      const { data: sub } = await supabase
+        .from('saas_subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('product_line', 'provider_shop')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      // Count team members
+      const { data: team } = await supabase
+        .from('provider_team_members')
+        .select('id', { count: 'exact' })
+        .eq('provider_id', user.id)
+        .eq('status', 'active');
+
+      const teamCount = team?.length || 0;
+      const plan = sub?.plan_tier || 'none';
+
+      const planLimits = { solo: 1, team: 5, shop: Infinity, none: 0 };
+      const planPrices = { solo: 49, team: 99, shop: 199, none: 0 };
+      const seatLimit = planLimits[plan] ?? 0;
+      const planPrice = planPrices[plan] ?? 0;
+
+      const featureAccess = {
+        sms_reminders: ['team', 'shop'].includes(plan),
+        advanced_analytics: ['team', 'shop'].includes(plan),
+        car_club_loyalty: ['team', 'shop'].includes(plan),
+        white_label_widget: plan === 'shop',
+        api_access: plan === 'shop',
+        unlimited_seats: plan === 'shop'
+      };
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        plan,
+        status: sub?.status || 'none',
+        plan_price: planPrice,
+        seat_limit: seatLimit,
+        seat_count: teamCount,
+        seats_remaining: seatLimit === Infinity ? 999 : Math.max(0, seatLimit - teamCount),
+        trial_ends_at: sub?.trial_ends_at || null,
+        current_period_end: sub?.current_period_end || null,
+        feature_access: featureAccess
+      }));
+    } catch (err) {
+      console.error('[Shop SaaS Status]', err.message);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ plan: 'none', status: 'none', seat_limit: 0, seat_count: 0, feature_access: {} }));
+    }
+    return;
+  }
+
+  // GET /api/shop/onboarding-status — get/update shop onboarding checklist state
+  if (req.method === 'GET' && req.url === '/api/shop/onboarding-status') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('business_name, phone, bio, services, hourly_rate, directory_slug, shop_onboarding_steps')
+        .eq('id', user.id)
+        .single();
+
+      const steps = p?.shop_onboarding_steps || {};
+      const auto = {
+        profile_complete: !!(p?.business_name && p?.phone),
+        services_added: !!(p?.services && p?.services.length > 0),
+        slug_set: !!p?.directory_slug,
+        bio_written: !!p?.bio,
+        rate_set: !!p?.hourly_rate,
+        subscription_active: !!(steps.subscription_active)
+      };
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ steps: { ...steps, ...auto } }));
+    } catch (err) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ steps: {} }));
+    }
+    return;
+  }
+
+  // POST /api/shop/onboarding-status — mark a step as complete
+  if (req.method === 'POST' && req.url === '/api/shop/onboarding-status') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    let body = {};
+    try { body = await parseBody(req); } catch { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid body' })); return; }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      const { data: p } = await supabase.from('profiles').select('shop_onboarding_steps').eq('id', user.id).single();
+      const currentSteps = p?.shop_onboarding_steps || {};
+      const newSteps = { ...currentSteps, ...body.steps };
+
+      const { error } = await supabase.from('profiles').update({ shop_onboarding_steps: newSteps }).eq('id', user.id);
+      if (error && error.message?.includes('does not exist')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, note: 'Migration pending' }));
+        return;
+      }
+      if (error) throw error;
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error('[Onboarding Status]', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update onboarding' }));
+    }
+    return;
+  }
+
+  // ========== END PROVIDER SHOP SAAS (Task #89) ==========
+
   // ========== END FLEET SAAS ROUTES ==========
 
   // ========== DEVELOPER AI API (Task #90) ==========
@@ -40886,7 +41282,9 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     '/fleet': '/fleet-landing.html',
     '/fleet/driver': '/fleet-driver.html',
     '/fleet/join': '/fleet-join.html',
-    '/fleet/signup': '/fleet-signup.html'
+    '/fleet/signup': '/fleet-signup.html',
+    // Provider Shop SaaS clean URLs
+    '/for-shops': '/for-shops.html'
   };
   
   const urlPath = req.url.split('?')[0];
@@ -40905,6 +41303,11 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
   if (urlPath.startsWith('/p/') && urlPath.split('/p/')[1] && !urlPath.split('/p/')[1].includes('.html')) {
     filePath = './p.html';
+  }
+
+  // Serve shop profile for /shop/:slug
+  if (urlPath.startsWith('/shop/') && urlPath.split('/shop/')[1] && !urlPath.split('/shop/')[1].includes('.')) {
+    filePath = './shop.html';
   }
   
   // Serve rideshare calculator from www/rideshare folder

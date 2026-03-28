@@ -970,6 +970,23 @@
         <p class="page-subtitle" style="margin-top:4px;">Find jobs and grow your business.</p>
       </div>
       
+      <!-- Shop Onboarding Checklist (Task #89) -->
+      <div id="shop-onboarding-card" class="card" style="margin-bottom:24px;border:1px solid rgba(201,162,39,0.25);background:linear-gradient(145deg,rgba(201,162,39,0.06),rgba(26,32,42,0.9));">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.3rem;">🛠️</span>
+            <div>
+              <div style="font-weight:600;font-size:0.95rem;">Shop Setup Checklist</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">Complete these steps to get your shop fully running</div>
+            </div>
+          </div>
+          <button onclick="document.getElementById('shop-onboarding-card').style.display='none'" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;padding:4px;">&times;</button>
+        </div>
+        <div id="shop-onboarding-checklist">
+          <div style="color:var(--text-muted);font-size:0.88rem;">Loading checklist…</div>
+        </div>
+      </div>
+
       <!-- Bid Credits Info Card -->
       <div class="card" style="background:linear-gradient(135deg, var(--bg-card), var(--accent-gold-soft));border:1px solid var(--accent-gold);margin-bottom:24px;">
         <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
@@ -1810,35 +1827,50 @@
       </div>
 
       <!-- Provider Shop SaaS Subscription Card (Task #89) -->
-      <div id="shop-subscription-card" class="card" style="margin-bottom:24px;">
+      <div id="shop-subscription-card" class="card" style="margin-bottom:24px;border:1px solid rgba(201,162,39,0.2);background:linear-gradient(145deg,rgba(201,162,39,0.05),rgba(26,32,42,0.95));">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
           <div style="display:flex;align-items:center;gap:14px;">
-            <div style="width:44px;height:44px;background:var(--accent-teal-soft,#2CC4B422);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;">🏪</div>
+            <div style="width:44px;height:44px;background:rgba(201,162,39,0.15);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;">🏪</div>
             <div>
               <div style="font-weight:600;font-size:0.95rem;">Provider Shop Plan</div>
-              <div id="shop-sub-plan-label" style="font-size:0.82rem;color:var(--text-muted);">Loading subscription…</div>
+              <div id="shop-sub-plan" style="font-size:0.82rem;color:var(--text-muted);">Loading…</div>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
-            <span id="shop-sub-status-badge"></span>
+            <span id="shop-sub-status" style="font-size:0.82rem;font-weight:600;"></span>
             <button class="btn btn-sm btn-secondary" onclick="openShopUpgradeModal()">Manage Plan</button>
           </div>
         </div>
-        <div id="shop-gated-features" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border-subtle);display:none;">
-          <div style="font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em;">Plan Features</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <span id="shop-feature-sms" class="feature-badge locked" style="padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--border-subtle);color:var(--text-muted);">🔒 SMS Reminders</span>
-            <span id="shop-feature-analytics" class="feature-badge locked" style="padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--border-subtle);color:var(--text-muted);">🔒 Advanced Analytics</span>
-            <span id="shop-feature-loyalty" class="feature-badge locked" style="padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--border-subtle);color:var(--text-muted);">🔒 Car Club Loyalty</span>
+        <!-- Seat usage bar -->
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border-subtle);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:0.8rem;font-weight:600;color:var(--text-muted);">Team Seats</span>
+            <span id="shop-seat-text" style="font-size:0.8rem;color:var(--text-muted);">—</span>
           </div>
-          <div id="shop-upgrade-prompt" style="display:none;margin-top:12px;padding:12px 16px;background:var(--accent-gold-soft);border-radius:8px;border:1px solid var(--accent-gold);">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-              <div>
-                <div style="font-weight:600;color:var(--accent-gold);font-size:0.9rem;">Unlock Pro Features</div>
-                <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:2px;">SMS reminders, advanced analytics &amp; loyalty programs.</div>
-              </div>
-              <button class="btn btn-sm btn-primary" onclick="openShopUpgradeModal()">Upgrade to Pro →</button>
+          <div style="height:6px;background:rgba(160,168,184,0.15);border-radius:3px;">
+            <div id="shop-seat-bar" style="height:100%;width:0%;background:#c9a227;border-radius:3px;transition:width 0.4s;"></div>
+          </div>
+        </div>
+        <!-- Gated features -->
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;border:1px solid var(--border-subtle);font-size:0.78rem;font-weight:600;">
+            📱 SMS Reminders: <span id="shop-feat-sms" style="margin-left:4px;color:var(--text-muted);">—</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;border:1px solid var(--border-subtle);font-size:0.78rem;font-weight:600;">
+            📊 Analytics: <span id="shop-feat-analytics" style="margin-left:4px;color:var(--text-muted);">—</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;border:1px solid var(--border-subtle);font-size:0.78rem;font-weight:600;">
+            🎁 Car Club: <span id="shop-feat-loyalty" style="margin-left:4px;color:var(--text-muted);">—</span>
+          </div>
+        </div>
+        <!-- Upgrade prompt -->
+        <div id="shop-upgrade-prompt" style="display:none;margin-top:14px;padding:12px 16px;background:rgba(201,162,39,0.08);border-radius:10px;border:1px solid rgba(201,162,39,0.25);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:600;color:var(--accent-gold);font-size:0.9rem;">Unlock Pro Features</div>
+              <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:2px;">SMS reminders, advanced analytics &amp; Car Club loyalty programs.</div>
             </div>
+            <button class="btn btn-sm btn-primary" onclick="openShopUpgradeModal()">Upgrade to Team →</button>
           </div>
         </div>
       </div>
@@ -2959,6 +2991,65 @@
             <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
               <a id="preview-profile-link" href="#" target="_blank" style="font-size:0.85rem;color:var(--accent-gold);text-decoration:none;">Preview your profile &rarr;</a>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Marketplace Visibility Toggle (Task #89) -->
+      <div class="card" style="margin-top:24px;border:1px solid rgba(34,211,238,0.2);">
+        <div class="card-header">
+          <h2 class="card-title"><span style="margin-right:8px;">🌐</span>Marketplace Visibility</h2>
+        </div>
+        <div style="padding:4px 0;">
+          <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">
+            Control whether your shop appears in member searches and receives bid requests. You can use MCC as a shop-management tool only, without marketplace exposure.
+          </p>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:14px 16px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <div>
+                <div style="font-weight:600;font-size:0.93rem;">Visible in Marketplace</div>
+                <div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">Appear in member searches and receive bid requests</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span id="marketplace-status-text" style="font-size:0.82rem;color:var(--text-muted);">Loading…</span>
+                <input type="checkbox" id="marketplace-visible-toggle" style="width:20px;height:20px;accent-color:var(--accent-gold);cursor:pointer;" onchange="saveMarketplaceVisibility()">
+              </div>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:14px 16px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <div>
+                <div style="font-weight:600;font-size:0.93rem;">Shop-Only Mode</div>
+                <div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">Use MCC purely for shop management — no marketplace exposure</div>
+              </div>
+              <input type="checkbox" id="shop-only-mode-toggle" style="width:20px;height:20px;accent-color:var(--accent-gold);cursor:pointer;" onchange="saveMarketplaceVisibility()">
+            </label>
+          </div>
+          <div style="margin-top:12px;padding:10px 14px;background:rgba(34,211,238,0.06);border:1px solid rgba(34,211,238,0.15);border-radius:8px;">
+            <p style="font-size:0.82rem;color:var(--text-muted);margin:0;">💡 You can switch between modes anytime. Marketplace visibility changes take effect immediately.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Walk-In Customer Kiosk Lookup (Task #89) -->
+      <div class="card" style="margin-top:24px;">
+        <div class="card-header">
+          <h2 class="card-title"><span style="margin-right:8px;">📋</span>Walk-In Customer Kiosk</h2>
+        </div>
+        <div style="padding:4px 0;">
+          <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">
+            Look up a returning customer by phone number for fast check-in. Previous vehicles and visit history are pre-filled automatically.
+          </p>
+          <div style="display:flex;gap:10px;margin-bottom:8px;">
+            <input type="tel" id="walkin-phone-input" class="form-input" placeholder="Enter phone number…" style="flex:1;" onkeydown="if(event.key==='Enter')walkinLookupByPhone()">
+            <button class="btn btn-primary" onclick="walkinLookupByPhone()" style="white-space:nowrap;">Look Up</button>
+          </div>
+          <div id="walkin-lookup-result"></div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle);">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;color:var(--text-muted);">Save New Walk-In Visit</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+              <input type="text" id="walkin-name-field" class="form-input" placeholder="Customer name" />
+              <input type="text" id="walkin-vehicle-field" class="form-input" placeholder="Vehicle (e.g. 2019 Toyota)" />
+            </div>
+            <button class="btn btn-secondary" style="width:100%;" onclick="(async()=>{const ph=document.getElementById('walkin-phone-input').value.trim();const nm=document.getElementById('walkin-name-field').value.trim();const vh=document.getElementById('walkin-vehicle-field').value.trim();if(!ph)return;await saveWalkinCustomer(ph,nm,vh,'');if(typeof showToast==='function')showToast('Customer visit saved','success');})()">Save Visit Record</button>
           </div>
         </div>
       </div>
