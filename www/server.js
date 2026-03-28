@@ -41935,7 +41935,8 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       const minValue = parseFloat(qs.get('min_value') || '0');
       const sort = qs.get('sort') || 'newest';
       const tab = qs.get('tab') || 'all';
-      const searchQ = (qs.get('q') || '').trim();
+      // Strip PostgREST filter-expression delimiters to prevent query injection via .or() interpolation
+      const searchQ = (qs.get('q') || '').trim().slice(0, 100).replace(/[(),\\]/g, '');
       const from = (page - 1) * pageSize;
       // Unverified providers receive a stripped-down payload with no PII/contact info
       // NOTE: care_plans.member_id FK is to auth.users, NOT profiles. PostgREST cannot

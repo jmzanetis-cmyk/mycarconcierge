@@ -614,8 +614,9 @@ async function loadPlans(reset = false) {
     const resp = await fetch(`${API}/api/job-board?${params}`, { headers: { 'Authorization': `Bearer ${session.access_token}` } });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Failed');
-    if (reset) plans = data.plans || [];
-    else plans = [...plans, ...(data.plans || [])];
+    const newItems = data.plans || [];
+    if (reset) plans = newItems;
+    else plans = [...plans, ...newItems];
     totalPlans = data.total || 0;
     window.providerVerified = data.provider_verified !== false;
     window.providerAutoBidEnabled = data.auto_bid_enabled === true;
@@ -624,7 +625,7 @@ async function loadPlans(reset = false) {
     if (banner) banner.style.display = window.providerVerified ? 'none' : 'block';
     // Apply server-side authoritative counts for all tabs at once
     applyServerTabCounts(data.tab_counts);
-    renderPlanList(reset);
+    renderPlanList(reset, newItems.length);
     updateBadges();
   } catch (err) {
     if (reset) document.getElementById('job-list').innerHTML = `<div class="loading-state" style="color:var(--accent-red)">Failed to load plans. ${err.message}</div>`;
@@ -671,7 +672,7 @@ function updateBadges() {
 }
 
 // ===== RENDER CARD LIST =====
-function renderPlanList(reset = true) {
+function renderPlanList(reset = true, newCount = PAGE_SIZE) {
   const list = document.getElementById('job-list');
   if (!plans.length) {
     list.innerHTML = `<div class="loading-state"><div style="font-size:2.5rem;margin-bottom:10px">📭</div><p>No care plans found.</p><p style="font-size:0.8rem;margin-top:4px;color:var(--text-muted)">Try adjusting your filters.</p></div>`;
@@ -680,13 +681,13 @@ function renderPlanList(reset = true) {
   if (reset) {
     list.innerHTML = plans.map(p => renderPlanCard(p)).join('');
   } else {
-    // Append new page of cards without clobbering existing ones
-    const newCards = plans.slice(-PAGE_SIZE).map(p => renderPlanCard(p)).join('');
+    // Append only the exact newly fetched cards — slice by actual count to avoid duplicates on short pages
+    const newCards = plans.slice(-newCount).map(p => renderPlanCard(p)).join('');
     list.insertAdjacentHTML('beforeend', newCards);
   }
   startCountdowns();
   // Fetch primary photos for new cards in the background
-  plans.slice(reset ? 0 : -PAGE_SIZE).forEach(p => {
+  plans.slice(reset ? 0 : -newCount).forEach(p => {
     if (p.vehicles?.id && !planPhotos[p.vehicles.id]) prefetchCardPhoto(p);
   });
 }
