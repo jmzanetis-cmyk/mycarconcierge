@@ -42169,7 +42169,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
             return;
           }
         }
-        await supabase.from('survey_responses').insert({
+        const { error: insertErr } = await supabase.from('survey_responses').insert({
           user_id: userId,
           source,
           pain_point,
@@ -42178,6 +42178,12 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
           raw: body,
           ip_hash: ipHash
         });
+        // Graceful fallback for pre-migration state (table not yet created)
+        if (insertErr && (insertErr.code === '42P01' || insertErr.message?.includes('does not exist'))) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, fallback: true }));
+          return;
+        }
         if (userId) {
           // Merge survey:true into existing checklist instead of overwriting
           const { data: existingOnboarding } = await supabase.from('member_onboarding').select('checklist').eq('user_id', userId).maybeSingle();
