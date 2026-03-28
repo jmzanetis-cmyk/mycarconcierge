@@ -3050,11 +3050,12 @@
         </div>
         <div style="padding:4px 0;">
           <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">
-            Look up a returning customer by phone number for fast check-in. Previous vehicles and visit history are pre-filled automatically.
+            Look up a returning customer by phone number or name for fast check-in. Previous vehicles and visit history are pre-filled automatically.
           </p>
           <div style="display:flex;gap:10px;margin-bottom:8px;">
-            <input type="tel" id="walkin-phone-input" class="form-input" placeholder="Enter phone number…" style="flex:1;" onkeydown="if(event.key==='Enter')walkinLookupByPhone()">
-            <button class="btn btn-primary" onclick="walkinLookupByPhone()" style="white-space:nowrap;">Look Up</button>
+            <input type="tel" id="walkin-phone-input" class="form-input" placeholder="Phone number…" style="flex:1;" onkeydown="if(event.key==='Enter')walkinLookupByPhone()">
+            <input type="text" id="walkin-name-search-input" class="form-input" placeholder="Or search by name…" style="flex:1;" onkeydown="if(event.key==='Enter')walkinLookupByName()">
+            <button class="btn btn-primary" onclick="document.getElementById('walkin-phone-input').value?walkinLookupByPhone():walkinLookupByName()" style="white-space:nowrap;">Look Up</button>
           </div>
           <div id="walkin-lookup-result"></div>
           <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle);">

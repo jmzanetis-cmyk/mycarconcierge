@@ -1,6 +1,12 @@
 // ========== PROVIDERS SETTINGS MODULE ==========
 // Profile, team management, verification, notifications, referrals
 
+// XSS-safe HTML escape helper
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 // ========== PROFILE MANAGEMENT ==========
 async function saveProviderProfile() {
   const fields = {
@@ -1507,20 +1513,67 @@ async function walkinLookupByPhone() {
     });
     const data = await res.json();
 
-    if (data.found && data.customer) {
-      const c = data.customer;
+    const renderCustomerCard = (c) => {
       const vehicles = c.vehicles || [];
-      resultArea.innerHTML = `
-        <div style="background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.25);border-radius:12px;padding:16px;margin-top:12px;">
-          <div style="font-weight:600;font-size:1rem;margin-bottom:4px;">${c.name || 'Returning Customer'} <span style="font-size:0.78rem;font-weight:400;color:#6b7280;">· ${c.visit_count || 1} visit${c.visit_count !== 1 ? 's' : ''}</span></div>
-          ${c.email ? `<div style="font-size:0.85rem;color:#a0a8b8;">${c.email}</div>` : ''}
-          ${vehicles.length > 0 ? `<div style="font-size:0.85rem;color:#a0a8b8;margin-top:8px;">Vehicles: ${vehicles.slice(0,3).map(v => v.description).join(', ')}</div>` : ''}
-          <div style="margin-top:12px;display:flex;gap:8px;">
-            <button onclick="walkinAutoFill(${JSON.stringify(c).replace(/"/g, '&quot;')})" style="padding:7px 14px;background:linear-gradient(135deg,#c9a227,#e8bc5a);color:#12161c;border:none;border-radius:8px;cursor:pointer;font-size:0.83rem;font-weight:600;">Auto-Fill Check-In</button>
-          </div>
-        </div>`;
+      return `<div style="background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.25);border-radius:12px;padding:16px;margin-top:12px;">
+        <div style="font-weight:600;font-size:1rem;margin-bottom:4px;">${escHtml(c.name || 'Returning Customer')} <span style="font-size:0.78rem;font-weight:400;color:#6b7280;">· ${Number(c.visit_count || 1)} visit${c.visit_count !== 1 ? 's' : ''}</span></div>
+        ${c.email ? `<div style="font-size:0.85rem;color:#a0a8b8;">${escHtml(c.email)}</div>` : ''}
+        ${vehicles.length > 0 ? `<div style="font-size:0.85rem;color:#a0a8b8;margin-top:8px;">Vehicles: ${vehicles.slice(0,3).map(v => escHtml(v.description)).join(', ')}</div>` : ''}
+        <div style="margin-top:12px;display:flex;gap:8px;">
+          <button onclick="walkinAutoFill(${JSON.stringify(c).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026')})" style="padding:7px 14px;background:linear-gradient(135deg,#c9a227,#e8bc5a);color:#12161c;border:none;border-radius:8px;cursor:pointer;font-size:0.83rem;font-weight:600;">Auto-Fill Check-In</button>
+        </div>
+      </div>`;
+    };
+
+    if (data.found && data.customer) {
+      if (data.results && data.results.length > 1) {
+        resultArea.innerHTML = data.results.map(renderCustomerCard).join('');
+      } else {
+        resultArea.innerHTML = renderCustomerCard(data.customer);
+      }
     } else {
       resultArea.innerHTML = '<div style="font-size:0.88rem;color:#6b7280;margin-top:8px;">New customer — no previous visits found.</div>';
+    }
+  } catch (err) {
+    resultArea.innerHTML = '<div style="font-size:0.88rem;color:#f87171;margin-top:8px;">Lookup failed. Please try again.</div>';
+  }
+}
+
+async function walkinLookupByName() {
+  const nameInput = document.getElementById('walkin-name-search-input');
+  const resultArea = document.getElementById('walkin-lookup-result');
+  if (!nameInput || !resultArea) return;
+  const name = nameInput.value.trim();
+  if (!name) return;
+
+  resultArea.innerHTML = '<span style="color:#6b7280;font-size:0.9rem;">Looking up…</span>';
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const res = await fetch(`${apiBase}/api/shop/walkin-lookup?name=${encodeURIComponent(name)}`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    const data = await res.json();
+
+    const renderCustomerCard = (c) => {
+      const vehicles = c.vehicles || [];
+      return `<div style="background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.25);border-radius:12px;padding:16px;margin-top:12px;">
+        <div style="font-weight:600;font-size:1rem;margin-bottom:4px;">${escHtml(c.name || 'Returning Customer')} <span style="font-size:0.78rem;font-weight:400;color:#6b7280;">· ${Number(c.visit_count || 1)} visit${c.visit_count !== 1 ? 's' : ''}</span></div>
+        ${c.phone ? `<div style="font-size:0.85rem;color:#a0a8b8;">${escHtml(c.phone)}</div>` : ''}
+        ${vehicles.length > 0 ? `<div style="font-size:0.85rem;color:#a0a8b8;margin-top:8px;">Vehicles: ${vehicles.slice(0,3).map(v => escHtml(v.description)).join(', ')}</div>` : ''}
+        <div style="margin-top:12px;display:flex;gap:8px;">
+          <button onclick="walkinAutoFill(${JSON.stringify(c).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026')})" style="padding:7px 14px;background:linear-gradient(135deg,#c9a227,#e8bc5a);color:#12161c;border:none;border-radius:8px;cursor:pointer;font-size:0.83rem;font-weight:600;">Auto-Fill Check-In</button>
+        </div>
+      </div>`;
+    };
+
+    if (data.found && (data.results?.length || data.customer)) {
+      const customers = data.results || [data.customer];
+      resultArea.innerHTML = customers.map(renderCustomerCard).join('');
+    } else {
+      resultArea.innerHTML = '<div style="font-size:0.88rem;color:#6b7280;margin-top:8px;">No customers found with that name.</div>';
     }
   } catch (err) {
     resultArea.innerHTML = '<div style="font-size:0.88rem;color:#f87171;margin-top:8px;">Lookup failed. Please try again.</div>';

@@ -19867,6 +19867,14 @@ async function handleSendTeamInvitation(req, res, requestId, providerId) {
         return;
       }
 
+      // Mirror into team_invites so the existing provider dashboard UI can display/manage the invite
+      await supabase.from('team_invites').insert({
+        provider_id: providerId,
+        email: email.toLowerCase(),
+        role,
+        status: 'pending'
+      }).catch(() => {});
+
       const { data: provider } = await supabase
         .from('profiles')
         .select('business_name, full_name')
@@ -40641,7 +40649,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       // Try to find by directory_slug
       const { data: shop, error } = await supabase
         .from('profiles')
-        .select('id, business_name, full_name, bio, description, city, state, address, phone, services, certifications, hourly_rate, years_in_business, directory_slug, rating, review_count, marketplace_visible, shop_only_mode, is_verified, business_hours')
+        .select('id, business_name, full_name, bio, description, city, state, address, phone, services, certifications, hourly_rate, years_in_business, directory_slug, rating, review_count, marketplace_visible, shop_only_mode, is_verified, business_hours, avatar_url')
         .eq('directory_slug', slug)
         .in('role', ['provider', 'pending_provider'])
         .single();
@@ -40807,28 +40815,47 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
     const urlObj = new URL(req.url, `http://${req.headers.host}`);
     const phone = urlObj.searchParams.get('phone') || '';
-    if (!phone) { res.writeHead(400); res.end(JSON.stringify({ error: 'phone is required' })); return; }
+    const name = urlObj.searchParams.get('name') || '';
+    if (!phone && !name) { res.writeHead(400); res.end(JSON.stringify({ error: 'phone or name is required' })); return; }
 
     const supabase = getSupabaseClient();
     if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
 
     try {
-      const normalizedPhone = phone.replace(/\D/g, '');
-      const { data, error } = await supabase
-        .from('walkin_customers')
-        .select('*')
-        .eq('provider_id', user.id)
-        .eq('phone', normalizedPhone)
-        .single();
+      if (phone) {
+        // Phone lookup: exact match (primary lookup method)
+        const normalizedPhone = phone.replace(/\D/g, '');
+        const { data, error } = await supabase
+          .from('walkin_customers')
+          .select('*')
+          .eq('provider_id', user.id)
+          .eq('phone', normalizedPhone)
+          .single();
 
-      if (error || !data) {
+        if (error || !data) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ found: false }));
+          return;
+        }
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ found: false }));
-        return;
-      }
+        res.end(JSON.stringify({ found: true, customer: data }));
+      } else {
+        // Name lookup: partial match, returns multiple results
+        const { data, error } = await supabase
+          .from('walkin_customers')
+          .select('*')
+          .eq('provider_id', user.id)
+          .ilike('name', `%${name}%`)
+          .limit(5);
 
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ found: true, customer: data }));
+        if (error || !data || data.length === 0) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ found: false, results: [] }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ found: true, results: data, customer: data[0] }));
+      }
     } catch (err) {
       // Table may not exist yet
       res.writeHead(200, { 'Content-Type': 'application/json' });
