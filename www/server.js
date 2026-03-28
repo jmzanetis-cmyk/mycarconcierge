@@ -6100,6 +6100,53 @@ async function handleSaasSubscriptionWebhook(event, supabase, requestId) {
       console.warn(`[${requestId}] Fleet lifecycle email failed (non-critical):`, emailErr.message);
     }
   }
+
+  // Send shop-specific subscription lifecycle emails
+  if (planInfo.product === 'shop') {
+    try {
+      const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', userId).maybeSingle();
+      const userEmail = profile?.email;
+      const userName = profile?.full_name || 'Shop Owner';
+      const shopPlanLabels = { starter: 'Solo', pro: 'Team', business: 'Shop' };
+      const planLabel = shopPlanLabels[planInfo.plan] || planInfo.plan;
+      if (userEmail && resend) {
+        let emailSubject = '';
+        let emailHtml = '';
+        const renewalDate = upsertData.current_period_end
+          ? new Date(upsertData.current_period_end).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : null;
+        const trialEndDate = upsertData.trial_end
+          ? new Date(upsertData.trial_end).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : null;
+
+        if (event.type === 'customer.subscription.created' && upsertData.status === 'trialing') {
+          emailSubject = `Your My Car Concierge ${planLabel} Shop plan trial has started`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>${planLabel}</strong> shop plan 14-day free trial is now active. You can set up your public profile, accept online bookings, and manage walk-in customers during the trial period.</p>${trialEndDate ? `<p>Your trial ends on <strong>${trialEndDate}</strong>. No charges until then.</p>` : ''}<p><a href="https://mycarconcierge.com/providers.html" style="background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Set Up Your Shop</a></p><p>— My Car Concierge Team</p>`;
+        } else if (event.type === 'customer.subscription.trial_will_end') {
+          emailSubject = `Your ${planLabel} shop trial ends in 3 days — no action needed`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>${planLabel}</strong> shop plan trial is ending${trialEndDate ? ` on <strong>${trialEndDate}</strong>` : ' soon'}. Your subscription will automatically continue — no action required.</p><p>Questions? Reply to this email or visit your <a href="https://mycarconcierge.com/providers.html">Provider Dashboard</a>.</p><p>— My Car Concierge Team</p>`;
+        } else if (event.type === 'customer.subscription.updated' && upsertData.status === 'active' && sub.status !== 'trialing') {
+          emailSubject = `Your ${planLabel} shop plan is now active`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>${planLabel}</strong> shop plan is active.${renewalDate ? ` Your next billing date is <strong>${renewalDate}</strong>.` : ''}</p><p><a href="https://mycarconcierge.com/providers.html" style="background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Manage Shop</a></p><p>— My Car Concierge Team</p>`;
+        } else if (event.type === 'customer.subscription.deleted' || upsertData.status === 'canceled') {
+          emailSubject = `Your Shop plan subscription has been canceled`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>${planLabel}</strong> shop plan subscription has been canceled. You can reactivate at any time from your <a href="https://mycarconcierge.com/providers.html">Provider Dashboard</a>.</p><p>— My Car Concierge Team</p>`;
+        }
+
+        if (emailSubject && emailHtml) {
+          await resend.emails.send({
+            from: 'My Car Concierge <noreply@mycarconcierge.com>',
+            to: userEmail,
+            subject: emailSubject,
+            html: emailHtml
+          });
+          console.log(`[${requestId}] Shop lifecycle email sent to ${userEmail}: ${emailSubject}`);
+        }
+      }
+    } catch (emailErr) {
+      console.warn(`[${requestId}] Shop lifecycle email failed (non-critical):`, emailErr.message);
+    }
+  }
 }
 
 async function getStripeClient() {
@@ -40658,16 +40705,33 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         res.writeHead(404); res.end(JSON.stringify({ error: 'Shop not found' })); return;
       }
 
-      // Fetch recent reviews
+      // Fetch recent reviews (member_id → profiles join for reviewer name)
       const { data: reviews } = await supabase
         .from('reviews')
-        .select('id, rating, comment, created_at, member_name')
+        .select('id, rating, comment, created_at, member_id')
         .eq('provider_id', shop.id)
         .order('created_at', { ascending: false })
         .limit(10);
 
+      let reviewList = reviews || [];
+      if (reviewList.length > 0) {
+        const memberIds = [...new Set(reviewList.map(r => r.member_id).filter(Boolean))];
+        if (memberIds.length > 0) {
+          const { data: reviewerProfiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', memberIds);
+          const reviewerMap = {};
+          (reviewerProfiles || []).forEach(p => { reviewerMap[p.id] = p.full_name; });
+          reviewList = reviewList.map(r => ({
+            ...r,
+            member_name: reviewerMap[r.member_id] || 'Community Member'
+          }));
+        }
+      }
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ shop, reviews: reviews || [] }));
+      res.end(JSON.stringify({ shop, reviews: reviewList }));
     } catch (err) {
       console.error('[Shop Profile]', err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load shop profile' }));
@@ -40705,6 +40769,13 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       } else if (resolvedProviderId && !resolvedSlug) {
         const { data: p } = await supabase.from('profiles').select('directory_slug').eq('id', resolvedProviderId).single();
         if (p) resolvedSlug = p.directory_slug;
+      }
+
+      // Require a resolvable provider — prevents orphan booking rows
+      if (!resolvedProviderId) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: 'Provider not found for the given slug or id' }));
+        return;
       }
 
       // Insert into shop_booking_requests (walk-in / widget log)
