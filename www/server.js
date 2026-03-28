@@ -41966,11 +41966,12 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     if (!(await surveyAdminAuth(req, res, supabase))) return;
     try {
       const urlObj = new URL(req.url, 'http://localhost');
-      const page   = Math.max(1, parseInt(urlObj.searchParams.get('page')  || '1', 10));
-      const limit  = Math.min(50, Math.max(1, parseInt(urlObj.searchParams.get('limit') || '25', 10)));
-      const search = (urlObj.searchParams.get('search') || '').trim().slice(0, 100);
-      const filter = urlObj.searchParams.get('filter') || 'all'; // 'all' | 'interested' | 'not_interested'
-      const offset = (page - 1) * limit;
+      const page    = Math.max(1, parseInt(urlObj.searchParams.get('page')     || '1', 10));
+      const limit   = Math.min(50, Math.max(1, parseInt(urlObj.searchParams.get('limit')   || '25', 10)));
+      const search  = (urlObj.searchParams.get('search')   || '').trim().slice(0, 100);
+      const filter  = urlObj.searchParams.get('filter')   || 'all'; // 'all' | 'interested' | 'not_interested'
+      const sortDir = urlObj.searchParams.get('sort_dir') === 'asc';
+      const offset  = (page - 1) * limit;
 
       // Query survey_responses as base — DB-level filter so pagination is accurate
       // LEFT JOIN customer_profiles (via survey_response_id FK) and nested job_listings
@@ -41980,7 +41981,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
           { count: 'exact' }
         )
         .not('interested', 'is', null)  // must have been through survey
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: sortDir })
         .range(offset, offset + limit - 1);
 
       // DB-level interest filter

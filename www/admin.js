@@ -11251,12 +11251,14 @@
       suspension: 'Suspension', snow_removal: 'Snow Removal', other: 'Other'
     };
 
-    let surveyLeadsState = { page: 1, limit: 25, total: 0, totalPages: 0 };
+    let surveyLeadsState = { page: 1, limit: 25, total: 0, totalPages: 0, sortDir: 'desc' };
     let surveyNiState    = { page: 1, limit: 50, total: 0, totalPages: 0 };
     let surveyTrendData  = null;
     let surveyTrendChart = null;
     let surveyTrendView  = 'daily';
     let surveySearchTimer = null;
+    // Cache leads rows so onclick can reference by index (avoids unsafe inline JSON)
+    let _surveyLeadsCache = [];
 
     async function loadSurveyAnalytics() {
       try {
@@ -11396,7 +11398,8 @@
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       const search  = (document.getElementById('sl-search')?.value || '').trim();
       const filter  = document.getElementById('sl-filter')?.value || 'all';
-      const params  = new URLSearchParams({ page, limit: surveyLeadsState.limit, search, filter });
+      const sortDir = surveyLeadsState.sortDir || 'desc';
+      const params  = new URLSearchParams({ page, limit: surveyLeadsState.limit, search, filter, sort_dir: sortDir });
       const tbody   = document.getElementById('sl-table-body');
       if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Loading…</td></tr>';
       try {
@@ -11406,13 +11409,19 @@
         surveyLeadsState.page       = page;
         surveyLeadsState.total      = data.total || 0;
         surveyLeadsState.totalPages = Math.max(1, Math.ceil((data.total || 0) / surveyLeadsState.limit));
+        _surveyLeadsCache = data.leads || [];
+
+        // Update sort button labels
+        const sortBtn = document.getElementById('sl-sort-date-btn');
+        if (sortBtn) sortBtn.textContent = sortDir === 'desc' ? '📅 Newest First' : '📅 Oldest First';
 
         if (tbody) {
-          const leads = data.leads || [];
+          const leads = _surveyLeadsCache;
           if (!leads.length) {
             tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">No leads found.</td></tr>';
           } else {
-            tbody.innerHTML = leads.map(lead => {
+            // Use data-idx to avoid unsafe inline JSON in onclick
+            tbody.innerHTML = leads.map((lead, idx) => {
               const badge = lead.interested === true
                 ? '<span class="badge badge-green">✅ Yes</span>'
                 : lead.interested === false
@@ -11421,9 +11430,9 @@
               const topFeature = lead.top_feature ? (SURVEY_FEATURE_NAMES[lead.top_feature] || lead.top_feature) : '—';
               const service    = lead.job_service  ? (SURVEY_SERVICE_NAMES[lead.job_service]  || lead.job_service)  : '—';
               const date       = lead.created_at   ? new Date(lead.created_at).toLocaleDateString() : '—';
-              return `<tr style="cursor:pointer;" onclick="openSurveyLeadDetail(${JSON.stringify(JSON.stringify(lead))})">
+              return `<tr class="sl-lead-row" data-idx="${idx}" style="cursor:pointer;">
                 <td><span style="font-weight:500;">${escapeHtml(lead.name || '—')}</span></td>
-                <td><a href="mailto:${escapeHtml(lead.email||'')}" onclick="event.stopPropagation();" style="color:var(--accent-blue);">${escapeHtml(lead.email||'—')}</a></td>
+                <td><a href="mailto:${escapeHtml(lead.email||'')}" class="sl-email-link" style="color:var(--accent-blue);">${escapeHtml(lead.email||'—')}</a></td>
                 <td>${escapeHtml(lead.zip||'—')}</td>
                 <td style="font-size:0.83rem;">${escapeHtml(lead.vehicle||'—')}</td>
                 <td>${badge}</td>
@@ -11432,6 +11441,13 @@
                 <td style="font-size:0.83rem;color:var(--text-muted);">${date}</td>
               </tr>`;
             }).join('');
+            // Attach click events via delegation (safe — no inline JSON)
+            tbody.querySelectorAll('.sl-lead-row').forEach(row => {
+              row.addEventListener('click', e => {
+                if (e.target.classList.contains('sl-email-link')) return;
+                openSurveyLeadDetail(_surveyLeadsCache[parseInt(row.dataset.idx, 10)]);
+              });
+            });
           }
         }
 
@@ -11444,8 +11460,14 @@
     }
     window.loadSurveyLeads = loadSurveyLeads;
 
-    function openSurveyLeadDetail(leadJson) {
-      const lead = typeof leadJson === 'string' ? JSON.parse(leadJson) : leadJson;
+    function toggleSurveyDateSort() {
+      surveyLeadsState.sortDir = surveyLeadsState.sortDir === 'desc' ? 'asc' : 'desc';
+      loadSurveyLeads(1);
+    }
+    window.toggleSurveyDateSort = toggleSurveyDateSort;
+
+    function openSurveyLeadDetail(lead) {
+      if (!lead) return;
       const modal = document.getElementById('sl-detail-modal');
       const body  = document.getElementById('sl-detail-body');
       if (!modal || !body) return;
