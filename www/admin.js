@@ -11138,12 +11138,19 @@
         const canvas = document.getElementById('api-endpoint-chart');
         if (canvas && data.by_endpoint) {
           const labels = Object.keys(data.by_endpoint);
-          const values = Object.values(data.by_endpoint);
+          const callValues = Object.values(data.by_endpoint);
+          // Estimated revenue: avg blended rate per call
+          const totalCalls = callValues.reduce((a, b) => a + b, 0);
+          const revenuePerCall = totalCalls > 0 ? (data.estimated_revenue_cents || 0) / 100 / totalCalls : 0;
+          const revenueValues = callValues.map(c => parseFloat((c * revenuePerCall).toFixed(2)));
           if (_apiUsageChart) _apiUsageChart.destroy();
           _apiUsageChart = new Chart(canvas, {
             type: 'bar',
-            data: { labels, datasets: [{ label: 'Calls', data: values, backgroundColor: 'rgba(201,168,76,0.7)', borderColor: '#c9a84c', borderWidth: 1 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(156,163,175,0.1)' } }, x: { ticks: { color: '#9ca3af' }, grid: { display: false } } } }
+            data: { labels, datasets: [
+              { label: 'API Calls', data: callValues, backgroundColor: 'rgba(201,168,76,0.7)', borderColor: '#c9a84c', borderWidth: 1, yAxisID: 'y' },
+              { label: 'Est. Revenue ($)', data: revenueValues, backgroundColor: 'rgba(52,211,153,0.5)', borderColor: '#34d399', borderWidth: 1, yAxisID: 'y1' }
+            ] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#9ca3af' } } }, scales: { y: { beginAtZero: true, position: 'left', ticks: { color: '#9ca3af' }, grid: { color: 'rgba(156,163,175,0.1)' } }, y1: { beginAtZero: true, position: 'right', ticks: { color: '#34d399', callback: v => '$' + v.toFixed(2) }, grid: { display: false } }, x: { ticks: { color: '#9ca3af' }, grid: { display: false } } } }
           });
         }
         // Table
@@ -11159,6 +11166,7 @@
                 <th style="text-align:right;padding:10px 8px;color:var(--text-muted);">Limit</th>
                 <th style="text-align:left;padding:10px 8px;color:var(--text-muted);">Last Used</th>
                 <th style="text-align:left;padding:10px 8px;color:var(--text-muted);">Status</th>
+                <th style="text-align:center;padding:10px 8px;color:var(--text-muted);">Actions</th>
               </tr></thead>
               <tbody>${data.top_keys.map(k => {
                 const safeName = escapeHtml(k.name || 'Unnamed');
@@ -11173,6 +11181,7 @@
                   <td style="padding:10px 8px;text-align:right;">${k.calls_limit === -1 ? '∞' : (k.calls_limit || 0).toLocaleString()}</td>
                   <td style="padding:10px 8px;color:var(--text-muted);">${k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : 'Never'}</td>
                   <td style="padding:10px 8px;"><span class="badge" style="background:${statusBg};color:${statusColor};">${safeStatus}</span></td>
+                  <td style="padding:10px 8px;text-align:center;">${safeStatus === 'active' ? `<button onclick="adminRevokeApiKey('${escapeHtml(String(k.id || ''))}', this)" style="padding:3px 10px;background:var(--accent-red-soft);color:var(--accent-red);border:1px solid var(--accent-red);border-radius:4px;cursor:pointer;font-size:0.8rem;">Revoke</button>` : '<span style="color:var(--text-muted);font-size:0.8rem;">—</span>'}</td>
                 </tr>`;
               }).join('')}
               </tbody>
@@ -11185,4 +11194,31 @@
       }
     }
     window.loadApiUsage = loadApiUsage;
+
+    async function adminRevokeApiKey(keyId, btn) {
+      if (!keyId || !confirm('Revoke this API key? This cannot be undone.')) return;
+      const adminPassword = sessionStorage.getItem('adminPassword');
+      if (!adminPassword) { alert('Admin session not found. Please refresh.'); return; }
+      btn.disabled = true; btn.textContent = 'Revoking…';
+      try {
+        const res = await fetch(`/api/admin/api-keys/${encodeURIComponent(keyId)}/revoke`, {
+          method: 'POST',
+          headers: { 'x-admin-password': adminPassword }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          btn.textContent = 'Revoked';
+          btn.style.opacity = '0.5';
+          btn.disabled = true;
+          btn.closest('tr').querySelector('.badge:last-of-type').textContent = 'revoked';
+        } else {
+          btn.disabled = false; btn.textContent = 'Revoke';
+          alert(data.error || 'Failed to revoke key');
+        }
+      } catch (e) {
+        btn.disabled = false; btn.textContent = 'Revoke';
+        alert('Network error');
+      }
+    }
+    window.adminRevokeApiKey = adminRevokeApiKey;
     // ========== END AI API USAGE DASHBOARD ==========

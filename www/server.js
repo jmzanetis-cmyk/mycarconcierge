@@ -41301,6 +41301,34 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     // Increment usage counter async
     supabase.from('developer_api_keys').update({ calls_made: apiKeyRecord.calls_made + 1, last_used_at: new Date().toISOString() }).eq('id', apiKeyRecord.id).then(() => {}).catch(() => {});
 
+    // Fire-and-forget Stripe metered usage recording for paid-plan subscribers
+    if (apiKeyRecord.user_id && apiKeyRecord.plan !== 'starter' && process.env.STRIPE_SECRET_KEY) {
+      (async () => {
+        try {
+          const { data: sub } = await supabase.from('saas_subscriptions')
+            .select('stripe_subscription_id')
+            .eq('user_id', apiKeyRecord.user_id)
+            .eq('product', 'ai_api')
+            .in('status', ['active', 'trialing'])
+            .maybeSingle();
+          if (sub?.stripe_subscription_id) {
+            const stripeInstance = getStripeClient();
+            if (stripeInstance) {
+              const stripeSub = await stripeInstance.subscriptions.retrieve(sub.stripe_subscription_id);
+              const meteredItem = stripeSub.items?.data?.find(i => i.price?.recurring?.usage_type === 'metered');
+              if (meteredItem?.id) {
+                await stripeInstance.subscriptionItems.createUsageRecord(meteredItem.id, {
+                  quantity: 1,
+                  timestamp: Math.floor(Date.now() / 1000),
+                  action: 'increment'
+                });
+              }
+            }
+          }
+        } catch (_) { /* non-blocking: ignore errors */ }
+      })();
+    }
+
     // Route the actual API call
     const v1Path = req.url.split('/api/v1/')[1]?.split('?')[0];
 
@@ -41407,9 +41435,9 @@ Return ONLY valid JSON: {"score":<0-100>,"factors":{"positive":[],"negative":[]}
         const aiResult = await generateAIContent(prompt, { maxTokens: 512, preferredProvider: 'anthropic' });
         let parsed;
         try { const m = aiResult.text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : aiResult.text); } catch { parsed = { score: 75, factors: { positive: [], negative: [] }, summary: 'Analysis complete.' }; }
-        // Track usage
+        // Track usage atomically via DB function
         const monthYear = new Date().toISOString().slice(0,7);
-        getSupabaseClient()?.from('api_key_usage').upsert({ api_key_id: apiKeyRecord.id, month_year: monthYear, endpoint: 'vehicle/health', calls: 1 }, { onConflict: 'api_key_id,month_year,endpoint', ignoreDuplicates: false }).then(() => {}).catch(() => {});
+        getSupabaseClient()?.rpc('upsert_api_usage', { p_key_id: apiKeyRecord.id, p_month: monthYear, p_endpoint: 'vehicle/health' }).then(() => {}).catch(() => {});
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ...parsed, vehicle: { vin, year, make, model, mileage }, powered_by: 'MCC AI API' }));
       } catch (e) {
@@ -41435,9 +41463,9 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         const aiResult = await generateAIContent(prompt, { maxTokens: 1024, preferredProvider: 'gemini' });
         let parsed;
         try { const m = aiResult.text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : aiResult.text); } catch { parsed = { forecast: [], summary: 'Could not generate forecast.' }; }
-        // Track usage
+        // Track usage atomically via DB function
         const monthYear = new Date().toISOString().slice(0,7);
-        getSupabaseClient()?.from('api_key_usage').upsert({ api_key_id: apiKeyRecord.id, month_year: monthYear, endpoint: 'vehicle/forecast', calls: 1 }, { onConflict: 'api_key_id,month_year,endpoint', ignoreDuplicates: false }).then(() => {}).catch(() => {});
+        getSupabaseClient()?.rpc('upsert_api_usage', { p_key_id: apiKeyRecord.id, p_month: monthYear, p_endpoint: 'vehicle/forecast' }).then(() => {}).catch(() => {});
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ...parsed, vehicle: { year, make, model, mileage }, powered_by: 'MCC AI API' }));
       } catch (e) {
@@ -41447,9 +41475,9 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       return;
     }
 
-    // Track usage for all other v1 endpoints (vin, recalls, obd-codes, price-estimate)
-    const monthYear = new Date().toISOString().slice(0,7);
-    getSupabaseClient()?.from('api_key_usage').upsert({ api_key_id: apiKeyRecord.id, month_year: monthYear, endpoint: v1Path || 'unknown', calls: 1 }, { onConflict: 'api_key_id,month_year,endpoint', ignoreDuplicates: false }).then(() => {}).catch(() => {});
+    // Track usage atomically for all other v1 endpoints (vin, recalls, obd-codes, price-estimate)
+    const _monthYear = new Date().toISOString().slice(0,7);
+    getSupabaseClient()?.rpc('upsert_api_usage', { p_key_id: apiKeyRecord.id, p_month: _monthYear, p_endpoint: v1Path || 'unknown' }).then(() => {}).catch(() => {});
 
     // Unknown v1 endpoint
     res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -41521,6 +41549,34 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     } catch (err) {
       console.error(`[${requestId}] Admin API usage error:`, err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load API usage' }));
+    }
+    return;
+  }
+
+  // POST /api/admin/api-keys/:id/revoke — admin: revoke any API key
+  const adminRevokeMatch = req.method === 'POST' && req.url.match(/^\/api\/admin\/api-keys\/([a-f0-9-]+)\/revoke$/);
+  if (adminRevokeMatch) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const adminPassword = req.headers['x-admin-password'];
+    if (!adminPassword || adminPassword !== process.env.ADMIN_PASSWORD) {
+      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
+    }
+    const keyId = adminRevokeMatch[1];
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+    try {
+      const { data, error } = await supabase.from('developer_api_keys')
+        .update({ status: 'revoked' })
+        .eq('id', keyId)
+        .select('id, name')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) { res.writeHead(404); res.end(JSON.stringify({ error: 'API key not found' })); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: `Key "${data.name}" revoked` }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to revoke key' }));
     }
     return;
   }
