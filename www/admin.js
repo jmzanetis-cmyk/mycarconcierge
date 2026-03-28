@@ -11304,10 +11304,22 @@
       const canvas = document.getElementById(canvasId);
       if (!canvas) return;
       const keys = Object.keys(countMap).filter(k => countMap[k] > 0);
+      // No data: show placeholder but preserve canvas so re-render works without full reload
+      let placeholder = canvas.parentElement.querySelector('.ms-chart-empty');
       if (!keys.length) {
-        canvas.parentElement.innerHTML = '<p style="color:var(--text-muted);text-align:center;font-size:0.88rem;padding:32px 0;">No data yet</p>';
+        canvas.style.display = 'none';
+        if (!placeholder) {
+          placeholder = document.createElement('p');
+          placeholder.className = 'ms-chart-empty';
+          placeholder.style.cssText = 'color:var(--text-muted);text-align:center;font-size:0.88rem;padding:32px 0;';
+          placeholder.textContent = 'No data yet';
+          canvas.parentElement.appendChild(placeholder);
+        }
         return;
       }
+      // Has data: hide placeholder, restore canvas
+      if (placeholder) placeholder.remove();
+      canvas.style.display = '';
       const labels = keys.map(k => labelMap[k] || k);
       const values = keys.map(k => countMap[k]);
       if (_msCharts[canvasId]) { _msCharts[canvasId].destroy(); }

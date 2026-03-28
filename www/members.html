@@ -7824,9 +7824,9 @@
         if (checklist2) checklist2.style.display = 'block';
       }
 
-      // Show welcome modal once — gated to new members (is_new_member) to avoid disrupting legacy users
-      const isNew = data.is_new_member !== false; // true for new members; only false for accounts > 7 days old
-      if (!welcome_shown && !data.local_welcome_shown && isNew) {
+      // Show welcome modal once — gated purely on server + client DB state (not account age)
+      // welcome_shown is persisted per-user in DB, so legacy users already have it set
+      if (!welcome_shown && !data.local_welcome_shown) {
         showWelcomeModal(data);
       }
     }
@@ -7887,10 +7887,10 @@
         });
         if (!res.ok) throw new Error('not ok');
         const data = await res.json();
-        // If survey not yet completed and account is new (< 7 days), redirect to the onboarding
-        // survey page so the response is reliably user-linked (the page uses getSession() which is
-        // always authenticated). Legacy/older members skip this to avoid disrupting their workflow.
-        if (!data.survey_completed && data.is_new_member && !sessionStorage.getItem('mcc_survey_redirect_done')) {
+        // If survey not yet completed, redirect once to onboarding survey page so the response
+        // is reliably user-linked (the page uses getSession() which is always authenticated).
+        // sessionStorage dedup prevents re-redirect within the same browser session.
+        if (!data.survey_completed && !sessionStorage.getItem('mcc_survey_redirect_done')) {
           sessionStorage.setItem('mcc_survey_redirect_done', '1');
           window.location.href = '/onboarding-member.html?from=dashboard';
           return;
