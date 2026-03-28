@@ -41790,9 +41790,12 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
           ip_hash: ipHash
         });
         if (userId) {
+          // Merge survey:true into existing checklist instead of overwriting
+          const { data: existingOnboarding } = await supabase.from('member_onboarding').select('checklist').eq('user_id', userId).maybeSingle();
+          const mergedChecklist = { ...(existingOnboarding?.checklist || {}), survey: true };
           await supabase.from('member_onboarding').upsert(
-            { user_id: userId, survey_completed: true, checklist: { survey: true }, updated_at: new Date().toISOString() },
-            { onConflict: 'user_id', ignoreDuplicates: false }
+            { user_id: userId, survey_completed: true, checklist: mergedChecklist, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' }
           );
         }
       }

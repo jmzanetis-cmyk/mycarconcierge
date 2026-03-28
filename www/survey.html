@@ -638,6 +638,10 @@
           body: JSON.stringify(payload)
         });
 
+        if (!res.ok) {
+          throw new Error(res.status === 429 ? 'Too many requests. Please try again in a moment.' : `Server error (${res.status})`);
+        }
+
         const data = await res.json().catch(() => ({}));
 
         const painMessages = {

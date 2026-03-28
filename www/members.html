@@ -7843,8 +7843,7 @@
     function showWelcomeModal(data) {
       const modal = document.getElementById('welcome-modal');
       if (!modal) return;
-      const pain = data.survey?.pain_point || data.checklist?.pain_point;
-      const msg = PAIN_MESSAGES[pain] || { headline: 'Welcome to My Car Concierge.', body: 'You\'re all set. Add your vehicle and post your first service request to get competing bids from local providers.' };
+      const msg = { headline: 'Welcome to My Car Concierge.', body: 'You\'re all set. Add your first vehicle and post a service request to get competing bids from local providers.' };
       const headlineEl = document.getElementById('welcome-headline');
       const bodyEl = document.getElementById('welcome-body');
       if (headlineEl) headlineEl.textContent = msg.headline;
