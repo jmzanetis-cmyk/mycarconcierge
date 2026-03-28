@@ -12505,7 +12505,10 @@
         else if (score >= 50) fair++;
         else poor++;
 
-        const nextService = v.next_service_date ? new Date(v.next_service_date) : null;
+        // Use fleet_vehicles.next_service_due as the authoritative fleet scheduling field,
+        // falling back to vehicles.next_service_date if the fleet override is not set.
+        const nextServiceRaw = fv.next_service_due || v.next_service_date;
+        const nextService = nextServiceRaw ? new Date(nextServiceRaw) : null;
         if (nextService) {
           const label = `${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim() || 'Vehicle';
           const daysUntil = Math.ceil((nextService - now) / (1000 * 60 * 60 * 24));

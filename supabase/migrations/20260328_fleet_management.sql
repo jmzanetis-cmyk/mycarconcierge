@@ -180,16 +180,23 @@ DROP POLICY IF EXISTS "Fleet members write service role only" ON fleet_members;
 DROP POLICY IF EXISTS "Fleet members update service role only" ON fleet_members;
 DROP POLICY IF EXISTS "Fleet members delete service role only" ON fleet_members;
 
--- SELECT: all active fleet members and fleet owners can read membership records
+-- SELECT: fleet owners and managers can read all member rows in their fleet.
+-- Drivers (role='driver') may only read their own membership row (limits exposure of
+-- spending_limit, approval flags, and other members' financial settings).
 CREATE POLICY "Fleet members select" ON fleet_members
   FOR SELECT USING (
+    -- Fleet owner sees all rows in their fleet
     EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_members.fleet_id AND fleets.owner_id = auth.uid())
+    -- Fleet manager sees all rows in fleets they manage
     OR EXISTS (
       SELECT 1 FROM fleet_members fm2
       WHERE fm2.fleet_id = fleet_members.fleet_id
         AND fm2.user_id = auth.uid()
+        AND fm2.role IN ('manager', 'owner')
         AND fm2.status = 'active'
     )
+    -- Any fleet member can see their own row only
+    OR (fleet_members.user_id = auth.uid())
   );
 
 -- INSERT: blocked for all authenticated clients; must go through server API (/api/fleet/invite,
@@ -436,5 +443,85 @@ CREATE POLICY "Invitee reads their own invite" ON fleet_invites
     OR (
       auth.uid() IS NOT NULL
       AND email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    )
+  );
+
+-- =====================================================
+-- 10. FLEET DEPARTMENT APPROVAL RULES
+-- =====================================================
+-- Per-department spending limit and approval threshold rules.
+-- Fleet managers can configure rules per department that override per-member defaults.
+-- This implements Task #88 requirement for per-department approval-threshold enforcement.
+CREATE TABLE IF NOT EXISTS fleet_department_rules (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  fleet_id UUID REFERENCES fleets(id) ON DELETE CASCADE NOT NULL,
+  department TEXT NOT NULL,
+  spending_limit NUMERIC(10, 2),            -- max allowed per service request before approval required
+  requires_approval BOOLEAN DEFAULT false,   -- always require manager approval regardless of amount
+  auto_approve_under NUMERIC(10, 2),        -- auto-approve requests under this amount (0 = no auto-approve)
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (fleet_id, department)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fleet_dept_rules_fleet ON fleet_department_rules(fleet_id);
+
+ALTER TABLE fleet_department_rules ENABLE ROW LEVEL SECURITY;
+
+-- Fleet owners and managers can manage department rules
+DROP POLICY IF EXISTS "Fleet dept rules access" ON fleet_department_rules;
+CREATE POLICY "Fleet dept rules select" ON fleet_department_rules
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_department_rules.fleet_id AND fleets.owner_id = auth.uid())
+    OR EXISTS (
+      SELECT 1 FROM fleet_members fm
+      WHERE fm.fleet_id = fleet_department_rules.fleet_id
+        AND fm.user_id = auth.uid()
+        AND fm.status = 'active'
+    )
+  );
+
+CREATE POLICY "Fleet dept rules write" ON fleet_department_rules
+  FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_department_rules.fleet_id AND fleets.owner_id = auth.uid())
+    OR EXISTS (
+      SELECT 1 FROM fleet_members fm
+      WHERE fm.fleet_id = fleet_department_rules.fleet_id
+        AND fm.user_id = auth.uid()
+        AND fm.role IN ('manager', 'owner')
+        AND fm.status = 'active'
+    )
+  );
+
+CREATE POLICY "Fleet dept rules update" ON fleet_department_rules
+  FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_department_rules.fleet_id AND fleets.owner_id = auth.uid())
+    OR EXISTS (
+      SELECT 1 FROM fleet_members fm
+      WHERE fm.fleet_id = fleet_department_rules.fleet_id
+        AND fm.user_id = auth.uid()
+        AND fm.role IN ('manager', 'owner')
+        AND fm.status = 'active'
+    )
+  ) WITH CHECK (
+    EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_department_rules.fleet_id AND fleets.owner_id = auth.uid())
+    OR EXISTS (
+      SELECT 1 FROM fleet_members fm
+      WHERE fm.fleet_id = fleet_department_rules.fleet_id
+        AND fm.user_id = auth.uid()
+        AND fm.role IN ('manager', 'owner')
+        AND fm.status = 'active'
+    )
+  );
+
+CREATE POLICY "Fleet dept rules delete" ON fleet_department_rules
+  FOR DELETE USING (
+    EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_department_rules.fleet_id AND fleets.owner_id = auth.uid())
+    OR EXISTS (
+      SELECT 1 FROM fleet_members fm
+      WHERE fm.fleet_id = fleet_department_rules.fleet_id
+        AND fm.user_id = auth.uid()
+        AND fm.role IN ('manager', 'owner')
+        AND fm.status = 'active'
     )
   );

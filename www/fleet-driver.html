@@ -239,6 +239,22 @@
             <div class="empty-state">No active assignment.</div>
           </div>
         </div>
+
+        <div class="card" id="mileage-entry-card" style="display:none;">
+          <div class="card-title">Update Mileage</div>
+          <p style="font-size:0.88rem;color:var(--text-muted);margin-bottom:14px;">
+            Log your current odometer reading to keep fleet records accurate.
+          </p>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;font-size:0.85rem;color:var(--text-secondary);margin-bottom:6px;">Current Odometer Reading (miles)</label>
+            <input type="number" id="mileage-input" min="0" step="1" placeholder="e.g. 45000"
+              style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);font-size:0.92rem;font-family:inherit;">
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button class="btn btn-primary" onclick="submitMileage()" style="flex:1;">Save Mileage</button>
+            <span id="mileage-status" style="font-size:0.85rem;color:var(--text-muted);"></span>
+          </div>
+        </div>
       </div>
 
       <!-- Services Section -->
@@ -433,6 +449,57 @@
 
       if (fv.next_service_due && new Date(fv.next_service_due) < new Date()) {
         document.getElementById('maintenance-alert').style.display = 'flex';
+      }
+
+      // Show mileage entry card and pre-fill current mileage
+      const mileageCard = document.getElementById('mileage-entry-card');
+      if (mileageCard) {
+        mileageCard.style.display = 'block';
+        if (v.mileage) {
+          document.getElementById('mileage-input').value = v.mileage;
+        }
+      }
+    }
+
+    async function submitMileage() {
+      if (!assignedVehicle?.vehicle?.id) {
+        document.getElementById('mileage-status').textContent = 'No vehicle assigned.';
+        return;
+      }
+      const input = document.getElementById('mileage-input');
+      const mileage = parseInt(input.value, 10);
+      if (!mileage || mileage < 0) {
+        document.getElementById('mileage-status').textContent = 'Please enter a valid mileage.';
+        return;
+      }
+      const currentMileage = assignedVehicle.vehicle.mileage || 0;
+      if (mileage < currentMileage) {
+        document.getElementById('mileage-status').textContent = `Cannot enter mileage lower than current (${Number(currentMileage).toLocaleString()}).`;
+        return;
+      }
+
+      const statusEl = document.getElementById('mileage-status');
+      statusEl.textContent = 'Saving...';
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const token = session?.data?.session?.access_token;
+        const res = await fetch('/api/fleet/update-mileage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': 'Bearer ' + token } : {}) },
+          body: JSON.stringify({ vehicle_id: assignedVehicle.vehicle.id, mileage })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to save');
+        assignedVehicle.vehicle.mileage = mileage;
+        statusEl.style.color = 'var(--accent-green)';
+        statusEl.textContent = '✓ Mileage updated';
+        // Refresh mileage display in vehicle meta
+        const mileageMetaEl = document.getElementById('vehicle-meta');
+        if (mileageMetaEl && assignedVehicle.vehicle) renderVehicle(assignedVehicle);
+        setTimeout(() => { statusEl.textContent = ''; statusEl.style.color = ''; }, 3000);
+      } catch (err) {
+        statusEl.style.color = 'var(--accent-red)';
+        statusEl.textContent = 'Error: ' + err.message;
       }
     }
 

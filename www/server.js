@@ -40113,6 +40113,141 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     return;
   }
 
+  // POST /api/fleet/check-approval — evaluates per-department and per-member approval rules for a fleet service request
+  // Called before a driver creates a service request to determine if manager approval is required.
+  if (req.method === 'POST' && req.url === '/api/fleet/check-approval') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { fleet_id, vehicle_id, estimated_cost } = body;
+      if (!fleet_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'fleet_id is required' })); return; }
+
+      // Load fleet member record for this user
+      const { data: member } = await supabase.from('fleet_members')
+        .select('id, role, department, spending_limit, requires_approval, status')
+        .eq('fleet_id', fleet_id).eq('user_id', user.id).eq('status', 'active').maybeSingle();
+
+      if (!member) { res.writeHead(403); res.end(JSON.stringify({ error: 'Not a member of this fleet' })); return; }
+
+      // Fleet owners and managers are always auto-approved
+      if (['manager', 'owner'].includes(member.role)) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ requires_approval: false, reason: 'manager_auto_approve' })); return;
+      }
+
+      const cost = parseFloat(estimated_cost) || 0;
+
+      // Step 1: Per-member override (most specific)
+      if (member.requires_approval) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ requires_approval: true, reason: 'member_setting', spending_limit: member.spending_limit })); return;
+      }
+      if (member.spending_limit !== null && member.spending_limit !== undefined && cost > member.spending_limit) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ requires_approval: true, reason: 'member_spending_limit_exceeded', limit: member.spending_limit, cost })); return;
+      }
+
+      // Step 2: Per-department rule (department-level policy)
+      if (member.department) {
+        const { data: deptRule } = await supabase.from('fleet_department_rules')
+          .select('spending_limit, requires_approval, auto_approve_under')
+          .eq('fleet_id', fleet_id).eq('department', member.department).maybeSingle();
+        if (deptRule) {
+          if (deptRule.requires_approval) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ requires_approval: true, reason: 'department_rule', department: member.department })); return;
+          }
+          if (deptRule.spending_limit !== null && cost > deptRule.spending_limit) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ requires_approval: true, reason: 'department_spending_limit_exceeded', limit: deptRule.spending_limit, cost, department: member.department })); return;
+          }
+          if (deptRule.auto_approve_under !== null && cost <= deptRule.auto_approve_under) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ requires_approval: false, reason: 'department_auto_approve', limit: deptRule.auto_approve_under })); return;
+          }
+        }
+      }
+
+      // Default: auto-approved
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ requires_approval: false, reason: 'default_auto_approve' }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet check-approval error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to evaluate approval rules' }));
+    }
+    return;
+  }
+
+  // POST /api/fleet/update-mileage — driver submits current odometer reading; updates vehicles.mileage
+  if (req.method === 'POST' && req.url === '/api/fleet/update-mileage') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { vehicle_id, mileage } = body;
+      if (!vehicle_id || mileage === undefined || mileage === null) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'vehicle_id and mileage are required' })); return;
+      }
+      const mileageNum = parseInt(mileage, 10);
+      if (isNaN(mileageNum) || mileageNum < 0) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'mileage must be a non-negative integer' })); return;
+      }
+
+      // Verify the requesting user is an active driver assigned to this vehicle in a fleet they belong to
+      const { data: fv } = await supabase
+        .from('fleet_vehicles')
+        .select('id, fleet_id, vehicle_id, assigned_driver_id, fleet:fleet_id(owner_id)')
+        .eq('vehicle_id', vehicle_id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (!fv) { res.writeHead(404); res.end(JSON.stringify({ error: 'Fleet vehicle record not found' })); return; }
+
+      // Only the assigned driver, fleet owner, or a fleet manager may update mileage
+      const isAssignedDriver = fv.assigned_driver_id === user.id;
+      const isFleetOwner = fv.fleet?.owner_id === user.id;
+      let isManager = false;
+      if (!isAssignedDriver && !isFleetOwner) {
+        const { data: mgr } = await supabase.from('fleet_members')
+          .select('id').eq('fleet_id', fv.fleet_id).eq('user_id', user.id)
+          .in('role', ['manager', 'owner']).eq('status', 'active').maybeSingle();
+        isManager = !!mgr;
+      }
+      if (!isAssignedDriver && !isFleetOwner && !isManager) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Not authorized to update mileage for this vehicle' })); return;
+      }
+
+      // Validate mileage is not lower than current recorded mileage (prevent odometer rollback)
+      const { data: vehicle } = await supabase.from('vehicles').select('mileage').eq('id', vehicle_id).maybeSingle();
+      const currentMileage = vehicle?.mileage || 0;
+      if (mileageNum < currentMileage) {
+        res.writeHead(400); res.end(JSON.stringify({ error: `Mileage cannot be less than current recorded value (${currentMileage})` })); return;
+      }
+
+      // Update mileage on the vehicles record
+      const { error: updateErr } = await supabase
+        .from('vehicles')
+        .update({ mileage: mileageNum, updated_at: new Date().toISOString() })
+        .eq('id', vehicle_id);
+      if (updateErr) throw new Error(updateErr.message);
+
+      console.log(`[Fleet Mileage] vehicle=${vehicle_id} updated to ${mileageNum} miles by user=${user.id}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, mileage: mileageNum }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet update-mileage error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update mileage' }));
+    }
+    return;
+  }
+
   // POST /api/fleet/add-vehicle — authoritative server-side single vehicle add with plan limit check
   if (req.method === 'POST' && req.url === '/api/fleet/add-vehicle') {
     setSecurityHeaders(res, true);
