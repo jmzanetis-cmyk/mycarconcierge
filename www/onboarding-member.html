@@ -613,6 +613,143 @@
       .category-grid { gap: 8px; }
       .category-card { padding: 12px; }
     }
+
+    /* Post-signup survey overlay */
+    .survey-overlay {
+      position: fixed;
+      inset: 0;
+      background: #ffffff;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+      animation: surveyIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    @keyframes surveyIn { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+    .survey-overlay.hidden { display: none; }
+    .survey-inner {
+      width: 100%;
+      max-width: 480px;
+    }
+    .survey-progress-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .survey-progress-track {
+      flex: 1;
+      height: 4px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .survey-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #c9a227, #e6b84a);
+      border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+    .survey-step-label {
+      font-size: 0.78rem;
+      color: #6b7280;
+      white-space: nowrap;
+    }
+    .survey-tag {
+      display: inline-block;
+      padding: 4px 12px;
+      background: rgba(201,162,39,0.12);
+      color: #b8942d;
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: 100px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 16px;
+    }
+    .survey-question {
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 24px;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+    }
+    .survey-options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .survey-option {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      background: #f9fafb;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #1a1a2e;
+      user-select: none;
+    }
+    .survey-option:hover { border-color: #c9a227; background: rgba(201,162,39,0.05); }
+    .survey-option.selected { border-color: #c9a227; background: rgba(201,162,39,0.1); }
+    .survey-option-dot {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #d1d5db;
+      border-radius: 50%;
+      flex-shrink: 0;
+      transition: all 0.18s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .survey-option.selected .survey-option-dot {
+      background: #c9a227;
+      border-color: #c9a227;
+    }
+    .survey-option.selected .survey-option-dot::after {
+      content: '';
+      width: 7px;
+      height: 7px;
+      background: #fff;
+      border-radius: 50%;
+    }
+    .survey-btn-next {
+      width: 100%;
+      padding: 15px 24px;
+      background: linear-gradient(135deg, #c9a227, #e6b84a);
+      color: #12161c;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .survey-btn-next:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(201,162,39,0.35); }
+    .survey-btn-next:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .survey-btn-skip {
+      width: 100%;
+      padding: 12px;
+      background: transparent;
+      color: #9ca3af;
+      border: none;
+      font-size: 0.88rem;
+      font-family: inherit;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: color 0.2s ease;
+    }
+    .survey-btn-skip:hover { color: #6b7280; }
   </style>
 </head>
 <body>
@@ -1196,6 +1333,126 @@
       }
 
       checklistEl.innerHTML = html;
+
+      // Show survey overlay after a brief pause
+      setTimeout(showSurveyOverlay, 700);
+    }
+
+    // ===== POST-SIGNUP SURVEY =====
+    const SURVEY_QUESTIONS = [
+      {
+        key: 'source',
+        tag: 'Quick question 1 of 4',
+        q: 'How did you hear about us?',
+        opts: [
+          { val: 'google', label: 'Google search' },
+          { val: 'friend', label: 'Friend or family' },
+          { val: 'social', label: 'Social media' },
+          { val: 'ad', label: 'Saw an ad' },
+          { val: 'other', label: 'Other' }
+        ]
+      },
+      {
+        key: 'pain_point',
+        tag: 'Quick question 2 of 4',
+        q: "What's your biggest car care frustration?",
+        opts: [
+          { val: 'cost', label: 'Cost & pricing' },
+          { val: 'trust', label: 'Finding a trustworthy shop' },
+          { val: 'scheduling', label: 'Scheduling hassle' },
+          { val: 'tracking', label: 'Keeping track of maintenance' },
+          { val: 'other', label: 'Other' }
+        ]
+      },
+      {
+        key: 'has_trusted_mechanic',
+        tag: 'Quick question 3 of 4',
+        q: 'Do you have a trusted mechanic already?',
+        opts: [
+          { val: 'yes', label: 'Yes, always' },
+          { val: 'sometimes', label: 'Sometimes' },
+          { val: 'no', label: "No, I'm looking" }
+        ]
+      },
+      {
+        key: 'vehicle_count',
+        tag: 'Quick question 4 of 4',
+        q: 'How many vehicles do you own?',
+        opts: [
+          { val: '1', label: '1' },
+          { val: '2', label: '2' },
+          { val: '3plus', label: '3 or more' }
+        ]
+      }
+    ];
+
+    let surveyStep = 0;
+    const surveyAnswers = {};
+
+    function showSurveyOverlay() {
+      const overlay = document.getElementById('survey-overlay');
+      if (!overlay) return;
+      overlay.classList.remove('hidden');
+      renderSurveyQuestion();
+    }
+
+    function renderSurveyQuestion() {
+      const q = SURVEY_QUESTIONS[surveyStep];
+      if (!q) { submitSurveyAndClose(); return; }
+
+      const fill = Math.round(((surveyStep) / SURVEY_QUESTIONS.length) * 100);
+      document.getElementById('survey-progress-fill').style.width = fill + '%';
+      document.getElementById('survey-step-label').textContent = 'Question ' + (surveyStep + 1) + ' of ' + SURVEY_QUESTIONS.length;
+      document.getElementById('survey-tag').textContent = q.tag;
+      document.getElementById('survey-question').textContent = q.q;
+
+      const container = document.getElementById('survey-options');
+      container.innerHTML = q.opts.map(o => `
+        <div class="survey-option${surveyAnswers[q.key] === o.val ? ' selected' : ''}" onclick="selectSurveyOption('${q.key}','${o.val}',this)">
+          <div class="survey-option-dot"></div>
+          <span>${o.label}</span>
+        </div>
+      `).join('');
+
+      const nextBtn = document.getElementById('survey-next-btn');
+      nextBtn.textContent = surveyStep < SURVEY_QUESTIONS.length - 1 ? 'Next' : 'Submit';
+      nextBtn.disabled = !surveyAnswers[q.key];
+    }
+
+    function selectSurveyOption(key, val, el) {
+      surveyAnswers[key] = val;
+      document.querySelectorAll('#survey-options .survey-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('survey-next-btn').disabled = false;
+    }
+
+    function surveyNext() {
+      const q = SURVEY_QUESTIONS[surveyStep];
+      if (!surveyAnswers[q.key]) return;
+      surveyStep++;
+      if (surveyStep >= SURVEY_QUESTIONS.length) {
+        submitSurveyAndClose();
+      } else {
+        renderSurveyQuestion();
+      }
+    }
+
+    async function submitSurveyAndClose() {
+      document.getElementById('survey-progress-fill').style.width = '100%';
+      try {
+        await fetch('/api/member/survey', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(surveyAnswers)
+        });
+      } catch (_) {}
+      closeSurveyOverlay();
+    }
+
+    function closeSurveyOverlay() {
+      const overlay = document.getElementById('survey-overlay');
+      if (overlay) overlay.classList.add('hidden');
     }
 
     document.addEventListener('keydown', function(e) {
@@ -1243,5 +1500,22 @@
 
     updateProgress();
   </script>
+
+  <!-- Post-signup survey overlay -->
+  <div class="survey-overlay hidden" id="survey-overlay">
+    <div class="survey-inner">
+      <div class="survey-progress-row">
+        <div class="survey-progress-track">
+          <div class="survey-progress-fill" id="survey-progress-fill" style="width:0%"></div>
+        </div>
+        <span class="survey-step-label" id="survey-step-label">Question 1 of 4</span>
+      </div>
+      <div class="survey-tag" id="survey-tag">Quick question 1 of 4</div>
+      <h2 class="survey-question" id="survey-question"></h2>
+      <div class="survey-options" id="survey-options"></div>
+      <button class="survey-btn-next" id="survey-next-btn" onclick="surveyNext()" disabled>Next</button>
+      <button class="survey-btn-skip" onclick="closeSurveyOverlay()">Skip survey</button>
+    </div>
+  </div>
 </body>
 </html>

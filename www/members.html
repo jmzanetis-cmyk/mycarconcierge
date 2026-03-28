@@ -7855,7 +7855,10 @@
     function showWelcomeModal(data) {
       const modal = document.getElementById('welcome-modal');
       if (!modal) return;
-      const msg = { headline: 'Welcome to My Car Concierge.', body: 'You\'re all set. Add your first vehicle and post a service request to get competing bids from local providers.' };
+      const painPoint = data?.pain_point || null;
+      const msg = (painPoint && PAIN_MESSAGES[painPoint])
+        ? PAIN_MESSAGES[painPoint]
+        : { headline: 'Welcome to My Car Concierge.', body: 'You\'re all set. Add your first vehicle and post a service request to get competing bids from local providers.' };
       const headlineEl = document.getElementById('welcome-headline');
       const bodyEl = document.getElementById('welcome-body');
       if (headlineEl) headlineEl.textContent = msg.headline;

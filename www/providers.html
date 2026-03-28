@@ -6634,5 +6634,72 @@
     });
   </script>
   <script src="analytics-tracker.js" defer></script>
+  <script>
+    // Provider onboarding checklist
+    (function initProviderChecklist() {
+      const STEPS = [
+        { key: 'provider_profile',       icon: '👤', label: 'Complete your profile',       action: "showSection('settings')",       hint: 'Add bio, photo, and service area' },
+        { key: 'provider_docs',          icon: '📄', label: 'Upload verification docs',     action: "showSection('verification')",   hint: 'ID, insurance, and certifications' },
+        { key: 'provider_services',      icon: '🔧', label: 'Add your services',            action: "showSection('settings')",       hint: 'Set the services you offer' },
+        { key: 'provider_stripe',        icon: '💳', label: 'Connect Stripe payouts',       action: "showSection('subscription')",   hint: 'Required to receive payments' },
+        { key: 'provider_first_booking', icon: '🎉', label: 'Receive your first booking',  action: null,                           hint: 'Post a job or wait for requests' }
+      ];
+
+      function renderProviderChecklist(checklist) {
+        const container = document.getElementById('shop-onboarding-checklist');
+        if (!container) return;
+
+        const completedCount = STEPS.filter(s => checklist[s.key]).length;
+        const pct = Math.round((completedCount / STEPS.length) * 100);
+
+        let html = `<div style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:0.8rem;color:var(--text-muted);">${completedCount} of ${STEPS.length} complete</span>
+            <span style="font-size:0.8rem;font-weight:600;color:var(--accent-gold);">${pct}%</span>
+          </div>
+          <div style="height:5px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:var(--accent-gold);border-radius:99px;transition:width 0.4s;"></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">`;
+
+        for (const step of STEPS) {
+          const isDone = !!checklist[step.key];
+          html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:${isDone ? 'var(--accent-teal-soft,rgba(34,211,238,0.08))' : 'var(--bg-secondary)'};cursor:${step.action && !isDone ? 'pointer' : 'default'};"
+            ${step.action && !isDone ? `onclick="${step.action}"` : ''}>
+            <span style="font-size:1rem;line-height:1;">${isDone ? '✅' : step.icon}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.88rem;font-weight:${isDone ? '500' : '600'};color:${isDone ? 'var(--text-muted)' : 'var(--text-primary)'};text-decoration:${isDone ? 'line-through' : 'none'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${step.label}</div>
+              ${!isDone ? `<div style="font-size:0.76rem;color:var(--text-muted);">${step.hint}</div>` : ''}
+            </div>
+            ${!isDone && step.action ? `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-gold);flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>` : ''}
+          </div>`;
+        }
+
+        html += '</div>';
+        container.innerHTML = html;
+
+        // Hide card if all steps complete
+        const card = document.getElementById('shop-onboarding-card');
+        if (card && completedCount === STEPS.length) {
+          card.style.display = 'none';
+        }
+      }
+
+      async function loadProviderChecklist() {
+        try {
+          const res = await fetch('/api/member/onboarding', { credentials: 'include' });
+          if (!res.ok) throw new Error('not ok');
+          const data = await res.json();
+          if (data.checklist) renderProviderChecklist(data.checklist);
+        } catch (e) {
+          const c = document.getElementById('shop-onboarding-checklist');
+          if (c) c.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Unable to load checklist.</p>';
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', loadProviderChecklist);
+    })();
+  </script>
 </body>
 </html>

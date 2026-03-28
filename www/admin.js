@@ -110,7 +110,8 @@
       'ai-ops': false,
       'saas-subscriptions': false,
       'white-label': false,
-      'survey-analytics': false
+      'survey-analytics': false,
+      'member-surveys': false
     };
 
     const sectionLoaders = {
@@ -146,6 +147,7 @@
       'white-label': async () => { await loadWhiteLabelTenants(); },
       'api-usage': async () => { await loadApiUsage(); },
       'survey-analytics': async () => { await loadSurveyAnalytics(); },
+      'member-surveys': async () => { await loadMemberSurveyAnalytics(); },
       'car-clubs': async () => { if (typeof loadCarClubs === 'function') await loadCarClubs(); }
     };
 
@@ -11289,6 +11291,71 @@
       }
     }
     window.loadSurveyAnalytics = loadSurveyAnalytics;
+
+    // ===== MEMBER SURVEY ANALYTICS =====
+    const MS_SOURCE_LABELS = { google: 'Google search', friend: 'Friend/family', social: 'Social media', ad: 'Saw an ad', other: 'Other' };
+    const MS_PAIN_LABELS = { cost: 'Cost & pricing', trust: 'Finding trustworthy shop', scheduling: 'Scheduling hassle', tracking: 'Keeping track', other: 'Other' };
+    const MS_MECHANIC_LABELS = { yes: 'Yes, always', sometimes: 'Sometimes', no: 'No, looking' };
+    const MS_VEHICLE_LABELS = { '1': '1 vehicle', '2': '2 vehicles', '3plus': '3+', fleet: 'Fleet' };
+    const MS_CHART_COLORS = ['#c9a227','#22d3ee','#38bdf8','#34d399','#fb923c','#f87171','#a78bfa'];
+    let _msCharts = {};
+
+    function buildMsDoughnut(canvasId, labelMap, countMap) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const keys = Object.keys(countMap).filter(k => countMap[k] > 0);
+      if (!keys.length) {
+        canvas.parentElement.innerHTML = '<p style="color:var(--text-muted);text-align:center;font-size:0.88rem;padding:32px 0;">No data yet</p>';
+        return;
+      }
+      const labels = keys.map(k => labelMap[k] || k);
+      const values = keys.map(k => countMap[k]);
+      if (_msCharts[canvasId]) { _msCharts[canvasId].destroy(); }
+      _msCharts[canvasId] = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{ data: values, backgroundColor: MS_CHART_COLORS.slice(0, keys.length), borderWidth: 0 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right', labels: { color: '#a0a8b8', font: { size: 11 }, padding: 10, boxWidth: 12 } },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} (${Math.round(ctx.raw / values.reduce((a,b) => a+b,0) * 100)}%)` } }
+          },
+          cutout: '60%'
+        }
+      });
+    }
+
+    async function loadMemberSurveyAnalytics() {
+      try {
+        const headers = getAdminHeaders();
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(apiBase + '/api/admin/survey-analytics', { headers });
+        if (!res.ok) throw new Error('fetch failed');
+        const data = await res.json();
+
+        const el = id => document.getElementById(id);
+        if (el('ms-total')) el('ms-total').textContent = (data.total || 0).toLocaleString();
+        if (el('ms-week')) el('ms-week').textContent = (data.recent_week || 0).toLocaleString();
+
+        const topSource = Object.entries(data.by_source || {}).sort((a,b) => b[1]-a[1])[0];
+        if (el('ms-top-source')) el('ms-top-source').textContent = topSource ? (MS_SOURCE_LABELS[topSource[0]] || topSource[0]) : '—';
+
+        const topPain = Object.entries(data.by_pain_point || {}).sort((a,b) => b[1]-a[1])[0];
+        if (el('ms-top-pain')) el('ms-top-pain').textContent = topPain ? (MS_PAIN_LABELS[topPain[0]] || topPain[0]) : '—';
+
+        buildMsDoughnut('ms-source-chart', MS_SOURCE_LABELS, data.by_source || {});
+        buildMsDoughnut('ms-pain-chart', MS_PAIN_LABELS, data.by_pain_point || {});
+        buildMsDoughnut('ms-mechanic-chart', MS_MECHANIC_LABELS, data.by_mechanic || {});
+        buildMsDoughnut('ms-vehicles-chart', MS_VEHICLE_LABELS, data.by_vehicle_count || {});
+      } catch (err) {
+        console.error('[MemberSurveys] load error:', err.message);
+      }
+    }
+    window.loadMemberSurveyAnalytics = loadMemberSurveyAnalytics;
 
     function renderSurveyHeatmap(heatmap) {
       const container = document.getElementById('sl-heatmap');

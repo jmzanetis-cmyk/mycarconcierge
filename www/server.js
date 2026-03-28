@@ -42169,7 +42169,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         if (userId) {
           // Merge survey:true into existing checklist instead of overwriting
           const { data: existingOnboarding } = await supabase.from('member_onboarding').select('checklist').eq('user_id', userId).maybeSingle();
-          const mergedChecklist = { ...(existingOnboarding?.checklist || {}), survey: true };
+          const mergedChecklist = { ...(existingOnboarding?.checklist || {}), survey: true, ...(pain_point ? { pain_point } : {}) };
           await supabase.from('member_onboarding').upsert(
             { user_id: userId, survey_completed: true, checklist: mergedChecklist, updated_at: new Date().toISOString() },
             { onConflict: 'user_id' }
@@ -42203,12 +42203,18 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       res.end(JSON.stringify({
         survey_completed: row?.survey_completed || false,
         welcome_shown: row?.welcome_shown || false,
+        pain_point: checklist.pain_point || null,
         checklist: {
           account_created: true,
           survey: checklist.survey || false,
           vehicle_added: checklist.vehicle_added || false,
           request_posted: checklist.request_posted || false,
-          notifications_enabled: checklist.notifications_enabled || false
+          notifications_enabled: checklist.notifications_enabled || false,
+          provider_profile: checklist.provider_profile || false,
+          provider_docs: checklist.provider_docs || false,
+          provider_services: checklist.provider_services || false,
+          provider_stripe: checklist.provider_stripe || false,
+          provider_first_booking: checklist.provider_first_booking || false
         }
       }));
     } catch (err) {
