@@ -86,9 +86,9 @@
         if (data && data.is_white_label && data.tenant) {
           applyTenantBranding(data.tenant);
           // Lifecycle: auto-join the tenant when an authenticated user lands on a tenant domain.
-          // This triggers server-side profile stamping (tenant_id) and creates the tenant membership row.
-          // Runs asynchronously after branding — does not block page render.
-          autoJoinTenantIfAuthenticated();
+          // Passes the server-issued join_token (from config) so the join endpoint can authorize
+          // by token lookup rather than relying on host headers (which are spoofable).
+          autoJoinTenantIfAuthenticated(data.tenant.join_token);
         }
       })
       .catch(function() {});
@@ -103,11 +103,24 @@
    * White-label custom domains point directly to the MCC API server, so relative URLs
    * are correct. Bearer tokens are NEVER sent to cross-origin destinations.
    *
+   * Authorization uses a server-issued join_token (from /api/white-label/config),
+   * not host headers. Host headers are spoofable in direct-to-origin requests.
+   *
    * Role is determined server-side from the user's platform profile — the client
    * does not supply a role, preventing member→provider self-promotion exploits.
+   *
+   * @param {string} [joinToken] — Server-issued join credential from config response.
+   *   Required for the join to succeed. If absent (e.g., config did not return one),
+   *   the join is skipped silently to avoid a predictable 400 error.
    */
-  function autoJoinTenantIfAuthenticated() {
+  function autoJoinTenantIfAuthenticated(joinToken) {
     try {
+      if (!joinToken) {
+        // Config response did not include a join_token — cannot authorize join.
+        // This can happen if the server-side migration for join_token has not been applied yet.
+        return;
+      }
+
       var token = null;
 
       // Read Supabase access token from localStorage (populated by Supabase SDK after login).
@@ -139,8 +152,9 @@
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + token
         },
-        body: JSON.stringify({})
-        // No role field — server derives role from user's platform profile to prevent self-promotion
+        // join_token from config is the authz credential; server validates via DB lookup.
+        // No role field — server derives role from user's platform profile to prevent self-promotion.
+        body: JSON.stringify({ join_token: joinToken })
       })
         .then(function(r) { return r.ok ? r.json() : null; })
         .then(function(data) {

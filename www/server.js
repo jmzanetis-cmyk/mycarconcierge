@@ -38914,7 +38914,9 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     try {
       let tenant = null;
       const _effectiveLookup = previewDomain || null;
-      const WL_COLS = 'brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan';
+      // join_token is included so white-label-client.js can pass it on domain-matched requests.
+      // This token is the authz credential for /api/white-label/tenant/join — host-only is not used.
+      const WL_COLS = 'id, brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan, join_token';
       if (supabase) {
         if (_effectiveLookup) {
           // Preview domain override (admin) — direct domain lookup
@@ -39030,59 +39032,58 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       // Map platform roles to tenant seat types
       const role = ['provider', 'pending_provider'].includes(platformRole) ? 'provider' : 'member';
 
-      // Resolve tenant from request hostname — SECURITY HARDENED
-      // Strategy:
-      //   MCC subdomains (*.mycarconcierge.com): trust X-Forwarded-Host if it ends with base domain,
-      //     otherwise use Host. Validate by subdomain column match.
-      //   Custom domains: check X-Forwarded-Host first, then Host — both via DB exact domain
-      //     column match only. The DB is the trust anchor; a forged header not in the DB returns no
-      //     tenant, preventing unauthorized joins without blocking legitimate proxy deployments.
-      const MCC_BASE_DOMAIN = 'mycarconcierge.com';
-      const SKIP_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0'];
-      const _jFwd = (req.headers['x-forwarded-host'] || '').split(',')[0].trim().split(':')[0].toLowerCase();
-      const _jRaw = (req.headers.host || '').split(':')[0].toLowerCase().trim();
-      const _jFwdIsMCC = _jFwd && (_jFwd === MCC_BASE_DOMAIN || _jFwd.endsWith(`.${MCC_BASE_DOMAIN}`));
-      const _jMCCHost = _jFwdIsMCC ? _jFwd : (_jRaw === MCC_BASE_DOMAIN || _jRaw.endsWith(`.${MCC_BASE_DOMAIN}`) ? _jRaw : null);
-      const _jCustomCandidates = [...new Set([_jFwd, _jRaw].filter(h => h && h !== MCC_BASE_DOMAIN && !h.endsWith(`.${MCC_BASE_DOMAIN}`)))];
+      // Resolve tenant via server-issued invite token (join_token) — SECURE
+      // AUTHORIZATION FLOW:
+      //   1. Primary: client supplies join_token obtained from /api/white-label/config
+      //      (which returns join_token only for domain-matched requests).
+      //      Server looks up tenant by join_token exact match. Host headers are NOT used
+      //      as the authz source — they can be spoofed in direct-to-origin requests.
+      //   2. Admin fallback: X-Admin-Token + explicit tenant_id for admin-initiated joins.
+      //
+      // join_token is a server-issued UUID in white_label_tenants.join_token.
+      // It acts as a per-tenant invite credential: any user who visited the correct
+      // domain and obtained the token from /api/white-label/config can join.
       const JOIN_COLS = 'id, plan, max_members, max_providers, status';
       let tenant = null;
-      if (_jMCCHost && _jMCCHost !== MCC_BASE_DOMAIN) {
-        const sub = _jMCCHost.split('.')[0];
-        const isLocal = SKIP_HOSTS.some(s => _jMCCHost.includes(s)) || _jMCCHost.includes('replit');
-        if (!isLocal && sub && sub !== 'www' && sub !== 'mycarconcierge') {
-          const { data } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('subdomain', sub).eq('status', 'active').maybeSingle();
-          tenant = data;
-        }
-      } else {
-        for (const candidate of _jCustomCandidates) {
-          const isLocal = SKIP_HOSTS.some(s => candidate.includes(s)) || candidate.includes('replit') || candidate.includes('.replit.');
-          if (isLocal) continue;
-          const { data } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('domain', candidate).eq('status', 'active').maybeSingle();
-          if (data) { tenant = data; break; }
-        }
-      }
 
-      // Fallback: allow explicit tenant_id only if admin token is present (admin-initiated join)
-      if (!tenant && body?.tenant_id) {
+      if (body?.join_token) {
+        // Token-based join: look up by join_token (exact DB match — not host-derived)
+        const { data: tokenTenant } = await supabase
+          .from('white_label_tenants')
+          .select(JOIN_COLS)
+          .eq('join_token', body.join_token)
+          .eq('status', 'active')
+          .maybeSingle();
+        if (!tokenTenant) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid or expired join token. Please reload your white-label domain and try again.' }));
+          return;
+        }
+        tenant = tokenTenant;
+      } else if (body?.tenant_id) {
+        // Admin fallback: admin token required for explicit tenant_id join
         const _adminToken = req.headers['x-admin-token'];
         const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
         if (!_validAdmin) {
           res.writeHead(403, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Cannot specify tenant_id without admin authentication. Access this endpoint from your white-label domain.' }));
+          res.end(JSON.stringify({ error: 'A join_token is required. Obtain it by loading /api/white-label/config from your white-label domain.' }));
           return;
         }
         const { data: adminTenant } = await supabase
           .from('white_label_tenants')
-          .select('id, plan, max_members, max_providers, status')
+          .select(JOIN_COLS)
           .eq('id', body.tenant_id)
           .eq('status', 'active')
           .maybeSingle();
+        if (!adminTenant) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Tenant not found or inactive.' }));
+          return;
+        }
         tenant = adminTenant;
-      }
-
-      if (!tenant) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'No active white-label tenant found for this domain. Access this endpoint from your white-label domain.' }));
+      } else {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'join_token is required. Load /api/white-label/config from your white-label domain to obtain it.' }));
         return;
       }
 
@@ -39257,6 +39258,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     const _dTargetId = req.url.split('/api/tenant/roster/')[1];
     const supabase = getSupabaseClient();
     try {
+      // Resolve caller's tenant membership and role
       const { data: _dMembership } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _dUser.id).in('role', ['owner', 'admin']).maybeSingle();
       let _dTenantId = _dMembership?.tenant_id;
       if (!_dTenantId) {
@@ -39264,12 +39266,49 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         _dTenantId = _dOwned?.id;
       }
       if (!_dTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
-      // Prevent removing self if owner
-      if (_dTargetId === _dUser.id && _dMembership?.role === 'owner') { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Cannot remove yourself as owner' })); return; }
+      const _dCallerRole = _dMembership?.role || 'owner'; // owner_user_id path => treat as owner
+      // Prevent owner from removing themselves
+      if (_dTargetId === _dUser.id && _dCallerRole === 'owner') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Cannot remove yourself as owner. Transfer ownership first.' }));
+        return;
+      }
+      // Resolve target's current role for role-hierarchy enforcement
+      const { data: _dTargetMembership } = await supabase
+        .from('white_label_tenant_users')
+        .select('role')
+        .eq('tenant_id', _dTenantId)
+        .eq('user_id', _dTargetId)
+        .maybeSingle();
+      if (!_dTargetMembership) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'User is not a member of this tenant' }));
+        return;
+      }
+      // Role hierarchy enforcement:
+      //   owner  → can remove anyone (except themselves, blocked above)
+      //   admin  → can only remove member/provider roles; cannot remove owner or other admins
+      const _dTargetRole = _dTargetMembership.role;
+      if (_dCallerRole === 'admin' && ['owner', 'admin'].includes(_dTargetRole)) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Admins can only remove members and providers. Contact the tenant owner to remove admins.' }));
+        return;
+      }
       const { error: _dErr } = await supabase.from('white_label_tenant_users').delete().eq('tenant_id', _dTenantId).eq('user_id', _dTargetId);
       if (_dErr) throw _dErr;
-      // Clear tenant_id from this user's profile row so they lose tenant scoping
-      await supabase.from('profiles').update({ tenant_id: null }).eq('id', _dTargetId);
+      // Only clear profile.tenant_id if the user has no remaining tenant memberships.
+      // Unconditional nulling would corrupt state if the user is in multiple tenants
+      // (future multi-tenant support) or if the membership record was the only one.
+      const { data: _dRemaining } = await supabase
+        .from('white_label_tenant_users')
+        .select('tenant_id')
+        .eq('user_id', _dTargetId)
+        .limit(1)
+        .maybeSingle();
+      if (!_dRemaining) {
+        // No other tenant memberships — safe to clear scoping
+        await supabase.from('profiles').update({ tenant_id: null }).eq('id', _dTargetId);
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true }));
     } catch (err) {
