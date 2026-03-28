@@ -702,7 +702,7 @@ function renderPlanCard(p) {
   const cachedPhotos = p.vehicles?.id ? (planPhotos[p.vehicles.id] || []) : [];
   const primaryPhoto = cachedPhotos.find(ph => ph.is_primary) || cachedPhotos[0];
   const photoHtml = primaryPhoto?.url
-    ? `<img class="card-photo-thumb" id="card-photo-${p.id}" src="${primaryPhoto.url}" alt="Vehicle" loading="lazy" onerror="this.style.display='none'">`
+    ? `<img class="card-photo-thumb" id="card-photo-${p.id}" src="${primaryPhoto.url}" alt="Vehicle" loading="lazy" onerror="this.onerror=null;replaceImgWithPlaceholder(this)">`
     : `<div class="card-photo-placeholder" id="card-photo-${p.id}" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e3a5f 0%,#12161c 100%);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#b8942d" stroke-width="1.5" opacity="0.7"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>`;
   return `
     <div class="job-card${p.my_bid ? ' my-bid' : ''}${p.id === selectedPlanId ? ' selected' : ''}" onclick="selectPlan('${p.id}')" data-plan-id="${p.id}" style="display:flex;gap:10px;align-items:flex-start;">
@@ -741,7 +741,7 @@ async function prefetchCardPhoto(plan) {
     // Swap placeholder with real photo in card
     const el = document.getElementById(`card-photo-${plan.id}`);
     if (el && !el.src) {
-      el.outerHTML = `<img class="card-photo-thumb" id="card-photo-${plan.id}" src="${primary.url}" alt="Vehicle" loading="lazy" onerror="this.style.display='none'">`;
+      el.outerHTML = `<img class="card-photo-thumb" id="card-photo-${plan.id}" src="${primary.url}" alt="Vehicle" loading="lazy" onerror="this.onerror=null;replaceImgWithPlaceholder(this)">`;
     } else if (el && el.tagName === 'DIV') {
       const img = document.createElement('img');
       img.className = 'card-photo-thumb';
@@ -749,7 +749,7 @@ async function prefetchCardPhoto(plan) {
       img.src = primary.url;
       img.alt = 'Vehicle';
       img.loading = 'lazy';
-      img.onerror = function() { this.style.display = 'none'; };
+      img.onerror = function() { this.onerror = null; replaceImgWithPlaceholder(this); };
       el.replaceWith(img);
     }
   } catch {}
@@ -1011,6 +1011,16 @@ function openBidModal(planId, editMode) {
   }
   document.getElementById('bid-modal').classList.add('open');
   document.getElementById('bid-amount').focus();
+}
+
+// Replaces a broken img with the gold/navy placeholder div — used in onerror handlers
+function replaceImgWithPlaceholder(img) {
+  const div = document.createElement('div');
+  div.className = img.className;
+  if (img.id) div.id = img.id;
+  div.style.cssText = 'display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e3a5f 0%,#12161c 100%);border-radius:var(--radius-sm,6px);flex-shrink:0;width:64px;height:64px;';
+  div.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#b8942d" stroke-width="1.5" opacity="0.7"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>';
+  img.replaceWith(div);
 }
 
 function updateBidGuidanceLive(value) {

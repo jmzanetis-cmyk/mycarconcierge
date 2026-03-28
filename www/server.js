@@ -41938,8 +41938,11 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       const searchQ = (qs.get('q') || '').trim();
       const from = (page - 1) * pageSize;
       // Unverified providers receive a stripped-down payload with no PII/contact info
+      // NOTE: care_plans.member_id FK is to auth.users, NOT profiles. PostgREST cannot
+      // traverse the FK to profiles directly. Member profile data is enriched separately
+      // via enrichMemberProfiles() after the main query.
       const SELECT_FIELDS = isVerified
-        ? `id, title, description, services, value_min, value_max, service_types, city, state, zip_code, status, bid_count, bid_closes_at, created_at, member_id, vehicle_id, vehicles!care_plans_vehicle_id_fkey(id, year, make, model, mileage, color), member:profiles!care_plans_member_id_fkey(full_name, city, state, zip_code)`
+        ? `id, title, description, services, value_min, value_max, service_types, city, state, zip_code, status, bid_count, bid_closes_at, created_at, member_id, vehicle_id, vehicles!care_plans_vehicle_id_fkey(id, year, make, model, mileage, color)`
         : `id, title, value_min, value_max, service_types, city, state, status, bid_count, bid_closes_at, created_at`;
 
       // Fetch my-bids plan IDs up front
@@ -42004,7 +42007,8 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         if (maxDistance > 0) result = result.filter(p => p.estimated_distance_miles <= maxDistance);
         if (sort === 'nearest') result.sort((a, b) => a.estimated_distance_miles - b.estimated_distance_miles);
         const total = result.length;
-        const paged = result.slice(from, from + pageSize).map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
+        let paged = result.slice(from, from + pageSize).map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
+        paged = await enrichMemberProfiles(supabase, paged, isVerified);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ plans: paged, total, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled), tab_counts: tabCounts }));
       } else {
@@ -42015,6 +42019,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         }));
         if (sort === 'nearest') result.sort((a, b) => a.estimated_distance_miles - b.estimated_distance_miles);
         result = result.map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
+        result = await enrichMemberProfiles(supabase, result, isVerified);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ plans: result, total: count || result.length, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled), tab_counts: tabCounts }));
       }
@@ -42283,6 +42288,13 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       try {
         const { storage_path, url, is_primary } = JSON.parse(body || '{}');
         if (!storage_path) { res.writeHead(400); res.end(JSON.stringify({ error: 'storage_path required' })); return; }
+        // Validate path prefix — must be {userId}/{vehicleId}/filename to prevent path traversal / URL signing of arbitrary objects
+        const expectedPrefix = `${user.id}/${vehicleId}/`;
+        if (!storage_path.startsWith(expectedPrefix)) { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid storage path' })); return; }
+        // Validate extension — only image types accepted
+        const storagExt = (storage_path.split('.').pop() || '').toLowerCase();
+        const allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'heic'];
+        if (!allowedExts.includes(storagExt)) { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid file type' })); return; }
         // Ownership check: vehicle must belong to the authenticated member
         const { data: ownedVehicle } = await supabase.from('vehicles').select('id').eq('id', vehicleId).eq('owner_id', user.id).maybeSingle();
         if (!ownedVehicle) { res.writeHead(403); res.end(JSON.stringify({ error: 'Vehicle not found or access denied' })); return; }
@@ -43755,6 +43767,19 @@ function startBidDeadlineScheduler() {
 
 // SQL migration for deadline_warning_sent:
 // ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE;
+
+// ========== MODULE-LEVEL HELPER: enrich plans with member profiles ==========
+// care_plans.member_id FK points to auth.users, NOT profiles — PostgREST cannot
+// traverse it to profiles directly. We fetch profiles in a separate batch instead.
+async function enrichMemberProfiles(supabase, plans, isVerified) {
+  if (!isVerified) return plans.map(p => ({ ...p, member: null }));
+  const memberIds = [...new Set(plans.map(p => p.member_id).filter(Boolean))];
+  if (!memberIds.length) return plans;
+  const { data } = await supabase.from('profiles').select('id, full_name, city, state, zip_code').in('id', memberIds);
+  const map = {};
+  (data || []).forEach(m => { map[m.id] = m; });
+  return plans.map(p => ({ ...p, member: map[p.member_id] || null }));
+}
 
 // ========== MODULE-LEVEL HELPER: zip-prefix distance estimate ==========
 // Shared by job-board route handler, auto-bid engine, and schedulers.
