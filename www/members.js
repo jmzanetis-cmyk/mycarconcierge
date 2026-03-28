@@ -12330,6 +12330,7 @@
       updateFleetStats();
       renderFleetMembers();
       renderFleetVehicles();
+      renderFleetHealthDashboard();
       await loadBulkBatches();
       await loadFleetApprovals();
     }
@@ -12457,14 +12458,113 @@
     }
     
     function filterFleetVehicles(filter) {
-      currentFleetVehicleFilter = filter;
-      
-      document.querySelectorAll('#fleet-vehicle-tabs .tab').forEach(tab => {
-        tab.classList.remove('active');
-        if (tab.dataset.fleetFilter === filter) tab.classList.add('active');
-      });
-      
+      if (filter !== undefined) {
+        currentFleetVehicleFilter = filter;
+        document.querySelectorAll('#fleet-vehicle-tabs .tab').forEach(tab => {
+          tab.classList.remove('active');
+          if (tab.dataset.fleetFilter === filter) tab.classList.add('active');
+        });
+      }
       renderFleetVehicles();
+    }
+
+    function getFleetDeptVehicleFilter() {
+      const sel = document.getElementById('fleet-dept-vehicle-filter');
+      return sel ? sel.value : '';
+    }
+
+    function populateDeptFilter(selectId, vehicles) {
+      const sel = document.getElementById(selectId);
+      if (!sel) return;
+      const current = sel.value;
+      const depts = [...new Set(vehicles.map(fv => fv.department || fv.vehicle?.department).filter(Boolean))].sort();
+      sel.innerHTML = '<option value="">All Departments</option>' + depts.map(d => `<option value="${d}"${current === d ? ' selected' : ''}>${d}</option>`).join('');
+    }
+
+    function refreshFleetHealth() {
+      renderFleetHealthDashboard();
+    }
+
+    function renderFleetHealthDashboard() {
+      const card = document.getElementById('fleet-health-card');
+      if (!card) return;
+      if (fleetVehicles.length === 0) { card.style.display = 'none'; return; }
+      card.style.display = 'block';
+
+      const now = new Date();
+      const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      let excellent = 0, good = 0, fair = 0, poor = 0;
+      let overdue = [], dueSoon = [];
+
+      fleetVehicles.forEach(fv => {
+        const v = fv.vehicle || {};
+        const score = typeof v.health_score === 'number' ? v.health_score : 80;
+        if (score >= 90) excellent++;
+        else if (score >= 70) good++;
+        else if (score >= 50) fair++;
+        else poor++;
+
+        const nextService = v.next_service_date ? new Date(v.next_service_date) : null;
+        if (nextService) {
+          const label = `${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim() || 'Vehicle';
+          const daysUntil = Math.ceil((nextService - now) / (1000 * 60 * 60 * 24));
+          if (nextService < now) {
+            overdue.push({ label, fv, v, daysAgo: -daysUntil, score });
+          } else if (nextService <= thirtyDays) {
+            dueSoon.push({ label, fv, v, daysUntil, score });
+          }
+        } else if (score < 50) {
+          const label = `${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim() || 'Vehicle';
+          overdue.push({ label, fv, v, daysAgo: null, score });
+        }
+      });
+
+      const total = fleetVehicles.length;
+      const upToDate = total - overdue.length;
+      const pctOk = total > 0 ? Math.round((upToDate / total) * 100) : 100;
+      const avgScore = total > 0 ? Math.round(fleetVehicles.reduce((acc, fv) => acc + (typeof (fv.vehicle?.health_score) === 'number' ? fv.vehicle.health_score : 80), 0) / total) : 100;
+
+      document.getElementById('fleet-health-pct-ok').textContent = pctOk + '%';
+      document.getElementById('fleet-health-overdue').textContent = overdue.length;
+      document.getElementById('fleet-health-due-soon').textContent = dueSoon.length;
+      const avgEl = document.getElementById('fleet-health-avg-score');
+      avgEl.textContent = avgScore;
+      avgEl.style.color = avgScore >= 80 ? 'var(--accent-green)' : avgScore >= 60 ? 'var(--accent-orange)' : 'var(--accent-red)';
+
+      document.getElementById('fleet-health-cnt-excellent').textContent = excellent;
+      document.getElementById('fleet-health-cnt-good').textContent = good;
+      document.getElementById('fleet-health-cnt-fair').textContent = fair;
+      document.getElementById('fleet-health-cnt-poor').textContent = poor;
+      const setPct = (id, pct) => { const el = document.getElementById(id); if (el) el.style.width = (pct > 0 ? Math.max(pct, 3) : 0) + '%'; };
+      setPct('fleet-health-bar-excellent', total > 0 ? (excellent / total) * 100 : 0);
+      setPct('fleet-health-bar-good', total > 0 ? (good / total) * 100 : 0);
+      setPct('fleet-health-bar-fair', total > 0 ? (fair / total) * 100 : 0);
+      setPct('fleet-health-bar-poor', total > 0 ? (poor / total) * 100 : 0);
+
+      const priorityList = document.getElementById('fleet-health-priority-list');
+      if (!priorityList) return;
+      const allPriority = [
+        ...overdue.sort((a, b) => (b.daysAgo || 0) - (a.daysAgo || 0)).map(i => ({ ...i, urgency: 'overdue' })),
+        ...dueSoon.sort((a, b) => a.daysUntil - b.daysUntil).map(i => ({ ...i, urgency: 'due_soon' }))
+      ];
+      if (allPriority.length === 0) {
+        priorityList.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.88rem;">All vehicles are up to date.</div>';
+      } else {
+        priorityList.innerHTML = allPriority.slice(0, 8).map(item => {
+          const badge = item.urgency === 'overdue'
+            ? `<span style="background:rgba(239,95,95,0.15);color:var(--accent-red);padding:2px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;">OVERDUE${item.daysAgo !== null ? ' ' + item.daysAgo + 'd' : ''}</span>`
+            : `<span style="background:rgba(251,146,60,0.15);color:var(--accent-orange);padding:2px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;">DUE IN ${item.daysUntil}d</span>`;
+          const dept = item.fv.department || item.v?.department || '';
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-subtle);gap:12px;">
+            <div style="min-width:0;">
+              <div style="font-weight:500;font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.label}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">${dept ? dept + ' · ' : ''}Score: ${item.score}</div>
+            </div>
+            <div style="flex-shrink:0;">${badge}</div>
+          </div>`;
+        }).join('');
+      }
     }
     
     function formatBusinessType(type) {
@@ -12485,7 +12585,12 @@
     function renderFleetMembers() {
       const tbody = document.getElementById('fleet-members-tbody');
       if (!tbody) return;
-      
+
+      // Populate + apply department filter for members
+      populateDeptFilter('fleet-dept-member-filter', fleetMembers.map(m => ({ department: m.department })));
+      const deptFilter = (document.getElementById('fleet-dept-member-filter') || {}).value || '';
+      const displayedMembers = deptFilter ? fleetMembers.filter(m => m.department === deptFilter) : fleetMembers;
+
       if (fleetMembers.length === 0) {
         tbody.innerHTML = `
           <tr>
@@ -12497,8 +12602,17 @@
         `;
         return;
       }
+
+      if (displayedMembers.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">No members in this department.</td>
+          </tr>
+        `;
+        return;
+      }
       
-      tbody.innerHTML = fleetMembers.map(member => {
+      tbody.innerHTML = displayedMembers.map(member => {
         const profile = member.user || {};
         const name = profile.full_name || member.email || 'Unknown';
         const email = profile.email || member.email || '-';
@@ -12546,7 +12660,11 @@
     function renderFleetVehicles() {
       const grid = document.getElementById('fleet-vehicles-grid');
       if (!grid) return;
-      
+
+      // Populate department filter dropdown from current fleet vehicles
+      populateDeptFilter('fleet-dept-vehicle-filter', fleetVehicles);
+
+      const deptFilter = getFleetDeptVehicleFilter();
       let filteredVehicles = fleetVehicles;
       
       if (currentFleetVehicleFilter === 'assigned') {
@@ -12558,6 +12676,11 @@
           const v = fv.vehicle || {};
           return v.health_status === 'needs_attention' || v.health_status === 'poor' || v.health_status === 'fair';
         });
+      }
+
+      // Apply department filter
+      if (deptFilter) {
+        filteredVehicles = filteredVehicles.filter(fv => (fv.department || fv.vehicle?.department) === deptFilter);
       }
       
       if (fleetVehicles.length === 0) {
