@@ -368,9 +368,15 @@ CREATE POLICY "Tenant scoped package insert"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    -- Tenant admins may insert packages scoped to their tenant only
+    -- Only tenant owners/admins may insert packages scoped to their tenant
     OR (get_current_user_tenant_id() IS NOT NULL
-        AND tenant_id = get_current_user_tenant_id())
+        AND tenant_id = get_current_user_tenant_id()
+        AND EXISTS (
+          SELECT 1 FROM white_label_tenant_users wtu
+          WHERE wtu.user_id = auth.uid()
+            AND wtu.tenant_id = get_current_user_tenant_id()
+            AND wtu.role IN ('owner', 'admin')
+        ))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped package update" ON packages;
@@ -379,14 +385,26 @@ CREATE POLICY "Tenant scoped package update"
   USING (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id()
+        AND EXISTS (
+          SELECT 1 FROM white_label_tenant_users wtu
+          WHERE wtu.user_id = auth.uid()
+            AND wtu.tenant_id = get_current_user_tenant_id()
+            AND wtu.role IN ('owner', 'admin')
+        ))
   )
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    -- Tenant admins may only update packages already in their tenant
+    -- Only tenant owners/admins may update packages in their tenant
     OR (get_current_user_tenant_id() IS NOT NULL
-        AND tenant_id = get_current_user_tenant_id())
+        AND tenant_id = get_current_user_tenant_id()
+        AND EXISTS (
+          SELECT 1 FROM white_label_tenant_users wtu
+          WHERE wtu.user_id = auth.uid()
+            AND wtu.tenant_id = get_current_user_tenant_id()
+            AND wtu.role IN ('owner', 'admin')
+        ))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped package delete" ON packages;
