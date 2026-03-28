@@ -1115,10 +1115,8 @@
             .upload(fileName, pendingEditVehiclePhoto.file);
           
           if (!uploadError) {
-            const { data: urlData } = supabaseClient.storage
-              .from('vehicle-photos')
-              .getPublicUrl(fileName);
-            photoUrl = urlData.publicUrl;
+            // URL will be retrieved via signed URL endpoint on next load — do not expose public URL
+            photoUrl = fileName; // store storage path for reference; display handled server-side
           } else {
             console.error('Photo upload error:', uploadError);
             showToast('Photo upload failed, but updating vehicle info...', 'error');
@@ -1245,12 +1243,8 @@
           return null;
         }
 
-        // Get public URL
-        const { data: urlData } = supabaseClient.storage
-          .from('vehicle-photos')
-          .getPublicUrl(fileName);
-
-        return urlData.publicUrl;
+        // Return storage path only — signed URL generated server-side on retrieval
+        return fileName;
       } catch (err) {
         console.error('Error uploading vehicle photo:', err);
         return null;
@@ -2013,11 +2007,11 @@ async function uploadVehiclePhoto(input) {
     const { data: uploadData, error: uploadErr } = await supabaseClient.storage
       .from('vehicle-photos').upload(fileName, file, { contentType: file.type, upsert: false });
     if (uploadErr) throw uploadErr;
-    const { data: urlData } = supabaseClient.storage.from('vehicle-photos').getPublicUrl(fileName);
+    // Do NOT use getPublicUrl — send only storage_path; server generates signed URL
     const res = await fetch('/api/vehicle-photos/' + currentPhotoVehicleId, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ storage_path: fileName, url: urlData.publicUrl, is_primary: vehiclePhotos.length === 0 })
+      body: JSON.stringify({ storage_path: fileName, is_primary: vehiclePhotos.length === 0 })
     });
     if (!res.ok) throw new Error('Register failed');
     showToast('Photo uploaded!', 'success');

@@ -41996,12 +41996,14 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       else query = query.order('created_at', { ascending: false }); // newest, nearest both start with full set
 
       if (needsDistanceFilter) {
-        // Fetch all (up to 500) and filter by distance before paginating
+        // Fetch all (up to 500) then sort/filter in memory for accurate pagination
         const { data: allPlans, error } = await query.range(0, 499);
         if (error) throw error;
         let result = (allPlans || []).map(p => ({
           ...p, estimated_distance_miles: estimateZipDistanceSrv(prov.zip_code, p.zip_code || p.member?.zip_code)
-        })).filter(p => p.estimated_distance_miles <= maxDistance);
+        }));
+        // Only apply distance cap when explicitly requested (maxDistance > 0)
+        if (maxDistance > 0) result = result.filter(p => p.estimated_distance_miles <= maxDistance);
         if (sort === 'nearest') result.sort((a, b) => a.estimated_distance_miles - b.estimated_distance_miles);
         const total = result.length;
         const paged = result.slice(from, from + pageSize).map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
@@ -42176,16 +42178,28 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       const maxDist = parseInt(qs.get('max_distance') || '25');
       const serviceTypes = qs.get('service_types') ? qs.get('service_types').split(',').filter(Boolean) : [];
       const { data: prov } = await supabase.from('profiles').select('zip_code').eq('id', user.id).single();
-      let query = supabase.from('care_plans').select('id, zip_code, service_types').eq('status', 'open').gt('bid_closes_at', new Date().toISOString());
-      if (serviceTypes.length) query = query.overlaps('service_types', serviceTypes);
-      const { data: plans } = await query;
-      let count = 0;
-      (plans || []).forEach(p => {
+      // Look at the most recent 10 care plans to show "X of the last 10 plans would match"
+      let query = supabase.from('care_plans').select('id, zip_code, service_types')
+        .eq('status', 'open').gt('bid_closes_at', new Date().toISOString())
+        .order('created_at', { ascending: false }).limit(10);
+      const { data: recentPlans } = await query;
+      // Also fetch total matching (across all open plans) for a broader count
+      let allQuery = supabase.from('care_plans').select('id, zip_code, service_types').eq('status', 'open').gt('bid_closes_at', new Date().toISOString());
+      if (serviceTypes.length) allQuery = allQuery.overlaps('service_types', serviceTypes);
+      const { data: allPlans } = await allQuery;
+      let countOfLast10 = 0;
+      (recentPlans || []).forEach(p => {
         const dist = estimateZipDistanceSrv(prov?.zip_code, p.zip_code);
-        if (dist <= maxDist) count++;
+        const svcMatch = !serviceTypes.length || (p.service_types || []).some(s => serviceTypes.includes(s));
+        if (dist <= maxDist && svcMatch) countOfLast10++;
+      });
+      let countAll = 0;
+      (allPlans || []).forEach(p => {
+        const dist = estimateZipDistanceSrv(prov?.zip_code, p.zip_code);
+        if (dist <= maxDist) countAll++;
       });
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ count }));
+      res.end(JSON.stringify({ count: countAll, count_of_last_10: countOfLast10 }));
     } catch (err) {
       res.writeHead(500); res.end(JSON.stringify({ error: 'Preview failed' }));
     }
@@ -43814,10 +43828,10 @@ function startCarePlanClosingScheduler() {
         .eq('status', 'open').lte('bid_closes_at', sixHoursLater).gte('bid_closes_at', now);
       if (!closingSoon?.length) return;
 
-      // Load all verified providers with SMS notifications enabled
+      // Load all verified providers (SMS + push; each channel checks its own preferences)
       const { data: allProviders } = await supabase.from('profiles')
         .select('id, phone, full_name, business_name, zip_code, sms_notifications_enabled, verification_status, auto_bid_max_distance_miles')
-        .in('role', ['provider', 'admin']).eq('sms_notifications_enabled', true).not('phone', 'is', null);
+        .in('role', ['provider', 'admin']).eq('verification_status', 'verified');
 
       // Load existing bids for closing-soon plans (batch lookup)
       const closingIds = closingSoon.map(p => p.id);
@@ -43839,7 +43853,15 @@ function startCarePlanClosingScheduler() {
           if (dist > maxDist) continue;
           const provName = prov.business_name || prov.full_name || 'Provider';
           const msg = `MCC Alert: Care plan "${plan.title}" closes in ~${minsLeft} min. Est. value: $${plan.value_min || '?'}–$${plan.value_max || '?'}. Bid now: mycarconcierge.com/provider/jobs`;
-          await sendSms(prov.phone, msg).catch(() => {});
+          if (prov.phone && prov.sms_notifications_enabled) await sendSms(prov.phone, msg).catch(() => {});
+          // Push notification (fires regardless of SMS preference)
+          await sendFCMPushNotification(
+            [prov.id],
+            '⏰ Care Plan Closing Soon',
+            `"${plan.title}" closes in ~${minsLeft} min. Est. $${plan.value_min || '?'}–$${plan.value_max || '?'} — bid now!`,
+            { url: '/provider/jobs', care_plan_id: plan.id },
+            'bid_opportunities'
+          ).catch(() => {});
           closingSoonNotified.add(dedupeKey);
         }
       }
@@ -43857,10 +43879,8 @@ function startCarePlanClosingScheduler() {
       // Digest targets providers who have NOT enabled auto-bid (those who opted in already get bids placed automatically)
       const { data: providers } = await supabase.from('profiles')
         .select('id, phone, email, full_name, business_name, zip_code, sms_notifications_enabled, auto_bid_max_distance_miles, verification_status')
-        .in('role', ['provider', 'admin']).eq('sms_notifications_enabled', true)
-        .or('auto_bid_enabled.is.null,auto_bid_enabled.eq.false')
-        .or('verification_status.is.null,verification_status.eq.verified')
-        .not('phone', 'is', null);
+        .in('role', ['provider', 'admin']).eq('verification_status', 'verified')
+        .or('auto_bid_enabled.is.null,auto_bid_enabled.eq.false');
       for (const prov of (providers || [])) {
         const maxDist = prov.auto_bid_max_distance_miles || 50;
         // Only show zero-bid plans (First Mover opportunity)
@@ -43873,7 +43893,13 @@ function startCarePlanClosingScheduler() {
           `"${p.title}" – $${p.value_min || '?'}–$${p.value_max || '?'} (${p.bid_count || 0} bids)`
         ).join('; ');
         const msg = `MCC Daily Jobs: ${matching.length} open care plan${matching.length > 1 ? 's' : ''} near you. Top picks: ${summary}. View all: mycarconcierge.com/provider/jobs`;
-        await sendSms(prov.phone, msg).catch(() => {});
+        if (prov.phone && prov.sms_notifications_enabled) await sendSms(prov.phone, msg).catch(() => {});
+        // Push notification (First Mover opportunity)
+        const pushTitle = matching.length === 1 ? '🥇 First Mover Opportunity' : `🥇 ${matching.length} New Care Plans Near You`;
+        const pushBody = matching.length === 1
+          ? `Be first to bid on "${matching[0].title}" — $${matching[0].value_min || '?'}–$${matching[0].value_max || '?'}`
+          : `${matching.length} care plans with no bids yet near you. Be first to win!`;
+        await sendFCMPushNotification([prov.id], pushTitle, pushBody, { url: '/provider/jobs' }, 'bid_opportunities').catch(() => {});
       }
       console.log(`[CarePlanScheduler] First Mover digest sent to up to ${(providers || []).length} providers`);
     } catch (err) { console.error('[CarePlanScheduler] Digest error:', err.message); }
