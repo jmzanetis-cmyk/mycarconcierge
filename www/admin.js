@@ -11160,15 +11160,21 @@
                 <th style="text-align:left;padding:10px 8px;color:var(--text-muted);">Last Used</th>
                 <th style="text-align:left;padding:10px 8px;color:var(--text-muted);">Status</th>
               </tr></thead>
-              <tbody>${data.top_keys.map(k => `
-                <tr style="border-bottom:1px solid var(--border-subtle);">
-                  <td style="padding:10px 8px;">${k.name || 'Unnamed'}</td>
-                  <td style="padding:10px 8px;"><span class="badge" style="background:var(--accent-gold-soft);color:var(--accent-gold);text-transform:capitalize;">${k.plan}</span></td>
+              <tbody>${data.top_keys.map(k => {
+                const safeName = escapeHtml(k.name || 'Unnamed');
+                const safePlan = escapeHtml(String(k.plan || ''));
+                const safeStatus = escapeHtml(String(k.status || ''));
+                const statusBg = safeStatus === 'active' ? 'var(--accent-green-soft)' : 'var(--accent-red-soft)';
+                const statusColor = safeStatus === 'active' ? 'var(--accent-green)' : 'var(--accent-red)';
+                return `<tr style="border-bottom:1px solid var(--border-subtle);">
+                  <td style="padding:10px 8px;">${safeName}</td>
+                  <td style="padding:10px 8px;"><span class="badge" style="background:var(--accent-gold-soft);color:var(--accent-gold);text-transform:capitalize;">${safePlan}</span></td>
                   <td style="padding:10px 8px;text-align:right;">${(k.calls_made || 0).toLocaleString()}</td>
                   <td style="padding:10px 8px;text-align:right;">${k.calls_limit === -1 ? '∞' : (k.calls_limit || 0).toLocaleString()}</td>
                   <td style="padding:10px 8px;color:var(--text-muted);">${k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : 'Never'}</td>
-                  <td style="padding:10px 8px;"><span class="badge" style="background:${k.status === 'active' ? 'var(--accent-green-soft)' : 'var(--accent-red-soft)'};color:${k.status === 'active' ? 'var(--accent-green)' : 'var(--accent-red)'};">${k.status}</span></td>
-                </tr>`).join('')}
+                  <td style="padding:10px 8px;"><span class="badge" style="background:${statusBg};color:${statusColor};">${safeStatus}</span></td>
+                </tr>`;
+              }).join('')}
               </tbody>
             </table>`;
           }

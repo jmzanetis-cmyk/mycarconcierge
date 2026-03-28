@@ -41457,36 +41457,6 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     return;
   }
 
-  // GET /api/v1/openapi.json — OpenAPI spec
-  if (req.method === 'GET' && req.url === '/api/v1/openapi.json') {
-    setSecurityHeaders(res, true);
-    setCorsHeaders(res);
-    const spec = {
-      openapi: '3.0.3',
-      info: { title: 'My Car Concierge Automotive AI API', version: '1.0.0', description: 'AI-powered automotive intelligence: OBD diagnostics, vehicle health scoring, maintenance forecasting, recall enrichment, and fair price estimation.', contact: { name: 'MCC Developer Support', email: 'developers@mycarconcierge.com', url: 'https://mycarconcierge.com/developers' }, license: { name: 'Commercial', url: 'https://mycarconcierge.com/terms' } },
-      servers: [{ url: 'https://mycarconcierge.com/api/v1', description: 'Production' }],
-      security: [{ BearerAuth: [] }],
-      components: {
-        securitySchemes: { BearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'mcc_...', description: 'Get your API key at mycarconcierge.com/developers' } },
-        schemas: {
-          Error: { type: 'object', properties: { error: { type: 'string' } } },
-          VehicleRef: { type: 'object', properties: { year: { type: 'integer', example: 2020 }, make: { type: 'string', example: 'Toyota' }, model: { type: 'string', example: 'Camry' }, mileage: { type: 'integer', example: 45000 } } }
-        }
-      },
-      paths: {
-        '/vin/{vin}': { get: { summary: 'Decode VIN', operationId: 'decodeVin', parameters: [{ name: 'vin', in: 'path', required: true, schema: { type: 'string', minLength: 17, maxLength: 17 } }], responses: { '200': { description: 'VIN decoded successfully', content: { 'application/json': { schema: { type: 'object', properties: { vin: { type: 'string' }, year: { type: 'string' }, make: { type: 'string' }, model: { type: 'string' }, source: { type: 'string' } } } } } }, '400': { description: 'Invalid VIN' }, '401': { description: 'Unauthorized' } } } },
-        '/recalls/{vin}': { get: { summary: 'Get NHTSA recalls for VIN', operationId: 'getRecalls', parameters: [{ name: 'vin', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Recall data', content: { 'application/json': { schema: { type: 'object', properties: { vin: { type: 'string' }, recalls: { type: 'array', items: { type: 'object' } }, count: { type: 'integer' } } } } } }, '401': { description: 'Unauthorized' } } } },
-        '/obd-codes': { post: { summary: 'Analyze OBD-II codes', operationId: 'analyzeObd', description: 'Requires AI Pro plan or higher', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['codes'], properties: { codes: { type: 'array', items: { type: 'string' }, example: ['P0420', 'P0171'] }, vehicle: { '$ref': '#/components/schemas/VehicleRef' } } } } } }, responses: { '200': { description: 'OBD analysis', content: { 'application/json': { schema: { type: 'object', properties: { codes: { type: 'array', items: { type: 'object', properties: { code: { type: 'string' }, description: { type: 'string' }, severity: { type: 'integer' }, causes: { type: 'array', items: { type: 'string' } }, actions: { type: 'array', items: { type: 'string' } }, cost_estimate: { type: 'string' } } } } } } } } }, '402': { description: 'Plan upgrade required' } } } },
-        '/price-estimate': { post: { summary: 'Get fair price estimate', operationId: 'getPriceEstimate', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['category'], properties: { category: { type: 'string', example: 'Oil Change' }, zip_code: { type: 'string', example: '10001' }, vehicle: { '$ref': '#/components/schemas/VehicleRef' } } } } } }, responses: { '200': { description: 'Price estimate', content: { 'application/json': { schema: { type: 'object', properties: { category: { type: 'string' }, min_price: { type: 'number' }, max_price: { type: 'number' }, avg_price: { type: 'number' } } } } } } } } },
-        '/vehicle/health': { post: { summary: 'AI vehicle health score', operationId: 'getVehicleHealth', description: 'Requires AI Pro plan or higher', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['year','make','model'], properties: { vin: { type: 'string' }, year: { type: 'integer' }, make: { type: 'string' }, model: { type: 'string' }, mileage: { type: 'integer' }, active_codes: { type: 'array', items: { type: 'string' } }, last_services: { type: 'object' } } } } } }, responses: { '200': { description: 'Vehicle health score', content: { 'application/json': { schema: { type: 'object', properties: { score: { type: 'integer', minimum: 0, maximum: 100 }, factors: { type: 'object', properties: { positive: { type: 'array', items: { type: 'string' } }, negative: { type: 'array', items: { type: 'string' } } } }, summary: { type: 'string' } } } } } } } } },
-        '/vehicle/forecast': { post: { summary: 'Maintenance forecast', operationId: 'getVehicleForecast', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['year','make','model'], properties: { year: { type: 'integer' }, make: { type: 'string' }, model: { type: 'string' }, mileage: { type: 'integer' }, last_services: { type: 'object' } } } } } }, responses: { '200': { description: 'Maintenance forecast', content: { 'application/json': { schema: { type: 'object', properties: { forecast: { type: 'array', items: { type: 'object', properties: { service: { type: 'string' }, due_miles: { type: 'integer' }, due_date: { type: 'string', format: 'date' }, priority: { type: 'string', enum: ['high','medium','low'] }, estimated_cost: { type: 'string' } } } }, summary: { type: 'string' } } } } } } } } }
-      }
-    };
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(spec));
-    return;
-  }
-
   // GET /api/developer/usage — usage stats for authenticated user's API keys
   if (req.method === 'GET' && req.url === '/api/developer/usage') {
     setSecurityHeaders(res, true);
