@@ -38914,9 +38914,9 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     try {
       let tenant = null;
       const _effectiveLookup = previewDomain || null;
-      // join_token is only returned to authenticated requests (not a public credential)
-      const _cfgBearer = (req.headers['authorization'] || '').split(' ')[1];
-      const WL_COLS = _cfgBearer
+      // join_token only returned when bearer token is cryptographically valid (not just present)
+      const _cfgUser = await authenticateRequest(req);
+      const WL_COLS = _cfgUser
         ? 'id, brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan, join_token'
         : 'id, brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan';
       if (supabase) {

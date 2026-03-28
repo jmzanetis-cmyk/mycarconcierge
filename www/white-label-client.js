@@ -78,38 +78,46 @@
     window.dispatchEvent(new CustomEvent('wl-branding-applied', { detail: tenant }));
   }
 
+  // Read Supabase session token from localStorage (sync, no SDK needed)
+  function getStoredAuthToken() {
+    try {
+      var keys = Object.keys(localStorage);
+      for (var i = 0; i < keys.length; i++) {
+        if (keys[i].startsWith('sb-') && keys[i].endsWith('-auth-token')) {
+          var p = JSON.parse(localStorage.getItem(keys[i]) || '{}');
+          if (p && p.access_token) return p.access_token;
+        }
+      }
+    } catch(e) {}
+    return null;
+  }
+
   function loadBranding() {
     var url = (BASE_URL || '') + '/api/white-label/config';
-    fetch(url, { cache: 'default' })
+    // Include auth token so config endpoint can return join_token for authenticated users
+    var authToken = getStoredAuthToken();
+    var fetchOpts = { cache: 'default' };
+    if (authToken) {
+      fetchOpts.headers = { 'Authorization': 'Bearer ' + authToken };
+    }
+    fetch(url, fetchOpts)
       .then(function(r) { return r.ok ? r.json() : null; })
       .then(function(data) {
         if (data && data.is_white_label && data.tenant) {
           applyTenantBranding(data.tenant);
-          // Lifecycle: auto-join the tenant when an authenticated user lands on a tenant domain.
-          // Passes the server-issued join_token (from config) so the join endpoint can authorize
-          // by token lookup rather than relying on host headers (which are spoofable).
+          // Auto-join if we have a valid join_token (only returned for authed config requests)
           autoJoinTenantIfAuthenticated(data.tenant.join_token);
         }
       })
       .catch(function() {});
   }
 
-  // Auto-join the current tenant when an authenticated user loads a white-label domain.
-  // Idempotent. Uses join_token from config (only returned to authed users) as authz credential.
+  // Auto-join the current tenant. join_token comes from config (only returned for authed users).
   // Uses relative URL to keep bearer token same-origin.
   function autoJoinTenantIfAuthenticated(joinToken) {
     try {
-      if (!joinToken) return; // No token = not authed at config time; skip.
-      var token = null;
-      try {
-        var lsKeys = Object.keys(localStorage);
-        for (var k = 0; k < lsKeys.length; k++) {
-          if (lsKeys[k].startsWith('sb-') && lsKeys[k].endsWith('-auth-token')) {
-            var parsed = JSON.parse(localStorage.getItem(lsKeys[k]) || '{}');
-            if (parsed && parsed.access_token) { token = parsed.access_token; break; }
-          }
-        }
-      } catch(e) {}
+      if (!joinToken) return; // Not authed at config time; skip.
+      var token = getStoredAuthToken();
       if (!token) return;
       fetch('/api/white-label/tenant/join', {
         method: 'POST',
