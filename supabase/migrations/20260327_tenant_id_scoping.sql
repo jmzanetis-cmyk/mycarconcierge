@@ -60,7 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_page_views_tenant_id ON page_views(tenant_id) WHE
 
 -- Returns the tenant_id the current auth.uid() belongs to.
 -- NULL if user is a native MCC platform user (no tenant membership).
--- ORDER BY created_at DESC ensures deterministic result if somehow a user
+-- ORDER BY joined_at DESC ensures deterministic result if somehow a user
 -- has multiple memberships (should be enforced by UNIQUE constraint too).
 CREATE OR REPLACE FUNCTION get_current_user_tenant_id()
 RETURNS UUID
@@ -70,7 +70,7 @@ STABLE
 AS $$
   SELECT tenant_id FROM white_label_tenant_users
   WHERE user_id = auth.uid()
-  ORDER BY created_at DESC
+  ORDER BY joined_at DESC
   LIMIT 1;
 $$;
 
@@ -123,7 +123,7 @@ BEGIN
     SELECT tenant_id INTO v_tenant_id
     FROM white_label_tenant_users
     WHERE user_id = auth.uid()
-    ORDER BY created_at DESC
+    ORDER BY joined_at DESC
     LIMIT 1;
     NEW.tenant_id := v_tenant_id;
   END IF;
@@ -174,7 +174,7 @@ BEGIN
     SELECT tenant_id INTO v_tenant_id
     FROM white_label_tenant_users
     WHERE user_id = auth.uid()
-    ORDER BY created_at DESC
+    ORDER BY joined_at DESC
     LIMIT 1;
     NEW.tenant_id := v_tenant_id;
   END IF;

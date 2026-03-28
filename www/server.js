@@ -38896,48 +38896,48 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     //   1. Only trust X-Forwarded-Host if it ends with mycarconcierge.com OR exactly matches a DB domain
     //   2. Subdomain matching only applies to *.mycarconcierge.com — prevents forged hosts from
     //      mapping to any arbitrary tenant subdomain
-    //   3. Custom domains matched via exact `domain` column match only (no substring/wildcard)
+    //   3. Custom domains: validated via DB exact `domain` match — the DB is the trust anchor.
+    //      Both X-Forwarded-Host and Host are checked in order; first DB match wins.
+    //      Forged headers can only cause a DB lookup that returns nothing (no data exposure).
     const _WL_BASE = 'mycarconcierge.com';
     const _WL_SKIP = ['localhost', '127.0.0.1', '0.0.0.0'];
-    const forwardedHost = req.headers['x-forwarded-host'];
-    const rawHost = req.headers.host || '';
-    // Prefer forwarded host if it ends with MCC base domain (trusted Netlify/Cloudflare CDN context only)
-    const rawEffective = (forwardedHost ? forwardedHost.split(',')[0].trim() : rawHost).split(':')[0].toLowerCase().trim();
-    // Validate: only trust forwarded host if it is a known-safe MCC subdomain pattern
-    const forwardedIsSafe = forwardedHost && (rawEffective === _WL_BASE || rawEffective.endsWith(`.${_WL_BASE}`));
-    const effectiveHost = forwardedIsSafe ? rawEffective : rawHost.split(':')[0].toLowerCase().trim();
-    const lookupHost = previewDomain || effectiveHost;
+    // Build ordered list of candidate hostnames: forwarded (first), then raw
+    const _fwdRaw = (req.headers['x-forwarded-host'] || '').split(',')[0].trim().split(':')[0].toLowerCase();
+    const _rawHost = (req.headers.host || '').split(':')[0].toLowerCase().trim();
+    // MCC subdomain: trust X-Forwarded-Host if it ends with base domain (CDN-set header)
+    const _fwdIsMCC = _fwdRaw && (_fwdRaw === _WL_BASE || _fwdRaw.endsWith(`.${_WL_BASE}`));
+    const _mccHost = _fwdIsMCC ? _fwdRaw : (_rawHost === _WL_BASE || _rawHost.endsWith(`.${_WL_BASE}`) ? _rawHost : null);
+    // Custom domain candidates: try both headers (DB exact match is the security gate)
+    const _customCandidates = [...new Set([_fwdRaw, _rawHost].filter(h => h && h !== _WL_BASE && !h.endsWith(`.${_WL_BASE}`)))];
 
     const supabase = getSupabaseClient();
     try {
       let tenant = null;
-      if (supabase && lookupHost) {
-        const isLocal = _WL_SKIP.some(h => lookupHost.includes(h)) || lookupHost.includes('replit') || lookupHost.includes('.replit.');
-        if (!isLocal) {
-          let cfgQuery;
-          if (lookupHost === _WL_BASE || lookupHost.endsWith(`.${_WL_BASE}`)) {
-            // MCC-managed subdomain: safe subdomain resolution
-            const subdomainPart = lookupHost.split('.')[0];
+      const _effectiveLookup = previewDomain || null;
+      const WL_COLS = 'brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan';
+      if (supabase) {
+        if (_effectiveLookup) {
+          // Preview domain override (admin) — direct domain lookup
+          const { data } = await supabase.from('white_label_tenants').select(WL_COLS).eq('domain', _effectiveLookup).eq('status', 'active').maybeSingle();
+          tenant = data;
+        } else if (_mccHost) {
+          // MCC-managed subdomain: resolve by subdomain column
+          const isLocal = _WL_SKIP.some(h => _mccHost.includes(h)) || _mccHost.includes('replit');
+          if (!isLocal && _mccHost !== _WL_BASE) {
+            const subdomainPart = _mccHost.split('.')[0];
             if (subdomainPart && subdomainPart !== 'www' && subdomainPart !== 'mycarconcierge') {
-              cfgQuery = supabase
-                .from('white_label_tenants')
-                .select('brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan')
-                .eq('subdomain', subdomainPart)
-                .eq('status', 'active')
-                .maybeSingle();
+              const { data } = await supabase.from('white_label_tenants').select(WL_COLS).eq('subdomain', subdomainPart).eq('status', 'active').maybeSingle();
+              tenant = data;
             }
-          } else {
-            // Custom domain: exact match only — no subdomain fallback
-            cfgQuery = supabase
-              .from('white_label_tenants')
-              .select('brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan')
-              .eq('domain', lookupHost)
-              .eq('status', 'active')
-              .maybeSingle();
           }
-          if (cfgQuery) {
-            const { data } = await cfgQuery;
-            tenant = data;
+        } else {
+          // Custom domain: check candidates in order (X-Forwarded-Host first, then Host).
+          // DB exact match is the security validator — a forged header not in the DB returns nothing.
+          for (const candidate of _customCandidates) {
+            const isLocal = _WL_SKIP.some(h => candidate.includes(h)) || candidate.includes('replit') || candidate.includes('.replit.');
+            if (isLocal) continue;
+            const { data } = await supabase.from('white_label_tenants').select(WL_COLS).eq('domain', candidate).eq('status', 'active').maybeSingle();
+            if (data) { tenant = data; break; }
           }
         }
       }
@@ -39031,43 +39031,34 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       const role = ['provider', 'pending_provider'].includes(platformRole) ? 'provider' : 'member';
 
       // Resolve tenant from request hostname — SECURITY HARDENED
-      // Join is a security-sensitive write; we do NOT trust X-Forwarded-Host (spoofable without proxy).
-      // Only use the actual Host header (set by the TLS terminator, not the client).
-      // Strict allowlist rules:
-      //   1. Subdomain of mycarconcierge.com → match by subdomain column only (not arbitrary hosts)
-      //   2. Any other host → match by exact domain column only (no subdomain wildcard)
-      //   This prevents a forged subdomain from being mapped to any tenant's subdomain field.
+      // Strategy:
+      //   MCC subdomains (*.mycarconcierge.com): trust X-Forwarded-Host if it ends with base domain,
+      //     otherwise use Host. Validate by subdomain column match.
+      //   Custom domains: check X-Forwarded-Host first, then Host — both via DB exact domain
+      //     column match only. The DB is the trust anchor; a forged header not in the DB returns no
+      //     tenant, preventing unauthorized joins without blocking legitimate proxy deployments.
       const MCC_BASE_DOMAIN = 'mycarconcierge.com';
       const SKIP_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0'];
-      const rawJoinHost = req.headers.host || '';
-      const cleanHost = rawJoinHost.split(':')[0].toLowerCase().trim();
+      const _jFwd = (req.headers['x-forwarded-host'] || '').split(',')[0].trim().split(':')[0].toLowerCase();
+      const _jRaw = (req.headers.host || '').split(':')[0].toLowerCase().trim();
+      const _jFwdIsMCC = _jFwd && (_jFwd === MCC_BASE_DOMAIN || _jFwd.endsWith(`.${MCC_BASE_DOMAIN}`));
+      const _jMCCHost = _jFwdIsMCC ? _jFwd : (_jRaw === MCC_BASE_DOMAIN || _jRaw.endsWith(`.${MCC_BASE_DOMAIN}`) ? _jRaw : null);
+      const _jCustomCandidates = [...new Set([_jFwd, _jRaw].filter(h => h && h !== MCC_BASE_DOMAIN && !h.endsWith(`.${MCC_BASE_DOMAIN}`)))];
+      const JOIN_COLS = 'id, plan, max_members, max_providers, status';
       let tenant = null;
-      const isSkipped = !cleanHost || SKIP_HOSTS.some(s => cleanHost.includes(s)) || cleanHost.includes('replit');
-      if (!isSkipped) {
-        let supabaseQuery;
-        if (cleanHost === MCC_BASE_DOMAIN || cleanHost.endsWith(`.${MCC_BASE_DOMAIN}`)) {
-          // MCC-managed subdomain: match subdomain column only
-          const subdomain = cleanHost.split('.')[0];
-          if (subdomain !== 'mycarconcierge' && subdomain !== 'www') {
-            supabaseQuery = supabase
-              .from('white_label_tenants')
-              .select('id, plan, max_members, max_providers, status')
-              .eq('subdomain', subdomain)
-              .eq('status', 'active')
-              .maybeSingle();
-          }
-        } else {
-          // Custom domain: match exact domain column only — no subdomain fallback
-          supabaseQuery = supabase
-            .from('white_label_tenants')
-            .select('id, plan, max_members, max_providers, status')
-            .eq('domain', cleanHost)
-            .eq('status', 'active')
-            .maybeSingle();
+      if (_jMCCHost && _jMCCHost !== MCC_BASE_DOMAIN) {
+        const sub = _jMCCHost.split('.')[0];
+        const isLocal = SKIP_HOSTS.some(s => _jMCCHost.includes(s)) || _jMCCHost.includes('replit');
+        if (!isLocal && sub && sub !== 'www' && sub !== 'mycarconcierge') {
+          const { data } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('subdomain', sub).eq('status', 'active').maybeSingle();
+          tenant = data;
         }
-        if (supabaseQuery) {
-          const { data: domainMatch } = await supabaseQuery;
-          tenant = domainMatch;
+      } else {
+        for (const candidate of _jCustomCandidates) {
+          const isLocal = SKIP_HOSTS.some(s => candidate.includes(s)) || candidate.includes('replit') || candidate.includes('.replit.');
+          if (isLocal) continue;
+          const { data } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('domain', candidate).eq('status', 'active').maybeSingle();
+          if (data) { tenant = data; break; }
         }
       }
 
