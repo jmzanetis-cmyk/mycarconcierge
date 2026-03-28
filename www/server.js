@@ -42246,11 +42246,17 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         supabase.from('member_onboarding').upsert({ user_id: user.id, checklist: { account_created: true }, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }).catch(() => {});
       }
 
+      // Unified payload: always returns all keys (member + provider).
+      // Clients use the role param to selectively render relevant subset of checklist.
+      const isNewMember = user.created_at
+        ? (Date.now() - new Date(user.created_at).getTime()) < 7 * 24 * 3600 * 1000
+        : false;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         survey_completed: row?.survey_completed || false,
         welcome_shown: row?.welcome_shown || false,
         pain_point: checklist.pain_point || null,
+        is_new_member: isNewMember,
         checklist: {
           account_created: true,
           profile_completed: profileCompleted,

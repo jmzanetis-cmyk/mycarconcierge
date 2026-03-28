@@ -7870,9 +7870,10 @@
         });
         if (!res.ok) throw new Error('not ok');
         const data = await res.json();
-        // If survey not yet completed, redirect to onboarding-member survey page so the
-        // response is reliably user-linked (the page uses getSession() which is always authenticated).
-        if (!data.survey_completed && !sessionStorage.getItem('mcc_survey_redirect_done')) {
+        // If survey not yet completed and account is new (< 7 days), redirect to the onboarding
+        // survey page so the response is reliably user-linked (the page uses getSession() which is
+        // always authenticated). Legacy/older members skip this to avoid disrupting their workflow.
+        if (!data.survey_completed && data.is_new_member && !sessionStorage.getItem('mcc_survey_redirect_done')) {
           sessionStorage.setItem('mcc_survey_redirect_done', '1');
           window.location.href = '/onboarding-member.html?from=dashboard';
           return;
