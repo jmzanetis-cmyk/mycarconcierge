@@ -1520,7 +1520,7 @@ async function walkinLookupByPhone() {
         ${c.email ? `<div style="font-size:0.85rem;color:#a0a8b8;">${escHtml(c.email)}</div>` : ''}
         ${vehicles.length > 0 ? `<div style="font-size:0.85rem;color:#a0a8b8;margin-top:8px;">Vehicles: ${vehicles.slice(0,3).map(v => escHtml(v.description)).join(', ')}</div>` : ''}
         <div style="margin-top:12px;display:flex;gap:8px;">
-          <button onclick="walkinAutoFill(${JSON.stringify(c).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026')})" style="padding:7px 14px;background:linear-gradient(135deg,#c9a227,#e8bc5a);color:#12161c;border:none;border-radius:8px;cursor:pointer;font-size:0.83rem;font-weight:600;">Auto-Fill Check-In</button>
+          <button onclick="walkinAutoFill(${JSON.stringify(c).replace(/&/g,'\\u0026').replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/"/g,'&quot;')})" style="padding:7px 14px;background:linear-gradient(135deg,#c9a227,#e8bc5a);color:#12161c;border:none;border-radius:8px;cursor:pointer;font-size:0.83rem;font-weight:600;">Auto-Fill Check-In</button>
         </div>
       </div>`;
     };
@@ -1564,7 +1564,7 @@ async function walkinLookupByName() {
         ${c.phone ? `<div style="font-size:0.85rem;color:#a0a8b8;">${escHtml(c.phone)}</div>` : ''}
         ${vehicles.length > 0 ? `<div style="font-size:0.85rem;color:#a0a8b8;margin-top:8px;">Vehicles: ${vehicles.slice(0,3).map(v => escHtml(v.description)).join(', ')}</div>` : ''}
         <div style="margin-top:12px;display:flex;gap:8px;">
-          <button onclick="walkinAutoFill(${JSON.stringify(c).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026')})" style="padding:7px 14px;background:linear-gradient(135deg,#c9a227,#e8bc5a);color:#12161c;border:none;border-radius:8px;cursor:pointer;font-size:0.83rem;font-weight:600;">Auto-Fill Check-In</button>
+          <button onclick="walkinAutoFill(${JSON.stringify(c).replace(/&/g,'\\u0026').replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/"/g,'&quot;')})" style="padding:7px 14px;background:linear-gradient(135deg,#c9a227,#e8bc5a);color:#12161c;border:none;border-radius:8px;cursor:pointer;font-size:0.83rem;font-weight:600;">Auto-Fill Check-In</button>
         </div>
       </div>`;
     };
@@ -1702,8 +1702,9 @@ async function posLookupCustomer() {
 
       const nameEl = document.getElementById('pos-existing-name');
       const emailEl = document.getElementById('pos-existing-email');
+      const lastVehicle = data.customer.vehicles?.[0]?.description || data.customer.vehicle || null;
       if (nameEl) nameEl.textContent = `Welcome back, ${data.customer.name || 'Valued Customer'}!`;
-      if (emailEl) emailEl.textContent = data.customer.vehicle ? `Last vehicle: ${data.customer.vehicle}` : (data.customer.email || '');
+      if (emailEl) emailEl.textContent = lastVehicle ? `Last vehicle: ${lastVehicle}` : (data.customer.email || '');
 
       // Also seed name/vehicle fields in case we proceed to new service
       const nameInput = document.getElementById('pos-customer-name');
@@ -1713,7 +1714,7 @@ async function posLookupCustomer() {
 
       // Pre-fill vehicle step if vehicle info is known
       const vehicleInput = document.getElementById('pos-vehicle-info') || document.getElementById('pos-vehicle');
-      if (vehicleInput && data.customer.vehicle) vehicleInput.value = data.customer.vehicle;
+      if (vehicleInput && lastVehicle) vehicleInput.value = lastVehicle;
 
       if (typeof showToast === 'function') showToast(`Returning customer found! Visit #${data.customer.visit_count || 1}`, 'success');
     } else {

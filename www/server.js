@@ -40957,9 +40957,9 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       const teamCount = team?.length || 0;
       const plan = sub?.plan || 'none'; // 'starter' | 'pro' | 'business' | 'none'
 
-      // starter=$29 = 1 seat, pro=$59 = 5 seats, business=$129 = unlimited
+      // Solo (starter)=$49 = 1 seat, Team (pro)=$99 = 5 seats, Shop (business)=$199 = unlimited
       const planLimits = { starter: 1, pro: 5, business: 999, none: 0 };
-      const planPrices = { starter: 2900, pro: 5900, business: 12900, none: 0 };
+      const planPrices = { starter: 4900, pro: 9900, business: 19900, none: 0 };
       const seatLimit = planLimits[plan] ?? 0;
       const planPrice = planPrices[plan] ?? 0;
 
