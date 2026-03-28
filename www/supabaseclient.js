@@ -2658,7 +2658,7 @@ async function getFleetDetails(fleetId) {
     .from('fleet_vehicles')
     .select(`
       *,
-      vehicle:vehicle_id(id, year, make, model, color, license_plate, vin)
+      vehicle:vehicle_id(id, year, make, model, color, license_plate, vin, mileage, health_score, health_status, next_service_date, last_service_date, photo_url)
     `)
     .eq('fleet_id', fleetId)
     .order('created_at', { ascending: false });

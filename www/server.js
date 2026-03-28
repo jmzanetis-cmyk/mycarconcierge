@@ -40334,9 +40334,13 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
             imported: 0, skipped: vehicles.length
           })); return;
         }
-        // Trim import to available slots
+        // Return 402 if import batch exceeds remaining capacity (plan enforcement)
         if (vehicles.length > available) {
-          vehicles.splice(available);
+          res.writeHead(402); res.end(JSON.stringify({
+            error: `Import of ${vehicles.length} vehicles would exceed your plan limit. You can add up to ${available} more vehicle(s) on the ${access.plan || 'current'} plan (${currentCount}/${limits.vehicles} used). Please upgrade or reduce your import.`,
+            upgrade_url: '/members.html?section=settings',
+            available, current: currentCount, limit: limits.vehicles
+          })); return;
         }
       }
 

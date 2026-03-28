@@ -210,7 +210,6 @@
       <div class="alert-banner alert-info">
         You are not currently assigned to a fleet. Ask your fleet manager to add you via My Car Concierge.
       </div>
-      <a href="/members.html" class="btn btn-secondary btn-block">Go to Member Dashboard</a>
     </div>
 
     <div id="main-view" style="display:none;">
@@ -299,8 +298,8 @@
         <div class="card">
           <div class="card-title">Quick Links</div>
           <div style="display:flex;flex-direction:column;gap:10px;">
-            <a href="/members.html" class="btn btn-secondary btn-block">Full Member Dashboard</a>
-            <a href="/members.html?section=fleet" class="btn btn-secondary btn-block">Fleet Overview</a>
+            <a href="/fleet/driver" class="btn btn-secondary btn-block" onclick="showSection('vehicle');return false;">View My Vehicle</a>
+            <a href="/fleet/driver" class="btn btn-secondary btn-block" onclick="showSection('profile');return false;">My Profile</a>
           </div>
         </div>
       </div>
