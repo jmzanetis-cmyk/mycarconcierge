@@ -167,45 +167,52 @@ CREATE POLICY "Admins can manage all fleets" ON fleets
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
--- Fleet members: owners and managers can manage, members can view self
+-- fleet_members: READ for fleet members (owner/manager see all, member sees self).
+-- WRITE restricted to service role only to enforce driver seat limits via server API.
 DROP POLICY IF EXISTS "Fleet owners can manage members" ON fleet_members;
-CREATE POLICY "Fleet owners can manage members" ON fleet_members
-  FOR ALL USING (
+DROP POLICY IF EXISTS "Fleet members read owner manager" ON fleet_members;
+DROP POLICY IF EXISTS "Fleet members can view their own membership" ON fleet_members;
+DROP POLICY IF EXISTS "Fleet members write service role only" ON fleet_members;
+
+CREATE POLICY "Fleet members read owner manager" ON fleet_members
+  FOR SELECT USING (
     EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_members.fleet_id AND fleets.owner_id = auth.uid())
     OR EXISTS (
       SELECT 1 FROM fleet_members fm2
       WHERE fm2.fleet_id = fleet_members.fleet_id
         AND fm2.user_id = auth.uid()
-        AND fm2.role IN ('manager', 'owner')
-        AND fm2.status = 'active'
-    )
-  ) WITH CHECK (
-    EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_members.fleet_id AND fleets.owner_id = auth.uid())
-    OR EXISTS (
-      SELECT 1 FROM fleet_members fm2
-      WHERE fm2.fleet_id = fleet_members.fleet_id
-        AND fm2.user_id = auth.uid()
-        AND fm2.role IN ('manager', 'owner')
         AND fm2.status = 'active'
     )
   );
 
-DROP POLICY IF EXISTS "Fleet members can view their own membership" ON fleet_members;
 CREATE POLICY "Fleet members can view their own membership" ON fleet_members
   FOR SELECT USING (user_id = auth.uid());
 
+-- Write operations: only service role (server) may INSERT/UPDATE/DELETE fleet_members.
+-- Service role bypasses RLS, enforcing plan limits in /api/fleet/invite and /api/fleet/setup.
+CREATE POLICY "Fleet members write service role only" ON fleet_members
+  FOR INSERT WITH CHECK (false);
+
+CREATE POLICY "Fleet members update service role only" ON fleet_members
+  FOR UPDATE WITH CHECK (false);
+
+CREATE POLICY "Fleet members delete service role only" ON fleet_members
+  FOR DELETE USING (false);
+
 DROP POLICY IF EXISTS "Admins can manage all fleet members" ON fleet_members;
 CREATE POLICY "Admins can manage all fleet members" ON fleet_members
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  ) WITH CHECK (
+  FOR SELECT USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
--- Fleet vehicles: same access pattern as fleet_members
+-- Fleet vehicles: READ allowed for fleet members; WRITE restricted to service role only.
+-- Mutations (INSERT/UPDATE/DELETE) must go through server API endpoints which enforce plan limits.
 DROP POLICY IF EXISTS "Fleet vehicles access" ON fleet_vehicles;
-CREATE POLICY "Fleet vehicles access" ON fleet_vehicles
-  FOR ALL USING (
+DROP POLICY IF EXISTS "Fleet vehicles read" ON fleet_vehicles;
+DROP POLICY IF EXISTS "Fleet vehicles write service role only" ON fleet_vehicles;
+
+CREATE POLICY "Fleet vehicles read" ON fleet_vehicles
+  FOR SELECT USING (
     EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_vehicles.fleet_id AND fleets.owner_id = auth.uid())
     OR EXISTS (
       SELECT 1 FROM fleet_members
@@ -213,22 +220,23 @@ CREATE POLICY "Fleet vehicles access" ON fleet_vehicles
         AND fleet_members.user_id = auth.uid()
         AND fleet_members.status = 'active'
     )
-  ) WITH CHECK (
-    EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_vehicles.fleet_id AND fleets.owner_id = auth.uid())
-    OR EXISTS (
-      SELECT 1 FROM fleet_members fm2
-      WHERE fm2.fleet_id = fleet_vehicles.fleet_id
-        AND fm2.user_id = auth.uid()
-        AND fm2.role IN ('manager', 'owner')
-        AND fm2.status = 'active'
-    )
   );
+
+-- Write operations: only service role (server) may INSERT/UPDATE/DELETE fleet_vehicles.
+-- Service role bypasses RLS, so no explicit policy is needed for it.
+-- Blocking authenticated-user direct writes enforces plan limits at the data layer.
+CREATE POLICY "Fleet vehicles write service role only" ON fleet_vehicles
+  FOR INSERT WITH CHECK (false);
+
+CREATE POLICY "Fleet vehicles update service role only" ON fleet_vehicles
+  FOR UPDATE WITH CHECK (false);
+
+CREATE POLICY "Fleet vehicles delete service role only" ON fleet_vehicles
+  FOR DELETE USING (false);
 
 DROP POLICY IF EXISTS "Admins can manage all fleet vehicles" ON fleet_vehicles;
 CREATE POLICY "Admins can manage all fleet vehicles" ON fleet_vehicles
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  ) WITH CHECK (
+  FOR SELECT USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
