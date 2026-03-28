@@ -60,6 +60,8 @@ CREATE INDEX IF NOT EXISTS idx_page_views_tenant_id ON page_views(tenant_id) WHE
 
 -- Returns the tenant_id the current auth.uid() belongs to.
 -- NULL if user is a native MCC platform user (no tenant membership).
+-- ORDER BY created_at DESC ensures deterministic result if somehow a user
+-- has multiple memberships (should be enforced by UNIQUE constraint too).
 CREATE OR REPLACE FUNCTION get_current_user_tenant_id()
 RETURNS UUID
 LANGUAGE SQL
@@ -68,6 +70,7 @@ STABLE
 AS $$
   SELECT tenant_id FROM white_label_tenant_users
   WHERE user_id = auth.uid()
+  ORDER BY created_at DESC
   LIMIT 1;
 $$;
 
@@ -85,21 +88,28 @@ AS $$
   );
 $$;
 
--- Coerce a nullable tenant_id to a sentinel UUID so NULL = NULL comparisons
--- work as equality checks in RLS USING clauses.
-CREATE OR REPLACE FUNCTION tenant_or_sentinel(t UUID)
-RETURNS UUID
-LANGUAGE SQL
-IMMUTABLE
-AS $$
-  SELECT COALESCE(t, '00000000-0000-0000-0000-000000000000'::UUID);
-$$;
+-- ============================================================
+-- TENANT EQUALITY HELPERS
+-- ============================================================
+-- For SELECT (USING): require non-NULL match — prevents NULL=NULL
+-- cross-user reads on platform rows. Only tenant users see each other's
+-- tenant rows via this predicate; platform users see their own rows
+-- through owner predicates.
+--
+-- For INSERT/UPDATE (WITH CHECK): use COALESCE sentinel to allow
+-- platform users (tenant_id IS NULL) to write their own NULL-tenant rows
+-- while blocking cross-tenant writes.
+--
+-- sentinel_uuid() is a stable inline sentinel — no separate function needed.
+-- We inline COALESCE(x, '00000000-0000-0000-0000-000000000000'::UUID)
+-- directly in policy expressions for clarity and to avoid extra round-trips.
 
 -- ============================================================
 -- AUTO-STAMP TRIGGER
 -- On INSERT, stamps tenant_id from the authenticated user's membership.
 -- SECURITY DEFINER runs as superuser to read white_label_tenant_users
 -- without requiring the inserter to have direct SELECT on that table.
+-- Platform users (no membership) get NULL stamped (unchanged).
 -- ============================================================
 CREATE OR REPLACE FUNCTION stamp_tenant_id()
 RETURNS TRIGGER
@@ -113,6 +123,7 @@ BEGIN
     SELECT tenant_id INTO v_tenant_id
     FROM white_label_tenant_users
     WHERE user_id = auth.uid()
+    ORDER BY created_at DESC
     LIMIT 1;
     NEW.tenant_id := v_tenant_id;
   END IF;
@@ -163,6 +174,7 @@ BEGIN
     SELECT tenant_id INTO v_tenant_id
     FROM white_label_tenant_users
     WHERE user_id = auth.uid()
+    ORDER BY created_at DESC
     LIMIT 1;
     NEW.tenant_id := v_tenant_id;
   END IF;
@@ -211,8 +223,11 @@ CREATE POLICY "Tenant scoped profile update"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
+    -- Owner may update their row; COALESCE ensures platform users (both NULL)
+    -- and tenant users (same UUID) both pass; cross-tenant writes fail.
     OR (id = auth.uid()
-        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID) = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID)
+            = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped profile delete" ON profiles;
@@ -247,7 +262,8 @@ CREATE POLICY "Tenant scoped maint pkg insert"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (member_id = auth.uid()
-        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID) = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID)
+            = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped maint pkg update" ON maintenance_packages;
@@ -261,7 +277,11 @@ CREATE POLICY "Tenant scoped maint pkg update"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+    -- Owner may update; platform users (both NULL→sentinel) and tenant users (same UUID) pass;
+    -- cross-tenant rewrites fail.
+    OR (member_id = auth.uid()
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID)
+            = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped maint pkg delete" ON maintenance_packages;
@@ -296,7 +316,8 @@ CREATE POLICY "Tenant scoped vehicle insert"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (owner_id = auth.uid()
-        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID) = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID)
+            = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped vehicle update" ON vehicles;
@@ -310,7 +331,10 @@ CREATE POLICY "Tenant scoped vehicle update"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+    -- Owner may update; sentinel equality handles NULL (platform) and UUID (tenant) symmetrically.
+    OR (owner_id = auth.uid()
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID)
+            = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped vehicle delete" ON vehicles;
@@ -324,6 +348,8 @@ CREATE POLICY "Tenant scoped vehicle delete"
 
 -- ============================================================
 -- RLS — PACKAGES (admin packages table, full matrix)
+-- No per-user owner col — admin managed. Tenants can only manage
+-- their own tenant-scoped packages.
 -- ============================================================
 ALTER TABLE packages ENABLE ROW LEVEL SECURITY;
 
@@ -342,7 +368,9 @@ CREATE POLICY "Tenant scoped package insert"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+    -- Tenant admins may insert packages scoped to their tenant only
+    OR (get_current_user_tenant_id() IS NOT NULL
+        AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped package update" ON packages;
@@ -351,11 +379,14 @@ CREATE POLICY "Tenant scoped package update"
   USING (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
+    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
   )
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+    -- Tenant admins may only update packages already in their tenant
+    OR (get_current_user_tenant_id() IS NOT NULL
+        AND tenant_id = get_current_user_tenant_id())
   );
 
 DROP POLICY IF EXISTS "Tenant scoped package delete" ON packages;
@@ -396,7 +427,8 @@ CREATE POLICY "Tenant scoped bid insert"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (provider_id = auth.uid()
-        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID) = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID)
+            = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped bid update" ON bids;
@@ -415,7 +447,16 @@ CREATE POLICY "Tenant scoped bid update"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+    -- Provider updating their own bid; sentinel equality covers platform and tenant paths.
+    OR (provider_id = auth.uid()
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID)
+            = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
+    -- Member accepting/rejecting bids on their own packages (tenant stays unchanged)
+    OR EXISTS (
+      SELECT 1 FROM maintenance_packages mp
+      WHERE mp.id = bids.package_id
+        AND mp.member_id = auth.uid()
+    )
   );
 
 DROP POLICY IF EXISTS "Tenant scoped bid delete" ON bids;
@@ -449,7 +490,8 @@ CREATE POLICY "Tenant scoped provider stats insert"
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
     OR (provider_id = auth.uid()
-        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID) = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID)
+            = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped provider stats update" ON provider_stats;
@@ -463,7 +505,10 @@ CREATE POLICY "Tenant scoped provider stats update"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+    -- Provider updates their stats row; sentinel covers platform (NULL) and tenant (UUID).
+    OR (provider_id = auth.uid()
+        AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID)
+            = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::UUID))
   );
 
 DROP POLICY IF EXISTS "Tenant scoped provider stats delete" ON provider_stats;
@@ -496,7 +541,10 @@ CREATE POLICY "Tenant scoped page view insert"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    OR (tenant_id IS NOT NULL AND tenant_id = get_current_user_tenant_id())
+    -- Allow all authenticated page view inserts; tenant_id is stamped by trigger.
+    -- Anon inserts (user_id IS NULL) also allowed for traffic tracking.
+    OR (auth.uid() IS NOT NULL)
+    OR (auth.uid() IS NULL AND tenant_id IS NULL)
   );
 
 DROP POLICY IF EXISTS "Tenant scoped page view delete" ON page_views;
@@ -514,4 +562,3 @@ GRANT EXECUTE ON FUNCTION get_current_user_tenant_id() TO service_role, authenti
 GRANT EXECUTE ON FUNCTION is_mcc_admin() TO service_role, authenticated;
 GRANT EXECUTE ON FUNCTION stamp_tenant_id() TO service_role;
 GRANT EXECUTE ON FUNCTION stamp_profile_tenant_id() TO service_role;
-GRANT EXECUTE ON FUNCTION tenant_or_sentinel(UUID) TO service_role, authenticated, anon;
