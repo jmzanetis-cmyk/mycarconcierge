@@ -1375,6 +1375,18 @@
         </button>
       </div>
 
+      <!-- Photo Nudge Banner -->
+      <div id="vehicle-photo-nudge" class="card" style="display:none;background:linear-gradient(135deg,rgba(201,162,39,0.08),rgba(74,200,140,0.05));border:1px solid rgba(201,162,39,0.25);margin-bottom:20px;padding:14px 18px;">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="1.5"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+          <div style="flex:1;min-width:200px;">
+            <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary);margin-bottom:3px;">Add photos to your vehicles</div>
+            <div style="font-size:0.82rem;color:var(--text-secondary);">Providers can see your vehicle photos when reviewing bids — helping them quote more accurately.</div>
+          </div>
+          <button onclick="const n=document.getElementById('vehicle-photo-nudge');n.style.display='none';n.dataset.dismissed='1';" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1.1rem;padding:4px 8px;flex-shrink:0;">✕</button>
+        </div>
+      </div>
+
       <div class="vehicles-grid" id="vehicles-grid">
         <div class="empty-state">
           <div class="empty-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>
@@ -8893,5 +8905,25 @@
 
     // ========== END SaaS UI TASKS ==========
   </script>
+
+  <!-- Vehicle Photos Modal -->
+  <div id="vehicle-photos-modal" class="modal-backdrop" style="display:none;position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);width:100%;max-width:600px;max-height:90vh;overflow-y:auto;padding:24px;position:relative;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div>
+          <h2 style="font-size:1.15rem;font-weight:700;color:var(--text-primary);" id="vp-modal-title">Vehicle Photos</h2>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;" id="vp-count">0/6 photos</div>
+        </div>
+        <button onclick="closeVehiclePhotosModal()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1.4rem;line-height:1;padding:4px 8px;">✕</button>
+      </div>
+      <p style="font-size:0.83rem;color:var(--text-secondary);margin-bottom:16px;">Add up to 6 photos of your vehicle. Providers use these when reviewing care plan bids. The primary photo is shown first.</p>
+      <div id="vp-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;min-height:100px;"></div>
+    </div>
+  </div>
+
+  <!-- Photo Lightbox -->
+  <div id="vp-lightbox" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;cursor:zoom-out;" onclick="closePhotoLightbox()">
+    <img src="" alt="Vehicle photo" style="max-width:94vw;max-height:90vh;object-fit:contain;border-radius:8px;">
+  </div>
 </body>
 </html>

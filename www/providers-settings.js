@@ -1806,3 +1806,112 @@ async function saveBusinessHours() {
   }
 }
 // ========== END BUSINESS HOURS EDITOR ==========
+
+// ========== AUTO-BID SETTINGS ==========
+async function loadAutoBidSettings() {
+  if (typeof currentUser === 'undefined' || !currentUser) return;
+  try {
+    const res = await fetch('/api/auto-bid/settings', {
+      headers: { 'Authorization': 'Bearer ' + (await supabaseClient.auth.getSession()).data.session?.access_token }
+    });
+    if (!res.ok) return;
+    const d = await res.json();
+    const enabled = d.auto_bid_enabled || false;
+    const toggle = document.getElementById('auto-bid-toggle');
+    const slider = document.getElementById('auto-bid-slider');
+    const thumb = document.getElementById('auto-bid-thumb');
+    const label = document.getElementById('auto-bid-status-label');
+    if (toggle) toggle.checked = enabled;
+    applyAutoBidToggleStyle(enabled, slider, thumb, label);
+    const dist = document.getElementById('ab-max-distance');
+    if (dist) dist.value = d.auto_bid_max_distance_miles || 25;
+    const pct = document.getElementById('ab-pct');
+    if (pct) {
+      pct.value = d.auto_bid_percent_of_estimate || 85;
+      const pctLabel = document.getElementById('ab-pct-label');
+      if (pctLabel) pctLabel.textContent = (d.auto_bid_percent_of_estimate || 85) + '%';
+    }
+    const types = d.auto_bid_service_types || [];
+    document.querySelectorAll('.ab-svc-chip').forEach(chip => {
+      const selected = types.includes(chip.dataset.type);
+      chip.style.background = selected ? 'var(--accent-gold)' : 'var(--bg-input)';
+      chip.style.color = selected ? 'var(--bg-deep)' : 'var(--text-secondary)';
+      chip.style.borderColor = selected ? 'var(--accent-gold)' : 'var(--border-subtle)';
+      chip.style.fontWeight = selected ? '600' : '500';
+    });
+    await updateAutoBidPreview();
+  } catch (e) {
+    console.error('Auto-bid load error', e);
+  }
+}
+
+function applyAutoBidToggleStyle(on, slider, thumb, label) {
+  if (!slider || !thumb || !label) {
+    slider = document.getElementById('auto-bid-slider');
+    thumb = document.getElementById('auto-bid-thumb');
+    label = document.getElementById('auto-bid-status-label');
+  }
+  if (slider) slider.style.background = on ? 'var(--accent-gold)' : 'var(--bg-input)';
+  if (slider) slider.style.borderColor = on ? 'var(--accent-gold)' : 'var(--border-subtle)';
+  if (thumb) { thumb.style.left = on ? '24px' : '2px'; thumb.style.background = on ? 'var(--bg-deep)' : 'var(--text-muted)'; }
+  if (label) { label.textContent = on ? 'Enabled' : 'Disabled'; label.style.color = on ? 'var(--accent-gold)' : 'var(--text-muted)'; }
+}
+
+function onAutoBidToggle(checked) {
+  applyAutoBidToggleStyle(checked);
+}
+
+function toggleAbServiceType(el) {
+  const active = el.style.background === 'var(--accent-gold)' || getComputedStyle(el).backgroundColor.includes('201');
+  const nowActive = !active;
+  el.style.background = nowActive ? 'var(--accent-gold)' : 'var(--bg-input)';
+  el.style.color = nowActive ? 'var(--bg-deep)' : 'var(--text-secondary)';
+  el.style.borderColor = nowActive ? 'var(--accent-gold)' : 'var(--border-subtle)';
+  el.style.fontWeight = nowActive ? '600' : '500';
+  updateAutoBidPreview();
+}
+
+async function updateAutoBidPreview() {
+  const countEl = document.getElementById('ab-preview-count');
+  if (!countEl) return;
+  try {
+    const dist = parseInt(document.getElementById('ab-max-distance')?.value || 25);
+    const selected = Array.from(document.querySelectorAll('.ab-svc-chip'))
+      .filter(c => c.style.background === 'var(--accent-gold)').map(c => c.dataset.type);
+    const params = new URLSearchParams({ max_distance: dist });
+    if (selected.length) params.set('service_types', selected.join(','));
+    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
+    const res = await fetch('/api/care-plans/preview?' + params, { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!res.ok) { countEl.textContent = '—'; return; }
+    const d = await res.json();
+    countEl.textContent = (d.count || 0) + ' plan' + (d.count !== 1 ? 's' : '');
+  } catch (e) {
+    countEl.textContent = '—';
+  }
+}
+
+async function saveAutoBidSettings() {
+  try {
+    const enabled = document.getElementById('auto-bid-toggle')?.checked || false;
+    const dist = parseInt(document.getElementById('ab-max-distance')?.value || 25);
+    const pct = parseInt(document.getElementById('ab-pct')?.value || 85);
+    const selected = Array.from(document.querySelectorAll('.ab-svc-chip'))
+      .filter(c => c.style.background === 'var(--accent-gold)').map(c => c.dataset.type);
+    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
+    const res = await fetch('/api/auto-bid/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        auto_bid_enabled: enabled,
+        auto_bid_max_distance_miles: dist,
+        auto_bid_percent_of_estimate: pct,
+        auto_bid_service_types: selected
+      })
+    });
+    if (!res.ok) throw new Error('Save failed');
+    showToast('Auto-bid settings saved!', 'success');
+  } catch (e) {
+    showToast('Failed to save auto-bid settings: ' + e.message, 'error');
+  }
+}
+// ========== END AUTO-BID SETTINGS ==========

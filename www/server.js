@@ -41911,6 +41911,388 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     return;
   }
 
+  // ========== PROVIDER JOB BOARD ==========
+
+  // Helper: zip-prefix distance estimate (server-side, mirrors client providers-bids.js)
+  function estimateZipDistanceSrv(zip1, zip2) {
+    if (!zip1 || !zip2) return 999;
+    if (zip1 === zip2) return 0;
+    if (zip1.substring(0, 3) === zip2.substring(0, 3)) {
+      return Math.abs(parseInt(zip1) - parseInt(zip2)) * 0.5;
+    }
+    const diff = Math.abs(parseInt(zip1.substring(0, 3)) - parseInt(zip2.substring(0, 3)));
+    if (diff <= 2) return 15 + diff * 10;
+    if (diff <= 5) return 30 + diff * 8;
+    if (diff <= 10) return 50 + diff * 5;
+    return 100 + diff * 3;
+  }
+
+  // GET /api/job-board — paginated open care plans for verified providers
+  if (req.method === 'GET' && req.url.startsWith('/api/job-board')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    try {
+      const { data: prov } = await supabase.from('profiles').select('role, verification_status, zip_code').eq('id', user.id).single();
+      if (!prov || !['provider','admin'].includes(prov.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
+      }
+      const qs = new URLSearchParams(req.url.split('?')[1] || '');
+      const page = Math.max(1, parseInt(qs.get('page') || '1'));
+      const pageSize = Math.min(50, parseInt(qs.get('limit') || '20'));
+      const serviceType = qs.get('service_type') || '';
+      const maxDistance = parseInt(qs.get('max_distance') || '0');
+      const minValue = parseFloat(qs.get('min_value') || '0');
+      const sort = qs.get('sort') || 'newest';
+      const tab = qs.get('tab') || 'open';
+      const from = (page - 1) * pageSize;
+      let query = supabase.from('care_plans')
+        .select(`id, title, description, services, value_min, value_max, service_types, city, state, zip_code, status, bid_count, bid_closes_at, created_at, member_id,
+          vehicles!care_plans_vehicle_id_fkey(id, year, make, model, mileage, color),
+          member:profiles!care_plans_member_id_fkey(full_name, city, state, zip_code)`, { count: 'exact' });
+      if (tab === 'my-bids') {
+        const { data: myBids } = await supabase.from('plan_bids').select('care_plan_id').eq('provider_id', user.id);
+        const myBidPlanIds = (myBids || []).map(b => b.care_plan_id);
+        if (!myBidPlanIds.length) {
+          res.writeHead(200); res.end(JSON.stringify({ plans: [], total: 0, page, pageSize })); return;
+        }
+        query = query.in('id', myBidPlanIds);
+      } else {
+        query = query.eq('status', 'open').gt('bid_closes_at', new Date().toISOString());
+      }
+      if (serviceType) query = query.contains('service_types', [serviceType]);
+      if (minValue > 0) query = query.gte('value_min', minValue);
+      if (sort === 'newest') query = query.order('created_at', { ascending: false });
+      else if (sort === 'closing') query = query.order('bid_closes_at', { ascending: true });
+      else if (sort === 'value_high') query = query.order('value_max', { ascending: false });
+      else if (sort === 'bids_low') query = query.order('bid_count', { ascending: true });
+      else query = query.order('created_at', { ascending: false });
+      const { data: plans, count, error } = await query.range(from, from + pageSize - 1);
+      if (error) throw error;
+      let result = (plans || []).map(p => {
+        const dist = estimateZipDistanceSrv(prov.zip_code, p.zip_code || p.member?.zip_code);
+        return { ...p, estimated_distance_miles: dist };
+      });
+      if (maxDistance > 0) result = result.filter(p => p.estimated_distance_miles <= maxDistance);
+      if (sort === 'nearest') result = result.sort((a, b) => a.estimated_distance_miles - b.estimated_distance_miles);
+      const bidPlanIds = result.map(p => p.id);
+      let myBidMap = {};
+      if (bidPlanIds.length) {
+        const { data: myBids } = await supabase.from('plan_bids').select('care_plan_id, amount, status').eq('provider_id', user.id).in('care_plan_id', bidPlanIds);
+        (myBids || []).forEach(b => { myBidMap[b.care_plan_id] = b; });
+      }
+      result = result.map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ plans: result, total: count || result.length, page, pageSize }));
+    } catch (err) {
+      console.error('[JobBoard] GET error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load job board' }));
+    }
+    return;
+  }
+
+  // POST /api/plan-bids — submit bid on a care plan
+  if (req.method === 'POST' && req.url === '/api/plan-bids') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const { care_plan_id, amount, note } = JSON.parse(body || '{}');
+        if (!care_plan_id || !amount || amount <= 0) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'care_plan_id and positive amount required' })); return;
+        }
+        const { data: plan } = await supabase.from('care_plans').select('id, status, bid_closes_at, member_id').eq('id', care_plan_id).single();
+        if (!plan || plan.status !== 'open' || new Date(plan.bid_closes_at) < new Date()) {
+          res.writeHead(409); res.end(JSON.stringify({ error: 'Care plan is closed or not found' })); return;
+        }
+        const { data: prov } = await supabase.from('profiles').select('role, business_name, full_name, zip_code').eq('id', user.id).single();
+        if (!prov || !['provider','admin'].includes(prov.role)) {
+          res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
+        }
+        const { data: bid, error } = await supabase.from('plan_bids').upsert({
+          care_plan_id, provider_id: user.id, amount: parseFloat(amount), note: note || null, is_auto_bid: false
+        }, { onConflict: 'care_plan_id,provider_id' }).select().single();
+        if (error) throw error;
+        // Notify member via push/SMS (best-effort)
+        try {
+          const { data: member } = await supabase.from('profiles').select('phone, push_token, sms_notifications_enabled').eq('id', plan.member_id).single();
+          const provName = prov.business_name || prov.full_name || 'A provider';
+          if (member?.push_token) {
+            await sendPushNotification(member.push_token, { title: 'New Bid Received', body: `${provName} placed a $${parseFloat(amount).toFixed(2)} bid on your care plan.`, data: { care_plan_id } }).catch(() => {});
+          }
+          if (member?.sms_notifications_enabled && member?.phone) {
+            await sendSms(member.phone, `${provName} placed a $${parseFloat(amount).toFixed(2)} bid on your care plan. Log in to review.`).catch(() => {});
+          }
+        } catch {}
+        res.writeHead(201, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, bid }));
+      } catch (err) {
+        console.error('[PlanBids] POST error:', err.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to submit bid' }));
+      }
+    });
+    return;
+  }
+
+  // PATCH /api/plan-bids/:id — update own bid (amount / note)
+  if (req.method === 'PATCH' && /^\/api\/plan-bids\/[^/]+$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const bidId = req.url.split('/').pop();
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const updates = JSON.parse(body || '{}');
+        const allowed = {};
+        if (updates.amount !== undefined && parseFloat(updates.amount) > 0) allowed.amount = parseFloat(updates.amount);
+        if (updates.note !== undefined) allowed.note = updates.note;
+        if (updates.status === 'withdrawn') allowed.status = 'withdrawn';
+        if (!Object.keys(allowed).length) { res.writeHead(400); res.end(JSON.stringify({ error: 'No valid fields to update' })); return; }
+        const { data: bid, error } = await supabase.from('plan_bids').update(allowed).eq('id', bidId).eq('provider_id', user.id).select().single();
+        if (error || !bid) { res.writeHead(404); res.end(JSON.stringify({ error: 'Bid not found' })); return; }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, bid }));
+      } catch (err) {
+        console.error('[PlanBids] PATCH error:', err.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update bid' }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/auto-bid/settings — load auto-bid config for current provider
+  if (req.method === 'GET' && req.url === '/api/auto-bid/settings') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    try {
+      const { data } = await supabase.from('profiles')
+        .select('auto_bid_enabled, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate')
+        .eq('id', user.id).single();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        auto_bid_enabled: data?.auto_bid_enabled || false,
+        auto_bid_max_distance_miles: data?.auto_bid_max_distance_miles || 25,
+        auto_bid_service_types: data?.auto_bid_service_types || [],
+        auto_bid_percent_of_estimate: data?.auto_bid_percent_of_estimate || 85
+      }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load settings' }));
+    }
+    return;
+  }
+
+  // PATCH /api/auto-bid/settings — save auto-bid config
+  if (req.method === 'PATCH' && req.url === '/api/auto-bid/settings') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const { auto_bid_enabled, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate } = JSON.parse(body || '{}');
+        const updates = {};
+        if (auto_bid_enabled !== undefined) updates.auto_bid_enabled = !!auto_bid_enabled;
+        if (auto_bid_max_distance_miles !== undefined) updates.auto_bid_max_distance_miles = Math.min(200, Math.max(5, parseInt(auto_bid_max_distance_miles) || 25));
+        if (Array.isArray(auto_bid_service_types)) updates.auto_bid_service_types = auto_bid_service_types;
+        if (auto_bid_percent_of_estimate !== undefined) updates.auto_bid_percent_of_estimate = Math.min(100, Math.max(70, parseInt(auto_bid_percent_of_estimate) || 85));
+        const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
+        if (error) throw error;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save auto-bid settings' }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/care-plans/preview — count of open plans matching auto-bid criteria
+  if (req.method === 'GET' && req.url.startsWith('/api/care-plans/preview')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    try {
+      const qs = new URLSearchParams(req.url.split('?')[1] || '');
+      const maxDist = parseInt(qs.get('max_distance') || '25');
+      const serviceTypes = qs.get('service_types') ? qs.get('service_types').split(',').filter(Boolean) : [];
+      const { data: prov } = await supabase.from('profiles').select('zip_code').eq('id', user.id).single();
+      let query = supabase.from('care_plans').select('id, zip_code, service_types').eq('status', 'open').gt('bid_closes_at', new Date().toISOString());
+      if (serviceTypes.length) query = query.overlaps('service_types', serviceTypes);
+      const { data: plans } = await query;
+      let count = 0;
+      (plans || []).forEach(p => {
+        const dist = estimateZipDistanceSrv(prov?.zip_code, p.zip_code);
+        if (dist <= maxDist) count++;
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ matching_plans: count }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Preview failed' }));
+    }
+    return;
+  }
+
+  // POST /api/auto-bid/process — internal: auto-bid on new care plans (called by scheduler)
+  if (req.method === 'POST' && req.url === '/api/auto-bid/process') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const authHeader = req.headers['authorization'] || '';
+    const internalToken = process.env.INTERNAL_SCHEDULER_SECRET || 'mcc-scheduler-internal';
+    if (authHeader !== `Bearer ${internalToken}`) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const { care_plan_id } = JSON.parse(body || '{}');
+        if (!care_plan_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'care_plan_id required' })); return; }
+        const { data: plan } = await supabase.from('care_plans').select('*').eq('id', care_plan_id).single();
+        if (!plan || plan.status !== 'open') { res.writeHead(200); res.end(JSON.stringify({ placed: 0 })); return; }
+        const { data: providers } = await supabase.from('profiles').select('id, zip_code, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate')
+          .eq('auto_bid_enabled', true).in('role', ['provider', 'admin']);
+        let placed = 0;
+        for (const prov of (providers || [])) {
+          const dist = estimateZipDistanceSrv(prov.zip_code, plan.zip_code);
+          if (prov.auto_bid_max_distance_miles && dist > prov.auto_bid_max_distance_miles) continue;
+          if (prov.auto_bid_service_types?.length && plan.service_types?.length) {
+            const overlap = prov.auto_bid_service_types.some(s => plan.service_types.includes(s));
+            if (!overlap) continue;
+          }
+          const pct = (prov.auto_bid_percent_of_estimate || 85) / 100;
+          const estimate = plan.value_min || plan.value_max || 200;
+          const amount = parseFloat((estimate * pct).toFixed(2));
+          const { error } = await supabase.from('plan_bids').upsert({
+            care_plan_id, provider_id: prov.id, amount, is_auto_bid: true
+          }, { onConflict: 'care_plan_id,provider_id', ignoreDuplicates: true });
+          if (!error) placed++;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ placed }));
+      } catch (err) {
+        res.writeHead(500); res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/vehicle-photos/:vehicleId — list photos for a vehicle
+  if (req.method === 'GET' && /^\/api\/vehicle-photos\/[^/]+$/.test(req.url) && !req.url.includes('/primary')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const vehicleId = req.url.split('/').pop();
+    try {
+      const { data: photos, error } = await supabase.from('vehicle_photos')
+        .select('id, storage_path, url, is_primary, created_at')
+        .eq('vehicle_id', vehicleId).eq('member_id', user.id)
+        .order('is_primary', { ascending: false }).order('created_at', { ascending: true });
+      if (error) throw error;
+      // Generate signed URLs if url column is empty
+      const enriched = (photos || []).map(p => ({
+        ...p,
+        url: p.url || `${process.env.SUPABASE_URL}/storage/v1/object/public/vehicle-photos/${p.storage_path}`
+      }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ photos: enriched }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load photos' }));
+    }
+    return;
+  }
+
+  // POST /api/vehicle-photos/:vehicleId — upload a vehicle photo (multipart forwarded as JSON with base64)
+  if (req.method === 'POST' && /^\/api\/vehicle-photos\/[^/]+$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const vehicleId = req.url.split('/').pop();
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const { storage_path, url, is_primary } = JSON.parse(body || '{}');
+        if (!storage_path) { res.writeHead(400); res.end(JSON.stringify({ error: 'storage_path required' })); return; }
+        const { data: existing } = await supabase.from('vehicle_photos').select('id').eq('vehicle_id', vehicleId).eq('member_id', user.id);
+        if ((existing || []).length >= 6) { res.writeHead(409); res.end(JSON.stringify({ error: 'Maximum 6 photos per vehicle' })); return; }
+        const makePrimary = is_primary || (existing || []).length === 0;
+        if (makePrimary) {
+          await supabase.from('vehicle_photos').update({ is_primary: false }).eq('vehicle_id', vehicleId).eq('member_id', user.id);
+        }
+        const { data: photo, error } = await supabase.from('vehicle_photos').insert({
+          member_id: user.id, vehicle_id: vehicleId, storage_path, url: url || null, is_primary: makePrimary
+        }).select().single();
+        if (error) throw error;
+        res.writeHead(201, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, photo: { ...photo, url: photo.url || `${process.env.SUPABASE_URL}/storage/v1/object/public/vehicle-photos/${storage_path}` } }));
+      } catch (err) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save photo record' }));
+      }
+    });
+    return;
+  }
+
+  // PATCH /api/vehicle-photos/:photoId/primary — set a photo as primary
+  if (req.method === 'PATCH' && /^\/api\/vehicle-photos\/[^/]+\/primary$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const photoId = req.url.split('/')[3];
+    try {
+      const { data: photo } = await supabase.from('vehicle_photos').select('vehicle_id').eq('id', photoId).eq('member_id', user.id).single();
+      if (!photo) { res.writeHead(404); res.end(JSON.stringify({ error: 'Photo not found' })); return; }
+      await supabase.from('vehicle_photos').update({ is_primary: false }).eq('vehicle_id', photo.vehicle_id).eq('member_id', user.id);
+      await supabase.from('vehicle_photos').update({ is_primary: true }).eq('id', photoId);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to set primary photo' }));
+    }
+    return;
+  }
+
+  // DELETE /api/vehicle-photos/:photoId — delete a vehicle photo
+  if (req.method === 'DELETE' && /^\/api\/vehicle-photos\/[^/]+$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const photoId = req.url.split('/').pop();
+    try {
+      const { data: photo } = await supabase.from('vehicle_photos').select('storage_path, is_primary, vehicle_id').eq('id', photoId).eq('member_id', user.id).single();
+      if (!photo) { res.writeHead(404); res.end(JSON.stringify({ error: 'Photo not found' })); return; }
+      await supabase.storage.from('vehicle-photos').remove([photo.storage_path]);
+      await supabase.from('vehicle_photos').delete().eq('id', photoId);
+      // Promote next photo to primary if this was primary
+      if (photo.is_primary) {
+        const { data: rest } = await supabase.from('vehicle_photos').select('id').eq('vehicle_id', photo.vehicle_id).eq('member_id', user.id).order('created_at').limit(1);
+        if (rest?.[0]) await supabase.from('vehicle_photos').update({ is_primary: true }).eq('id', rest[0].id);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to delete photo' }));
+    }
+    return;
+  }
+
+  // ========== END PROVIDER JOB BOARD ==========
+
   // ========== END MEMBER ONBOARDING ==========
 
   // Apple Pay domain verification file
@@ -41950,7 +42332,9 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     // Developer Portal clean URLs
     '/developers': '/developers.html',
     // Survey clean URL
-    '/survey': '/survey.html'
+    '/survey': '/survey.html',
+    // Provider Job Board clean URL
+    '/provider/jobs': '/job-board.html'
   };
   
   // GET /developers/docs — Swagger UI for AI API
@@ -42440,6 +42824,7 @@ server.listen(PORT, '0.0.0.0', () => {
   startAnniversaryReminderScheduler();
   startSplitPaymentExpiryScheduler();
   startBidDeadlineScheduler();
+  startCarePlanClosingScheduler();
   seedFoundingProviderAgreements();
   createAiOpsTablesIfNeeded();
   initSmsLogTable();
@@ -43308,6 +43693,49 @@ function startBidDeadlineScheduler() {
 
 // SQL migration for deadline_warning_sent:
 // ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE;
+
+// ========== CARE PLAN CLOSING-SOON SCHEDULER ==========
+function startCarePlanClosingScheduler() {
+  const INTERVAL = 60 * 60 * 1000; // hourly
+  const INITIAL_DELAY = 2 * 60 * 1000; // 2 min after boot
+  async function runCarePlanClosingCheck() {
+    try {
+      // 1. Expire plans past bid_closes_at
+      const { data: expired } = await supabase.from('care_plans')
+        .update({ status: 'expired' }).eq('status', 'open')
+        .lt('bid_closes_at', new Date().toISOString()).select('id, title, member_id');
+      if (expired?.length) console.log(`[CarePlanScheduler] Expired ${expired.length} care plans`);
+      // 2. Closing-soon (< 6 hours): notify providers who have not yet bid
+      const sixHoursLater = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+      const now = new Date().toISOString();
+      const { data: closingSoon } = await supabase.from('care_plans')
+        .select('id, title, zip_code, service_types, value_min, value_max, bid_closes_at').eq('status', 'open')
+        .lte('bid_closes_at', sixHoursLater).gte('bid_closes_at', now);
+      if (!closingSoon?.length) return;
+      const { data: autoBidProviders } = await supabase.from('profiles')
+        .select('id, phone, full_name, business_name, zip_code, auto_bid_max_distance_miles, auto_bid_service_types, sms_notifications_enabled')
+        .eq('auto_bid_enabled', true).in('role', ['provider', 'admin']);
+      for (const plan of closingSoon) {
+        for (const prov of (autoBidProviders || [])) {
+          const dist = estimateZipDistanceSrv(prov.zip_code, plan.zip_code);
+          if (prov.auto_bid_max_distance_miles && dist > prov.auto_bid_max_distance_miles) continue;
+          const { data: existingBid } = await supabase.from('plan_bids').select('id').eq('care_plan_id', plan.id).eq('provider_id', prov.id).single();
+          if (existingBid) continue;
+          // Check for recent duplicate notification (simple: don't re-notify if < 5h since last check)
+          const minsLeft = Math.round((new Date(plan.bid_closes_at) - Date.now()) / 60000);
+          if (prov.sms_notifications_enabled && prov.phone) {
+            const msg = `MCC: Care plan "${plan.title}" closes in ~${minsLeft} min. Value: $${plan.value_min || '?'}–$${plan.value_max || '?'}. Visit mycarconcierge.com/provider/jobs`;
+            await sendSms(prov.phone, msg).catch(() => {});
+          }
+        }
+      }
+    } catch (err) { console.error('[CarePlanScheduler] Error:', err.message); }
+  }
+  setTimeout(runCarePlanClosingCheck, INITIAL_DELAY);
+  setInterval(runCarePlanClosingCheck, INTERVAL);
+  console.log('[Scheduler] Care plan closing-soon check scheduled hourly');
+}
+// ========== END CARE PLAN CLOSING-SOON SCHEDULER ==========
 
 async function handleServiceRecommendations(req, res, requestId) {
   setSecurityHeaders(res, true);

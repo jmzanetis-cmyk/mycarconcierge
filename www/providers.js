@@ -1381,6 +1381,10 @@
       if (id === 'availability') {
         loadAvailabilitySection();
       }
+      // Load auto-bid settings when section is shown
+      if (id === 'auto-bid') {
+        if (typeof loadAutoBidSettings === 'function') loadAutoBidSettings();
+      }
     }
 
     async function loadOpenPackages() {

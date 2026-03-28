@@ -898,7 +898,9 @@ function renderVehicles() {
   const grid = document.getElementById('vehicles-grid');
   if (!grid) return;
   
+  const nudge = document.getElementById('vehicle-photo-nudge');
   if (!vehicles.length) {
+    if (nudge) nudge.style.display = 'none';
     grid.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">${mccIcon('car', 40)}</div>
@@ -908,6 +910,7 @@ function renderVehicles() {
     `;
     return;
   }
+  if (nudge && nudge.style.display === 'none' && !nudge.dataset.dismissed) nudge.style.display = 'block';
 
   grid.innerHTML = vehicles.map(v => {
     const displayName = v.nickname || `${v.year} ${v.make} ${v.model}`;
@@ -929,6 +932,7 @@ function renderVehicles() {
         ${renderPredictionsSection(v.id)}
         <div class="vehicle-card-actions">
           <button class="btn btn-sm btn-secondary" onclick="editVehicle('${v.id}')">Edit</button>
+          <button class="btn btn-sm" onclick="openVehiclePhotos('${v.id}','${escapeHtml(displayName).replace(/'/g,"\\'")}')" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-secondary);">📷 Photos</button>
           <button class="btn btn-sm btn-danger" onclick="deleteVehicle('${v.id}')">Delete</button>
         </div>
       </div>

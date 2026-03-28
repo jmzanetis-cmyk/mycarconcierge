@@ -895,6 +895,7 @@
     <div class="nav-item active" data-section="overview"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg></span> Dashboard</div>
     <div class="nav-item" data-section="subscription"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg></span> Bid Credits <span class="nav-badge" id="sub-badge" style="display:none;"></span></div>
     <div class="nav-item" data-section="browse"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span> Browse Packages <span class="nav-badge" id="open-count" style="display:none;">0</span></div>
+    <div class="nav-item" onclick="window.open('/provider/jobs','_self')"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span> Job Board <span class="nav-badge" style="background:var(--accent-teal);color:#0c1a1f;font-size:0.62rem;">NEW</span></div>
     <div class="nav-item" data-section="bids"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span> My Bids</div>
     <div class="nav-item" data-section="jobs"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Active Jobs</div>
     <div class="nav-item" data-section="refund-requests"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Refund Requests <span class="nav-badge" id="refund-count" style="display:none;background:var(--accent-orange);">0</span></div>
@@ -917,6 +918,7 @@
     <div class="nav-item" data-section="team"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Team Members</div>
     <div class="nav-item team-management-nav" data-section="team-section" style="display:none;"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Team</div>
     <div class="nav-item" data-section="background-checks"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span> Background Checks</div>
+    <div class="nav-item" data-section="auto-bid"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Auto-Bid</div>
     <div class="nav-item pos-feature" data-section="pos-integration" style="display:none;"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> POS Integration</div>
     
     <div class="nav-label">Earn More</div>
@@ -3784,6 +3786,76 @@
               <li>Required for certain premium service categories and fleet contracts</li>
               <li>Checks are conducted via BackgroundChecks.com and typically complete within 24-72 hours</li>
             </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Auto-Bid Section -->
+    <section id="auto-bid" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Auto-Bid Settings</h1>
+        <p class="page-subtitle">Let the platform automatically place competitive bids on matching care plans while you focus on your work.</p>
+      </div>
+      <div class="card" style="max-width:640px;">
+        <div class="card-header">
+          <h2 class="card-title" style="display:flex;align-items:center;gap:10px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+            Auto-Bid Engine
+          </h2>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+            <span style="font-size:0.85rem;color:var(--text-muted);" id="auto-bid-status-label">Disabled</span>
+            <div class="toggle-switch-wrapper" style="position:relative;width:46px;height:24px;">
+              <input type="checkbox" id="auto-bid-toggle" style="opacity:0;position:absolute;width:100%;height:100%;cursor:pointer;z-index:2;" onchange="onAutoBidToggle(this.checked)">
+              <div id="auto-bid-slider" style="position:absolute;inset:0;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:12px;transition:all 0.3s;">
+                <div style="position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--text-muted);transition:all 0.3s;" id="auto-bid-thumb"></div>
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <div id="auto-bid-settings-body">
+          <div style="background:var(--accent-gold-soft);border:1px solid rgba(201,162,39,0.3);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:20px;font-size:0.85rem;color:var(--text-secondary);">
+            <strong style="color:var(--accent-gold);">How it works:</strong> When enabled, MCC automatically scans new care plans and places a bid at your configured percentage of the member's estimate — only for plans within your distance and service type preferences.
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:500;color:var(--text-secondary);margin-bottom:6px;">Max Distance (miles)</label>
+              <input type="number" id="ab-max-distance" min="5" max="200" value="25" class="form-input" style="width:100%;padding:9px 12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);color:var(--text-primary);font-family:inherit;" oninput="updateAutoBidPreview()">
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:500;color:var(--text-secondary);margin-bottom:6px;">Bid at % of Estimate: <strong id="ab-pct-label" style="color:var(--accent-gold);">85%</strong></label>
+              <input type="range" id="ab-pct" min="70" max="100" value="85" style="width:100%;accent-color:var(--accent-gold);" oninput="document.getElementById('ab-pct-label').textContent=this.value+'%';updateAutoBidPreview()">
+              <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-muted);margin-top:2px;"><span>70% (competitive)</span><span>100% (full)</span></div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:20px;">
+            <label style="display:block;font-size:0.82rem;font-weight:500;color:var(--text-secondary);margin-bottom:8px;">Service Types (leave empty to bid on all)</label>
+            <div id="ab-service-chips" style="display:flex;flex-wrap:wrap;gap:8px;">
+              <div class="ab-svc-chip" data-type="maintenance" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Maintenance</div>
+              <div class="ab-svc-chip" data-type="detailing" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Detailing</div>
+              <div class="ab-svc-chip" data-type="cosmetic" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Cosmetic</div>
+              <div class="ab-svc-chip" data-type="performance" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Performance</div>
+              <div class="ab-svc-chip" data-type="audio_electronics" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Electronics</div>
+              <div class="ab-svc-chip" data-type="ev_hybrid" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">EV/Hybrid</div>
+              <div class="ab-svc-chip" data-type="accident_repair" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Accident Repair</div>
+              <div class="ab-svc-chip" data-type="interior" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Interior</div>
+            </div>
+          </div>
+
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:2px;">Matching open plans right now</div>
+              <div style="font-size:1.4rem;font-weight:700;color:var(--accent-gold);" id="ab-preview-count">—</div>
+            </div>
+            <button class="btn" style="background:var(--bg-input);color:var(--text-secondary);border:1px solid var(--border-subtle);padding:8px 14px;font-size:0.82rem;" onclick="updateAutoBidPreview()">Refresh Preview</button>
+          </div>
+
+          <div style="display:flex;gap:10px;">
+            <button class="btn" style="background:linear-gradient(135deg,var(--accent-gold),#e6b84a);color:var(--bg-deep);flex:1;justify-content:center;font-weight:600;" onclick="saveAutoBidSettings()">Save Auto-Bid Settings</button>
+            <a href="/provider/jobs" class="btn" style="background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border-subtle);padding:10px 16px;">View Job Board →</a>
           </div>
         </div>
       </div>
