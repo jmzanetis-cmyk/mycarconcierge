@@ -5739,7 +5739,7 @@ const SAAS_PLANS = {
         name: 'Fleet Starter',
         price_monthly: 4900,
         price_annual: 39900,
-        vehicles: 10,
+        vehicles: 5,
         drivers: 5,
         features: ['Vehicle tracking', 'Maintenance scheduling', 'Driver management', 'Service approvals', 'Basic reporting'],
         stripe_price_id: process.env.STRIPE_PRICE_FLEET_STARTER || null
@@ -5748,7 +5748,7 @@ const SAAS_PLANS = {
         name: 'Fleet Pro',
         price_monthly: 9900,
         price_annual: 89900,
-        vehicles: 50,
+        vehicles: 25,
         drivers: 25,
         features: ['Everything in Starter', 'Bulk service requests', 'Advanced analytics', 'API access', 'Priority support', 'Custom workflows'],
         stripe_price_id: process.env.STRIPE_PRICE_FLEET_PRO || null
@@ -40217,9 +40217,56 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         console.warn('[Fleet Setup] Member insert warning:', memberErr.message);
       }
 
-      console.log(`[Fleet Setup] Created account+fleet for ${email} (userId=${userId}, fleetId=${fleet.id})`);
+      // 5. Provision SaaS subscription record for the chosen plan
+      const selectedPlan = (['starter', 'pro', 'business'].includes(plan)) ? plan : 'starter';
+      const fleetPlanConfig = SAAS_PLANS.fleet?.tiers?.[selectedPlan] || {};
+      const stripePriceId = fleetPlanConfig.stripe_price_id || null;
+      let stripeCustomerId = null;
+      let stripeSubscriptionId = null;
+
+      // Create Stripe customer record for billing (non-fatal on failure)
+      try {
+        const stripe = await getStripeClient();
+        if (stripe) {
+          const customer = await stripe.customers.create({
+            email,
+            name: company,
+            metadata: { fleet_user_id: userId, fleet_id: fleet.id, plan: selectedPlan }
+          });
+          stripeCustomerId = customer.id;
+
+          // If a Stripe price ID is configured, create a subscription with a 14-day trial
+          if (stripePriceId) {
+            const subscription = await stripe.subscriptions.create({
+              customer: customer.id,
+              items: [{ price: stripePriceId }],
+              trial_period_days: 14,
+              metadata: { fleet_user_id: userId, fleet_id: fleet.id, plan: selectedPlan, product_line: 'fleet' }
+            });
+            stripeSubscriptionId = subscription.id;
+          }
+        }
+      } catch (stripeErr) {
+        // Non-fatal — account is created; billing can be set up separately
+        console.warn('[Fleet Setup] Stripe provisioning warning:', stripeErr.message);
+      }
+
+      // Persist the saas_subscriptions record (authoritative plan state for limit checks)
+      const { error: subErr } = await supabase.from('saas_subscriptions').upsert({
+        user_id: userId,
+        product: 'fleet',
+        plan: selectedPlan,
+        status: stripeSubscriptionId ? 'trialing' : 'active',
+        stripe_customer_id: stripeCustomerId,
+        stripe_subscription_id: stripeSubscriptionId,
+        current_period_start: new Date().toISOString(),
+        current_period_end: stripeSubscriptionId ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() : null
+      }, { onConflict: 'user_id,product' });
+      if (subErr) { console.warn('[Fleet Setup] saas_subscriptions upsert warning:', subErr.message); }
+
+      console.log(`[Fleet Setup] Created account+fleet+subscription for ${email} (userId=${userId}, fleetId=${fleet.id}, plan=${selectedPlan})`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, user_id: userId, fleet_id: fleet.id, email }));
+      res.end(JSON.stringify({ success: true, user_id: userId, fleet_id: fleet.id, email, plan: selectedPlan }));
     } catch (err) {
       console.error(`[${requestId}] Fleet setup error:`, err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Fleet account setup failed' }));
