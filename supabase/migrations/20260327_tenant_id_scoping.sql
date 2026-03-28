@@ -541,9 +541,13 @@ CREATE POLICY "Tenant scoped page view insert"
   WITH CHECK (
     (current_setting('role', TRUE) = 'service_role')
     OR is_mcc_admin()
-    -- Allow all authenticated page view inserts; tenant_id is stamped by trigger.
-    -- Anon inserts (user_id IS NULL) also allowed for traffic tracking.
-    OR (auth.uid() IS NOT NULL)
+    -- Authenticated: tenant_id must match caller's tenant (or be NULL for platform users)
+    OR (
+      auth.uid() IS NOT NULL
+      AND COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::uuid)
+          = COALESCE(get_current_user_tenant_id(), '00000000-0000-0000-0000-000000000000'::uuid)
+    )
+    -- Anonymous page views: tenant_id must be NULL
     OR (auth.uid() IS NULL AND tenant_id IS NULL)
   );
 

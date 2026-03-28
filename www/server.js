@@ -38914,11 +38914,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     try {
       let tenant = null;
       const _effectiveLookup = previewDomain || null;
-      // join_token only returned when bearer token is cryptographically valid (not just present)
-      const _cfgUser = await authenticateRequest(req);
-      const WL_COLS = _cfgUser
-        ? 'id, brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan, join_token'
-        : 'id, brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan';
+      // Config is branding only — join credentials issued via /api/admin/white-label/tenants/:id/generate-invite
+      const WL_COLS = 'id, brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan';
       if (supabase) {
         if (_effectiveLookup) {
           // Preview domain override (admin) — direct domain lookup
@@ -38945,8 +38942,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           }
         }
       }
-      // Never cache authenticated responses — join_token must not be served from shared cache
-      const cacheHeader = (_cfgUser || previewDomain) ? 'private, no-store' : 'public, max-age=60';
+      const cacheHeader = previewDomain ? 'no-store' : 'public, max-age=60';
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': cacheHeader });
       res.end(JSON.stringify({ tenant: tenant || null, is_white_label: !!tenant }));
     } catch (err) {
@@ -39036,48 +39032,37 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       const platformRole = userProfile?.role || 'member';
       const role = ['provider', 'pending_provider'].includes(platformRole) ? 'provider' : 'member';
 
-      // Resolve tenant by server-issued join_token (returned from config only to authed users).
-      // Admin fallback: X-Admin-Token + explicit tenant_id.
-      const JOIN_COLS = 'id, plan, max_members, max_providers, status';
+      // Resolve tenant from HMAC-signed invite token — host-header independent.
+      // invite_token = base64url({tenant_id, expires_at, sig})  where
+      // sig = HMAC-SHA256(tenant.join_token, tenant_id + ':' + expires_at)
+      // Tokens issued by POST /api/admin/white-label/tenants/:id/generate-invite
+      const JOIN_COLS = 'id, join_token, plan, max_members, max_providers, status';
       let tenant = null;
 
-      if (body?.join_token) {
-        const { data: tokenTenant } = await supabase
-          .from('white_label_tenants')
-          .select(JOIN_COLS)
-          .eq('join_token', body.join_token)
-          .eq('status', 'active')
-          .maybeSingle();
-        if (!tokenTenant) {
-          res.writeHead(403, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid or expired join token.' }));
-          return;
-        }
-        tenant = tokenTenant;
+      if (body?.invite_token) {
+        let _parsed;
+        try { _parsed = JSON.parse(Buffer.from(body.invite_token, 'base64url').toString()); }
+        catch (e) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Malformed invite token.' })); return; }
+        const { tenant_id: _invTid, expires_at: _invExp, sig: _invSig } = _parsed || {};
+        if (!_invTid || !_invExp || !_invSig) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Malformed invite token.' })); return; }
+        if (Date.now() > _invExp) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Invite token has expired.' })); return; }
+        const { data: _invTenant } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('id', _invTid).eq('status', 'active').maybeSingle();
+        if (!_invTenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found.' })); return; }
+        const crypto = require('crypto');
+        const expectedSig = crypto.createHmac('sha256', _invTenant.join_token).update(`${_invTid}:${_invExp}`).digest('hex');
+        if (_invSig !== expectedSig) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Invalid invite token signature.' })); return; }
+        tenant = _invTenant;
       } else if (body?.tenant_id) {
-        // Admin fallback: explicit tenant_id requires admin token
+        // Admin fallback: explicit tenant_id + admin token
         const _adminToken = req.headers['x-admin-token'];
         const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
-        if (!_validAdmin) {
-          res.writeHead(403, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'A join_token is required. Obtain it by loading /api/white-label/config from your white-label domain.' }));
-          return;
-        }
-        const { data: adminTenant } = await supabase
-          .from('white_label_tenants')
-          .select(JOIN_COLS)
-          .eq('id', body.tenant_id)
-          .eq('status', 'active')
-          .maybeSingle();
-        if (!adminTenant) {
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Tenant not found or inactive.' }));
-          return;
-        }
+        if (!_validAdmin) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'An invite_token is required.' })); return; }
+        const { data: adminTenant } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('id', body.tenant_id).eq('status', 'active').maybeSingle();
+        if (!adminTenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found.' })); return; }
         tenant = adminTenant;
       } else {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'join_token is required.' }));
+        res.end(JSON.stringify({ error: 'invite_token is required.' }));
         return;
       }
 
@@ -39516,6 +39501,42 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     } catch (err) {
       console.error(`[${requestId}] WL tenant delete error:`, err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to deactivate tenant' }));
+    }
+    return;
+  }
+
+  // POST /api/admin/white-label/tenants/:id/generate-invite — create an HMAC-signed invite link.
+  // Invite token contains tenant_id + expiry signed with tenant join_token secret.
+  // No host-header dependency — tenant resolved by explicit :id in URL path.
+  if (req.method === 'POST' && /^\/api\/admin\/white-label\/tenants\/[^/]+\/generate-invite$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _adminToken = req.headers['x-admin-token'];
+    const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+    if (!_validAdmin) {
+      const _adminUser = await authenticateRequest(req);
+      if (!_adminUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const { data: _ap } = await getSupabaseClient().from('profiles').select('role').eq('id', _adminUser.id).maybeSingle();
+      if (_ap?.role !== 'admin') { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Admin required' })); return; }
+    }
+    const _invTenantId = req.url.split('/api/admin/white-label/tenants/')[1]?.split('/generate-invite')[0];
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      // TTL in hours (default 72h, max 720h)
+      const ttlHours = Math.min(parseInt(body?.ttl_hours || '72', 10) || 72, 720);
+      const { data: _invTenant } = await supabase.from('white_label_tenants').select('id, join_token, name').eq('id', _invTenantId).maybeSingle();
+      if (!_invTenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found' })); return; }
+      const expiresAt = Date.now() + ttlHours * 3_600_000;
+      const payload = `${_invTenant.id}:${expiresAt}`;
+      const crypto = require('crypto');
+      const sig = crypto.createHmac('sha256', _invTenant.join_token).update(payload).digest('hex');
+      const token = Buffer.from(JSON.stringify({ tenant_id: _invTenant.id, expires_at: expiresAt, sig })).toString('base64url');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ invite_token: token, expires_at: expiresAt, ttl_hours: ttlHours }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to generate invite' }));
     }
     return;
   }
