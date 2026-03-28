@@ -161,6 +161,12 @@
     /* Card thumbnail photo */
     .card-photo-thumb, .card-photo-placeholder { width: 64px; height: 64px; border-radius: var(--radius-sm); flex-shrink: 0; object-fit: cover; border: 1px solid var(--border-subtle); }
     .card-photo-placeholder { width: 64px; height: 64px; border-radius: var(--radius-sm); flex-shrink: 0; border: 1px solid var(--border-subtle); overflow: hidden; }
+    /* Collapsible filter toggle button */
+    .filter-toggle-btn { display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--radius-sm);border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.83rem;font-weight:500;cursor:pointer;transition:border-color 0.2s,color 0.2s;white-space:nowrap;flex-shrink:0; }
+    .filter-toggle-btn:hover, .filter-toggle-btn.active { border-color:var(--accent-gold);color:var(--accent-gold); }
+    /* Slide-in drawer animation for right panel */
+    @keyframes slideInRight { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+    .right-panel:not(.empty) .detail-view { animation:slideInRight 0.22s ease; }
     /* Locked (unverified) state */
     .locked-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 40px 24px; text-align: center; }
     .locked-icon { font-size: 2.5rem; }
@@ -281,40 +287,51 @@
     </div>
 
     <!-- FILTER BAR -->
-    <div class="filter-bar">
+    <div class="filter-bar" id="filter-bar">
+      <!-- Filter header: search + sort always visible; expand toggle for advanced filters -->
       <div class="filter-row">
-        <input type="text" class="filter-search" id="search-input" placeholder="🔍 Search plans..." oninput="debounceSearch()">
-        <select class="filter-select" id="sort-select" onchange="reloadPlans()">
-          <option value="newest">Newest</option>
-          <option value="closing">Closing Soon</option>
-          <option value="value_high">Highest Value</option>
-          <option value="bids_low">Fewest Bids</option>
-          <option value="nearest">Nearest</option>
-        </select>
+        <input type="text" class="filter-search" id="search-input" placeholder="🔍 Search by title, vehicle, or make..." oninput="debounceSearch()">
+        <button class="filter-toggle-btn" id="filter-toggle-btn" onclick="toggleFilters()" title="Advanced filters" style="position:relative;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+          Filters
+          <span id="filter-dot" style="display:none;position:absolute;top:4px;right:4px;width:7px;height:7px;background:var(--accent-gold);border-radius:50%;"></span>
+        </button>
       </div>
-      <div class="filter-row">
-        <select class="filter-select" id="distance-select" onchange="reloadPlans()">
-          <option value="0">Any Distance</option>
-          <option value="10">Within 10 mi</option>
-          <option value="25">Within 25 mi</option>
-          <option value="50">Within 50 mi</option>
-          <option value="100">Within 100 mi</option>
-        </select>
-        <select class="filter-select" id="value-select" onchange="reloadPlans()">
-          <option value="0">Any Value</option>
-          <option value="100">$100+</option>
-          <option value="250">$250+</option>
-          <option value="500">$500+</option>
-          <option value="1000">$1,000+</option>
-        </select>
-      </div>
-      <div class="filter-chips" id="service-chips">
-        <div class="filter-chip active" data-type="all" onclick="setServiceType('all', this)">All</div>
-        <div class="filter-chip" data-type="maintenance" onclick="setServiceType('maintenance', this)">Maintenance</div>
-        <div class="filter-chip" data-type="detailing" onclick="setServiceType('detailing', this)">Detailing</div>
-        <div class="filter-chip" data-type="cosmetic" onclick="setServiceType('cosmetic', this)">Cosmetic</div>
-        <div class="filter-chip" data-type="performance" onclick="setServiceType('performance', this)">Performance</div>
-        <div class="filter-chip" data-type="ev_hybrid" onclick="setServiceType('ev_hybrid', this)">EV/Hybrid</div>
+      <!-- Advanced filters: collapsible -->
+      <div id="filter-advanced" style="overflow:hidden;transition:max-height 0.3s ease;max-height:0;">
+        <div class="filter-row" style="margin-top:8px;">
+          <select class="filter-select" id="sort-select" onchange="reloadPlans()">
+            <option value="nearest" selected>Nearest First</option>
+            <option value="newest">Newest</option>
+            <option value="closing">Closing Soon</option>
+            <option value="value_high">Highest Value</option>
+            <option value="bids_low">Fewest Bids</option>
+          </select>
+          <select class="filter-select" id="distance-select" onchange="reloadPlans(); updateFilterDot();">
+            <option value="0">Any Distance</option>
+            <option value="10">Within 10 mi</option>
+            <option value="25">Within 25 mi</option>
+            <option value="50">Within 50 mi</option>
+            <option value="100">Within 100 mi</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <select class="filter-select" id="value-select" onchange="reloadPlans(); updateFilterDot();">
+            <option value="0">Any Value</option>
+            <option value="100">$100+</option>
+            <option value="250">$250+</option>
+            <option value="500">$500+</option>
+            <option value="1000">$1,000+</option>
+          </select>
+        </div>
+        <div class="filter-chips" id="service-chips">
+          <div class="filter-chip active" data-type="all" onclick="setServiceType('all', this)">All Services</div>
+          <div class="filter-chip" data-type="maintenance" onclick="setServiceType('maintenance', this)">Maintenance</div>
+          <div class="filter-chip" data-type="detailing" onclick="setServiceType('detailing', this)">Detailing</div>
+          <div class="filter-chip" data-type="cosmetic" onclick="setServiceType('cosmetic', this)">Cosmetic</div>
+          <div class="filter-chip" data-type="performance" onclick="setServiceType('performance', this)">Performance</div>
+          <div class="filter-chip" data-type="ev_hybrid" onclick="setServiceType('ev_hybrid', this)">EV/Hybrid</div>
+        </div>
       </div>
     </div>
 
@@ -409,6 +426,7 @@ async function checkAuth() {
     if (!session) { window.location.href = '/login.html'; return; }
     currentUser = session.user;
     await loadPlans(true);
+    startRealtime();
   } catch (err) {
     console.error('Auth error:', err);
     window.location.href = '/login.html';
@@ -431,6 +449,7 @@ function setServiceType(type, el) {
   currentServiceType = type;
   document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
+  updateFilterDot();
   reloadPlans();
 }
 
@@ -443,6 +462,81 @@ function reloadPlans() {
   currentPage = 1;
   plans = [];
   loadPlans(true);
+}
+
+// ===== COLLAPSIBLE FILTER PANEL =====
+let filtersExpanded = false;
+function toggleFilters() {
+  filtersExpanded = !filtersExpanded;
+  const panel = document.getElementById('filter-advanced');
+  const btn = document.getElementById('filter-toggle-btn');
+  if (filtersExpanded) {
+    panel.style.maxHeight = panel.scrollHeight + 200 + 'px';
+    btn.classList.add('active');
+  } else {
+    panel.style.maxHeight = '0';
+    btn.classList.remove('active');
+  }
+}
+
+function updateFilterDot() {
+  const dot = document.getElementById('filter-dot');
+  if (!dot) return;
+  const distNonDefault = document.getElementById('distance-select')?.value !== '0';
+  const valueNonDefault = document.getElementById('value-select')?.value !== '0';
+  const svcNonDefault = currentServiceType !== 'all';
+  const sortNonDefault = document.getElementById('sort-select')?.value !== 'nearest';
+  dot.style.display = (distNonDefault || valueNonDefault || svcNonDefault || sortNonDefault) ? 'block' : 'none';
+}
+
+// ===== REALTIME LIVE UPDATES =====
+let realtimeChannel = null;
+function startRealtime() {
+  if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+  realtimeChannel = supabaseClient
+    .channel('job-board-live')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'care_plans' }, (payload) => {
+      // New care plan: reload if on "all" or "no-bids" tab
+      if (currentTab === 'all' || currentTab === 'no-bids') {
+        showToast('New care plan posted!', 'info');
+        reloadPlans();
+      }
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'care_plans' }, (payload) => {
+      const updated = payload.new;
+      const idx = plans.findIndex(p => p.id === updated?.id);
+      if (idx >= 0) {
+        // Status changed → remove from list if no longer open
+        if (updated.status !== 'open') {
+          plans.splice(idx, 1);
+          renderPlanList(true);
+          if (selectedPlanId === updated.id) {
+            document.getElementById('right-panel').className = 'right-panel empty';
+            document.getElementById('right-panel').innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">Plan Closed</div><div class="empty-sub">This care plan has been accepted or closed.</div></div>';
+          }
+          return;
+        }
+        // Update bid count in-place
+        plans[idx] = { ...plans[idx], bid_count: updated.bid_count || plans[idx].bid_count };
+        renderPlanList(true);
+      }
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'plan_bids' }, (payload) => {
+      const bid = payload.new;
+      const idx = plans.findIndex(p => p.id === bid?.care_plan_id);
+      if (idx >= 0) {
+        plans[idx].bid_count = (plans[idx].bid_count || 0) + 1;
+        // Re-render just this card's bid count
+        const cardEl = document.querySelector(`[data-plan-id="${bid.care_plan_id}"] .bids-label`);
+        if (cardEl) cardEl.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ${plans[idx].bid_count}`;
+        // Update detail panel if selected
+        if (selectedPlanId === bid.care_plan_id) {
+          const countEl = document.querySelector('.detail-meta span:nth-child(2)');
+          if (countEl) countEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>${plans[idx].bid_count} bid${plans[idx].bid_count !== 1 ? 's' : ''}`;
+        }
+      }
+    })
+    .subscribe();
 }
 
 // ===== INFINITE SCROLL =====

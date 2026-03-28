@@ -1338,7 +1338,7 @@
         
         <div id="vehicle-tab-photos" style="display:none;">
           <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
-            <input type="file" class="form-input" id="vehicle-photo-upload" accept="image/*" multiple style="flex:1;">
+            <input type="file" class="form-input" id="vehicle-photo-upload" accept="image/jpeg,image/png" multiple style="flex:1;">
             <select class="form-select" id="photo-type-select" style="width:auto;">
               <option value="general">General</option>
               <option value="exterior">Exterior</option>
@@ -1985,7 +1985,7 @@ function renderVehiclePhotosGrid(photos) {
       <label style="aspect-ratio:4/3;border-radius:var(--radius-md);border:2px dashed var(--border-subtle);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:8px;color:var(--text-muted);transition:border-color 0.2s;" onmouseenter="this.style.borderColor='var(--accent-gold)'" onmouseleave="this.style.borderColor='var(--border-subtle)'">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
         <span style="font-size:0.78rem;">Add Photo</span>
-        <input type="file" accept="image/*" style="display:none;" onchange="uploadVehiclePhoto(this)">
+        <input type="file" accept="image/jpeg,image/png" style="display:none;" onchange="uploadVehiclePhoto(this)">
       </label>
     `;
   }
@@ -2000,7 +2000,8 @@ function renderVehiclePhotosGrid(photos) {
 async function uploadVehiclePhoto(input) {
   if (!input.files || !input.files[0]) return;
   const file = input.files[0];
-  if (file.size > 8 * 1024 * 1024) { showToast('Photo must be under 8MB', 'error'); return; }
+  if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) { showToast('Please upload a JPEG or PNG photo', 'error'); return; }
+  if (file.size > 10 * 1024 * 1024) { showToast('Photo must be under 10MB', 'error'); return; }
   try {
     showToast('Uploading photo...', 'info');
     const ext = file.name.split('.').pop().toLowerCase().replace('heic','jpg');

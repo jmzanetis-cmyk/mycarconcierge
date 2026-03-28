@@ -41960,8 +41960,8 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       (myBidRows || []).forEach(b => { myBidMap[b.care_plan_id] = b; });
       const myBidPlanIds = Object.keys(myBidMap);
 
-      // When distance filtering, we must fetch all candidates and paginate in memory
-      const needsDistanceFilter = maxDistance > 0;
+      // When distance filtering OR sort=nearest, fetch all candidates and paginate in memory for correct ordering
+      const needsDistanceFilter = maxDistance > 0 || sort === 'nearest';
       let query = supabase.from('care_plans').select(SELECT_FIELDS, { count: needsDistanceFilter ? undefined : 'exact' });
 
       // Tab semantics
@@ -41979,7 +41979,15 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
 
       if (serviceType) query = query.contains('service_types', [serviceType]);
       if (minValue > 0) query = query.gte('value_min', minValue);
-      if (searchQ) query = query.or(`title.ilike.%${searchQ}%,description.ilike.%${searchQ}%`);
+      if (searchQ) {
+        // Search across title, description, and vehicle make/model
+        const { data: matchingVehicles } = await supabase.from('vehicles')
+          .select('id').or(`make.ilike.%${searchQ}%,model.ilike.%${searchQ}%,year::text.ilike.%${searchQ}%`).limit(200);
+        const matchVehicleIds = (matchingVehicles || []).map(v => v.id);
+        let searchFilter = `title.ilike.%${searchQ}%,description.ilike.%${searchQ}%`;
+        if (matchVehicleIds.length) searchFilter += `,vehicle_id.in.(${matchVehicleIds.join(',')})`;
+        query = query.or(searchFilter);
+      }
 
       // Sort
       if (sort === 'closing') query = query.order('bid_closes_at', { ascending: true });
@@ -42184,7 +42192,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     return;
   }
 
-  // POST /api/auto-bid/process — internal: auto-bid on new care plans (called by scheduler)
+  // POST /api/auto-bid/process — internal: auto-bid on new care plans (called by scheduler or Realtime trigger)
   if (req.method === 'POST' && req.url === '/api/auto-bid/process') {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
@@ -42197,28 +42205,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       try {
         const { care_plan_id } = JSON.parse(body || '{}');
         if (!care_plan_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'care_plan_id required' })); return; }
-        const { data: plan } = await supabase.from('care_plans').select('*').eq('id', care_plan_id).single();
-        if (!plan || plan.status !== 'open') { res.writeHead(200); res.end(JSON.stringify({ placed: 0 })); return; }
-        const { data: providers } = await supabase.from('profiles')
-          .select('id, zip_code, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate, verification_status')
-          .eq('auto_bid_enabled', true).in('role', ['provider', 'admin'])
-          .or('verification_status.is.null,verification_status.eq.verified');
-        let placed = 0;
-        for (const prov of (providers || [])) {
-          const dist = estimateZipDistanceSrv(prov.zip_code, plan.zip_code);
-          if (prov.auto_bid_max_distance_miles && dist > prov.auto_bid_max_distance_miles) continue;
-          if (prov.auto_bid_service_types?.length && plan.service_types?.length) {
-            const overlap = prov.auto_bid_service_types.some(s => plan.service_types.includes(s));
-            if (!overlap) continue;
-          }
-          const pct = (prov.auto_bid_percent_of_estimate || 85) / 100;
-          const estimate = plan.value_min || plan.value_max || 200;
-          const amount = parseFloat((estimate * pct).toFixed(2));
-          const { error } = await supabase.from('plan_bids').upsert({
-            care_plan_id, provider_id: prov.id, amount, is_auto_bid: true
-          }, { onConflict: 'care_plan_id,provider_id', ignoreDuplicates: true });
-          if (!error) placed++;
-        }
+        const placed = await runAutoBidForPlan(care_plan_id);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ placed }));
       } catch (err) {
@@ -42884,6 +42871,7 @@ server.listen(PORT, '0.0.0.0', () => {
   startSplitPaymentExpiryScheduler();
   startBidDeadlineScheduler();
   startCarePlanClosingScheduler();
+  startCarePlanRealtimeListener();
   seedFoundingProviderAgreements();
   createAiOpsTablesIfNeeded();
   initSmsLogTable();
@@ -43752,6 +43740,56 @@ function startBidDeadlineScheduler() {
 
 // SQL migration for deadline_warning_sent:
 // ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE;
+
+// ========== AUTO-BID CORE LOGIC (shared by API endpoint + Realtime trigger) ==========
+async function runAutoBidForPlan(care_plan_id) {
+  const supabase = getSupabaseClient();
+  const { data: plan } = await supabase.from('care_plans').select('*').eq('id', care_plan_id).single();
+  if (!plan || plan.status !== 'open') return 0;
+  const { data: providers } = await supabase.from('profiles')
+    .select('id, zip_code, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate, verification_status')
+    .eq('auto_bid_enabled', true).in('role', ['provider', 'admin'])
+    .or('verification_status.is.null,verification_status.eq.verified');
+  let placed = 0;
+  for (const prov of (providers || [])) {
+    const dist = estimateZipDistanceSrv(prov.zip_code, plan.zip_code);
+    if (prov.auto_bid_max_distance_miles && dist > prov.auto_bid_max_distance_miles) continue;
+    if (prov.auto_bid_service_types?.length && plan.service_types?.length) {
+      const overlap = prov.auto_bid_service_types.some(s => plan.service_types.includes(s));
+      if (!overlap) continue;
+    }
+    const pct = (prov.auto_bid_percent_of_estimate || 85) / 100;
+    const estimate = plan.value_min || plan.value_max || 200;
+    const amount = parseFloat((estimate * pct).toFixed(2));
+    const { error } = await supabase.from('plan_bids').upsert({
+      care_plan_id, provider_id: prov.id, amount, is_auto_bid: true
+    }, { onConflict: 'care_plan_id,provider_id', ignoreDuplicates: true });
+    if (!error) placed++;
+  }
+  console.log(`[AutoBid] Placed ${placed} auto-bid(s) for care plan ${care_plan_id}`);
+  return placed;
+}
+
+// ========== REALTIME SUBSCRIPTION: trigger auto-bid on new care plan inserts ==========
+function startCarePlanRealtimeListener() {
+  try {
+    const supabase = getSupabaseClient();
+    supabase.channel('care-plans-insert')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'care_plans' }, async (payload) => {
+        const newPlan = payload.new;
+        if (newPlan?.status === 'open' && newPlan?.id) {
+          console.log(`[AutoBid] New care plan detected (${newPlan.id}), triggering auto-bid...`);
+          runAutoBidForPlan(newPlan.id).catch(e => console.error('[AutoBid] Realtime trigger error:', e.message));
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') console.log('[AutoBid] Realtime listener active on care_plans');
+        else if (status === 'CHANNEL_ERROR') console.warn('[AutoBid] Realtime listener error — auto-bid will rely on scheduler only');
+      });
+  } catch (e) {
+    console.warn('[AutoBid] Could not start Realtime listener:', e.message);
+  }
+}
 
 // ========== CARE PLAN CLOSING-SOON SCHEDULER ==========
 function startCarePlanClosingScheduler() {

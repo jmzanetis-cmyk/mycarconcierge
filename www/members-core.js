@@ -910,7 +910,11 @@ function renderVehicles() {
     `;
     return;
   }
-  if (nudge && nudge.style.display === 'none' && !nudge.dataset.dismissed) nudge.style.display = 'block';
+  // Only show nudge if at least one vehicle actually has no photos (check after render)
+  if (nudge && !nudge.dataset.dismissed) {
+    nudge.style.display = 'none';
+    checkPhotoNudge(vehicles.map(v => v.id));
+  }
 
   grid.innerHTML = vehicles.map(v => {
     const displayName = v.nickname || `${v.year} ${v.make} ${v.model}`;
@@ -973,6 +977,21 @@ function renderServiceHistory() {
       </div>
     `;
   }).join('');
+}
+
+// Check if any vehicle has no photos and show nudge accordingly
+async function checkPhotoNudge(vehicleIds) {
+  const nudge = document.getElementById('vehicle-photo-nudge');
+  if (!nudge || nudge.dataset.dismissed) return;
+  try {
+    if (!vehicleIds || !vehicleIds.length) { nudge.style.display = 'none'; return; }
+    const { data: photos } = await supabaseClient.from('vehicle_photos').select('vehicle_id').in('vehicle_id', vehicleIds);
+    const vehiclesWithPhotos = new Set((photos || []).map(p => p.vehicle_id));
+    const anyMissingPhotos = vehicleIds.some(id => !vehiclesWithPhotos.has(id));
+    nudge.style.display = anyMissingPhotos ? 'block' : 'none';
+  } catch {
+    nudge.style.display = 'none';
+  }
 }
 
 async function loadProfile() {
