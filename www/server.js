@@ -6049,6 +6049,52 @@ async function handleSaasSubscriptionWebhook(event, supabase, requestId) {
   } catch (cacheErr) {
     console.warn(`[${requestId}] SaaS cache update failed (non-critical):`, cacheErr.message);
   }
+
+  // Send fleet-specific lifecycle email notifications via Resend
+  if (planInfo.product === 'fleet') {
+    try {
+      const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', userId).maybeSingle();
+      const userEmail = profile?.email;
+      const userName = profile?.full_name || 'Fleet Admin';
+      const planLabel = planInfo.plan.charAt(0).toUpperCase() + planInfo.plan.slice(1);
+      if (userEmail && resend) {
+        let emailSubject = '';
+        let emailHtml = '';
+        const renewalDate = upsertData.current_period_end
+          ? new Date(upsertData.current_period_end).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : null;
+        const trialEndDate = upsertData.trial_end
+          ? new Date(upsertData.trial_end).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : null;
+
+        if (event.type === 'customer.subscription.created' && upsertData.status === 'trialing') {
+          emailSubject = `Your My Car Concierge Fleet ${planLabel} trial has started`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>Fleet ${planLabel}</strong> 14-day free trial is now active. You can manage your fleet, invite drivers, and import vehicles during the trial period.</p>${trialEndDate ? `<p>Your trial ends on <strong>${trialEndDate}</strong>. No charges until then.</p>` : ''}<p><a href="https://mycarconcierge.com/fleet" style="background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Go to Fleet Dashboard</a></p><p>— My Car Concierge Team</p>`;
+        } else if (event.type === 'customer.subscription.trial_will_end') {
+          emailSubject = `Your Fleet trial ends in 3 days — no action needed`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>Fleet ${planLabel}</strong> trial is ending${trialEndDate ? ` on <strong>${trialEndDate}</strong>` : ' soon'}. Your subscription will automatically continue — no action required.</p><p>Questions? Reply to this email or visit your <a href="https://mycarconcierge.com/members.html#fleet">Fleet Dashboard</a>.</p><p>— My Car Concierge Team</p>`;
+        } else if (event.type === 'customer.subscription.updated' && upsertData.status === 'active' && sub.status !== 'trialing') {
+          emailSubject = `Your Fleet ${planLabel} plan has been updated`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>Fleet ${planLabel}</strong> plan has been updated successfully.${renewalDate ? ` Your next billing date is <strong>${renewalDate}</strong>.` : ''}</p><p><a href="https://mycarconcierge.com/members.html#fleet" style="background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Manage Fleet</a></p><p>— My Car Concierge Team</p>`;
+        } else if (event.type === 'customer.subscription.deleted' || upsertData.status === 'canceled') {
+          emailSubject = `Your Fleet subscription has been canceled`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>Fleet ${planLabel}</strong> subscription has been canceled. You can reactivate at any time from your <a href="https://mycarconcierge.com/members.html#fleet">Fleet Dashboard</a>.</p><p>— My Car Concierge Team</p>`;
+        }
+
+        if (emailSubject && emailHtml) {
+          await resend.emails.send({
+            from: 'My Car Concierge <noreply@mycarconcierge.com>',
+            to: userEmail,
+            subject: emailSubject,
+            html: emailHtml
+          });
+          console.log(`[${requestId}] Fleet lifecycle email sent to ${userEmail}: ${emailSubject}`);
+        }
+      }
+    } catch (emailErr) {
+      console.warn(`[${requestId}] Fleet lifecycle email failed (non-critical):`, emailErr.message);
+    }
+  }
 }
 
 async function getStripeClient() {

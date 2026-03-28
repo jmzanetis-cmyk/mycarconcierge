@@ -192,18 +192,10 @@ CREATE POLICY "Fleet members select" ON fleet_members
     )
   );
 
--- INSERT/UPDATE/DELETE: only fleet owners and managers may mutate membership records
+-- INSERT: blocked for all authenticated clients; must go through server API (/api/fleet/invite,
+-- /api/fleet/setup) which enforces plan seat limits before inserting. Service role bypasses RLS.
 CREATE POLICY "Fleet members insert" ON fleet_members
-  FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_members.fleet_id AND fleets.owner_id = auth.uid())
-    OR EXISTS (
-      SELECT 1 FROM fleet_members fm2
-      WHERE fm2.fleet_id = fleet_members.fleet_id
-        AND fm2.user_id = auth.uid()
-        AND fm2.role IN ('manager', 'owner')
-        AND fm2.status = 'active'
-    )
-  );
+  FOR INSERT WITH CHECK (false);
 
 CREATE POLICY "Fleet members update" ON fleet_members
   FOR UPDATE USING (
@@ -269,18 +261,10 @@ CREATE POLICY "Fleet vehicles select" ON fleet_vehicles
     )
   );
 
--- INSERT/UPDATE/DELETE: only fleet owners and managers may mutate vehicle records
+-- INSERT: blocked for all authenticated clients; must go through server API (/api/fleet/add-vehicle,
+-- /api/fleet/import-vehicles) which enforces plan vehicle seat limits before inserting.
 CREATE POLICY "Fleet vehicles insert" ON fleet_vehicles
-  FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM fleets WHERE fleets.id = fleet_vehicles.fleet_id AND fleets.owner_id = auth.uid())
-    OR EXISTS (
-      SELECT 1 FROM fleet_members fm2
-      WHERE fm2.fleet_id = fleet_vehicles.fleet_id
-        AND fm2.user_id = auth.uid()
-        AND fm2.role IN ('manager', 'owner')
-        AND fm2.status = 'active'
-    )
-  );
+  FOR INSERT WITH CHECK (false);
 
 CREATE POLICY "Fleet vehicles update" ON fleet_vehicles
   FOR UPDATE USING (

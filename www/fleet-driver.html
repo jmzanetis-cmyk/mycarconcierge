@@ -336,7 +336,7 @@
 
     window.addEventListener('load', async () => {
       const user = await getCurrentUser();
-      if (!user) return window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.href);
+      if (!user) return window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.href);
       currentUser = user;
 
       await loadDriverData();
@@ -521,7 +521,7 @@
 
     async function logout() {
       await supabaseClient.auth.signOut();
-      window.location.href = 'login.html';
+      window.location.href = '/login.html';
     }
   </script>
   <script src="/pwa-init.js?v=20260202"></script>
