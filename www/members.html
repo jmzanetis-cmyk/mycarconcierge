@@ -7830,6 +7830,22 @@
       }
     }
 
+    // Helper: persist a single onboarding step completion to the DB
+    async function markOnboardingStep(step) {
+      try {
+        const token = window._currentSession?.access_token;
+        if (!token) return;
+        await fetch('/api/member/onboarding/step', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ step, value: true })
+        });
+      } catch (_) {}
+    }
+
+    // Track which steps were already persisted this session to avoid repeat writes
+    const _persistedSteps = new Set();
+
     async function checkOnboardingStatus() {
       const dismissed = localStorage.getItem('mcc_onboarding_dismissed');
       try {
@@ -7841,6 +7857,15 @@
         if (!res.ok) throw new Error('not ok');
         const data = await res.json();
         if (!dismissed) updateOnboardingUI(data);
+        // Belt-and-suspenders: persist any newly-completed steps to the DB
+        const c = data.checklist || {};
+        ['profile_completed','vehicle_added','request_posted','notifications_enabled',
+         'provider_profile','provider_docs','provider_services','provider_stripe','provider_first_booking'].forEach(step => {
+          if (c[step] && !_persistedSteps.has(step)) {
+            _persistedSteps.add(step);
+            markOnboardingStep(step);
+          }
+        });
       } catch (_) {
         // Fallback to local-only check
         if (dismissed) return;
@@ -7897,6 +7922,10 @@
         }
       } catch (_) {}
     }
+
+    // Expose globally so providers-core.js, members-vehicles.js, etc. can call it
+    window.markOnboardingStep = markOnboardingStep;
+    window.recheckOnboardingStatus = checkOnboardingStatus;
 
     // Re-check checklist when stats update
     const statsObserver = new MutationObserver(() => {

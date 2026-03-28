@@ -6691,7 +6691,7 @@
           const client = window.supabaseClient;
           const { data: { session } } = client ? await client.auth.getSession() : { data: { session: null } };
           if (!session?.access_token) throw new Error('no session');
-          const res = await fetch('/api/member/onboarding', {
+          const res = await fetch('/api/member/onboarding?role=provider', {
             headers: { 'Authorization': 'Bearer ' + session.access_token }
           });
           if (!res.ok) throw new Error('not ok');
@@ -6702,6 +6702,21 @@
           if (c) c.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Unable to load checklist.</p>';
         }
       }
+
+      // Expose helper so providers-core.js can call it after actions
+      window.markProviderOnboardingStep = async function(step) {
+        try {
+          const client = window.supabaseClient;
+          const { data: { session } } = client ? await client.auth.getSession() : { data: { session: null } };
+          if (!session?.access_token) return;
+          await fetch('/api/member/onboarding/step', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+            body: JSON.stringify({ step, value: true })
+          });
+          loadProviderChecklist(); // Refresh display
+        } catch (_) {}
+      };
 
       document.addEventListener('DOMContentLoaded', loadProviderChecklist);
     })();

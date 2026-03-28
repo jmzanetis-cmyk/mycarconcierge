@@ -42197,19 +42197,46 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     const user = await authenticateRequest(req);
     if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
     const supabase = getSupabaseClient();
+    const EMPTY_CHECKLIST = { account_created: true, profile_completed: false, vehicle_added: false, request_posted: false, notifications_enabled: false, provider_profile: false, provider_docs: false, provider_services: false, provider_stripe: false, provider_first_booking: false };
     try {
       let row = null;
-      let profileZip = null;
+      let profile = null;
+      let vehicleCount = 0;
+      let packageCount = 0;
+      let acceptedBidCount = 0;
       if (supabase) {
-        const [onboardRes, profileRes] = await Promise.all([
-          supabase.from('member_onboarding').select('*').eq('user_id', user.id).maybeSingle(),
-          supabase.from('profiles').select('zip_code').eq('id', user.id).maybeSingle()
+        const [onboardRes, profileRes, vehicleRes, packageRes, bidRes] = await Promise.all([
+          supabase.from('member_onboarding').select('*').eq('user_id', user.id).maybeSingle().catch(() => ({ data: null })),
+          supabase.from('profiles').select('zip_code, bio, services, verification_status, stripe_onboarding_complete, push_token, sms_notifications_enabled').eq('id', user.id).maybeSingle().catch(() => ({ data: null })),
+          supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('user_id', user.id).catch(() => ({ count: 0 })),
+          supabase.from('maintenance_packages').select('id', { count: 'exact', head: true }).eq('member_id', user.id).catch(() => ({ count: 0 })),
+          supabase.from('plan_bids').select('id', { count: 'exact', head: true }).eq('provider_id', user.id).eq('status', 'accepted').catch(() => ({ count: 0 }))
         ]);
         row = onboardRes.data;
-        profileZip = profileRes.data?.zip_code || null;
+        profile = profileRes.data;
+        vehicleCount = vehicleRes.count || 0;
+        packageCount = packageRes.count || 0;
+        acceptedBidCount = bidRes.count || 0;
       }
+
       const checklist = row?.checklist || {};
-      const profileCompleted = !!(profileZip || checklist.profile_completed);
+      // Auto-detect all step completion states from real data
+      const profileCompleted = !!(profile?.zip_code || checklist.profile_completed);
+      const vehicleAdded = vehicleCount > 0 || !!checklist.vehicle_added;
+      const requestPosted = packageCount > 0 || !!checklist.request_posted;
+      const notificationsEnabled = !!(profile?.push_token || profile?.sms_notifications_enabled || checklist.notifications_enabled);
+      // Provider steps — auto-detect from profile data
+      const providerProfile = !!(profile?.bio || checklist.provider_profile);
+      const providerDocs = !!(profile?.verification_status && profile.verification_status !== 'unverified' && profile.verification_status !== 'pending') || !!checklist.provider_docs;
+      const providerServices = !!(profile?.services && (Array.isArray(profile.services) ? profile.services.length > 0 : String(profile.services).trim().length > 2)) || !!checklist.provider_services;
+      const providerStripe = !!(profile?.stripe_onboarding_complete || checklist.provider_stripe);
+      const providerFirstBooking = acceptedBidCount > 0 || !!checklist.provider_first_booking;
+
+      // Auto-upsert account_created on first load so state is anchored in DB
+      if (supabase && !row) {
+        supabase.from('member_onboarding').upsert({ user_id: user.id, checklist: { account_created: true }, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }).catch(() => {});
+      }
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         survey_completed: row?.survey_completed || false,
@@ -42218,21 +42245,20 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         checklist: {
           account_created: true,
           profile_completed: profileCompleted,
-          vehicle_added: checklist.vehicle_added || false,
-          request_posted: checklist.request_posted || false,
-          notifications_enabled: checklist.notifications_enabled || false,
-          provider_profile: checklist.provider_profile || false,
-          provider_docs: checklist.provider_docs || false,
-          provider_services: checklist.provider_services || false,
-          provider_stripe: checklist.provider_stripe || false,
-          provider_first_booking: checklist.provider_first_booking || false
+          vehicle_added: vehicleAdded,
+          request_posted: requestPosted,
+          notifications_enabled: notificationsEnabled,
+          provider_profile: providerProfile,
+          provider_docs: providerDocs,
+          provider_services: providerServices,
+          provider_stripe: providerStripe,
+          provider_first_booking: providerFirstBooking
         }
       }));
     } catch (err) {
       if (err.code === '42P01' || (err.message && err.message.includes('does not exist'))) {
-        // Table not yet created — return safe empty payload
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ survey_completed: false, welcome_shown: false, pain_point: null, checklist: { account_created: true, profile_completed: false, vehicle_added: false, request_posted: false, notifications_enabled: false, provider_profile: false, provider_docs: false, provider_services: false, provider_stripe: false, provider_first_booking: false } }));
+        res.end(JSON.stringify({ survey_completed: false, welcome_shown: false, pain_point: null, checklist: EMPTY_CHECKLIST }));
         return;
       }
       console.error('[Onboarding] GET error:', err.message);
