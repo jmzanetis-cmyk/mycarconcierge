@@ -7929,21 +7929,19 @@
     }
 
     // Welcome modal
-    const PAIN_MESSAGES = {
-      cost: { headline: 'Fair pricing starts here.', body: 'Post your job once and get competing bids from vetted local providers — so you always know you\'re getting a fair price before you commit.' },
-      trust: { headline: 'Every provider is vetted.', body: 'Read verified reviews, check credentials, and only work with providers you\'ve approved. No guesswork, no surprises.' },
-      communication: { headline: 'Stay informed, every step of the way.', body: 'Get real-time updates as your vehicle is being worked on. No more calling to ask “is my car ready yet?”' },
-      quality: { headline: 'Quality you can count on.', body: 'Our provider rating system holds every shop accountable. Consistent poor ratings mean removal — so your standards are ours.' },
-      scheduling: { headline: 'One post. Multiple bids. Zero phone tag.', body: 'Post your service need once — providers come to you. Book, pay, and track everything in one place without the back-and-forth.' },
-      other: { headline: 'Welcome to simpler auto care.', body: 'My Car Concierge brings every part of owning a vehicle into one place. Explore and let us know how we can help.' }
+    const FIRST_USE_MESSAGES = {
+      get_bids: { headline: 'Your first bid request is one tap away.', body: 'Post your service need and let local providers compete for your business. You’ll see quotes, ratings, and estimated timelines before you decide.' },
+      find_provider: { headline: 'Vetted providers, matched to you.', body: 'Every mechanic and detailer on My Car Concierge is background-checked and rated by real customers. Browse, compare, and book with confidence.' },
+      track_history: { headline: 'Your complete vehicle history starts now.', body: 'Every service, every provider, every part — organized by vehicle and always at your fingertips. Add your first vehicle to get started.' },
+      full_solution: { headline: 'Welcome to your complete auto ownership platform.', body: 'Quotes, bookings, service history, reminders, and payments — all in one place. Let’s start by adding your first vehicle.' }
     };
 
     function showWelcomeModal(data) {
       const modal = document.getElementById('welcome-modal');
       if (!modal) return;
-      const painPoint = data?.pain_point || null;
-      const msg = (painPoint && PAIN_MESSAGES[painPoint])
-        ? PAIN_MESSAGES[painPoint]
+      const firstUse = data?.first_use || null;
+      const msg = (firstUse && FIRST_USE_MESSAGES[firstUse])
+        ? FIRST_USE_MESSAGES[firstUse]
         : { headline: 'Welcome to My Car Concierge.', body: 'You\'re all set. Add your first vehicle and post a service request to get competing bids from local providers.' };
       const headlineEl = document.getElementById('welcome-headline');
       const bodyEl = document.getElementById('welcome-body');

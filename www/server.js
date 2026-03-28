@@ -42138,8 +42138,8 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     const supabase = getSupabaseClient();
     try {
       const body = await getRequestBody(req);
-      const { mech_satisfaction, cosmetic_satisfaction, pain_point, improvement_priority, provider_discovery, services_needed } = body;
-      if (!pain_point && !mech_satisfaction) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing survey data' })); return; }
+      const { competitive_bidding, provider_trust, fair_pricing, live_updates, one_app, first_use } = body;
+      if (!competitive_bidding && !fair_pricing && !first_use) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing survey data' })); return; }
 
       let userId = null;
       try {
@@ -42171,12 +42171,12 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         }
         const { error: insertErr } = await supabase.from('survey_responses').insert({
           user_id: userId,
-          mech_satisfaction,
-          cosmetic_satisfaction,
-          pain_point,
-          improvement_priority,
-          provider_discovery,
-          services_needed,
+          competitive_bidding,
+          provider_trust,
+          fair_pricing,
+          live_updates,
+          one_app,
+          first_use,
           raw: body,
           ip_hash: ipHash
         });
@@ -42369,22 +42369,22 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         const { count: trueCount, error: cErr } = await supabase.from('survey_responses').select('*', { count: 'exact', head: true });
         if (!cErr) total = trueCount || 0;
         // Sample last 1000 for chart breakdown
-        const { data, error: qErr } = await supabase.from('survey_responses').select('mech_satisfaction, cosmetic_satisfaction, pain_point, improvement_priority, provider_discovery, services_needed, created_at').order('created_at', { ascending: false }).limit(1000);
+        const { data, error: qErr } = await supabase.from('survey_responses').select('competitive_bidding, provider_trust, fair_pricing, live_updates, one_app, first_use, created_at').order('created_at', { ascending: false }).limit(1000);
         if (qErr && qErr.code === '42P01') { rows = []; total = 0; } // table not yet migrated
         else rows = data || [];
       } catch (_) { rows = []; total = 0; }
-      const byMechSat = {}, byCosmetic = {}, byPainPoint = {}, byImprovement = {}, byDiscovery = {}, byServices = {};
+      const byBidding = {}, byTrust = {}, byPricing = {}, byUpdates = {}, byOneApp = {}, byFirstUse = {};
       for (const r of (rows || [])) {
-        if (r.mech_satisfaction) byMechSat[r.mech_satisfaction] = (byMechSat[r.mech_satisfaction] || 0) + 1;
-        if (r.cosmetic_satisfaction) byCosmetic[r.cosmetic_satisfaction] = (byCosmetic[r.cosmetic_satisfaction] || 0) + 1;
-        if (r.pain_point) byPainPoint[r.pain_point] = (byPainPoint[r.pain_point] || 0) + 1;
-        if (r.improvement_priority) byImprovement[r.improvement_priority] = (byImprovement[r.improvement_priority] || 0) + 1;
-        if (r.provider_discovery) byDiscovery[r.provider_discovery] = (byDiscovery[r.provider_discovery] || 0) + 1;
-        if (r.services_needed) byServices[r.services_needed] = (byServices[r.services_needed] || 0) + 1;
+        if (r.competitive_bidding) byBidding[r.competitive_bidding] = (byBidding[r.competitive_bidding] || 0) + 1;
+        if (r.provider_trust) byTrust[r.provider_trust] = (byTrust[r.provider_trust] || 0) + 1;
+        if (r.fair_pricing) byPricing[r.fair_pricing] = (byPricing[r.fair_pricing] || 0) + 1;
+        if (r.live_updates) byUpdates[r.live_updates] = (byUpdates[r.live_updates] || 0) + 1;
+        if (r.one_app) byOneApp[r.one_app] = (byOneApp[r.one_app] || 0) + 1;
+        if (r.first_use) byFirstUse[r.first_use] = (byFirstUse[r.first_use] || 0) + 1;
       }
       const recentWeek = (rows || []).filter(r => new Date(r.created_at) > new Date(Date.now() - 7 * 86400000)).length;
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ total, recent_week: recentWeek, by_mech_satisfaction: byMechSat, by_cosmetic_satisfaction: byCosmetic, by_pain_point: byPainPoint, by_improvement: byImprovement, by_provider_discovery: byDiscovery, by_services_needed: byServices }));
+      res.end(JSON.stringify({ total, recent_week: recentWeek, by_competitive_bidding: byBidding, by_provider_trust: byTrust, by_fair_pricing: byPricing, by_live_updates: byUpdates, by_one_app: byOneApp, by_first_use: byFirstUse }));
     } catch (err) {
       console.error('[SurveyAnalytics] GET error:', err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load analytics' }));

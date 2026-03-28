@@ -5,24 +5,24 @@
 CREATE TABLE IF NOT EXISTS survey_responses (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id              uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  mech_satisfaction    text,   -- very_satisfied / hit_or_miss / not_satisfied / no_mechanic
-  cosmetic_satisfaction text,  -- have_provider / fine_but_expensive / hard_to_find / skip_it
-  pain_point           text,   -- cost / trust / communication / quality / scheduling
-  improvement_priority text,   -- transparent_pricing / one_app / verified_providers / real_time_updates / competitive_bids
-  provider_discovery   text,   -- word_of_mouth / google / stick_with_known / trial_error
-  services_needed      text,   -- routine / repairs / cosmetic / all
+  competitive_bidding  text,   -- need_now / really_help / nice_to_have / not_for_me
+  provider_trust       text,   -- need_now / really_help / nice_to_have / not_for_me
+  fair_pricing         text,   -- need_now / really_help / nice_to_have / not_for_me
+  live_updates         text,   -- need_now / really_help / nice_to_have / not_for_me
+  one_app              text,   -- need_now / really_help / nice_to_have / not_for_me
+  first_use            text,   -- get_bids / find_provider / track_history / full_solution
   raw                  jsonb,
   ip_hash              text,   -- hashed IP for dedup (no PII stored)
   created_at           timestamptz NOT NULL DEFAULT now()
 );
 
--- If the table was already created with old columns, add the new ones and drop the old ones
--- (safe to run multiple times — all operations are idempotent)
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS mech_satisfaction    text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS cosmetic_satisfaction text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS improvement_priority  text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS provider_discovery    text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS services_needed       text;
+-- Idempotent column additions for environments already running an older schema
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS competitive_bidding text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS provider_trust      text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS fair_pricing        text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS live_updates        text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS one_app             text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS first_use           text;
 
 -- Member onboarding checklist state
 CREATE TABLE IF NOT EXISTS member_onboarding (

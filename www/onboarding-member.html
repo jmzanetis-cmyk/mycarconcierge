@@ -1341,71 +1341,69 @@
     // ===== POST-SIGNUP SURVEY =====
     const SURVEY_QUESTIONS = [
       {
-        key: 'mech_satisfaction',
+        key: 'competitive_bidding',
         tag: 'Question 1 of 6',
-        q: 'How satisfied are you with your current mechanic?',
+        q: 'What if auto service providers competed for your business — bidding on price and quality for every job you post?',
         opts: [
-          { val: 'very_satisfied', label: "Very satisfied — I've found a great one" },
-          { val: 'hit_or_miss', label: "It's hit or miss" },
-          { val: 'not_satisfied', label: 'Not satisfied at all' },
-          { val: 'no_mechanic', label: "I don't have a regular mechanic" }
+          { val: 'need_now', label: "Sign me up — I need this now" },
+          { val: 'really_help', label: "That would really help me" },
+          { val: 'nice_to_have', label: "Sounds useful, but not urgent" },
+          { val: 'not_for_me', label: "Not something I'd use" }
         ]
       },
       {
-        key: 'cosmetic_satisfaction',
+        key: 'provider_trust',
         tag: 'Question 2 of 6',
-        q: 'How about your cosmetic car care — detailing, paint, body work?',
+        q: 'What if every mechanic and detailer on the platform was background-checked, verified, and rated by real customers?',
         opts: [
-          { val: 'have_provider', label: 'I have a reliable provider I love' },
-          { val: 'fine_but_expensive', label: "It's fine but always feels expensive" },
-          { val: 'hard_to_find', label: 'Hard to find trustworthy options' },
-          { val: 'skip_it', label: "I skip it — too much hassle to arrange" }
+          { val: 'need_now', label: "Yes — trust is everything to me" },
+          { val: 'really_help', label: "That would make a big difference" },
+          { val: 'nice_to_have', label: "Nice to have, but not my main concern" },
+          { val: 'not_for_me', label: "Doesn't matter much to me" }
         ]
       },
       {
-        key: 'pain_point',
+        key: 'fair_pricing',
         tag: 'Question 3 of 6',
-        q: "What's your biggest frustration with auto services?",
+        q: "What if an AI gave you a fair price estimate before you commit — so you'd always know what's reasonable?",
         opts: [
-          { val: 'cost', label: "Not knowing if I'm being overcharged" },
-          { val: 'trust', label: "Finding providers I can actually trust" },
-          { val: 'communication', label: "Poor communication during the job" },
-          { val: 'quality', label: "Work quality that doesn't meet expectations" },
-          { val: 'scheduling', label: "Booking hassle and scheduling delays" }
+          { val: 'need_now', label: "Yes — I hate not knowing if I'm overpaying" },
+          { val: 'really_help', label: "That would give me real peace of mind" },
+          { val: 'nice_to_have', label: "Helpful, but not a dealbreaker" },
+          { val: 'not_for_me', label: "I don't think about pricing much" }
         ]
       },
       {
-        key: 'improvement_priority',
+        key: 'live_updates',
         tag: 'Question 4 of 6',
-        q: 'What would improve your auto care experience most?',
+        q: "What if you got live updates while your car was being worked on — no more calling to ask 'is it ready yet?'",
         opts: [
-          { val: 'transparent_pricing', label: 'Upfront, transparent pricing before I commit' },
-          { val: 'one_app', label: 'One app for all my car needs' },
-          { val: 'verified_providers', label: 'Verified, background-checked providers' },
-          { val: 'real_time_updates', label: 'Real-time updates while my car is being worked on' },
-          { val: 'competitive_bids', label: 'Getting multiple quotes so I can compare' }
+          { val: 'need_now', label: "That would be a game changer" },
+          { val: 'really_help', label: "I'd genuinely appreciate that" },
+          { val: 'nice_to_have', label: "Convenient, but I manage fine now" },
+          { val: 'not_for_me', label: "Doesn't really bother me" }
         ]
       },
       {
-        key: 'provider_discovery',
+        key: 'one_app',
         tag: 'Question 5 of 6',
-        q: 'How do you usually find new service providers?',
+        q: "What if one app managed your quotes, bookings, service history, reminders, and payments — for every vehicle you own?",
         opts: [
-          { val: 'word_of_mouth', label: 'Word of mouth from people I trust' },
-          { val: 'google', label: 'Google search and reviews' },
-          { val: 'stick_with_known', label: 'I just go back to whoever I have before' },
-          { val: 'trial_error', label: "Trial and error — it's frustrating" }
+          { val: 'need_now', label: "I've been waiting for this" },
+          { val: 'really_help', label: "That would simplify my life" },
+          { val: 'nice_to_have', label: "Useful, but I handle it okay now" },
+          { val: 'not_for_me', label: "Not how I think about it" }
         ]
       },
       {
-        key: 'services_needed',
+        key: 'first_use',
         tag: 'Question 6 of 6',
-        q: 'Which services do you need most?',
+        q: "You're in — which of these would you use first?",
         opts: [
-          { val: 'routine', label: 'Routine maintenance (oil, tires, brakes)' },
-          { val: 'repairs', label: 'Diagnostics & repairs' },
-          { val: 'cosmetic', label: 'Detailing & cosmetic care' },
-          { val: 'all', label: 'All of the above — I need a full solution' }
+          { val: 'get_bids', label: "Get competing bids on my next service" },
+          { val: 'find_provider', label: "Find a trusted mechanic or detailer near me" },
+          { val: 'track_history', label: "Track my vehicle's full service history" },
+          { val: 'full_solution', label: "All of it — I want the complete solution" }
         ]
       }
     ];
