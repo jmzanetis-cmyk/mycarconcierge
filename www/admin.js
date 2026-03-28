@@ -11148,7 +11148,7 @@
             type: 'bar',
             data: { labels, datasets: [
               { label: 'API Calls', data: callValues, backgroundColor: 'rgba(201,168,76,0.7)', borderColor: '#c9a84c', borderWidth: 1, yAxisID: 'y' },
-              { label: 'Est. Revenue ($)', data: revenueValues, backgroundColor: 'rgba(52,211,153,0.5)', borderColor: '#34d399', borderWidth: 1, yAxisID: 'y1' }
+              { label: 'Est. Revenue ($ based on plan rate)', data: revenueValues, backgroundColor: 'rgba(52,211,153,0.5)', borderColor: '#34d399', borderWidth: 1, yAxisID: 'y1' }
             ] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#9ca3af' } } }, scales: { y: { beginAtZero: true, position: 'left', ticks: { color: '#9ca3af' }, grid: { color: 'rgba(156,163,175,0.1)' } }, y1: { beginAtZero: true, position: 'right', ticks: { color: '#34d399', callback: v => '$' + v.toFixed(2) }, grid: { display: false } }, x: { ticks: { color: '#9ca3af' }, grid: { display: false } } } }
           });
@@ -11210,7 +11210,11 @@
           btn.textContent = 'Revoked';
           btn.style.opacity = '0.5';
           btn.disabled = true;
-          btn.closest('tr').querySelector('.badge:last-of-type').textContent = 'revoked';
+          const statusCell = btn.closest('tr').cells[5];
+          if (statusCell) {
+            const badge = statusCell.querySelector('.badge');
+            if (badge) { badge.textContent = 'revoked'; badge.style.background = 'var(--accent-red-soft)'; badge.style.color = 'var(--accent-red)'; }
+          }
         } else {
           btn.disabled = false; btn.textContent = 'Revoke';
           alert(data.error || 'Failed to revoke key');
