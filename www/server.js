@@ -39207,6 +39207,117 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     return;
   }
 
+  // GET /api/tenant/roster — list members/providers in current user's tenant (owner/admin only)
+  if (req.method === 'GET' && req.url.startsWith('/api/tenant/roster')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _rUser = await authenticateRequest(req);
+    if (!_rUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: _rMembership } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _rUser.id).in('role', ['owner', 'admin']).maybeSingle();
+      let _rTenantId = _rMembership?.tenant_id;
+      if (!_rTenantId) {
+        const { data: _rOwned } = await supabase.from('white_label_tenants').select('id').eq('owner_user_id', _rUser.id).eq('status', 'active').maybeSingle();
+        _rTenantId = _rOwned?.id;
+      }
+      if (!_rTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      // Fetch all roster entries for this tenant
+      const { data: _rRoster } = await supabase.from('white_label_tenant_users')
+        .select('id, user_id, role, joined_at')
+        .eq('tenant_id', _rTenantId)
+        .order('joined_at', { ascending: false });
+      // Enrich with profile display names/emails from profiles table
+      const userIds = (_rRoster || []).map(r => r.user_id);
+      let _rProfiles = {};
+      if (userIds.length > 0) {
+        const { data: profileRows } = await supabase.from('profiles').select('id, full_name, email').in('id', userIds);
+        (profileRows || []).forEach(p => { _rProfiles[p.id] = p; });
+      }
+      const enriched = (_rRoster || []).map(r => ({
+        ...r,
+        display_name: _rProfiles[r.user_id]?.full_name || _rProfiles[r.user_id]?.email || r.user_id.slice(0, 8) + '…',
+        email: _rProfiles[r.user_id]?.email || null
+      }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ roster: enriched, tenant_id: _rTenantId }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to load roster' }));
+    }
+    return;
+  }
+
+  // DELETE /api/tenant/roster/:userId — remove a user from the tenant (owner/admin only)
+  if (req.method === 'DELETE' && /^\/api\/tenant\/roster\/[^/]+$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _dUser = await authenticateRequest(req);
+    if (!_dUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const _dTargetId = req.url.split('/api/tenant/roster/')[1];
+    const supabase = getSupabaseClient();
+    try {
+      const { data: _dMembership } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _dUser.id).in('role', ['owner', 'admin']).maybeSingle();
+      let _dTenantId = _dMembership?.tenant_id;
+      if (!_dTenantId) {
+        const { data: _dOwned } = await supabase.from('white_label_tenants').select('id').eq('owner_user_id', _dUser.id).eq('status', 'active').maybeSingle();
+        _dTenantId = _dOwned?.id;
+      }
+      if (!_dTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      // Prevent removing self if owner
+      if (_dTargetId === _dUser.id && _dMembership?.role === 'owner') { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Cannot remove yourself as owner' })); return; }
+      const { error: _dErr } = await supabase.from('white_label_tenant_users').delete().eq('tenant_id', _dTenantId).eq('user_id', _dTargetId);
+      if (_dErr) throw _dErr;
+      // Clear tenant_id from this user's profile row so they lose tenant scoping
+      await supabase.from('profiles').update({ tenant_id: null }).eq('id', _dTargetId);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to remove user' }));
+    }
+    return;
+  }
+
+  // GET /api/tenant/analytics — basic tenant analytics (tenant admin only)
+  if (req.method === 'GET' && req.url.startsWith('/api/tenant/analytics')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _aUser = await authenticateRequest(req);
+    if (!_aUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: _aMembership } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _aUser.id).in('role', ['owner', 'admin']).maybeSingle();
+      let _aTenantId = _aMembership?.tenant_id;
+      if (!_aTenantId) {
+        const { data: _aOwned } = await supabase.from('white_label_tenants').select('id').eq('owner_user_id', _aUser.id).eq('status', 'active').maybeSingle();
+        _aTenantId = _aOwned?.id;
+      }
+      if (!_aTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      // Fetch metrics scoped to this tenant using service role client
+      const [reqResult, bidResult, pvResult, provResult] = await Promise.all([
+        supabase.from('maintenance_packages').select('id', { count: 'exact', head: true }).eq('tenant_id', _aTenantId),
+        supabase.from('bids').select('id', { count: 'exact', head: true }).eq('tenant_id', _aTenantId),
+        supabase.from('page_views').select('id', { count: 'exact', head: true }).eq('tenant_id', _aTenantId),
+        supabase.from('white_label_tenant_users').select('id', { count: 'exact', head: true }).eq('tenant_id', _aTenantId).eq('role', 'provider')
+      ]);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        tenant_id: _aTenantId,
+        metrics: {
+          total_service_requests: reqResult.count || 0,
+          total_bids: bidResult.count || 0,
+          total_page_views: pvResult.count || 0,
+          active_providers: provResult.count || 0
+        }
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to load analytics' }));
+    }
+    return;
+  }
+
   // GET /api/admin/white-label/tenants — list all white-label tenants
   // NOTE: .endsWith('/portal') routes are handled separately below and must not match here
   if (req.method === 'GET' && req.url.startsWith('/api/admin/white-label/tenants') && !req.url.endsWith('/portal')) {

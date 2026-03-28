@@ -3817,10 +3817,33 @@
       <div class="card" style="margin-top:24px;" id="wl-tenant-portal-card" style="display:none;">
         <div class="card-header">
           <h2 class="card-title">🏢 White-label Tenant Portal</h2>
-          <p style="font-size:0.88rem;color:var(--text-secondary);margin-top:4px;">Manage your branded platform instance, monitor seat usage, and configure your white-label environment.</p>
+          <p style="font-size:0.88rem;color:var(--text-secondary);margin-top:4px;">Manage your branded platform instance, roster, analytics, and billing.</p>
         </div>
-        <div id="wl-tenant-portal-content">
-          <div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">Loading tenant info…</div>
+        <!-- Portal Tabs -->
+        <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border-subtle);padding-bottom:0;" id="wl-portal-tabs">
+          <button class="wl-ptab wl-ptab-active" data-tab="overview" onclick="wlSwitchPortalTab('overview')">Overview</button>
+          <button class="wl-ptab" data-tab="roster" onclick="wlSwitchPortalTab('roster')">Roster</button>
+          <button class="wl-ptab" data-tab="analytics" onclick="wlSwitchPortalTab('analytics')">Analytics</button>
+          <button class="wl-ptab" data-tab="settings" onclick="wlSwitchPortalTab('settings')">Settings</button>
+        </div>
+        <style>
+          .wl-ptab { background:none; border:none; border-bottom:2px solid transparent; padding:8px 16px; font-size:0.88rem; color:var(--text-muted); cursor:pointer; font-weight:500; transition:all 0.2s; }
+          .wl-ptab:hover { color:var(--text-primary); }
+          .wl-ptab-active { color:var(--accent-gold); border-bottom-color:var(--accent-gold); }
+        </style>
+        <div id="wl-tab-overview">
+          <div id="wl-tenant-portal-content">
+            <div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">Loading tenant info…</div>
+          </div>
+        </div>
+        <div id="wl-tab-roster" style="display:none;">
+          <div id="wl-roster-content"><div style="color:var(--text-muted);font-size:0.9rem;">Loading roster…</div></div>
+        </div>
+        <div id="wl-tab-analytics" style="display:none;">
+          <div id="wl-analytics-content"><div style="color:var(--text-muted);font-size:0.9rem;">Loading analytics…</div></div>
+        </div>
+        <div id="wl-tab-settings" style="display:none;">
+          <div id="wl-settings-content"></div>
         </div>
       </div>
 
@@ -7779,52 +7802,56 @@
       <!-- Steps -->
       <div style="flex:1;overflow-y:auto;padding:0 28px;">
 
-        <!-- Step 1: Platform Overview -->
+        <!-- Step 1: Branding -->
         <div id="wl-ob-step-1">
-          <div style="text-align:center;padding:20px 0 8px;">
-            <div style="font-size:48px;margin-bottom:12px;">🏢</div>
-            <h4 id="wl-ob-brand" style="margin:0 0 8px;font-size:1.2rem;">Your White-label Platform</h4>
-            <p style="color:var(--text-secondary);font-size:0.9rem;line-height:1.6;max-width:400px;margin:0 auto;">You're set up as a tenant admin. Your branded platform lets you onboard members and providers under your own name and domain.</p>
-          </div>
-          <div id="wl-ob-branding-preview" style="margin:20px 0;padding:16px;background:var(--surface-3);border-radius:10px;border:1px solid var(--border-subtle);">
-            <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">Your branding:</div>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <div id="wl-ob-color-preview" style="width:80px;height:40px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:#fff;font-weight:600;">BG</div>
-              <div style="font-size:0.85rem;">
-                <div id="wl-ob-domain-display" style="color:var(--text-muted);font-size:0.8rem;font-family:monospace;"></div>
-                <div id="wl-ob-plan-display" style="margin-top:4px;"></div>
+          <h4 style="margin:0 0 8px;">Your Branding</h4>
+          <p style="color:var(--text-secondary);font-size:0.88rem;line-height:1.6;margin-bottom:16px;">Your white-label platform is pre-configured with your brand name, domain, and color scheme. Review your branding settings below.</p>
+          <div id="wl-ob-branding-preview" style="padding:16px;background:var(--surface-3);border-radius:10px;border:1px solid var(--border-subtle);margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:0.88rem;align-items:center;">
+              <span style="color:var(--text-muted);">Brand Name</span>
+              <strong id="wl-ob-brand">—</strong>
+              <span style="color:var(--text-muted);">Domain</span>
+              <span id="wl-ob-domain-display" style="font-family:monospace;font-size:0.82rem;color:var(--accent-teal);">—</span>
+              <span style="color:var(--text-muted);">Plan</span>
+              <span id="wl-ob-plan-display">—</span>
+              <span style="color:var(--text-muted);">Colors</span>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <div id="wl-ob-color-preview" style="width:32px;height:20px;border-radius:4px;"></div>
+                <div id="wl-ob-accent-preview" style="width:32px;height:20px;border-radius:4px;"></div>
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- Step 2: Team Seats -->
-        <div id="wl-ob-step-2" style="display:none;">
-          <div style="padding:8px 0;">
-            <h4 style="margin:0 0 12px;">Team & Seat Management</h4>
-            <p style="color:var(--text-secondary);font-size:0.88rem;line-height:1.6;margin-bottom:16px;">Your plan includes member and provider seats. As people sign up through your white-label domain, they are automatically counted against your limits.</p>
-            <div id="wl-ob-seat-info" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;"></div>
-            <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
-              <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px;">How seat assignment works:</div>
-              <ul style="margin:0;padding-left:20px;font-size:0.83rem;color:var(--text-secondary);line-height:1.8;">
-                <li>Members sign up through your white-label domain</li>
-                <li>They're auto-assigned to your tenant as "member" seats</li>
-                <li>Service providers count against your provider seat limit</li>
-                <li>Upgrade your plan anytime to increase limits</li>
-              </ul>
-            </div>
+          <div style="padding:12px 14px;background:rgba(184,148,45,0.1);border-radius:8px;border:1px solid rgba(184,148,45,0.3);font-size:0.83rem;color:var(--text-secondary);">
+            To update your logo, colors, or domain, contact your MCC account manager or use the admin portal. Changes apply immediately across your tenant.
           </div>
         </div>
 
-        <!-- Step 3: Go Live Checklist -->
+        <!-- Step 2: Team Seats & Roster -->
+        <div id="wl-ob-step-2" style="display:none;">
+          <h4 style="margin:0 0 12px;">Team Seats</h4>
+          <p style="color:var(--text-secondary);font-size:0.88rem;line-height:1.6;margin-bottom:16px;">Your plan controls how many members and providers can join your tenant. Current usage:</p>
+          <div id="wl-ob-seat-info" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;"></div>
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px;">Adding users to your tenant:</div>
+            <ul style="margin:0;padding-left:20px;font-size:0.83rem;color:var(--text-secondary);line-height:1.9;">
+              <li>Share your white-label domain URL with members and providers</li>
+              <li>Users who sign in through your domain are auto-assigned as seats</li>
+              <li>Manage your roster in the <strong>Roster tab</strong> — remove users or adjust roles</li>
+              <li>Upgrade your plan if you hit seat limits</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Step 3: Billing -->
         <div id="wl-ob-step-3" style="display:none;">
-          <div style="padding:8px 0;">
-            <h4 style="margin:0 0 12px;">Go Live Checklist</h4>
-            <div id="wl-ob-checklist" style="display:flex;flex-direction:column;gap:10px;"></div>
-            <div style="margin-top:16px;padding:14px;background:var(--accent-teal-soft,rgba(44,196,180,0.1));border-radius:8px;border:1px solid var(--accent-teal);">
-              <div style="font-size:0.85rem;color:var(--accent-teal);font-weight:600;">You're all set!</div>
-              <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;">Access your Tenant Portal anytime from Settings → White-label Tenant Portal. Your members and providers will be tracked automatically.</div>
-            </div>
+          <h4 style="margin:0 0 12px;">Billing & Plan</h4>
+          <p style="color:var(--text-secondary);font-size:0.88rem;line-height:1.6;margin-bottom:16px;">Your white-label subscription controls your seat limits, plan features, and billing. Connect a payment method to activate or upgrade your plan.</p>
+          <div id="wl-ob-billing-status" style="padding:16px;background:var(--surface-3);border-radius:10px;border:1px solid var(--border-subtle);margin-bottom:16px;"></div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <button class="btn btn-primary" onclick="openSaasPricingModal('white_label'); dismissWlOnboarding();" style="font-size:0.9rem;">
+              View Plans &amp; Activate Billing →
+            </button>
+            <div style="font-size:0.78rem;color:var(--text-muted);text-align:center;">Powered by Stripe. You can change or cancel your plan at any time.</div>
           </div>
         </div>
 
@@ -8302,6 +8329,9 @@
         }
         const tenantResp = await res.json();
         const { tenant, usage, user_role } = tenantResp;
+        window._wlPortalTenantData = tenantResp;
+        // Reset lazy-load flags so tabs reload fresh data on next open
+        _wlRosterLoaded = false; _wlAnalyticsLoaded = false;
         card.style.display = '';
         // Trigger first-login onboarding wizard for owners/admins
         if (['owner', 'admin'].includes(user_role)) _maybeShowWlOnboarding(tenantResp);
@@ -8369,12 +8399,12 @@
         const bar = document.getElementById('wl-ob-bar-' + i);
         if (bar) bar.style.background = i <= step ? 'var(--accent-gold)' : 'var(--border-subtle)';
       }
-      const subtitles = ['Step 1 of 3 — Platform Overview', 'Step 2 of 3 — Team Seats', 'Step 3 of 3 — Go Live'];
+      const subtitles = ['Step 1 of 3 — Branding', 'Step 2 of 3 — Team Seats', 'Step 3 of 3 — Billing'];
       const sub = document.getElementById('wl-ob-subtitle'); if (sub) sub.textContent = subtitles[step - 1];
       const backBtn = document.getElementById('wl-ob-back-btn'); if (backBtn) backBtn.style.display = step > 1 ? '' : 'none';
-      const nextBtn = document.getElementById('wl-ob-next-btn'); if (nextBtn) nextBtn.textContent = step < 3 ? 'Next →' : 'Get Started';
+      const nextBtn = document.getElementById('wl-ob-next-btn'); if (nextBtn) nextBtn.textContent = step < 3 ? 'Next →' : 'Finish';
       if (step === 2 && _wlObTenantData) _wlObRenderSeats();
-      if (step === 3 && _wlObTenantData) _wlObRenderChecklist();
+      if (step === 3 && _wlObTenantData) _wlObRenderBilling();
     }
 
     function _wlObRenderSeats() {
@@ -8392,34 +8422,27 @@
         </div>`;
     }
 
-    function _wlObRenderChecklist() {
-      const { tenant, usage } = _wlObTenantData;
-      const el = document.getElementById('wl-ob-checklist');
+    function _wlObRenderBilling() {
+      if (!_wlObTenantData) return;
+      const { tenant } = _wlObTenantData;
+      const el = document.getElementById('wl-ob-billing-status');
       if (!el) return;
-      const hasStripeSubscription = !!(tenant.stripe_subscription_id && tenant.status === 'active');
-      const checks = [
-        { done: true, label: 'Tenant account created', detail: tenant.brand_name },
-        { done: !!(tenant.domain || tenant.subdomain), label: 'Domain configured', detail: tenant.domain || (tenant.subdomain ? `${tenant.subdomain}.mycarconcierge.com` : 'No domain set yet') },
-        { done: !!(tenant.logo_url), label: 'Logo uploaded', detail: tenant.logo_url ? 'Logo URL set' : 'No logo URL set' },
-        {
-          done: hasStripeSubscription,
-          label: 'Billing subscription active',
-          detail: hasStripeSubscription
-            ? `Plan: ${tenant.plan?.toUpperCase()} — active`
-            : 'No active subscription detected',
-          cta: hasStripeSubscription ? null : { label: 'Set Up Billing →', action: `openSaasPricingModal('white_label')` }
-        },
-        { done: usage.members.current > 0, label: 'First member joined', detail: usage.members.current > 0 ? `${usage.members.current} member(s)` : 'No members yet' }
-      ];
-      el.innerHTML = checks.map(c => `
-        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:var(--surface-3);border-radius:8px;${!c.done && c.cta ? 'border:1px solid var(--accent-gold);' : ''}">
-          <span style="font-size:18px;flex-shrink:0;">${c.done ? '✅' : '⬜'}</span>
-          <div style="flex:1;">
-            <div style="font-weight:500;font-size:0.88rem;">${c.label}</div>
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">${c.detail}</div>
-            ${c.cta ? `<button class="btn btn-sm" onclick="${c.cta.action}" style="margin-top:8px;background:var(--accent-gold);color:#000;font-size:12px;padding:4px 12px;">${c.cta.label}</button>` : ''}
-          </div>
-        </div>`).join('');
+      const planLabel = { starter: 'Starter', pro: 'Pro', business: 'Business' }[tenant.plan] || (tenant.plan || 'None');
+      const hasSub = !!(tenant.stripe_subscription_id);
+      el.innerHTML = `
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:0.88rem;align-items:center;">
+          <span style="color:var(--text-muted);">Current Plan</span>
+          <span style="font-weight:600;">${planLabel}</span>
+          <span style="color:var(--text-muted);">Billing Status</span>
+          <span style="display:flex;align-items:center;gap:6px;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${hasSub ? 'var(--accent-teal)' : 'var(--accent-orange)'};"></span>
+            <span>${hasSub ? 'Active subscription' : 'No active subscription'}</span>
+          </span>
+          <span style="color:var(--text-muted);">Member Seats</span>
+          <span>${tenant.max_members === -1 ? 'Unlimited' : (tenant.max_members || 0)}</span>
+          <span style="color:var(--text-muted);">Provider Seats</span>
+          <span>${tenant.max_providers === -1 ? 'Unlimited' : (tenant.max_providers || 0)}</span>
+        </div>`;
     }
 
     function wlObNext() {
@@ -8446,20 +8469,170 @@
         if (localStorage.getItem('mcc_tenant_ob_done_' + tenantData.tenant.id)) return;
       } catch {}
       _wlObTenantData = tenantData;
-      const { tenant, usage } = tenantData;
-      // Populate step 1 content
-      const brandEl = document.getElementById('wl-ob-brand'); if (brandEl) brandEl.textContent = `Welcome, ${tenant.brand_name}`;
+      const { tenant } = tenantData;
+      // Populate step 1 branding fields
+      const brandEl = document.getElementById('wl-ob-brand'); if (brandEl) brandEl.textContent = tenant.brand_name || '—';
       const colorEl = document.getElementById('wl-ob-color-preview'); if (colorEl) colorEl.style.background = tenant.bg_color || '#12161c';
+      const accentEl = document.getElementById('wl-ob-accent-preview'); if (accentEl) accentEl.style.background = tenant.accent_color || '#b8942d';
       const domainEl = document.getElementById('wl-ob-domain-display'); if (domainEl) domainEl.textContent = tenant.domain || (tenant.subdomain ? `${tenant.subdomain}.mycarconcierge.com` : 'No domain configured');
-      const planEl = document.getElementById('wl-ob-plan-display'); if (planEl) planEl.innerHTML = `<span style="background:var(--accent-gold);color:#000;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">${tenant.plan?.toUpperCase()}</span>`;
+      const planEl = document.getElementById('wl-ob-plan-display');
+      if (planEl) planEl.innerHTML = `<span style="background:var(--accent-gold);color:#000;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">${(tenant.plan || 'none').toUpperCase()}</span>`;
       _wlObShowStep(1);
       const modal = document.getElementById('wl-tenant-onboarding-modal');
       if (modal) modal.style.display = 'flex';
     }
 
+    // ========== PORTAL TAB SWITCHING ==========
+    let _wlActiveTab = 'overview';
+    let _wlRosterLoaded = false;
+    let _wlAnalyticsLoaded = false;
+
+    function wlSwitchPortalTab(tab) {
+      _wlActiveTab = tab;
+      ['overview', 'roster', 'analytics', 'settings'].forEach(t => {
+        const el = document.getElementById('wl-tab-' + t);
+        if (el) el.style.display = t === tab ? '' : 'none';
+      });
+      document.querySelectorAll('.wl-ptab').forEach(btn => {
+        btn.classList.toggle('wl-ptab-active', btn.dataset.tab === tab);
+      });
+      if (tab === 'roster' && !_wlRosterLoaded) { _wlRosterLoaded = true; wlLoadRoster(); }
+      if (tab === 'analytics' && !_wlAnalyticsLoaded) { _wlAnalyticsLoaded = true; wlLoadAnalytics(); }
+      if (tab === 'settings') wlLoadSettings();
+    }
+
+    async function wlLoadRoster() {
+      const el = document.getElementById('wl-roster-content');
+      if (!el) return;
+      const token = window._currentSession?.access_token;
+      if (!token) { el.innerHTML = '<p style="color:var(--text-muted);">Not authenticated.</p>'; return; }
+      el.innerHTML = '<div style="color:var(--text-muted);font-size:0.9rem;">Loading roster…</div>';
+      try {
+        const resp = await fetch('/api/tenant/roster', { headers: { 'Authorization': 'Bearer ' + token } });
+        if (!resp.ok) { el.innerHTML = '<p style="color:var(--accent-red);">Unable to load roster.</p>'; return; }
+        const { roster } = await resp.json();
+        if (!roster || roster.length === 0) { el.innerHTML = '<p style="color:var(--text-muted);">No members or providers have joined yet.</p>'; return; }
+        const roleColors = { owner: 'var(--accent-gold)', admin: 'var(--accent-teal)', provider: 'var(--accent-blue,#4a90e2)', member: 'var(--text-muted)' };
+        el.innerHTML = `
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.86rem;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border-subtle);text-align:left;">
+                  <th style="padding:8px 12px;font-weight:600;color:var(--text-muted);">Name / Email</th>
+                  <th style="padding:8px 12px;font-weight:600;color:var(--text-muted);">Role</th>
+                  <th style="padding:8px 12px;font-weight:600;color:var(--text-muted);">Joined</th>
+                  <th style="padding:8px 12px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${roster.map(r => `
+                  <tr style="border-bottom:1px solid var(--border-subtle);" id="wl-roster-row-${r.user_id}">
+                    <td style="padding:10px 12px;">
+                      <div style="font-weight:500;">${r.display_name}</div>
+                      ${r.email && r.email !== r.display_name ? `<div style="font-size:0.78rem;color:var(--text-muted);">${r.email}</div>` : ''}
+                    </td>
+                    <td style="padding:10px 12px;"><span style="color:${roleColors[r.role] || 'var(--text-muted)'};font-weight:600;text-transform:capitalize;">${r.role}</span></td>
+                    <td style="padding:10px 12px;color:var(--text-muted);">${new Date(r.joined_at).toLocaleDateString()}</td>
+                    <td style="padding:10px 12px;text-align:right;">
+                      ${r.role !== 'owner' ? `<button class="btn btn-sm" onclick="wlRemoveRosterUser('${r.user_id}')" style="background:rgba(239,95,95,0.12);color:var(--accent-red);border:1px solid rgba(239,95,95,0.2);font-size:11px;padding:3px 10px;">Remove</button>` : ''}
+                    </td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      } catch (e) {
+        el.innerHTML = '<p style="color:var(--accent-red);">Error loading roster.</p>';
+      }
+    }
+
+    async function wlRemoveRosterUser(userId) {
+      if (!confirm('Remove this user from your tenant?')) return;
+      const token = window._currentSession?.access_token;
+      if (!token) return;
+      try {
+        const resp = await fetch('/api/tenant/roster/' + userId, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+        if (resp.ok) {
+          const row = document.getElementById('wl-roster-row-' + userId);
+          if (row) row.remove();
+        } else {
+          const err = await resp.json();
+          alert('Could not remove user: ' + (err.error || 'Unknown error'));
+        }
+      } catch (e) { alert('Error removing user.'); }
+    }
+
+    async function wlLoadAnalytics() {
+      const el = document.getElementById('wl-analytics-content');
+      if (!el) return;
+      const token = window._currentSession?.access_token;
+      if (!token) { el.innerHTML = '<p style="color:var(--text-muted);">Not authenticated.</p>'; return; }
+      el.innerHTML = '<div style="color:var(--text-muted);font-size:0.9rem;">Loading analytics…</div>';
+      try {
+        const resp = await fetch('/api/tenant/analytics', { headers: { 'Authorization': 'Bearer ' + token } });
+        if (!resp.ok) { el.innerHTML = '<p style="color:var(--accent-red);">Unable to load analytics.</p>'; return; }
+        const { metrics } = await resp.json();
+        el.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px;">
+            <div style="padding:16px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-teal);">${metrics.total_service_requests}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Service Requests</div>
+            </div>
+            <div style="padding:16px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-gold);">${metrics.total_bids}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Bids Placed</div>
+            </div>
+            <div style="padding:16px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--text-primary);">${metrics.total_page_views}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Page Views</div>
+            </div>
+            <div style="padding:16px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:#7c3aed;">${metrics.active_providers}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Active Providers</div>
+            </div>
+          </div>
+          <div style="padding:12px 14px;background:var(--surface-3);border-radius:8px;font-size:0.83rem;color:var(--text-muted);">
+            Metrics are scoped to your tenant. Data updates in real time as members and providers use your platform.
+          </div>`;
+      } catch (e) {
+        el.innerHTML = '<p style="color:var(--accent-red);">Error loading analytics.</p>';
+      }
+    }
+
+    function wlLoadSettings() {
+      const el = document.getElementById('wl-settings-content');
+      if (!el || !window._wlPortalTenantData) return;
+      const { tenant } = window._wlPortalTenantData;
+      el.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;">Branding Configuration</div>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:0.86rem;">
+              <span style="color:var(--text-muted);">Brand Name</span><span>${tenant.brand_name || '—'}</span>
+              <span style="color:var(--text-muted);">Domain</span><span style="font-family:monospace;">${tenant.domain || (tenant.subdomain ? tenant.subdomain+'.mycarconcierge.com' : '—')}</span>
+              <span style="color:var(--text-muted);">Logo URL</span><span style="word-break:break-all;color:var(--text-secondary);font-size:0.8rem;">${tenant.logo_url || 'Not set'}</span>
+              <span style="color:var(--text-muted);">Support Email</span><span>${tenant.support_email || 'Not configured'}</span>
+            </div>
+            <div style="margin-top:12px;font-size:0.8rem;color:var(--text-muted);">To update branding, contact your MCC account manager or use the Admin Portal.</div>
+          </div>
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;">Plan &amp; Billing</div>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:0.86rem;">
+              <span style="color:var(--text-muted);">Plan</span><span style="font-weight:600;text-transform:capitalize;">${tenant.plan || '—'}</span>
+              <span style="color:var(--text-muted);">Member Seats</span><span>${tenant.max_members === -1 ? 'Unlimited' : (tenant.max_members || 0)}</span>
+              <span style="color:var(--text-muted);">Provider Seats</span><span>${tenant.max_providers === -1 ? 'Unlimited' : (tenant.max_providers || 0)}</span>
+            </div>
+            <button class="btn btn-sm btn-primary" style="margin-top:12px;" onclick="openSaasPricingModal('white_label')">Manage Billing &amp; Upgrade</button>
+          </div>
+        </div>`;
+    }
+
     window.dismissWlOnboarding = dismissWlOnboarding;
     window.wlObNext = wlObNext;
     window.wlObBack = wlObBack;
+    window.wlSwitchPortalTab = wlSwitchPortalTab;
+    window.wlLoadRoster = wlLoadRoster;
+    window.wlRemoveRosterUser = wlRemoveRosterUser;
+    window.wlLoadAnalytics = wlLoadAnalytics;
 
     // Hook into showSection so tenant portal loads when settings tab opens
     const _origShowSection = window.showSection;
