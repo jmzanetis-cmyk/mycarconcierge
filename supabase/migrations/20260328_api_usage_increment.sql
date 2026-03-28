@@ -17,3 +17,15 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION upsert_api_usage(UUID, TEXT, TEXT) TO service_role;
+
+-- Atomic increment for developer_api_keys.calls_made counter
+CREATE OR REPLACE FUNCTION increment_api_key_calls(p_key_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE developer_api_keys
+  SET calls_made = calls_made + 1, last_used_at = NOW()
+  WHERE id = p_key_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION increment_api_key_calls(UUID) TO service_role;

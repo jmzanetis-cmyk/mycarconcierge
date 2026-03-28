@@ -41299,7 +41299,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     }
 
     // Increment usage counter async
-    supabase.from('developer_api_keys').update({ calls_made: apiKeyRecord.calls_made + 1, last_used_at: new Date().toISOString() }).eq('id', apiKeyRecord.id).then(() => {}).catch(() => {});
+    // Atomic increment (avoids race condition under concurrent traffic)
+    supabase.rpc('increment_api_key_calls', { p_key_id: apiKeyRecord.id }).then(() => {}).catch(() => {});
 
     // Fire-and-forget Stripe metered usage recording for paid-plan subscribers
     if (apiKeyRecord.user_id && apiKeyRecord.plan !== 'starter' && process.env.STRIPE_SECRET_KEY) {
