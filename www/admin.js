@@ -11293,13 +11293,20 @@
     window.loadSurveyAnalytics = loadSurveyAnalytics;
 
     // ===== MEMBER SURVEY ANALYTICS =====
-    const MS_RESONANCE_LABELS = { need_now: 'Need it now', really_help: 'Would really help', nice_to_have: 'Nice to have', not_for_me: 'Not for me' };
-    const MS_BIDDING_LABELS = MS_RESONANCE_LABELS;
-    const MS_TRUST_LABELS = MS_RESONANCE_LABELS;
-    const MS_PRICING_LABELS = MS_RESONANCE_LABELS;
-    const MS_UPDATES_LABELS = MS_RESONANCE_LABELS;
-    const MS_ONE_APP_LABELS = MS_RESONANCE_LABELS;
-    const MS_FIRST_USE_LABELS = { get_bids: 'Get competing bids', find_provider: 'Find a provider', track_history: 'Track service history', full_solution: 'Full solution' };
+    const MS_LABELS = {
+      provider_discovery: { word_of_mouth: 'Word of mouth', online_search: 'Online search', stick_with_known: 'Stick with known', trial_error: 'Trial & error' },
+      provider_satisfaction: { very_satisfied: 'Very satisfied', somewhat_satisfied: 'Somewhat satisfied', not_satisfied: 'Not satisfied', avoid_service: 'Avoids service' },
+      service_frequency: { monthly_plus: 'Monthly+', few_times_year: 'Few times/year', once_a_year: 'Once a year', only_problems: 'Only when broken' },
+      service_types: { routine: 'Routine maintenance', repairs: 'Repairs/diagnostics', cosmetic: 'Detailing/cosmetic', mixed: 'Mixed' },
+      pricing_confidence: { very_confident: 'Very confident', somewhat_confident: 'Somewhat confident', not_confident: 'Not confident', not_at_all: 'Not at all confident' },
+      estimate_surprise: { yes_often: 'Yes, often', yes_once: 'Yes, once', rarely: 'Rarely', never: 'Never' },
+      quote_behavior: { trust_one: 'Trust one shop', compare_few: 'Compare 2-3', online_research: 'Research online', just_pay: 'Just pay' },
+      history_tracking: { no_system: 'No system', manual: 'Manual notes', mechanic_tracks: 'Mechanic tracks it', app: 'Uses an app' },
+      maintenance_avoidance: { yes_regularly: 'Yes, regularly', yes_sometimes: 'Yes, sometimes', rarely: 'Rarely', never: 'Never' },
+      top_priority: { trust: 'Trustworthiness', pricing: 'Fair pricing', convenience: 'Convenience', quality: 'Work quality', proximity: 'Location/proximity' },
+      travel_distance: { under_5: 'Under 5 miles', '5_to_15': '5-15 miles', '15_to_30': '15-30 miles', wherever: 'Wherever needed' },
+      vehicle_count: { '1': '1 vehicle', '2': '2 vehicles', '3plus': '3+ vehicles' }
+    };
     const MS_CHART_COLORS = ['#c9a227','#22d3ee','#38bdf8','#34d399','#fb923c','#f87171','#a78bfa'];
     let _msCharts = {};
 
@@ -11356,18 +11363,23 @@
         if (el('ms-total')) el('ms-total').textContent = (data.total || 0).toLocaleString();
         if (el('ms-week')) el('ms-week').textContent = (data.recent_week || 0).toLocaleString();
 
-        const topFirstUse = Object.entries(data.by_first_use || {}).sort((a,b) => b[1]-a[1])[0];
-        if (el('ms-top-pain')) el('ms-top-pain').textContent = topFirstUse ? (MS_FIRST_USE_LABELS[topFirstUse[0]] || topFirstUse[0]) : '—';
+        const topPriority = Object.entries(data.by_top_priority || {}).sort((a,b) => b[1]-a[1])[0];
+        if (el('ms-top-pain')) el('ms-top-pain').textContent = topPriority ? (MS_LABELS.top_priority[topPriority[0]] || topPriority[0]) : '—';
 
-        const topBidding = Object.entries(data.by_competitive_bidding || {}).sort((a,b) => b[1]-a[1])[0];
-        if (el('ms-top-improvement')) el('ms-top-improvement').textContent = topBidding ? (MS_RESONANCE_LABELS[topBidding[0]] || topBidding[0]) : '—';
+        const topSat = Object.entries(data.by_provider_satisfaction || {}).sort((a,b) => b[1]-a[1])[0];
+        if (el('ms-top-improvement')) el('ms-top-improvement').textContent = topSat ? (MS_LABELS.provider_satisfaction[topSat[0]] || topSat[0]) : '—';
 
-        buildMsDoughnut('ms-mech-sat-chart', MS_BIDDING_LABELS, data.by_competitive_bidding || {});
-        buildMsDoughnut('ms-cosmetic-chart', MS_TRUST_LABELS, data.by_provider_trust || {});
-        buildMsDoughnut('ms-pain-chart', MS_PRICING_LABELS, data.by_fair_pricing || {});
-        buildMsDoughnut('ms-improvement-chart', MS_UPDATES_LABELS, data.by_live_updates || {});
-        buildMsDoughnut('ms-discovery-chart', MS_ONE_APP_LABELS, data.by_one_app || {});
-        buildMsDoughnut('ms-services-chart', MS_FIRST_USE_LABELS, data.by_first_use || {});
+        const CHART_MAP = [
+          ['ms-mech-sat-chart', 'provider_discovery'],
+          ['ms-cosmetic-chart', 'provider_satisfaction'],
+          ['ms-pain-chart', 'pricing_confidence'],
+          ['ms-improvement-chart', 'estimate_surprise'],
+          ['ms-discovery-chart', 'top_priority'],
+          ['ms-services-chart', 'vehicle_count']
+        ];
+        for (const [canvasId, key] of CHART_MAP) {
+          buildMsDoughnut(canvasId, MS_LABELS[key] || {}, data['by_' + key] || {});
+        }
       } catch (err) {
         console.error('[MemberSurveys] load error:', err.message);
       }

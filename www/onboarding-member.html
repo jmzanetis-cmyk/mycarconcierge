@@ -1342,29 +1342,51 @@
     const SURVEY_QUESTIONS = [
       {
         key: 'provider_discovery',
-        tag: 'Question 1 of 6',
+        tag: 'Question 1 of 12',
         q: 'How do you typically find auto service providers — mechanics, detailers, body shops?',
         opts: [
           { val: 'word_of_mouth', label: 'Word of mouth from friends or family' },
           { val: 'online_search', label: 'Online search and reviews' },
           { val: 'stick_with_known', label: 'I stick with providers I already know' },
-          { val: 'trial_error', label: "It's hard — I try whoever is convenient and hope for the best" }
+          { val: 'trial_error', label: "I try whoever is convenient and hope for the best" }
         ]
       },
       {
         key: 'provider_satisfaction',
-        tag: 'Question 2 of 6',
+        tag: 'Question 2 of 12',
         q: 'Overall, how satisfied are you with the auto service providers you currently use?',
         opts: [
           { val: 'very_satisfied', label: 'Very satisfied — I have reliable providers I trust' },
           { val: 'somewhat_satisfied', label: "Somewhat satisfied — they're good enough" },
-          { val: 'not_satisfied', label: "Not very satisfied — it's hard to find consistent quality" },
-          { val: 'avoid_service', label: 'Very unsatisfied — I put off service because of it' }
+          { val: 'not_satisfied', label: "Not very satisfied — quality is inconsistent" },
+          { val: 'avoid_service', label: 'Very unsatisfied — I put off getting work done because of it' }
+        ]
+      },
+      {
+        key: 'service_frequency',
+        tag: 'Question 3 of 12',
+        q: 'How often do you take your vehicle in for any type of service or maintenance?',
+        opts: [
+          { val: 'monthly_plus', label: 'More than once a month' },
+          { val: 'few_times_year', label: 'A few times a year' },
+          { val: 'once_a_year', label: 'About once a year' },
+          { val: 'only_problems', label: 'Only when something goes wrong' }
+        ]
+      },
+      {
+        key: 'service_types',
+        tag: 'Question 4 of 12',
+        q: 'What types of auto service do you get done most often?',
+        opts: [
+          { val: 'routine', label: 'Routine maintenance — oil changes, tire rotations, filters' },
+          { val: 'repairs', label: 'Repairs and diagnostics' },
+          { val: 'cosmetic', label: 'Detailing and cosmetic care' },
+          { val: 'mixed', label: 'A mix of all of the above' }
         ]
       },
       {
         key: 'pricing_confidence',
-        tag: 'Question 3 of 6',
+        tag: 'Question 5 of 12',
         q: 'How confident are you that you get a fair price when you have car work done?',
         opts: [
           { val: 'very_confident', label: 'Very confident — I know what to expect' },
@@ -1374,31 +1396,75 @@
         ]
       },
       {
-        key: 'service_hassle',
-        tag: 'Question 4 of 6',
-        q: 'How much of a hassle is managing your vehicle\'s service and maintenance needs?',
+        key: 'estimate_surprise',
+        tag: 'Question 6 of 12',
+        q: 'Have you ever received a final bill that was significantly higher than what you were originally quoted?',
         opts: [
-          { val: 'not_much', label: 'Not much — I have a system that works' },
-          { val: 'somewhat', label: 'Somewhat — it takes more effort than it should' },
-          { val: 'fair_amount', label: 'A fair amount — scheduling and tracking is frustrating' },
-          { val: 'a_lot', label: 'A lot — things fall through the cracks regularly' }
+          { val: 'yes_often', label: 'Yes, it has happened more than once' },
+          { val: 'yes_once', label: 'Yes, at least once' },
+          { val: 'rarely', label: 'Rarely — usually close to the estimate' },
+          { val: 'never', label: 'Never — quotes are always accurate' }
+        ]
+      },
+      {
+        key: 'quote_behavior',
+        tag: 'Question 7 of 12',
+        q: 'When facing a larger repair job, how do you typically handle getting a price?',
+        opts: [
+          { val: 'trust_one', label: 'I go with whoever I trust and don\'t shop around' },
+          { val: 'compare_few', label: 'I call 2-3 shops to compare prices' },
+          { val: 'online_research', label: 'I research online to estimate what it should cost' },
+          { val: 'just_pay', label: 'I usually just pay whatever I\'m told — it\'s too much work to compare' }
+        ]
+      },
+      {
+        key: 'history_tracking',
+        tag: 'Question 8 of 12',
+        q: 'How do you keep track of your vehicle\'s service history?',
+        opts: [
+          { val: 'no_system', label: "I don't — I rely on memory or old receipts" },
+          { val: 'manual', label: 'I keep notes or a spreadsheet' },
+          { val: 'mechanic_tracks', label: 'My mechanic keeps records and I trust them to remind me' },
+          { val: 'app', label: 'I use an app or online tool for this' }
+        ]
+      },
+      {
+        key: 'maintenance_avoidance',
+        tag: 'Question 9 of 12',
+        q: 'Have you ever delayed or skipped necessary maintenance because dealing with a shop felt like too much trouble?',
+        opts: [
+          { val: 'yes_regularly', label: 'Yes, regularly' },
+          { val: 'yes_sometimes', label: 'Yes, a few times' },
+          { val: 'rarely', label: 'Rarely' },
+          { val: 'never', label: 'Never — I stay on top of it' }
         ]
       },
       {
         key: 'top_priority',
-        tag: 'Question 5 of 6',
+        tag: 'Question 10 of 12',
         q: 'What matters most to you when choosing an auto service provider?',
         opts: [
           { val: 'trust', label: 'Trustworthiness and reputation' },
           { val: 'pricing', label: 'Fair, transparent pricing' },
           { val: 'convenience', label: 'Convenience and easy scheduling' },
           { val: 'quality', label: 'Quality of the work' },
-          { val: 'proximity', label: 'Location — I want someone close by' }
+          { val: 'proximity', label: 'Location — I want someone nearby' }
+        ]
+      },
+      {
+        key: 'travel_distance',
+        tag: 'Question 11 of 12',
+        q: 'How far are you willing to travel for an auto service provider you truly trust?',
+        opts: [
+          { val: 'under_5', label: 'Under 5 miles — convenience is key' },
+          { val: '5_to_15', label: '5 to 15 miles' },
+          { val: '15_to_30', label: '15 to 30 miles' },
+          { val: 'wherever', label: 'As far as it takes — quality and trust matter more than distance' }
         ]
       },
       {
         key: 'vehicle_count',
-        tag: 'Question 6 of 6',
+        tag: 'Question 12 of 12',
         q: 'How many vehicles does your household currently have?',
         opts: [
           { val: '1', label: '1' },

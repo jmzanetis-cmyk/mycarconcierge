@@ -7929,19 +7929,20 @@
     }
 
     // Welcome modal
-    const FIRST_USE_MESSAGES = {
-      get_bids: { headline: 'Your first bid request is one tap away.', body: 'Post your service need and let local providers compete for your business. You’ll see quotes, ratings, and estimated timelines before you decide.' },
-      find_provider: { headline: 'Vetted providers, matched to you.', body: 'Every mechanic and detailer on My Car Concierge is background-checked and rated by real customers. Browse, compare, and book with confidence.' },
-      track_history: { headline: 'Your complete vehicle history starts now.', body: 'Every service, every provider, every part — organized by vehicle and always at your fingertips. Add your first vehicle to get started.' },
-      full_solution: { headline: 'Welcome to your complete auto ownership platform.', body: 'Quotes, bookings, service history, reminders, and payments — all in one place. Let’s start by adding your first vehicle.' }
+    const TOP_PRIORITY_MESSAGES = {
+      trust: { headline: 'Every provider is vetted.', body: 'Read verified reviews, check credentials, and only work with providers you’ve approved. No surprises.' },
+      pricing: { headline: 'Fair pricing starts here.', body: 'Post your job once and get competing bids from local providers — so you always know you’re getting a fair price before you commit.' },
+      convenience: { headline: 'One post. Multiple bids. Zero phone tag.', body: 'Post your service need once and let providers come to you. Book, pay, and track everything in one place.' },
+      quality: { headline: 'Quality you can count on.', body: 'Our provider rating system holds every shop accountable. Real reviews from real customers — so your standards become ours.' },
+      proximity: { headline: 'Local providers, ready to compete for your job.', body: 'Browse vetted mechanics and detailers near you, get competing bids, and book without the back-and-forth.' }
     };
 
     function showWelcomeModal(data) {
       const modal = document.getElementById('welcome-modal');
       if (!modal) return;
-      const firstUse = data?.first_use || null;
-      const msg = (firstUse && FIRST_USE_MESSAGES[firstUse])
-        ? FIRST_USE_MESSAGES[firstUse]
+      const topPriority = data?.top_priority || null;
+      const msg = (topPriority && TOP_PRIORITY_MESSAGES[topPriority])
+        ? TOP_PRIORITY_MESSAGES[topPriority]
         : { headline: 'Welcome to My Car Concierge.', body: 'You\'re all set. Add your first vehicle and post a service request to get competing bids from local providers.' };
       const headlineEl = document.getElementById('welcome-headline');
       const bodyEl = document.getElementById('welcome-body');

@@ -3,26 +3,38 @@
 
 -- Survey responses (works for anonymous users too)
 CREATE TABLE IF NOT EXISTS survey_responses (
-  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id              uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  competitive_bidding  text,   -- need_now / really_help / nice_to_have / not_for_me
-  provider_trust       text,   -- need_now / really_help / nice_to_have / not_for_me
-  fair_pricing         text,   -- need_now / really_help / nice_to_have / not_for_me
-  live_updates         text,   -- need_now / really_help / nice_to_have / not_for_me
-  one_app              text,   -- need_now / really_help / nice_to_have / not_for_me
-  first_use            text,   -- get_bids / find_provider / track_history / full_solution
-  raw                  jsonb,
-  ip_hash              text,   -- hashed IP for dedup (no PII stored)
-  created_at           timestamptz NOT NULL DEFAULT now()
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id               uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  provider_discovery    text,   -- word_of_mouth / online_search / stick_with_known / trial_error
+  provider_satisfaction text,   -- very_satisfied / somewhat_satisfied / not_satisfied / avoid_service
+  service_frequency     text,   -- monthly_plus / few_times_year / once_a_year / only_problems
+  service_types         text,   -- routine / repairs / cosmetic / mixed
+  pricing_confidence    text,   -- very_confident / somewhat_confident / not_confident / not_at_all
+  estimate_surprise     text,   -- yes_often / yes_once / rarely / never
+  quote_behavior        text,   -- trust_one / compare_few / online_research / just_pay
+  history_tracking      text,   -- no_system / manual / mechanic_tracks / app
+  maintenance_avoidance text,   -- yes_regularly / yes_sometimes / rarely / never
+  top_priority          text,   -- trust / pricing / convenience / quality / proximity
+  travel_distance       text,   -- under_5 / 5_to_15 / 15_to_30 / wherever
+  vehicle_count         text,   -- 1 / 2 / 3plus
+  raw                   jsonb,
+  ip_hash               text,   -- hashed IP for dedup (no PII stored)
+  created_at            timestamptz NOT NULL DEFAULT now()
 );
 
 -- Idempotent column additions for environments already running an older schema
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS competitive_bidding text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS provider_trust      text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS fair_pricing        text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS live_updates        text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS one_app             text;
-ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS first_use           text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS provider_discovery    text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS provider_satisfaction text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS service_frequency     text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS service_types         text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS pricing_confidence    text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS estimate_surprise     text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS quote_behavior        text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS history_tracking      text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS maintenance_avoidance text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS top_priority          text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS travel_distance       text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS vehicle_count         text;
 
 -- Member onboarding checklist state
 CREATE TABLE IF NOT EXISTS member_onboarding (
