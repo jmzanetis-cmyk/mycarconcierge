@@ -874,10 +874,38 @@
       reader.readAsText(file);
     }
 
+    // RFC-4180-compliant CSV row parser — handles quoted fields with embedded commas/newlines
+    function parseCsvRow(line) {
+      var cols = [];
+      var cur = '';
+      var inQuotes = false;
+      for (var i = 0; i < line.length; i++) {
+        var ch = line[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (line[i + 1] === '"') { cur += '"'; i++; } // escaped quote
+            else { inQuotes = false; }
+          } else {
+            cur += ch;
+          }
+        } else {
+          if (ch === '"') {
+            inQuotes = true;
+          } else if (ch === ',') {
+            cols.push(cur.trim()); cur = '';
+          } else {
+            cur += ch;
+          }
+        }
+      }
+      cols.push(cur.trim());
+      return cols;
+    }
+
     function parseCsv(text) {
       var lines = text.trim().split(/\r?\n/).filter(l => l.trim());
       if (lines.length < 2) { showCsvError('CSV must have a header row and at least one data row.'); return; }
-      var headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[\s-]/g, '_'));
+      var headers = parseCsvRow(lines[0]).map(h => h.toLowerCase().replace(/[\s-]/g, '_'));
       var yearIdx = headers.indexOf('year');
       var makeIdx = headers.indexOf('make');
       var modelIdx = headers.indexOf('model');
@@ -888,7 +916,7 @@
       _csvRows = [];
       var errors = [];
       lines.slice(1).forEach(function(line, i) {
-        var cols = line.split(',').map(c => c.trim().replace(/^"|"$/g,''));
+        var cols = parseCsvRow(line);
         var row = {};
         headers.forEach((h, idx) => { row[h] = cols[idx] || null; });
         if (!row.year || !row.make || !row.model) {

@@ -40748,7 +40748,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
   
   const urlPath = req.url.split('?')[0];
   if (urlRedirects[urlPath]) {
-    res.writeHead(301, { 'Location': urlRedirects[urlPath] });
+    const queryString = req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
+    res.writeHead(301, { 'Location': urlRedirects[urlPath] + queryString });
     res.end();
     return;
   }
