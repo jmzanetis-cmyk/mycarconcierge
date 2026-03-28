@@ -11303,6 +11303,12 @@
       quote_behavior: { trust_one: 'Trust one shop', compare_few: 'Compare 2-3', online_research: 'Research online', just_pay: 'Just pay' },
       history_tracking: { no_system: 'No system', manual: 'Manual notes', mechanic_tracks: 'Mechanic tracks it', app: 'Uses an app' },
       maintenance_avoidance: { yes_regularly: 'Yes, regularly', yes_sometimes: 'Yes, sometimes', rarely: 'Rarely', never: 'Never' },
+      job_status_updates: { i_call: 'I call the shop', they_call: 'They call when ready', just_show_up: 'Just show up', has_system: 'Shop has a system' },
+      provider_vetting: { yes_nervous: 'Yes, concerned me', yes_went_anyway: 'Yes, went anyway', rarely: 'Rarely', never: 'Never' },
+      app_usage: { yes_regularly: 'Uses app regularly', tried_none_stuck: 'Tried, nothing stuck', no_old_fashioned: 'No app', didnt_know: 'Didn't know apps exist' },
+      payment_comfort: { very_comfortable: 'Very comfortable', open_to_it: 'Open to it', prefer_in_person: 'Prefers in-person', not_comfortable: 'Not comfortable' },
+      dispute_history: { yes_hard_to_resolve: 'Yes, hard to resolve', yes_resolved: 'Yes, resolved', concerns_not_voiced: 'Concerns not voiced', never: 'Never' },
+      maintenance_reminders: { from_shop: 'From shop/dealer', self_set: 'Self-set reminders', no_try_to_remember: 'Tries to remember', dashboard_light: 'Waits for warning light' },
       top_priority: { trust: 'Trustworthiness', pricing: 'Fair pricing', convenience: 'Convenience', quality: 'Work quality', proximity: 'Location/proximity' },
       travel_distance: { under_5: 'Under 5 miles', '5_to_15': '5-15 miles', '15_to_30': '15-30 miles', wherever: 'Wherever needed' },
       vehicle_count: { '1': '1 vehicle', '2': '2 vehicles', '3plus': '3+ vehicles' }

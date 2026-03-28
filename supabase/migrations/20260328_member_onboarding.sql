@@ -13,8 +13,14 @@ CREATE TABLE IF NOT EXISTS survey_responses (
   estimate_surprise     text,   -- yes_often / yes_once / rarely / never
   quote_behavior        text,   -- trust_one / compare_few / online_research / just_pay
   history_tracking      text,   -- no_system / manual / mechanic_tracks / app
-  maintenance_avoidance text,   -- yes_regularly / yes_sometimes / rarely / never
-  top_priority          text,   -- trust / pricing / convenience / quality / proximity
+  maintenance_avoidance  text,  -- yes_regularly / yes_sometimes / rarely / never
+  job_status_updates     text,  -- i_call / they_call / just_show_up / has_system
+  provider_vetting       text,  -- yes_nervous / yes_went_anyway / rarely / never
+  app_usage              text,  -- yes_regularly / tried_none_stuck / no_old_fashioned / didnt_know
+  payment_comfort        text,  -- very_comfortable / open_to_it / prefer_in_person / not_comfortable
+  dispute_history        text,  -- yes_hard_to_resolve / yes_resolved / concerns_not_voiced / never
+  maintenance_reminders  text,  -- from_shop / self_set / no_try_to_remember / dashboard_light
+  top_priority           text,  -- trust / pricing / convenience / quality / proximity
   travel_distance       text,   -- under_5 / 5_to_15 / 15_to_30 / wherever
   vehicle_count         text,   -- 1 / 2 / 3plus
   raw                   jsonb,
@@ -32,6 +38,12 @@ ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS estimate_surprise     text
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS quote_behavior        text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS history_tracking      text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS maintenance_avoidance text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS job_status_updates    text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS provider_vetting      text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS app_usage             text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS payment_comfort       text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS dispute_history       text;
+ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS maintenance_reminders text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS top_priority          text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS travel_distance       text;
 ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS vehicle_count         text;
