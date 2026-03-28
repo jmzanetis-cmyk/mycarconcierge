@@ -23,17 +23,19 @@ CREATE INDEX IF NOT EXISTS idx_survey_responses_interested   ON survey_responses
 CREATE INDEX IF NOT EXISTS idx_survey_responses_session_id   ON survey_responses(session_id) WHERE session_id IS NOT NULL;
 
 -- Customer profiles: full profile submitted by interested prospects
+-- auth_user_id: links to the shadow auth user created by the referral system (nullable until signup completes)
 CREATE TABLE IF NOT EXISTS customer_profiles (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   survey_response_id  uuid REFERENCES survey_responses(id) ON DELETE SET NULL,
   first_name          text NOT NULL,
-  last_name           text NOT NULL,
+  last_name           text NOT NULL DEFAULT '',
   email               text NOT NULL,
   phone               text,
   zip                 text,
   vehicle_year        text,
   vehicle_make        text,
   vehicle_model       text,
+  auth_user_id        uuid UNIQUE,
   created_at          timestamptz NOT NULL DEFAULT now()
 );
 

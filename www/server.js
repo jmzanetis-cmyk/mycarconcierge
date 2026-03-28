@@ -41751,7 +41751,8 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
 
   // ========== PROSPECT SURVEY & LEAD CAPTURE (Task #93) ==========
 
-  // POST /api/survey/response — save prospect feature ratings (public, no auth)
+  // POST /api/survey/response — save prospect survey responses (public, no auth)
+  // Supports both legacy feature_ratings and new discovery_answers (Task #96)
   if (req.method === 'POST' && req.url === '/api/survey/response') {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
@@ -41761,14 +41762,21 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     const supabase = getSupabaseClient();
     try {
       const body = await getRequestBody(req, 50000);
-      const { feature_ratings, interested, session_id, email, response_id } = body;
-      // If response_id provided, it means we're updating an existing NI row with email
-      if (response_id && email) {
+      const { feature_ratings, interested, session_id, email, response_id, discovery_answers, first_name } = body;
+      // If response_id provided, update existing row with new data (incremental saves)
+      if (response_id) {
         if (supabase) {
-          await supabase.from('survey_responses').update({ email: email.trim().toLowerCase().slice(0, 254) }).eq('id', response_id);
+          const updatePayload = {};
+          if (email) updatePayload.email = email.trim().toLowerCase().slice(0, 254);
+          if (discovery_answers) updatePayload.discovery_answers = discovery_answers;
+          if (typeof interested === 'boolean') updatePayload.interested = interested;
+          if (first_name) updatePayload.first_name = first_name.trim().slice(0, 100);
+          if (Object.keys(updatePayload).length > 0) {
+            await supabase.from('survey_responses').update(updatePayload).eq('id', response_id);
+          }
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true }));
+        res.end(JSON.stringify({ ok: true, id: response_id }));
         return;
       }
       const ipHash = ip ? crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16) : null;
@@ -41776,9 +41784,11 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       if (supabase) {
         const { data } = await supabase.from('survey_responses').insert({
           feature_ratings: feature_ratings || null,
+          discovery_answers: discovery_answers || null,
           interested: typeof interested === 'boolean' ? interested : null,
           session_id: session_id || null,
           email: email ? email.trim().toLowerCase().slice(0, 254) : null,
+          first_name: first_name ? first_name.trim().slice(0, 100) : null,
           ip_hash: ipHash
         }).select('id').single();
         inserted = data;
@@ -41788,6 +41798,269 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     } catch (err) {
       console.error('[Survey] POST /api/survey/response error:', err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save survey response' }));
+    }
+    return;
+  }
+
+  // POST /api/survey/abandoned — trigger follow-up for partial survey exits (Task #96)
+  if (req.method === 'POST' && req.url === '/api/survey/abandoned') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'survey-abandoned:' + ip);
+    if (!rl.allowed) return;
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req, 50000);
+      const { session_id, response_id, email, first_name, type } = body;
+      if (!email || !email.includes('@')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, skipped: 'no_email' }));
+        return;
+      }
+      const cleanEmail = email.trim().toLowerCase().slice(0, 254);
+      if (supabase) {
+        // Upsert into abandoned_signups for existing follow-up outreach pipeline
+        const { data: existing } = await supabase
+          .from('abandoned_signups')
+          .select('id, recovery_email_count')
+          .eq('email', cleanEmail)
+          .eq('type', 'member')
+          .maybeSingle();
+        if (!existing) {
+          try {
+            await supabase.from('abandoned_signups').insert({
+              email: cleanEmail,
+              type: 'member',
+              step: 'discovery_survey',
+              recovered: false
+            });
+          } catch (insErr) {
+            console.warn('[Survey] abandoned_signups insert error:', insErr.message);
+          }
+        }
+        // Also update the survey_response if we have it
+        if (response_id) {
+          try {
+            await supabase.from('survey_responses')
+              .update({ email: cleanEmail, first_name: first_name ? first_name.trim().slice(0, 100) : null })
+              .eq('id', response_id);
+          } catch (upErr) {
+            console.warn('[Survey] survey_responses update error:', upErr.message);
+          }
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      console.error('[Survey] POST /api/survey/abandoned error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to record abandoned survey' }));
+    }
+    return;
+  }
+
+  // POST /api/survey/referral-link — generate a shareable referral link for survey completions (Task #96)
+  // Creates a real entry in the `referrals` table (the existing referral infrastructure) so the
+  // generated code is fully resolvable and redeemable via the standard handleApplyReferralCode path.
+  // Strategy: a shadow auth user is created for the prospect (no password set, email-unconfirmed)
+  // so the `referrals.referrer_id` FK constraint to auth.users is satisfied. The prospect's full
+  // account is completed when they go through signup-member.html, which activates this same user.
+  if (req.method === 'POST' && req.url === '/api/survey/referral-link') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'survey-referral:' + ip);
+    if (!rl.allowed) return;
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req, 20000);
+      const { customer_profile_id, survey_response_id, session_id, email } = body;
+      if (!customer_profile_id && !survey_response_id && !session_id) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'customer_profile_id, survey_response_id, or session_id required' })); return;
+      }
+      if (!email) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'email is required to generate a referral link' })); return;
+      }
+      // Basic email format check
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+      if (!emailRegex.test(email)) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'Valid email is required' })); return;
+      }
+      // Per-email rate limiting: max 3 referral link requests per email per day (prevents shadow-user flooding)
+      const emailRl = applyRateLimit(req, res, 'public', 'survey-referral-email:' + email.trim().toLowerCase());
+      if (!emailRl.allowed) return;
+
+      let referralCode = null;
+      if (supabase) {
+        // Step 1: Check if this customer already has a referral code (idempotent)
+        if (customer_profile_id) {
+          try {
+            const { data: prof } = await supabase
+              .from('customer_profiles')
+              .select('auth_user_id')
+              .eq('id', customer_profile_id)
+              .maybeSingle();
+            if (prof?.auth_user_id) {
+              // Auth user already exists — look up their referral code in referrals table
+              const { data: existingRef } = await supabase
+                .from('referrals')
+                .select('referral_code')
+                .eq('referrer_id', prof.auth_user_id)
+                .is('referred_id', null)
+                .maybeSingle();
+              if (existingRef?.referral_code) {
+                referralCode = existingRef.referral_code;
+              }
+            }
+          } catch (checkErr) {
+            console.warn('[Survey] referral idempotency check error:', checkErr.message);
+          }
+        }
+
+        // Step 2: Generate a new referral code if we don't have one
+        if (!referralCode) {
+          // Create or find the shadow auth user for this prospect
+          let shadowUserId = null;
+          try {
+            // Check if user already exists in auth by looking up profiles table first (faster than listUsers)
+            const cleanEmail = email.trim().toLowerCase();
+            const { data: existingProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('email', cleanEmail)
+              .maybeSingle();
+            if (existingProfile?.id) {
+              shadowUserId = existingProfile.id;
+              console.log('[Survey] Found existing auth user for prospect via profiles:', shadowUserId);
+            } else {
+              // Create shadow auth user (no password, email-unconfirmed — will be activated at signup)
+              const tempPassword = 'SurveyTemp!' + Math.random().toString(36).slice(2, 12);
+              const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
+                email: email.trim().toLowerCase(),
+                password: tempPassword,
+                email_confirm: false,
+                user_metadata: {
+                  account_type: 'member',
+                  source: 'discovery_survey',
+                  customer_profile_id: customer_profile_id || null
+                }
+              });
+              if (createErr) {
+                console.warn('[Survey] Shadow user creation error:', createErr.message);
+              } else {
+                shadowUserId = newUser?.user?.id;
+                console.log('[Survey] Created shadow auth user for prospect:', shadowUserId);
+              }
+            }
+          } catch (authErr) {
+            console.warn('[Survey] Auth user lookup/create error:', authErr.message);
+          }
+
+          if (shadowUserId) {
+            // Link shadow user to customer_profile
+            if (customer_profile_id) {
+              try {
+                await supabase.from('customer_profiles')
+                  .update({ auth_user_id: shadowUserId })
+                  .eq('id', customer_profile_id);
+              } catch (linkErr) {
+                console.warn('[Survey] customer_profile auth_user_id update error:', linkErr.message);
+              }
+            }
+
+            // Generate a unique referral code and insert into referrals table
+            let attempts = 0;
+            while (!referralCode && attempts < 5) {
+              const candidate = generateReferralCode();
+              const { data: dup } = await supabase
+                .from('referrals')
+                .select('id')
+                .eq('referral_code', candidate)
+                .maybeSingle();
+              if (!dup) {
+                const { error: refInsertErr } = await supabase.from('referrals').insert({
+                  referrer_id: shadowUserId,
+                  referral_code: candidate,
+                  status: 'pending',
+                  referrer_credit_amount: 1000,
+                  referred_credit_amount: 1000
+                });
+                if (!refInsertErr) {
+                  referralCode = candidate;
+                  // Also persist in survey_responses for traceability
+                  if (survey_response_id) {
+                    try {
+                      await supabase.from('survey_responses')
+                        .update({ referral_code: referralCode })
+                        .eq('id', survey_response_id);
+                    } catch (_) {}
+                  }
+                } else {
+                  console.warn('[Survey] referrals insert error:', refInsertErr.message);
+                }
+              }
+              attempts++;
+            }
+          }
+        }
+      }
+
+      // If we couldn't create a real referral (DB issue), return an error
+      if (!referralCode) {
+        res.writeHead(503); res.end(JSON.stringify({ error: 'Referral link unavailable. Please try again.' }));
+        return;
+      }
+
+      // Return the referral URL pointing to member signup with the code
+      const referralUrl = 'https://mycarconcierge.com/signup-member.html?ref=' + referralCode;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, referral_code: referralCode, referral_url: referralUrl }));
+    } catch (err) {
+      console.error('[Survey] POST /api/survey/referral-link error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to generate referral link' }));
+    }
+    return;
+  }
+
+  // GET /api/survey/area-check — check if MCC is live in a given ZIP (public, no auth)
+  // Returns { live: boolean, message: string } to drive post-onboarding routing
+  if (req.method === 'GET' && req.url && req.url.startsWith('/api/survey/area-check')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'survey-area:' + ip);
+    if (!rl.allowed) return;
+    try {
+      const urlParts = new URL(req.url, 'http://localhost');
+      const zip = (urlParts.searchParams.get('zip') || '').trim().slice(0, 10);
+      if (!zip) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'zip is required' })); return;
+      }
+      let isLive = false;
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        // Check live_service_areas table if it exists; fall back to pre-launch (waitlist) otherwise
+        try {
+          const { data: area } = await supabase
+            .from('live_service_areas')
+            .select('zip')
+            .eq('zip', zip)
+            .eq('active', true)
+            .maybeSingle();
+          if (area) isLive = true;
+        } catch (areaErr) {
+          // Table not created yet — MCC is pre-launch everywhere
+          isLive = false;
+        }
+      }
+      const message = isLive
+        ? 'MCC is live in your area — explore the platform now!'
+        : 'You\'re on the waitlist. We\'ll notify you the moment MCC launches near you.';
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, live: isLive, zip, message }));
+    } catch (err) {
+      console.error('[Survey] GET /api/survey/area-check error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Area check failed' }));
     }
     return;
   }
@@ -41803,8 +42076,9 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     try {
       const body = await getRequestBody(req, 50000);
       const { survey_response_id, session_id, first_name, last_name, email, phone, zip, vehicle_year, vehicle_make, vehicle_model } = body;
-      if (!first_name || !last_name || !email) {
-        res.writeHead(400); res.end(JSON.stringify({ error: 'first_name, last_name, and email are required' })); return;
+      // last_name is optional in the new discovery flow (Task #96)
+      if (!first_name || !email) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'first_name and email are required' })); return;
       }
       let inserted = null;
       if (supabase) {
@@ -41812,16 +42086,16 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         if (survey_response_id) {
           await supabase.from('survey_responses').update({
             first_name: first_name.trim().slice(0, 100),
-            last_name:  last_name.trim().slice(0, 100),
+            last_name:  last_name ? last_name.trim().slice(0, 100) : null,
             email:      email.trim().toLowerCase().slice(0, 254),
             phone:      phone ? phone.trim().slice(0, 30) : null,
             zip:        zip   ? zip.trim().slice(0, 20) : null
           }).eq('id', survey_response_id);
         }
-        const { data } = await supabase.from('customer_profiles').insert({
+        const { data, error: insertErr } = await supabase.from('customer_profiles').insert({
           survey_response_id: survey_response_id || null,
           first_name: first_name.trim().slice(0, 100),
-          last_name:  last_name.trim().slice(0, 100),
+          last_name:  last_name ? last_name.trim().slice(0, 100) : '',
           email:      email.trim().toLowerCase().slice(0, 254),
           phone:      phone ? phone.trim().slice(0, 30) : null,
           zip:        zip   ? zip.trim().slice(0, 20) : null,
@@ -41829,6 +42103,10 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
           vehicle_make:  vehicle_make  ? vehicle_make.trim().slice(0, 60) : null,
           vehicle_model: vehicle_model ? vehicle_model.trim().slice(0, 80) : null
         }).select('id').single();
+        if (insertErr) {
+          console.error('[Survey] customer_profiles insert error:', insertErr.message, insertErr.details);
+          throw new Error(insertErr.message);
+        }
         inserted = data;
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
