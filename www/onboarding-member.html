@@ -750,6 +750,145 @@
       transition: color 0.2s ease;
     }
     .survey-btn-skip:hover { color: #6b7280; }
+
+    /* Welcome & Thank-you screen panels */
+    .survey-panel { display: none; }
+    .survey-panel.active { display: block; }
+
+    .survey-welcome-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      background: rgba(201,162,39,0.12);
+      color: #b8942d;
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: 100px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 20px;
+    }
+    .survey-welcome-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+      line-height: 1.2;
+      letter-spacing: -0.03em;
+    }
+    .survey-welcome-body {
+      font-size: 1rem;
+      color: #4b5563;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .survey-consent-box {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .survey-consent-box svg {
+      flex-shrink: 0;
+      margin-top: 2px;
+      color: #9ca3af;
+    }
+    .survey-consent-text {
+      font-size: 0.8rem;
+      color: #6b7280;
+      line-height: 1.55;
+    }
+    .survey-consent-text a {
+      color: #b8942d;
+      text-decoration: underline;
+    }
+    .survey-btn-start {
+      width: 100%;
+      padding: 15px 24px;
+      background: linear-gradient(135deg, #c9a227, #e6b84a);
+      color: #12161c;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 0;
+    }
+    .survey-btn-start:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(201,162,39,0.35); }
+
+    .survey-thankyou-icon {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, #c9a227, #e6b84a);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+    .survey-thankyou-icon svg { color: #12161c; }
+    .survey-thankyou-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+      letter-spacing: -0.03em;
+    }
+    .survey-thankyou-body {
+      font-size: 1rem;
+      color: #4b5563;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+    .survey-invite-card {
+      background: linear-gradient(135deg, #12161c 0%, #1e2530 100%);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    .survey-invite-card-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #c9a227;
+      margin-bottom: 8px;
+    }
+    .survey-invite-card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+    .survey-invite-card-body {
+      font-size: 0.88rem;
+      color: #9ca3af;
+      line-height: 1.55;
+      margin-bottom: 18px;
+    }
+    .survey-btn-join {
+      width: 100%;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #c9a227, #e6b84a);
+      color: #12161c;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .survey-btn-join:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(201,162,39,0.4); }
   </style>
 </head>
 <body>
@@ -1588,10 +1727,22 @@
     let surveyStep = 0;
     const surveyAnswers = {};
 
+    function showSurveyPanel(panelId) {
+      ['survey-panel-welcome','survey-panel-questions','survey-panel-thankyou'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('active', id === panelId);
+      });
+    }
+
     function showSurveyOverlay() {
       const overlay = document.getElementById('survey-overlay');
       if (!overlay) return;
       overlay.classList.remove('hidden');
+      showSurveyPanel('survey-panel-welcome');
+    }
+
+    function startSurveyQuestions() {
+      showSurveyPanel('survey-panel-questions');
       renderSurveyQuestion();
     }
 
@@ -1659,7 +1810,32 @@
           body: JSON.stringify(surveyAnswers)
         });
       } catch (_) {}
+
+      // Show thank-you screen instead of immediately closing
+      const fromDash = new URLSearchParams(window.location.search).get('from') === 'dashboard';
+      const joinBtn = document.getElementById('survey-join-btn');
+      if (joinBtn) {
+        joinBtn.textContent = fromDash ? 'Go to My Dashboard \u2192' : 'Create My Account \u2192';
+      }
+      showSurveyPanel('survey-panel-thankyou');
+    }
+
+    function surveyJoinMember() {
+      const fromDash = new URLSearchParams(window.location.search).get('from') === 'dashboard';
       closeSurveyOverlay();
+      if (fromDash) {
+        window.location.href = '/members.html';
+      } else {
+        // In signup flow — scroll back up to the signup form or redirect to members
+        const hasSession = typeof supabaseClient !== 'undefined';
+        if (hasSession) {
+          supabaseClient.auth.getSession().then(({ data: { session } }) => {
+            window.location.href = session ? '/members.html' : '/signup.html';
+          }).catch(() => { window.location.href = '/signup.html'; });
+        } else {
+          window.location.href = '/signup.html';
+        }
+      }
     }
 
     function closeSurveyOverlay() {
@@ -1721,17 +1897,54 @@
   <!-- Post-signup survey overlay -->
   <div class="survey-overlay hidden" id="survey-overlay">
     <div class="survey-inner">
-      <div class="survey-progress-row">
-        <div class="survey-progress-track">
-          <div class="survey-progress-fill" id="survey-progress-fill" style="width:0%"></div>
+
+      <!-- PANEL 1: Welcome + consent -->
+      <div class="survey-panel active" id="survey-panel-welcome">
+        <div class="survey-welcome-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          Quick survey
         </div>
-        <span class="survey-step-label" id="survey-step-label">Question 1 of 4</span>
+        <h2 class="survey-welcome-title">Help us build the auto platform you actually want.</h2>
+        <p class="survey-welcome-body">Before you get started, we'd love to understand your experience with auto care — how you find providers, what you pay, and what frustrates you most. It takes about 3 minutes.</p>
+        <div class="survey-consent-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <p class="survey-consent-text">Your responses are used solely to improve My Car Concierge. We do not sell your data to third parties and we never share individual responses. Aggregate, anonymized findings may be used to guide product development. By continuing you agree to our <a href="/privacy.html" target="_blank">Privacy Policy</a>.</p>
+        </div>
+        <button class="survey-btn-start" onclick="startSurveyQuestions()">Start Survey &rarr;</button>
+        <button class="survey-btn-skip" onclick="closeSurveyOverlay()">No thanks, skip</button>
       </div>
-      <div class="survey-tag" id="survey-tag">Quick question 1 of 4</div>
-      <h2 class="survey-question" id="survey-question"></h2>
-      <div class="survey-options" id="survey-options"></div>
-      <button class="survey-btn-next" id="survey-next-btn" onclick="surveyNext()" disabled>Next</button>
-      <button class="survey-btn-skip" onclick="closeSurveyOverlay()">Skip survey</button>
+
+      <!-- PANEL 2: Questions -->
+      <div class="survey-panel" id="survey-panel-questions">
+        <div class="survey-progress-row">
+          <div class="survey-progress-track">
+            <div class="survey-progress-fill" id="survey-progress-fill" style="width:0%"></div>
+          </div>
+          <span class="survey-step-label" id="survey-step-label">Question 1 of 22</span>
+        </div>
+        <div class="survey-tag" id="survey-tag"></div>
+        <h2 class="survey-question" id="survey-question"></h2>
+        <div class="survey-options" id="survey-options"></div>
+        <button class="survey-btn-next" id="survey-next-btn" onclick="surveyNext()" disabled>Next</button>
+        <button class="survey-btn-skip" onclick="closeSurveyOverlay()">Skip survey</button>
+      </div>
+
+      <!-- PANEL 3: Thank you + member invite -->
+      <div class="survey-panel" id="survey-panel-thankyou">
+        <div class="survey-thankyou-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <h2 class="survey-thankyou-title">Thank you!</h2>
+        <p class="survey-thankyou-body">Your feedback helps us build the auto ownership platform that real drivers actually need. We take every response seriously.</p>
+        <div class="survey-invite-card">
+          <div class="survey-invite-card-label">Ready for the full experience?</div>
+          <div class="survey-invite-card-title">One app. Every auto need. Zero hassle.</div>
+          <p class="survey-invite-card-body">Get instant quotes, track your vehicles, stay on top of maintenance, and shop smarter — all in one place built specifically for car owners like you.</p>
+          <button class="survey-btn-join" id="survey-join-btn" onclick="surveyJoinMember()">Join as a Member &rarr;</button>
+        </div>
+        <button class="survey-btn-skip" onclick="closeSurveyOverlay()">Maybe later</button>
+      </div>
+
     </div>
   </div>
 </body>
