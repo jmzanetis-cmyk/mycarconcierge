@@ -6688,7 +6688,12 @@
 
       async function loadProviderChecklist() {
         try {
-          const res = await fetch('/api/member/onboarding', { credentials: 'include' });
+          const client = window.supabaseClient;
+          const { data: { session } } = client ? await client.auth.getSession() : { data: { session: null } };
+          if (!session?.access_token) throw new Error('no session');
+          const res = await fetch('/api/member/onboarding', {
+            headers: { 'Authorization': 'Bearer ' + session.access_token }
+          });
           if (!res.ok) throw new Error('not ok');
           const data = await res.json();
           if (data.checklist) renderProviderChecklist(data.checklist);

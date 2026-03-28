@@ -7821,7 +7821,11 @@
     async function checkOnboardingStatus() {
       const dismissed = localStorage.getItem('mcc_onboarding_dismissed');
       try {
-        const res = await fetch('/api/member/onboarding', { credentials: 'include' });
+        const token = window._currentSession?.access_token;
+        if (!token) throw new Error('no token');
+        const res = await fetch('/api/member/onboarding', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
         if (!res.ok) throw new Error('not ok');
         const data = await res.json();
         if (!dismissed) updateOnboardingUI(data);
@@ -7871,12 +7875,14 @@
       if (modal) modal.classList.remove('active');
       localStorage.setItem('mcc_welcome_shown', 'true');
       try {
-        fetch('/api/member/onboarding/step', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ step: 'welcome_shown', value: true })
-        });
+        const token = window._currentSession?.access_token;
+        if (token) {
+          fetch('/api/member/onboarding/step', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ step: 'welcome_shown', value: true })
+          });
+        }
       } catch (_) {}
     }
 

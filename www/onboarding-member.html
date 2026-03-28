@@ -1440,12 +1440,15 @@
     async function submitSurveyAndClose() {
       document.getElementById('survey-progress-fill').style.width = '100%';
       try {
-        await fetch('/api/member/survey', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(surveyAnswers)
-        });
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        if (token) {
+          await fetch('/api/member/survey', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify(surveyAnswers)
+          });
+        }
       } catch (_) {}
       closeSurveyOverlay();
     }
