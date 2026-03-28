@@ -39136,13 +39136,21 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
     const supabase = getSupabaseClient();
     try {
-      // Find tenant where this user is owner OR a listed admin in white_label_tenant_users
-      const { data: membership } = await supabase
+      // Find tenant for this user: prefer owner role over admin, then most recently joined
+      // Ordering ensures deterministic selection for users with admin roles in multiple tenants
+      const { data: memberships } = await supabase
         .from('white_label_tenant_users')
-        .select('tenant_id, role')
+        .select('tenant_id, role, joined_at')
         .eq('user_id', user.id)
         .in('role', ['owner', 'admin'])
-        .maybeSingle();
+        .order('joined_at', { ascending: false });
+      // Sort: owner > admin, then by recency
+      const sortedMemberships = (memberships || []).sort((a, b) => {
+        if (a.role === 'owner' && b.role !== 'owner') return -1;
+        if (b.role === 'owner' && a.role !== 'owner') return 1;
+        return 0;
+      });
+      const membership = sortedMemberships[0] || null;
 
       let tenantId = membership?.tenant_id;
 
@@ -39203,7 +39211,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     if (!_rUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
     const supabase = getSupabaseClient();
     try {
-      const { data: _rMembership } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _rUser.id).in('role', ['owner', 'admin']).maybeSingle();
+      const { data: _rMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _rUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _rMembership = (_rMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
       let _rTenantId = _rMembership?.tenant_id;
       if (!_rTenantId) {
         const { data: _rOwned } = await supabase.from('white_label_tenants').select('id').eq('owner_user_id', _rUser.id).eq('status', 'active').maybeSingle();
@@ -39290,7 +39299,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     if (!_aUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
     const supabase = getSupabaseClient();
     try {
-      const { data: _aMembership } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _aUser.id).in('role', ['owner', 'admin']).maybeSingle();
+      const { data: _aMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _aUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _aMembership = (_aMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
       let _aTenantId = _aMembership?.tenant_id;
       if (!_aTenantId) {
         const { data: _aOwned } = await supabase.from('white_label_tenants').select('id').eq('owner_user_id', _aUser.id).eq('status', 'active').maybeSingle();
@@ -39404,10 +39414,21 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       let resolvedOwnerId = owner_user_id || null;
       if (!resolvedOwnerId && owner_email) {
         try {
-          const { data: userList } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
-          const match = (userList?.users || []).find(u => u.email?.toLowerCase() === owner_email.toLowerCase());
-          if (match) resolvedOwnerId = match.id;
-          else console.warn(`[${requestId}] WL tenant: owner_email ${owner_email} not found in auth.users — tenant created without owner link`);
+          // Look up by email in profiles (indexed, no pagination limit vs auth.admin.listUsers)
+          const { data: ownerProfile } = await supabase.from('profiles').select('id').eq('email', owner_email.toLowerCase()).maybeSingle();
+          if (ownerProfile) {
+            resolvedOwnerId = ownerProfile.id;
+          } else {
+            // Fallback: paginated auth admin search (2 pages of 500 as safety net)
+            let found = null;
+            for (let pg = 1; pg <= 2 && !found; pg++) {
+              const { data: ul } = await supabase.auth.admin.listUsers({ page: pg, perPage: 500 });
+              found = (ul?.users || []).find(u => u.email?.toLowerCase() === owner_email.toLowerCase()) || null;
+              if (ul?.users?.length < 500) break; // Last page reached
+            }
+            if (found) resolvedOwnerId = found.id;
+            else console.warn(`[${requestId}] WL tenant: owner_email ${owner_email} not found — created without owner link`);
+          }
         } catch (lookupErr) {
           console.warn(`[${requestId}] WL owner email lookup failed:`, lookupErr.message);
         }
