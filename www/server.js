@@ -42333,12 +42333,16 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         res.writeHead(403); res.end(JSON.stringify({ error: 'Admin access required' })); return;
       }
       let rows = [];
+      let total = 0;
       try {
+        // True count (no cap) for headline stat
+        const { count: trueCount, error: cErr } = await supabase.from('survey_responses').select('*', { count: 'exact', head: true });
+        if (!cErr) total = trueCount || 0;
+        // Sample last 1000 for chart breakdown
         const { data, error: qErr } = await supabase.from('survey_responses').select('source, pain_point, has_trusted_mechanic, vehicle_count, created_at').order('created_at', { ascending: false }).limit(1000);
-        if (qErr && qErr.code === '42P01') { rows = []; } // table not yet migrated
+        if (qErr && qErr.code === '42P01') { rows = []; total = 0; } // table not yet migrated
         else rows = data || [];
-      } catch (_) { rows = []; }
-      const total = rows.length;
+      } catch (_) { rows = []; total = 0; }
       const bySource = {}, byPainPoint = {}, byMechanic = {}, byVehicleCount = {};
       for (const r of (rows || [])) {
         if (r.source) bySource[r.source] = (bySource[r.source] || 0) + 1;
