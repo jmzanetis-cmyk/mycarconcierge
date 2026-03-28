@@ -135,7 +135,13 @@
           <div class="category-tags" id="shop-services"></div>
         </div>
 
-        <!-- Hours -->
+        <!-- Business Hours -->
+        <div class="card" id="shop-hours-section" style="display:none;">
+          <div class="card-title">🕐 Business Hours</div>
+          <div class="hours-grid" style="display:flex;flex-direction:column;gap:2px;"></div>
+        </div>
+
+        <!-- Contact Info -->
         <div class="card" id="hours-card" style="display:none;">
           <div class="card-title">Business Info</div>
           <div id="shop-info" style="display:flex; flex-direction:column; gap:10px;"></div>
@@ -308,6 +314,29 @@
     if (shop.phone) info += `<div style="font-size:0.9rem;"><strong>📞</strong> <a href="tel:${shop.phone}" style="color:var(--text-secondary);">${shop.phone}</a></div>`;
     if (shop.address) info += `<div style="font-size:0.9rem;"><strong>📍</strong> <span style="color:var(--text-secondary);">${shop.address}${shop.city ? ', ' + shop.city : ''}${shop.state ? ', ' + shop.state : ''}</span></div>`;
     if (shop.hourly_rate) info += `<div style="font-size:0.9rem;"><strong>💰</strong> <span style="color:var(--text-secondary);">Starting at $${shop.hourly_rate}/hr</span></div>`;
+
+    // Render business hours if available
+    const hoursEl = document.getElementById('shop-hours-section');
+    if (shop.business_hours && typeof shop.business_hours === 'object') {
+      const dayOrder = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+      const dayLabels = { monday:'Mon', tuesday:'Tue', wednesday:'Wed', thursday:'Thu', friday:'Fri', saturday:'Sat', sunday:'Sun' };
+      const todayName = dayOrder[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1];
+      const hoursRows = dayOrder.map(day => {
+        const h = shop.business_hours[day];
+        if (!h) return '';
+        const isToday = day === todayName;
+        const displayHours = h.closed ? 'Closed' : `${h.open || '9:00 AM'} – ${h.close || '5:00 PM'}`;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border-subtle);${isToday ? 'font-weight:600;color:var(--accent-gold);' : 'color:var(--text-secondary);'}">
+          <span>${dayLabels[day]}${isToday ? ' (Today)' : ''}</span>
+          <span>${displayHours}</span>
+        </div>`;
+      }).filter(Boolean).join('');
+      if (hoursRows && hoursEl) {
+        hoursEl.style.display = 'block';
+        hoursEl.querySelector('.hours-grid').innerHTML = hoursRows;
+      }
+    }
+
     if (info) {
       document.getElementById('hours-card').style.display = 'block';
       infoEl.innerHTML = info;

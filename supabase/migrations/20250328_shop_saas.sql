@@ -7,6 +7,9 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS shop_only_mode BOOLEAN DEFAULT fal
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS shop_onboarding_completed BOOLEAN DEFAULT false;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS shop_onboarding_steps JSONB DEFAULT '{}';
 
+-- 5. Business hours on profiles
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS business_hours JSONB DEFAULT NULL;
+
 -- 2. Walk-in customer lookup table (per-shop phone-based history)
 CREATE TABLE IF NOT EXISTS walkin_customers (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

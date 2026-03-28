@@ -19770,6 +19770,39 @@ async function handleSendTeamInvitation(req, res, requestId, providerId) {
         return;
       }
 
+      // Seat limit enforcement for Shop SaaS plan
+      const { data: shopSub } = await supabase
+        .from('saas_subscriptions')
+        .select('plan_id, metadata')
+        .eq('user_id', providerId)
+        .eq('product_line', 'provider_shop')
+        .in('status', ['active', 'trial'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (shopSub) {
+        const seatLimitMap = { 'shop_solo': 1, 'shop_team': 5, 'shop_unlimited': 999 };
+        const seatLimit = seatLimitMap[shopSub.plan_id] ?? 999;
+        if (seatLimit < 999) {
+          const { count: memberCount } = await supabase
+            .from('provider_team_members')
+            .select('id', { count: 'exact', head: true })
+            .eq('provider_id', providerId);
+          const { count: pendingInvites } = await supabase
+            .from('provider_invitations')
+            .select('id', { count: 'exact', head: true })
+            .eq('provider_id', providerId)
+            .is('accepted_at', null)
+            .gt('expires_at', new Date().toISOString());
+          const currentSeats = (memberCount || 0) + (pendingInvites || 0);
+          if (currentSeats >= seatLimit) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: `Seat limit reached (${currentSeats}/${seatLimit}). Upgrade your Shop plan to add more team members.` }));
+            return;
+          }
+        }
+      }
+
       const { data: existingMember } = await supabase
         .from('profiles')
         .select('id')
@@ -38309,6 +38342,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           .eq('directory_slug', slug)
           .eq('directory_opt_in', true)
           .eq('role', 'provider')
+          .or('marketplace_visible.is.null,marketplace_visible.eq.true')
+          .or('shop_only_mode.is.null,shop_only_mode.eq.false')
           .single();
 
         if (error || !provider) {
@@ -38397,7 +38432,9 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         .select('*', { count: 'exact' })
         .eq('directory_opt_in', true)
         .eq('role', 'provider')
-        .not('directory_slug', 'is', null);
+        .not('directory_slug', 'is', null)
+        .or('marketplace_visible.is.null,marketplace_visible.eq.true')
+        .or('shop_only_mode.is.null,shop_only_mode.eq.false');
 
       if (city) {
         query = query.ilike('city', `%${city}%`);
@@ -40599,7 +40636,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       // Try to find by directory_slug
       const { data: shop, error } = await supabase
         .from('profiles')
-        .select('id, business_name, full_name, bio, description, city, state, address, phone, services, certifications, hourly_rate, years_in_business, directory_slug, rating, review_count, marketplace_visible, shop_only_mode, is_verified')
+        .select('id, business_name, full_name, bio, description, city, state, address, phone, services, certifications, hourly_rate, years_in_business, directory_slug, rating, review_count, marketplace_visible, shop_only_mode, is_verified, business_hours')
         .eq('directory_slug', slug)
         .in('role', ['provider', 'pending_provider'])
         .single();
@@ -40855,7 +40892,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         .select('*')
         .eq('user_id', user.id)
         .eq('product_line', 'provider_shop')
-        .eq('status', 'active')
+        .in('status', ['active', 'trial'])
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -40917,17 +40954,36 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     try {
       const { data: p } = await supabase
         .from('profiles')
-        .select('business_name, phone, bio, services, hourly_rate, directory_slug, shop_onboarding_steps')
+        .select('business_name, phone, bio, services, hourly_rate, directory_slug, shop_onboarding_steps, stripe_charges_enabled, stripe_payouts_enabled')
         .eq('id', user.id)
         .single();
 
       const steps = p?.shop_onboarding_steps || {};
+
+      // Check for first team member
+      const { data: teamMembers } = await supabase
+        .from('provider_team_members')
+        .select('id')
+        .eq('provider_id', user.id)
+        .eq('status', 'active')
+        .limit(1);
+      const hasTeamMember = (teamMembers?.length || 0) > 0;
+
+      // Check for first completed service (accepted/completed bid or booking request)
+      const { data: completedBids } = await supabase
+        .from('bids')
+        .select('id')
+        .eq('provider_id', user.id)
+        .in('status', ['accepted', 'completed', 'finished'])
+        .limit(1);
+      const hasCompletedService = (completedBids?.length || 0) > 0;
+
+      // Auto-derived step completion
       const auto = {
         profile_complete: !!(p?.business_name && p?.phone),
-        services_added: !!(p?.services && p?.services.length > 0),
-        slug_set: !!p?.directory_slug,
-        bio_written: !!p?.bio,
-        rate_set: !!p?.hourly_rate,
+        stripe_connected: !!(p?.stripe_charges_enabled && p?.stripe_payouts_enabled),
+        first_team_member: hasTeamMember || !!(steps.first_team_member),
+        first_service: hasCompletedService || !!(steps.first_service),
         subscription_active: !!(steps.subscription_active)
       };
 
@@ -41652,6 +41708,8 @@ async function handleMatchProviders(req, res, requestId) {
         .select('id, full_name, business_name, zip_code, state, rating, tier, role, is_also_provider')
         .or('role.eq.provider,is_also_provider.eq.true')
         .not('is_suspended', 'eq', true)
+        .or('marketplace_visible.is.null,marketplace_visible.eq.true')
+        .or('shop_only_mode.is.null,shop_only_mode.eq.false')
         .limit(100);
 
       if (!providers || providers.length === 0) {

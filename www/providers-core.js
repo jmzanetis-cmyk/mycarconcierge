@@ -351,6 +351,9 @@ async function showSection(id) {
     if (typeof loadMarketplaceVisibility === 'function') {
       loadMarketplaceVisibility();
     }
+    if (typeof loadBusinessHours === 'function') {
+      loadBusinessHours();
+    }
   }
   if (id === 'subscription' && typeof loadShopSubscription === 'function') {
     loadShopSubscription();

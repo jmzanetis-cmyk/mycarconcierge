@@ -185,6 +185,29 @@ async function sendTeamInvite() {
     showToast('Please enter an email address', 'error');
     return;
   }
+
+  // Enforce shop seat limits before allowing invite
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const statusRes = await fetch(`${apiBase}/api/saas/shop-status`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      const statusData = await statusRes.json();
+      if (statusData.plan !== 'none') {
+        const seatLimit = statusData.seat_limit;
+        const seatCount = statusData.seat_count;
+        if (seatLimit !== 999 && seatCount >= seatLimit) {
+          showToast(`Seat limit reached (${seatCount}/${seatLimit}). Upgrade your plan to add more team members.`, 'error');
+          if (typeof openShopUpgradeModal === 'function') openShopUpgradeModal();
+          return;
+        }
+      }
+    }
+  } catch (seatErr) {
+    console.warn('[Seat limit check] Failed, proceeding without check:', seatErr);
+  }
   
   try {
     const { error } = await supabaseClient.from('team_invites').insert({
@@ -1543,12 +1566,11 @@ function renderShopOnboardingChecklist(steps) {
   if (!container) return;
 
   const items = [
-    { key: 'profile_complete', label: 'Complete your business profile', action: "document.getElementById('provider-nav-profile')?.click()", actionLabel: 'Go to Profile' },
-    { key: 'services_added', label: 'Add your services & pricing', action: "document.getElementById('provider-nav-profile')?.click()", actionLabel: 'Add Services' },
-    { key: 'bio_written', label: 'Write a shop bio', action: null, actionLabel: null },
-    { key: 'slug_set', label: 'Get your public shop URL', action: "document.getElementById('provider-nav-profile')?.click()", actionLabel: 'Set Slug' },
-    { key: 'subscription_active', label: 'Activate your shop subscription', action: 'openShopUpgradeModal()', actionLabel: 'View Plans' },
-    { key: 'rate_set', label: 'Set your hourly rate', action: "document.getElementById('provider-nav-profile')?.click()", actionLabel: 'Set Rate' }
+    { key: 'profile_complete', label: 'Complete your business profile (name & phone)', action: "showSection('profile')", actionLabel: 'Go to Profile' },
+    { key: 'stripe_connected', label: 'Connect Stripe to receive payments', action: "showSection('payments')", actionLabel: 'Connect Stripe' },
+    { key: 'first_team_member', label: 'Add your first team member', action: "showSection('team')", actionLabel: 'Add Team Member' },
+    { key: 'first_service', label: 'Complete your first service job', action: "showSection('jobs')", actionLabel: 'View Jobs' },
+    { key: 'subscription_active', label: 'Activate your shop subscription', action: 'openShopUpgradeModal()', actionLabel: 'View Plans' }
   ];
 
   const completed = items.filter(i => steps[i.key]).length;
@@ -1586,3 +1608,142 @@ function renderShopOnboardingChecklist(steps) {
 
 console.log('providers-settings.js shop extensions loaded');
 // ========== END PROVIDER SHOP SAAS ==========
+
+// ========== POS KIOSK CUSTOMER LOOKUP WITH WALKIN HISTORY ==========
+async function posLookupCustomer() {
+  const phoneEl = document.getElementById('pos-phone');
+  const phone = phoneEl ? phoneEl.value.replace(/\D/g, '') : '';
+  if (!phone || phone.length < 7) {
+    if (typeof showToast === 'function') showToast('Please enter a valid phone number', 'error');
+    return;
+  }
+
+  const lookupBtn = document.getElementById('pos-lookup-btn');
+  if (lookupBtn) { lookupBtn.disabled = true; lookupBtn.textContent = 'Looking up…'; }
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const res = await fetch(`${apiBase}/api/shop/walkin-lookup?phone=${encodeURIComponent(phone)}`, {
+      headers: session ? { 'Authorization': `Bearer ${session.access_token}` } : {}
+    });
+    const data = await res.json();
+
+    // Move to step 2 - verify/info step
+    if (typeof posGoToStep === 'function') posGoToStep(2);
+
+    const existingSection = document.getElementById('pos-existing-customer-section');
+    const newSection = document.getElementById('pos-customer-info-section');
+    const otpSection = document.getElementById('pos-otp-section');
+
+    if (data.found && data.customer) {
+      // Returning customer — autofill from walkin history
+      if (existingSection) existingSection.style.display = 'block';
+      if (newSection) newSection.style.display = 'none';
+      if (otpSection) otpSection.style.display = 'none';
+
+      const nameEl = document.getElementById('pos-existing-name');
+      const emailEl = document.getElementById('pos-existing-email');
+      if (nameEl) nameEl.textContent = `Welcome back, ${data.customer.name || 'Valued Customer'}!`;
+      if (emailEl) emailEl.textContent = data.customer.vehicle ? `Last vehicle: ${data.customer.vehicle}` : (data.customer.email || '');
+
+      // Also seed name/vehicle fields in case we proceed to new service
+      const nameInput = document.getElementById('pos-customer-name');
+      const emailInput = document.getElementById('pos-customer-email');
+      if (nameInput && data.customer.name) nameInput.value = data.customer.name;
+      if (emailInput && data.customer.email) emailInput.value = data.customer.email;
+
+      // Pre-fill vehicle step if vehicle info is known
+      const vehicleInput = document.getElementById('pos-vehicle-info') || document.getElementById('pos-vehicle');
+      if (vehicleInput && data.customer.vehicle) vehicleInput.value = data.customer.vehicle;
+
+      if (typeof showToast === 'function') showToast(`Returning customer found! Visit #${data.customer.visit_count || 1}`, 'success');
+    } else {
+      // New customer — show new customer form
+      if (existingSection) existingSection.style.display = 'none';
+      if (newSection) newSection.style.display = 'block';
+      if (otpSection) otpSection.style.display = 'none';
+
+      const nameInput = document.getElementById('pos-customer-name');
+      const emailInput = document.getElementById('pos-customer-email');
+      if (nameInput) nameInput.value = '';
+      if (emailInput) emailInput.value = '';
+    }
+  } catch (err) {
+    console.error('[POS lookup] error:', err);
+    if (typeof showToast === 'function') showToast('Lookup failed, proceed manually', 'error');
+    // Still advance to step 2 even on error
+    if (typeof posGoToStep === 'function') posGoToStep(2);
+  } finally {
+    if (lookupBtn) { lookupBtn.disabled = false; lookupBtn.textContent = 'Look Up by Phone'; }
+  }
+}
+// ========== END POS KIOSK CUSTOMER LOOKUP ==========
+
+// ========== BUSINESS HOURS EDITOR ==========
+const BUSINESS_DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+const DAY_LABELS = { monday:'Monday', tuesday:'Tuesday', wednesday:'Wednesday', thursday:'Thursday', friday:'Friday', saturday:'Saturday', sunday:'Sunday' };
+
+async function loadBusinessHours() {
+  const editor = document.getElementById('business-hours-editor');
+  if (!editor) return;
+
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) return;
+
+  const { data: profile } = await supabaseClient
+    .from('profiles')
+    .select('business_hours')
+    .eq('id', session.user.id)
+    .single();
+
+  const savedHours = profile?.business_hours || {};
+
+  editor.innerHTML = BUSINESS_DAYS.map(day => {
+    const h = savedHours[day] || { open: '09:00', close: '17:00', closed: false };
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+      <div style="width:100px;font-size:0.88rem;font-weight:600;">${DAY_LABELS[day]}</div>
+      <input type="checkbox" id="hours-closed-${day}" ${h.closed ? 'checked' : ''} onchange="toggleDayClosed('${day}')" style="width:16px;height:16px;accent-color:var(--accent-gold);" title="Closed">
+      <label for="hours-closed-${day}" style="font-size:0.82rem;color:var(--text-muted);margin-right:8px;">Closed</label>
+      <div id="hours-time-${day}" style="display:flex;align-items:center;gap:8px;${h.closed ? 'opacity:0.3;pointer-events:none;' : ''}">
+        <input type="time" id="hours-open-${day}" value="${h.open || '09:00'}" class="form-input" style="padding:6px 8px;font-size:0.85rem;width:120px;">
+        <span style="color:var(--text-muted);font-size:0.85rem;">–</span>
+        <input type="time" id="hours-close-${day}" value="${h.close || '17:00'}" class="form-input" style="padding:6px 8px;font-size:0.85rem;width:120px;">
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleDayClosed(day) {
+  const closed = document.getElementById(`hours-closed-${day}`)?.checked;
+  const timeRow = document.getElementById(`hours-time-${day}`);
+  if (timeRow) {
+    timeRow.style.opacity = closed ? '0.3' : '1';
+    timeRow.style.pointerEvents = closed ? 'none' : 'auto';
+  }
+}
+
+async function saveBusinessHours() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) { showToast('Please sign in first', 'error'); return; }
+
+  const hours = {};
+  BUSINESS_DAYS.forEach(day => {
+    const closed = document.getElementById(`hours-closed-${day}`)?.checked || false;
+    const open = document.getElementById(`hours-open-${day}`)?.value || '09:00';
+    const close = document.getElementById(`hours-close-${day}`)?.value || '17:00';
+    hours[day] = { open, close, closed };
+  });
+
+  const { error } = await supabaseClient
+    .from('profiles')
+    .update({ business_hours: hours })
+    .eq('id', session.user.id);
+
+  if (error) {
+    showToast('Failed to save hours: ' + error.message, 'error');
+  } else {
+    showToast('Business hours saved!', 'success');
+  }
+}
+// ========== END BUSINESS HOURS EDITOR ==========
