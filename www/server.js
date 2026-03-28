@@ -42065,7 +42065,13 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         const { data: bid, error } = await supabase.from('plan_bids').insert({
           care_plan_id, provider_id: user.id, amount: parseFloat(amount), note: note || null, is_auto_bid: false
         }).select().single();
-        if (error) throw error;
+        if (error) {
+          // Map DB unique-constraint violation (race condition) to deterministic 409 conflict
+          if (error.code === '23505') {
+            res.writeHead(409); res.end(JSON.stringify({ error: 'Bid already placed. Use the edit action to change your bid.' })); return;
+          }
+          throw error;
+        }
         // Notify member via push/SMS (best-effort)
         const { data: member } = await supabase.from('profiles').select('phone, push_token, sms_notifications_enabled').eq('id', plan.member_id).single().catch(() => ({ data: null }));
         if (member) {
@@ -42202,9 +42208,8 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       if (!prov || !['provider', 'admin'].includes(prov.role)) {
         res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
       }
-      // Look at the most recent 10 care plans to show "X of the last 10 plans would match"
+      // Look at the truly last 10 posted plans (any status) so the preview count reflects historical posting frequency
       let query = supabase.from('care_plans').select('id, zip_code, service_types')
-        .eq('status', 'open').gt('bid_closes_at', new Date().toISOString())
         .order('created_at', { ascending: false }).limit(10);
       const { data: recentPlans } = await query;
       // Also fetch total matching (across all open plans) for a broader count

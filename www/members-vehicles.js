@@ -2009,7 +2009,7 @@ function renderVehiclePhotosGrid(photos) {
 // Takes vehicleId, a File object, and optional photoType string
 async function uploadVehiclePhotoFile(vehicleId, file, photoType) {
   if (!file) return false;
-  if (!['image/jpeg', 'image/png', 'image/jpg', 'image/webp'].includes(file.type)) { showToast('Please upload a JPEG or PNG photo', 'error'); return false; }
+  if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) { showToast('Please upload a JPEG or PNG photo', 'error'); return false; }
   if (file.size > 10 * 1024 * 1024) { showToast('Photo must be under 10MB', 'error'); return false; }
   try {
     const session = await supabaseClient.auth.getSession();
