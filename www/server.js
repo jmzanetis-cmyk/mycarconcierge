@@ -41749,6 +41749,167 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
 
   // ========== END OUTREACH SAAS ==========
 
+  // ========== MEMBER ONBOARDING & SURVEY (Task #94) ==========
+
+  // POST /api/member/survey — submit survey answers (works anonymous or authenticated)
+  if (req.method === 'POST' && req.url === '/api/member/survey') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { source, pain_point, has_trusted_mechanic, vehicle_count } = body;
+      if (!source && !pain_point) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing survey data' })); return; }
+
+      let userId = null;
+      try {
+        const u = await authenticateRequest(req);
+        if (u) userId = u.id;
+      } catch (_) {}
+
+      const ipRaw = getClientIP(req);
+      const ipHash = ipRaw ? crypto.createHash('sha256').update(ipRaw).digest('hex').slice(0, 16) : null;
+
+      if (supabase) {
+        // Idempotent: skip if same user already submitted
+        if (userId) {
+          const { data: existing } = await supabase.from('survey_responses').select('id').eq('user_id', userId).limit(1).maybeSingle();
+          if (existing) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, already_submitted: true }));
+            return;
+          }
+        }
+        await supabase.from('survey_responses').insert({
+          user_id: userId,
+          source,
+          pain_point,
+          has_trusted_mechanic,
+          vehicle_count,
+          raw: body,
+          ip_hash: ipHash
+        });
+        if (userId) {
+          await supabase.from('member_onboarding').upsert(
+            { user_id: userId, survey_completed: true, checklist: { survey: true }, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id', ignoreDuplicates: false }
+          );
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      console.error('[Survey] POST error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save survey' }));
+    }
+    return;
+  }
+
+  // GET /api/member/onboarding — fetch checklist + survey status
+  if (req.method === 'GET' && req.url === '/api/member/onboarding') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      let row = null;
+      if (supabase) {
+        const { data } = await supabase.from('member_onboarding').select('*').eq('user_id', user.id).maybeSingle();
+        row = data;
+      }
+      const checklist = row?.checklist || {};
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        survey_completed: row?.survey_completed || false,
+        welcome_shown: row?.welcome_shown || false,
+        checklist: {
+          account_created: true,
+          survey: checklist.survey || false,
+          vehicle_added: checklist.vehicle_added || false,
+          request_posted: checklist.request_posted || false,
+          notifications_enabled: checklist.notifications_enabled || false
+        }
+      }));
+    } catch (err) {
+      console.error('[Onboarding] GET error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load onboarding status' }));
+    }
+    return;
+  }
+
+  // POST /api/member/onboarding/step — mark a step or field complete
+  if (req.method === 'POST' && req.url === '/api/member/onboarding/step') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { step, value } = body; // step = 'vehicle_added' | 'request_posted' | 'notifications_enabled' | 'welcome_shown' | 'survey'
+      if (!step) { res.writeHead(400); res.end(JSON.stringify({ error: 'step required' })); return; }
+
+      if (supabase) {
+        const { data: existing } = await supabase.from('member_onboarding').select('checklist, welcome_shown').eq('user_id', user.id).maybeSingle();
+        const currentChecklist = existing?.checklist || {};
+        const topLevelFields = { welcome_shown: true };
+
+        if (topLevelFields[step]) {
+          await supabase.from('member_onboarding').upsert(
+            { user_id: user.id, [step]: value !== false, checklist: currentChecklist, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' }
+          );
+        } else {
+          const updatedChecklist = { ...currentChecklist, [step]: value !== false };
+          await supabase.from('member_onboarding').upsert(
+            { user_id: user.id, checklist: updatedChecklist, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' }
+          );
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      console.error('[Onboarding] POST step error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update onboarding step' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/survey-analytics — aggregate survey response counts (admin only)
+  if (req.method === 'GET' && req.url === '/api/admin/survey-analytics') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+      if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Admin access required' })); return;
+      }
+      const { data: rows } = await supabase.from('survey_responses').select('source, pain_point, has_trusted_mechanic, vehicle_count, created_at').order('created_at', { ascending: false }).limit(1000);
+      const total = (rows || []).length;
+      const bySource = {}, byPainPoint = {}, byMechanic = {}, byVehicleCount = {};
+      for (const r of (rows || [])) {
+        if (r.source) bySource[r.source] = (bySource[r.source] || 0) + 1;
+        if (r.pain_point) byPainPoint[r.pain_point] = (byPainPoint[r.pain_point] || 0) + 1;
+        if (r.has_trusted_mechanic) byMechanic[r.has_trusted_mechanic] = (byMechanic[r.has_trusted_mechanic] || 0) + 1;
+        if (r.vehicle_count) byVehicleCount[r.vehicle_count] = (byVehicleCount[r.vehicle_count] || 0) + 1;
+      }
+      const recentWeek = (rows || []).filter(r => new Date(r.created_at) > new Date(Date.now() - 7 * 86400000)).length;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ total, recent_week: recentWeek, by_source: bySource, by_pain_point: byPainPoint, by_mechanic: byMechanic, by_vehicle_count: byVehicleCount }));
+    } catch (err) {
+      console.error('[SurveyAnalytics] GET error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load analytics' }));
+    }
+    return;
+  }
+
+  // ========== END MEMBER ONBOARDING ==========
+
   // Apple Pay domain verification file
   if (req.method === 'GET' && req.url === '/.well-known/apple-developer-merchantid-domain-association') {
     const verificationFile = './.well-known/apple-developer-merchantid-domain-association';
@@ -41784,7 +41945,9 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     // Provider Shop SaaS clean URLs
     '/for-shops': '/for-shops.html',
     // Developer Portal clean URLs
-    '/developers': '/developers.html'
+    '/developers': '/developers.html',
+    // Survey clean URL
+    '/survey': '/survey.html'
   };
   
   // GET /developers/docs — Swagger UI for AI API

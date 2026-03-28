@@ -1190,27 +1190,35 @@
         </div>
         <p style="color: var(--text-secondary); margin-bottom: 20px;">Complete these steps to get the most out of My Car Concierge</p>
         <div class="onboarding-steps">
-          <div class="onboarding-step" id="step-add-vehicle" onclick="openVehicleModal()">
-            <span class="step-check">1</span>
+          <div class="onboarding-step completed" id="step-account-created">
+            <span class="step-check" style="background:var(--accent-green);color:#fff;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
             <div class="step-content">
-              <span class="step-name">Add your first vehicle</span>
-              <span class="step-desc">Register a vehicle to start requesting services</span>
+              <span class="step-name">Create your account</span>
+              <span class="step-desc">Done — welcome aboard!</span>
+            </div>
+            <span class="step-arrow" style="color:var(--accent-green);">✓</span>
+          </div>
+          <div class="onboarding-step" id="step-take-survey" onclick="window.open('/survey','_blank')">
+            <span class="step-check" id="check-survey">2</span>
+            <div class="step-content">
+              <span class="step-name">Take our 1-minute survey</span>
+              <span class="step-desc">Help us improve — takes under 60 seconds</span>
             </div>
             <span class="step-arrow">→</span>
           </div>
-          <div class="onboarding-step" id="step-verify-vehicle" onclick="showSection('vehicles')">
-            <span class="step-check">2</span>
+          <div class="onboarding-step" id="step-add-vehicle" onclick="openVehicleModal()">
+            <span class="step-check" id="check-vehicle">3</span>
             <div class="step-content">
-              <span class="step-name">Verify ownership</span>
-              <span class="step-desc">Upload registration for priority service</span>
+              <span class="step-name">Add your first vehicle</span>
+              <span class="step-desc">Register a ride to start requesting services</span>
             </div>
             <span class="step-arrow">→</span>
           </div>
           <div class="onboarding-step" id="step-create-request" onclick="openPackageModal()">
-            <span class="step-check">3</span>
+            <span class="step-check" id="check-request">4</span>
             <div class="step-content">
-              <span class="step-name">Create a service request</span>
-              <span class="step-desc">Post your needs and receive competitive bids</span>
+              <span class="step-name">Post a service request</span>
+              <span class="step-desc">Get competitive bids from vetted providers</span>
             </div>
             <span class="step-arrow">→</span>
           </div>
@@ -1219,7 +1227,7 @@
           <div class="progress-bar">
             <div class="progress-fill" id="onboarding-progress-fill" style="width: 0%;"></div>
           </div>
-          <span class="progress-text" id="onboarding-progress-text">0 of 3 complete</span>
+          <span class="progress-text" id="onboarding-progress-text">1 of 4 complete</span>
         </div>
       </div>
 
@@ -7747,87 +7755,152 @@
       }
     }
     
-    // Onboarding checklist functions
-    function checkOnboardingStatus() {
-      const dismissed = localStorage.getItem('mcc_onboarding_dismissed');
-      if (dismissed) return;
-      
-      const vehicleCount = parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
-      const packageCount = parseInt(document.getElementById('stat-packages')?.textContent || '0');
-      
-      // Show onboarding if user has less than 1 vehicle or 1 package
-      if (vehicleCount < 1 || packageCount < 1) {
-        const checklist = document.getElementById('onboarding-checklist');
-        if (checklist) checklist.style.display = 'block';
-        updateOnboardingProgress();
-      }
+    // ===== ONBOARDING CHECKLIST & WELCOME MODAL =====
+    const CHECK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+    const TOTAL_STEPS = 4;
+
+    function markStepDone(el, checkId) {
+      if (!el) return;
+      el.classList.add('completed');
+      const check = document.getElementById(checkId);
+      if (check) { check.style.background = 'var(--accent-green)'; check.style.color = '#fff'; check.innerHTML = CHECK_SVG; }
+      const arrow = el.querySelector('.step-arrow');
+      if (arrow) { arrow.style.color = 'var(--accent-green)'; arrow.textContent = '✓'; }
     }
-    
-    function updateOnboardingProgress() {
+
+    function updateOnboardingUI(data) {
+      const { checklist, survey_completed, welcome_shown } = data;
       const vehicleCount = parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
       const packageCount = parseInt(document.getElementById('stat-packages')?.textContent || '0');
-      
-      let completed = 0;
-      
-      // Step 1: Add vehicle
-      const step1 = document.getElementById('step-add-vehicle');
-      if (vehicleCount > 0 && step1) {
-        step1.classList.add('completed');
-        step1.querySelector('.step-check').innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+
+      let completed = 1; // account_created always done
+
+      if (survey_completed || checklist.survey) {
+        markStepDone(document.getElementById('step-take-survey'), 'check-survey');
         completed++;
       }
-      
-      // Step 2: Verify vehicle (check if any vehicle is verified - simplified check)
-      // For now, mark as pending - would need API call to check verification status
-      
-      // Step 3: Create request
-      const step3 = document.getElementById('step-create-request');
-      if (packageCount > 0 && step3) {
-        step3.classList.add('completed');
-        step3.querySelector('.step-check').innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+      if (vehicleCount > 0 || checklist.vehicle_added) {
+        markStepDone(document.getElementById('step-add-vehicle'), 'check-vehicle');
         completed++;
       }
-      
-      // Update progress bar
+      if (packageCount > 0 || checklist.request_posted) {
+        markStepDone(document.getElementById('step-create-request'), 'check-request');
+        completed++;
+      }
+
       const progressFill = document.getElementById('onboarding-progress-fill');
       const progressText = document.getElementById('onboarding-progress-text');
-      if (progressFill) progressFill.style.width = `${(completed / 3) * 100}%`;
-      if (progressText) progressText.textContent = `${completed} of 3 complete`;
-      
-      // Auto-hide if all complete
-      if (completed >= 2) {
-        setTimeout(() => {
-          const checklist = document.getElementById('onboarding-checklist');
-          if (checklist) checklist.style.display = 'none';
-        }, 2000);
+      if (progressFill) progressFill.style.width = `${(completed / TOTAL_STEPS) * 100}%`;
+      if (progressText) progressText.textContent = `${completed} of ${TOTAL_STEPS} complete`;
+
+      const checklist2 = document.getElementById('onboarding-checklist');
+      if (completed >= TOTAL_STEPS) {
+        if (checklist2) setTimeout(() => { checklist2.style.display = 'none'; }, 1200);
+      } else if (completed < TOTAL_STEPS) {
+        if (checklist2) checklist2.style.display = 'block';
+      }
+
+      // Show welcome modal once
+      if (!welcome_shown && !localStorage.getItem('mcc_welcome_shown')) {
+        showWelcomeModal(data);
       }
     }
-    
+
+    async function checkOnboardingStatus() {
+      const dismissed = localStorage.getItem('mcc_onboarding_dismissed');
+      try {
+        const res = await fetch('/api/member/onboarding', { credentials: 'include' });
+        if (!res.ok) throw new Error('not ok');
+        const data = await res.json();
+        if (!dismissed) updateOnboardingUI(data);
+      } catch (_) {
+        // Fallback to local-only check
+        if (dismissed) return;
+        const vehicleCount = parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
+        const packageCount = parseInt(document.getElementById('stat-packages')?.textContent || '0');
+        if (vehicleCount < 1 || packageCount < 1) {
+          const c = document.getElementById('onboarding-checklist');
+          if (c) c.style.display = 'block';
+        }
+      }
+    }
+
     function dismissOnboarding() {
       localStorage.setItem('mcc_onboarding_dismissed', 'true');
       const checklist = document.getElementById('onboarding-checklist');
       if (checklist) checklist.style.display = 'none';
     }
-    
-    // Check onboarding after stats are loaded
+
+    // Welcome modal
+    const PAIN_MESSAGES = {
+      cost: { headline: 'Fair pricing starts here.', body: 'Post once and get competing bids from vetted local providers. You\'ll always know you\'re getting a fair deal.' },
+      trust: { headline: 'Every provider is vetted.', body: 'Read real reviews, check credentials, and only work with providers you\'ve approved. No surprises.' },
+      scheduling: { headline: 'One post. Multiple bids. Zero phone tag.', body: 'Post your service need once — providers come to you. Book, pay, and track everything in one place.' },
+      tracking: { headline: 'Your full service history lives here.', body: 'Every job, every part, every provider. Organized by vehicle and always at your fingertips.' },
+      other: { headline: 'Welcome to simpler auto care.', body: 'My Car Concierge brings every part of owning a vehicle into one place. Explore and let us know how we can help.' }
+    };
+
+    function showWelcomeModal(data) {
+      const modal = document.getElementById('welcome-modal');
+      if (!modal) return;
+      const pain = data.survey?.pain_point || data.checklist?.pain_point;
+      const msg = PAIN_MESSAGES[pain] || { headline: 'Welcome to My Car Concierge.', body: 'You\'re all set. Add your vehicle and post your first service request to get competing bids from local providers.' };
+      const headlineEl = document.getElementById('welcome-headline');
+      const bodyEl = document.getElementById('welcome-body');
+      if (headlineEl) headlineEl.textContent = msg.headline;
+      if (bodyEl) bodyEl.textContent = msg.body;
+      modal.classList.add('active');
+    }
+
+    function closeWelcomeModal() {
+      const modal = document.getElementById('welcome-modal');
+      if (modal) modal.classList.remove('active');
+      localStorage.setItem('mcc_welcome_shown', 'true');
+      try {
+        fetch('/api/member/onboarding/step', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ step: 'welcome_shown', value: true })
+        });
+      } catch (_) {}
+    }
+
+    // Re-check checklist when stats update
     const statsObserver = new MutationObserver(() => {
-      checkOnboardingStatus();
+      const dismissed = localStorage.getItem('mcc_onboarding_dismissed');
+      if (!dismissed) checkOnboardingStatus();
     });
     const vehicleStat = document.getElementById('stat-vehicles');
     if (vehicleStat) {
       statsObserver.observe(vehicleStat, { childList: true, characterData: true, subtree: true });
     }
-    
+
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
-      
+
       helpdeskInstance = new HelpdeskWidget({ mode: 'driver', position: 'bottom-right' });
-      
-      // Initial onboarding check after a short delay for stats to load
+
+      // Initial onboarding check after stats load
       setTimeout(checkOnboardingStatus, 1500);
     });
   </script>
+
+  <!-- Welcome Modal (shown once on first login) -->
+  <div class="modal-backdrop" id="welcome-modal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-body" style="padding:40px 36px;text-align:center;">
+        <div style="width:64px;height:64px;background:linear-gradient(135deg,rgba(201,162,39,0.2),rgba(201,162,39,0.06));border:1px solid rgba(201,162,39,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:28px;">🚗</div>
+        <h2 style="font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:500;margin-bottom:12px;" id="welcome-headline">Welcome to My Car Concierge.</h2>
+        <p style="color:var(--text-secondary);font-size:0.95rem;line-height:1.7;margin-bottom:28px;" id="welcome-body">You're all set. Add your vehicle and post your first service request to get competing bids from local providers.</p>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <button class="btn btn-gold" style="width:100%;justify-content:center;padding:14px;" onclick="closeWelcomeModal();openVehicleModal();">Add My Vehicle</button>
+          <button class="btn btn-secondary" style="width:100%;justify-content:center;" onclick="closeWelcomeModal()">Explore the Dashboard</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- SaaS Pricing Modal -->
   <div class="modal-backdrop" id="saas-pricing-modal">

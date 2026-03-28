@@ -143,7 +143,9 @@
       'sms-log': async () => { await loadSmsLog(1); },
       'saas-subscriptions': async () => { await loadSaasSubscriptions(); },
       'white-label': async () => { await loadWhiteLabelTenants(); },
-      'api-usage': async () => { await loadApiUsage(); }
+      'api-usage': async () => { await loadApiUsage(); },
+      'survey-analytics': async () => { await loadSurveyAnalytics(); },
+      'car-clubs': async () => { if (typeof loadCarClubs === 'function') await loadCarClubs(); }
     };
 
     function showSectionLoading(sectionId) {
@@ -11226,3 +11228,53 @@
     }
     window.adminRevokeApiKey = adminRevokeApiKey;
     // ========== END AI API USAGE DASHBOARD ==========
+
+    // ========== SURVEY ANALYTICS ==========
+    async function loadSurveyAnalytics() {
+      try {
+        const res = await adminFetch('/api/admin/survey-analytics');
+        if (!res.ok) throw new Error('not ok');
+        const data = await res.json();
+
+        const el = id => document.getElementById(id);
+        if (el('survey-total')) el('survey-total').textContent = data.total || 0;
+        if (el('survey-week')) el('survey-week').textContent = data.recent_week || 0;
+
+        function renderBars(containerId, obj, labelMap) {
+          const container = el(containerId);
+          if (!container) return;
+          const total = Object.values(obj).reduce((a, b) => a + b, 0) || 1;
+          const sorted = Object.entries(obj).sort((a, b) => b[1] - a[1]);
+          container.innerHTML = sorted.length ? sorted.map(([key, count]) => {
+            const pct = Math.round((count / total) * 100);
+            const label = labelMap?.[key] || key;
+            return `<div style="margin-bottom:12px;">
+              <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:4px;">
+                <span style="color:var(--text-primary);">${label}</span>
+                <span style="color:var(--text-muted);">${count} (${pct}%)</span>
+              </div>
+              <div style="background:var(--bg-input);border-radius:4px;height:8px;overflow:hidden;">
+                <div style="background:var(--accent-gold);height:100%;width:${pct}%;border-radius:4px;transition:width 0.6s ease;"></div>
+              </div>
+            </div>`;
+          }).join('') : '<p style="color:var(--text-muted);font-size:0.85rem;">No data yet.</p>';
+        }
+
+        renderBars('survey-source-bars', data.by_source || {}, {
+          social_media: 'Social Media', google: 'Google Search', friend_referral: 'Friend / Referral',
+          podcast_ad: 'Podcast / Ad', other: 'Other'
+        });
+        renderBars('survey-pain-bars', data.by_pain_point || {}, {
+          cost: 'Unpredictable Costs', trust: 'Finding Trustworthy Providers',
+          scheduling: 'Booking & Scheduling', tracking: 'Tracking Service History', other: 'Other'
+        });
+        renderBars('survey-mechanic-bars', data.by_mechanic || {}, {
+          yes: 'Yes — I have someone I trust', no: 'No — always searching', sometimes: 'Sometimes'
+        });
+        renderBars('survey-vehicle-bars', data.by_vehicle_count || {});
+      } catch (err) {
+        console.error('[SurveyAnalytics] Load error:', err.message);
+      }
+    }
+    window.loadSurveyAnalytics = loadSurveyAnalytics;
+    // ========== END SURVEY ANALYTICS ==========

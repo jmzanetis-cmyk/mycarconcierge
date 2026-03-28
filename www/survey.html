@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Quick Survey — My Car Concierge</title>
+  <meta name="description" content="Help us build a better auto ownership platform. 4 quick questions — takes under a minute.">
+  <meta name="theme-color" content="#12161c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --gold: #c9a227;
+      --gold-soft: rgba(201, 162, 39, 0.15);
+      --teal: #22d3ee;
+      --teal-soft: rgba(34, 211, 238, 0.1);
+      --bg: #12161c;
+      --bg-card: #1a202a;
+      --bg-elevated: #242c38;
+      --text: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --border: rgba(160, 168, 184, 0.15);
+      --green: #34d399;
+      --green-soft: rgba(52, 211, 153, 0.12);
+      --radius: 16px;
+    }
+
+    body {
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Ambient gradient background */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -40%;
+      left: -20%;
+      width: 80%;
+      height: 80%;
+      background: radial-gradient(ellipse, rgba(201, 162, 39, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -30%;
+      right: -10%;
+      width: 60%;
+      height: 60%;
+      background: radial-gradient(ellipse, rgba(34, 211, 238, 0.05) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .survey-wrap {
+      width: 100%;
+      max-width: 560px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Brand header */
+    .brand-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .brand-logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      margin-bottom: 8px;
+    }
+    .brand-logo img {
+      height: 40px;
+      border-radius: 8px;
+    }
+    .brand-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      color: var(--text);
+    }
+    .brand-tagline {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    /* Progress */
+    .progress-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .progress-track {
+      flex: 1;
+      height: 4px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold), #e6b84a);
+      border-radius: 4px;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      width: 0%;
+    }
+    .progress-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    /* Survey card */
+    .survey-card {
+      background: linear-gradient(145deg, #1a202a, #141a24);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 36px 40px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03);
+      position: relative;
+      overflow: hidden;
+    }
+    .survey-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--gold), var(--teal), transparent);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    /* Step */
+    .step { display: none; }
+    .step.active { display: block; }
+
+    .step-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      font-size: 28px;
+    }
+    .step-icon.gold { background: var(--gold-soft); border: 1px solid rgba(201,162,39,0.25); }
+    .step-icon.teal { background: var(--teal-soft); border: 1px solid rgba(34,211,238,0.2); }
+    .step-icon.green { background: var(--green-soft); border: 1px solid rgba(52,211,153,0.2); }
+
+    .step-q {
+      font-size: 1.4rem;
+      font-weight: 600;
+      line-height: 1.3;
+      margin-bottom: 8px;
+    }
+    .step-sub {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-bottom: 28px;
+    }
+
+    /* Options grid */
+    .options { display: flex; flex-direction: column; gap: 10px; }
+    .option {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      background: var(--bg-elevated);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-size: 0.95rem;
+      color: var(--text);
+      user-select: none;
+    }
+    .option:hover { border-color: var(--gold); background: rgba(201,162,39,0.06); }
+    .option.selected {
+      border-color: var(--gold);
+      background: var(--gold-soft);
+      color: var(--text);
+    }
+    .option.selected .option-dot {
+      background: var(--gold);
+      border-color: var(--gold);
+    }
+    .option.selected .option-dot::after { opacity: 1; }
+
+    .option-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      position: relative;
+      transition: all 0.15s;
+    }
+    .option-dot::after {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      background: #12161c;
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .option-emoji { font-size: 1.2rem; flex-shrink: 0; }
+
+    /* CTA button */
+    .btn-continue {
+      width: 100%;
+      margin-top: 24px;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, var(--gold), #e6b84a);
+      color: #12161c;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+      box-shadow: 0 4px 16px rgba(201,162,39,0.3);
+    }
+    .btn-continue:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(201,162,39,0.4); }
+    .btn-continue:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-continue svg { width: 18px; height: 18px; }
+
+    .btn-back {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 4px 0;
+      margin-bottom: 20px;
+      transition: color 0.15s;
+    }
+    .btn-back:hover { color: var(--text-secondary); }
+    .btn-back svg { width: 14px; height: 14px; }
+
+    /* Success screen */
+    .success-screen { text-align: center; padding: 12px 0; }
+    .success-icon {
+      width: 72px;
+      height: 72px;
+      background: var(--green-soft);
+      border: 2px solid rgba(52,211,153,0.3);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      font-size: 32px;
+    }
+    .success-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      margin-bottom: 12px;
+    }
+    .success-sub {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+    .success-actions { display: flex; flex-direction: column; gap: 12px; }
+    .btn-primary-link {
+      display: block;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, var(--gold), #e6b84a);
+      color: #12161c;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 12px;
+      text-decoration: none;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .btn-primary-link:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.3); }
+    .btn-secondary-link {
+      display: block;
+      padding: 12px 24px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.9rem;
+      border-radius: 12px;
+      text-decoration: none;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .btn-secondary-link:hover { border-color: var(--teal); color: var(--teal); }
+
+    /* Error */
+    .field-error {
+      font-size: 0.82rem;
+      color: #f87171;
+      margin-top: 10px;
+      display: none;
+    }
+
+    /* Footer note */
+    .survey-footer {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 20px;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(18,22,28,0.3);
+      border-top-color: #12161c;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 520px) {
+      .survey-card { padding: 28px 20px; }
+      .step-q { font-size: 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="survey-wrap">
+    <div class="brand-header">
+      <a href="/" class="brand-logo">
+        <img src="/icons/icon-192.png" alt="My Car Concierge">
+        <span class="brand-name">My Car Concierge</span>
+      </a>
+      <div class="brand-tagline">One app. Every auto need. Zero hassle.</div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="progress-label" id="progress-label">1 of 4</div>
+    </div>
+
+    <div class="survey-card">
+
+      <!-- Step 1: Source -->
+      <div class="step active" id="step-1">
+        <div class="step-icon gold">🔍</div>
+        <div class="step-q">How did you hear about us?</div>
+        <div class="step-sub">Takes less than a minute — and helps us serve you better.</div>
+        <div class="options" id="opts-1">
+          <div class="option" data-val="google" onclick="selectOption(1, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">🔎</span>
+            <span>Google / online search</span>
+          </div>
+          <div class="option" data-val="friend" onclick="selectOption(1, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">🤝</span>
+            <span>Friend or family referral</span>
+          </div>
+          <div class="option" data-val="social" onclick="selectOption(1, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">📱</span>
+            <span>Social media</span>
+          </div>
+          <div class="option" data-val="ad" onclick="selectOption(1, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">📣</span>
+            <span>I saw an ad</span>
+          </div>
+          <div class="option" data-val="event" onclick="selectOption(1, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">🎪</span>
+            <span>Event or local promotion</span>
+          </div>
+          <div class="option" data-val="other" onclick="selectOption(1, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">💬</span>
+            <span>Other</span>
+          </div>
+        </div>
+        <div class="field-error" id="err-1">Please pick an option to continue.</div>
+        <button class="btn-continue" onclick="nextStep(1)">
+          Continue
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+
+      <!-- Step 2: Pain point -->
+      <div class="step" id="step-2">
+        <button class="btn-back" onclick="prevStep(2)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back
+        </button>
+        <div class="step-icon teal">🚗</div>
+        <div class="step-q">What's your biggest car care frustration?</div>
+        <div class="step-sub">Pick the one that bothers you most.</div>
+        <div class="options" id="opts-2">
+          <div class="option" data-val="cost" onclick="selectOption(2, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">💸</span>
+            <span>Costs too much — I never know if I'm overpaying</span>
+          </div>
+          <div class="option" data-val="trust" onclick="selectOption(2, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">🔍</span>
+            <span>Finding a shop I actually trust</span>
+          </div>
+          <div class="option" data-val="scheduling" onclick="selectOption(2, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">📅</span>
+            <span>Scheduling is a hassle — too much back-and-forth</span>
+          </div>
+          <div class="option" data-val="tracking" onclick="selectOption(2, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">📋</span>
+            <span>I can't keep track of what's been done to my car</span>
+          </div>
+          <div class="option" data-val="other" onclick="selectOption(2, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">🤔</span>
+            <span>Something else</span>
+          </div>
+        </div>
+        <div class="field-error" id="err-2">Please pick an option to continue.</div>
+        <button class="btn-continue" onclick="nextStep(2)">
+          Continue
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+
+      <!-- Step 3: Trusted mechanic -->
+      <div class="step" id="step-3">
+        <button class="btn-back" onclick="prevStep(3)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back
+        </button>
+        <div class="step-icon gold">🔧</div>
+        <div class="step-q">Do you already have a trusted mechanic?</div>
+        <div class="step-sub">No judgment either way — helps us understand where you're starting from.</div>
+        <div class="options" id="opts-3">
+          <div class="option" data-val="yes" onclick="selectOption(3, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">✅</span>
+            <span>Yes — I have someone I always go back to</span>
+          </div>
+          <div class="option" data-val="sometimes" onclick="selectOption(3, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">🤷</span>
+            <span>Sometimes — depends on the job</span>
+          </div>
+          <div class="option" data-val="no" onclick="selectOption(3, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">🔍</span>
+            <span>No — I'm always hunting for someone good</span>
+          </div>
+          <div class="option" data-val="new" onclick="selectOption(3, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">🏠</span>
+            <span>I just moved / got a new car — starting fresh</span>
+          </div>
+        </div>
+        <div class="field-error" id="err-3">Please pick an option to continue.</div>
+        <button class="btn-continue" onclick="nextStep(3)">
+          Continue
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+
+      <!-- Step 4: Vehicle count -->
+      <div class="step" id="step-4">
+        <button class="btn-back" onclick="prevStep(4)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back
+        </button>
+        <div class="step-icon teal">🚙</div>
+        <div class="step-q">How many vehicles do you own or manage?</div>
+        <div class="step-sub">Last one — we promise.</div>
+        <div class="options" id="opts-4">
+          <div class="option" data-val="1" onclick="selectOption(4, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">1️⃣</span>
+            <span>Just one</span>
+          </div>
+          <div class="option" data-val="2" onclick="selectOption(4, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">2️⃣</span>
+            <span>Two</span>
+          </div>
+          <div class="option" data-val="3" onclick="selectOption(4, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">🔢</span>
+            <span>Three or more</span>
+          </div>
+          <div class="option" data-val="fleet" onclick="selectOption(4, this)">
+            <span class="option-dot"></span>
+            <span class="option-emoji">🚐</span>
+            <span>A fleet (business use)</span>
+          </div>
+        </div>
+        <div class="field-error" id="err-4">Please pick an option to continue.</div>
+        <button class="btn-continue" id="btn-submit" onclick="submitSurvey()">
+          Submit
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+
+      <!-- Success screen -->
+      <div class="step" id="step-success">
+        <div class="success-screen">
+          <div class="success-icon">🎉</div>
+          <div class="success-title">Thank you!</div>
+          <div class="success-sub" id="success-sub">
+            Your responses help us build a better experience for drivers just like you. We're grateful you took the time.
+          </div>
+          <div class="success-actions">
+            <a href="/onboarding-member.html" class="btn-primary-link">Create a Free Account →</a>
+            <a href="/" class="btn-secondary-link">Visit mycarconcierge.com</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="survey-footer">
+      Your responses are anonymous unless you create an account. &nbsp;·&nbsp;
+      <a href="/privacy.html" style="color: var(--text-muted);">Privacy Policy</a>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="/supabaseclient.js"></script>
+  <script>
+    const answers = { source: null, pain_point: null, has_trusted_mechanic: null, vehicle_count: null };
+    let currentStep = 1;
+    const totalSteps = 4;
+
+    function updateProgress() {
+      const pct = ((currentStep - 1) / totalSteps) * 100;
+      document.getElementById('progress-fill').style.width = pct + '%';
+      document.getElementById('progress-label').textContent = currentStep + ' of ' + totalSteps;
+    }
+
+    function selectOption(step, el) {
+      const container = document.getElementById('opts-' + step);
+      container.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      const err = document.getElementById('err-' + step);
+      if (err) err.style.display = 'none';
+
+      const key = step === 1 ? 'source' : step === 2 ? 'pain_point' : step === 3 ? 'has_trusted_mechanic' : 'vehicle_count';
+      answers[key] = el.dataset.val;
+    }
+
+    function nextStep(from) {
+      const key = from === 1 ? 'source' : from === 2 ? 'pain_point' : from === 3 ? 'has_trusted_mechanic' : 'vehicle_count';
+      if (!answers[key]) {
+        const err = document.getElementById('err-' + from);
+        if (err) err.style.display = 'block';
+        return;
+      }
+      document.getElementById('step-' + from).classList.remove('active');
+      currentStep = from + 1;
+      document.getElementById('step-' + currentStep).classList.add('active');
+      updateProgress();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function prevStep(from) {
+      document.getElementById('step-' + from).classList.remove('active');
+      currentStep = from - 1;
+      document.getElementById('step-' + currentStep).classList.add('active');
+      updateProgress();
+    }
+
+    async function submitSurvey() {
+      if (!answers.vehicle_count) {
+        document.getElementById('err-4').style.display = 'block';
+        return;
+      }
+      const btn = document.getElementById('btn-submit');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner"></div>';
+
+      try {
+        let sessionUserId = null;
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (session?.user) sessionUserId = session.user.id;
+        } catch (_) {}
+
+        const payload = {
+          source: answers.source,
+          pain_point: answers.pain_point,
+          has_trusted_mechanic: answers.has_trusted_mechanic,
+          vehicle_count: answers.vehicle_count
+        };
+
+        const res = await fetch('/api/member/survey', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(sessionUserId ? {} : {})
+          },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        const painMessages = {
+          cost: 'We built competitive bidding specifically for this — you\'ll get multiple quotes so you always know you\'re getting a fair deal.',
+          trust: 'Every provider on MCC is vetted. You can check reviews, ratings, and credentials before you ever book.',
+          scheduling: 'Post once, receive bids — no phone tag. Book everything in one place.',
+          tracking: 'Your full service history lives in the app, organized by vehicle. Everything in one place, forever.',
+          other: 'Whatever challenge you\'re facing, we\'re here to make auto ownership easier.'
+        };
+
+        const successSub = document.getElementById('success-sub');
+        if (answers.pain_point && painMessages[answers.pain_point]) {
+          successSub.textContent = painMessages[answers.pain_point] + ' Create your free account to get started.';
+        }
+
+        document.getElementById('step-4').classList.remove('active');
+        document.getElementById('step-success').classList.add('active');
+        document.getElementById('progress-fill').style.width = '100%';
+        document.getElementById('progress-label').textContent = 'Done!';
+
+        // If logged in, redirect to dashboard after 3s
+        if (sessionUserId) {
+          setTimeout(() => { window.location.href = '/members.html'; }, 3000);
+        }
+      } catch (err) {
+        console.error('Survey submit error:', err);
+        btn.disabled = false;
+        btn.innerHTML = 'Submit <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+        alert('Something went wrong. Please try again.');
+      }
+    }
+
+    updateProgress();
+  </script>
+</body>
+</html>
