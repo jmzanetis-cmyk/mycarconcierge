@@ -41935,7 +41935,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     const user = await authenticateRequest(req);
     if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
     try {
-      const { data: prov } = await supabase.from('profiles').select('role, verification_status, zip_code').eq('id', user.id).single();
+      const { data: prov } = await supabase.from('profiles').select('role, verification_status, zip_code, auto_bid_enabled').eq('id', user.id).single();
       if (!prov || !['provider','admin'].includes(prov.role)) {
         res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
       }
@@ -41958,7 +41958,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
 
       // Fetch my-bids plan IDs up front
       let myBidMap = {};
-      const { data: myBidRows } = await supabase.from('plan_bids').select('care_plan_id, id, amount, status, note').eq('provider_id', user.id);
+      const { data: myBidRows } = await supabase.from('plan_bids').select('care_plan_id, id, amount, status, note, is_auto_bid').eq('provider_id', user.id);
       (myBidRows || []).forEach(b => { myBidMap[b.care_plan_id] = b; });
       const myBidPlanIds = Object.keys(myBidMap);
 
@@ -41969,7 +41969,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       // Tab semantics
       if (tab === 'my-bids') {
         if (!myBidPlanIds.length) {
-          res.writeHead(200); res.end(JSON.stringify({ plans: [], total: 0, page, pageSize, provider_verified: isVerified })); return;
+          res.writeHead(200); res.end(JSON.stringify({ plans: [], total: 0, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled) })); return;
         }
         query = query.in('id', myBidPlanIds);
       } else {
@@ -42010,7 +42010,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         const total = result.length;
         const paged = result.slice(from, from + pageSize).map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ plans: paged, total, page, pageSize, provider_verified: isVerified }));
+        res.end(JSON.stringify({ plans: paged, total, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled) }));
       } else {
         const { data: plans, count, error } = await query.range(from, from + pageSize - 1);
         if (error) throw error;
@@ -42020,7 +42020,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         if (sort === 'nearest') result.sort((a, b) => a.estimated_distance_miles - b.estimated_distance_miles);
         result = result.map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ plans: result, total: count || result.length, page, pageSize, provider_verified: isVerified }));
+        res.end(JSON.stringify({ plans: result, total: count || result.length, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled) }));
       }
     } catch (err) {
       console.error('[JobBoard] GET error:', err.message);
@@ -42287,6 +42287,9 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       try {
         const { storage_path, url, is_primary } = JSON.parse(body || '{}');
         if (!storage_path) { res.writeHead(400); res.end(JSON.stringify({ error: 'storage_path required' })); return; }
+        // Ownership check: vehicle must belong to the authenticated member
+        const { data: ownedVehicle } = await supabase.from('vehicles').select('id').eq('id', vehicleId).eq('owner_id', user.id).maybeSingle();
+        if (!ownedVehicle) { res.writeHead(403); res.end(JSON.stringify({ error: 'Vehicle not found or access denied' })); return; }
         const { data: existing } = await supabase.from('vehicle_photos').select('id').eq('vehicle_id', vehicleId).eq('member_id', user.id);
         if ((existing || []).length >= 6) { res.writeHead(409); res.end(JSON.stringify({ error: 'Maximum 6 photos per vehicle' })); return; }
         const makePrimary = is_primary || (existing || []).length === 0;

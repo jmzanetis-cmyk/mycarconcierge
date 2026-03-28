@@ -1227,7 +1227,7 @@
       });
     }
 
-    async function uploadVehiclePhoto(vehicleId) {
+    async function _uploadPhotoFileToStorage(vehicleId) {
       if (!pendingVehiclePhoto) return null;
       
       try {
@@ -1460,7 +1460,7 @@
       
       let successCount = 0;
       for (const file of Array.from(input.files)) {
-        const result = await window.uploadVehiclePhoto(vehicleId, file, photoType);
+        const result = await window.uploadVehiclePhotoFile(vehicleId, file, photoType);
         if (result) successCount++;
       }
       
@@ -1991,6 +1991,35 @@ function renderVehiclePhotosGrid(photos) {
   if (countEl) countEl.textContent = photos.length + '/6 photos';
 }
 
+// uploadVehiclePhotoFile — called by the vehicle details multi-upload flow
+// Takes vehicleId, a File object, and optional photoType string
+async function uploadVehiclePhotoFile(vehicleId, file, photoType) {
+  if (!file) return false;
+  if (!['image/jpeg', 'image/png', 'image/jpg', 'image/webp'].includes(file.type)) { showToast('Please upload a JPEG or PNG photo', 'error'); return false; }
+  if (file.size > 10 * 1024 * 1024) { showToast('Photo must be under 10MB', 'error'); return false; }
+  try {
+    const session = await supabaseClient.auth.getSession();
+    const uid = session.data.session?.user?.id;
+    const token = session.data.session?.access_token;
+    if (!uid || !token) throw new Error('Not authenticated');
+    const ext = file.name.split('.').pop().toLowerCase().replace('heic', 'jpg');
+    const fileName = uid + '/' + vehicleId + '/' + Date.now() + '.' + ext;
+    const { error: uploadErr } = await supabaseClient.storage.from('vehicle-photos').upload(fileName, file, { contentType: file.type, upsert: false });
+    if (uploadErr) throw uploadErr;
+    const res = await fetch('/api/vehicle-photos/' + vehicleId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ storage_path: fileName, is_primary: false })
+    });
+    if (!res.ok) throw new Error('Register failed');
+    return true;
+  } catch (e) {
+    showToast('Upload failed: ' + e.message, 'error');
+    return false;
+  }
+}
+
+// uploadVehiclePhoto — called from the photo modal's file input (onchange handler)
 async function uploadVehiclePhoto(input) {
   if (!input.files || !input.files[0]) return;
   const file = input.files[0];

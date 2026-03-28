@@ -148,7 +148,18 @@ CREATE POLICY "Members manage own care plans" ON care_plans
 
 DROP POLICY IF EXISTS "Providers view open care plans" ON care_plans;
 CREATE POLICY "Providers view open care plans" ON care_plans
-  FOR SELECT USING (status = 'open' OR member_id = auth.uid());
+  FOR SELECT USING (
+    member_id = auth.uid()
+    OR (
+      status = 'open'
+      AND EXISTS (
+        SELECT 1 FROM profiles
+        WHERE id = auth.uid()
+          AND role IN ('provider', 'admin')
+          AND verification_status = 'verified'
+      )
+    )
+  );
 
 DROP POLICY IF EXISTS "Service role full care plans" ON care_plans;
 CREATE POLICY "Service role full care plans" ON care_plans
@@ -163,9 +174,17 @@ DROP POLICY IF EXISTS "Providers view photos for open plans" ON vehicle_photos;
 CREATE POLICY "Providers view photos for open plans" ON vehicle_photos
   FOR SELECT USING (
     member_id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM care_plans cp
-      WHERE cp.vehicle_id = vehicle_photos.vehicle_id AND cp.status = 'open'
+    OR (
+      EXISTS (
+        SELECT 1 FROM care_plans cp
+        WHERE cp.vehicle_id = vehicle_photos.vehicle_id AND cp.status = 'open'
+      )
+      AND EXISTS (
+        SELECT 1 FROM profiles
+        WHERE id = auth.uid()
+          AND role IN ('provider', 'admin')
+          AND verification_status = 'verified'
+      )
     )
   );
 
@@ -176,7 +195,14 @@ CREATE POLICY "Service role full vehicle photos" ON vehicle_photos
 -- plan_bids policies
 DROP POLICY IF EXISTS "Providers manage own bids" ON plan_bids;
 CREATE POLICY "Providers manage own bids" ON plan_bids
-  FOR ALL USING (provider_id = auth.uid());
+  FOR ALL USING (
+    provider_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid()
+        AND role IN ('provider', 'admin')
+    )
+  );
 
 DROP POLICY IF EXISTS "Members view bids on own plans" ON plan_bids;
 CREATE POLICY "Members view bids on own plans" ON plan_bids
@@ -214,7 +240,9 @@ CREATE POLICY "Auth users delete own vehicle photos" ON storage.objects
 
 -- ============================================================
 -- 7. GRANTS
+-- RLS enforces row-level access; table grants are restricted to only
+-- what authenticated users may need via their RLS policies.
 -- ============================================================
-GRANT ALL ON care_plans TO authenticated;
-GRANT ALL ON vehicle_photos TO authenticated;
-GRANT ALL ON plan_bids TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON care_plans TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON vehicle_photos TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON plan_bids TO authenticated;
