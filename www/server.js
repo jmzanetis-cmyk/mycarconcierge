@@ -42128,7 +42128,10 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
 
   // ========== MEMBER ONBOARDING & SURVEY (Task #94) ==========
 
-  // POST /api/member/survey — submit survey answers (works anonymous or authenticated)
+  // POST /api/member/survey — submit survey answers.
+  // Optional-auth by design: supports both authenticated users (session-linked, idempotent)
+  // and anonymous submissions during email-confirm signup flows (linked later when user confirms).
+  // Anonymous submissions are deduplicated per IP hash (24h window) to prevent spam.
   if (req.method === 'POST' && req.url === '/api/member/survey') {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
