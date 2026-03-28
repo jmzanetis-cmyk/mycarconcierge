@@ -254,21 +254,21 @@
           <div class="code-block">
             <div class="code-header"><span class="code-lang">SHELL</span><button class="code-copy" onclick="copyCode(this)">Copy</button></div>
             <pre><span class="cmt"># VIN decode</span>
-<span class="fn">curl</span> -H <span class="str">"Authorization: Bearer mcc_your_key_here"</span> \
+<span class="fn">curl</span> -H <span class="str">"Authorization: Bearer mcc_live_your_key_here"</span> \
   https://mycarconcierge.com/api/v1/vin/1HGCM82633A123456
 
 <span class="cmt"># OBD-II analysis (Pro+)</span>
 <span class="fn">curl</span> -X POST \
-  -H <span class="str">"Authorization: Bearer mcc_your_key_here"</span> \
+  -H <span class="str">"Authorization: Bearer mcc_live_your_key_here"</span> \
   -H <span class="str">"Content-Type: application/json"</span> \
   -d <span class="str">'{"codes":["P0420","P0171"],"vehicle":{"year":2020,"make":"Toyota","model":"Camry"}}'</span> \
-  https://mycarconcierge.com/api/api/v1/obd-codes</pre>
+  https://mycarconcierge.com/api/v1/obd-codes</pre>
           </div>
         </div>
         <div id="tab-js" class="tab-content">
           <div class="code-block">
             <div class="code-header"><span class="code-lang">JAVASCRIPT</span><button class="code-copy" onclick="copyCode(this)">Copy</button></div>
-            <pre><span class="kw">const</span> MCC_KEY = <span class="str">'mcc_your_key_here'</span>;
+            <pre><span class="kw">const</span> MCC_KEY = <span class="str">'mcc_live_your_key_here'</span>;
 <span class="kw">const</span> BASE = <span class="str">'https://mycarconcierge.com/api/v1'</span>;
 <span class="kw">const</span> headers = { <span class="str">'Authorization'</span>: <span class="str">`Bearer ${MCC_KEY}`</span> };
 
@@ -290,7 +290,7 @@ console.<span class="fn">log</span>(health.score); <span class="cmt">// e.g. 82<
             <div class="code-header"><span class="code-lang">PYTHON</span><button class="code-copy" onclick="copyCode(this)">Copy</button></div>
             <pre><span class="kw">import</span> requests
 
-MCC_KEY = <span class="str">"mcc_your_key_here"</span>
+MCC_KEY = <span class="str">"mcc_live_your_key_here"</span>
 BASE = <span class="str">"https://mycarconcierge.com/api/v1"</span>
 HDR = {<span class="str">"Authorization"</span>: <span class="str">f"Bearer {MCC_KEY}"</span>}
 

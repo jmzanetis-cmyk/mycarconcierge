@@ -41285,17 +41285,28 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     const supabase = getSupabaseClient();
     let apiKeyRecord = null;
     try {
-      const keyPrefix = apiKey.slice(0, 16); // first 16 chars used as lookup prefix
-      const { data: candidates } = await supabase.from('developer_api_keys')
+      // New keys: 16-char prefix; legacy keys: 12-char + '...' display. Use 8-char as broadest common prefix.
+      const newPrefix = apiKey.slice(0, 16);
+      const legacyPrefixLike = apiKey.slice(0, 8) + '%';
+      let candidates = [];
+      const { data: exact } = await supabase.from('developer_api_keys')
         .select('id, user_id, plan, status, calls_made, calls_limit, key_hash')
-        .eq('key_prefix', keyPrefix).eq('status', 'active');
-      // Verify with bcrypt (or SHA-256 fallback for legacy keys)
-      for (const candidate of (candidates || [])) {
+        .eq('key_prefix', newPrefix).eq('status', 'active');
+      if (exact?.length) {
+        candidates = exact;
+      } else {
+        // Legacy key fallback: prefix stored as substring(0,12)+'...' — match by first 8 chars
+        const { data: legacy } = await supabase.from('developer_api_keys')
+          .select('id, user_id, plan, status, calls_made, calls_limit, key_hash')
+          .like('key_prefix', legacyPrefixLike).eq('status', 'active');
+        candidates = legacy || [];
+      }
+      // Verify with bcrypt (new) or SHA-256 (legacy)
+      for (const candidate of candidates) {
         let valid = false;
         if (candidate.key_hash?.startsWith('$2')) {
           valid = await bcryptjs.compare(apiKey, candidate.key_hash);
         } else {
-          // Legacy SHA-256 fallback
           const sha = crypto.createHash('sha256').update(apiKey).digest('hex');
           valid = sha === candidate.key_hash;
         }
@@ -41308,6 +41319,10 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       res.end(JSON.stringify({ error: 'Invalid or revoked API key' }));
       return;
     }
+
+    // Declare routing vars early so all closures (finish event) have access
+    const v1Path = req.url.split('/api/v1/')[1]?.split('?')[0];
+    const _reqStart = Date.now();
 
     // Per-key rate limiting (sliding 60-second window)
     const _rlNow = Date.now();
@@ -41394,10 +41409,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       })();
     }
 
-    // Route the actual API call
-    const v1Path = req.url.split('/api/v1/')[1]?.split('?')[0];
-    const _reqStart = Date.now(); // for latency tracking in api_usage_log
-
+    // Route the actual API call (v1Path and _reqStart declared before rate limiter below for closure safety)
     // Track usage atomically for ALL valid v1 requests (before routing so all endpoints are counted)
     const _trackMonth = new Date().toISOString().slice(0,7);
     getSupabaseClient()?.rpc('upsert_api_usage', { p_key_id: apiKeyRecord.id, p_month: _trackMonth, p_endpoint: v1Path || 'unknown' }).then(() => {}).catch(() => {});
