@@ -38914,9 +38914,11 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     try {
       let tenant = null;
       const _effectiveLookup = previewDomain || null;
-      // join_token is included so white-label-client.js can pass it on domain-matched requests.
-      // This token is the authz credential for /api/white-label/tenant/join — host-only is not used.
-      const WL_COLS = 'id, brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan, join_token';
+      // join_token is only returned to authenticated requests (not a public credential)
+      const _cfgBearer = (req.headers['authorization'] || '').split(' ')[1];
+      const WL_COLS = _cfgBearer
+        ? 'id, brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan, join_token'
+        : 'id, brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan';
       if (supabase) {
         if (_effectiveLookup) {
           // Preview domain override (admin) — direct domain lookup
@@ -39008,46 +39010,37 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
   }
 
   // POST /api/white-label/tenant/join — register authenticated user as a tenant member/provider
-  // Security: tenant is resolved from the request hostname, NOT from client-supplied body.
-  // Role is restricted to 'member' or 'provider' — admin/owner roles cannot be self-assigned.
   if (req.method === 'POST' && req.url === '/api/white-label/tenant/join') {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
     const user = await authenticateRequest(req);
     if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    // Rate limit: max 10 join attempts per user per hour
+    if (!global._wlJoinRateMap) global._wlJoinRateMap = new Map();
+    const _rKey = user.id; const _rNow = Date.now(); const _rWindow = 3600_000;
+    const _rEntry = global._wlJoinRateMap.get(_rKey) || { count: 0, windowStart: _rNow };
+    if (_rNow - _rEntry.windowStart > _rWindow) { _rEntry.count = 0; _rEntry.windowStart = _rNow; }
+    _rEntry.count++;
+    global._wlJoinRateMap.set(_rKey, _rEntry);
+    if (_rEntry.count > 10) {
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Too many join attempts. Try again later.' }));
+      return;
+    }
     const supabase = getSupabaseClient();
     try {
       const body = await getRequestBody(req);
-      // Role resolution — SECURITY HARDENED
-      // The server determines the authoritative role from the user's platform profile,
-      // ignoring any role supplied by the client. This prevents a member from self-promoting
-      // to 'provider' seat and a provider from being incorrectly assigned a 'member' seat.
-      // Admin/owner tenant roles still require admin assignment via x-admin-token.
-      const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
+      // Role is server-derived from user's platform profile; client-supplied role is ignored
+      const { data: userProfile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
       const platformRole = userProfile?.role || 'member';
-      // Map platform roles to tenant seat types
       const role = ['provider', 'pending_provider'].includes(platformRole) ? 'provider' : 'member';
 
-      // Resolve tenant via server-issued invite token (join_token) — SECURE
-      // AUTHORIZATION FLOW:
-      //   1. Primary: client supplies join_token obtained from /api/white-label/config
-      //      (which returns join_token only for domain-matched requests).
-      //      Server looks up tenant by join_token exact match. Host headers are NOT used
-      //      as the authz source — they can be spoofed in direct-to-origin requests.
-      //   2. Admin fallback: X-Admin-Token + explicit tenant_id for admin-initiated joins.
-      //
-      // join_token is a server-issued UUID in white_label_tenants.join_token.
-      // It acts as a per-tenant invite credential: any user who visited the correct
-      // domain and obtained the token from /api/white-label/config can join.
+      // Resolve tenant by server-issued join_token (returned from config only to authed users).
+      // Admin fallback: X-Admin-Token + explicit tenant_id.
       const JOIN_COLS = 'id, plan, max_members, max_providers, status';
       let tenant = null;
 
       if (body?.join_token) {
-        // Token-based join: look up by join_token (exact DB match — not host-derived)
         const { data: tokenTenant } = await supabase
           .from('white_label_tenants')
           .select(JOIN_COLS)
@@ -39056,12 +39049,12 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           .maybeSingle();
         if (!tokenTenant) {
           res.writeHead(403, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid or expired join token. Please reload your white-label domain and try again.' }));
+          res.end(JSON.stringify({ error: 'Invalid or expired join token.' }));
           return;
         }
         tenant = tokenTenant;
       } else if (body?.tenant_id) {
-        // Admin fallback: admin token required for explicit tenant_id join
+        // Admin fallback: explicit tenant_id requires admin token
         const _adminToken = req.headers['x-admin-token'];
         const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
         if (!_validAdmin) {
@@ -39083,7 +39076,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         tenant = adminTenant;
       } else {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'join_token is required. Load /api/white-label/config from your white-label domain to obtain it.' }));
+        res.end(JSON.stringify({ error: 'join_token is required.' }));
         return;
       }
 
@@ -39258,7 +39251,6 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     const _dTargetId = req.url.split('/api/tenant/roster/')[1];
     const supabase = getSupabaseClient();
     try {
-      // Resolve caller's tenant membership and role
       const { data: _dMembership } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _dUser.id).in('role', ['owner', 'admin']).maybeSingle();
       let _dTenantId = _dMembership?.tenant_id;
       if (!_dTenantId) {
@@ -39266,49 +39258,27 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         _dTenantId = _dOwned?.id;
       }
       if (!_dTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
-      const _dCallerRole = _dMembership?.role || 'owner'; // owner_user_id path => treat as owner
-      // Prevent owner from removing themselves
+      const _dCallerRole = _dMembership?.role || 'owner';
       if (_dTargetId === _dUser.id && _dCallerRole === 'owner') {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Cannot remove yourself as owner. Transfer ownership first.' }));
         return;
       }
-      // Resolve target's current role for role-hierarchy enforcement
-      const { data: _dTargetMembership } = await supabase
-        .from('white_label_tenant_users')
-        .select('role')
-        .eq('tenant_id', _dTenantId)
-        .eq('user_id', _dTargetId)
-        .maybeSingle();
-      if (!_dTargetMembership) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'User is not a member of this tenant' }));
-        return;
-      }
-      // Role hierarchy enforcement:
-      //   owner  → can remove anyone (except themselves, blocked above)
-      //   admin  → can only remove member/provider roles; cannot remove owner or other admins
+      // Resolve target role for hierarchy check
+      const { data: _dTargetMembership } = await supabase.from('white_label_tenant_users').select('role').eq('tenant_id', _dTenantId).eq('user_id', _dTargetId).maybeSingle();
+      if (!_dTargetMembership) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'User is not a member of this tenant' })); return; }
+      // Role hierarchy: owner can remove anyone; admin can only remove member/provider
       const _dTargetRole = _dTargetMembership.role;
       if (_dCallerRole === 'admin' && ['owner', 'admin'].includes(_dTargetRole)) {
         res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Admins can only remove members and providers. Contact the tenant owner to remove admins.' }));
+        res.end(JSON.stringify({ error: 'Admins can only remove members and providers.' }));
         return;
       }
       const { error: _dErr } = await supabase.from('white_label_tenant_users').delete().eq('tenant_id', _dTenantId).eq('user_id', _dTargetId);
       if (_dErr) throw _dErr;
-      // Only clear profile.tenant_id if the user has no remaining tenant memberships.
-      // Unconditional nulling would corrupt state if the user is in multiple tenants
-      // (future multi-tenant support) or if the membership record was the only one.
-      const { data: _dRemaining } = await supabase
-        .from('white_label_tenant_users')
-        .select('tenant_id')
-        .eq('user_id', _dTargetId)
-        .limit(1)
-        .maybeSingle();
-      if (!_dRemaining) {
-        // No other tenant memberships — safe to clear scoping
-        await supabase.from('profiles').update({ tenant_id: null }).eq('id', _dTargetId);
-      }
+      // Only null profile.tenant_id if user has no remaining tenant memberships
+      const { data: _dRemaining } = await supabase.from('white_label_tenant_users').select('tenant_id').eq('user_id', _dTargetId).limit(1).maybeSingle();
+      if (!_dRemaining) { await supabase.from('profiles').update({ tenant_id: null }).eq('id', _dTargetId); }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true }));
     } catch (err) {
@@ -39549,8 +39519,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     return;
   }
 
-  // GET /api/admin/white-label/tenants/:id/portal — admin view of tenant portal data (impersonation-lite)
-  // Returns full tenant config + live seat counts without requiring tenant auth credentials.
+  // GET /api/admin/white-label/tenants/:id/portal — read-only admin inspection of tenant portal data.
+  // Returns tenant config + live seat counts for support/admin use. Not a scoped user session.
   if (req.method === 'GET' && /^\/api\/admin\/white-label\/tenants\/[^/]+\/portal$/.test(req.url)) {
     setSecurityHeaders(res, true);
     setCorsHeaders(res);

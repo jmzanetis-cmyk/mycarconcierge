@@ -94,66 +94,26 @@
       .catch(function() {});
   }
 
-  /**
-   * Tenant lifecycle wiring: auto-join the current tenant when an authenticated user
-   * first loads a white-label domain. Idempotent — server returns 200 with already_member=true
-   * if the user is already a member, so safe to call on every page load.
-   *
-   * SECURITY: Always uses a same-origin relative URL (/api/white-label/tenant/join).
-   * White-label custom domains point directly to the MCC API server, so relative URLs
-   * are correct. Bearer tokens are NEVER sent to cross-origin destinations.
-   *
-   * Authorization uses a server-issued join_token (from /api/white-label/config),
-   * not host headers. Host headers are spoofable in direct-to-origin requests.
-   *
-   * Role is determined server-side from the user's platform profile — the client
-   * does not supply a role, preventing member→provider self-promotion exploits.
-   *
-   * @param {string} [joinToken] — Server-issued join credential from config response.
-   *   Required for the join to succeed. If absent (e.g., config did not return one),
-   *   the join is skipped silently to avoid a predictable 400 error.
-   */
+  // Auto-join the current tenant when an authenticated user loads a white-label domain.
+  // Idempotent. Uses join_token from config (only returned to authed users) as authz credential.
+  // Uses relative URL to keep bearer token same-origin.
   function autoJoinTenantIfAuthenticated(joinToken) {
     try {
-      if (!joinToken) {
-        // Config response did not include a join_token — cannot authorize join.
-        // This can happen if the server-side migration for join_token has not been applied yet.
-        return;
-      }
-
+      if (!joinToken) return; // No token = not authed at config time; skip.
       var token = null;
-
-      // Read Supabase access token from localStorage (populated by Supabase SDK after login).
-      // Works before full SDK initialization because localStorage is synchronous.
       try {
         var lsKeys = Object.keys(localStorage);
         for (var k = 0; k < lsKeys.length; k++) {
           if (lsKeys[k].startsWith('sb-') && lsKeys[k].endsWith('-auth-token')) {
             var parsed = JSON.parse(localStorage.getItem(lsKeys[k]) || '{}');
-            if (parsed && parsed.access_token) {
-              token = parsed.access_token;
-              break;
-            }
+            if (parsed && parsed.access_token) { token = parsed.access_token; break; }
           }
         }
       } catch(e) {}
-
-      if (!token) {
-        // No authenticated session — skip join silently
-        return;
-      }
-
-      // ALWAYS use relative URL — ensures the bearer token stays same-origin.
-      // White-label domains (e.g., partner.mycarconcierge.com, partner.com) are configured
-      // via DNS to point to the MCC API server, so /api paths resolve to the correct origin.
+      if (!token) return;
       fetch('/api/white-label/tenant/join', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token
-        },
-        // join_token from config is the authz credential; server validates via DB lookup.
-        // No role field — server derives role from user's platform profile to prevent self-promotion.
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify({ join_token: joinToken })
       })
         .then(function(r) { return r.ok ? r.json() : null; })
