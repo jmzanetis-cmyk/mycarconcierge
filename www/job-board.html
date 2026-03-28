@@ -344,6 +344,17 @@
       </div>
     </div>
 
+    <!-- VERIFICATION BANNER (shown only for unverified providers) -->
+    <div id="unverified-banner" style="display:none;">
+      <div style="background:rgba(201,162,39,0.12);border-bottom:1px solid rgba(201,162,39,0.3);padding:10px 16px;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:1.1rem;">🔒</span>
+        <div style="flex:1;font-size:0.83rem;color:var(--accent-gold);">
+          <strong>Verification Required</strong> — You can browse care plans, but bidding is disabled until your provider account is verified.
+        </div>
+        <a href="/providers.html#verification" style="font-size:0.78rem;font-weight:600;color:var(--accent-gold);text-decoration:none;border:1px solid rgba(201,162,39,0.4);padding:4px 10px;border-radius:4px;white-space:nowrap;">Complete Verification →</a>
+      </div>
+    </div>
+
     <!-- JOB LIST -->
     <div class="job-list" id="job-list">
       <div class="loading-state"><div class="spinner"></div><p style="margin-top:12px">Loading care plans...</p></div>
@@ -599,6 +610,9 @@ async function loadPlans(reset = false) {
     else plans = [...plans, ...(data.plans || [])];
     totalPlans = data.total || 0;
     window.providerVerified = data.provider_verified !== false;
+    // Show/hide verification banner
+    const banner = document.getElementById('unverified-banner');
+    if (banner) banner.style.display = window.providerVerified ? 'none' : 'block';
     renderPlanList(reset);
     updateBadges();
   } catch (err) {
@@ -610,28 +624,33 @@ async function loadPlans(reset = false) {
   }
 }
 
+// Persistent badge counts — updated whenever each tab is visited
+const tabCounts = { all: 0, 'no-bids': 0, 'closing-soon': 0, 'my-bids': 0 };
+
 function updateBadges() {
-  // "All Jobs" badge shows total count for the current result set
-  const allBadge = document.getElementById('badge-all');
-  if (allBadge) { allBadge.textContent = totalPlans; }
-  // My Bids badge: count plans that have my_bid in current full set (best effort)
+  // Always update the current tab's count
+  tabCounts[currentTab] = totalPlans;
+  // Also update my-bids count from in-memory data (best effort across all tabs)
   const myBidCount = plans.filter(p => p.my_bid).length;
-  const myBidBadge = document.getElementById('badge-my-bids');
-  if (myBidBadge) {
-    const count = currentTab === 'my-bids' ? totalPlans : myBidCount;
-    myBidBadge.textContent = count;
-    myBidBadge.style.display = count > 0 ? 'inline-flex' : 'none';
-  }
-  // No-bids / closing-soon badges only shown when on that tab
+  if (myBidCount > 0 || currentTab === 'my-bids') tabCounts['my-bids'] = currentTab === 'my-bids' ? totalPlans : Math.max(tabCounts['my-bids'], myBidCount);
+
+  const allBadge = document.getElementById('badge-all');
+  if (allBadge) allBadge.textContent = tabCounts.all;
+
   const noBidsBadge = document.getElementById('badge-no-bids');
-  if (noBidsBadge && currentTab === 'no-bids') {
-    noBidsBadge.textContent = totalPlans;
-    noBidsBadge.style.display = totalPlans > 0 ? 'inline-flex' : 'none';
+  if (noBidsBadge) {
+    noBidsBadge.textContent = tabCounts['no-bids'];
+    noBidsBadge.style.display = tabCounts['no-bids'] > 0 ? 'inline-flex' : 'none';
   }
   const closingSoonBadge = document.getElementById('badge-closing-soon');
-  if (closingSoonBadge && currentTab === 'closing-soon') {
-    closingSoonBadge.textContent = totalPlans;
-    closingSoonBadge.style.display = totalPlans > 0 ? 'inline-flex' : 'none';
+  if (closingSoonBadge) {
+    closingSoonBadge.textContent = tabCounts['closing-soon'];
+    closingSoonBadge.style.display = tabCounts['closing-soon'] > 0 ? 'inline-flex' : 'none';
+  }
+  const myBidBadge = document.getElementById('badge-my-bids');
+  if (myBidBadge) {
+    myBidBadge.textContent = tabCounts['my-bids'];
+    myBidBadge.style.display = tabCounts['my-bids'] > 0 ? 'inline-flex' : 'none';
   }
 }
 
@@ -778,8 +797,14 @@ function renderDetailPanel(plan) {
   const countdown = formatCountdown(plan.bid_closes_at);
   const dist = plan.estimated_distance_miles < 900 ? `~${Math.round(plan.estimated_distance_miles)} mi away` : '';
   const services = (Array.isArray(plan.services) ? plan.services : []).map(s => {
-    const name = typeof s === 'string' ? s : s.name || JSON.stringify(s);
-    return `<div class="service-item"><span class="service-item-icon">🔧</span><div><div class="service-item-name">${escH(name)}</div></div></div>`;
+    if (typeof s === 'string') {
+      return `<div class="service-item"><span class="service-item-icon">🔧</span><div><div class="service-item-name">${escH(s)}</div></div></div>`;
+    }
+    const name = s.name || s.service || 'Service';
+    const priority = s.priority ? `<span style="font-size:0.72rem;font-weight:600;padding:1px 7px;border-radius:100px;background:${s.priority === 'high' ? 'rgba(248,113,113,0.15)' : s.priority === 'medium' ? 'rgba(251,146,60,0.12)' : 'rgba(34,211,238,0.1)'};color:${s.priority === 'high' ? 'var(--accent-red)' : s.priority === 'medium' ? 'var(--accent-orange)' : 'var(--accent-teal)'};">${capitalize(s.priority)}</span>` : '';
+    const cost = (s.cost_min || s.cost_max) ? `<span style="font-size:0.78rem;color:var(--text-muted);">$${s.cost_min || '?'}${s.cost_max && s.cost_max !== s.cost_min ? `–$${s.cost_max}` : ''}</span>` : '';
+    const note = s.note || s.description ? `<div class="service-item-note">${escH(s.note || s.description)}</div>` : '';
+    return `<div class="service-item"><span class="service-item-icon">🔧</span><div style="flex:1;"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span class="service-item-name">${escH(name)}</span>${priority}${cost}</div>${note}</div></div>`;
   }).join('') || '<p style="font-size:0.85rem;color:var(--text-muted);">No services specified</p>';
 
   const hasBid = !!plan.my_bid;
@@ -849,6 +874,11 @@ function renderDetailPanel(plan) {
         <div class="detail-section">
           <div class="detail-section-title">Services Requested</div>
           ${services}
+          ${plan.value_min || plan.value_max ? `
+          <div style="margin-top:10px;padding:10px 12px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.8rem;color:var(--text-muted);">Member's Total Budget</span>
+            <span style="font-weight:700;color:var(--accent-gold);">${val}</span>
+          </div>` : ''}
         </div>
 
         ${vehicle ? `
@@ -876,6 +906,18 @@ function renderDetailPanel(plan) {
             ${dist ? `<span class="distance-pill">${dist}</span>` : ''}
           </div>
         </div>
+
+        ${plan.member ? `
+        <div class="detail-section">
+          <div class="detail-section-title">Member</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);">
+            <div style="width:36px;height:36px;border-radius:50%;background:var(--accent-gold-soft);border:1px solid rgba(201,162,39,0.3);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">👤</div>
+            <div>
+              <div style="font-size:0.88rem;font-weight:600;">${escH((plan.member.full_name || 'Member').split(' ')[0])}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">${escH([plan.member.city, plan.member.state].filter(Boolean).join(', ') || 'Location shared on booking')}</div>
+            </div>
+          </div>
+        </div>` : ''}
 
         ${hasBid ? `
         <div class="detail-section">

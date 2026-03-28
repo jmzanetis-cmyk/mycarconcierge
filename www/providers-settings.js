@@ -1884,7 +1884,8 @@ async function updateAutoBidPreview() {
     const res = await fetch('/api/care-plans/preview?' + params, { headers: { 'Authorization': 'Bearer ' + token } });
     if (!res.ok) { countEl.textContent = '—'; return; }
     const d = await res.json();
-    countEl.textContent = (d.count || 0) + ' plan' + (d.count !== 1 ? 's' : '');
+    const n10 = d.count_of_last_10 || 0;
+    countEl.textContent = `${n10} of the last 10 plans posted match your settings`;
   } catch (e) {
     countEl.textContent = '—';
   }

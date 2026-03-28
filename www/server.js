@@ -41939,7 +41939,8 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       if (!prov || !['provider','admin'].includes(prov.role)) {
         res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
       }
-      const isVerified = prov.role === 'admin' || !prov.verification_status || prov.verification_status === 'verified';
+      // Strictly enforce verification — null or non-verified means unverified
+      const isVerified = prov.role === 'admin' || prov.verification_status === 'verified';
       const qs = new URLSearchParams(req.url.split('?')[1] || '');
       const page = Math.max(1, parseInt(qs.get('page') || '1'));
       const pageSize = Math.min(50, parseInt(qs.get('limit') || '20'));
@@ -41950,9 +41951,10 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       const tab = qs.get('tab') || 'all';
       const searchQ = (qs.get('q') || '').trim();
       const from = (page - 1) * pageSize;
-      const SELECT_FIELDS = `id, title, description, services, value_min, value_max, service_types, city, state, zip_code, status, bid_count, bid_closes_at, created_at, member_id,
-        vehicle_id, vehicles!care_plans_vehicle_id_fkey(id, year, make, model, mileage, color),
-        member:profiles!care_plans_member_id_fkey(full_name, city, state, zip_code)`;
+      // Unverified providers receive a stripped-down payload with no PII/contact info
+      const SELECT_FIELDS = isVerified
+        ? `id, title, description, services, value_min, value_max, service_types, city, state, zip_code, status, bid_count, bid_closes_at, created_at, member_id, vehicle_id, vehicles!care_plans_vehicle_id_fkey(id, year, make, model, mileage, color), member:profiles!care_plans_member_id_fkey(full_name, city, state, zip_code)`
+        : `id, title, value_min, value_max, service_types, city, state, status, bid_count, bid_closes_at, created_at`;
 
       // Fetch my-bids plan IDs up front
       let myBidMap = {};
@@ -42049,7 +42051,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         if (!prov || !['provider','admin'].includes(prov.role)) {
           res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
         }
-        const isVerified = prov.role === 'admin' || !prov.verification_status || prov.verification_status === 'verified';
+        const isVerified = prov.role === 'admin' || prov.verification_status === 'verified';
         if (!isVerified) {
           res.writeHead(403); res.end(JSON.stringify({ error: 'verification_required', message: 'Your provider account must be verified before you can place bids.' })); return;
         }

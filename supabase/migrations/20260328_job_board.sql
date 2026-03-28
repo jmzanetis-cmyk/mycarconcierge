@@ -192,17 +192,20 @@ CREATE POLICY "Service role full plan bids" ON plan_bids
 -- 6. STORAGE BUCKET FOR VEHICLE PHOTOS
 -- ============================================================
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('vehicle-photos', 'vehicle-photos', true, 10485760, ARRAY['image/jpeg','image/png','image/webp','image/heic'])
-ON CONFLICT (id) DO NOTHING;
+VALUES ('vehicle-photos', 'vehicle-photos', false, 10485760, ARRAY['image/jpeg','image/png','image/webp','image/heic'])
+ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = 10485760;
 
 DROP POLICY IF EXISTS "Auth users upload vehicle photos" ON storage.objects;
 CREATE POLICY "Auth users upload vehicle photos" ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'vehicle-photos' AND auth.uid()::text = (storage.foldername(name))[1]);
 
+-- Private bucket: only the owning member can read their own photos (no public access)
 DROP POLICY IF EXISTS "Public read vehicle photos" ON storage.objects;
-CREATE POLICY "Public read vehicle photos" ON storage.objects
-  FOR SELECT USING (bucket_id = 'vehicle-photos');
+DROP POLICY IF EXISTS "Owner read vehicle photos" ON storage.objects;
+CREATE POLICY "Owner read vehicle photos" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (bucket_id = 'vehicle-photos' AND auth.uid()::text = (storage.foldername(name))[1]);
 
 DROP POLICY IF EXISTS "Auth users delete own vehicle photos" ON storage.objects;
 CREATE POLICY "Auth users delete own vehicle photos" ON storage.objects
