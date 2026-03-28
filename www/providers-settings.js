@@ -1833,11 +1833,7 @@ async function loadAutoBidSettings() {
     }
     const types = d.auto_bid_service_types || [];
     document.querySelectorAll('.ab-svc-chip').forEach(chip => {
-      const selected = types.includes(chip.dataset.type);
-      chip.style.background = selected ? 'var(--accent-gold)' : 'var(--bg-input)';
-      chip.style.color = selected ? 'var(--bg-deep)' : 'var(--text-secondary)';
-      chip.style.borderColor = selected ? 'var(--accent-gold)' : 'var(--border-subtle)';
-      chip.style.fontWeight = selected ? '600' : '500';
+      chip.classList.toggle('active', types.includes(chip.dataset.type));
     });
     await updateAutoBidPreview();
   } catch (e) {
@@ -1862,12 +1858,7 @@ function onAutoBidToggle(checked) {
 }
 
 function toggleAbServiceType(el) {
-  const active = el.style.background === 'var(--accent-gold)' || getComputedStyle(el).backgroundColor.includes('201');
-  const nowActive = !active;
-  el.style.background = nowActive ? 'var(--accent-gold)' : 'var(--bg-input)';
-  el.style.color = nowActive ? 'var(--bg-deep)' : 'var(--text-secondary)';
-  el.style.borderColor = nowActive ? 'var(--accent-gold)' : 'var(--border-subtle)';
-  el.style.fontWeight = nowActive ? '600' : '500';
+  el.classList.toggle('active');
   updateAutoBidPreview();
 }
 
@@ -1877,7 +1868,7 @@ async function updateAutoBidPreview() {
   try {
     const dist = parseInt(document.getElementById('ab-max-distance')?.value || 25);
     const selected = Array.from(document.querySelectorAll('.ab-svc-chip'))
-      .filter(c => c.style.background === 'var(--accent-gold)').map(c => c.dataset.type);
+      .filter(c => c.classList.contains('active')).map(c => c.dataset.type);
     const params = new URLSearchParams({ max_distance: dist });
     if (selected.length) params.set('service_types', selected.join(','));
     const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
@@ -1897,7 +1888,7 @@ async function saveAutoBidSettings() {
     const dist = parseInt(document.getElementById('ab-max-distance')?.value || 25);
     const pct = parseInt(document.getElementById('ab-pct')?.value || 85);
     const selected = Array.from(document.querySelectorAll('.ab-svc-chip'))
-      .filter(c => c.style.background === 'var(--accent-gold)').map(c => c.dataset.type);
+      .filter(c => c.classList.contains('active')).map(c => c.dataset.type);
     const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
     const res = await fetch('/api/auto-bid/settings', {
       method: 'PATCH',

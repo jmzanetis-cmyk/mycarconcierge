@@ -3098,6 +3098,8 @@
     <!-- Availability Section -->
     <section id="availability" class="section">
       <style>
+        .ab-svc-chip { transition: background 0.15s, color 0.15s, border-color 0.15s; }
+        .ab-svc-chip.active { background: var(--accent-gold) !important; color: var(--bg-deep) !important; border-color: var(--accent-gold) !important; font-weight: 600 !important; }
         .schedule-week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; min-height: 400px; }
         .schedule-day-column { background: var(--bg-input); border-radius: var(--radius-md); padding: 8px; position: relative; min-height: 350px; }
         .schedule-day-column .day-header { text-align: center; font-weight: 600; font-size: 0.85rem; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 8px; }

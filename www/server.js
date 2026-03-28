@@ -42304,7 +42304,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         if (!storage_path.startsWith(expectedPrefix)) { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid storage path' })); return; }
         // Validate extension — only image types accepted
         const storagExt = (storage_path.split('.').pop() || '').toLowerCase();
-        const allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'heic'];
+        const allowedExts = ['jpg', 'jpeg', 'png'];
         if (!allowedExts.includes(storagExt)) { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid file type' })); return; }
         // Ownership check: vehicle must belong to the authenticated member
         const { data: ownedVehicle } = await supabase.from('vehicles').select('id').eq('id', vehicleId).eq('owner_id', user.id).maybeSingle();

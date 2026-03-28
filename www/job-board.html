@@ -761,7 +761,7 @@ async function prefetchCardPhoto(plan) {
       img.onerror = function() { this.onerror = null; replaceImgWithPlaceholder(this); };
       el.replaceWith(img);
     }
-  } catch {}
+  } catch (e) { console.warn('[JobBoard] updateCardPhoto error:', e.message); }
 }
 
 // ===== SELECT PLAN =====
@@ -804,7 +804,7 @@ async function loadPlanPhotos(planId, vehicleId) {
       strip.innerHTML = planPhotos[vehicleId].map(ph => `<img class="photo-thumb" src="${ph.url}" alt="Vehicle photo" onclick="openLightbox('${ph.url}')">`).join('');
       document.getElementById('photos-section').style.display = 'block';
     }
-  } catch {}
+  } catch (e) { console.warn('[JobBoard] loadPlanPhotos error:', e.message); }
 }
 
 function renderDetailPanel(plan) {
