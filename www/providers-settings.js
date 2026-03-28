@@ -210,14 +210,21 @@ async function sendTeamInvite() {
   }
   
   try {
-    const { error } = await supabaseClient.from('team_invites').insert({
-      provider_id: currentUser.id,
-      email,
-      role,
-      status: 'pending'
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) throw new Error('Not authenticated');
+
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const serverRole = (role === 'technician') ? 'staff' : (role || 'staff');
+    const inviteRes = await fetch(`${apiBase}/api/providers/${currentUser.id}/team/invite`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ email, role: serverRole })
     });
-    
-    if (error) throw error;
+    const inviteData = await inviteRes.json();
+    if (!inviteRes.ok) throw new Error(inviteData.error || 'Failed to send invite');
     
     closeModal('invite-team-modal');
     showToast('Invite sent!', 'success');
@@ -1344,7 +1351,7 @@ async function loadShopSubscription() {
     const featBadgeLoyalty = document.getElementById('shop-feat-loyalty');
 
     if (planBadge) {
-      const labels = { starter: 'Starter – $29/mo', pro: 'Pro – $59/mo', business: 'Business – $129/mo', none: 'No Plan' };
+      const labels = { starter: 'Solo – $49/mo', pro: 'Team – $99/mo', business: 'Shop – $199/mo', none: 'No Plan' };
       planBadge.textContent = labels[data.plan] || 'No Plan';
     }
     if (statusBadge) {
@@ -1369,9 +1376,9 @@ async function loadShopSubscription() {
     }
 
     const access = data.feature_access || {};
-    if (featBadgeSms) { featBadgeSms.textContent = access.sms_reminders ? '✓ Active' : '— Upgrade to Pro'; featBadgeSms.style.color = access.sms_reminders ? '#34d399' : '#f87171'; }
-    if (featBadgeAnalytics) { featBadgeAnalytics.textContent = access.advanced_analytics ? '✓ Active' : '— Upgrade to Pro'; featBadgeAnalytics.style.color = access.advanced_analytics ? '#34d399' : '#f87171'; }
-    if (featBadgeLoyalty) { featBadgeLoyalty.textContent = access.car_club_loyalty ? '✓ Active' : '— Upgrade to Pro'; featBadgeLoyalty.style.color = access.car_club_loyalty ? '#34d399' : '#f87171'; }
+    if (featBadgeSms) { featBadgeSms.textContent = access.sms_reminders ? '✓ Active' : '— Upgrade to Team'; featBadgeSms.style.color = access.sms_reminders ? '#34d399' : '#f87171'; }
+    if (featBadgeAnalytics) { featBadgeAnalytics.textContent = access.advanced_analytics ? '✓ Active' : '— Upgrade to Team'; featBadgeAnalytics.style.color = access.advanced_analytics ? '#34d399' : '#f87171'; }
+    if (featBadgeLoyalty) { featBadgeLoyalty.textContent = access.car_club_loyalty ? '✓ Active' : '— Upgrade to Team'; featBadgeLoyalty.style.color = access.car_club_loyalty ? '#34d399' : '#f87171'; }
 
     // Show upgrade prompt if on Starter or no plan
     const upgradePrompt = document.getElementById('shop-upgrade-prompt');
@@ -1396,9 +1403,9 @@ function openShopUpgradeModal() {
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:24px;">
           ${[
-            { key: 'starter', name: 'Starter', price: '$29', desc: '1 technician', color: '#6b7280' },
-            { key: 'pro', name: 'Pro', price: '$59', desc: 'Up to 5 techs', color: '#c9a227', popular: true },
-            { key: 'business', name: 'Business', price: '$129', desc: 'Unlimited techs', color: '#22d3ee' }
+            { key: 'starter', name: 'Solo', price: '$49', desc: '1 technician', color: '#6b7280' },
+            { key: 'pro', name: 'Team', price: '$99', desc: 'Up to 5 techs', color: '#c9a227', popular: true },
+            { key: 'business', name: 'Shop', price: '$199', desc: 'Unlimited techs', color: '#22d3ee' }
           ].map(p => `
             <div style="background:${p.popular ? 'rgba(201,162,39,0.12)' : 'rgba(30,38,48,0.8)'};border:1px solid ${p.popular ? 'rgba(201,162,39,0.4)' : 'rgba(160,168,184,0.15)'};border-radius:14px;padding:20px;text-align:center;">
               ${p.popular ? '<div style="font-size:0.7rem;font-weight:700;color:#c9a227;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Most Popular</div>' : ''}

@@ -521,6 +521,8 @@ function getRequestBody(req, maxSize = PRINTFUL_MAX_BODY_SIZE) {
     });
   });
 }
+// Alias for convenience — used throughout shop/SaaS endpoints
+const parseBody = getRequestBody;
 // ========== END REQUEST BODY PARSER ==========
 
 // ========== LOGIN ACTIVITY LOGGING ==========
@@ -5769,24 +5771,27 @@ const SAAS_PLANS = {
     description: 'Booking, payments, and CRM for auto service shops',
     tiers: {
       starter: {
-        name: 'Shop Starter',
-        price_monthly: 2900,
-        price_annual: 24900,
-        features: ['Online booking', 'Customer management', 'Invoice generation', 'Service history', 'Email notifications'],
+        name: 'Solo',
+        price_monthly: 4900,
+        price_annual: 44900,
+        seat_limit: 1,
+        features: ['1 technician seat', 'Kiosk check-in', 'Walk-in POS', 'Job tracking', 'Basic analytics', 'Public shop profile', 'Booking widget'],
         stripe_price_id: process.env.STRIPE_PRICE_SHOP_STARTER || null
       },
       pro: {
-        name: 'Shop Pro',
-        price_monthly: 5900,
-        price_annual: 54900,
-        features: ['Everything in Starter', 'Multi-tech scheduling', 'SMS reminders', 'Reviews management', 'Analytics dashboard', 'Loyalty program'],
+        name: 'Team',
+        price_monthly: 9900,
+        price_annual: 94900,
+        seat_limit: 5,
+        features: ['Up to 5 technician seats', 'Everything in Solo', 'SMS appointment reminders', 'Advanced analytics', 'Car Club Loyalty program', 'Team background checks', 'AI bid strategy insights', 'Priority support'],
         stripe_price_id: process.env.STRIPE_PRICE_SHOP_PRO || null
       },
       business: {
-        name: 'Shop Business',
-        price_monthly: 12900,
-        price_annual: 119900,
-        features: ['Everything in Pro', 'Multi-location support', 'Custom branding', 'API access', 'Inventory management', 'Priority support'],
+        name: 'Shop',
+        price_monthly: 19900,
+        price_annual: 189900,
+        seat_limit: 999,
+        features: ['Unlimited technician seats', 'Everything in Team', 'White-label booking widget', 'Fleet service management', 'Advanced POS analytics', 'API access', 'Dedicated support'],
         stripe_price_id: process.env.STRIPE_PRICE_SHOP_BUSINESS || null
       }
     }
@@ -38342,8 +38347,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           .eq('directory_slug', slug)
           .eq('directory_opt_in', true)
           .eq('role', 'provider')
-          .or('marketplace_visible.is.null,marketplace_visible.eq.true')
-          .or('shop_only_mode.is.null,shop_only_mode.eq.false')
+          .not('marketplace_visible', 'eq', false)
+          .not('shop_only_mode', 'eq', true)
           .single();
 
         if (error || !provider) {
@@ -38433,8 +38438,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         .eq('directory_opt_in', true)
         .eq('role', 'provider')
         .not('directory_slug', 'is', null)
-        .or('marketplace_visible.is.null,marketplace_visible.eq.true')
-        .or('shop_only_mode.is.null,shop_only_mode.eq.false');
+        .not('marketplace_visible', 'eq', false)
+        .not('shop_only_mode', 'eq', true);
 
       if (city) {
         query = query.ilike('city', `%${city}%`);
@@ -40694,27 +40699,45 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         if (p) resolvedSlug = p.directory_slug;
       }
 
-      const { error } = await supabase.from('shop_booking_requests').insert({
-        provider_id: resolvedProviderId || null,
-        provider_slug: resolvedSlug || null,
-        requester_name: name,
-        requester_phone: phone,
-        requester_email: email || null,
-        vehicle_description: vehicle,
-        service_type: service,
-        details: details || null,
-        source: source || 'profile',
-        status: 'pending'
-      });
+      // Insert into shop_booking_requests (walk-in / widget log)
+      try {
+        const { error: bookErr } = await supabase.from('shop_booking_requests').insert({
+          provider_id: resolvedProviderId || null,
+          provider_slug: resolvedSlug || null,
+          requester_name: name,
+          requester_phone: phone,
+          requester_email: email || null,
+          vehicle_description: vehicle,
+          service_type: service,
+          details: details || null,
+          source: source || 'profile',
+          status: 'pending'
+        });
+        if (bookErr) console.warn('[Shop Book] shop_booking_requests insert:', bookErr.message);
+      } catch (e) { console.warn('[Shop Book] shop_booking_requests error:', e.message); }
 
-      if (error) {
-        // If table doesn't exist yet, return success gracefully
-        if (error.message?.includes('does not exist')) {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, note: 'Migration pending' }));
-          return;
-        }
-        throw error;
+      // Bridge: also create a guest package request in maintenance_packages so the
+      // shop provider sees this booking in their main job workflow.
+      if (resolvedProviderId) {
+        try {
+          const descParts = [
+            'Walk-in/booking request from ' + name,
+            'Phone: ' + phone,
+            email ? 'Email: ' + email : null,
+            'Vehicle: ' + vehicle,
+            details ? 'Notes: ' + details : null
+          ].filter(Boolean);
+          const guestDesc = descParts.join('\n');
+          const guestTitle = service + ' — Walk-in Request';
+
+          await supabase.from('maintenance_packages').insert({
+            provider_id: resolvedProviderId,
+            member_id: null,
+            title: guestTitle,
+            description: guestDesc,
+            status: 'open'
+          });
+        } catch (e) { console.warn('[Shop Book] maintenance_packages bridge:', e.message); }
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -40979,13 +41002,12 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         .limit(1);
       const hasCompletedService = (completedBids?.length || 0) > 0;
 
-      // Auto-derived step completion
+      // Auto-derived step completion (4 required steps per task spec)
       const auto = {
         profile_complete: !!(p?.business_name && p?.phone),
         stripe_connected: !!(p?.stripe_charges_enabled && p?.stripe_payouts_enabled),
         first_team_member: hasTeamMember || !!(steps.first_team_member),
-        first_service: hasCompletedService || !!(steps.first_service),
-        subscription_active: !!(steps.subscription_active)
+        first_service: hasCompletedService || !!(steps.first_service)
       };
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -41709,8 +41731,8 @@ async function handleMatchProviders(req, res, requestId) {
         .select('id, full_name, business_name, zip_code, state, rating, tier, role, is_also_provider')
         .or('role.eq.provider,is_also_provider.eq.true')
         .not('is_suspended', 'eq', true)
-        .or('marketplace_visible.is.null,marketplace_visible.eq.true')
-        .or('shop_only_mode.is.null,shop_only_mode.eq.false')
+        .not('marketplace_visible', 'eq', false)
+        .not('shop_only_mode', 'eq', true)
         .limit(100);
 
       if (!providers || providers.length === 0) {
