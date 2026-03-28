@@ -41939,6 +41939,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       if (!prov || !['provider','admin'].includes(prov.role)) {
         res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
       }
+      const isVerified = prov.role === 'admin' || !prov.verification_status || prov.verification_status === 'verified';
       const qs = new URLSearchParams(req.url.split('?')[1] || '');
       const page = Math.max(1, parseInt(qs.get('page') || '1'));
       const pageSize = Math.min(50, parseInt(qs.get('limit') || '20'));
@@ -41985,7 +41986,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       }
       result = result.map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ plans: result, total: count || result.length, page, pageSize }));
+      res.end(JSON.stringify({ plans: result, total: count || result.length, page, pageSize, provider_verified: isVerified }));
     } catch (err) {
       console.error('[JobBoard] GET error:', err.message);
       res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load job board' }));
@@ -42011,9 +42012,13 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         if (!plan || plan.status !== 'open' || new Date(plan.bid_closes_at) < new Date()) {
           res.writeHead(409); res.end(JSON.stringify({ error: 'Care plan is closed or not found' })); return;
         }
-        const { data: prov } = await supabase.from('profiles').select('role, business_name, full_name, zip_code').eq('id', user.id).single();
+        const { data: prov } = await supabase.from('profiles').select('role, business_name, full_name, zip_code, verification_status').eq('id', user.id).single();
         if (!prov || !['provider','admin'].includes(prov.role)) {
           res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
+        }
+        const isVerified = prov.role === 'admin' || !prov.verification_status || prov.verification_status === 'verified';
+        if (!isVerified) {
+          res.writeHead(403); res.end(JSON.stringify({ error: 'verification_required', message: 'Your provider account must be verified before you can place bids.' })); return;
         }
         const { data: bid, error } = await supabase.from('plan_bids').upsert({
           care_plan_id, provider_id: user.id, amount: parseFloat(amount), note: note || null, is_auto_bid: false
@@ -42139,7 +42144,7 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
         if (dist <= maxDist) count++;
       });
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ matching_plans: count }));
+      res.end(JSON.stringify({ count }));
     } catch (err) {
       res.writeHead(500); res.end(JSON.stringify({ error: 'Preview failed' }));
     }
@@ -42151,8 +42156,8 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     setSecurityHeaders(res, true);
     setCorsHeaders(res);
     const authHeader = req.headers['authorization'] || '';
-    const internalToken = process.env.INTERNAL_SCHEDULER_SECRET || 'mcc-scheduler-internal';
-    if (authHeader !== `Bearer ${internalToken}`) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const internalToken = process.env.INTERNAL_SCHEDULER_SECRET;
+    if (!internalToken || authHeader !== `Bearer ${internalToken}`) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
     let body = '';
     req.on('data', c => { body += c; });
     req.on('end', async () => {
@@ -42196,10 +42201,23 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
     const vehicleId = req.url.split('/').pop();
     try {
-      const { data: photos, error } = await supabase.from('vehicle_photos')
+      // Determine if caller is the vehicle owner or a provider viewing an open care plan
+      const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+      const isProvider = callerProfile && ['provider', 'admin'].includes(callerProfile.role);
+      let query = supabase.from('vehicle_photos')
         .select('id, storage_path, url, is_primary, created_at')
-        .eq('vehicle_id', vehicleId).eq('member_id', user.id)
+        .eq('vehicle_id', vehicleId)
         .order('is_primary', { ascending: false }).order('created_at', { ascending: true });
+      if (!isProvider) {
+        // Member can only see own photos
+        query = query.eq('member_id', user.id);
+      } else {
+        // Provider can only see photos if the vehicle has an open care plan
+        const { data: openPlan } = await supabase.from('care_plans')
+          .select('id').eq('vehicle_id', vehicleId).eq('status', 'open').limit(1).maybeSingle();
+        if (!openPlan) { res.writeHead(403); res.end(JSON.stringify({ error: 'No open care plan for this vehicle' })); return; }
+      }
+      const { data: photos, error } = await query;
       if (error) throw error;
       // Generate signed URLs if url column is empty
       const enriched = (photos || []).map(p => ({
@@ -43698,6 +43716,9 @@ function startBidDeadlineScheduler() {
 function startCarePlanClosingScheduler() {
   const INTERVAL = 60 * 60 * 1000; // hourly
   const INITIAL_DELAY = 2 * 60 * 1000; // 2 min after boot
+  // Dedupe set: tracks plan+provider pairs already notified this process run (resets on restart)
+  const closingSoonNotified = new Set();
+
   async function runCarePlanClosingCheck() {
     try {
       // 1. Expire plans past bid_closes_at
@@ -43705,35 +43726,90 @@ function startCarePlanClosingScheduler() {
         .update({ status: 'expired' }).eq('status', 'open')
         .lt('bid_closes_at', new Date().toISOString()).select('id, title, member_id');
       if (expired?.length) console.log(`[CarePlanScheduler] Expired ${expired.length} care plans`);
-      // 2. Closing-soon (< 6 hours): notify providers who have not yet bid
+
+      // 2. Closing-soon (< 6 hours): notify ALL verified providers who haven't bid yet
       const sixHoursLater = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
       const now = new Date().toISOString();
       const { data: closingSoon } = await supabase.from('care_plans')
-        .select('id, title, zip_code, service_types, value_min, value_max, bid_closes_at').eq('status', 'open')
-        .lte('bid_closes_at', sixHoursLater).gte('bid_closes_at', now);
+        .select('id, title, zip_code, service_types, value_min, value_max, bid_closes_at')
+        .eq('status', 'open').lte('bid_closes_at', sixHoursLater).gte('bid_closes_at', now);
       if (!closingSoon?.length) return;
-      const { data: autoBidProviders } = await supabase.from('profiles')
-        .select('id, phone, full_name, business_name, zip_code, auto_bid_max_distance_miles, auto_bid_service_types, sms_notifications_enabled')
-        .eq('auto_bid_enabled', true).in('role', ['provider', 'admin']);
+
+      // Load all verified providers with SMS notifications enabled
+      const { data: allProviders } = await supabase.from('profiles')
+        .select('id, phone, full_name, business_name, zip_code, sms_notifications_enabled, verification_status, auto_bid_max_distance_miles')
+        .in('role', ['provider', 'admin']).eq('sms_notifications_enabled', true).not('phone', 'is', null);
+
+      // Load existing bids for closing-soon plans (batch lookup)
+      const closingIds = closingSoon.map(p => p.id);
+      const { data: existingBids } = await supabase.from('plan_bids')
+        .select('care_plan_id, provider_id').in('care_plan_id', closingIds);
+      const biddedSet = new Set((existingBids || []).map(b => `${b.care_plan_id}:${b.provider_id}`));
+
       for (const plan of closingSoon) {
-        for (const prov of (autoBidProviders || [])) {
+        const minsLeft = Math.round((new Date(plan.bid_closes_at) - Date.now()) / 60000);
+        for (const prov of (allProviders || [])) {
+          // Skip if already notified this process run (dedupe)
+          const dedupeKey = `${plan.id}:${prov.id}`;
+          if (closingSoonNotified.has(dedupeKey)) continue;
+          // Skip if provider already bid
+          if (biddedSet.has(dedupeKey)) continue;
+          // Distance filter using auto-bid distance if set, otherwise 50-mile default
+          const maxDist = prov.auto_bid_max_distance_miles || 50;
           const dist = estimateZipDistanceSrv(prov.zip_code, plan.zip_code);
-          if (prov.auto_bid_max_distance_miles && dist > prov.auto_bid_max_distance_miles) continue;
-          const { data: existingBid } = await supabase.from('plan_bids').select('id').eq('care_plan_id', plan.id).eq('provider_id', prov.id).single();
-          if (existingBid) continue;
-          // Check for recent duplicate notification (simple: don't re-notify if < 5h since last check)
-          const minsLeft = Math.round((new Date(plan.bid_closes_at) - Date.now()) / 60000);
-          if (prov.sms_notifications_enabled && prov.phone) {
-            const msg = `MCC: Care plan "${plan.title}" closes in ~${minsLeft} min. Value: $${plan.value_min || '?'}–$${plan.value_max || '?'}. Visit mycarconcierge.com/provider/jobs`;
-            await sendSms(prov.phone, msg).catch(() => {});
-          }
+          if (dist > maxDist) continue;
+          const provName = prov.business_name || prov.full_name || 'Provider';
+          const msg = `MCC Alert: Care plan "${plan.title}" closes in ~${minsLeft} min. Est. value: $${plan.value_min || '?'}–$${plan.value_max || '?'}. Bid now: mycarconcierge.com/provider/jobs`;
+          await sendSms(prov.phone, msg).catch(() => {});
+          closingSoonNotified.add(dedupeKey);
         }
       }
-    } catch (err) { console.error('[CarePlanScheduler] Error:', err.message); }
+    } catch (err) { console.error('[CarePlanScheduler] Closing-soon error:', err.message); }
   }
+
+  // 3. First Mover daily digest — 7 AM UTC each day
+  async function runFirstMoverDigest() {
+    try {
+      const { data: openPlans } = await supabase.from('care_plans')
+        .select('id, title, service_types, value_min, value_max, zip_code, bid_count, bid_closes_at')
+        .eq('status', 'open').gt('bid_closes_at', new Date().toISOString())
+        .order('created_at', { ascending: false }).limit(10);
+      if (!openPlans?.length) return;
+      const { data: providers } = await supabase.from('profiles')
+        .select('id, phone, email, full_name, business_name, zip_code, sms_notifications_enabled, auto_bid_max_distance_miles')
+        .in('role', ['provider', 'admin']).eq('sms_notifications_enabled', true).not('phone', 'is', null);
+      for (const prov of (providers || [])) {
+        const maxDist = prov.auto_bid_max_distance_miles || 50;
+        const matching = openPlans.filter(p => {
+          const dist = estimateZipDistanceSrv(prov.zip_code, p.zip_code);
+          return dist <= maxDist;
+        });
+        if (!matching.length) continue;
+        const summary = matching.slice(0, 3).map(p =>
+          `"${p.title}" – $${p.value_min || '?'}–$${p.value_max || '?'} (${p.bid_count || 0} bids)`
+        ).join('; ');
+        const msg = `MCC Daily Jobs: ${matching.length} open care plan${matching.length > 1 ? 's' : ''} near you. Top picks: ${summary}. View all: mycarconcierge.com/provider/jobs`;
+        await sendSms(prov.phone, msg).catch(() => {});
+      }
+      console.log(`[CarePlanScheduler] First Mover digest sent to up to ${(providers || []).length} providers`);
+    } catch (err) { console.error('[CarePlanScheduler] Digest error:', err.message); }
+  }
+
+  // Schedule hourly closing-soon check
   setTimeout(runCarePlanClosingCheck, INITIAL_DELAY);
   setInterval(runCarePlanClosingCheck, INTERVAL);
+
+  // Schedule First Mover daily digest at 7 AM UTC
+  const now = new Date();
+  const next7am = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 7, 0, 0, 0));
+  if (next7am <= now) next7am.setUTCDate(next7am.getUTCDate() + 1);
+  const msUntil7am = next7am - now;
+  setTimeout(() => {
+    runFirstMoverDigest();
+    setInterval(runFirstMoverDigest, 24 * 60 * 60 * 1000);
+  }, msUntil7am);
   console.log('[Scheduler] Care plan closing-soon check scheduled hourly');
+  console.log(`[Scheduler] First Mover daily digest scheduled in ${Math.round(msUntil7am / 60000)} min (7:00 UTC)`);
 }
 // ========== END CARE PLAN CLOSING-SOON SCHEDULER ==========
 

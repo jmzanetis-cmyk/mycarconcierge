@@ -1959,7 +1959,7 @@ async function loadVehiclePhotos(vehicleId) {
       headers: { 'Authorization': 'Bearer ' + token }
     });
     if (!res.ok) throw new Error('Load failed');
-    vehiclePhotos = await res.json();
+    vehiclePhotos = (await res.json()).photos || [];
     renderVehiclePhotosGrid(vehiclePhotos);
   } catch (e) {
     grid.innerHTML = '<div style="color:var(--accent-red);font-size:0.85rem;">Failed to load photos.</div>';
@@ -1972,7 +1972,7 @@ function renderVehiclePhotosGrid(photos) {
   const addDisabled = photos.length >= 6;
   let html = photos.map(p => `
     <div style="position:relative;aspect-ratio:4/3;border-radius:var(--radius-md);overflow:hidden;border:2px solid ${p.is_primary ? 'var(--accent-gold)' : 'var(--border-subtle)'};">
-      <img src="${p.photo_url}" alt="Vehicle photo" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="openPhotoLightbox('${p.photo_url}')">
+      <img src="${p.url}" alt="Vehicle photo" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="openPhotoLightbox('${p.url}')">
       ${p.is_primary ? '<div style="position:absolute;top:6px;left:6px;background:var(--accent-gold);color:var(--bg-deep);font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:100px;">PRIMARY</div>' : ''}
       <div style="position:absolute;bottom:0;left:0;right:0;display:flex;gap:4px;padding:6px;background:linear-gradient(transparent,rgba(0,0,0,0.7));">
         ${!p.is_primary ? `<button onclick="setVehiclePhotoPrimary('${p.id}')" style="flex:1;font-size:0.65rem;padding:3px 6px;border-radius:4px;border:none;background:rgba(201,162,39,0.8);color:var(--bg-deep);cursor:pointer;font-weight:600;">Set Primary</button>` : ''}
@@ -2003,17 +2003,20 @@ async function uploadVehiclePhoto(input) {
   if (file.size > 8 * 1024 * 1024) { showToast('Photo must be under 8MB', 'error'); return; }
   try {
     showToast('Uploading photo...', 'info');
-    const ext = file.name.split('.').pop();
-    const fileName = currentPhotoVehicleId + '/' + Date.now() + '.' + ext;
+    const ext = file.name.split('.').pop().toLowerCase().replace('heic','jpg');
+    const session = await supabaseClient.auth.getSession();
+    const uid = session.data.session?.user?.id;
+    const token = session.data.session?.access_token;
+    if (!uid || !token) throw new Error('Not authenticated');
+    const fileName = uid + '/' + currentPhotoVehicleId + '/' + Date.now() + '.' + ext;
     const { data: uploadData, error: uploadErr } = await supabaseClient.storage
       .from('vehicle-photos').upload(fileName, file, { contentType: file.type, upsert: false });
     if (uploadErr) throw uploadErr;
     const { data: urlData } = supabaseClient.storage.from('vehicle-photos').getPublicUrl(fileName);
-    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
-    const res = await fetch('/api/vehicle-photos', {
+    const res = await fetch('/api/vehicle-photos/' + currentPhotoVehicleId, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ vehicle_id: currentPhotoVehicleId, photo_url: urlData.publicUrl, storage_path: fileName, is_primary: vehiclePhotos.length === 0 })
+      body: JSON.stringify({ storage_path: fileName, url: urlData.publicUrl, is_primary: vehiclePhotos.length === 0 })
     });
     if (!res.ok) throw new Error('Register failed');
     showToast('Photo uploaded!', 'success');

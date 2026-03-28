@@ -450,6 +450,7 @@ async function loadPlans(reset = false) {
     if (reset) plans = data.plans || [];
     else plans = [...plans, ...(data.plans || [])];
     totalPlans = data.total || 0;
+    window.providerVerified = data.provider_verified !== false; // default true for legacy
     renderPlanList();
     updateBadges();
     // Show load more
@@ -708,6 +709,10 @@ function closeBidModal() {
 }
 
 async function submitBid() {
+  if (window.providerVerified === false) {
+    showToast('Your account must be verified before placing bids. Check your profile for verification status.', 'error');
+    return;
+  }
   const amount = parseFloat(document.getElementById('bid-amount').value);
   const note = document.getElementById('bid-note').value.trim();
   if (!amount || amount <= 0) { showToast('Please enter a valid bid amount', 'error'); return; }
@@ -733,7 +738,12 @@ async function submitBid() {
       body: JSON.stringify(payload)
     });
     const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'Failed');
+    if (!resp.ok) {
+      if (data.error === 'verification_required') {
+        throw new Error('Your provider account must be verified before placing bids. Visit your provider profile to check verification status.');
+      }
+      throw new Error(data.error || 'Failed');
+    }
     closeBidModal();
     showToast(isEditBid ? 'Bid updated!' : 'Bid submitted!', 'success');
     await loadPlans(true);
