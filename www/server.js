@@ -41157,6 +41157,11 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
   // ========== END FLEET SAAS ROUTES ==========
 
   // ========== DEVELOPER AI API (Task #90) ==========
+  // Per-key in-memory rate limiter (requests per 60-second window)
+  if (typeof global._v1RateLimiter === 'undefined') {
+    global._v1RateLimiter = new Map();
+    global._V1_RATE_LIMITS = { starter: 30, pro: 120, business: 300 }; // req/min
+  }
 
   // GET /api/developer/keys — list user's API keys (requires ai_api plan)
   if (req.method === 'GET' && req.url === '/api/developer/keys') {
@@ -41292,6 +41297,36 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       return;
     }
 
+    // Per-key rate limiting (sliding 60-second window)
+    const _rlNow = Date.now();
+    const _rlEntry = global._v1RateLimiter.get(apiKeyRecord.id) || { count: 0, windowStart: _rlNow };
+    if (_rlNow - _rlEntry.windowStart > 60000) {
+      _rlEntry.count = 1; _rlEntry.windowStart = _rlNow;
+    } else {
+      _rlEntry.count++;
+    }
+    global._v1RateLimiter.set(apiKeyRecord.id, _rlEntry);
+    const _rlLimit = global._V1_RATE_LIMITS[apiKeyRecord.plan] || 30;
+    const _rlRemaining = Math.max(0, _rlLimit - _rlEntry.count);
+    const _rlReset = Math.ceil((_rlEntry.windowStart + 60000) / 1000);
+
+    if (_rlEntry.count > _rlLimit) {
+      res.writeHead(429, {
+        'Content-Type': 'application/json',
+        'X-RateLimit-Limit': String(_rlLimit),
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': String(_rlReset),
+        'Retry-After': String(Math.max(1, Math.ceil((_rlEntry.windowStart + 60000 - _rlNow) / 1000)))
+      });
+      res.end(JSON.stringify({ error: 'Rate limit exceeded. See X-RateLimit-Reset header.', retry_after_seconds: Math.ceil((_rlEntry.windowStart + 60000 - _rlNow) / 1000) }));
+      return;
+    }
+
+    // Inject X-RateLimit-* headers into all subsequent v1 responses for this request
+    const _origWriteHead = res.writeHead.bind(res);
+    res.writeHead = (code, hdrs) => _origWriteHead(code, Object.assign({ 'X-RateLimit-Limit': String(_rlLimit), 'X-RateLimit-Remaining': String(_rlRemaining), 'X-RateLimit-Reset': String(_rlReset) }, hdrs || {}));
+
+    // Monthly call cap check
     if (apiKeyRecord.calls_limit !== -1 && apiKeyRecord.calls_made >= apiKeyRecord.calls_limit) {
       res.writeHead(429, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Monthly call limit exceeded. Please upgrade your plan.' }));

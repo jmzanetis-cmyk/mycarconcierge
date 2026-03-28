@@ -165,37 +165,37 @@
   <div class="endpoint-grid" style="padding:0 24px;" id="endpoints">
     <div class="endpoint-card">
       <span class="endpoint-method method-get">GET</span>
-      <div class="endpoint-path">/v1/vin/{vin}</div>
+      <div class="endpoint-path">/api/v1/vin/{vin}</div>
       <div class="endpoint-desc">Decode any 17-character VIN via NHTSA — year, make, model, trim, engine, and more.</div>
       <div class="endpoint-plan">All plans</div>
     </div>
     <div class="endpoint-card">
       <span class="endpoint-method method-get">GET</span>
-      <div class="endpoint-path">/v1/recalls/{vin}</div>
+      <div class="endpoint-path">/api/v1/recalls/{vin}</div>
       <div class="endpoint-desc">Fetch all NHTSA safety recalls associated with a VIN in real time.</div>
       <div class="endpoint-plan">All plans</div>
     </div>
     <div class="endpoint-card">
       <span class="endpoint-method method-post">POST</span>
-      <div class="endpoint-path">/v1/obd-codes</div>
+      <div class="endpoint-path">/api/v1/obd-codes</div>
       <div class="endpoint-desc">AI analysis of OBD-II codes with severity, likely causes, repair actions, and cost estimates.</div>
       <div class="endpoint-plan">Pro &amp; Business</div>
     </div>
     <div class="endpoint-card">
       <span class="endpoint-method method-post">POST</span>
-      <div class="endpoint-path">/v1/price-estimate</div>
+      <div class="endpoint-path">/api/v1/price-estimate</div>
       <div class="endpoint-desc">Fair price range for any auto service category, optionally scoped by ZIP code.</div>
       <div class="endpoint-plan">All plans</div>
     </div>
     <div class="endpoint-card">
       <span class="endpoint-method method-post">POST</span>
-      <div class="endpoint-path">/v1/vehicle/health</div>
+      <div class="endpoint-path">/api/v1/vehicle/health</div>
       <div class="endpoint-desc">AI vehicle health score (0–100) with positive and negative factors and a plain-English summary.</div>
       <div class="endpoint-plan">Pro &amp; Business</div>
     </div>
     <div class="endpoint-card">
       <span class="endpoint-method method-post">POST</span>
-      <div class="endpoint-path">/v1/vehicle/forecast</div>
+      <div class="endpoint-path">/api/v1/vehicle/forecast</div>
       <div class="endpoint-desc">Upcoming maintenance forecast with due dates, mileage thresholds, priority, and cost estimates.</div>
       <div class="endpoint-plan">All plans</div>
     </div>
@@ -256,7 +256,7 @@
   -H <span class="str">"Authorization: Bearer mcc_your_key_here"</span> \
   -H <span class="str">"Content-Type: application/json"</span> \
   -d <span class="str">'{"codes":["P0420","P0171"],"vehicle":{"year":2020,"make":"Toyota","model":"Camry"}}'</span> \
-  https://mycarconcierge.com/api/v1/obd-codes</pre>
+  https://mycarconcierge.com/api/api/v1/obd-codes</pre>
           </div>
         </div>
         <div id="tab-js" class="tab-content">
