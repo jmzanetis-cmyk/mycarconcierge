@@ -638,7 +638,7 @@
         </div>
 
         <div class="privacy-section">
-          <h2><span class="section-number">7</span>Cookies and Tracking</h2>
+          <h2 id="cookies"><span class="section-number">7</span>Cookies and Tracking</h2>
           <p>We use cookies and similar tracking technologies to enhance your experience:</p>
           
           <h3>Types of Cookies We Use</h3>
@@ -709,17 +709,73 @@
           <p style="margin-top: 1rem;">When you delete your account, we permanently remove your personal data including profile information, vehicles, service history, and preferences. Some information (such as anonymized payment records) may be retained for legal, tax, and audit purposes as required by law. After deletion, you will receive a confirmation email.</p>
         </div>
 
-        <div class="privacy-section">
+        <div class="privacy-section" id="data-retention">
           <h2><span class="section-number">9</span>Data Retention</h2>
-          <p>We retain your information for as long as necessary to fulfill the purposes outlined in this Privacy Policy:</p>
-          <ul>
-            <li><strong>Active Accounts:</strong> Data is retained while your account remains active</li>
-            <li><strong>Closed Accounts:</strong> We retain certain information for up to 7 years after account closure for legal, tax, and audit purposes</li>
-            <li><strong>Transaction Records:</strong> Payment and transaction records are retained as required by financial regulations</li>
-            <li><strong>Communication Logs:</strong> Retained for dispute resolution and safety purposes</li>
-            <li><strong>Anonymized Data:</strong> Aggregated, anonymized data may be retained indefinitely for analytics</li>
-          </ul>
-          <p>Upon request for deletion, we will remove or anonymize your personal information, unless retention is required by law or for legitimate business purposes.</p>
+          <p>We retain your information for as long as necessary to fulfill the purposes outlined in this Privacy Policy. The table below provides specific retention periods for each category of data:</p>
+          <div style="overflow-x:auto;margin:20px 0;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+              <thead>
+                <tr style="background:rgba(201,168,76,0.1);border-bottom:2px solid rgba(201,168,76,0.25);">
+                  <th style="text-align:left;padding:10px 14px;color:#c9a84c;font-weight:600;">Data Category</th>
+                  <th style="text-align:left;padding:10px 14px;color:#c9a84c;font-weight:600;">Retention Period</th>
+                  <th style="text-align:left;padding:10px 14px;color:#c9a84c;font-weight:600;">Reason</th>
+                </tr>
+              </thead>
+              <tbody style="color:var(--text-secondary);">
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Account Profile &amp; Settings</strong></td>
+                  <td style="padding:10px 14px;">While account is active + 30 days after deletion</td>
+                  <td style="padding:10px 14px;">Account recovery period; then permanently deleted</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);background:rgba(255,255,255,0.02);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Payment &amp; Transaction Records</strong></td>
+                  <td style="padding:10px 14px;">7 years</td>
+                  <td style="padding:10px 14px;">IRS requirements, tax obligations, and financial regulations</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Service Job History</strong></td>
+                  <td style="padding:10px 14px;">5 years after account closure</td>
+                  <td style="padding:10px 14px;">Dispute resolution and warranty reference</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);background:rgba(255,255,255,0.02);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Vehicle Records</strong></td>
+                  <td style="padding:10px 14px;">Duration of account + 30-day grace period</td>
+                  <td style="padding:10px 14px;">Deleted with account unless part of service history</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Communication &amp; Message Logs</strong></td>
+                  <td style="padding:10px 14px;">3 years</td>
+                  <td style="padding:10px 14px;">Dispute resolution, safety investigations, and fraud prevention</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);background:rgba(255,255,255,0.02);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">SMS &amp; Email Consent Records</strong></td>
+                  <td style="padding:10px 14px;">5 years</td>
+                  <td style="padding:10px 14px;">TCPA compliance and regulatory audit trail</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Background Check Records</strong></td>
+                  <td style="padding:10px 14px;">7 years from screening date</td>
+                  <td style="padding:10px 14px;">FCRA compliance and provider verification audit</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);background:rgba(255,255,255,0.02);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Security &amp; Login Logs</strong></td>
+                  <td style="padding:10px 14px;">90 days</td>
+                  <td style="padding:10px 14px;">Fraud detection and account security</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Cookie &amp; Analytics Data</strong></td>
+                  <td style="padding:10px 14px;">13 months from collection</td>
+                  <td style="padding:10px 14px;">Platform analytics and performance improvement</td>
+                </tr>
+                <tr style="background:rgba(255,255,255,0.02);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Anonymized / Aggregated Data</strong></td>
+                  <td style="padding:10px 14px;">Indefinite</td>
+                  <td style="padding:10px 14px;">No personal identifiers; used only for aggregate analytics</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Upon a verified request for deletion, we will remove or anonymize your personal information within 45 days, unless retention is required by law, ongoing legal proceeding, or legitimate business purpose. You will receive a confirmation when deletion is complete.</p>
         </div>
 
         <div class="privacy-section">

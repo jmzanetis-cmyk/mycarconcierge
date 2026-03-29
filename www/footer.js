@@ -59,6 +59,8 @@ function renderMCCFooter() {
             <li><a href="/privacy.html">Privacy Policy</a></li>
             <li><a href="/sms-consent.html">SMS Policy</a></li>
             <li><a href="/trust-safety.html">Trust & Safety</a></li>
+            <li><a href="/data-rights.html">Your Privacy Choices</a></li>
+            <li><a href="/background-check-disclosure.html">FCRA Disclosure</a></li>
           </ul>
         </div>
       </div>
@@ -198,3 +200,11 @@ document.addEventListener('DOMContentLoaded', () => {
     main.parentNode.insertBefore(renderMCCFooter(), main.nextSibling);
   }
 });
+
+(function loadCookieConsent() {
+  if (document.getElementById('mcc-cookie-consent-script')) return;
+  const s = document.createElement('script');
+  s.id = 'mcc-cookie-consent-script';
+  s.src = '/cookie-consent.js';
+  document.head.appendChild(s);
+})();

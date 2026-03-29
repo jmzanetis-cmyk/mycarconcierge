@@ -129,6 +129,7 @@
     .sms-opt { display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; }
     .sms-opt input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--gold); flex-shrink: 0; cursor: pointer; }
     .sms-opt label { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; cursor: pointer; }
+    .privacy-note { font-size: 0.78rem; color: var(--text-muted); margin-top: 14px; text-align: center; line-height: 1.5; opacity: 0.85; }
     .vehicle-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
     @media (max-width: 480px) { .vehicle-row { grid-template-columns: 1fr; } }
     .skip-link { font-size: 0.82rem; color: var(--text-muted); text-decoration: underline; cursor: pointer; text-align: center; display: block; margin-top: 6px; }
@@ -446,6 +447,7 @@
           <button class="btn btn-gold" onclick="nextFromOb1()">Next &rarr;</button>
           <button class="btn-ghost" onclick="goToStep('reveal')">&#8592; Back</button>
         </div>
+        <p class="privacy-note"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Your answers are kept private. We never sell your data.</p>
       </div>
 
       <!-- ===== ONBOARDING 2: Email + SMS ===== -->
@@ -467,7 +469,7 @@
 
         <div class="sms-opt">
           <input type="checkbox" id="ob-sms-opt" />
-          <label for="ob-sms-opt">Text me too — I'd like SMS updates about bids and launch dates in my area. (Optional)</label>
+          <label for="ob-sms-opt">Text me too &mdash; I agree to receive recurring automated SMS messages from My Car Concierge about launch updates and service alerts in my area (max 4/month). Message &amp; data rates may apply. Reply STOP to cancel. <a href="/sms-consent.html" style="color:var(--gold-dark);text-decoration:underline;" target="_blank" rel="noopener noreferrer">SMS Terms</a>. (Optional)</label>
         </div>
         <div class="form-group" id="ob-phone-group" style="display:none; margin-top:12px;">
           <label class="form-label" for="ob-phone">Mobile number</label>
@@ -480,6 +482,7 @@
           <button class="btn btn-gold" onclick="nextFromOb2()">Next &rarr;</button>
           <button class="btn-ghost" onclick="goToStep('ob1')">&#8592; Back</button>
         </div>
+        <p class="privacy-note"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>We use your email only to notify you when MCC launches near you. We never sell or share your personal information. <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style="color:var(--gold-dark);text-decoration:underline;">Privacy Policy</a>.</p>
       </div>
 
       <!-- ===== ONBOARDING 3: Vehicle ===== -->
@@ -510,6 +513,7 @@
           <span class="skip-link" onclick="createProfile()">Skip for now</span>
           <button class="btn-ghost" onclick="goToStep('ob2')">&#8592; Back</button>
         </div>
+        <p class="privacy-note"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Vehicle info is optional and stored privately in your profile. You can add or update it anytime.</p>
       </div>
 
       <!-- ===== CONFIRMATION SCREEN ===== -->

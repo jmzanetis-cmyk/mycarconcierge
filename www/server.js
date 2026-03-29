@@ -41860,6 +41860,72 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     return;
   }
 
+
+  // POST /api/privacy-request — receive CCPA/data rights requests and send to privacy team
+  if (req.method === 'POST' && req.url === '/api/privacy-request') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'privacy-request:' + ip);
+    if (!rl.allowed) return;
+    try {
+      const body = await readBody(req);
+      const { name, email, state, type, details } = JSON.parse(body);
+      if (!name || !email || !state || !type) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'Missing required fields' })); return;
+      }
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRe.test(email)) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid email' })); return;
+      }
+      const typeLabels = {
+        opt_out_sale: 'Do Not Sell or Share My Data',
+        know: 'Right to Know',
+        delete: 'Right to Delete',
+        correct: 'Right to Correct',
+        portability: 'Data Portability',
+        limit_sensitive: 'Limit Use of Sensitive Personal Information'
+      };
+      const typeLabel = typeLabels[type] || type;
+      const supabase = getSupabaseClient();
+      // Log in DB
+      await supabase.from('privacy_requests').insert({
+        name, email, state, request_type: type, details: details || null,
+        status: 'pending', submitted_at: new Date().toISOString(), ip_address: ip
+      }).then(() => {});
+      // Email notification to privacy team via Resend
+      const RESEND_API_KEY = process.env.RESEND_API_KEY;
+      if (RESEND_API_KEY) {
+        const emailBody = {
+          from: 'My Car Concierge <noreply@mycarconcierge.com>',
+          to: ['privacy@mycarconcierge.com'],
+          subject: `Privacy Request: ${typeLabel} — ${name}`,
+          html: `<h2>New Privacy Request</h2>
+<table border="0" cellpadding="6" style="font-family:sans-serif;font-size:14px;">
+<tr><td><strong>Name:</strong></td><td>${name}</td></tr>
+<tr><td><strong>Email:</strong></td><td>${email}</td></tr>
+<tr><td><strong>State:</strong></td><td>${state}</td></tr>
+<tr><td><strong>Request Type:</strong></td><td>${typeLabel}</td></tr>
+<tr><td><strong>Details:</strong></td><td>${details || '(none)'}</td></tr>
+<tr><td><strong>Submitted:</strong></td><td>${new Date().toISOString()}</td></tr>
+</table>
+<p style="margin-top:16px;font-size:13px;color:#666;">Respond within 10 business days. Full response due within 45 calendar days per CCPA.</p>
+`
+        };
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(emailBody)
+        }).catch(e => console.error('[Privacy] Email send error:', e.message));
+      }
+      res.writeHead(200); res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      console.error('[Privacy] POST /api/privacy-request error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to submit request' }));
+    }
+    return;
+  }
+
   // POST /api/survey/referral-link — generate a shareable referral link for survey completions (Task #96)
   // Creates a real entry in the `referrals` table (the existing referral infrastructure) so the
   // generated code is fully resolvable and redeemable via the standard handleApplyReferralCode path.
