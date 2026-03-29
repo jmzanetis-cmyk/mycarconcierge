@@ -1373,9 +1373,17 @@
       if (id === 'credits') {
         loadSubscription();
       }
+      // Load shop subscription status when subscription section is shown
+      if (id === 'subscription') {
+        loadShopSubscription();
+      }
       // Load availability when section is shown
       if (id === 'availability') {
         loadAvailabilitySection();
+      }
+      // Load auto-bid settings when section is shown
+      if (id === 'auto-bid') {
+        if (typeof loadAutoBidSettings === 'function') loadAutoBidSettings();
       }
     }
 
@@ -12771,3 +12779,83 @@
       scheduleWeekStart.setDate(scheduleWeekStart.getDate() + (direction * 7));
       loadScheduleOverview();
     }
+
+    // ========== PROVIDER SHOP SAAS (Task #89) ==========
+
+    async function loadShopSubscription() {
+      const labelEl = document.getElementById('shop-sub-plan-label');
+      const badgeEl = document.getElementById('shop-sub-status-badge');
+      const featuresEl = document.getElementById('shop-gated-features');
+      const upgradePrompt = document.getElementById('shop-upgrade-prompt');
+
+      const planFeatures = {
+        starter: ['sms', 'loyalty'],
+        pro: ['sms', 'analytics', 'loyalty'],
+        business: ['sms', 'analytics', 'loyalty']
+      };
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const res = await fetch('/api/saas/subscription/status?product=shop', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!res.ok) {
+          if (labelEl) labelEl.textContent = 'No active shop plan — upgrade to unlock premium features.';
+          if (featuresEl) featuresEl.style.display = 'block';
+          if (upgradePrompt) upgradePrompt.style.display = 'block';
+          return;
+        }
+        const { subscriptions } = await res.json();
+        const shopSub = subscriptions?.find(s => s.product === 'shop' && ['active','trialing'].includes(s.status));
+
+        if (!shopSub) {
+          if (labelEl) labelEl.textContent = 'No active Shop plan — features are limited.';
+          if (featuresEl) featuresEl.style.display = 'block';
+          if (upgradePrompt) upgradePrompt.style.display = 'block';
+          return;
+        }
+
+        const plan = shopSub.plan;
+        const planNames = { starter: 'Shop Starter', pro: 'Shop Pro', business: 'Shop Business' };
+        if (labelEl) {
+          const periodEnd = shopSub.current_period_end ? new Date(shopSub.current_period_end).toLocaleDateString() : null;
+          labelEl.innerHTML = `<span style="color:var(--accent-green);font-weight:600;">${planNames[plan] || plan}</span>${periodEnd ? ` · Renews ${periodEnd}` : ''}`;
+        }
+        if (badgeEl) {
+          badgeEl.innerHTML = `<span style="background:var(--accent-green-soft);color:var(--accent-green);padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">${shopSub.status === 'trialing' ? 'Trial' : 'Active'}</span>`;
+        }
+        if (featuresEl) {
+          featuresEl.style.display = 'block';
+          const unlockedFeatures = planFeatures[plan] || [];
+          const featureMap = { sms: 'shop-feature-sms', analytics: 'shop-feature-analytics', loyalty: 'shop-feature-loyalty' };
+          const featureNames = { sms: '✅ SMS Reminders', analytics: '✅ Advanced Analytics', loyalty: '✅ Car Club Loyalty' };
+          for (const [feat, elId] of Object.entries(featureMap)) {
+            const el = document.getElementById(elId);
+            if (!el) continue;
+            if (unlockedFeatures.includes(feat)) {
+              el.textContent = featureNames[feat];
+              el.style.background = 'var(--accent-green-soft)';
+              el.style.color = 'var(--accent-green)';
+            } else {
+              el.textContent = `🔒 ${feat === 'sms' ? 'SMS Reminders' : feat === 'analytics' ? 'Advanced Analytics' : 'Car Club Loyalty'}`;
+              el.style.background = 'var(--border-subtle)';
+              el.style.color = 'var(--text-muted)';
+            }
+          }
+          if (upgradePrompt) upgradePrompt.style.display = plan === 'starter' ? 'block' : 'none';
+        }
+      } catch (err) {
+        console.warn('[Shop Sub]', err.message);
+        if (labelEl) labelEl.textContent = 'Unable to load plan info.';
+      }
+    }
+
+    function openShopUpgradeModal() {
+      window.location.href = '/members.html?section=settings#billing-settings-card';
+    }
+
+    window.loadShopSubscription = loadShopSubscription;
+    window.openShopUpgradeModal = openShopUpgradeModal;
+
+    // ========== END PROVIDER SHOP SAAS ==========

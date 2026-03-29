@@ -198,3 +198,94 @@ cd ios/App && pod repo update && pod install
 **App crashes on launch:**
 - The `capacitor.config.json` `server.url` points to production — make sure production is live
 - For local testing, comment out the `server` block and run `npx cap run ios` with a local server
+
+---
+
+## Pre-Submission Checklist
+
+Run through every item below before clicking **Submit for Review** in App Store Connect. Items marked **(required)** will cause automatic rejection if missing.
+
+### Code & Build
+
+- [ ] `bash scripts/build-ios-check.sh` passes with **0 errors** — no admin, server, or outreach files in `www-ios/`
+- [ ] Version number in Xcode (`CFBundleShortVersionString`) matches the version in App Store Connect
+- [ ] Build number (`CFBundleVersion`) is higher than any previously uploaded build for this version
+- [ ] `ios/ExportOptions.plist` — `teamID` is set to your real 10-character Apple Team ID (not `REPLACE_WITH_TEAM_ID`)
+- [ ] Signed with **Distribution** certificate (not Development) for App Store upload
+- [ ] Provisioning profile is type **App Store** (not Ad Hoc or Development)
+- [ ] `capacitor.config.json` `server.url` points to the **production** domain (`https://www.mycarconcierge.com`)
+- [ ] `npx cap sync ios` completed without errors after the last code change
+
+### App Store Connect Metadata **(required)**
+
+- [ ] App Name: **My Car Concierge** (≤ 30 chars)
+- [ ] Subtitle filled in (≤ 30 chars) — see `docs/appstore-metadata.md`
+- [ ] Description filled in (≤ 4,000 chars) — see `docs/appstore-metadata.md`
+- [ ] Promotional Text filled in (≤ 170 chars) — see `docs/appstore-metadata.md`
+- [ ] Keywords filled in (≤ 100 chars) — see `docs/appstore-metadata.md`
+- [ ] Support URL resolves: `https://www.mycarconcierge.com/support.html` → HTTP 200
+- [ ] Privacy Policy URL resolves: `https://www.mycarconcierge.com/privacy.html` → HTTP 200
+- [ ] What's New text entered for version 1.0.0 — see `docs/appstore-metadata.md`
+- [ ] Primary Category: **Lifestyle** / Secondary Category: **Business**
+- [ ] Age Rating questionnaire completed — expected result: **4+**
+
+### Screenshots **(required)**
+
+- [ ] At least **3 screenshots** uploaded for **6.7" Super Retina XDR** (1290 × 2796 px)
+- [ ] At least **3 screenshots** uploaded for **6.1" Super Retina XDR** (1179 × 2556 px)
+- [ ] Screenshots show real app screens (not placeholder or mock content)
+- [ ] No screenshots contain sensitive personal data, test account details, or developer-only UI
+
+### Privacy & Compliance **(required)**
+
+- [ ] **App Privacy** nutrition labels completed in App Store Connect:
+  - Contact Info (Name, Email, Phone Number)
+  - Identifiers (User ID, Device ID)
+  - Purchases (Purchase History)
+  - Photos or Videos (user-uploaded vehicle/document photos)
+  - Location (service provider matching)
+  - Diagnostics (Crash Data)
+- [ ] Privacy Policy at `https://mycarconcierge.com/privacy.html` covers all current data processors:
+  - [x] Supabase (database)
+  - [x] Stripe (payments)
+  - [x] Twilio (SMS)
+  - [x] FCM / Firebase (push notifications)
+  - [x] Google Cloud Vision (OCR)
+  - [x] Anthropic / Google Gemini (AI features)
+  - [x] Resend (email)
+  - [x] Instantly.ai (provider/investor outreach email)
+  - [x] BackgroundChecks.com (provider background screening)
+- [ ] App does not collect data from children under 13 — confirmed in Age Rating questionnaire
+- [ ] No third-party SDKs in the build that require additional privacy disclosures (verify in Xcode → Privacy Report)
+
+### Functionality
+
+- [ ] App launches successfully on a physical iOS device (not just Simulator)
+- [ ] Member login / signup flow works end-to-end against the production API
+- [ ] Push notification permission prompt appears on first launch (if not previously granted)
+- [ ] Biometric login (Face ID / Touch ID) works on a physical device
+- [ ] Stripe checkout completes without errors (use a Stripe test card in sandbox mode, or verify production flow)
+- [ ] OBD scanner manual entry and AI explanation work
+- [ ] Vehicle add / edit flow saves correctly
+- [ ] App handles no-network state gracefully (shows error messages, does not crash)
+
+### Review Demo Account
+
+Apple reviewers need a working test account to verify the app. Create a dedicated reviewer account before submission:
+
+- [ ] Demo member account created at `https://mycarconcierge.com` with email and password (not SSO)
+- [ ] Account has at least one vehicle added
+- [ ] Account has at least one past or pending service request (so reviewers can see the bid flow)
+- [ ] Demo credentials entered in App Store Connect → App Review Information:
+  - **Username:** `reviewer@mycarconcierge.com` (or your chosen reviewer email)
+  - **Password:** *(set in App Store Connect — do not commit to git)*
+- [ ] Notes to Apple reviewer filled in — explain any features that require special setup:
+  > "This is an automotive service marketplace. Use the provided demo account to browse service requests, view provider bids, and test the vehicle management features. Payment flows use Stripe; tap 'Pay' and use test card 4242 4242 4242 4242. Push notifications require accepting the prompt on first launch."
+
+### Final Review
+
+- [ ] Read Apple's latest [App Store Review Guidelines](https://developer.apple.com/app-store/review/guidelines/) to confirm no new policy changes affect the submission
+- [ ] Confirm the build has no crashes reported in Xcode Organizer's **Distribute** step
+- [ ] No beta/debug UI, test banners, console logs visible to end users
+- [ ] `console.log` calls that expose sensitive data have been removed from production JS
+- [ ] Admin portal is confirmed absent: navigate to `/admin.html` in the app — it must return 404 or redirect

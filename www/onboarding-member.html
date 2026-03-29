@@ -98,7 +98,7 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      padding: 80px 24px 24px;
+      padding: 116px 24px 24px;
       opacity: 0;
       transform: translateX(100%);
       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -370,6 +370,38 @@
       to { transform: rotate(360deg); }
     }
 
+    .onboarding-logo-row {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    .onboarding-logo {
+      height: 28px;
+      width: auto;
+      display: block;
+    }
+
+    .security-statement {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      margin-top: 14px;
+      font-size: 0.76rem;
+      color: #9ca3af;
+      line-height: 1.4;
+      text-align: center;
+    }
+    .security-statement svg {
+      flex-shrink: 0;
+      color: #9ca3af;
+    }
+    .security-statement a {
+      color: #9ca3af;
+      text-decoration: underline;
+    }
+    .security-statement a:hover { color: #6b7280; }
+
     .login-link {
       display: block;
       text-align: center;
@@ -613,11 +645,293 @@
       .category-grid { gap: 8px; }
       .category-card { padding: 12px; }
     }
+
+    /* Post-signup survey overlay */
+    .survey-overlay {
+      position: fixed;
+      inset: 0;
+      background: #ffffff;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+      animation: surveyIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    @keyframes surveyIn { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+    .survey-overlay.hidden { display: none; }
+    .survey-inner {
+      width: 100%;
+      max-width: 480px;
+    }
+    .survey-progress-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .survey-progress-track {
+      flex: 1;
+      height: 4px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .survey-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #c9a227, #e6b84a);
+      border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+    .survey-step-label {
+      font-size: 0.78rem;
+      color: #6b7280;
+      white-space: nowrap;
+    }
+    .survey-tag {
+      display: inline-block;
+      padding: 4px 12px;
+      background: rgba(201,162,39,0.12);
+      color: #b8942d;
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: 100px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 16px;
+    }
+    .survey-question {
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 24px;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+    }
+    .survey-options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .survey-option {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      background: #f9fafb;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #1a1a2e;
+      user-select: none;
+    }
+    .survey-option:hover { border-color: #c9a227; background: rgba(201,162,39,0.05); }
+    .survey-option.selected { border-color: #c9a227; background: rgba(201,162,39,0.1); }
+    .survey-option-dot {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #d1d5db;
+      border-radius: 50%;
+      flex-shrink: 0;
+      transition: all 0.18s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .survey-option.selected .survey-option-dot {
+      background: #c9a227;
+      border-color: #c9a227;
+    }
+    .survey-option.selected .survey-option-dot::after {
+      content: '';
+      width: 7px;
+      height: 7px;
+      background: #fff;
+      border-radius: 50%;
+    }
+    .survey-btn-next {
+      width: 100%;
+      padding: 15px 24px;
+      background: linear-gradient(135deg, #c9a227, #e6b84a);
+      color: #12161c;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .survey-btn-next:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(201,162,39,0.35); }
+    .survey-btn-next:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .survey-btn-skip {
+      width: 100%;
+      padding: 12px;
+      background: transparent;
+      color: #9ca3af;
+      border: none;
+      font-size: 0.88rem;
+      font-family: inherit;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: color 0.2s ease;
+    }
+    .survey-btn-skip:hover { color: #6b7280; }
+
+    /* Welcome & Thank-you screen panels */
+    .survey-panel { display: none; }
+    .survey-panel.active { display: block; }
+
+    .survey-welcome-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      background: rgba(201,162,39,0.12);
+      color: #b8942d;
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: 100px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 20px;
+    }
+    .survey-welcome-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+      line-height: 1.2;
+      letter-spacing: -0.03em;
+    }
+    .survey-welcome-body {
+      font-size: 1rem;
+      color: #4b5563;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .survey-consent-box {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .survey-consent-box svg {
+      flex-shrink: 0;
+      margin-top: 2px;
+      color: #9ca3af;
+    }
+    .survey-consent-text {
+      font-size: 0.8rem;
+      color: #6b7280;
+      line-height: 1.55;
+    }
+    .survey-consent-text a {
+      color: #b8942d;
+      text-decoration: underline;
+    }
+    .survey-btn-start {
+      width: 100%;
+      padding: 15px 24px;
+      background: linear-gradient(135deg, #c9a227, #e6b84a);
+      color: #12161c;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 0;
+    }
+    .survey-btn-start:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(201,162,39,0.35); }
+
+    .survey-thankyou-icon {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, #c9a227, #e6b84a);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+    .survey-thankyou-icon svg { color: #12161c; }
+    .survey-thankyou-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+      letter-spacing: -0.03em;
+    }
+    .survey-thankyou-body {
+      font-size: 1rem;
+      color: #4b5563;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+    .survey-invite-card {
+      background: linear-gradient(135deg, #12161c 0%, #1e2530 100%);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    .survey-invite-card-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #c9a227;
+      margin-bottom: 8px;
+    }
+    .survey-invite-card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+    .survey-invite-card-body {
+      font-size: 0.88rem;
+      color: #9ca3af;
+      line-height: 1.55;
+      margin-bottom: 18px;
+    }
+    .survey-btn-join {
+      width: 100%;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #c9a227, #e6b84a);
+      color: #12161c;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .survey-btn-join:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(201,162,39,0.4); }
   </style>
 </head>
 <body>
   <div class="onboarding" id="onboarding">
     <div class="progress-bar">
+      <div class="onboarding-logo-row">
+        <picture>
+          <source srcset="/mcc-logo.webp" type="image/webp">
+          <img src="/logo.png" alt="My Car Concierge" class="onboarding-logo">
+        </picture>
+      </div>
       <div class="progress-text">
         <button class="progress-back" id="back-btn" onclick="goBack()" style="visibility:hidden">
           <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -644,6 +958,10 @@
             <div class="input-error" id="error-name">Please enter your name</div>
           </div>
           <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <div class="security-statement">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Your information is private and secure. We never sell your data. <a href="/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+          </div>
           <div class="login-link">Already have an account? <a href="login.html">Log in</a></div>
         </div>
       </div>
@@ -829,6 +1147,7 @@
 
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
+  <script src="/white-label-client.js"></script>
   <script>
     let currentStep = 0;
     const totalSteps = 8;
@@ -1195,6 +1514,380 @@
       }
 
       checklistEl.innerHTML = html;
+
+      // Show survey overlay after a brief pause
+      setTimeout(showSurveyOverlay, 700);
+    }
+
+    // ===== POST-SIGNUP SURVEY =====
+    const SURVEY_QUESTIONS = [
+      {
+        key: 'provider_discovery',
+        tag: 'Question 1 of 22',
+        q: 'How do you typically find auto service providers — mechanics, detailers, body shops?',
+        opts: [
+          { val: 'word_of_mouth', label: 'Word of mouth from friends or family' },
+          { val: 'online_search', label: 'Online search and reviews' },
+          { val: 'stick_with_known', label: 'I stick with providers I already know' },
+          { val: 'trial_error', label: "I try whoever is convenient and hope for the best" }
+        ]
+      },
+      {
+        key: 'provider_satisfaction',
+        tag: 'Question 2 of 22',
+        q: 'Overall, how satisfied are you with the auto service providers you currently use?',
+        opts: [
+          { val: 'very_satisfied', label: 'Very satisfied — I have reliable providers I trust' },
+          { val: 'somewhat_satisfied', label: "Somewhat satisfied — they're good enough" },
+          { val: 'not_satisfied', label: 'Not very satisfied — quality is inconsistent' },
+          { val: 'avoid_service', label: 'Very unsatisfied — I put off getting work done because of it' }
+        ]
+      },
+      {
+        key: 'service_frequency',
+        tag: 'Question 3 of 22',
+        q: 'How often do you take your vehicle in for any type of service or maintenance?',
+        opts: [
+          { val: 'monthly_plus', label: 'More than once a month' },
+          { val: 'every_2_3_months', label: 'Every 2-3 months' },
+          { val: 'few_times_year', label: 'A couple of times a year' },
+          { val: 'once_a_year', label: 'About once a year' },
+          { val: 'only_problems', label: 'Only when something goes wrong' }
+        ]
+      },
+      {
+        key: 'service_types',
+        tag: 'Question 4 of 22',
+        q: 'What types of auto service do you get done most often?',
+        opts: [
+          { val: 'routine', label: 'Routine maintenance — oil changes, tire rotations, filters' },
+          { val: 'repairs', label: 'Repairs and diagnostics' },
+          { val: 'cosmetic', label: 'Detailing and cosmetic care' },
+          { val: 'mixed', label: 'It depends — I use different providers for different needs' }
+        ]
+      },
+      {
+        key: 'pricing_confidence',
+        tag: 'Question 5 of 22',
+        q: 'How would you rate the value and fairness of what you typically pay for auto work — repairs, car washes, or detailing?',
+        opts: [
+          { val: 'very_fair', label: 'Very fair — I consistently feel good about what I pay' },
+          { val: 'mostly_fair', label: 'Mostly fair — it varies but usually feels reasonable' },
+          { val: 'not_sure', label: 'Not sure — I often wonder if I could have paid less' },
+          { val: 'not_fair', label: 'Not fair — I feel overcharged more often than not' }
+        ]
+      },
+      {
+        key: 'estimate_surprise',
+        tag: 'Question 6 of 22',
+        q: 'Have you ever received a final bill significantly higher than what you were originally quoted?',
+        opts: [
+          { val: 'yes_regularly', label: 'Yes, regularly' },
+          { val: 'yes_once', label: 'Yes, at least once' },
+          { val: 'rarely', label: 'Rarely — quotes are usually close to accurate' },
+          { val: 'never', label: 'Never — quotes always match the final bill' }
+        ]
+      },
+      {
+        key: 'quote_behavior',
+        tag: 'Question 7 of 22',
+        q: 'When facing a larger repair job, how do you typically handle getting a price?',
+        opts: [
+          { val: 'trust_one', label: 'I go with whoever I trust and don\'t shop around' },
+          { val: 'compare_few', label: 'I call 2-3 shops to compare prices' },
+          { val: 'online_research', label: 'I research online to estimate what it should cost' },
+          { val: 'just_pay', label: 'I pay whatever I\'m told — comparing is too much work' }
+        ]
+      },
+      {
+        key: 'provider_honesty',
+        tag: 'Question 8 of 22',
+        q: 'How honest and straightforward do you find auto service providers when explaining what work needs to be done and why?',
+        opts: [
+          { val: 'very_honest', label: 'Very honest — I trust what they tell me' },
+          { val: 'mostly_honest', label: 'Mostly honest — but I sometimes question their recommendations' },
+          { val: 'skeptical', label: 'Somewhat skeptical — I often feel upsold or misled' },
+          { val: 'very_skeptical', label: 'Very skeptical — I rarely trust what I\'m told without a second opinion' }
+        ]
+      },
+      {
+        key: 'provider_vetting',
+        tag: 'Question 9 of 22',
+        q: 'Have you ever felt uncertain about whether a service provider was properly qualified or legitimate?',
+        opts: [
+          { val: 'yes_nervous', label: 'Yes, and it genuinely concerned me' },
+          { val: 'yes_went_anyway', label: 'Yes, but I went ahead anyway' },
+          { val: 'rarely', label: 'Rarely — I usually feel comfortable' },
+          { val: 'never', label: 'Never — I always know who I\'m dealing with' }
+        ]
+      },
+      {
+        key: 'history_tracking',
+        tag: 'Question 10 of 22',
+        q: 'How do you keep track of your vehicle\'s service history?',
+        opts: [
+          { val: 'no_system', label: "I don't — I rely on memory or old receipts" },
+          { val: 'manual', label: 'I keep notes or a spreadsheet' },
+          { val: 'mechanic_tracks', label: 'My mechanic keeps records and reminds me' },
+          { val: 'app', label: 'I use an app or online tool for this' }
+        ]
+      },
+      {
+        key: 'maintenance_avoidance',
+        tag: 'Question 11 of 22',
+        q: 'Have you ever delayed or skipped necessary maintenance because dealing with a shop felt like too much trouble?',
+        opts: [
+          { val: 'yes_regularly', label: 'Yes, regularly' },
+          { val: 'yes_sometimes', label: 'Yes, a few times' },
+          { val: 'rarely', label: 'Rarely' },
+          { val: 'never', label: 'Never — I stay on top of it' }
+        ]
+      },
+      {
+        key: 'job_status_updates',
+        tag: 'Question 12 of 22',
+        q: 'When you drop your car off for service, how do you typically find out what\'s happening while it\'s being worked on?',
+        opts: [
+          { val: 'i_call', label: 'I call the shop to check in' },
+          { val: 'they_call', label: "They call me when it's ready — that's it" },
+          { val: 'just_show_up', label: "I just show up and hope it's done" },
+          { val: 'has_system', label: 'The shop has a system that keeps me updated' }
+        ]
+      },
+      {
+        key: 'maintenance_reminders',
+        tag: 'Question 13 of 22',
+        q: 'Do you currently receive any reminders for routine vehicle maintenance — oil changes, tire rotations, inspections, etc.?',
+        opts: [
+          { val: 'from_shop', label: 'Yes, my mechanic or dealership sends them' },
+          { val: 'self_set', label: 'Yes, I set my own calendar reminders' },
+          { val: 'no_try_to_remember', label: 'No — I just try to remember' },
+          { val: 'dashboard_light', label: 'No — I wait for a dashboard warning or something to feel wrong' }
+        ]
+      },
+      {
+        key: 'competitive_bids',
+        tag: 'Question 14 of 22',
+        q: 'How would you feel about getting competitive bids for both your mechanical and cosmetic auto jobs?',
+        opts: [
+          { val: 'love_it', label: "I'd love it — competition keeps prices fair and quality high" },
+          { val: 'open_to_it', label: "I'm open to it — sounds worth trying" },
+          { val: 'unsure', label: "Not sure — I'd need to understand how it works first" },
+          { val: 'prefer_one_shop', label: "I'd rather stick with one shop I already trust" }
+        ]
+      },
+      {
+        key: 'app_usage',
+        tag: 'Question 15 of 22',
+        q: 'Do you currently use any app or digital tool specifically for managing your vehicles?',
+        opts: [
+          { val: 'yes_regularly', label: 'Yes, I use one regularly' },
+          { val: 'tried_none_stuck', label: "I've tried a few but nothing stuck" },
+          { val: 'no_old_fashioned', label: 'No — I handle it the old-fashioned way' },
+          { val: 'didnt_know', label: "I didn't know apps like that existed" }
+        ]
+      },
+      {
+        key: 'payment_comfort',
+        tag: 'Question 16 of 22',
+        q: 'How comfortable are you paying for auto service through a secure app that holds your payment until the job is confirmed complete?',
+        opts: [
+          { val: 'very_comfortable', label: 'Very comfortable — that actually sounds safer' },
+          { val: 'open_to_it', label: 'Open to it if the platform is trustworthy' },
+          { val: 'prefer_in_person', label: 'I prefer paying in person at the shop' },
+          { val: 'not_comfortable', label: "Not comfortable — I'd want to stick with cash or card" }
+        ]
+      },
+      {
+        key: 'dispute_history',
+        tag: 'Question 17 of 22',
+        q: "Have you ever had a dispute with a service provider over billing, work quality, or a job that wasn't finished correctly?",
+        opts: [
+          { val: 'yes_hard_to_resolve', label: 'Yes, and it was difficult or impossible to resolve' },
+          { val: 'yes_resolved', label: 'Yes, but we eventually worked it out' },
+          { val: 'concerns_not_voiced', label: "No dispute, but I've had concerns I didn't bother raising" },
+          { val: 'never', label: 'Never — no real issues' }
+        ]
+      },
+      {
+        key: 'annual_spend',
+        tag: 'Question 18 of 22',
+        q: 'Roughly how much does your household spend on auto service per year — repairs, maintenance, detailing, car washes combined?',
+        opts: [
+          { val: 'under_500', label: 'Under $500' },
+          { val: '500_to_1500', label: '$500 – $1,500' },
+          { val: '1500_to_3000', label: '$1,500 – $3,000' },
+          { val: 'over_3000', label: 'Over $3,000' }
+        ]
+      },
+      {
+        key: 'decision_maker',
+        tag: 'Question 19 of 22',
+        q: 'Are you the primary person who arranges auto service for your household?',
+        opts: [
+          { val: 'yes_primary', label: 'Yes — I handle it entirely' },
+          { val: 'shared', label: 'Shared responsibility with someone else in the household' },
+          { val: 'mostly_me', label: 'Mostly me, but not always' },
+          { val: 'not_me', label: "Not usually — someone else handles it" }
+        ]
+      },
+      {
+        key: 'near_term_need',
+        tag: 'Question 20 of 22',
+        q: 'Do you have an auto service need you\'re looking to get done in the next 30 days?',
+        opts: [
+          { val: 'yes_urgent', label: 'Yes — something that needs attention soon' },
+          { val: 'yes_routine', label: 'Yes — routine maintenance that\'s coming due' },
+          { val: 'not_right_now', label: "Not right now — I'm just exploring" },
+          { val: 'no_need', label: "No — everything is good at the moment" }
+        ]
+      },
+      {
+        key: 'top_priority',
+        tag: 'Question 21 of 22',
+        q: 'What matters most to you when choosing an auto service provider?',
+        opts: [
+          { val: 'trust', label: 'Trustworthiness and reputation' },
+          { val: 'pricing', label: 'Fair, transparent pricing' },
+          { val: 'convenience', label: 'Convenience and easy scheduling' },
+          { val: 'quality', label: 'Quality of the work' },
+          { val: 'proximity', label: 'Location — I want someone nearby' }
+        ]
+      },
+      {
+        key: 'vehicle_count',
+        tag: 'Question 22 of 22',
+        q: 'How many vehicles does your household currently have?',
+        opts: [
+          { val: '1', label: '1' },
+          { val: '2', label: '2' },
+          { val: '3plus', label: '3 or more' }
+        ]
+      }
+    ];
+
+    let surveyStep = 0;
+    const surveyAnswers = {};
+
+    function showSurveyPanel(panelId) {
+      ['survey-panel-welcome','survey-panel-questions','survey-panel-thankyou'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('active', id === panelId);
+      });
+    }
+
+    function showSurveyOverlay() {
+      const overlay = document.getElementById('survey-overlay');
+      if (!overlay) return;
+      overlay.classList.remove('hidden');
+      showSurveyPanel('survey-panel-welcome');
+    }
+
+    function startSurveyQuestions() {
+      showSurveyPanel('survey-panel-questions');
+      renderSurveyQuestion();
+    }
+
+    // When redirected from members.html dashboard (?from=dashboard), jump straight to survey
+    if (new URLSearchParams(window.location.search).get('from') === 'dashboard') {
+      document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(showSurveyOverlay, 300);
+      });
+    }
+
+    function renderSurveyQuestion() {
+      const q = SURVEY_QUESTIONS[surveyStep];
+      if (!q) { submitSurveyAndClose(); return; }
+
+      const fill = Math.round(((surveyStep) / SURVEY_QUESTIONS.length) * 100);
+      document.getElementById('survey-progress-fill').style.width = fill + '%';
+      document.getElementById('survey-step-label').textContent = 'Question ' + (surveyStep + 1) + ' of ' + SURVEY_QUESTIONS.length;
+      document.getElementById('survey-tag').textContent = q.tag;
+      document.getElementById('survey-question').textContent = q.q;
+
+      const container = document.getElementById('survey-options');
+      container.innerHTML = q.opts.map(o => `
+        <div class="survey-option${surveyAnswers[q.key] === o.val ? ' selected' : ''}" onclick="selectSurveyOption('${q.key}','${o.val}',this)">
+          <div class="survey-option-dot"></div>
+          <span>${o.label}</span>
+        </div>
+      `).join('');
+
+      const nextBtn = document.getElementById('survey-next-btn');
+      nextBtn.textContent = surveyStep < SURVEY_QUESTIONS.length - 1 ? 'Next' : 'Submit';
+      nextBtn.disabled = !surveyAnswers[q.key];
+    }
+
+    function selectSurveyOption(key, val, el) {
+      surveyAnswers[key] = val;
+      document.querySelectorAll('#survey-options .survey-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('survey-next-btn').disabled = false;
+    }
+
+    function surveyNext() {
+      const q = SURVEY_QUESTIONS[surveyStep];
+      if (!surveyAnswers[q.key]) return;
+      surveyStep++;
+      if (surveyStep >= SURVEY_QUESTIONS.length) {
+        submitSurveyAndClose();
+      } else {
+        renderSurveyQuestion();
+      }
+    }
+
+    async function submitSurveyAndClose() {
+      document.getElementById('survey-progress-fill').style.width = '100%';
+      try {
+        let token = null;
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          token = session?.access_token || null;
+        } catch (_) {}
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        await fetch('/api/member/survey', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(surveyAnswers)
+        });
+      } catch (_) {}
+
+      // Show thank-you screen instead of immediately closing
+      const fromDash = new URLSearchParams(window.location.search).get('from') === 'dashboard';
+      const joinBtn = document.getElementById('survey-join-btn');
+      if (joinBtn) {
+        joinBtn.textContent = fromDash ? 'Go to My Dashboard \u2192' : 'Create My Account \u2192';
+      }
+      showSurveyPanel('survey-panel-thankyou');
+    }
+
+    function surveyJoinMember() {
+      const fromDash = new URLSearchParams(window.location.search).get('from') === 'dashboard';
+      closeSurveyOverlay();
+      if (fromDash) {
+        window.location.href = '/members.html';
+      } else {
+        // In signup flow — scroll back up to the signup form or redirect to members
+        const hasSession = typeof supabaseClient !== 'undefined';
+        if (hasSession) {
+          supabaseClient.auth.getSession().then(({ data: { session } }) => {
+            window.location.href = session ? '/members.html' : '/signup.html';
+          }).catch(() => { window.location.href = '/signup.html'; });
+        } else {
+          window.location.href = '/signup.html';
+        }
+      }
+    }
+
+    function closeSurveyOverlay() {
+      const overlay = document.getElementById('survey-overlay');
+      if (overlay) overlay.classList.add('hidden');
+      // If we came from the members dashboard, send the user back so the welcome modal shows
+      const fromDash = new URLSearchParams(window.location.search).get('from') === 'dashboard';
+      if (fromDash) {
+        setTimeout(() => { window.location.href = '/members.html'; }, 400);
+      }
     }
 
     document.addEventListener('keydown', function(e) {
@@ -1242,5 +1935,59 @@
 
     updateProgress();
   </script>
+
+  <!-- Post-signup survey overlay -->
+  <div class="survey-overlay hidden" id="survey-overlay">
+    <div class="survey-inner">
+
+      <!-- PANEL 1: Welcome + consent -->
+      <div class="survey-panel active" id="survey-panel-welcome">
+        <div class="survey-welcome-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          Quick survey
+        </div>
+        <h2 class="survey-welcome-title">Help us build the auto platform you actually want.</h2>
+        <p class="survey-welcome-body">Before you get started, we'd love to understand your experience with auto care — how you find providers, what you pay, and what frustrates you most. It takes about 3 minutes.</p>
+        <div class="survey-consent-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <p class="survey-consent-text">Your responses are used solely to improve My Car Concierge. We do not sell your data to third parties and we never share individual responses. Aggregate, anonymized findings may be used to guide product development. By continuing you agree to our <a href="/privacy.html" target="_blank">Privacy Policy</a>.</p>
+        </div>
+        <button class="survey-btn-start" onclick="startSurveyQuestions()">Start Survey &rarr;</button>
+        <button class="survey-btn-skip" onclick="closeSurveyOverlay()">No thanks, skip</button>
+      </div>
+
+      <!-- PANEL 2: Questions -->
+      <div class="survey-panel" id="survey-panel-questions">
+        <div class="survey-progress-row">
+          <div class="survey-progress-track">
+            <div class="survey-progress-fill" id="survey-progress-fill" style="width:0%"></div>
+          </div>
+          <span class="survey-step-label" id="survey-step-label">Question 1 of 22</span>
+        </div>
+        <div class="survey-tag" id="survey-tag"></div>
+        <h2 class="survey-question" id="survey-question"></h2>
+        <div class="survey-options" id="survey-options"></div>
+        <button class="survey-btn-next" id="survey-next-btn" onclick="surveyNext()" disabled>Next</button>
+        <button class="survey-btn-skip" onclick="closeSurveyOverlay()">Skip survey</button>
+      </div>
+
+      <!-- PANEL 3: Thank you + member invite -->
+      <div class="survey-panel" id="survey-panel-thankyou">
+        <div class="survey-thankyou-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <h2 class="survey-thankyou-title">Thank you!</h2>
+        <p class="survey-thankyou-body">Your feedback helps us build the auto ownership platform that real drivers actually need. We take every response seriously.</p>
+        <div class="survey-invite-card">
+          <div class="survey-invite-card-label">Ready for the full experience?</div>
+          <div class="survey-invite-card-title">One app. Every auto need. Zero hassle.</div>
+          <p class="survey-invite-card-body">Get instant quotes, track your vehicles, stay on top of maintenance, and shop smarter — all in one place built specifically for car owners like you.</p>
+          <button class="survey-btn-join" id="survey-join-btn" onclick="surveyJoinMember()">Join as a Member &rarr;</button>
+        </div>
+        <button class="survey-btn-skip" onclick="closeSurveyOverlay()">Maybe later</button>
+      </div>
+
+    </div>
+  </div>
 </body>
 </html>

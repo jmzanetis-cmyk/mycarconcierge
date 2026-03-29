@@ -273,6 +273,7 @@ async function initializeProviderDashboard(user) {
     if (typeof loadNotifications === 'function') loadNotifications();
     if (typeof loadTeamManagementData === 'function') loadTeamManagementData();
     if (typeof loadLoyaltyNetwork === 'function') loadLoyaltyNetwork();
+    if (typeof loadBackgroundCheckStatus === 'function') loadBackgroundCheckStatus();
   });
   
   // Load jobs module for emergencies
@@ -288,6 +289,10 @@ async function initializeProviderDashboard(user) {
   
   if (typeof applyFilters === 'function') applyFilters();
   
+  // Task #89: Shop SaaS initial loads
+  if (typeof loadShopSubscription === 'function') loadShopSubscription();
+  if (typeof loadShopOnboardingChecklist === 'function') loadShopOnboardingChecklist();
+  
   setupRealtimeSubscriptions();
   initProviderPushNotifications();
 }
@@ -302,9 +307,12 @@ function setupNav() {
 async function showSection(id) {
   // Load required module before showing section
   await loadModuleForSection(id);
-  
+
+  const target = document.getElementById(id);
+  if (!target) { console.warn('[showSection] Unknown section:', id); return; }
+
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  target.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector(`.nav-item[data-section="${id}"]`)?.classList.add('active');
   document.getElementById('sidebar').classList.remove('open');
@@ -312,8 +320,13 @@ async function showSection(id) {
   // Section-specific loading
   if (id === 'team' && typeof loadTeamMembers === 'function') {
     loadTeamMembers();
+  }
+  if (id === 'background-checks') {
+    if (typeof loadVerificationBadgeStatus === 'function') loadVerificationBadgeStatus();
     if (typeof loadBackgroundCheckStatus === 'function') loadBackgroundCheckStatus();
   }
+  // Note: background-check polling (_bgCheckPollTimer) continues across section changes so the
+  // overview dashboard card stays fresh while a check is in-progress. It self-stops when resolved.
   if (id === 'team-section' && typeof loadTeamManagementData === 'function') {
     loadTeamManagementData();
   }
@@ -338,6 +351,18 @@ async function showSection(id) {
     if (typeof loadProviderPushPreferences === 'function') {
       loadProviderPushPreferences();
     }
+    if (typeof loadMarketplaceVisibility === 'function') {
+      loadMarketplaceVisibility();
+    }
+    if (typeof loadBusinessHours === 'function') {
+      loadBusinessHours();
+    }
+  }
+  if (id === 'subscription' && typeof loadShopSubscription === 'function') {
+    loadShopSubscription();
+  }
+  if (id === 'overview' && typeof loadShopOnboardingChecklist === 'function') {
+    loadShopOnboardingChecklist();
   }
 }
 

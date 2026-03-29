@@ -1,3 +1,14 @@
+    // ========== FETCH HELPER ==========
+    async function safeFetch(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) {
+        let errMsg = `Server error (${res.status})`;
+        try { const e = await res.clone().json(); errMsg = e.error || e.message || errMsg; } catch {}
+        throw new Error(errMsg);
+      }
+      return res.json();
+    }
+
     // ========== THEME TOGGLE ==========
     function toggleTheme() {
       document.documentElement.classList.add('theme-transition');
@@ -402,7 +413,8 @@
         const user = await getCurrentUser();
         if (!user) return window.location.href = 'login.html';
         currentUser = user;
-        
+        supabaseClient.auth.getSession().then(({ data }) => { if (data.session) window._currentSession = data.session; });
+
         // Check 2FA authorization before loading dashboard
         const authorized = await checkAccessAuthorization();
         if (!authorized) return;
@@ -449,6 +461,9 @@
       setupEventListeners();
       setupRealtimeSubscriptions();
       showBudgetForecastIfEligible();
+      if (typeof window.loadBillingSubscriptions === 'function') {
+        window.loadBillingSubscriptions().catch(() => {});
+      }
 
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('create') === 'true') {
@@ -2610,6 +2625,7 @@
           body: JSON.stringify({ user_id: currentUser?.id || null })
         });
         
+        if (!response.ok) { let e; try { e = await response.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Request failed (${response.status})`); }
         const data = await response.json();
         
         if (data.success) {
@@ -5431,6 +5447,9 @@
       if (sectionId === 'settings') {
         initPushNotifications();
         loadLoginActivity();
+        if (typeof window.loadBillingSubscriptions === 'function') window.loadBillingSubscriptions();
+        if (typeof window.loadApiKeys === 'function') window.loadApiKeys();
+        if (typeof window.loadOutreachStatus === 'function') window.loadOutreachStatus();
       }
       if (sectionId === 'order-history') {
         loadOrderHistory();
@@ -7583,6 +7602,7 @@
               method: 'POST',
               headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
             });
+            if (!resp.ok) continue;
             const data = await resp.json();
             if (data.success && data.score !== undefined) {
               v.health_score = data.score;
@@ -7614,9 +7634,13 @@
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
         });
-        const data = await response.json();
         loadingEl.style.display = 'none';
         contentEl.style.display = 'block';
+        if (!response.ok) {
+          contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Could not compute health score. Please try again later.</p>';
+          return;
+        }
+        const data = await response.json();
 
         if (!data.success) {
           contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Could not compute health score. Please try again later.</p>';
@@ -7681,9 +7705,13 @@
         const response = await fetch(`/api/vehicles/${vehicleId}/maintenance-forecast`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        const data = await response.json();
         loadingEl.style.display = 'none';
         contentEl.style.display = 'block';
+        if (!response.ok) {
+          contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No maintenance forecast data available.</p>';
+          return;
+        }
+        const data = await response.json();
 
         if (!data.success || !data.forecast?.length) {
           contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No maintenance forecast data available.</p>';
@@ -7784,6 +7812,7 @@
         const response = await fetch(`/api/obd/scans/${vehicleId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (!response.ok) { loadingEl.style.display = 'none'; throw new Error(`Failed to load scans (${response.status})`); }
         const data = await response.json();
         
         loadingEl.style.display = 'none';
@@ -8696,8 +8725,7 @@
       if (!currentUser) return;
       
       try {
-        const response = await fetch(`/api/member/${currentUser.id}/notification-preferences`);
-        const data = await response.json();
+        const data = await safeFetch(`/api/member/${currentUser.id}/notification-preferences`);
         
         if (data.warning) {
           console.log('Notification preferences:', data.warning);
@@ -8748,6 +8776,7 @@
           body: JSON.stringify(preferences)
         });
         
+        if (!response.ok) { let e; try { e = await response.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to save preferences (${response.status})`); }
         const data = await response.json();
         
         if (data.success) {
@@ -8897,6 +8926,7 @@
     async function getVapidKey() {
       try {
         const response = await fetch('/api/push/vapid-key');
+        if (!response.ok) return null;
         const data = await response.json();
         return data.publicKey;
       } catch (error) {
@@ -10261,23 +10291,26 @@
     }
 
     async function refreshEmergencyLocation() {
-      document.getElementById('emergency-address').value = 'Getting your location...';
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-          document.getElementById('emergency-lat').value = pos.coords.latitude;
-          document.getElementById('emergency-lng').value = pos.coords.longitude;
-          try {
-            const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
-            const data = await resp.json();
-            document.getElementById('emergency-address').value = data.display_name || `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
-          } catch (e) {
-            document.getElementById('emergency-address').value = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
-          }
-        }, (err) => {
-          document.getElementById('emergency-address').value = 'Unable to get location';
-          showToast('Please enable location services', 'error');
-        }, { enableHighAccuracy: true });
+      const addrEl = document.getElementById('emergency-address');
+      addrEl.value = 'Getting your location...';
+      if (!navigator.geolocation) {
+        addrEl.value = 'Location unavailable — please enter manually';
+        return;
       }
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        document.getElementById('emergency-lat').value = pos.coords.latitude;
+        document.getElementById('emergency-lng').value = pos.coords.longitude;
+        try {
+          const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
+          const data = await resp.json();
+          addrEl.value = data.display_name || `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+        } catch (e) {
+          addrEl.value = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+        }
+      }, (err) => {
+        addrEl.value = 'Location unavailable — please enter manually';
+        showToast('Location unavailable — please enter your address manually', 'error');
+      }, { enableHighAccuracy: true, timeout: 10000 });
     }
 
     async function loadEmergencySection() {
@@ -12252,6 +12285,7 @@
         document.getElementById('fleet-no-fleet').style.display = 'none';
         document.getElementById('fleet-dashboard').style.display = 'block';
         await loadFleetDetails(currentFleet.id);
+        if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
       } else {
         document.getElementById('fleet-no-fleet').style.display = 'block';
         document.getElementById('fleet-dashboard').style.display = 'none';
@@ -12296,8 +12330,10 @@
       updateFleetStats();
       renderFleetMembers();
       renderFleetVehicles();
+      renderFleetHealthDashboard();
       await loadBulkBatches();
       await loadFleetApprovals();
+      await loadDeptRules();
     }
     
     function updateFleetStats() {
@@ -12423,14 +12459,116 @@
     }
     
     function filterFleetVehicles(filter) {
-      currentFleetVehicleFilter = filter;
-      
-      document.querySelectorAll('#fleet-vehicle-tabs .tab').forEach(tab => {
-        tab.classList.remove('active');
-        if (tab.dataset.fleetFilter === filter) tab.classList.add('active');
-      });
-      
+      if (filter !== undefined) {
+        currentFleetVehicleFilter = filter;
+        document.querySelectorAll('#fleet-vehicle-tabs .tab').forEach(tab => {
+          tab.classList.remove('active');
+          if (tab.dataset.fleetFilter === filter) tab.classList.add('active');
+        });
+      }
       renderFleetVehicles();
+    }
+
+    function getFleetDeptVehicleFilter() {
+      const sel = document.getElementById('fleet-dept-vehicle-filter');
+      return sel ? sel.value : '';
+    }
+
+    function populateDeptFilter(selectId, vehicles) {
+      const sel = document.getElementById(selectId);
+      if (!sel) return;
+      const current = sel.value;
+      const depts = [...new Set(vehicles.map(fv => fv.department || fv.vehicle?.department).filter(Boolean))].sort();
+      sel.innerHTML = '<option value="">All Departments</option>' + depts.map(d => `<option value="${d}"${current === d ? ' selected' : ''}>${d}</option>`).join('');
+    }
+
+    function refreshFleetHealth() {
+      renderFleetHealthDashboard();
+    }
+
+    function renderFleetHealthDashboard() {
+      const card = document.getElementById('fleet-health-card');
+      if (!card) return;
+      if (fleetVehicles.length === 0) { card.style.display = 'none'; return; }
+      card.style.display = 'block';
+
+      const now = new Date();
+      const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      let excellent = 0, good = 0, fair = 0, poor = 0;
+      let overdue = [], dueSoon = [];
+
+      fleetVehicles.forEach(fv => {
+        const v = fv.vehicle || {};
+        const score = typeof v.health_score === 'number' ? v.health_score : 80;
+        if (score >= 90) excellent++;
+        else if (score >= 70) good++;
+        else if (score >= 50) fair++;
+        else poor++;
+
+        // Use fleet_vehicles.next_service_due as the authoritative fleet scheduling field,
+        // falling back to vehicles.next_service_date if the fleet override is not set.
+        const nextServiceRaw = fv.next_service_due || v.next_service_date;
+        const nextService = nextServiceRaw ? new Date(nextServiceRaw) : null;
+        if (nextService) {
+          const label = `${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim() || 'Vehicle';
+          const daysUntil = Math.ceil((nextService - now) / (1000 * 60 * 60 * 24));
+          if (nextService < now) {
+            overdue.push({ label, fv, v, daysAgo: -daysUntil, score });
+          } else if (nextService <= thirtyDays) {
+            dueSoon.push({ label, fv, v, daysUntil, score });
+          }
+        } else if (score < 50) {
+          const label = `${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim() || 'Vehicle';
+          overdue.push({ label, fv, v, daysAgo: null, score });
+        }
+      });
+
+      const total = fleetVehicles.length;
+      const upToDate = total - overdue.length;
+      const pctOk = total > 0 ? Math.round((upToDate / total) * 100) : 100;
+      const avgScore = total > 0 ? Math.round(fleetVehicles.reduce((acc, fv) => acc + (typeof (fv.vehicle?.health_score) === 'number' ? fv.vehicle.health_score : 80), 0) / total) : 100;
+
+      document.getElementById('fleet-health-pct-ok').textContent = pctOk + '%';
+      document.getElementById('fleet-health-overdue').textContent = overdue.length;
+      document.getElementById('fleet-health-due-soon').textContent = dueSoon.length;
+      const avgEl = document.getElementById('fleet-health-avg-score');
+      avgEl.textContent = avgScore;
+      avgEl.style.color = avgScore >= 80 ? 'var(--accent-green)' : avgScore >= 60 ? 'var(--accent-orange)' : 'var(--accent-red)';
+
+      document.getElementById('fleet-health-cnt-excellent').textContent = excellent;
+      document.getElementById('fleet-health-cnt-good').textContent = good;
+      document.getElementById('fleet-health-cnt-fair').textContent = fair;
+      document.getElementById('fleet-health-cnt-poor').textContent = poor;
+      const setPct = (id, pct) => { const el = document.getElementById(id); if (el) el.style.width = (pct > 0 ? Math.max(pct, 3) : 0) + '%'; };
+      setPct('fleet-health-bar-excellent', total > 0 ? (excellent / total) * 100 : 0);
+      setPct('fleet-health-bar-good', total > 0 ? (good / total) * 100 : 0);
+      setPct('fleet-health-bar-fair', total > 0 ? (fair / total) * 100 : 0);
+      setPct('fleet-health-bar-poor', total > 0 ? (poor / total) * 100 : 0);
+
+      const priorityList = document.getElementById('fleet-health-priority-list');
+      if (!priorityList) return;
+      const allPriority = [
+        ...overdue.sort((a, b) => (b.daysAgo || 0) - (a.daysAgo || 0)).map(i => ({ ...i, urgency: 'overdue' })),
+        ...dueSoon.sort((a, b) => a.daysUntil - b.daysUntil).map(i => ({ ...i, urgency: 'due_soon' }))
+      ];
+      if (allPriority.length === 0) {
+        priorityList.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.88rem;">All vehicles are up to date.</div>';
+      } else {
+        priorityList.innerHTML = allPriority.slice(0, 8).map(item => {
+          const badge = item.urgency === 'overdue'
+            ? `<span style="background:rgba(239,95,95,0.15);color:var(--accent-red);padding:2px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;">OVERDUE${item.daysAgo !== null ? ' ' + item.daysAgo + 'd' : ''}</span>`
+            : `<span style="background:rgba(251,146,60,0.15);color:var(--accent-orange);padding:2px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;">DUE IN ${item.daysUntil}d</span>`;
+          const dept = item.fv.department || item.v?.department || '';
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-subtle);gap:12px;">
+            <div style="min-width:0;">
+              <div style="font-weight:500;font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.label}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">${dept ? dept + ' · ' : ''}Score: ${item.score}</div>
+            </div>
+            <div style="flex-shrink:0;">${badge}</div>
+          </div>`;
+        }).join('');
+      }
     }
     
     function formatBusinessType(type) {
@@ -12451,7 +12589,12 @@
     function renderFleetMembers() {
       const tbody = document.getElementById('fleet-members-tbody');
       if (!tbody) return;
-      
+
+      // Populate + apply department filter for members
+      populateDeptFilter('fleet-dept-member-filter', fleetMembers.map(m => ({ department: m.department })));
+      const deptFilter = (document.getElementById('fleet-dept-member-filter') || {}).value || '';
+      const displayedMembers = deptFilter ? fleetMembers.filter(m => m.department === deptFilter) : fleetMembers;
+
       if (fleetMembers.length === 0) {
         tbody.innerHTML = `
           <tr>
@@ -12463,8 +12606,17 @@
         `;
         return;
       }
+
+      if (displayedMembers.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">No members in this department.</td>
+          </tr>
+        `;
+        return;
+      }
       
-      tbody.innerHTML = fleetMembers.map(member => {
+      tbody.innerHTML = displayedMembers.map(member => {
         const profile = member.user || {};
         const name = profile.full_name || member.email || 'Unknown';
         const email = profile.email || member.email || '-';
@@ -12512,7 +12664,11 @@
     function renderFleetVehicles() {
       const grid = document.getElementById('fleet-vehicles-grid');
       if (!grid) return;
-      
+
+      // Populate department filter dropdown from current fleet vehicles
+      populateDeptFilter('fleet-dept-vehicle-filter', fleetVehicles);
+
+      const deptFilter = getFleetDeptVehicleFilter();
       let filteredVehicles = fleetVehicles;
       
       if (currentFleetVehicleFilter === 'assigned') {
@@ -12524,6 +12680,11 @@
           const v = fv.vehicle || {};
           return v.health_status === 'needs_attention' || v.health_status === 'poor' || v.health_status === 'fair';
         });
+      }
+
+      // Apply department filter
+      if (deptFilter) {
+        filteredVehicles = filteredVehicles.filter(fv => (fv.department || fv.vehicle?.department) === deptFilter);
       }
       
       if (fleetVehicles.length === 0) {
@@ -12580,6 +12741,107 @@
       }).join('');
     }
     
+    // ===== Department Approval Rules =====
+    let deptRules = [];
+
+    async function loadDeptRules() {
+      if (!currentFleet) return;
+      const card = document.getElementById('fleet-dept-rules-card');
+      const isOwnerOrManager = currentFleet.owner_id === currentUser?.id ||
+        fleetMembers.some(m => m.user_id === currentUser?.id && ['owner', 'manager'].includes(m.role));
+      if (!card) return;
+      if (!isOwnerOrManager) { card.style.display = 'none'; return; }
+      card.style.display = 'block';
+
+      const { data, error } = await supabaseClient
+        .from('fleet_department_rules')
+        .select('*')
+        .eq('fleet_id', currentFleet.id)
+        .order('department');
+      if (error) { console.error('Dept rules load error:', error.message); return; }
+      deptRules = data || [];
+      renderDeptRules();
+    }
+
+    function renderDeptRules() {
+      const container = document.getElementById('dept-rules-list');
+      if (!container) return;
+      if (!deptRules.length) {
+        container.innerHTML = '<div class="empty-state" style="padding:24px;text-align:center;color:var(--text-muted);">No department rules configured. Click "+ Add Rule" to create one.</div>';
+        return;
+      }
+      container.innerHTML = `
+        <table class="fleet-table">
+          <thead><tr>
+            <th>Department</th><th>Spending Limit</th><th>Auto-Approve Under</th><th>Always Require Approval</th><th>Actions</th>
+          </tr></thead>
+          <tbody>
+            ${deptRules.map(r => `
+              <tr>
+                <td><strong>${r.department}</strong></td>
+                <td>${r.spending_limit !== null ? '$' + Number(r.spending_limit).toLocaleString() : '<span style="color:var(--text-muted);">None</span>'}</td>
+                <td>${r.auto_approve_under !== null ? '$' + Number(r.auto_approve_under).toLocaleString() : '<span style="color:var(--text-muted);">Off</span>'}</td>
+                <td>${r.requires_approval ? '<span style="color:var(--accent-orange);">Yes</span>' : 'No'}</td>
+                <td>
+                  <button class="btn btn-ghost btn-sm" onclick="editDeptRule('${r.id}')">Edit</button>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--accent-red);" onclick="deleteDeptRule('${r.id}')">Remove</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    function openAddDeptRuleModal() {
+      const dept = prompt('Department name (e.g. Operations, Sales):');
+      if (!dept || !dept.trim()) return;
+      const limit = prompt('Spending limit per request (leave blank for no limit):');
+      const autoApprove = prompt('Auto-approve requests under this amount (leave blank to disable):');
+      const requireApproval = confirm('Always require manager approval for this department?');
+
+      const payload = {
+        fleet_id: currentFleet.id,
+        department: dept.trim(),
+        spending_limit: limit ? parseFloat(limit) : null,
+        auto_approve_under: autoApprove ? parseFloat(autoApprove) : null,
+        requires_approval: requireApproval
+      };
+
+      supabaseClient.from('fleet_department_rules').upsert(payload, { onConflict: 'fleet_id,department' })
+        .then(({ error }) => {
+          if (error) { alert('Error saving rule: ' + error.message); return; }
+          loadDeptRules();
+        });
+    }
+
+    function editDeptRule(ruleId) {
+      const rule = deptRules.find(r => r.id === ruleId);
+      if (!rule) return;
+      const limit = prompt('Spending limit per request (leave blank to remove):', rule.spending_limit !== null ? rule.spending_limit : '');
+      const autoApprove = prompt('Auto-approve under (leave blank to disable):', rule.auto_approve_under !== null ? rule.auto_approve_under : '');
+      const requireApproval = confirm('Always require manager approval?\n\nCurrent: ' + (rule.requires_approval ? 'Yes' : 'No'));
+
+      supabaseClient.from('fleet_department_rules').update({
+        spending_limit: limit !== '' && limit !== null ? parseFloat(limit) : null,
+        auto_approve_under: autoApprove !== '' && autoApprove !== null ? parseFloat(autoApprove) : null,
+        requires_approval: requireApproval,
+        updated_at: new Date().toISOString()
+      }).eq('id', ruleId).then(({ error }) => {
+        if (error) { alert('Error updating rule: ' + error.message); return; }
+        loadDeptRules();
+      });
+    }
+
+    function deleteDeptRule(ruleId) {
+      const rule = deptRules.find(r => r.id === ruleId);
+      if (!rule || !confirm(`Remove approval rules for "${rule.department}"?`)) return;
+      supabaseClient.from('fleet_department_rules').delete().eq('id', ruleId).then(({ error }) => {
+        if (error) { alert('Error removing rule: ' + error.message); return; }
+        loadDeptRules();
+      });
+    }
+    // ===== End Department Approval Rules =====
+
     async function loadBulkBatches() {
       if (!currentFleet) return;
       
@@ -12707,31 +12969,42 @@
         showToast('Please enter an email address', 'error');
         return;
       }
-      
-      const { data: userLookup } = await supabaseClient
-        .from('profiles')
-        .select('id')
-        .eq('email', email)
-        .single();
-      
-      const userId = userLookup?.id || null;
-      
-      const { error } = await addFleetMember(currentFleet.id, userId, role, {
-        email,
-        employee_id: employeeId || null,
-        department: department || null,
-        spending_limit: spendingLimit ? Number(spendingLimit) : null,
-        requires_approval: requiresApproval
-      });
-      
-      if (error) {
-        showToast('Failed to add employee: ' + error.message, 'error');
+
+      // Send invite via server (handles limit check + email)
+      try {
+        const token = window._currentSession?.access_token;
+        const inviteRes = await fetch('/api/fleet/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+          body: JSON.stringify({
+            fleet_id: currentFleet.id,
+            email,
+            role,
+            department: department || null,
+            employee_id: employeeId || null,
+            spending_limit: spendingLimit ? Number(spendingLimit) : null,
+            requires_approval: requiresApproval
+          })
+        });
+        const inviteData = await inviteRes.json();
+        if (!inviteRes.ok) {
+          if (inviteRes.status === 402) {
+            showToast(inviteData.error || 'Driver limit reached. Please upgrade your fleet plan.', 'error');
+            if (typeof openSaasPricingModal === 'function') setTimeout(() => openSaasPricingModal('fleet'), 300);
+          } else {
+            showToast(inviteData.error || 'Failed to send invitation', 'error');
+          }
+          return;
+        }
+        showToast(`Invitation sent to ${email}!`, 'success');
+        closeModal('add-fleet-employee-modal');
+        await loadFleetDetails(currentFleet.id);
+        if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
         return;
+      } catch (fetchErr) {
+        console.warn('[Fleet Employee] Invite fetch error:', fetchErr.message);
+        showToast('Network error — please try again', 'error');
       }
-      
-      showToast('Employee added to fleet!', 'success');
-      closeModal('add-fleet-employee-modal');
-      await loadFleetDetails(currentFleet.id);
     }
     
     function openEditFleetEmployee(memberId) {
@@ -12897,23 +13170,42 @@
         showToast('Please select a vehicle', 'error');
         return;
       }
-      
-      const { error } = await assignVehicleToFleet(currentFleet.id, vehicleId, {
-        assigned_driver_id: driverId,
-        assignment_type: assignmentType,
-        department: department || null,
-        start_date: startDate || null,
-        end_date: endDate || null
-      });
-      
-      if (error) {
-        showToast('Failed to add vehicle to fleet: ' + error.message, 'error');
+
+      // Use server-side endpoint for authoritative vehicle limit enforcement
+      const token = window._currentSession?.access_token;
+      try {
+        const addRes = await fetch('/api/fleet/add-vehicle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+          body: JSON.stringify({
+            fleet_id: currentFleet.id,
+            vehicle_id: vehicleId,
+            assigned_driver_id: driverId || null,
+            assignment_type: assignmentType,
+            department: department || null,
+            start_date: startDate || null,
+            end_date: endDate || null
+          })
+        });
+        const addData = await addRes.json();
+        if (!addRes.ok) {
+          if (addRes.status === 402) {
+            showToast(addData.error || 'Vehicle limit reached. Please upgrade your fleet plan.', 'error');
+            if (typeof openSaasPricingModal === 'function') setTimeout(() => openSaasPricingModal('fleet'), 300);
+          } else {
+            showToast(addData.error || 'Failed to add vehicle to fleet', 'error');
+          }
+          return;
+        }
+      } catch (fetchErr) {
+        showToast('Network error adding vehicle. Please try again.', 'error');
         return;
       }
-      
+
       showToast('Vehicle added to fleet!', 'success');
       closeModal('add-fleet-vehicle-modal');
       await loadFleetDetails(currentFleet.id);
+      if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
     }
     
     function openEditFleetVehicle(assignmentId) {

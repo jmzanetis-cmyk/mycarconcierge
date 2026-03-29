@@ -1107,18 +1107,30 @@
       // Upload new photo if one was selected
       if (pendingEditVehiclePhoto) {
         showToast('Uploading photo...', 'success');
-        const fileName = `${currentUser.id}/${editingVehicleId}-${Date.now()}-${pendingEditVehiclePhoto.file.name}`;
+        // Path must be {userId}/{vehicleId}/{timestamp}-{filename} so server validation passes
+        const safeFileName = pendingEditVehiclePhoto.file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileName = `${currentUser.id}/${editingVehicleId}/${Date.now()}-${safeFileName}`;
         
         try {
-          const { data: uploadData, error: uploadError } = await supabaseClient.storage
+          const { error: uploadError } = await supabaseClient.storage
             .from('vehicle-photos')
             .upload(fileName, pendingEditVehiclePhoto.file);
           
           if (!uploadError) {
-            const { data: urlData } = supabaseClient.storage
-              .from('vehicle-photos')
-              .getPublicUrl(fileName);
-            photoUrl = urlData.publicUrl;
+            // Register photo in vehicle_photos table via server (generates signed URL for immediate display)
+            const session = (await supabaseClient.auth.getSession()).data.session;
+            const regRes = await fetch(`/api/vehicle-photos/${editingVehicleId}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+              body: JSON.stringify({ storage_path: fileName, is_primary: true })
+            });
+            if (regRes.ok) {
+              // Photo is registered in vehicle_photos table; signed URLs are resolved at read time.
+              // Do NOT update vehicles.photo_url — that legacy field keeps its existing value.
+              // The new photo will be served through the vehicle-photos API.
+            } else {
+              console.error('Photo registration failed:', await regRes.text());
+            }
           } else {
             console.error('Photo upload error:', uploadError);
             showToast('Photo upload failed, but updating vehicle info...', 'error');
@@ -1229,7 +1241,7 @@
       });
     }
 
-    async function uploadVehiclePhoto(vehicleId) {
+    async function _uploadPhotoFileToStorage(vehicleId) {
       if (!pendingVehiclePhoto) return null;
       
       try {
@@ -1245,12 +1257,8 @@
           return null;
         }
 
-        // Get public URL
-        const { data: urlData } = supabaseClient.storage
-          .from('vehicle-photos')
-          .getPublicUrl(fileName);
-
-        return urlData.publicUrl;
+        // Return storage path only — signed URL generated server-side on retrieval
+        return fileName;
       } catch (err) {
         console.error('Error uploading vehicle photo:', err);
         return null;
@@ -1338,7 +1346,7 @@
         
         <div id="vehicle-tab-photos" style="display:none;">
           <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
-            <input type="file" class="form-input" id="vehicle-photo-upload" accept="image/*" multiple style="flex:1;">
+            <input type="file" class="form-input" id="vehicle-photo-upload" accept="image/jpeg,image/png" multiple style="flex:1;">
             <select class="form-select" id="photo-type-select" style="width:auto;">
               <option value="general">General</option>
               <option value="exterior">Exterior</option>
@@ -1466,7 +1474,7 @@
       
       let successCount = 0;
       for (const file of Array.from(input.files)) {
-        const result = await window.uploadVehiclePhoto(vehicleId, file, photoType);
+        const result = await window.uploadVehiclePhotoFile(vehicleId, file, photoType);
         if (result) successCount++;
       }
       
@@ -1926,3 +1934,180 @@
       updateStats();
     }
 
+
+// ========== VEHICLE PHOTOS (Multi-Photo Gallery) ==========
+let currentPhotoVehicleId = null;
+let vehiclePhotos = [];
+
+async function openVehiclePhotos(vehicleId, vehicleName) {
+  currentPhotoVehicleId = vehicleId;
+  const modal = document.getElementById('vehicle-photos-modal');
+  if (!modal) return;
+  const titleEl = document.getElementById('vp-modal-title');
+  if (titleEl) titleEl.textContent = 'Photos — ' + vehicleName;
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  await loadVehiclePhotos(vehicleId);
+}
+
+function closeVehiclePhotosModal() {
+  const modal = document.getElementById('vehicle-photos-modal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+  currentPhotoVehicleId = null;
+}
+
+async function loadVehiclePhotos(vehicleId) {
+  const grid = document.getElementById('vp-grid');
+  if (!grid) return;
+  grid.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">Loading...</div>';
+  try {
+    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
+    const res = await fetch('/api/vehicle-photos/' + vehicleId, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) throw new Error('Load failed');
+    vehiclePhotos = (await res.json()).photos || [];
+    renderVehiclePhotosGrid(vehiclePhotos);
+  } catch (e) {
+    grid.innerHTML = '<div style="color:var(--accent-red);font-size:0.85rem;">Failed to load photos.</div>';
+  }
+}
+
+function renderVehiclePhotosGrid(photos) {
+  const grid = document.getElementById('vp-grid');
+  if (!grid) return;
+  const addDisabled = photos.length >= 6;
+  let html = photos.map(p => `
+    <div style="position:relative;aspect-ratio:4/3;border-radius:var(--radius-md);overflow:hidden;border:2px solid ${p.is_primary ? 'var(--accent-gold)' : 'var(--border-subtle)'};">
+      <img src="${p.url}" alt="Vehicle photo" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="openPhotoLightbox('${p.url}')">
+      ${p.is_primary ? '<div style="position:absolute;top:6px;left:6px;background:var(--accent-gold);color:var(--bg-deep);font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:100px;">PRIMARY</div>' : ''}
+      <div style="position:absolute;bottom:0;left:0;right:0;display:flex;gap:4px;padding:6px;background:linear-gradient(transparent,rgba(0,0,0,0.7));">
+        ${!p.is_primary ? `<button onclick="setVehiclePhotoPrimary('${p.id}')" style="flex:1;font-size:0.65rem;padding:3px 6px;border-radius:4px;border:none;background:rgba(201,162,39,0.8);color:var(--bg-deep);cursor:pointer;font-weight:600;">Set Primary</button>` : ''}
+        <button onclick="deleteVehiclePhoto('${p.id}')" style="font-size:0.65rem;padding:3px 8px;border-radius:4px;border:none;background:rgba(220,53,69,0.8);color:#fff;cursor:pointer;font-weight:600;">✕</button>
+      </div>
+    </div>
+  `).join('');
+  if (!addDisabled) {
+    html += `
+      <label style="aspect-ratio:4/3;border-radius:var(--radius-md);border:2px dashed var(--border-subtle);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:8px;color:var(--text-muted);transition:border-color 0.2s;" onmouseenter="this.style.borderColor='var(--accent-gold)'" onmouseleave="this.style.borderColor='var(--border-subtle)'">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+        <span style="font-size:0.78rem;">Add Photo</span>
+        <input type="file" accept="image/jpeg,image/png" style="display:none;" onchange="uploadVehiclePhoto(this)">
+      </label>
+    `;
+  }
+  if (!photos.length && addDisabled) {
+    html = '<div style="color:var(--text-muted);font-size:0.85rem;text-align:center;grid-column:1/-1;padding:20px 0;">No photos yet. Add up to 6 photos.</div>';
+  }
+  grid.innerHTML = html;
+  const countEl = document.getElementById('vp-count');
+  if (countEl) countEl.textContent = photos.length + '/6 photos';
+}
+
+// uploadVehiclePhotoFile — called by the vehicle details multi-upload flow
+// Takes vehicleId, a File object, and optional photoType string
+async function uploadVehiclePhotoFile(vehicleId, file, photoType) {
+  if (!file) return false;
+  if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) { showToast('Please upload a JPEG or PNG photo', 'error'); return false; }
+  if (file.size > 10 * 1024 * 1024) { showToast('Photo must be under 10MB', 'error'); return false; }
+  try {
+    const session = await supabaseClient.auth.getSession();
+    const uid = session.data.session?.user?.id;
+    const token = session.data.session?.access_token;
+    if (!uid || !token) throw new Error('Not authenticated');
+    const ext = file.name.split('.').pop().toLowerCase().replace('heic', 'jpg');
+    const fileName = uid + '/' + vehicleId + '/' + Date.now() + '.' + ext;
+    const { error: uploadErr } = await supabaseClient.storage.from('vehicle-photos').upload(fileName, file, { contentType: file.type, upsert: false });
+    if (uploadErr) throw uploadErr;
+    const res = await fetch('/api/vehicle-photos/' + vehicleId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ storage_path: fileName, is_primary: false })
+    });
+    if (!res.ok) throw new Error('Register failed');
+    return true;
+  } catch (e) {
+    showToast('Upload failed: ' + e.message, 'error');
+    return false;
+  }
+}
+
+// uploadVehiclePhoto — called from the photo modal's file input (onchange handler)
+async function uploadVehiclePhoto(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) { showToast('Please upload a JPEG or PNG photo', 'error'); return; }
+  if (file.size > 10 * 1024 * 1024) { showToast('Photo must be under 10MB', 'error'); return; }
+  try {
+    showToast('Uploading photo...', 'info');
+    const ext = file.name.split('.').pop().toLowerCase().replace('heic','jpg');
+    const session = await supabaseClient.auth.getSession();
+    const uid = session.data.session?.user?.id;
+    const token = session.data.session?.access_token;
+    if (!uid || !token) throw new Error('Not authenticated');
+    const fileName = uid + '/' + currentPhotoVehicleId + '/' + Date.now() + '.' + ext;
+    const { data: uploadData, error: uploadErr } = await supabaseClient.storage
+      .from('vehicle-photos').upload(fileName, file, { contentType: file.type, upsert: false });
+    if (uploadErr) throw uploadErr;
+    // Do NOT use getPublicUrl — send only storage_path; server generates signed URL
+    const res = await fetch('/api/vehicle-photos/' + currentPhotoVehicleId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ storage_path: fileName, is_primary: vehiclePhotos.length === 0 })
+    });
+    if (!res.ok) throw new Error('Register failed');
+    showToast('Photo uploaded!', 'success');
+    await loadVehiclePhotos(currentPhotoVehicleId);
+  } catch (e) {
+    showToast('Upload failed: ' + e.message, 'error');
+  }
+}
+
+async function setVehiclePhotoPrimary(photoId) {
+  try {
+    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
+    const res = await fetch('/api/vehicle-photos/' + photoId + '/primary', {
+      method: 'PATCH',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) throw new Error('Failed');
+    await loadVehiclePhotos(currentPhotoVehicleId);
+  } catch (e) {
+    showToast('Could not set primary photo', 'error');
+  }
+}
+
+async function deleteVehiclePhoto(photoId) {
+  if (!confirm('Remove this photo?')) return;
+  try {
+    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
+    const photo = vehiclePhotos.find(p => p.id === photoId);
+    const res = await fetch('/api/vehicle-photos/' + photoId, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) throw new Error('Delete failed');
+    if (photo?.storage_path) {
+      await supabaseClient.storage.from('vehicle-photos').remove([photo.storage_path]);
+    }
+    showToast('Photo removed', 'success');
+    await loadVehiclePhotos(currentPhotoVehicleId);
+  } catch (e) {
+    showToast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+function openPhotoLightbox(url) {
+  const lb = document.getElementById('vp-lightbox');
+  if (!lb) return;
+  const img = lb.querySelector('img');
+  if (img) img.src = url;
+  lb.style.display = 'flex';
+}
+
+function closePhotoLightbox() {
+  const lb = document.getElementById('vp-lightbox');
+  if (lb) lb.style.display = 'none';
+}
+// ========== END VEHICLE PHOTOS ==========

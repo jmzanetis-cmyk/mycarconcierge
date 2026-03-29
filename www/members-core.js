@@ -898,7 +898,9 @@ function renderVehicles() {
   const grid = document.getElementById('vehicles-grid');
   if (!grid) return;
   
+  const nudge = document.getElementById('vehicle-photo-nudge');
   if (!vehicles.length) {
+    if (nudge) nudge.style.display = 'none';
     grid.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">${mccIcon('car', 40)}</div>
@@ -907,6 +909,11 @@ function renderVehicles() {
       </div>
     `;
     return;
+  }
+  // Only show nudge if at least one vehicle actually has no photos (check after render)
+  if (nudge && !nudge.dataset.dismissed) {
+    nudge.style.display = 'none';
+    checkPhotoNudge(vehicles.map(v => v.id));
   }
 
   grid.innerHTML = vehicles.map(v => {
@@ -929,6 +936,7 @@ function renderVehicles() {
         ${renderPredictionsSection(v.id)}
         <div class="vehicle-card-actions">
           <button class="btn btn-sm btn-secondary" onclick="editVehicle('${v.id}')">Edit</button>
+          <button class="btn btn-sm" onclick="openVehiclePhotos('${v.id}','${escapeHtml(displayName).replace(/'/g,"\\'")}')" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-secondary);">📷 Photos</button>
           <button class="btn btn-sm btn-danger" onclick="deleteVehicle('${v.id}')">Delete</button>
         </div>
       </div>
@@ -969,6 +977,21 @@ function renderServiceHistory() {
       </div>
     `;
   }).join('');
+}
+
+// Check if any vehicle has no photos and show nudge accordingly
+async function checkPhotoNudge(vehicleIds) {
+  const nudge = document.getElementById('vehicle-photo-nudge');
+  if (!nudge || nudge.dataset.dismissed) return;
+  try {
+    if (!vehicleIds || !vehicleIds.length) { nudge.style.display = 'none'; return; }
+    const { data: photos } = await supabaseClient.from('vehicle_photos').select('vehicle_id').in('vehicle_id', vehicleIds);
+    const vehiclesWithPhotos = new Set((photos || []).map(p => p.vehicle_id));
+    const anyMissingPhotos = vehicleIds.some(id => !vehiclesWithPhotos.has(id));
+    nudge.style.display = anyMissingPhotos ? 'block' : 'none';
+  } catch {
+    nudge.style.display = 'none';
+  }
 }
 
 async function loadProfile() {
@@ -2736,9 +2759,12 @@ function loadModuleForSection(section) {
 async function showSection(sectionId) {
   // Load required module first
   await loadModuleForSection(sectionId);
-  
+
+  const target = document.getElementById(sectionId);
+  if (!target) { console.warn('[showSection] Unknown section:', sectionId); return; }
+
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById(sectionId).classList.add('active');
+  target.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector(`.nav-item[data-section="${sectionId}"]`)?.classList.add('active');
   document.getElementById('sidebar').classList.remove('open');

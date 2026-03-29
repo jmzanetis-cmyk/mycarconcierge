@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Fleet Driver Portal – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.95);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.15);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
+      --accent-green: #34d399;
+      --accent-green-soft: rgba(52, 211, 153, 0.12);
+      --accent-orange: #fb923c;
+      --accent-orange-soft: rgba(245, 158, 11, 0.12);
+      --accent-red: #f87171;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding-bottom: 80px;
+    }
+    .header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-brand { display: flex; align-items: center; gap: 12px; }
+    .header-logo { height: 40px; }
+    .header-title { font-weight: 600; font-size: 0.95rem; }
+    .header-sub { font-size: 0.78rem; color: var(--text-muted); }
+    .main { padding: 24px 20px; max-width: 600px; margin: 0 auto; }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card-title { font-size: 1rem; font-weight: 600; margin-bottom: 16px; }
+    .vehicle-hero {
+      background: linear-gradient(135deg, var(--bg-elevated), var(--bg-card));
+      border: 1px solid var(--accent-gold);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .vehicle-icon { font-size: 48px; margin-bottom: 12px; }
+    .vehicle-name { font-size: 1.4rem; font-weight: 600; margin-bottom: 4px; }
+    .vehicle-sub { color: var(--text-muted); font-size: 0.88rem; }
+    .vehicle-meta { display: flex; justify-content: center; gap: 20px; margin-top: 16px; flex-wrap: wrap; }
+    .vehicle-meta-item { text-align: center; }
+    .vehicle-meta-value { font-weight: 600; font-size: 1rem; }
+    .vehicle-meta-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+    .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+    .stat-mini {
+      flex: 1;
+      min-width: 130px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      text-align: center;
+    }
+    .stat-mini-value { font-size: 1.3rem; font-weight: 600; margin-bottom: 4px; }
+    .stat-mini-label { font-size: 0.78rem; color: var(--text-muted); }
+    .list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .list-item:last-child { border-bottom: none; }
+    .list-item-label { font-size: 0.88rem; color: var(--text-muted); }
+    .list-item-value { font-weight: 500; font-size: 0.88rem; }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .status-active { background: var(--accent-green-soft); color: var(--accent-green); }
+    .status-pending { background: var(--accent-orange-soft); color: var(--accent-orange); }
+    .status-overdue { background: rgba(248,113,113,0.12); color: var(--accent-red); }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: var(--radius-md);
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+      text-decoration: none;
+    }
+    .btn-primary { background: var(--accent-gold); color: #12161c; }
+    .btn-secondary { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-medium); }
+    .btn-block { width: 100%; justify-content: center; padding: 14px 20px; }
+    .alert-banner {
+      padding: 14px 18px;
+      border-radius: var(--radius-md);
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .alert-warning { background: var(--accent-orange-soft); border: 1px solid rgba(245,158,11,0.3); color: var(--accent-orange); }
+    .alert-info { background: var(--accent-blue-soft); border: 1px solid rgba(56,189,248,0.25); color: var(--accent-blue); }
+    .empty-state { text-align: center; padding: 32px; color: var(--text-muted); font-size: 0.9rem; }
+    .spinner {
+      display: inline-block;
+      width: 24px; height: 24px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: var(--accent-gold);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .bottom-nav {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      padding: 8px 0;
+      z-index: 200;
+    }
+    .nav-tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 4px;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      transition: color 0.15s;
+    }
+    .nav-tab.active { color: var(--accent-gold); }
+    .nav-tab svg { width: 22px; height: 22px; }
+    .section { display: none; }
+    .section.active { display: block; }
+    .service-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .service-title { font-weight: 600; margin-bottom: 4px; }
+    .service-meta { font-size: 0.82rem; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-brand">
+      <img src="/logo.png" alt="MCC" class="header-logo">
+      <div>
+        <div class="header-title">Fleet Driver Portal</div>
+        <div class="header-sub" id="driver-name-sub">Loading...</div>
+      </div>
+    </div>
+    <button class="btn btn-secondary" style="padding:8px 14px;font-size:0.82rem;" onclick="logout()">Sign Out</button>
+  </header>
+
+  <main class="main">
+    <div id="loading-view" style="text-align:center;padding:60px 20px;">
+      <div class="spinner"></div>
+      <p style="margin-top:16px;color:var(--text-muted);">Loading your fleet info...</p>
+    </div>
+
+    <div id="no-fleet-view" style="display:none;">
+      <div class="alert-banner alert-info">
+        You are not currently assigned to a fleet. Ask your fleet manager to add you via My Car Concierge.
+      </div>
+    </div>
+
+    <div id="main-view" style="display:none;">
+      <!-- Vehicle Section -->
+      <div id="section-vehicle" class="section active">
+        <div class="vehicle-hero" id="vehicle-hero">
+          <div class="vehicle-icon">🚗</div>
+          <div class="vehicle-name" id="vehicle-name">No Vehicle Assigned</div>
+          <div class="vehicle-sub" id="vehicle-sub">Contact your fleet manager to assign a vehicle</div>
+          <div class="vehicle-meta" id="vehicle-meta"></div>
+        </div>
+
+        <div id="maintenance-alert" class="alert-banner alert-warning" style="display:none;">
+          ⚠ Maintenance due for your vehicle. Your fleet manager has been notified.
+        </div>
+
+        <div class="card">
+          <div class="card-title">Vehicle Details</div>
+          <div id="vehicle-details-list">
+            <div class="empty-state">No vehicle assigned yet.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Your Assignment</div>
+          <div id="assignment-details-list">
+            <div class="empty-state">No active assignment.</div>
+          </div>
+        </div>
+
+        <div class="card" id="mileage-entry-card" style="display:none;">
+          <div class="card-title">Update Mileage</div>
+          <p style="font-size:0.88rem;color:var(--text-muted);margin-bottom:14px;">
+            Log your current odometer reading to keep fleet records accurate.
+          </p>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;font-size:0.85rem;color:var(--text-secondary);margin-bottom:6px;">Current Odometer Reading (miles)</label>
+            <input type="number" id="mileage-input" min="0" step="1" placeholder="e.g. 45000"
+              style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);font-size:0.92rem;font-family:inherit;">
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button class="btn btn-primary" onclick="submitMileage()" style="flex:1;">Save Mileage</button>
+            <span id="mileage-status" style="font-size:0.85rem;color:var(--text-muted);"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Services Section -->
+      <div id="section-services" class="section">
+        <div style="margin-bottom:20px;">
+          <h2 style="font-size:1.2rem;font-weight:600;margin-bottom:4px;">Service History</h2>
+          <p style="font-size:0.88rem;color:var(--text-muted);">Service records for your assigned vehicle.</p>
+        </div>
+
+        <div id="service-history-list">
+          <div class="empty-state">No service history found.</div>
+        </div>
+      </div>
+
+      <!-- Report Section -->
+      <div id="section-report" class="section">
+        <div class="card">
+          <div class="card-title">Report an Issue</div>
+          <p style="font-size:0.88rem;color:var(--text-muted);margin-bottom:16px;">
+            Let your fleet manager know about a vehicle issue or request maintenance.
+          </p>
+          <div style="margin-bottom:12px;">
+            <label style="display:block;font-size:0.85rem;color:var(--text-secondary);margin-bottom:6px;">Issue Type</label>
+            <select id="report-type" style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);font-size:0.92rem;font-family:inherit;">
+              <option value="">Select issue type...</option>
+              <option value="maintenance_due">Maintenance Due</option>
+              <option value="warning_light">Warning Light On</option>
+              <option value="damage">Vehicle Damage</option>
+              <option value="mechanical">Mechanical Issue</option>
+              <option value="tire">Tire / Wheel Issue</option>
+              <option value="accident">Accident Report</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:block;font-size:0.85rem;color:var(--text-secondary);margin-bottom:6px;">Description</label>
+            <textarea id="report-description" placeholder="Describe the issue..." rows="4" style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);font-size:0.92rem;font-family:inherit;resize:vertical;"></textarea>
+          </div>
+          <button class="btn btn-primary btn-block" onclick="submitReport()">Submit Report</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">My Previous Reports</div>
+          <div id="driver-reports-list">
+            <div class="empty-state">No reports submitted yet.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile Section -->
+      <div id="section-profile" class="section">
+        <div class="card">
+          <div class="card-title">My Fleet Profile</div>
+          <div id="driver-profile-list"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Quick Links</div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <a href="/fleet/driver" class="btn btn-secondary btn-block" onclick="showSection('vehicle');return false;">View My Vehicle</a>
+            <a href="/fleet/driver" class="btn btn-secondary btn-block" onclick="showSection('profile');return false;">My Profile</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Nav -->
+  <nav class="bottom-nav" id="bottom-nav" style="display:none;">
+    <div class="nav-tab active" onclick="showTab('vehicle')" id="tab-vehicle">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+      My Vehicle
+    </div>
+    <div class="nav-tab" onclick="showTab('services')" id="tab-services">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      Services
+    </div>
+    <div class="nav-tab" onclick="showTab('report')" id="tab-report">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Report Issue
+    </div>
+    <div class="nav-tab" onclick="showTab('profile')" id="tab-profile">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Profile
+    </div>
+  </nav>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="/supabaseclient.js"></script>
+  <script>
+    let currentUser = null;
+    let fleetMembership = null;
+    let assignedVehicle = null;
+    let serviceHistory = [];
+
+    window.addEventListener('load', async () => {
+      const user = await getCurrentUser();
+      if (!user) return window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.href);
+      currentUser = user;
+
+      await loadDriverData();
+    });
+
+    function showTab(tab) {
+      ['vehicle', 'services', 'report', 'profile'].forEach(t => {
+        document.getElementById(`section-${t}`).classList.toggle('active', t === tab);
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+      });
+    }
+
+    async function loadDriverData() {
+      try {
+        // Get fleet membership
+        const { data: memberships } = await supabaseClient
+          .from('fleet_members')
+          .select('*, fleet:fleet_id(id, name, company_name, auto_approve_under)')
+          .eq('user_id', currentUser.id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        document.getElementById('loading-view').style.display = 'none';
+
+        if (!memberships || !memberships.length) {
+          document.getElementById('no-fleet-view').style.display = 'block';
+          return;
+        }
+
+        fleetMembership = memberships[0];
+        const fleet = fleetMembership.fleet;
+        const fleetName = fleet?.name || fleet?.company_name || 'My Fleet';
+
+        document.getElementById('driver-name-sub').textContent = fleetName;
+        document.getElementById('main-view').style.display = 'block';
+        document.getElementById('bottom-nav').style.display = 'flex';
+
+        // Get assigned vehicle
+        const { data: fleetVehicles } = await supabaseClient
+          .from('fleet_vehicles')
+          .select('*, vehicle:vehicle_id(id, year, make, model, color, license_plate, vin, mileage)')
+          .eq('fleet_id', fleet.id)
+          .eq('assigned_driver_id', currentUser.id)
+          .eq('status', 'active')
+          .limit(1);
+
+        if (fleetVehicles && fleetVehicles.length > 0) {
+          assignedVehicle = fleetVehicles[0];
+          renderVehicle(assignedVehicle);
+          await loadServiceHistory(assignedVehicle.vehicle?.id);
+        } else {
+          document.getElementById('vehicle-name').textContent = 'No Vehicle Assigned';
+          document.getElementById('vehicle-sub').textContent = 'Contact your fleet manager to assign a vehicle';
+        }
+
+        renderProfile();
+      } catch (err) {
+        console.error('Fleet driver load error:', err);
+        document.getElementById('loading-view').style.display = 'none';
+        document.getElementById('no-fleet-view').style.display = 'block';
+      }
+    }
+
+    function renderVehicle(fv) {
+      const v = fv.vehicle;
+      if (!v) return;
+
+      const vehicleName = `${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim();
+      document.getElementById('vehicle-name').textContent = vehicleName;
+      document.getElementById('vehicle-sub').textContent = v.license_plate ? `Plate: ${v.license_plate}` : (v.vin ? `VIN: ${v.vin.substring(0, 10)}...` : '');
+
+      document.getElementById('vehicle-meta').innerHTML = `
+        ${v.mileage ? `<div class="vehicle-meta-item"><div class="vehicle-meta-value">${Number(v.mileage).toLocaleString()}</div><div class="vehicle-meta-label">Miles</div></div>` : ''}
+        ${fv.department ? `<div class="vehicle-meta-item"><div class="vehicle-meta-value">${fv.department}</div><div class="vehicle-meta-label">Department</div></div>` : ''}
+        ${fv.fleet_number ? `<div class="vehicle-meta-item"><div class="vehicle-meta-value">${fv.fleet_number}</div><div class="vehicle-meta-label">Fleet #</div></div>` : ''}
+      `;
+
+      document.getElementById('vehicle-details-list').innerHTML = `
+        <div class="list-item"><span class="list-item-label">Make / Model</span><span class="list-item-value">${v.make || '-'} ${v.model || ''}</span></div>
+        <div class="list-item"><span class="list-item-label">Year</span><span class="list-item-value">${v.year || '-'}</span></div>
+        <div class="list-item"><span class="list-item-label">Color</span><span class="list-item-value">${v.color || '-'}</span></div>
+        <div class="list-item"><span class="list-item-label">License Plate</span><span class="list-item-value">${v.license_plate || '-'}</span></div>
+        <div class="list-item"><span class="list-item-label">VIN</span><span class="list-item-value" style="font-size:0.8rem;">${v.vin || '-'}</span></div>
+        ${fv.next_service_due ? `<div class="list-item"><span class="list-item-label">Next Service Due</span><span class="list-item-value" style="color:${new Date(fv.next_service_due) < new Date() ? 'var(--accent-red)' : 'var(--accent-green)'};">${new Date(fv.next_service_due).toLocaleDateString()}</span></div>` : ''}
+      `;
+
+      document.getElementById('assignment-details-list').innerHTML = `
+        <div class="list-item"><span class="list-item-label">Assignment Type</span><span class="list-item-value">${fv.assignment_type === 'pool' ? 'Pool Vehicle' : fv.assignment_type === 'dedicated' ? 'Dedicated' : fv.assignment_type || '-'}</span></div>
+        ${fv.department ? `<div class="list-item"><span class="list-item-label">Department</span><span class="list-item-value">${fv.department}</span></div>` : ''}
+        ${fleetMembership?.spending_limit ? `<div class="list-item"><span class="list-item-label">Spending Limit</span><span class="list-item-value">$${Number(fleetMembership.spending_limit).toLocaleString()} per request</span></div>` : ''}
+        <div class="list-item"><span class="list-item-label">Requires Approval</span><span class="list-item-value">${fleetMembership?.requires_approval ? '✓ Yes' : 'No (auto-approved under limit)'}</span></div>
+      `;
+
+      if (fv.next_service_due && new Date(fv.next_service_due) < new Date()) {
+        document.getElementById('maintenance-alert').style.display = 'flex';
+      }
+
+      // Show mileage entry card and pre-fill current mileage
+      const mileageCard = document.getElementById('mileage-entry-card');
+      if (mileageCard) {
+        mileageCard.style.display = 'block';
+        if (v.mileage) {
+          document.getElementById('mileage-input').value = v.mileage;
+        }
+      }
+    }
+
+    async function submitMileage() {
+      if (!assignedVehicle?.vehicle?.id) {
+        document.getElementById('mileage-status').textContent = 'No vehicle assigned.';
+        return;
+      }
+      const input = document.getElementById('mileage-input');
+      const mileage = parseInt(input.value, 10);
+      if (!mileage || mileage < 0) {
+        document.getElementById('mileage-status').textContent = 'Please enter a valid mileage.';
+        return;
+      }
+      const currentMileage = assignedVehicle.vehicle.mileage || 0;
+      if (mileage < currentMileage) {
+        document.getElementById('mileage-status').textContent = `Cannot enter mileage lower than current (${Number(currentMileage).toLocaleString()}).`;
+        return;
+      }
+
+      const statusEl = document.getElementById('mileage-status');
+      statusEl.textContent = 'Saving...';
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const token = session?.data?.session?.access_token;
+        const res = await fetch('/api/fleet/update-mileage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': 'Bearer ' + token } : {}) },
+          body: JSON.stringify({ vehicle_id: assignedVehicle.vehicle.id, mileage })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to save');
+        assignedVehicle.vehicle.mileage = mileage;
+        statusEl.style.color = 'var(--accent-green)';
+        statusEl.textContent = '✓ Mileage updated';
+        // Refresh mileage display in vehicle meta
+        const mileageMetaEl = document.getElementById('vehicle-meta');
+        if (mileageMetaEl && assignedVehicle.vehicle) renderVehicle(assignedVehicle);
+        setTimeout(() => { statusEl.textContent = ''; statusEl.style.color = ''; }, 3000);
+      } catch (err) {
+        statusEl.style.color = 'var(--accent-red)';
+        statusEl.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    async function loadServiceHistory(vehicleId) {
+      if (!vehicleId) return;
+      const { data } = await supabaseClient
+        .from('service_history')
+        .select('*')
+        .eq('vehicle_id', vehicleId)
+        .order('service_date', { ascending: false })
+        .limit(20);
+
+      serviceHistory = data || [];
+      renderServiceHistory();
+    }
+
+    function renderServiceHistory() {
+      const container = document.getElementById('service-history-list');
+      if (!serviceHistory.length) {
+        container.innerHTML = '<div class="empty-state">No service history for your vehicle yet.</div>';
+        return;
+      }
+      container.innerHTML = serviceHistory.map(h => `
+        <div class="service-card">
+          <div class="service-title">${h.service_type || h.description || 'Service'}</div>
+          <div class="service-meta">
+            ${new Date(h.service_date).toLocaleDateString()} &bull;
+            ${h.provider_business || h.provider_name || 'Unknown Provider'} &bull;
+            <strong>$${(h.total_cost || 0).toFixed(2)}</strong>
+          </div>
+          ${h.notes ? `<div style="font-size:0.82rem;color:var(--text-secondary);margin-top:8px;">${h.notes}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function renderProfile() {
+      const membership = fleetMembership;
+      const fleet = membership?.fleet;
+      document.getElementById('driver-profile-list').innerHTML = `
+        <div class="list-item"><span class="list-item-label">Name</span><span class="list-item-value">${currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || '-'}</span></div>
+        <div class="list-item"><span class="list-item-label">Email</span><span class="list-item-value">${currentUser.email || '-'}</span></div>
+        <div class="list-item"><span class="list-item-label">Fleet</span><span class="list-item-value">${fleet?.name || fleet?.company_name || '-'}</span></div>
+        <div class="list-item"><span class="list-item-label">Role</span><span class="list-item-value" style="text-transform:capitalize;">${membership?.role || 'driver'}</span></div>
+        ${membership?.department ? `<div class="list-item"><span class="list-item-label">Department</span><span class="list-item-value">${membership.department}</span></div>` : ''}
+        ${membership?.employee_id ? `<div class="list-item"><span class="list-item-label">Employee ID</span><span class="list-item-value">${membership.employee_id}</span></div>` : ''}
+      `;
+    }
+
+    async function submitReport() {
+      const type = document.getElementById('report-type').value;
+      const desc = document.getElementById('report-description').value.trim();
+
+      if (!type || !desc) {
+        alert('Please select an issue type and add a description.');
+        return;
+      }
+
+      if (!assignedVehicle?.vehicle?.id) {
+        alert('No vehicle assigned. Cannot submit report.');
+        return;
+      }
+
+      const fleetId = fleetMembership?.fleet?.id || fleetMembership?.fleet_id;
+      if (!fleetId) {
+        alert('Fleet context unavailable. Please refresh and try again.');
+        return;
+      }
+
+      // Evaluate per-department and per-member approval rules via server
+      let requiresApproval = fleetMembership?.requires_approval || false;
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const token = session?.data?.session?.access_token;
+        const approvalRes = await fetch('/api/fleet/check-approval', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': 'Bearer ' + token } : {}) },
+          body: JSON.stringify({ fleet_id: fleetId, vehicle_id: assignedVehicle.vehicle.id, estimated_cost: 0 })
+        });
+        if (approvalRes.ok) {
+          const approvalData = await approvalRes.json();
+          requiresApproval = approvalData.requires_approval;
+        }
+      } catch (approvalErr) {
+        console.warn('Approval check failed, falling back to member setting:', approvalErr.message);
+      }
+
+      // Create service request through members portal
+      try {
+        const { data: pkg, error } = await supabaseClient.from('maintenance_packages').insert({
+          member_id: currentUser.id,
+          vehicle_id: assignedVehicle.vehicle.id,
+          fleet_id: fleetId,
+          title: `Driver Report: ${type.replace(/_/g, ' ')}`,
+          description: desc,
+          service_category: type,
+          status: requiresApproval ? 'pending_approval' : 'open',
+          pending_approval_amount: null
+        }).select().single();
+
+        if (error) throw error;
+
+        document.getElementById('report-type').value = '';
+        document.getElementById('report-description').value = '';
+        const msg = requiresApproval
+          ? 'Report submitted! It is pending your fleet manager\'s approval.'
+          : 'Report submitted! Your fleet manager will be notified.';
+        alert(msg);
+      } catch (err) {
+        alert('Failed to submit report. Please try again.');
+        console.error(err);
+      }
+    }
+
+    async function logout() {
+      await supabaseClient.auth.signOut();
+      window.location.href = '/login.html';
+    }
+  </script>
+  <script src="/pwa-init.js?v=20260202"></script>
+</body>
+</html>

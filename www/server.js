@@ -8,6 +8,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleGenAI } = require('@google/genai');
 const Stripe = require('stripe');
+const bcryptjs = require('bcryptjs');
 const { createClient } = require('@supabase/supabase-js');
 const vision = require('@google-cloud/vision');
 const sharp = require('sharp');
@@ -16,7 +17,7 @@ const { Resend } = require('resend');
 const stripeTreasury = require('./stripe-treasury');
 const { getHubSpotClient } = require('./hubspot-client');
 const handleCarClubRequest = require('./car-club-api');
-const { handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook, startEngineSchedulers, initEngineState, runApolloDiscoveryCycle, getApolloConfig, saveApolloConfig } = require('./outreach-engine-api');
+const { handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook, startEngineSchedulers, initEngineState, runApolloDiscoveryCycle, getApolloConfig, saveApolloConfig, pushLeadsToInstantly } = require('./outreach-engine-api');
 const { Pool: PgPool } = require('pg');
 let _localPgPool = null;
 function getLocalPool() {
@@ -148,6 +149,24 @@ async function searchWithGrounding(query, options = {}) {
 }
 
 const helpdeskConversations = new Map();
+const helpdeskLastActive = new Map();
+
+function cleanupHelpdeskConversations() {
+  const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+  let evicted = 0;
+  for (const [convId, lastActive] of helpdeskLastActive.entries()) {
+    if (lastActive < cutoff) {
+      helpdeskConversations.delete(convId);
+      helpdeskLastActive.delete(convId);
+      evicted++;
+    }
+  }
+  if (evicted > 0) {
+    console.log(`[Helpdesk] Evicted ${evicted} idle session(s). Active sessions: ${helpdeskConversations.size}`);
+  }
+}
+
+setInterval(cleanupHelpdeskConversations, 30 * 60 * 1000);
 
 const HELPDESK_BASE_PROMPT = `You are "My Car Concierge" — a friendly, practical car expert and helpdesk agent for a marketplace that connects drivers with vetted automotive service providers.
 
@@ -254,6 +273,7 @@ function getHelpdeskConversation(convId) {
   if (!helpdeskConversations.has(convId)) {
     helpdeskConversations.set(convId, []);
   }
+  helpdeskLastActive.set(convId, Date.now());
   return helpdeskConversations.get(convId);
 }
 
@@ -283,15 +303,21 @@ let global2faEnabled = process.env.GLOBAL_2FA_ENABLED !== 'false';
 
 const WWW_DIR = path.resolve(__dirname);
 
-const GUEST_TOKEN_SECRET = process.env.ADMIN_PASSWORD ? 
-  crypto.createHash('sha256').update('mcc-guest-split-' + process.env.ADMIN_PASSWORD).digest('hex') : 
-  'mcc-guest-token-fallback-dev';
+const GUEST_TOKEN_SECRET = process.env.ADMIN_PASSWORD
+  ? crypto.createHash('sha256').update('mcc-guest-split-' + process.env.ADMIN_PASSWORD).digest('hex')
+  : null;
+
+if (!GUEST_TOKEN_SECRET) {
+  console.warn('[Security] ADMIN_PASSWORD not set — split-payment guest links are disabled.');
+}
 
 function generateGuestToken(participantId) {
+  if (!GUEST_TOKEN_SECRET) return null;
   return crypto.createHmac('sha256', GUEST_TOKEN_SECRET).update(participantId).digest('hex').substring(0, 32);
 }
 
 function verifyGuestToken(participantId, token) {
+  if (!GUEST_TOKEN_SECRET) return false;
   if (!token || token.length !== 32) return false;
   try {
     return crypto.timingSafeEqual(
@@ -313,7 +339,8 @@ const rateLimitConfig = {
   apiAuth: { limit: 100, windowMs: 60000 },
   public: { limit: 30, windowMs: 60000 },
   adminVerify: { limit: 10, windowMs: 60000 },
-  helpdesk: { limit: 10, windowMs: 60000 }
+  helpdesk: { limit: 10, windowMs: 60000 },
+  memberSurvey: { limit: 5, windowMs: 300000 }
 };
 
 function getClientIP(req) {
@@ -496,6 +523,8 @@ function getRequestBody(req, maxSize = PRINTFUL_MAX_BODY_SIZE) {
     });
   });
 }
+// Alias for convenience — used throughout shop/SaaS endpoints
+const parseBody = getRequestBody;
 // ========== END REQUEST BODY PARSER ==========
 
 // ========== LOGIN ACTIVITY LOGGING ==========
@@ -5704,6 +5733,424 @@ const openai = new OpenAI({
 
 let stripeClient = null;
 
+// ========== SAAS PLANS CONFIG ==========
+const SAAS_PLANS = {
+  fleet: {
+    name: 'Fleet Management SaaS',
+    description: 'Complete fleet operations platform for businesses',
+    tiers: {
+      starter: {
+        name: 'Fleet Starter',
+        price_monthly: 4900,
+        price_annual: 39900,
+        vehicles: 5,
+        drivers: 5,
+        features: ['Vehicle tracking', 'Maintenance scheduling', 'Driver management', 'Service approvals', 'Basic reporting'],
+        stripe_price_id: process.env.STRIPE_PRICE_FLEET_STARTER || null
+      },
+      pro: {
+        name: 'Fleet Pro',
+        price_monthly: 9900,
+        price_annual: 89900,
+        vehicles: 25,
+        drivers: 25,
+        features: ['Everything in Starter', 'Bulk service requests', 'Advanced analytics', 'API access', 'Priority support', 'Custom workflows'],
+        stripe_price_id: process.env.STRIPE_PRICE_FLEET_PRO || null
+      },
+      business: {
+        name: 'Fleet Business',
+        price_monthly: 24900,
+        price_annual: 229900,
+        vehicles: -1,
+        drivers: -1,
+        features: ['Everything in Pro', 'Unlimited vehicles & drivers', 'White-label options', 'Dedicated account manager', 'SLA guarantee', 'Custom integrations'],
+        stripe_price_id: process.env.STRIPE_PRICE_FLEET_BUSINESS || null
+      }
+    }
+  },
+  shop: {
+    name: 'Provider Shop Management',
+    description: 'Booking, payments, and CRM for auto service shops',
+    tiers: {
+      starter: {
+        name: 'Solo',
+        price_monthly: 4900,
+        price_annual: 44900,
+        seat_limit: 1,
+        features: ['1 technician seat', 'Kiosk check-in', 'Walk-in POS', 'Job tracking', 'Basic analytics', 'Public shop profile', 'Booking widget'],
+        stripe_price_id: process.env.STRIPE_PRICE_SHOP_STARTER || null
+      },
+      pro: {
+        name: 'Team',
+        price_monthly: 9900,
+        price_annual: 94900,
+        seat_limit: 5,
+        features: ['Up to 5 technician seats', 'Everything in Solo', 'SMS appointment reminders', 'Advanced analytics', 'Car Club Loyalty program', 'Team background checks', 'AI bid strategy insights', 'Priority support'],
+        stripe_price_id: process.env.STRIPE_PRICE_SHOP_PRO || null
+      },
+      business: {
+        name: 'Shop',
+        price_monthly: 19900,
+        price_annual: 189900,
+        seat_limit: 999,
+        features: ['Unlimited technician seats', 'Everything in Team', 'White-label booking widget', 'Fleet service management', 'Advanced POS analytics', 'API access', 'Dedicated support'],
+        stripe_price_id: process.env.STRIPE_PRICE_SHOP_BUSINESS || null
+      }
+    }
+  },
+  ai_api: {
+    name: 'Automotive AI API',
+    description: 'AI-powered automotive intelligence for developers',
+    tiers: {
+      starter: {
+        name: 'AI Starter',
+        price_monthly: 4900,
+        price_annual: 44900,
+        calls_per_month: 5000,
+        features: ['5,000 API calls/month', 'VIN decoder', 'Recall lookup', 'Maintenance scheduler', 'Basic rate limiting'],
+        stripe_price_id: process.env.STRIPE_PRICE_AI_API_STARTER || null
+      },
+      pro: {
+        name: 'AI Pro',
+        price_monthly: 14900,
+        price_annual: 139900,
+        calls_per_month: 50000,
+        features: ['50,000 API calls/month', 'All Starter endpoints', 'Fair price estimator', 'OBD code analyzer', 'Dream car finder', 'Webhook support'],
+        stripe_price_id: process.env.STRIPE_PRICE_AI_API_PRO || null
+      },
+      business: {
+        name: 'AI Business',
+        price_monthly: 49900,
+        price_annual: 479900,
+        calls_per_month: -1,
+        features: ['Unlimited API calls', 'All Pro endpoints', 'Custom model fine-tuning', 'Dedicated infrastructure', 'SLA 99.9%', 'White-glove onboarding'],
+        stripe_price_id: process.env.STRIPE_PRICE_AI_API_BUSINESS || null
+      }
+    }
+  },
+  outreach: {
+    name: 'Outreach Engine SaaS',
+    description: 'AI-powered lead discovery and sales automation',
+    tiers: {
+      starter: {
+        name: 'Outreach Starter',
+        price_monthly: 9900,
+        price_annual: 89900,
+        leads_per_month: 500,
+        features: ['500 leads/month', 'Email campaigns', 'Lead scoring', 'CRM sync', 'Campaign analytics'],
+        stripe_price_id: process.env.STRIPE_PRICE_OUTREACH_STARTER || null
+      },
+      pro: {
+        name: 'Outreach Pro',
+        price_monthly: 24900,
+        price_annual: 229900,
+        leads_per_month: 5000,
+        features: ['5,000 leads/month', 'Everything in Starter', 'AI message drafting', 'Multi-channel outreach', 'A/B testing', 'Auto-send with guardrails'],
+        stripe_price_id: process.env.STRIPE_PRICE_OUTREACH_PRO || null
+      },
+      business: {
+        name: 'Outreach Business',
+        price_monthly: 79900,
+        price_annual: 749900,
+        leads_per_month: -1,
+        features: ['Unlimited leads', 'Everything in Pro', 'Custom AI training', 'Dedicated discovery cycles', 'White-label option', 'API access'],
+        stripe_price_id: process.env.STRIPE_PRICE_OUTREACH_BUSINESS || null
+      }
+    }
+  },
+  white_label: {
+    name: 'White-label Platform',
+    description: 'Full MCC platform under your brand',
+    tiers: {
+      starter: {
+        name: 'White-label Starter',
+        price_monthly: 49900,
+        price_annual: 479900,
+        features: ['Custom domain', 'Logo & colors', 'Up to 500 members', 'Up to 50 providers', 'Standard support'],
+        stripe_price_id: process.env.STRIPE_PRICE_WL_STARTER || null
+      },
+      pro: {
+        name: 'White-label Pro',
+        price_monthly: 149900,
+        price_annual: 1399900,
+        features: ['Everything in Starter', 'Up to 5,000 members', 'Up to 500 providers', 'Custom email templates', 'Analytics dashboard', 'API access'],
+        stripe_price_id: process.env.STRIPE_PRICE_WL_PRO || null
+      },
+      business: {
+        name: 'White-label Business',
+        price_monthly: 399900,
+        price_annual: 3799900,
+        features: ['Everything in Pro', 'Unlimited members & providers', 'Custom feature development', 'Dedicated infrastructure', 'SLA 99.9%', 'Executive support'],
+        stripe_price_id: process.env.STRIPE_PRICE_WL_BUSINESS || null
+      }
+    }
+  }
+};
+
+async function checkPlanAccess(userId, productLine, requiredPlan) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return { access: false, reason: 'db_unavailable' };
+
+  const planHierarchy = { starter: 1, pro: 2, business: 3 };
+  const requiredLevel = planHierarchy[requiredPlan] || 1;
+
+  const { data: sub } = await supabase
+    .from('saas_subscriptions')
+    .select('plan, status, current_period_end')
+    .eq('user_id', userId)
+    .eq('product', productLine)
+    .in('status', ['active', 'trialing'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!sub) return { access: false, reason: 'no_subscription', upgrade_url: `/pricing?product=${productLine}` };
+
+  // Enforce expiration: if current_period_end is set and in the past, deny access
+  if (sub.current_period_end) {
+    const expiry = new Date(sub.current_period_end);
+    if (!isNaN(expiry) && expiry < new Date()) {
+      return { access: false, reason: 'subscription_expired', expired_at: sub.current_period_end, upgrade_url: `/pricing?product=${productLine}&renew=true` };
+    }
+  }
+
+  const subLevel = planHierarchy[sub.plan] || 0;
+  if (subLevel < requiredLevel) {
+    return { access: false, reason: 'plan_too_low', current_plan: sub.plan, required_plan: requiredPlan, upgrade_url: `/pricing?product=${productLine}&upgrade=true` };
+  }
+
+  return { access: true, plan: sub.plan, status: sub.status };
+}
+
+async function getOrCreateStripeCustomer(userId, userEmail) {
+  const supabase = getSupabaseClient();
+  const stripe = await getStripeClient();
+
+  const { data: existing } = await supabase
+    .from('saas_subscriptions')
+    .select('stripe_customer_id')
+    .eq('user_id', userId)
+    .not('stripe_customer_id', 'is', null)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.stripe_customer_id) return existing.stripe_customer_id;
+
+  const customer = await stripe.customers.create({
+    email: userEmail,
+    metadata: { mcc_user_id: userId }
+  });
+
+  return customer.id;
+}
+
+async function handleSaasSubscriptionWebhook(event, supabase, requestId) {
+  const sub = event.data.object;
+  const productId = sub.items?.data?.[0]?.price?.product;
+  const priceId = sub.items?.data?.[0]?.price?.id;
+
+  const planMap = {};
+  for (const [product, config] of Object.entries(SAAS_PLANS)) {
+    for (const [tier, tierConfig] of Object.entries(config.tiers)) {
+      if (tierConfig.stripe_price_id) {
+        planMap[tierConfig.stripe_price_id] = { product, plan: tier };
+      }
+    }
+  }
+
+  const planInfo = priceId ? planMap[priceId] : null;
+  if (!planInfo) {
+    console.log(`[${requestId}] SaaS webhook: unknown price ID ${priceId}, skipping`);
+    return;
+  }
+
+  const customerId = sub.customer;
+
+  // Step 1: look up by stripe_subscription_id (fastest path, covers updates/deletes)
+  const { data: existingSub } = await supabase
+    .from('saas_subscriptions')
+    .select('id, user_id')
+    .eq('stripe_subscription_id', sub.id)
+    .maybeSingle();
+
+  let userId = existingSub?.user_id;
+
+  // Step 2: look up by stripe_customer_id across existing subscriptions (covers newly-seeded records)
+  if (!userId) {
+    const { data: customerSub } = await supabase
+      .from('saas_subscriptions')
+      .select('user_id')
+      .eq('stripe_customer_id', customerId)
+      .not('user_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    userId = customerSub?.user_id;
+  }
+
+  // Step 3: look up Stripe customer metadata (set at customer creation via getOrCreateStripeCustomer)
+  if (!userId) {
+    try {
+      const stripe = await getStripeClient();
+      const customer = await stripe.customers.retrieve(customerId);
+      if (customer && !customer.deleted && customer.metadata?.mcc_user_id) {
+        userId = customer.metadata.mcc_user_id;
+      }
+    } catch (stripeErr) {
+      console.warn(`[${requestId}] SaaS webhook: Stripe customer lookup failed:`, stripeErr.message);
+    }
+  }
+
+  if (!userId) {
+    console.log(`[${requestId}] SaaS webhook: cannot resolve user for Stripe customer ${customerId} (sub ${sub.id}). Ensure checkout.session.completed fires first.`);
+    return;
+  }
+
+  const statusMap = {
+    'customer.subscription.created': sub.status,
+    'customer.subscription.updated': sub.status,
+    'customer.subscription.deleted': 'canceled',
+    'customer.subscription.trial_will_end': sub.status
+  };
+
+  const upsertData = {
+    user_id: userId,
+    product: planInfo.product,
+    plan: planInfo.plan,
+    status: statusMap[event.type] || sub.status,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: sub.id,
+    stripe_price_id: priceId,
+    current_period_start: sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null,
+    current_period_end: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
+    cancel_at_period_end: sub.cancel_at_period_end || false,
+    trial_end: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
+    canceled_at: sub.canceled_at ? new Date(sub.canceled_at * 1000).toISOString() : null,
+    updated_at: new Date().toISOString()
+  };
+
+  if (existingSub) {
+    const { error } = await supabase.from('saas_subscriptions').update(upsertData).eq('id', existingSub.id);
+    if (error) console.error(`[${requestId}] SaaS sub update error:`, error.message);
+    else console.log(`[${requestId}] SaaS subscription updated: ${sub.id} status=${upsertData.status}`);
+  } else {
+    const { error } = await supabase.from('saas_subscriptions').insert(upsertData);
+    if (error) console.error(`[${requestId}] SaaS sub insert error:`, error.message);
+    else console.log(`[${requestId}] SaaS subscription created: ${sub.id} product=${planInfo.product} plan=${planInfo.plan}`);
+  }
+
+  // Keep profiles.saas_plans_cache in sync with subscription lifecycle changes
+  try {
+    const { data: prof } = await supabase.from('profiles').select('saas_plans_cache, saas_plans_expires_at').eq('id', userId).maybeSingle();
+    const isCanceled = upsertData.status === 'canceled';
+    const cacheUpdate = Object.assign({}, prof?.saas_plans_cache || {});
+    const expiryUpdate = Object.assign({}, prof?.saas_plans_expires_at || {});
+    if (isCanceled) {
+      delete cacheUpdate[planInfo.product];
+      delete expiryUpdate[planInfo.product];
+    } else {
+      cacheUpdate[planInfo.product] = planInfo.plan;
+      expiryUpdate[planInfo.product] = upsertData.current_period_end || null;
+    }
+    await supabase.from('profiles').update({ saas_plans_cache: cacheUpdate, saas_plans_expires_at: expiryUpdate }).eq('id', userId);
+  } catch (cacheErr) {
+    console.warn(`[${requestId}] SaaS cache update failed (non-critical):`, cacheErr.message);
+  }
+
+  // Send fleet-specific lifecycle email notifications via Resend
+  if (planInfo.product === 'fleet') {
+    try {
+      const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', userId).maybeSingle();
+      const userEmail = profile?.email;
+      const userName = profile?.full_name || 'Fleet Admin';
+      const planLabel = planInfo.plan.charAt(0).toUpperCase() + planInfo.plan.slice(1);
+      if (userEmail && resend) {
+        let emailSubject = '';
+        let emailHtml = '';
+        const renewalDate = upsertData.current_period_end
+          ? new Date(upsertData.current_period_end).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : null;
+        const trialEndDate = upsertData.trial_end
+          ? new Date(upsertData.trial_end).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : null;
+
+        if (event.type === 'customer.subscription.created' && upsertData.status === 'trialing') {
+          emailSubject = `Your My Car Concierge Fleet ${planLabel} trial has started`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>Fleet ${planLabel}</strong> 14-day free trial is now active. You can manage your fleet, invite drivers, and import vehicles during the trial period.</p>${trialEndDate ? `<p>Your trial ends on <strong>${trialEndDate}</strong>. No charges until then.</p>` : ''}<p><a href="https://mycarconcierge.com/fleet" style="background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Go to Fleet Dashboard</a></p><p>— My Car Concierge Team</p>`;
+        } else if (event.type === 'customer.subscription.trial_will_end') {
+          emailSubject = `Your Fleet trial ends in 3 days — no action needed`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>Fleet ${planLabel}</strong> trial is ending${trialEndDate ? ` on <strong>${trialEndDate}</strong>` : ' soon'}. Your subscription will automatically continue — no action required.</p><p>Questions? Reply to this email or visit your <a href="https://mycarconcierge.com/members.html#fleet">Fleet Dashboard</a>.</p><p>— My Car Concierge Team</p>`;
+        } else if (event.type === 'customer.subscription.updated' && upsertData.status === 'active' && sub.status !== 'trialing') {
+          emailSubject = `Your Fleet ${planLabel} plan has been updated`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>Fleet ${planLabel}</strong> plan has been updated successfully.${renewalDate ? ` Your next billing date is <strong>${renewalDate}</strong>.` : ''}</p><p><a href="https://mycarconcierge.com/members.html#fleet" style="background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Manage Fleet</a></p><p>— My Car Concierge Team</p>`;
+        } else if (event.type === 'customer.subscription.deleted' || upsertData.status === 'canceled') {
+          emailSubject = `Your Fleet subscription has been canceled`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>Fleet ${planLabel}</strong> subscription has been canceled. You can reactivate at any time from your <a href="https://mycarconcierge.com/members.html#fleet">Fleet Dashboard</a>.</p><p>— My Car Concierge Team</p>`;
+        }
+
+        if (emailSubject && emailHtml) {
+          await resend.emails.send({
+            from: 'My Car Concierge <noreply@mycarconcierge.com>',
+            to: userEmail,
+            subject: emailSubject,
+            html: emailHtml
+          });
+          console.log(`[${requestId}] Fleet lifecycle email sent to ${userEmail}: ${emailSubject}`);
+        }
+      }
+    } catch (emailErr) {
+      console.warn(`[${requestId}] Fleet lifecycle email failed (non-critical):`, emailErr.message);
+    }
+  }
+
+  // Send shop-specific subscription lifecycle emails
+  if (planInfo.product === 'shop') {
+    try {
+      const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', userId).maybeSingle();
+      const userEmail = profile?.email;
+      const userName = profile?.full_name || 'Shop Owner';
+      const shopPlanLabels = { starter: 'Solo', pro: 'Team', business: 'Shop' };
+      const planLabel = shopPlanLabels[planInfo.plan] || planInfo.plan;
+      if (userEmail && resend) {
+        let emailSubject = '';
+        let emailHtml = '';
+        const renewalDate = upsertData.current_period_end
+          ? new Date(upsertData.current_period_end).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : null;
+        const trialEndDate = upsertData.trial_end
+          ? new Date(upsertData.trial_end).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : null;
+
+        if (event.type === 'customer.subscription.created' && upsertData.status === 'trialing') {
+          emailSubject = `Your My Car Concierge ${planLabel} Shop plan trial has started`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>${planLabel}</strong> shop plan 14-day free trial is now active. You can set up your public profile, accept online bookings, and manage walk-in customers during the trial period.</p>${trialEndDate ? `<p>Your trial ends on <strong>${trialEndDate}</strong>. No charges until then.</p>` : ''}<p><a href="https://mycarconcierge.com/providers.html" style="background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Set Up Your Shop</a></p><p>— My Car Concierge Team</p>`;
+        } else if (event.type === 'customer.subscription.trial_will_end') {
+          emailSubject = `Your ${planLabel} shop trial ends in 3 days — no action needed`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>${planLabel}</strong> shop plan trial is ending${trialEndDate ? ` on <strong>${trialEndDate}</strong>` : ' soon'}. Your subscription will automatically continue — no action required.</p><p>Questions? Reply to this email or visit your <a href="https://mycarconcierge.com/providers.html">Provider Dashboard</a>.</p><p>— My Car Concierge Team</p>`;
+        } else if (event.type === 'customer.subscription.updated' && upsertData.status === 'active' && sub.status !== 'trialing') {
+          emailSubject = `Your ${planLabel} shop plan is now active`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>${planLabel}</strong> shop plan is active.${renewalDate ? ` Your next billing date is <strong>${renewalDate}</strong>.` : ''}</p><p><a href="https://mycarconcierge.com/providers.html" style="background:#c9a227;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Manage Shop</a></p><p>— My Car Concierge Team</p>`;
+        } else if (event.type === 'customer.subscription.deleted' || upsertData.status === 'canceled') {
+          emailSubject = `Your Shop plan subscription has been canceled`;
+          emailHtml = `<p>Hi ${userName},</p><p>Your <strong>${planLabel}</strong> shop plan subscription has been canceled. You can reactivate at any time from your <a href="https://mycarconcierge.com/providers.html">Provider Dashboard</a>.</p><p>— My Car Concierge Team</p>`;
+        }
+
+        if (emailSubject && emailHtml) {
+          await resend.emails.send({
+            from: 'My Car Concierge <noreply@mycarconcierge.com>',
+            to: userEmail,
+            subject: emailSubject,
+            html: emailHtml
+          });
+          console.log(`[${requestId}] Shop lifecycle email sent to ${userEmail}: ${emailSubject}`);
+        }
+      }
+    } catch (emailErr) {
+      console.warn(`[${requestId}] Shop lifecycle email failed (non-critical):`, emailErr.message);
+    }
+  }
+}
+
 async function getStripeClient() {
   if (stripeClient) return stripeClient;
   
@@ -5889,7 +6336,24 @@ async function checkNotificationPreference(userId, channel, type) {
   }
 }
 
-async function sendSmsNotification(phoneNumber, message, userId = null, notificationType = null) {
+async function logSmsAttempt(toPhoneMasked, messageType, messageSid, status, errorCode, errorMessage) {
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    await supabase.from('sms_log').insert({
+      to_phone_masked: toPhoneMasked,
+      message_type: messageType || 'unknown',
+      message_sid: messageSid || null,
+      status: status || 'unknown',
+      error_code: errorCode ? String(errorCode) : null,
+      error_message: errorMessage || null
+    });
+  } catch (err) {
+    console.error('[SMS_LOG] Failed to log SMS attempt:', err.message);
+  }
+}
+
+async function sendSmsNotification(phoneNumber, message, userId = null, notificationType = null, smsLogType = null) {
   if (userId && notificationType) {
     const shouldSend = await checkNotificationPreference(userId, 'sms', notificationType);
     if (!shouldSend) {
@@ -5906,6 +6370,9 @@ async function sendSmsNotification(phoneNumber, message, userId = null, notifica
     console.log('Twilio not configured, skipping SMS');
     return { sent: false, reason: 'not_configured' };
   }
+  
+  const logType = smsLogType || notificationType || 'general';
+  const maskedPhone = maskPhoneNumber(phoneNumber);
   
   try {
     const cleanPhone = phoneNumber.replace(/\D/g, '');
@@ -5930,15 +6397,23 @@ async function sendSmsNotification(phoneNumber, message, userId = null, notifica
     );
     
     if (twilioRes.ok) {
-      console.log(`SMS sent to ${formattedPhone}`);
-      return { sent: true };
+      const resData = await twilioRes.json();
+      const msgSid = resData.sid || null;
+      const msgStatus = resData.status || 'queued';
+      console.log(`SMS sent to ${formattedPhone} sid=${msgSid}`);
+      await logSmsAttempt(maskedPhone, logType, msgSid, msgStatus, null, null);
+      return { sent: true, sid: msgSid };
     } else {
       const errorData = await twilioRes.json();
       console.error('Twilio error:', errorData);
+      const errCode = errorData.code || errorData.status || null;
+      const errMsg = errorData.message || errorData.more_info || null;
+      await logSmsAttempt(maskedPhone, logType, null, 'failed', errCode, errMsg);
       return { sent: false, reason: 'twilio_error', error: errorData };
     }
   } catch (error) {
     console.error('SMS send error:', error);
+    logSmsAttempt(maskedPhone, logType, null, 'failed', null, error.message);
     return { sent: false, reason: 'exception', error: error.message };
   }
 }
@@ -6722,32 +7197,8 @@ async function sendFCMPushNotification(memberIds, title, body, data = {}, catego
       return { sent: true, success: successCount, failure: failureCount };
     }
 
-    const tokens = eligibleTokenRows.map(r => r.token);
-    const payload = {
-      registration_ids: tokens,
-      notification: { title, body },
-      data: { ...data, title, body },
-      priority: 'high',
-      content_available: true
-    };
-    const response = await fetch('https://fcm.googleapis.com/fcm/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `key=${fcmKey}` },
-      body: JSON.stringify(payload)
-    });
-    const result = await response.json();
-    console.log(`[FCM legacy] Sent to ${tokens.length} device(s): success=${result.success} failure=${result.failure}`);
-    if (result.results) {
-      const stale = [];
-      result.results.forEach((r, i) => {
-        if (r.error === 'InvalidRegistration' || r.error === 'NotRegistered') stale.push(tokens[i]);
-      });
-      if (stale.length > 0) {
-        await supabase.from('device_push_tokens').update({ active: false }).in('token', stale);
-        console.log(`[FCM legacy] Deactivated ${stale.length} stale token(s)`);
-      }
-    }
-    return { sent: true, success: result.success, failure: result.failure };
+    console.warn('[FCM] FCM_SERVER_KEY (legacy API) is set but the legacy FCM HTTP API was shut down in June 2024. Set FCM_SERVICE_ACCOUNT_JSON to enable push notifications via the FCM v1 API.');
+    return { sent: false, reason: 'legacy_api_deprecated' };
   } catch (err) {
     console.error('[FCM] Send error:', err.message);
     return { sent: false, reason: 'error' };
@@ -6779,7 +7230,7 @@ async function sendDreamCarSMSNotification(userId, matches) {
       : 'https://mycarconcierge.com';
     const message = `My Car Concierge found ${matchCount} new car${matchCount !== 1 ? 's' : ''} matching your search! View them at ${appUrl}/members.html#dream-car`;
     
-    return await sendSmsNotification(profile.phone, message);
+    return await sendSmsNotification(profile.phone, message, null, null, 'dream_car');
   } catch (error) {
     console.error('Dream Car SMS error:', error.message);
     return { sent: false, reason: 'exception', error: error.message };
@@ -7274,7 +7725,8 @@ async function handle2faSendCode(req, res, requestId) {
       
       const smsResult = await sendSmsNotification(
         phone,
-        `Your My Car Concierge verification code is: ${code}. It expires in 5 minutes.`
+        `Your My Car Concierge verification code is: ${code}. It expires in 5 minutes.`,
+        null, null, '2fa'
       );
       
       if (!smsResult.sent && smsResult.reason !== 'not_configured') {
@@ -7695,10 +8147,37 @@ async function handleAdminGetProviders(req, res, requestId) {
       return;
     }
     
+    // Enrich with provider's own background check status from provider_background_checks
+    let enrichedData = data || [];
+    if (enrichedData.length > 0) {
+      const providerIds = enrichedData.map(p => p.id);
+      const { data: bgData, error: bgError } = await supabase
+        .from('provider_background_checks')
+        .select('provider_id, status, updated_at')
+        .in('provider_id', providerIds)
+        .eq('subject_type', 'provider')
+        .order('created_at', { ascending: false });
+      if (bgError) {
+        console.warn(`[${requestId}] Admin providers: bgcheck enrichment query failed:`, bgError.message);
+      }
+      if (bgData) {
+        // Only keep the most recent check per provider
+        const bgMap = {};
+        bgData.forEach(b => {
+          if (!bgMap[b.provider_id]) bgMap[b.provider_id] = b;
+        });
+        enrichedData = enrichedData.map(p => ({
+          ...p,
+          bgcheck_status: bgMap[p.id]?.status || null,
+          bgcheck_updated_at: bgMap[p.id]?.updated_at || null,
+        }));
+      }
+    }
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       success: true,
-      data: data || [],
+      data: enrichedData,
       total: count || 0,
       page,
       totalPages: Math.ceil((count || 0) / limit)
@@ -9882,7 +10361,7 @@ async function handleEnrichRecall(req, res, requestId, recallId) {
 
     const { data: recall, error: fetchError } = await supabase
       .from('vehicle_recalls')
-      .select('id, vehicle_id, component, summary, consequence, remedy, manufacturer, nhtsa_campaign_number, ai_summary, severity')
+      .select('id, vehicle_id, component, summary, consequence, remedy, manufacturer, nhtsa_campaign_number')
       .eq('id', recallId)
       .single();
 
@@ -9911,10 +10390,19 @@ async function handleEnrichRecall(req, res, requestId, recallId) {
       }
     }
 
-    if (recall.ai_summary && recall.severity) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, ai_summary: recall.ai_summary, severity: recall.severity, cached: true }));
-      return;
+    let aiColumnsReady = false;
+    const { data: aiRow, error: aiColErr } = await supabase
+      .from('vehicle_recalls')
+      .select('ai_summary, severity')
+      .eq('id', recallId)
+      .single();
+    if (!aiColErr) {
+      aiColumnsReady = true;
+      if (aiRow?.ai_summary && aiRow?.severity) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, ai_summary: aiRow.ai_summary, severity: aiRow.severity, cached: true }));
+        return;
+      }
     }
 
     if (!anthropicClient) {
@@ -9966,14 +10454,13 @@ Severity guide: critical = risk of injury/accident/fire; important = significant
       severity = 'monitor';
     }
 
-    if (aiSummary) {
-      try {
-        await supabase
-          .from('vehicle_recalls')
-          .update({ ai_summary: aiSummary, severity })
-          .eq('id', recallId);
-      } catch (dbErr) {
-        console.error(`[${requestId}] Failed to save recall enrichment:`, dbErr.message);
+    if (aiSummary && aiColumnsReady) {
+      const { error: updateErr } = await supabase
+        .from('vehicle_recalls')
+        .update({ ai_summary: aiSummary, severity })
+        .eq('id', recallId);
+      if (updateErr) {
+        console.error(`[${requestId}] Failed to save recall enrichment:`, updateErr.message);
       }
     }
 
@@ -9990,10 +10477,9 @@ Severity guide: critical = risk of injury/accident/fire; important = significant
 async function runRecallsAiMigration() {
   const supabase = getSupabaseClient();
   if (!supabase) return;
-  try {
-    await supabase.from('vehicle_recalls').select('ai_summary, severity').limit(1);
-  } catch {
-    console.warn('[Migration] vehicle_recalls ai_summary/severity columns not yet added. Run vehicle_recalls_ai_columns_migration.sql in Supabase SQL Editor.');
+  const { error } = await supabase.from('vehicle_recalls').select('ai_summary, severity').limit(1);
+  if (error && (error.code === '42703' || (error.message && error.message.includes('ai_summary')))) {
+    console.warn('[Migration] vehicle_recalls ai_summary/severity columns missing. Run supabase/migrations/20260322_vehicle_recalls_ai_columns.sql in the Supabase SQL Editor to enable AI recall enrichment.');
   }
 }
 
@@ -11225,7 +11711,7 @@ async function sendBidNotifications(supabase, packageId, newBidId, bidPrice, req
 
     if (alertSms && memberProfile.phone && memberProfile.sms_consent) {
       const msg = `My Car Concierge: A new bid of $${bidPrice.toFixed(2)} was received on your "${pkg.title}" request. Log in to view bids: mycarconcierge.com/members.html`;
-      await sendSmsNotification(memberProfile.phone, msg, null, null);
+      await sendSmsNotification(memberProfile.phone, msg, null, null, 'bid_alert');
       console.log(`[${requestId}] Bid SMS sent to member ${pkg.member_id}`);
     }
 
@@ -11274,7 +11760,7 @@ async function sendBidNotifications(supabase, packageId, newBidId, bidPrice, req
 
     if (cb.provider_bid_alerts_sms && pProfile.phone && pProfile.sms_consent) {
       const msg = `My Car Concierge: A competing bid was just placed on "${pkg.title}". Check your My Bids page and update your bid: mycarconcierge.com/providers.html`;
-      await sendSmsNotification(pProfile.phone, msg, null, null);
+      await sendSmsNotification(pProfile.phone, msg, null, null, 'bid_alert');
       console.log(`[${requestId}] Competing bid SMS sent to provider ${cb.provider_id}`);
     }
 
@@ -11591,6 +12077,52 @@ async function handleStripeWebhook(req, res, requestId) {
         } catch (clubMerchErr) {
           console.error(`[${requestId}] Error updating club merch order:`, clubMerchErr.message);
         }
+      } else if (metadata.type === 'saas_subscription') {
+        // SaaS subscription checkout completed — seed user/customer identity BEFORE subscription.created fires
+        console.log(`[${requestId}] SaaS subscription checkout completed: ${session.id}`);
+        try {
+          const supabase = getSupabaseClient();
+          const userId = metadata.mcc_user_id;
+          const product = metadata.product;
+          const plan = metadata.plan;
+          const customerId = session.customer;
+          const subscriptionId = session.subscription;
+          if (supabase && userId && product && plan) {
+            // Seed the saas_subscriptions record so webhook events can find the user
+            const { data: existing } = await supabase
+              .from('saas_subscriptions')
+              .select('id')
+              .eq('user_id', userId)
+              .eq('product', product)
+              .maybeSingle();
+            if (!existing) {
+              // Seed identity linkage only — period dates will be set by subscription.created webhook with Stripe's actual values
+              await supabase.from('saas_subscriptions').insert({
+                user_id: userId, product, plan, status: 'active',
+                stripe_customer_id: customerId, stripe_subscription_id: subscriptionId,
+                created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+              });
+              console.log(`[${requestId}] SaaS subscription seeded: user=${userId} product=${product} plan=${plan}`);
+            } else {
+              await supabase.from('saas_subscriptions').update({
+                stripe_customer_id: customerId, stripe_subscription_id: subscriptionId,
+                plan, status: 'active', updated_at: new Date().toISOString()
+              }).eq('id', existing.id);
+              console.log(`[${requestId}] SaaS subscription updated at checkout: ${existing.id}`);
+            }
+
+            // Also update profiles.saas_plans_cache for quick plan lookups without joins
+            // (authoritative source remains saas_subscriptions; this is a denormalized cache)
+            const planExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+            const { data: existingProfile } = await supabase.from('profiles').select('saas_plans_cache, saas_plans_expires_at').eq('id', userId).maybeSingle();
+            const updatedCache = Object.assign({}, existingProfile?.saas_plans_cache || {}, { [product]: plan });
+            const updatedExpiry = Object.assign({}, existingProfile?.saas_plans_expires_at || {}, { [product]: planExpiry });
+            await supabase.from('profiles').update({ saas_plans_cache: updatedCache, saas_plans_expires_at: updatedExpiry }).eq('id', userId);
+            console.log(`[${requestId}] SaaS checkout complete: product=${product} plan=${plan} user=${userId} expiry=${planExpiry}`);
+          }
+        } catch (saasCheckoutErr) {
+          console.error(`[${requestId}] SaaS checkout seed error:`, saasCheckoutErr.message);
+        }
       } else {
         const providerId = metadata.provider_id;
         const packId = metadata.pack_id;
@@ -11690,6 +12222,18 @@ async function handleStripeWebhook(req, res, requestId) {
       }
     }
     
+    // Handle SaaS subscription lifecycle events
+    if (['customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted', 'customer.subscription.trial_will_end'].includes(event.type)) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        try {
+          await handleSaasSubscriptionWebhook(event, supabase, requestId);
+        } catch (saasErr) {
+          console.error(`[${requestId}] SaaS subscription webhook error:`, saasErr.message);
+        }
+      }
+    }
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ received: true }));
   });
@@ -15910,6 +16454,9 @@ async function handleSplitCreate(req, res, requestId) {
           try {
             const isGuest = !participant.member_id && participants.find(p => p.email.toLowerCase() === participant.email)?.is_guest;
             const guestToken = isGuest ? generateGuestToken(participant.id) : null;
+            if (isGuest && !guestToken) {
+              console.warn(`[SplitPay] Skipping guest invite email to ${participant.email} — guest token signing is disabled (ADMIN_PASSWORD not set)`);
+            } else {
             const payLink = isGuest 
               ? `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}&guest=true&token=${guestToken}`
               : `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}`;
@@ -15941,6 +16488,7 @@ async function handleSplitCreate(req, res, requestId) {
               subject: 'You\'ve been invited to split a payment - My Car Concierge',
               html: emailHtml
             });
+            } // end else (guest token available)
           } catch (emailErr) {
             console.error(`[${requestId}] Failed to send split payment email to ${participant.email}:`, emailErr.message);
           }
@@ -16149,6 +16697,9 @@ async function handleSplitCreateAdditional(req, res, requestId) {
           try {
             const isGuest = !participant.member_id && participants.find(p => p.email.toLowerCase() === participant.email)?.is_guest;
             const guestToken = isGuest ? generateGuestToken(participant.id) : null;
+            if (isGuest && !guestToken) {
+              console.warn(`[SplitPay] Skipping guest invite email to ${participant.email} — guest token signing is disabled (ADMIN_PASSWORD not set)`);
+            } else {
             const payLink = isGuest
               ? `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}&guest=true&token=${guestToken}`
               : `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}`;
@@ -16183,6 +16734,7 @@ async function handleSplitCreateAdditional(req, res, requestId) {
               subject: 'Urgent: Split Payment for Additional Work - My Car Concierge (2hr window)',
               html: emailHtml
             });
+            } // end else (guest token available)
           } catch (emailErr) {
             console.error(`[${requestId}] Failed to send additional work split payment email to ${participant.email}:`, emailErr.message);
           }
@@ -17354,6 +17906,9 @@ async function handleSplitReactivate(req, res, requestId, splitId) {
           try {
             const isGuest = !participant.member_id && participants.find(p => p.email.toLowerCase() === participant.email)?.is_guest;
             const guestToken = isGuest ? generateGuestToken(participant.id) : null;
+            if (isGuest && !guestToken) {
+              console.warn(`[SplitPay] Skipping guest invite email to ${participant.email} — guest token signing is disabled (ADMIN_PASSWORD not set)`);
+            } else {
             const payLink = isGuest
               ? `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}&guest=true&token=${guestToken}`
               : `${process.env.APP_URL || 'https://mycarconcierge.com'}/split-pay.html?participant=${participant.id}`;
@@ -17385,6 +17940,7 @@ async function handleSplitReactivate(req, res, requestId, splitId) {
               subject: 'You\'ve been invited to split a payment - My Car Concierge',
               html: emailHtml
             });
+            } // end else (guest token available)
           } catch (emailErr) {
             console.error(`[${requestId}] Failed to send split reactivation email to ${participant.email}:`, emailErr.message);
           }
@@ -19268,6 +19824,39 @@ async function handleSendTeamInvitation(req, res, requestId, providerId) {
         return;
       }
 
+      // Seat limit enforcement for Shop SaaS plan
+      const { data: shopSub } = await supabase
+        .from('saas_subscriptions')
+        .select('plan')
+        .eq('user_id', providerId)
+        .eq('product', 'shop')
+        .in('status', ['active', 'trialing'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (shopSub) {
+        const seatLimitMap = { 'starter': 1, 'pro': 5, 'business': 999 };
+        const seatLimit = seatLimitMap[shopSub.plan] ?? 999;
+        if (seatLimit < 999) {
+          const { count: memberCount } = await supabase
+            .from('provider_team_members')
+            .select('id', { count: 'exact', head: true })
+            .eq('provider_id', providerId);
+          const { count: pendingInvites } = await supabase
+            .from('provider_invitations')
+            .select('id', { count: 'exact', head: true })
+            .eq('provider_id', providerId)
+            .is('accepted_at', null)
+            .gt('expires_at', new Date().toISOString());
+          const currentSeats = (memberCount || 0) + (pendingInvites || 0);
+          if (currentSeats >= seatLimit) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: `Seat limit reached (${currentSeats}/${seatLimit}). Upgrade your Shop plan to add more team members.` }));
+            return;
+          }
+        }
+      }
+
       const { data: existingMember } = await supabase
         .from('profiles')
         .select('id')
@@ -19326,6 +19915,14 @@ async function handleSendTeamInvitation(req, res, requestId, providerId) {
         res.end(JSON.stringify({ error: 'Failed to create invitation' }));
         return;
       }
+
+      // Mirror into team_invites so the existing provider dashboard UI can display/manage the invite
+      await supabase.from('team_invites').insert({
+        provider_id: providerId,
+        email: email.toLowerCase(),
+        role,
+        status: 'pending'
+      }).catch(() => {});
 
       const { data: provider } = await supabase
         .from('profiles')
@@ -25834,7 +26431,7 @@ async function sendAppointmentReminders() {
         
         const message = `My Car Concierge: Reminder - Your ${serviceType} for ${vehicleName} is scheduled tomorrow at ${appointmentTime} with ${providerName}. Reply HELP for assistance.`;
         
-        const smsResult = await sendSmsNotification(member.phone, message, member.id, 'maintenance_reminders');
+        const smsResult = await sendSmsNotification(member.phone, message, member.id, 'maintenance_reminders', 'appointment_reminders');
 
         sendFCMPushNotification(
           [member.id],
@@ -31731,8 +32328,6 @@ const server = http.createServer(async (req, res) => {
     'https://pay.mycarconcierge.com',
     'capacitor://localhost',
     'ionic://localhost',
-    'http://localhost',
-    'http://localhost:5000',
     'file://'
   ];
   
@@ -33563,8 +34158,234 @@ Return ONLY the JSON array, no other text.`;
         return;
       }
 
+      // In-memory store for re-sync job progress (lives per server process, suitable for one-time admin ops)
+      if (!global._resyncRefLinkJobs) global._resyncRefLinkJobs = new Map();
+
+      // POST /api/admin/apollo/resync-instantly-ref-links — start async re-sync job, returns job_id
+      if (req.method === 'POST' && req.url === '/api/admin/apollo/resync-instantly-ref-links') {
+        let body = '';
+        req.on('data', c => { body += c; });
+        req.on('end', async () => {
+          try {
+            const supabase = getSupabaseClient();
+            if (!supabase) throw new Error('Database not configured');
+            const { campaign_id } = JSON.parse(body || '{}');
+
+            const jobId = crypto.randomBytes(8).toString('hex');
+            const job = { synced: 0, total: null, done: false, errors: [], started_at: new Date().toISOString() };
+            global._resyncRefLinkJobs.set(jobId, job);
+
+            // Run async — do not await
+            (async () => {
+              try {
+                // Fetch total count first for progress reporting (DB-side filter on JSONB)
+                const countQ = await supabase
+                  .from('outreach_leads')
+                  .select('id', { count: 'exact', head: true })
+                  .eq('type', 'provider')
+                  .not('email', 'is', null)
+                  .filter('metadata->>instantly_synced', 'eq', 'true');
+                job.total = countQ.count || 0;
+
+                // Page through leads in DB-filtered batches of 500
+                const dbBatch = 500;
+                let from = 0;
+                const byCampaign = {};
+                while (true) {
+                  const { data, error } = await supabase
+                    .from('outreach_leads')
+                    .select('id, email, name, company, website, type, source, score, location, metadata')
+                    .eq('type', 'provider')
+                    .not('email', 'is', null)
+                    .filter('metadata->>instantly_synced', 'eq', 'true')
+                    .range(from, from + dbBatch - 1);
+                  if (error) throw error;
+                  if (!data || data.length === 0) break;
+                  for (const lead of data) {
+                    const cid = campaign_id || lead.metadata?.instantly_campaign_id || null;
+                    const key = cid || '__none__';
+                    if (!byCampaign[key]) byCampaign[key] = { campaignId: cid, leads: [] };
+                    byCampaign[key].leads.push(lead);
+                  }
+                  // Push each accumulated campaign group in Instantly batches of 100 for progress feedback
+                  for (const grp of Object.values(byCampaign)) {
+                    while (grp.leads.length >= 100) {
+                      const chunk = grp.leads.splice(0, 100);
+                      const result = await pushLeadsToInstantly(supabase, chunk, grp.campaignId);
+                      job.synced += result.synced || 0;
+                      if (result.errors) job.errors.push(...result.errors);
+                    }
+                  }
+                  if (data.length < dbBatch) break;
+                  from += dbBatch;
+                }
+                // Flush any remaining leads (< 100 per campaign)
+                for (const grp of Object.values(byCampaign)) {
+                  if (grp.leads.length > 0) {
+                    const result = await pushLeadsToInstantly(supabase, grp.leads, grp.campaignId);
+                    job.synced += result.synced || 0;
+                    if (result.errors) job.errors.push(...result.errors);
+                  }
+                }
+                job.total = job.total || job.synced;
+                job.done = true;
+              } catch (err) {
+                job.errors.push(err.message);
+                job.done = true;
+              }
+            })();
+
+            res.writeHead(202, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ job_id: jobId, message: 'Re-sync started' }));
+          } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+
+      // GET /api/admin/apollo/resync-instantly-ref-links?job_id=xxx — poll job progress
+      if (req.method === 'GET' && req.url.startsWith('/api/admin/apollo/resync-instantly-ref-links')) {
+        const u = new URL(req.url, 'http://localhost');
+        const jobId = u.searchParams.get('job_id');
+        const job = jobId && global._resyncRefLinkJobs ? global._resyncRefLinkJobs.get(jobId) : null;
+        if (!job) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Job not found' }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          synced: job.synced,
+          total: job.total,
+          done: job.done,
+          errors: job.errors.length > 0 ? job.errors : undefined,
+          started_at: job.started_at
+        }));
+        return;
+      }
+
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Unknown Apollo endpoint' }));
+    });
+  }
+
+  // ========== SMS LOG ENDPOINTS ==========
+
+  if (req.url.startsWith('/api/admin/sms-log')) {
+    setCorsHeaders(res, req);
+    if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+    return handleAdminAuth(req, res, requestId, async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      // GET /api/admin/sms-log — paginated list + summary stats
+      if (req.method === 'GET' && (req.url === '/api/admin/sms-log' || req.url.startsWith('/api/admin/sms-log?'))) {
+        try {
+          const u = new URL(req.url, 'http://localhost');
+          const page = Math.max(1, parseInt(u.searchParams.get('page') || '1'));
+          const limit = Math.min(100, Math.max(1, parseInt(u.searchParams.get('limit') || '50')));
+          const statusFilter = u.searchParams.get('status') || '';
+          const typeFilter = u.searchParams.get('type') || '';
+          const offset = (page - 1) * limit;
+
+          let query = supabase.from('sms_log')
+            .select('*', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
+          if (statusFilter) query = query.eq('status', statusFilter);
+          if (typeFilter) query = query.eq('message_type', typeFilter);
+
+          const { data: rows, count, error: listErr } = await query;
+          if (listErr) throw listErr;
+
+          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+          const [{ count: total7d, error: sumErr }, { count: failed7d, error: failErr }] = await Promise.all([
+            supabase.from('sms_log').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo),
+            supabase.from('sms_log').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo).in('status', ['failed', 'undelivered'])
+          ]);
+          const t7d = (!sumErr && total7d != null) ? total7d : 0;
+          const f7d = (!failErr && failed7d != null) ? failed7d : 0;
+          const deliveryRate = t7d > 0 ? (((t7d - f7d) / t7d) * 100).toFixed(1) : null;
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            rows: rows || [],
+            total: count || 0,
+            page,
+            limit,
+            summary: { total7d: t7d, failed7d: f7d, deliveryRate }
+          }));
+        } catch (err) {
+          console.error('[SMS_LOG] GET error:', err.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
+
+      // POST /api/admin/sms-log/refresh-status — fetch status from Twilio for given SIDs
+      if (req.method === 'POST' && req.url === '/api/admin/sms-log/refresh-status') {
+        try {
+          const body = await getRequestBody(req);
+          const sids = Array.isArray(body.sids) ? body.sids.filter(s => s && typeof s === 'string') : [];
+          if (sids.length === 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'No SIDs provided' }));
+            return;
+          }
+
+          const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+          const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+          if (!twilioSid || !twilioToken) {
+            res.writeHead(503, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Twilio not configured' }));
+            return;
+          }
+          const twilioAuth = Buffer.from(`${twilioSid}:${twilioToken}`).toString('base64');
+
+          const results = [];
+          for (const sid of sids.slice(0, 25)) {
+            try {
+              const resp = await fetch(
+                `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages/${sid}.json`,
+                { headers: { 'Authorization': `Basic ${twilioAuth}` } }
+              );
+              if (!resp.ok) {
+                results.push({ sid, error: `HTTP ${resp.status}` });
+                continue;
+              }
+              const msg = await resp.json();
+              const newStatus = msg.status || 'unknown';
+              const errCode = msg.error_code ? String(msg.error_code) : null;
+              const errMsg = msg.error_message || null;
+              await supabase.from('sms_log')
+                .update({ status: newStatus, error_code: errCode, error_message: errMsg })
+                .eq('message_sid', sid);
+              results.push({ sid, status: newStatus, error_code: errCode });
+            } catch (sidErr) {
+              results.push({ sid, error: sidErr.message });
+            }
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ updated: results.length, results }));
+        } catch (err) {
+          console.error('[SMS_LOG] refresh-status error:', err.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unknown SMS log endpoint' }));
     });
   }
 
@@ -37583,6 +38404,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           .eq('directory_slug', slug)
           .eq('directory_opt_in', true)
           .eq('role', 'provider')
+          .not('marketplace_visible', 'eq', false)
+          .not('shop_only_mode', 'eq', true)
           .single();
 
         if (error || !provider) {
@@ -37671,7 +38494,9 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         .select('*', { count: 'exact' })
         .eq('directory_opt_in', true)
         .eq('role', 'provider')
-        .not('directory_slug', 'is', null);
+        .not('directory_slug', 'is', null)
+        .not('marketplace_visible', 'eq', false)
+        .not('shop_only_mode', 'eq', true);
 
       if (city) {
         query = query.ilike('city', `%${city}%`);
@@ -37932,6 +38757,4471 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
   // ========== END PROVIDER PUBLIC DIRECTORY ==========
 
+  // ========== SAAS BILLING ROUTES ==========
+
+  // GET /api/saas/plans — public plan catalog (reads from saas_plans table, fallback to config)
+  if (req.method === 'GET' && req.url === '/api/saas/plans') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    try {
+      const supabase = getSupabaseClient();
+      let dbPlans = null;
+      if (supabase) {
+        const { data } = await supabase
+          .from('saas_plans')
+          .select('product, plan, display_name, price_monthly, price_annual, features, limits, stripe_price_id, stripe_price_id_annual, is_active')
+          .eq('is_active', true)
+          .order('product')
+          .order('price_monthly');
+        if (data && data.length > 0) {
+          // Reshape to same structure as SAAS_PLANS for backward compat
+          const plansByProduct = {};
+          for (const row of data) {
+            if (!plansByProduct[row.product]) plansByProduct[row.product] = { name: SAAS_PLANS[row.product]?.name || row.product, tiers: {} };
+            plansByProduct[row.product].tiers[row.plan] = {
+              name: row.display_name,
+              price_monthly: row.price_monthly,
+              price_annual: row.price_annual,
+              features: row.features || [],
+              limits: row.limits || {},
+              stripe_price_id: row.stripe_price_id || SAAS_PLANS[row.product]?.tiers?.[row.plan]?.stripe_price_id || null
+            };
+          }
+          dbPlans = plansByProduct;
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' });
+      res.end(JSON.stringify({ plans: dbPlans || SAAS_PLANS, source: dbPlans ? 'db' : 'config' }));
+    } catch (err) {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' });
+      res.end(JSON.stringify({ plans: SAAS_PLANS, source: 'config' }));
+    }
+    return;
+  }
+
+  // GET /api/saas/subscription/status — current user's subscriptions (supports ?product= filter)
+  if (req.method === 'GET' && req.url.startsWith('/api/saas/subscription/status')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB unavailable' })); return; }
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const productFilter = parsedUrl.searchParams.get('product');
+
+      let query = supabase
+        .from('saas_subscriptions')
+        .select('id, product, plan, status, current_period_end, cancel_at_period_end, trial_end, stripe_customer_id')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+      if (productFilter) query = query.eq('product', productFilter);
+
+      const { data: subs, error } = await query;
+      if (error) throw error;
+
+      // Build keyed object (for members.html) — take most-recently-updated row per product
+      // (rows are sorted by updated_at DESC, so the first occurrence per product is authoritative)
+      const byProduct = {};
+      for (const s of (subs || [])) {
+        if (!byProduct[s.product]) {
+          byProduct[s.product] = s;
+        }
+      }
+      // Also return as array (for providers.js .find() pattern)
+      const subscriptions = Object.values(byProduct);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ subscriptions, by_product: byProduct }));
+    } catch (err) {
+      console.error(`[${requestId}] SaaS status error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load subscriptions' }));
+    }
+    return;
+  }
+
+  // POST /api/saas/checkout — create Stripe Checkout session for a SaaS plan
+  if (req.method === 'POST' && req.url === '/api/saas/checkout') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    try {
+      const body = await getRequestBody(req);
+      const { product, plan, billing_period = 'monthly', success_url, cancel_url } = body;
+
+      if (!product || !plan || !SAAS_PLANS[product] || !SAAS_PLANS[product].tiers[plan]) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid product or plan' })); return;
+      }
+
+      const tierConfig = SAAS_PLANS[product].tiers[plan];
+      const priceId = billing_period === 'annual' ? tierConfig.stripe_price_id_annual : tierConfig.stripe_price_id;
+
+      if (!priceId) {
+        res.writeHead(400);
+        res.end(JSON.stringify({
+          error: 'Stripe price not configured for this plan. Contact support to subscribe.',
+          product, plan,
+          message: `To enable subscriptions, set STRIPE_PRICE_${product.toUpperCase()}_${plan.toUpperCase()} environment variable.`
+        }));
+        return;
+      }
+
+      const stripe = await getStripeClient();
+      const supabase = getSupabaseClient();
+      const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', user.id).single();
+      const email = profile?.email || user.email;
+
+      const customerId = await getOrCreateStripeCustomer(user.id, email);
+
+      const baseUrl = process.env.SITE_URL || 'https://mycarconcierge.com';
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        mode: 'subscription',
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: success_url || `${baseUrl}/members.html?saas_success=1&product=${product}&plan=${plan}`,
+        cancel_url: cancel_url || `${baseUrl}/members.html?saas_cancel=1`,
+        allow_promotion_codes: true,
+        subscription_data: {
+          metadata: { mcc_user_id: user.id, product, plan }
+        },
+        metadata: { type: 'saas_subscription', mcc_user_id: user.id, product, plan }
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ url: session.url, session_id: session.id }));
+    } catch (err) {
+      console.error(`[${requestId}] SaaS checkout error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to create checkout session' }));
+    }
+    return;
+  }
+
+  // POST /api/saas/billing-portal — redirect to Stripe Customer Portal
+  if (req.method === 'POST' && req.url === '/api/saas/billing-portal') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    try {
+      const body = await getRequestBody(req);
+      const supabase = getSupabaseClient();
+      const { data: sub } = await supabase
+        .from('saas_subscriptions')
+        .select('stripe_customer_id')
+        .eq('user_id', user.id)
+        .not('stripe_customer_id', 'is', null)
+        .limit(1)
+        .maybeSingle();
+
+      if (!sub?.stripe_customer_id) {
+        res.writeHead(404); res.end(JSON.stringify({ error: 'No billing account found' })); return;
+      }
+
+      const stripe = await getStripeClient();
+      const baseUrl = process.env.SITE_URL || 'https://mycarconcierge.com';
+      const portalSession = await stripe.billingPortal.sessions.create({
+        customer: sub.stripe_customer_id,
+        return_url: body.return_url || `${baseUrl}/members.html`
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ url: portalSession.url }));
+    } catch (err) {
+      console.error(`[${requestId}] SaaS billing portal error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to open billing portal' }));
+    }
+    return;
+  }
+
+  // POST /api/saas/check-access — check if user has required plan for a product
+  if (req.method === 'POST' && req.url === '/api/saas/check-access') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    try {
+      const body = await getRequestBody(req);
+      const { product, required_plan = 'starter' } = body;
+      if (!product) { res.writeHead(400); res.end(JSON.stringify({ error: 'product required' })); return; }
+      const result = await checkPlanAccess(user.id, product, required_plan);
+      res.writeHead(result.access ? 200 : 402, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      console.error(`[${requestId}] SaaS check-access error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to check access' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/saas/subscriptions — admin overview
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/saas/subscriptions')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const adminToken = req.headers['x-admin-token'];
+    const validAdmin = adminToken && process.env.ADMIN_PASSWORD && adminToken === process.env.ADMIN_PASSWORD;
+    if (!validAdmin) {
+      const user = await authenticateRequest(req);
+      if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const supabase = getSupabaseClient();
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+      if (!profile || !['admin', 'super_admin'].includes(profile.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+    }
+    try {
+      const supabase = getSupabaseClient();
+      const { data: subs, error } = await supabase
+        .from('saas_subscriptions')
+        .select('id, user_id, product, plan, status, current_period_end, cancel_at_period_end, created_at, updated_at')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+
+      const stats = { total: 0, active: 0, trialing: 0, canceled: 0, past_due: 0, mrr: 0, recent_churns: 0 };
+      const byProduct = {};
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const recentChurns = [];
+      for (const s of (subs || [])) {
+        stats.total++;
+        stats[s.status] = (stats[s.status] || 0) + 1;
+        if (['active', 'trialing'].includes(s.status)) {
+          const tierConfig = SAAS_PLANS[s.product]?.tiers?.[s.plan];
+          if (tierConfig) stats.mrr += tierConfig.price_monthly;
+        }
+        if (s.status === 'canceled') {
+          const cancelDate = s.updated_at ? new Date(s.updated_at) : null;
+          if (cancelDate && cancelDate >= thirtyDaysAgo) {
+            stats.recent_churns++;
+            recentChurns.push({ id: s.id, user_id: s.user_id, product: s.product, plan: s.plan, canceled_at: s.updated_at });
+          }
+        }
+        if (!byProduct[s.product]) byProduct[s.product] = { active: 0, trialing: 0, canceled: 0, total: 0 };
+        byProduct[s.product].total++;
+        byProduct[s.product][s.status] = (byProduct[s.product][s.status] || 0) + 1;
+      }
+      stats.mrr_dollars = (stats.mrr / 100).toFixed(2);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ subscriptions: subs, stats, by_product: byProduct, recent_churns: recentChurns }));
+    } catch (err) {
+      console.error(`[${requestId}] Admin SaaS subscriptions error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load subscriptions' }));
+    }
+    return;
+  }
+
+  // ========== END SAAS BILLING ROUTES ==========
+
+  // ========== WHITE-LABEL PLATFORM ROUTES (Task #87) ==========
+
+  // GET /api/white-label/config (alias: /api/tenant/config) — return public branding config for current domain
+  // Resolved via: X-Forwarded-Host > Host header (proxy-safe)
+  // ?preview_domain= is admin-only (requires x-admin-token) for branding preview in admin UI
+  if (req.method === 'GET' && (req.url === '/api/white-label/config' || req.url.startsWith('/api/white-label/config?') || req.url === '/api/tenant/config' || req.url.startsWith('/api/tenant/config?'))) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const wlUrlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
+    const previewDomain = wlUrlParams.get('preview_domain') || null;
+
+    // Preview mode requires admin auth to prevent tenant enumeration
+    if (previewDomain) {
+      const _adminToken = req.headers['x-admin-token'];
+      const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+      if (!_validAdmin) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Admin auth required for preview_domain' }));
+        return;
+      }
+    }
+
+    // Resolve effective hostname — SECURITY HARDENED
+    // X-Forwarded-Host is accepted for public branding reads but is validated against allowlist rules:
+    //   1. Only trust X-Forwarded-Host if it ends with mycarconcierge.com OR exactly matches a DB domain
+    //   2. Subdomain matching only applies to *.mycarconcierge.com — prevents forged hosts from
+    //      mapping to any arbitrary tenant subdomain
+    //   3. Custom domains: validated via DB exact `domain` match — the DB is the trust anchor.
+    //      Both X-Forwarded-Host and Host are checked in order; first DB match wins.
+    //      Forged headers can only cause a DB lookup that returns nothing (no data exposure).
+    const _WL_BASE = 'mycarconcierge.com';
+    const _WL_SKIP = ['localhost', '127.0.0.1', '0.0.0.0'];
+    // Build ordered list of candidate hostnames: forwarded (first), then raw
+    const _fwdRaw = (req.headers['x-forwarded-host'] || '').split(',')[0].trim().split(':')[0].toLowerCase();
+    const _rawHost = (req.headers.host || '').split(':')[0].toLowerCase().trim();
+    // MCC subdomain: trust X-Forwarded-Host if it ends with base domain (CDN-set header)
+    const _fwdIsMCC = _fwdRaw && (_fwdRaw === _WL_BASE || _fwdRaw.endsWith(`.${_WL_BASE}`));
+    const _mccHost = _fwdIsMCC ? _fwdRaw : (_rawHost === _WL_BASE || _rawHost.endsWith(`.${_WL_BASE}`) ? _rawHost : null);
+    // Custom domain candidates: try both headers (DB exact match is the security gate)
+    const _customCandidates = [...new Set([_fwdRaw, _rawHost].filter(h => h && h !== _WL_BASE && !h.endsWith(`.${_WL_BASE}`)))];
+
+    const supabase = getSupabaseClient();
+    try {
+      let tenant = null;
+      const _effectiveLookup = previewDomain || null;
+      // Config is branding only — join credentials issued via /api/admin/white-label/tenants/:id/generate-invite
+      const WL_COLS = 'id, brand_name, logo_url, favicon_url, primary_color, accent_color, bg_color, custom_css, plan';
+      if (supabase) {
+        if (_effectiveLookup) {
+          // Preview: try exact custom domain match first, then subdomain extraction (for FQDNs like partner.mycarconcierge.com)
+          const { data: previewByDomain } = await supabase.from('white_label_tenants').select(WL_COLS).eq('domain', _effectiveLookup).eq('status', 'active').maybeSingle();
+          if (previewByDomain) {
+            tenant = previewByDomain;
+          } else {
+            const _prevSub = _effectiveLookup.split('.')[0];
+            if (_prevSub && _prevSub !== 'www' && _prevSub !== 'mycarconcierge') {
+              const { data: previewBySub } = await supabase.from('white_label_tenants').select(WL_COLS).eq('subdomain', _prevSub).eq('status', 'active').maybeSingle();
+              tenant = previewBySub;
+            }
+          }
+        } else if (_mccHost) {
+          // MCC-managed subdomain: resolve by subdomain column
+          const isLocal = _WL_SKIP.some(h => _mccHost.includes(h)) || _mccHost.includes('replit');
+          if (!isLocal && _mccHost !== _WL_BASE) {
+            const subdomainPart = _mccHost.split('.')[0];
+            if (subdomainPart && subdomainPart !== 'www' && subdomainPart !== 'mycarconcierge') {
+              const { data } = await supabase.from('white_label_tenants').select(WL_COLS).eq('subdomain', subdomainPart).eq('status', 'active').maybeSingle();
+              tenant = data;
+            }
+          }
+        } else {
+          // Custom domain: check candidates in order (X-Forwarded-Host first, then Host).
+          // DB exact match is the security validator — a forged header not in the DB returns nothing.
+          for (const candidate of _customCandidates) {
+            const isLocal = _WL_SKIP.some(h => candidate.includes(h)) || candidate.includes('replit') || candidate.includes('.replit.');
+            if (isLocal) continue;
+            const { data } = await supabase.from('white_label_tenants').select(WL_COLS).eq('domain', candidate).eq('status', 'active').maybeSingle();
+            if (data) { tenant = data; break; }
+          }
+        }
+      }
+      // Optionally issue a short-lived signed domain assertion token for authenticated users.
+      // This allows secure domain-based auto-join without trusting Host headers in the join endpoint.
+      let domainJoinToken = null;
+      if (tenant && !previewDomain) {
+        try {
+          const _wlAuthHeader = req.headers['authorization'] || '';
+          const _wlBearerToken = _wlAuthHeader.startsWith('Bearer ') ? _wlAuthHeader.slice(7) : null;
+          if (_wlBearerToken) {
+            const { data: { user: _wlUser } } = await supabase.auth.getUser(_wlBearerToken);
+            if (_wlUser) {
+              const crypto = require('crypto');
+              const _djSecret = process.env.ADMIN_PASSWORD || 'wl-domain-secret';
+              const _djExp = Date.now() + 10 * 60 * 1000; // 10-minute TTL
+              const _djPayload = `${tenant.id}:${_wlUser.id}:${_djExp}`;
+              const _djSig = crypto.createHmac('sha256', _djSecret).update(_djPayload).digest('hex');
+              domainJoinToken = Buffer.from(JSON.stringify({ tenant_id: tenant.id, user_id: _wlUser.id, exp: _djExp, sig: _djSig })).toString('base64url');
+            }
+          }
+        } catch (_djErr) { /* non-fatal */ }
+      }
+      const cacheHeader = (previewDomain || domainJoinToken) ? 'no-store' : 'public, max-age=60';
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': cacheHeader });
+      res.end(JSON.stringify({ tenant: tenant || null, is_white_label: !!tenant, domain_join_token: domainJoinToken }));
+    } catch (err) {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ tenant: null, is_white_label: false }));
+    }
+    return;
+  }
+
+  // GET /api/white-label/check-limits — seat limit enforcement for tenant member/provider counts
+  // Uses white_label_tenant_users table for real headcount enforcement per plan
+  if (req.method === 'GET' && req.url.startsWith('/api/white-label/check-limits')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const chkParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
+    const tenantId = chkParams.get('tenant_id');
+    const resourceType = chkParams.get('type'); // 'member' or 'provider'
+    if (!tenantId || !resourceType) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'tenant_id and type required' }));
+      return;
+    }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: tenant, error: tErr } = await supabase
+        .from('white_label_tenants')
+        .select('plan, max_members, max_providers, status')
+        .eq('id', tenantId)
+        .eq('status', 'active')
+        .single();
+      if (tErr || !tenant) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Tenant not found or inactive' }));
+        return;
+      }
+      const limit = resourceType === 'member' ? tenant.max_members : tenant.max_providers;
+      // -1 = unlimited (Business plan)
+      if (!limit || limit === -1) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ allowed: true, plan: tenant.plan, limit: -1, current: null }));
+        return;
+      }
+      // Count actual tenant users of the requested role from white_label_tenant_users
+      const countRole = resourceType === 'member' ? 'member' : 'provider';
+      const { count: currentCount } = await supabase
+        .from('white_label_tenant_users')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .eq('role', countRole);
+      const current = currentCount || 0;
+      const allowed = current < limit;
+      res.writeHead(allowed ? 200 : 402, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        allowed, plan: tenant.plan, limit, current, type: resourceType,
+        ...(allowed ? {} : { error: `Seat limit reached (${current}/${limit}). Upgrade your plan to add more ${resourceType}s.` })
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to check limits' }));
+    }
+    return;
+  }
+
+  // POST /api/white-label/tenant/join — register authenticated user as a tenant member/provider
+  if (req.method === 'POST' && req.url === '/api/white-label/tenant/join') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    // Rate limit: max 10 join attempts per user per hour
+    if (!global._wlJoinRateMap) global._wlJoinRateMap = new Map();
+    const _rKey = user.id; const _rNow = Date.now(); const _rWindow = 3600_000;
+    const _rEntry = global._wlJoinRateMap.get(_rKey) || { count: 0, windowStart: _rNow };
+    if (_rNow - _rEntry.windowStart > _rWindow) { _rEntry.count = 0; _rEntry.windowStart = _rNow; }
+    _rEntry.count++;
+    global._wlJoinRateMap.set(_rKey, _rEntry);
+    if (_rEntry.count > 10) {
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Too many join attempts. Try again later.' }));
+      return;
+    }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      // Role is server-derived from user's platform profile; client-supplied role is ignored
+      const { data: userProfile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      const platformRole = userProfile?.role || 'member';
+      const role = ['provider', 'pending_provider'].includes(platformRole) ? 'provider' : 'member';
+
+      // Resolve tenant from HMAC-signed invite token — host-header independent.
+      // invite_token = base64url({tenant_id, expires_at, sig})  where
+      // sig = HMAC-SHA256(tenant.join_token, tenant_id + ':' + expires_at)
+      // Tokens issued by POST /api/admin/white-label/tenants/:id/generate-invite
+      const JOIN_COLS = 'id, join_token, plan, max_members, max_providers, status';
+      let tenant = null;
+
+      if (body?.invite_token) {
+        let _parsed;
+        try { _parsed = JSON.parse(Buffer.from(body.invite_token, 'base64url').toString()); }
+        catch (e) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Malformed invite token.' })); return; }
+        const { tenant_id: _invTid, expires_at: _invExp, sig: _invSig } = _parsed || {};
+        if (!_invTid || !_invExp || !_invSig) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Malformed invite token.' })); return; }
+        if (Date.now() > _invExp) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Invite token has expired.' })); return; }
+        const { data: _invTenant } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('id', _invTid).eq('status', 'active').maybeSingle();
+        if (!_invTenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found.' })); return; }
+        const crypto = require('crypto');
+        const expectedSig = crypto.createHmac('sha256', _invTenant.join_token).update(`${_invTid}:${_invExp}`).digest('hex');
+        if (_invSig !== expectedSig) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Invalid invite token signature.' })); return; }
+        tenant = _invTenant;
+      } else if (body?.domain_join_token) {
+        // Domain-based auto-join via server-signed assertion token.
+        // Token issued by GET /api/white-label/config when user is authenticated on a tenant domain.
+        // Server performs hostname validation at config-fetch time; join endpoint trusts the token sig.
+        const crypto = require('crypto');
+        let _djtParsed;
+        try { _djtParsed = JSON.parse(Buffer.from(body.domain_join_token, 'base64url').toString()); }
+        catch (e) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Malformed domain join token.' })); return; }
+        const { tenant_id: _djtTid, user_id: _djtUid, exp: _djtExp, sig: _djtSig } = _djtParsed || {};
+        if (!_djtTid || !_djtUid || !_djtExp || !_djtSig) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Malformed domain join token.' })); return; }
+        if (Date.now() > _djtExp) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Domain join token expired. Reload the page and try again.' })); return; }
+        if (_djtUid !== user.id) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Domain join token user mismatch.' })); return; }
+        const _djtSecret = process.env.ADMIN_PASSWORD || 'wl-domain-secret';
+        const _djtExpectedSig = crypto.createHmac('sha256', _djtSecret).update(`${_djtTid}:${_djtUid}:${_djtExp}`).digest('hex');
+        if (_djtSig !== _djtExpectedSig) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Invalid domain join token signature.' })); return; }
+        const { data: _djtTenant } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('id', _djtTid).eq('status', 'active').maybeSingle();
+        if (!_djtTenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found.' })); return; }
+        tenant = _djtTenant;
+      } else if (body?.tenant_id) {
+        // Admin fallback: explicit tenant_id + admin token
+        const _adminToken = req.headers['x-admin-token'];
+        if (!_adminToken || _adminToken !== process.env.ADMIN_PASSWORD) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'An invite_token is required.' })); return; }
+        const { data: adminTenant } = await supabase.from('white_label_tenants').select(JOIN_COLS).eq('id', body.tenant_id).eq('status', 'active').maybeSingle();
+        if (!adminTenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found.' })); return; }
+        tenant = adminTenant;
+      } else {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'invite_token or domain_join is required.' }));
+        return;
+      }
+
+      // Enforce seat limits
+      const limit = role === 'provider' ? tenant.max_providers : tenant.max_members;
+      if (limit && limit !== -1) {
+        const { count: current } = await supabase
+          .from('white_label_tenant_users')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenant.id)
+          .eq('role', role);
+        if ((current || 0) >= limit) {
+          res.writeHead(402, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Tenant seat limit reached (${current}/${limit})`, limit, current }));
+          return;
+        }
+      }
+
+      // Check if user already has a membership — do not downgrade existing role
+      const { data: existingMembership } = await supabase
+        .from('white_label_tenant_users')
+        .select('role')
+        .eq('tenant_id', tenant.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (existingMembership) {
+        // Already a member — return current membership without changing role
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, membership: existingMembership, already_member: true }));
+        return;
+      }
+
+      const { data: membership, error: joinErr } = await supabase
+        .from('white_label_tenant_users')
+        .insert({ tenant_id: tenant.id, user_id: user.id, role })
+        .select().single();
+      if (joinErr) throw joinErr;
+
+      // Lifecycle: stamp tenant_id on the user's profile so all downstream
+      // RLS policies resolve their tenant correctly from the profiles table.
+      // Uses service_role key (bypasses RLS) to ensure the update always lands.
+      await supabase
+        .from('profiles')
+        .update({ tenant_id: tenant.id })
+        .eq('id', user.id)
+        .is('tenant_id', null); // only stamp if not already set — never override
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, membership }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message || 'Failed to join tenant' }));
+    }
+    return;
+  }
+
+  // GET /api/tenant/me — authenticated tenant owner/admin portal endpoint
+  // Returns own tenant config + live seat usage counts for members and providers
+  if (req.method === 'GET' && req.url === '/api/tenant/me') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      // Find tenant for this user: prefer owner role over admin, then most recently joined
+      // Ordering ensures deterministic selection for users with admin roles in multiple tenants
+      const { data: memberships } = await supabase
+        .from('white_label_tenant_users')
+        .select('tenant_id, role, joined_at')
+        .eq('user_id', user.id)
+        .in('role', ['owner', 'admin'])
+        .order('joined_at', { ascending: false });
+      // Sort: owner > admin, then by recency
+      const sortedMemberships = (memberships || []).sort((a, b) => {
+        if (a.role === 'owner' && b.role !== 'owner') return -1;
+        if (b.role === 'owner' && a.role !== 'owner') return 1;
+        return 0;
+      });
+      const membership = sortedMemberships[0] || null;
+
+      let tenantId = membership?.tenant_id;
+
+      // Fallback: check owner_user_id column directly (for tenants created before membership tracking)
+      if (!tenantId) {
+        const { data: ownedTenant } = await supabase
+          .from('white_label_tenants')
+          .select('id')
+          .eq('owner_user_id', user.id)
+          .eq('status', 'active')
+          .maybeSingle();
+        tenantId = ownedTenant?.id;
+      }
+
+      if (!tenantId) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'No active tenant found for this user' })); return; }
+
+      const { data: tenant, error } = await supabase
+        .from('white_label_tenants')
+        .select('id, name, brand_name, domain, subdomain, logo_url, favicon_url, primary_color, accent_color, bg_color, support_email, plan, status, max_members, max_providers, stripe_subscription_id, created_at, updated_at')
+        .eq('id', tenantId)
+        .eq('status', 'active')
+        .single();
+      if (error || !tenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found or inactive' })); return; }
+
+      // Get live seat usage counts from white_label_tenant_users
+      const { count: memberCount } = await supabase
+        .from('white_label_tenant_users').select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId).eq('role', 'member');
+      const { count: providerCount } = await supabase
+        .from('white_label_tenant_users').select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId).eq('role', 'provider');
+      const { count: adminCount } = await supabase
+        .from('white_label_tenant_users').select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId).in('role', ['owner', 'admin']);
+
+      // Plan-gated features: explicit per-feature enforcement tied to plan tier
+      const _wlPlanFeatures = {
+        starter: { custom_domain: false, custom_css: false, analytics: false, sms_reminders: false, api_access: false, white_label_branding: true },
+        pro:     { custom_domain: true,  custom_css: true,  analytics: true,  sms_reminders: true,  api_access: false, white_label_branding: true },
+        business:{ custom_domain: true,  custom_css: true,  analytics: true,  sms_reminders: true,  api_access: true,  white_label_branding: true }
+      };
+      const planFeatures = _wlPlanFeatures[tenant.plan || 'starter'] || _wlPlanFeatures.starter;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        tenant,
+        usage: {
+          members: { current: memberCount || 0, limit: tenant.max_members, unlimited: tenant.max_members === -1 },
+          providers: { current: providerCount || 0, limit: tenant.max_providers, unlimited: tenant.max_providers === -1 },
+          admins: { current: adminCount || 0 }
+        },
+        plan_features: planFeatures,
+        user_role: membership?.role || 'owner'
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to load tenant' }));
+    }
+    return;
+  }
+
+  // GET /api/tenant/roster — list members/providers in current user's tenant (owner/admin only)
+  if (req.method === 'GET' && req.url.startsWith('/api/tenant/roster')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _rUser = await authenticateRequest(req);
+    if (!_rUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: _rMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _rUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _rMembership = (_rMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
+      let _rTenantId = _rMembership?.tenant_id;
+      if (!_rTenantId) {
+        const { data: _rOwned } = await supabase.from('white_label_tenants').select('id').eq('owner_user_id', _rUser.id).eq('status', 'active').maybeSingle();
+        _rTenantId = _rOwned?.id;
+      }
+      if (!_rTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      // Fetch all roster entries for this tenant
+      const { data: _rRoster } = await supabase.from('white_label_tenant_users')
+        .select('id, user_id, role, joined_at')
+        .eq('tenant_id', _rTenantId)
+        .order('joined_at', { ascending: false });
+      // Enrich with profile display names/emails from profiles table
+      const userIds = (_rRoster || []).map(r => r.user_id);
+      let _rProfiles = {};
+      if (userIds.length > 0) {
+        const { data: profileRows } = await supabase.from('profiles').select('id, full_name, email').in('id', userIds);
+        (profileRows || []).forEach(p => { _rProfiles[p.id] = p; });
+      }
+      const enriched = (_rRoster || []).map(r => ({
+        ...r,
+        display_name: _rProfiles[r.user_id]?.full_name || _rProfiles[r.user_id]?.email || r.user_id.slice(0, 8) + '…',
+        email: _rProfiles[r.user_id]?.email || null
+      }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ roster: enriched, tenant_id: _rTenantId }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to load roster' }));
+    }
+    return;
+  }
+
+  // DELETE /api/tenant/roster/:userId — remove a user from the tenant (owner/admin only)
+  if (req.method === 'DELETE' && /^\/api\/tenant\/roster\/[^/]+$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _dUser = await authenticateRequest(req);
+    if (!_dUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const _dTargetId = req.url.split('/api/tenant/roster/')[1];
+    const supabase = getSupabaseClient();
+    try {
+      const { data: _dMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _dUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _dMembership = (_dMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
+      let _dTenantId = _dMembership?.tenant_id;
+      if (!_dTenantId) {
+        const { data: _dOwned } = await supabase.from('white_label_tenants').select('id').eq('owner_user_id', _dUser.id).eq('status', 'active').maybeSingle();
+        _dTenantId = _dOwned?.id;
+      }
+      if (!_dTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      const _dCallerRole = _dMembership?.role || 'owner';
+      if (_dTargetId === _dUser.id && _dCallerRole === 'owner') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Cannot remove yourself as owner. Transfer ownership first.' }));
+        return;
+      }
+      // Resolve target role for hierarchy check
+      const { data: _dTargetMembership } = await supabase.from('white_label_tenant_users').select('role').eq('tenant_id', _dTenantId).eq('user_id', _dTargetId).maybeSingle();
+      if (!_dTargetMembership) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'User is not a member of this tenant' })); return; }
+      // Role hierarchy: owner can remove anyone; admin can only remove member/provider
+      const _dTargetRole = _dTargetMembership.role;
+      if (_dCallerRole === 'admin' && ['owner', 'admin'].includes(_dTargetRole)) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Admins can only remove members and providers.' }));
+        return;
+      }
+      const { error: _dErr } = await supabase.from('white_label_tenant_users').delete().eq('tenant_id', _dTenantId).eq('user_id', _dTargetId);
+      if (_dErr) throw _dErr;
+      // Only null profile.tenant_id if user has no remaining tenant memberships
+      const { data: _dRemaining } = await supabase.from('white_label_tenant_users').select('tenant_id').eq('user_id', _dTargetId).limit(1).maybeSingle();
+      if (!_dRemaining) { await supabase.from('profiles').update({ tenant_id: null }).eq('id', _dTargetId); }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to remove user' }));
+    }
+    return;
+  }
+
+  // GET /api/tenant/loyalty-config — get tenant loyalty program settings
+  if (req.method === 'GET' && req.url === '/api/tenant/loyalty-config') {
+    setSecurityHeaders(res, true); setCorsHeaders(res);
+    const _lcUser = await authenticateRequest(req);
+    if (!_lcUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: _lcMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _lcUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _lcMembership = (_lcMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
+      const _lcTenantId = _lcMembership?.tenant_id;
+      if (!_lcTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      const { data: _lcTenant } = await supabase.from('white_label_tenants').select('features').eq('id', _lcTenantId).maybeSingle();
+      const loyaltyConfig = (_lcTenant?.features || {}).loyalty_program || { enabled: false, punch_card_goal: 10, reward_description: '' };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ loyalty_program: loyaltyConfig }));
+    } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Failed to load loyalty config' })); }
+    return;
+  }
+
+  // POST /api/tenant/loyalty-config — update tenant loyalty program settings
+  if (req.method === 'POST' && req.url === '/api/tenant/loyalty-config') {
+    setSecurityHeaders(res, true); setCorsHeaders(res);
+    const _luUser = await authenticateRequest(req);
+    if (!_luUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { data: _luMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _luUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _luMembership = (_luMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
+      const _luTenantId = _luMembership?.tenant_id;
+      if (!_luTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      const { data: _luTenant } = await supabase.from('white_label_tenants').select('features').eq('id', _luTenantId).maybeSingle();
+      const currentFeatures = _luTenant?.features || {};
+      currentFeatures.loyalty_program = {
+        enabled: !!body.enabled,
+        punch_card_goal: Math.max(1, parseInt(body.punch_card_goal, 10) || 10),
+        reward_description: String(body.reward_description || '').slice(0, 255)
+      };
+      const { error: _luErr } = await supabase.from('white_label_tenants').update({ features: currentFeatures }).eq('id', _luTenantId);
+      if (_luErr) throw _luErr;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, loyalty_program: currentFeatures.loyalty_program }));
+    } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Failed to update loyalty config' })); }
+    return;
+  }
+
+  // GET /api/tenant/approval-workflow — get tenant approval workflow settings
+  if (req.method === 'GET' && req.url === '/api/tenant/approval-workflow') {
+    setSecurityHeaders(res, true); setCorsHeaders(res);
+    const _awUser = await authenticateRequest(req);
+    if (!_awUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: _awMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _awUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _awMembership = (_awMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
+      const _awTenantId = _awMembership?.tenant_id;
+      if (!_awTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      const { data: _awTenant } = await supabase.from('white_label_tenants').select('features').eq('id', _awTenantId).maybeSingle();
+      const approvalWorkflow = (_awTenant?.features || {}).approval_workflow || { require_provider_approval: false, require_member_approval: false, auto_approve_verified: true };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ approval_workflow: approvalWorkflow }));
+    } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Failed to load approval workflow' })); }
+    return;
+  }
+
+  // POST /api/tenant/approval-workflow — update tenant approval workflow settings
+  if (req.method === 'POST' && req.url === '/api/tenant/approval-workflow') {
+    setSecurityHeaders(res, true); setCorsHeaders(res);
+    const _apUser = await authenticateRequest(req);
+    if (!_apUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { data: _apMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _apUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _apMembership = (_apMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
+      const _apTenantId = _apMembership?.tenant_id;
+      if (!_apTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      const { data: _apTenant } = await supabase.from('white_label_tenants').select('features').eq('id', _apTenantId).maybeSingle();
+      const currentFeatures = _apTenant?.features || {};
+      currentFeatures.approval_workflow = {
+        require_provider_approval: !!body.require_provider_approval,
+        require_member_approval: !!body.require_member_approval,
+        auto_approve_verified: body.auto_approve_verified !== false
+      };
+      const { error: _apErr } = await supabase.from('white_label_tenants').update({ features: currentFeatures }).eq('id', _apTenantId);
+      if (_apErr) throw _apErr;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, approval_workflow: currentFeatures.approval_workflow }));
+    } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Failed to update approval workflow' })); }
+    return;
+  }
+
+    // GET /api/tenant/analytics — basic tenant analytics (tenant admin only)
+  if (req.method === 'GET' && req.url.startsWith('/api/tenant/analytics')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _aUser = await authenticateRequest(req);
+    if (!_aUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: _aMembs } = await supabase.from('white_label_tenant_users').select('tenant_id, role').eq('user_id', _aUser.id).in('role', ['owner', 'admin']).order('joined_at', { ascending: false });
+      const _aMembership = (_aMembs || []).sort((a,b) => (a.role==='owner'?-1:b.role==='owner'?1:0))[0] || null;
+      let _aTenantId = _aMembership?.tenant_id;
+      if (!_aTenantId) {
+        const { data: _aOwned } = await supabase.from('white_label_tenants').select('id').eq('owner_user_id', _aUser.id).eq('status', 'active').maybeSingle();
+        _aTenantId = _aOwned?.id;
+      }
+      if (!_aTenantId) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not a tenant admin' })); return; }
+      // Fetch metrics scoped to this tenant using service role client
+      const [reqResult, bidResult, pvResult, provResult] = await Promise.all([
+        supabase.from('maintenance_packages').select('id', { count: 'exact', head: true }).eq('tenant_id', _aTenantId),
+        supabase.from('bids').select('id', { count: 'exact', head: true }).eq('tenant_id', _aTenantId),
+        supabase.from('page_views').select('id', { count: 'exact', head: true }).eq('tenant_id', _aTenantId),
+        supabase.from('white_label_tenant_users').select('id', { count: 'exact', head: true }).eq('tenant_id', _aTenantId).eq('role', 'provider')
+      ]);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        tenant_id: _aTenantId,
+        metrics: {
+          total_service_requests: reqResult.count || 0,
+          total_bids: bidResult.count || 0,
+          total_page_views: pvResult.count || 0,
+          active_providers: provResult.count || 0
+        }
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to load analytics' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/white-label/tenants — list all white-label tenants
+  // NOTE: .endsWith('/portal') routes are handled separately below and must not match here
+  if (req.method === 'GET' && /^\/api\/admin\/white-label\/tenants(\?.*)?$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _adminToken = req.headers['x-admin-token'];
+    const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+    if (!_validAdmin) {
+      const _adminUser = await authenticateRequest(req);
+      if (!_adminUser) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const _adminSupa = getSupabaseClient();
+      const { data: _adminProfile } = await _adminSupa.from('profiles').select('role').eq('id', _adminUser.id).single();
+      if (!_adminProfile || !['admin','super_admin'].includes(_adminProfile.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+    }
+    const supabase = getSupabaseClient();
+    try {
+      const { data, error } = await supabase
+        .from('white_label_tenants')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      const tenants = data || [];
+
+      // Enrich each tenant with live seat counts from white_label_tenant_users
+      const WL_PLAN_MRR = { starter: 149, pro: 499, business: 999 }; // estimated monthly value
+      const enrichedTenants = await Promise.all(tenants.map(async t => {
+        try {
+          const [{ count: memberCount }, { count: providerCount }] = await Promise.all([
+            supabase.from('white_label_tenant_users').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id).eq('role', 'member'),
+            supabase.from('white_label_tenant_users').select('id', { count: 'exact', head: true }).eq('tenant_id', t.id).eq('role', 'provider')
+          ]);
+          return {
+            ...t,
+            _stats: {
+              member_count: memberCount || 0,
+              provider_count: providerCount || 0,
+              estimated_mrr: t.status === 'active' ? (WL_PLAN_MRR[t.plan] || 0) : 0
+            }
+          };
+        } catch { return { ...t, _stats: { member_count: 0, provider_count: 0, estimated_mrr: 0 } }; }
+      }));
+
+      const totalMrr = enrichedTenants.reduce((sum, t) => sum + (t._stats?.estimated_mrr || 0), 0);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ tenants: enrichedTenants, meta: { total_mrr: totalMrr } }));
+    } catch (err) {
+      console.error(`[${requestId}] WL tenants list error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load tenants' }));
+    }
+    return;
+  }
+
+  // POST /api/admin/white-label/tenants — create white-label tenant (admin auth required)
+  if (req.method === 'POST' && req.url === '/api/admin/white-label/tenants') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _adminToken = req.headers['x-admin-token'];
+    const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+    if (!_validAdmin) {
+      const _adminUser = await authenticateRequest(req);
+      if (!_adminUser) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const _adminSupa = getSupabaseClient();
+      const { data: _adminProfile } = await _adminSupa.from('profiles').select('role').eq('id', _adminUser.id).single();
+      if (!_adminProfile || !['admin','super_admin'].includes(_adminProfile.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+    }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { name, brand_name, domain, subdomain, logo_url, favicon_url, primary_color, accent_color, bg_color, support_email, plan, max_members, max_providers, owner_user_id, owner_email } = body;
+      if (!name || !brand_name) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'name and brand_name required' })); return;
+      }
+      const planLimits = { starter: { max_members: 500, max_providers: 50 }, pro: { max_members: 5000, max_providers: 500 }, business: { max_members: -1, max_providers: -1 } };
+      const limits = planLimits[plan || 'starter'];
+
+      // Resolve owner user — accept either owner_user_id or owner_email
+      let resolvedOwnerId = owner_user_id || null;
+      if (!resolvedOwnerId && owner_email) {
+        try {
+          // Look up by email in profiles (indexed, no pagination limit vs auth.admin.listUsers)
+          const { data: ownerProfile } = await supabase.from('profiles').select('id').eq('email', owner_email.toLowerCase()).maybeSingle();
+          if (ownerProfile) {
+            resolvedOwnerId = ownerProfile.id;
+          } else {
+            // Fallback: paginated auth admin search (2 pages of 500 as safety net)
+            let found = null;
+            for (let pg = 1; pg <= 2 && !found; pg++) {
+              const { data: ul } = await supabase.auth.admin.listUsers({ page: pg, perPage: 500 });
+              found = (ul?.users || []).find(u => u.email?.toLowerCase() === owner_email.toLowerCase()) || null;
+              if (ul?.users?.length < 500) break; // Last page reached
+            }
+            if (found) resolvedOwnerId = found.id;
+            else console.warn(`[${requestId}] WL tenant: owner_email ${owner_email} not found — created without owner link`);
+          }
+        } catch (lookupErr) {
+          console.warn(`[${requestId}] WL owner email lookup failed:`, lookupErr.message);
+        }
+      }
+
+      // If owner resolved, check their white_label SaaS subscription (warn if missing)
+      if (resolvedOwnerId) {
+        const wlAccess = await checkPlanAccess(resolvedOwnerId, 'white_label', plan || 'starter');
+        if (!wlAccess.access) {
+          console.warn(`[${requestId}] WL tenant created without SaaS subscription for owner ${resolvedOwnerId}: ${wlAccess.reason}`);
+        }
+      }
+
+      const { data, error } = await supabase.from('white_label_tenants').insert({
+        name, brand_name, domain: domain || null, subdomain: subdomain || null,
+        logo_url: logo_url || null, favicon_url: favicon_url || null,
+        primary_color: primary_color || '#C9A227',
+        accent_color: accent_color || '#2CC4B4', bg_color: bg_color || '#12161c',
+        support_email: support_email || null, plan: plan || 'starter', status: ['active','pending','suspended','canceled'].includes(body.status) ? body.status : 'active',
+        max_members: max_members || limits.max_members, max_providers: max_providers || limits.max_providers,
+        owner_user_id: resolvedOwnerId || null
+      }).select().single();
+      if (error) throw error;
+
+      // Register owner as the first tenant user with 'owner' role (for seat tracking)
+      if (resolvedOwnerId && data?.id) {
+        await supabase.from('white_label_tenant_users').upsert(
+          { tenant_id: data.id, user_id: resolvedOwnerId, role: 'owner' },
+          { onConflict: 'tenant_id,user_id' }
+        );
+      }
+
+      console.log(`[${requestId}] White-label tenant created: ${data.id} (${brand_name})`);
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ tenant: data }));
+    } catch (err) {
+      console.error(`[${requestId}] WL tenant create error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: err.message || 'Failed to create tenant' }));
+    }
+    return;
+  }
+
+  // PUT /api/admin/white-label/tenants/:id — update white-label tenant
+  if (req.method === 'PUT' && req.url.startsWith('/api/admin/white-label/tenants/')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _adminToken = req.headers['x-admin-token'];
+    const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+    if (!_validAdmin) {
+      const _adminUser = await authenticateRequest(req);
+      if (!_adminUser) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const _adminSupa = getSupabaseClient();
+      const { data: _adminProfile } = await _adminSupa.from('profiles').select('role').eq('id', _adminUser.id).single();
+      if (!_adminProfile || !['admin','super_admin'].includes(_adminProfile.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+    }
+    const tenantId = req.url.split('/api/admin/white-label/tenants/')[1]?.split('?')[0];
+    if (!tenantId) { res.writeHead(400); res.end(JSON.stringify({ error: 'Tenant ID required' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const allowed = ['name','brand_name','domain','subdomain','logo_url','favicon_url','primary_color','accent_color','bg_color','support_email','support_phone','plan','status','max_members','max_providers','custom_css','features'];
+      const updateData = { updated_at: new Date().toISOString() };
+      for (const key of allowed) { if (body[key] !== undefined) updateData[key] = body[key]; }
+      const { data, error } = await supabase.from('white_label_tenants').update(updateData).eq('id', tenantId).select().single();
+      if (error) throw error;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ tenant: data }));
+    } catch (err) {
+      console.error(`[${requestId}] WL tenant update error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update tenant' }));
+    }
+    return;
+  }
+
+  // DELETE /api/admin/white-label/tenants/:id — deactivate (soft delete) tenant
+  if (req.method === 'DELETE' && req.url.startsWith('/api/admin/white-label/tenants/')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _adminToken = req.headers['x-admin-token'];
+    const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+    if (!_validAdmin) {
+      const _adminUser = await authenticateRequest(req);
+      if (!_adminUser) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const _adminSupa = getSupabaseClient();
+      const { data: _adminProfile } = await _adminSupa.from('profiles').select('role').eq('id', _adminUser.id).single();
+      if (!_adminProfile || !['admin','super_admin'].includes(_adminProfile.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+    }
+    const tenantId = req.url.split('/api/admin/white-label/tenants/')[1]?.split('?')[0];
+    const supabase = getSupabaseClient();
+    try {
+      const { error } = await supabase.from('white_label_tenants').update({ status: 'canceled', updated_at: new Date().toISOString() }).eq('id', tenantId);
+      if (error) throw error;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error(`[${requestId}] WL tenant delete error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to deactivate tenant' }));
+    }
+    return;
+  }
+
+  // POST /api/admin/white-label/tenants/:id/generate-invite — create an HMAC-signed invite link.
+  // Invite token contains tenant_id + expiry signed with tenant join_token secret.
+  // No host-header dependency — tenant resolved by explicit :id in URL path.
+  if (req.method === 'POST' && /^\/api\/admin\/white-label\/tenants\/[^/]+\/generate-invite$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _adminToken = req.headers['x-admin-token'];
+    const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+    if (!_validAdmin) {
+      const _adminUser = await authenticateRequest(req);
+      if (!_adminUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const { data: _ap } = await getSupabaseClient().from('profiles').select('role').eq('id', _adminUser.id).maybeSingle();
+      if (!['admin', 'super_admin'].includes(_ap?.role)) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Admin required' })); return; }
+    }
+    const _invTenantId = req.url.split('/api/admin/white-label/tenants/')[1]?.split('/generate-invite')[0];
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      // TTL in hours (default 72h, max 720h)
+      const ttlHours = Math.min(parseInt(body?.ttl_hours || '72', 10) || 72, 720);
+      const { data: _invTenant } = await supabase.from('white_label_tenants').select('id, join_token, name').eq('id', _invTenantId).maybeSingle();
+      if (!_invTenant) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tenant not found' })); return; }
+      const expiresAt = Date.now() + ttlHours * 3_600_000;
+      const payload = `${_invTenant.id}:${expiresAt}`;
+      const crypto = require('crypto');
+      const sig = crypto.createHmac('sha256', _invTenant.join_token).update(payload).digest('hex');
+      const token = Buffer.from(JSON.stringify({ tenant_id: _invTenant.id, expires_at: expiresAt, sig })).toString('base64url');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ invite_token: token, expires_at: expiresAt, ttl_hours: ttlHours }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to generate invite' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/white-label/tenants/:id/portal — read-only admin inspection of tenant portal data.
+  // Returns tenant config + live seat counts for support/admin use. Not a scoped user session.
+  if (req.method === 'GET' && /^\/api\/admin\/white-label\/tenants\/[^/]+\/portal$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const _adminToken = req.headers['x-admin-token'];
+    const _validAdmin = _adminToken && process.env.ADMIN_PASSWORD && _adminToken === process.env.ADMIN_PASSWORD;
+    if (!_validAdmin) {
+      const _adminUser = await authenticateRequest(req);
+      if (!_adminUser) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const _adminSupa = getSupabaseClient();
+      const { data: _adminProfile } = await _adminSupa.from('profiles').select('role').eq('id', _adminUser.id).single();
+      if (!_adminProfile || !['admin','super_admin'].includes(_adminProfile.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+    }
+    const tenantId = req.url.split('/api/admin/white-label/tenants/')[1]?.split('/portal')[0];
+    const supabase = getSupabaseClient();
+    try {
+      const { data: tenant, error } = await supabase
+        .from('white_label_tenants')
+        .select('*')
+        .eq('id', tenantId)
+        .single();
+      if (error || !tenant) { res.writeHead(404); res.end(JSON.stringify({ error: 'Tenant not found' })); return; }
+
+      const [{ count: memberCount }, { count: providerCount }, { count: adminCount }] = await Promise.all([
+        supabase.from('white_label_tenant_users').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('role', 'member'),
+        supabase.from('white_label_tenant_users').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('role', 'provider'),
+        supabase.from('white_label_tenant_users').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).in('role', ['owner', 'admin'])
+      ]);
+
+      // Fetch recent members for admin view
+      const { data: recentMembers } = await supabase
+        .from('white_label_tenant_users')
+        .select('user_id, role, joined_at')
+        .eq('tenant_id', tenantId)
+        .order('joined_at', { ascending: false })
+        .limit(10);
+
+      const WL_PLAN_MRR = { starter: 149, pro: 499, business: 999 };
+      const estimatedMrr = tenant.status === 'active' ? (WL_PLAN_MRR[tenant.plan] || 0) : 0;
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        tenant,
+        usage: {
+          members: { current: memberCount || 0, limit: tenant.max_members, unlimited: tenant.max_members === -1 },
+          providers: { current: providerCount || 0, limit: tenant.max_providers, unlimited: tenant.max_providers === -1 },
+          admins: { current: adminCount || 0 }
+        },
+        estimated_mrr: estimatedMrr,
+        recent_members: recentMembers || []
+      }));
+    } catch (err) {
+      console.error(`[${requestId}] WL admin portal error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load tenant portal' }));
+    }
+    return;
+  }
+
+  // ========== END WHITE-LABEL ROUTES ==========
+
+  // ========== FLEET SAAS LIMIT CHECK (Task #88) ==========
+
+  // POST /api/fleet/check-limits — check current fleet plan limits
+  if (req.method === 'POST' && req.url === '/api/fleet/check-limits') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { fleet_id } = body;
+      const planLimits = { starter: { vehicles: 5, drivers: 5 }, pro: { vehicles: 25, drivers: 25 }, business: { vehicles: -1, drivers: -1 } };
+
+      const access = await checkPlanAccess(user.id, 'fleet', 'starter');
+      const plan = access.plan || 'none';
+      const limits = planLimits[plan] || { vehicles: 0, drivers: 0 };
+
+      let vehicleCount = 0, driverCount = 0;
+      if (fleet_id && supabase) {
+        const [vRes, dRes] = await Promise.all([
+          supabase.from('fleet_vehicles').select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id),
+          supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id).eq('fleet_role', 'driver')
+        ]);
+        vehicleCount = vRes.count || 0;
+        driverCount = dRes.count || 0;
+      }
+
+      const canAddVehicle = limits.vehicles === -1 || vehicleCount < limits.vehicles;
+      const canAddDriver = limits.drivers === -1 || driverCount < limits.drivers;
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        plan, limits, current: { vehicles: vehicleCount, drivers: driverCount },
+        can_add_vehicle: canAddVehicle, can_add_driver: canAddDriver,
+        subscribed: access.access,
+        upgrade_url: access.upgrade_url || '/members.html?section=settings'
+      }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet limits error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to check limits' }));
+    }
+    return;
+  }
+
+  // GET /api/fleet/subscription — fleet subscription status for dashboard
+  if (req.method === 'GET' && req.url === '/api/fleet/subscription') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: sub } = await supabase
+        .from('saas_subscriptions')
+        .select('plan, status, current_period_end, cancel_at_period_end')
+        .eq('user_id', user.id)
+        .eq('product', 'fleet')
+        .in('status', ['active', 'trialing'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const planLimits = { starter: { vehicles: 5, drivers: 5 }, pro: { vehicles: 25, drivers: 25 }, business: { vehicles: -1, drivers: -1 } };
+      const plan = sub?.plan || null;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ subscription: sub || null, plan, limits: plan ? planLimits[plan] : null }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load fleet subscription' }));
+    }
+    return;
+  }
+
+  // POST /api/fleet/invite — invite a driver/manager to join the fleet via email
+  if (req.method === 'POST' && req.url === '/api/fleet/invite') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { fleet_id, email, role, department, employee_id, spending_limit, requires_approval } = body;
+      if (!fleet_id || !email) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'fleet_id and email are required' })); return;
+      }
+
+      // Verify user is owner or manager of this fleet
+      const { data: fleet } = await supabase.from('fleets').select('id, name, owner_id').eq('id', fleet_id).maybeSingle();
+      if (!fleet) { res.writeHead(404); res.end(JSON.stringify({ error: 'Fleet not found' })); return; }
+
+      const isOwner = fleet.owner_id === user.id;
+      let isManager = false;
+      if (!isOwner) {
+        const { data: membership } = await supabase.from('fleet_members')
+          .select('id, role').eq('fleet_id', fleet_id).eq('user_id', user.id)
+          .in('role', ['manager', 'owner']).eq('status', 'active').maybeSingle();
+        isManager = !!membership;
+      }
+      if (!isOwner && !isManager) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Not authorized to invite fleet members' })); return;
+      }
+
+      // Check driver limits on fleet plan (active members + pending non-expired invites)
+      const access = await checkPlanAccess(fleet.owner_id, 'fleet', 'starter');
+      const planLimits = { starter: { drivers: 5 }, pro: { drivers: 25 }, business: { drivers: -1 } };
+      const limits = planLimits[access.plan] || { drivers: 3 };
+      if (limits.drivers !== -1) {
+        const { count: activeDriverCount } = await supabase.from('fleet_members')
+          .select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id).eq('status', 'active');
+        const { count: pendingInviteCount } = await supabase.from('fleet_invites')
+          .select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id).eq('status', 'pending')
+          .gt('expires_at', new Date().toISOString());
+        const totalSeatUsage = (activeDriverCount || 0) + (pendingInviteCount || 0);
+        if (totalSeatUsage >= limits.drivers) {
+          res.writeHead(402); res.end(JSON.stringify({
+            error: `Driver limit reached (${totalSeatUsage}/${limits.drivers} on ${access.plan || 'free'} plan including pending invites). Please upgrade to add more drivers.`,
+            upgrade_url: '/members.html?section=settings'
+          })); return;
+        }
+      }
+
+      // Generate signed invite token
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+
+      // Save invite in DB
+      const { error: insertErr } = await supabase.from('fleet_invites').insert({
+        fleet_id,
+        invited_by: user.id,
+        email,
+        role: role || 'driver',
+        department: department || null,
+        employee_id: employee_id || null,
+        spending_limit: spending_limit ? Number(spending_limit) : null,
+        requires_approval: !!requires_approval,
+        token,
+        expires_at: expiresAt,
+        status: 'pending'
+      });
+
+      if (insertErr) {
+        console.error('[Fleet Invite] DB insert error:', insertErr.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to create invite' })); return;
+      }
+
+      // Send invite email via Resend
+      const devDomain = process.env.REPLIT_DEV_DOMAIN;
+      const baseUrl = devDomain ? (devDomain.startsWith('http') ? devDomain : `https://${devDomain}`) : 'https://mycarconcierge.com';
+      const inviteUrl = `${baseUrl}/fleet/join?token=${token}`;
+      const senderName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Fleet Manager';
+
+      if (resend) {
+        try {
+          await resend.emails.send({
+            from: 'My Car Concierge <noreply@mycarconcierge.com>',
+            to: email,
+            subject: `You've been invited to join ${fleet.name} fleet on My Car Concierge`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; background: #f9fafb;">
+                <div style="text-align: center; margin-bottom: 32px;">
+                  <img src="https://mycarconcierge.com/logo.png" alt="My Car Concierge" style="height: 80px;">
+                </div>
+                <div style="background: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                  <h2 style="color: #12161c; margin-bottom: 8px;">You're invited to join a fleet!</h2>
+                  <p style="color: #6b7280; margin-bottom: 24px;">
+                    <strong>${senderName}</strong> has invited you to join <strong>${fleet.name}</strong> as a <strong>${role || 'driver'}</strong> on My Car Concierge.
+                  </p>
+                  ${department ? `<p style="color: #6b7280; margin-bottom: 16px;">Department: <strong>${department}</strong></p>` : ''}
+                  <div style="text-align: center; margin: 32px 0;">
+                    <a href="${inviteUrl}" style="display: inline-block; background: linear-gradient(135deg, #c9a227, #e8b843); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 1rem;">
+                      Accept Fleet Invitation
+                    </a>
+                  </div>
+                  <p style="color: #9ca3af; font-size: 0.85rem; text-align: center;">
+                    This invitation expires in 7 days. If you don't have an account yet, you'll be guided to create one.
+                  </p>
+                </div>
+                <p style="color: #9ca3af; font-size: 0.8rem; text-align: center; margin-top: 24px;">
+                  My Car Concierge &mdash; Your complete auto ownership platform
+                </p>
+              </div>
+            `
+          });
+        } catch (emailErr) {
+          console.error('[Fleet Invite] Email send error:', emailErr.message);
+        }
+      }
+
+      console.log(`[Fleet Invite] Sent invite to ${email} for fleet ${fleet_id} (token: ${token.substring(0, 8)}...)`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: `Invitation sent to ${email}`, invite_url: inviteUrl }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet invite error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to send invite' }));
+    }
+    return;
+  }
+
+  // GET /api/fleet/invite/:token — look up an invite by token (public)
+  if (req.method === 'GET' && req.url?.startsWith('/api/fleet/invite/')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const token = req.url.split('/api/fleet/invite/')[1]?.split('?')[0];
+    if (!token) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing token' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: invite } = await supabase.from('fleet_invites')
+        .select('id, fleet_id, email, role, department, employee_id, spending_limit, requires_approval, expires_at, status, fleets(name, company_name, business_type)')
+        .eq('token', token)
+        .maybeSingle();
+
+      if (!invite) { res.writeHead(404); res.end(JSON.stringify({ error: 'Invite not found or expired' })); return; }
+      if (invite.status === 'accepted') { res.writeHead(200); res.end(JSON.stringify({ invite, already_accepted: true })); return; }
+      if (new Date(invite.expires_at) < new Date()) {
+        res.writeHead(410); res.end(JSON.stringify({ error: 'This invitation has expired' })); return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ invite, already_accepted: false }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet invite lookup error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to look up invite' }));
+    }
+    return;
+  }
+
+  // POST /api/fleet/invite/:token/accept — accept a fleet invite (requires auth)
+  if (req.method === 'POST' && req.url?.match(/^\/api\/fleet\/invite\/[^/]+\/accept$/)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Sign in to accept this invitation' })); return; }
+    const token = req.url.split('/api/fleet/invite/')[1]?.split('/accept')[0];
+    const supabase = getSupabaseClient();
+    try {
+      const { data: invite } = await supabase.from('fleet_invites')
+        .select('*').eq('token', token).eq('status', 'pending').maybeSingle();
+
+      if (!invite) { res.writeHead(404); res.end(JSON.stringify({ error: 'Invite not found or already used' })); return; }
+      if (new Date(invite.expires_at) < new Date()) { res.writeHead(410); res.end(JSON.stringify({ error: 'Invite has expired' })); return; }
+
+      // Verify authenticated user's email matches the invited email
+      if (invite.email && user.email && invite.email.toLowerCase() !== user.email.toLowerCase()) {
+        res.writeHead(403); res.end(JSON.stringify({
+          error: `This invitation was sent to ${invite.email}. Please sign in with that email address to accept it.`
+        })); return;
+      }
+
+      // Re-check driver limit at accept time (active members + remaining pending invites excluding this one)
+      const { data: acceptFleet } = await supabase.from('fleets').select('owner_id').eq('id', invite.fleet_id).maybeSingle();
+      if (acceptFleet?.owner_id) {
+        const acceptAccess = await checkPlanAccess(acceptFleet.owner_id, 'fleet', 'starter');
+        const acceptPlanLimits = { starter: { drivers: 5 }, pro: { drivers: 25 }, business: { drivers: -1 } };
+        const acceptLimits = acceptPlanLimits[acceptAccess.plan] || { drivers: 3 };
+        if (acceptLimits.drivers !== -1) {
+          const { count: activeDriverCount } = await supabase.from('fleet_members')
+            .select('id', { count: 'exact', head: true }).eq('fleet_id', invite.fleet_id).eq('status', 'active');
+          // At accept time, only count active members (this invite is now being consumed)
+          if ((activeDriverCount || 0) >= acceptLimits.drivers) {
+            res.writeHead(402); res.end(JSON.stringify({
+              error: `Driver limit reached on fleet's ${acceptAccess.plan || 'current'} plan. The fleet manager must upgrade before more members can join.`
+            })); return;
+          }
+        }
+      }
+
+      // Add user to fleet_members
+      const { error: memberErr } = await supabase.from('fleet_members').insert({
+        fleet_id: invite.fleet_id,
+        user_id: user.id,
+        email: user.email,
+        role: invite.role,
+        department: invite.department || null,
+        employee_id: invite.employee_id || null,
+        spending_limit: invite.spending_limit || null,
+        requires_approval: invite.requires_approval || false,
+        status: 'active'
+      });
+
+      if (memberErr && !memberErr.message?.includes('duplicate')) {
+        console.error('[Fleet Accept] Member insert error:', memberErr.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to join fleet' })); return;
+      }
+
+      // Mark invite as accepted
+      await supabase.from('fleet_invites').update({ status: 'accepted', accepted_at: new Date().toISOString() }).eq('id', invite.id);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, fleet_id: invite.fleet_id, role: invite.role }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet invite accept error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to accept invite' }));
+    }
+    return;
+  }
+
+  // POST /api/fleet/check-approval — evaluates per-department and per-member approval rules for a fleet service request
+  // Called before a driver creates a service request to determine if manager approval is required.
+  if (req.method === 'POST' && req.url === '/api/fleet/check-approval') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { fleet_id, vehicle_id, estimated_cost } = body;
+      if (!fleet_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'fleet_id is required' })); return; }
+
+      // Load fleet member record for this user
+      const { data: member } = await supabase.from('fleet_members')
+        .select('id, role, department, spending_limit, requires_approval, status')
+        .eq('fleet_id', fleet_id).eq('user_id', user.id).eq('status', 'active').maybeSingle();
+
+      if (!member) { res.writeHead(403); res.end(JSON.stringify({ error: 'Not a member of this fleet' })); return; }
+
+      // Fleet owners and managers are always auto-approved
+      if (['manager', 'owner'].includes(member.role)) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ requires_approval: false, reason: 'manager_auto_approve' })); return;
+      }
+
+      const cost = parseFloat(estimated_cost) || 0;
+
+      // Step 1: Per-member override (most specific)
+      if (member.requires_approval) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ requires_approval: true, reason: 'member_setting', spending_limit: member.spending_limit })); return;
+      }
+      if (member.spending_limit !== null && member.spending_limit !== undefined && cost > member.spending_limit) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ requires_approval: true, reason: 'member_spending_limit_exceeded', limit: member.spending_limit, cost })); return;
+      }
+
+      // Step 2: Per-department rule (department-level policy)
+      if (member.department) {
+        const { data: deptRule } = await supabase.from('fleet_department_rules')
+          .select('spending_limit, requires_approval, auto_approve_under')
+          .eq('fleet_id', fleet_id).eq('department', member.department).maybeSingle();
+        if (deptRule) {
+          if (deptRule.requires_approval) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ requires_approval: true, reason: 'department_rule', department: member.department })); return;
+          }
+          if (deptRule.spending_limit !== null && cost > deptRule.spending_limit) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ requires_approval: true, reason: 'department_spending_limit_exceeded', limit: deptRule.spending_limit, cost, department: member.department })); return;
+          }
+          if (deptRule.auto_approve_under !== null && cost <= deptRule.auto_approve_under) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ requires_approval: false, reason: 'department_auto_approve', limit: deptRule.auto_approve_under })); return;
+          }
+        }
+      }
+
+      // Default: auto-approved
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ requires_approval: false, reason: 'default_auto_approve' }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet check-approval error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to evaluate approval rules' }));
+    }
+    return;
+  }
+
+  // POST /api/fleet/update-mileage — driver submits current odometer reading; updates vehicles.mileage
+  if (req.method === 'POST' && req.url === '/api/fleet/update-mileage') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { vehicle_id, mileage } = body;
+      if (!vehicle_id || mileage === undefined || mileage === null) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'vehicle_id and mileage are required' })); return;
+      }
+      const mileageNum = parseInt(mileage, 10);
+      if (isNaN(mileageNum) || mileageNum < 0) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'mileage must be a non-negative integer' })); return;
+      }
+
+      // Verify the requesting user is an active driver assigned to this vehicle in a fleet they belong to
+      const { data: fv } = await supabase
+        .from('fleet_vehicles')
+        .select('id, fleet_id, vehicle_id, assigned_driver_id, fleet:fleet_id(owner_id)')
+        .eq('vehicle_id', vehicle_id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (!fv) { res.writeHead(404); res.end(JSON.stringify({ error: 'Fleet vehicle record not found' })); return; }
+
+      // Only the assigned driver, fleet owner, or a fleet manager may update mileage
+      const isAssignedDriver = fv.assigned_driver_id === user.id;
+      const isFleetOwner = fv.fleet?.owner_id === user.id;
+      let isManager = false;
+      if (!isAssignedDriver && !isFleetOwner) {
+        const { data: mgr } = await supabase.from('fleet_members')
+          .select('id').eq('fleet_id', fv.fleet_id).eq('user_id', user.id)
+          .in('role', ['manager', 'owner']).eq('status', 'active').maybeSingle();
+        isManager = !!mgr;
+      }
+      if (!isAssignedDriver && !isFleetOwner && !isManager) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Not authorized to update mileage for this vehicle' })); return;
+      }
+
+      // Validate mileage is not lower than current recorded mileage (prevent odometer rollback)
+      const { data: vehicle } = await supabase.from('vehicles').select('mileage').eq('id', vehicle_id).maybeSingle();
+      const currentMileage = vehicle?.mileage || 0;
+      if (mileageNum < currentMileage) {
+        res.writeHead(400); res.end(JSON.stringify({ error: `Mileage cannot be less than current recorded value (${currentMileage})` })); return;
+      }
+
+      // Update mileage on the vehicles record
+      const { error: updateErr } = await supabase
+        .from('vehicles')
+        .update({ mileage: mileageNum, updated_at: new Date().toISOString() })
+        .eq('id', vehicle_id);
+      if (updateErr) throw new Error(updateErr.message);
+
+      console.log(`[Fleet Mileage] vehicle=${vehicle_id} updated to ${mileageNum} miles by user=${user.id}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, mileage: mileageNum }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet update-mileage error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update mileage' }));
+    }
+    return;
+  }
+
+  // POST /api/fleet/add-vehicle — authoritative server-side single vehicle add with plan limit check
+  if (req.method === 'POST' && req.url === '/api/fleet/add-vehicle') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { fleet_id, vehicle_id, assigned_driver_id, assignment_type, department, start_date, end_date } = body;
+      if (!fleet_id || !vehicle_id) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'fleet_id and vehicle_id are required' })); return;
+      }
+
+      // Verify fleet ownership/management
+      const { data: fleet } = await supabase.from('fleets').select('id, owner_id').eq('id', fleet_id).maybeSingle();
+      if (!fleet) { res.writeHead(404); res.end(JSON.stringify({ error: 'Fleet not found' })); return; }
+      const isOwner = fleet.owner_id === user.id;
+      if (!isOwner) {
+        const { data: membership } = await supabase.from('fleet_members')
+          .select('id').eq('fleet_id', fleet_id).eq('user_id', user.id)
+          .in('role', ['manager', 'owner']).eq('status', 'active').maybeSingle();
+        if (!membership) { res.writeHead(403); res.end(JSON.stringify({ error: 'Not authorized to add vehicles to this fleet' })); return; }
+      }
+
+      // Authoritative vehicle plan limit check
+      const access = await checkPlanAccess(fleet.owner_id, 'fleet', 'starter');
+      const planLimits = { starter: { vehicles: 5 }, pro: { vehicles: 25 }, business: { vehicles: -1 } };
+      const limits = planLimits[access.plan] || { vehicles: 3 };
+      if (limits.vehicles !== -1) {
+        const { count: currentVehicleCount } = await supabase.from('fleet_vehicles')
+          .select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id).eq('status', 'active');
+        if ((currentVehicleCount || 0) >= limits.vehicles) {
+          res.writeHead(402); res.end(JSON.stringify({
+            error: `Vehicle limit reached (${currentVehicleCount}/${limits.vehicles} on ${access.plan || 'free'} plan). Please upgrade to add more vehicles.`,
+            upgrade_url: '/members.html?section=settings',
+            limit: limits.vehicles, current: currentVehicleCount
+          })); return;
+        }
+      }
+
+      // Validate vehicle ownership: vehicle must belong to the fleet owner (or be unassigned to a fleet)
+      const { data: vehicleRecord } = await supabase.from('vehicles').select('id, user_id').eq('id', vehicle_id).maybeSingle();
+      if (!vehicleRecord) { res.writeHead(404); res.end(JSON.stringify({ error: 'Vehicle not found' })); return; }
+
+      // Idempotency: if vehicle is already active in this fleet, return success (no duplicate insert)
+      const { data: existingFv } = await supabase.from('fleet_vehicles')
+        .select('id').eq('fleet_id', fleet_id).eq('vehicle_id', vehicle_id).eq('status', 'active').maybeSingle();
+      if (existingFv) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, fleet_vehicle_id: existingFv.id, already_added: true }));
+        return;
+      }
+
+      if (vehicleRecord.user_id !== fleet.owner_id && vehicleRecord.user_id !== user.id) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Vehicle does not belong to the fleet owner and cannot be added' })); return;
+      }
+
+      // Add vehicle to fleet
+      const { data: fv, error: fvErr } = await supabase.from('fleet_vehicles').insert({
+        fleet_id,
+        vehicle_id,
+        assigned_driver_id: assigned_driver_id || null,
+        assignment_type: assignment_type || 'pool',
+        department: department || null,
+        start_date: start_date || null,
+        end_date: end_date || null,
+        status: 'active'
+      }).select('id').single();
+
+      if (fvErr) {
+        console.error('[Fleet AddVehicle] Insert error:', fvErr.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to add vehicle to fleet: ' + fvErr.message })); return;
+      }
+
+      console.log(`[Fleet AddVehicle] fleet=${fleet_id} vehicle=${vehicle_id} fv=${fv?.id}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, fleet_vehicle_id: fv?.id }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet add-vehicle error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to add vehicle' }));
+    }
+    return;
+  }
+
+  // POST /api/fleet/setup — atomic fleet account creation (auth+profile+fleet+owner-membership)
+  if (req.method === 'POST' && req.url === '/api/fleet/setup') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    try {
+      const body = await getRequestBody(req);
+      const { name, email, password, company, industry, fleet_size, phone, plan } = body;
+      if (!name || !email || !password || !company) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'name, email, password, and company are required' })); return;
+      }
+      if (password.length < 8) { res.writeHead(400); res.end(JSON.stringify({ error: 'Password must be at least 8 characters' })); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid email address' })); return; }
+
+      const supabase = getSupabaseClient();
+      // Service role client already has admin privileges for auth.admin
+      const supabaseAdmin = supabase;
+
+      // 1. Create auth user via admin API
+      const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: false,
+        user_metadata: {
+          full_name: name,
+          account_type: 'fleet',
+          company_name: company,
+          industry: industry || null,
+          fleet_size: fleet_size || null,
+          phone: phone || null
+        }
+      });
+
+      if (authErr) {
+        console.error('[Fleet Setup] Auth create error:', authErr.message);
+        if (authErr.message?.includes('already registered') || authErr.message?.includes('already been registered')) {
+          res.writeHead(409); res.end(JSON.stringify({ error: 'An account with this email already exists. Please sign in.' }));
+        } else {
+          res.writeHead(400); res.end(JSON.stringify({ error: authErr.message || 'Failed to create account' }));
+        }
+        return;
+      }
+      const userId = authData.user?.id;
+      if (!userId) { res.writeHead(500); res.end(JSON.stringify({ error: 'Auth user creation returned no ID' })); return; }
+
+      // 2. Upsert profile
+      const { error: profileErr } = await supabase.from('profiles').upsert({
+        id: userId,
+        full_name: name,
+        email,
+        phone: phone || null,
+        company_name: company,
+        account_type: 'fleet',
+        industry: industry || null
+      }, { onConflict: 'id' });
+      if (profileErr) { console.warn('[Fleet Setup] Profile upsert warning:', profileErr.message); }
+
+      // 3. Create fleet record (authoritative)
+      const { data: fleet, error: fleetErr } = await supabase.from('fleets').insert({
+        owner_id: userId,
+        name: company + ' Fleet',
+        company_name: company,
+        business_type: industry || null,
+        status: 'active'
+      }).select('id').single();
+
+      if (fleetErr || !fleet?.id) {
+        // Rollback: delete auth user so signup can be retried
+        try { await supabaseAdmin.auth.admin.deleteUser(userId); } catch (_) {}
+        console.error('[Fleet Setup] Fleet create error:', fleetErr?.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Fleet creation failed. Please try again or contact support.' })); return;
+      }
+
+      // 4. Add owner as fleet member
+      const { error: memberErr } = await supabase.from('fleet_members').insert({
+        fleet_id: fleet.id,
+        user_id: userId,
+        email,
+        role: 'owner',
+        status: 'active'
+      });
+      if (memberErr && !memberErr.message?.includes('duplicate')) {
+        console.warn('[Fleet Setup] Member insert warning:', memberErr.message);
+      }
+
+      // 5. Provision SaaS subscription record for the chosen plan
+      const selectedPlan = (['starter', 'pro', 'business'].includes(plan)) ? plan : 'starter';
+      const fleetPlanConfig = SAAS_PLANS.fleet?.tiers?.[selectedPlan] || {};
+      const stripePriceId = fleetPlanConfig.stripe_price_id || null;
+      let stripeCustomerId = null;
+      let stripeSubscriptionId = null;
+
+      // Create Stripe customer record for billing (non-fatal on failure)
+      try {
+        const stripe = await getStripeClient();
+        if (stripe) {
+          const customer = await stripe.customers.create({
+            email,
+            name: company,
+            metadata: { fleet_user_id: userId, fleet_id: fleet.id, plan: selectedPlan }
+          });
+          stripeCustomerId = customer.id;
+
+          // If a Stripe price ID is configured, create a subscription with a 14-day trial
+          if (stripePriceId) {
+            const subscription = await stripe.subscriptions.create({
+              customer: customer.id,
+              items: [{ price: stripePriceId }],
+              trial_period_days: 14,
+              metadata: { fleet_user_id: userId, fleet_id: fleet.id, plan: selectedPlan, product_line: 'fleet' }
+            });
+            stripeSubscriptionId = subscription.id;
+          }
+        }
+      } catch (stripeErr) {
+        // Non-fatal — account is created; billing can be set up separately
+        console.warn('[Fleet Setup] Stripe provisioning warning:', stripeErr.message);
+      }
+
+      // Persist the saas_subscriptions record (authoritative plan state for limit checks)
+      // Plan rules: starter is always granted; pro/business require confirmed Stripe trial or fall back to starter
+      const grantedPlan = (selectedPlan === 'starter' || stripeSubscriptionId) ? selectedPlan : 'starter';
+      const subStatus = stripeSubscriptionId ? 'trialing' : (selectedPlan === 'starter' ? 'active' : 'active');
+      const periodEnd = stripeSubscriptionId ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() : null;
+      const { error: subErr } = await supabase.from('saas_subscriptions').upsert({
+        user_id: userId,
+        product: 'fleet',
+        plan: grantedPlan,
+        status: subStatus,
+        stripe_customer_id: stripeCustomerId,
+        stripe_subscription_id: stripeSubscriptionId,
+        current_period_start: new Date().toISOString(),
+        current_period_end: periodEnd
+      }, { onConflict: 'user_id,product' });
+      if (subErr) { console.warn('[Fleet Setup] saas_subscriptions upsert warning:', subErr.message); }
+      if (grantedPlan !== selectedPlan) {
+        console.warn(`[Fleet Setup] Stripe unavailable or price_id missing for ${selectedPlan}; granted plan set to starter for ${email}. User can upgrade after billing configured.`);
+      }
+
+      console.log(`[Fleet Setup] Created account+fleet+subscription for ${email} (userId=${userId}, fleetId=${fleet.id}, plan=${selectedPlan})`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, user_id: userId, fleet_id: fleet.id, email, plan: selectedPlan }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet setup error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Fleet account setup failed' }));
+    }
+    return;
+  }
+
+  // POST /api/fleet/import-vehicles — server-side CSV import with plan limit enforcement
+  if (req.method === 'POST' && req.url === '/api/fleet/import-vehicles') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { fleet_id, vehicles } = body;
+      if (!fleet_id || !Array.isArray(vehicles) || vehicles.length === 0) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'fleet_id and vehicles array are required' })); return;
+      }
+
+      // Verify fleet ownership/management
+      const { data: fleet } = await supabase.from('fleets').select('id, owner_id').eq('id', fleet_id).maybeSingle();
+      if (!fleet) { res.writeHead(404); res.end(JSON.stringify({ error: 'Fleet not found' })); return; }
+      const isOwner = fleet.owner_id === user.id;
+      if (!isOwner) {
+        const { data: membership } = await supabase.from('fleet_members')
+          .select('id').eq('fleet_id', fleet_id).eq('user_id', user.id)
+          .in('role', ['manager', 'owner']).eq('status', 'active').maybeSingle();
+        if (!membership) { res.writeHead(403); res.end(JSON.stringify({ error: 'Not authorized' })); return; }
+      }
+
+      // Enforce vehicle plan limits (AUTHORITATIVE server-side check)
+      const access = await checkPlanAccess(fleet.owner_id, 'fleet', 'starter');
+      const planLimits = { starter: { vehicles: 5 }, pro: { vehicles: 25 }, business: { vehicles: -1 } };
+      const limits = planLimits[access.plan] || { vehicles: 3 };
+
+      if (limits.vehicles !== -1) {
+        const { count: currentVehicleCount } = await supabase.from('fleet_vehicles')
+          .select('id', { count: 'exact', head: true }).eq('fleet_id', fleet_id).eq('status', 'active');
+        const currentCount = currentVehicleCount || 0;
+        const available = limits.vehicles - currentCount;
+        if (available <= 0) {
+          res.writeHead(402); res.end(JSON.stringify({
+            error: `Vehicle limit reached (${currentCount}/${limits.vehicles} on ${access.plan || 'free'} plan). Please upgrade to import more vehicles.`,
+            upgrade_url: '/members.html?section=settings',
+            imported: 0, skipped: vehicles.length
+          })); return;
+        }
+        // Return 402 if import batch exceeds remaining capacity (plan enforcement)
+        if (vehicles.length > available) {
+          res.writeHead(402); res.end(JSON.stringify({
+            error: `Import of ${vehicles.length} vehicles would exceed your plan limit. You can add up to ${available} more vehicle(s) on the ${access.plan || 'current'} plan (${currentCount}/${limits.vehicles} used). Please upgrade or reduce your import.`,
+            upgrade_url: '/members.html?section=settings',
+            available, current: currentCount, limit: limits.vehicles
+          })); return;
+        }
+      }
+
+      // Process import
+      let imported = 0;
+      let failed = 0;
+      const errors = [];
+
+      for (const v of vehicles) {
+        if (!v.year || !v.make || !v.model) { failed++; errors.push('Row missing required fields'); continue; }
+        try {
+          // Vehicles are owned by the fleet owner for consistent RLS/ownership model
+          const vehicleOwnerId = fleet.owner_id;
+          const { data: vehicle, error: vErr } = await supabase.from('vehicles').insert({
+            user_id: vehicleOwnerId,
+            year: parseInt(v.year) || null,
+            make: String(v.make).trim(),
+            model: String(v.model).trim(),
+            color: v.color ? String(v.color).trim() : null,
+            license_plate: v.license_plate ? String(v.license_plate).trim().toUpperCase() : null,
+            vin: v.vin ? String(v.vin).trim().toUpperCase() : null,
+            mileage: v.mileage ? parseInt(v.mileage) : null
+          }).select('id').single();
+
+          if (vErr) { failed++; errors.push(vErr.message); continue; }
+
+          await supabase.from('fleet_vehicles').insert({
+            fleet_id: fleet_id,
+            vehicle_id: vehicle.id,
+            fleet_number: v.fleet_number ? String(v.fleet_number).trim() : null,
+            department: v.department ? String(v.department).trim() : null,
+            assignment_type: 'pool',
+            status: 'active'
+          });
+          imported++;
+        } catch (rowErr) {
+          failed++;
+          errors.push(rowErr.message);
+        }
+      }
+
+      console.log(`[Fleet Import] fleet=${fleet_id} imported=${imported} failed=${failed}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, imported, failed, errors: errors.slice(0, 5) }));
+    } catch (err) {
+      console.error(`[${requestId}] Fleet CSV import error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to import vehicles' }));
+    }
+    return;
+  }
+
+
+  // ========== PROVIDER SHOP SAAS (Task #89) ==========
+
+  // GET /api/shop/profile/:slug — public shop profile (no auth)
+  if (req.method === 'GET' && req.url?.match(/^\/api\/shop\/profile\/[^/]+$/)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const rateLimit = applyRateLimit(req, res, 'public');
+    if (!rateLimit.allowed) return;
+
+    const slug = decodeURIComponent(req.url.replace('/api/shop/profile/', '').split('?')[0]);
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      // Try to find by directory_slug
+      const { data: shop, error } = await supabase
+        .from('profiles')
+        .select('id, business_name, full_name, bio, description, city, state, address, phone, services, certifications, hourly_rate, years_in_business, directory_slug, rating, review_count, marketplace_visible, shop_only_mode, is_verified, business_hours, avatar_url')
+        .eq('directory_slug', slug)
+        .in('role', ['provider', 'pending_provider'])
+        .single();
+
+      if (error || !shop) {
+        res.writeHead(404); res.end(JSON.stringify({ error: 'Shop not found' })); return;
+      }
+
+      // Fetch recent reviews (member_id → profiles join for reviewer name)
+      const { data: reviews } = await supabase
+        .from('reviews')
+        .select('id, rating, comment, created_at, member_id')
+        .eq('provider_id', shop.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      let reviewList = reviews || [];
+      if (reviewList.length > 0) {
+        const memberIds = [...new Set(reviewList.map(r => r.member_id).filter(Boolean))];
+        if (memberIds.length > 0) {
+          const { data: reviewerProfiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', memberIds);
+          const reviewerMap = {};
+          (reviewerProfiles || []).forEach(p => { reviewerMap[p.id] = p.full_name; });
+          reviewList = reviewList.map(r => ({
+            ...r,
+            member_name: reviewerMap[r.member_id] || 'Community Member'
+          }));
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ shop, reviews: reviewList }));
+    } catch (err) {
+      console.error('[Shop Profile]', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load shop profile' }));
+    }
+    return;
+  }
+
+  // POST /api/shop/book — public booking request (no auth required)
+  if (req.method === 'POST' && req.url === '/api/shop/book') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const rateLimit = applyRateLimit(req, res, 'public');
+    if (!rateLimit.allowed) return;
+
+    let body = {};
+    try {
+      body = await parseBody(req);
+    } catch { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid body' })); return; }
+
+    const { provider_id, slug, name, phone, vehicle, service, details, email, source } = body;
+    if (!name || !phone || !vehicle || !service) {
+      res.writeHead(400); res.end(JSON.stringify({ error: 'name, phone, vehicle, and service are required' })); return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      let resolvedProviderId = provider_id;
+      let resolvedSlug = slug;
+
+      if (!resolvedProviderId && slug) {
+        const { data: p } = await supabase.from('profiles').select('id').eq('directory_slug', slug).single();
+        if (p) resolvedProviderId = p.id;
+      } else if (resolvedProviderId && !resolvedSlug) {
+        const { data: p } = await supabase.from('profiles').select('directory_slug').eq('id', resolvedProviderId).single();
+        if (p) resolvedSlug = p.directory_slug;
+      }
+
+      // Require a resolvable provider — prevents orphan booking rows
+      if (!resolvedProviderId) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: 'Provider not found for the given slug or id' }));
+        return;
+      }
+
+      // Insert into shop_booking_requests (walk-in / widget log)
+      try {
+        const { error: bookErr } = await supabase.from('shop_booking_requests').insert({
+          provider_id: resolvedProviderId || null,
+          provider_slug: resolvedSlug || null,
+          requester_name: name,
+          requester_phone: phone,
+          requester_email: email || null,
+          vehicle_description: vehicle,
+          service_type: service,
+          details: details || null,
+          source: source || 'profile',
+          status: 'pending'
+        });
+        if (bookErr) console.warn('[Shop Book] shop_booking_requests insert:', bookErr.message);
+      } catch (e) { console.warn('[Shop Book] shop_booking_requests error:', e.message); }
+
+      // Bridge: also create a guest package request in maintenance_packages so the
+      // shop provider sees this booking in their main job workflow.
+      if (resolvedProviderId) {
+        try {
+          const descParts = [
+            'Walk-in/booking request from ' + name,
+            'Phone: ' + phone,
+            email ? 'Email: ' + email : null,
+            'Vehicle: ' + vehicle,
+            details ? 'Notes: ' + details : null
+          ].filter(Boolean);
+          const guestDesc = descParts.join('\n');
+          const guestTitle = service + ' — Walk-in Request';
+
+          await supabase.from('maintenance_packages').insert({
+            provider_id: resolvedProviderId,
+            member_id: null,
+            title: guestTitle,
+            description: guestDesc,
+            status: 'open'
+          });
+        } catch (e) { console.warn('[Shop Book] maintenance_packages bridge:', e.message); }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error('[Shop Book]', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to submit booking request' }));
+    }
+    return;
+  }
+
+  // GET/POST /api/provider/marketplace-visibility — toggle marketplace visibility
+  if (req.url === '/api/provider/marketplace-visibility') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    if (req.method === 'GET') {
+      try {
+        const { data: p } = await supabase.from('profiles').select('marketplace_visible, shop_only_mode').eq('id', user.id).single();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ marketplace_visible: p?.marketplace_visible !== false, shop_only_mode: p?.shop_only_mode === true }));
+      } catch (err) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ marketplace_visible: true, shop_only_mode: false }));
+      }
+      return;
+    }
+
+    if (req.method === 'POST') {
+      let body = {};
+      try { body = await parseBody(req); } catch { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid body' })); return; }
+
+      try {
+        const updateData = {};
+        if (body.marketplace_visible !== undefined) updateData.marketplace_visible = !!body.marketplace_visible;
+        if (body.shop_only_mode !== undefined) updateData.shop_only_mode = !!body.shop_only_mode;
+        if (Object.keys(updateData).length === 0) { res.writeHead(400); res.end(JSON.stringify({ error: 'No fields to update' })); return; }
+
+        const { error } = await supabase.from('profiles').update(updateData).eq('id', user.id);
+        if (error && error.message?.includes('does not exist')) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, note: 'Migration pending' }));
+          return;
+        }
+        if (error) throw error;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        console.error('[Marketplace Visibility]', err.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update visibility' }));
+      }
+      return;
+    }
+  }
+
+  // GET /api/shop/walkin-lookup — look up a walk-in customer by phone (provider auth)
+  if (req.method === 'GET' && req.url?.startsWith('/api/shop/walkin-lookup')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    const urlObj = new URL(req.url, `http://${req.headers.host}`);
+    const phone = urlObj.searchParams.get('phone') || '';
+    const name = urlObj.searchParams.get('name') || '';
+    if (!phone && !name) { res.writeHead(400); res.end(JSON.stringify({ error: 'phone or name is required' })); return; }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      if (phone) {
+        // Phone lookup: exact match (primary lookup method)
+        const normalizedPhone = phone.replace(/\D/g, '');
+        const { data, error } = await supabase
+          .from('walkin_customers')
+          .select('*')
+          .eq('provider_id', user.id)
+          .eq('phone', normalizedPhone)
+          .single();
+
+        if (error || !data) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ found: false }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ found: true, customer: data }));
+      } else {
+        // Name lookup: partial match, returns multiple results
+        const { data, error } = await supabase
+          .from('walkin_customers')
+          .select('*')
+          .eq('provider_id', user.id)
+          .ilike('name', `%${name}%`)
+          .limit(5);
+
+        if (error || !data || data.length === 0) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ found: false, results: [] }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ found: true, results: data, customer: data[0] }));
+      }
+    } catch (err) {
+      // Table may not exist yet
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ found: false }));
+    }
+    return;
+  }
+
+  // POST /api/shop/walkin-save — save or update a walk-in customer record (provider auth)
+  if (req.method === 'POST' && req.url === '/api/shop/walkin-save') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    let body = {};
+    try { body = await parseBody(req); } catch { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid body' })); return; }
+
+    const { phone, name, email, vehicle, notes } = body;
+    if (!phone) { res.writeHead(400); res.end(JSON.stringify({ error: 'phone is required' })); return; }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      const normalizedPhone = phone.replace(/\D/g, '');
+
+      // Fetch existing record
+      const { data: existing } = await supabase
+        .from('walkin_customers')
+        .select('*')
+        .eq('provider_id', user.id)
+        .eq('phone', normalizedPhone)
+        .single();
+
+      let vehicles = existing?.vehicles || [];
+      if (vehicle && !vehicles.find(v => v.description === vehicle)) {
+        vehicles = [{ description: vehicle, added_at: new Date().toISOString() }, ...vehicles].slice(0, 10);
+      }
+
+      const upsertData = {
+        provider_id: user.id,
+        phone: normalizedPhone,
+        name: name || existing?.name || null,
+        email: email || existing?.email || null,
+        vehicles,
+        visit_count: (existing?.visit_count || 0) + 1,
+        last_visit_at: new Date().toISOString(),
+        notes: notes || existing?.notes || null,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase.from('walkin_customers').upsert(upsertData, { onConflict: 'provider_id,phone' });
+      if (error && error.message?.includes('does not exist')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, note: 'Migration pending' }));
+        return;
+      }
+      if (error) throw error;
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error('[Walkin Save]', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save customer' }));
+    }
+    return;
+  }
+
+  // GET /api/saas/shop-status — shop subscription status for provider dashboard
+  if (req.method === 'GET' && req.url === '/api/saas/shop-status') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      // Check SAAS subscriptions table (product='shop', plan='starter'|'pro'|'business')
+      const { data: sub } = await supabase
+        .from('saas_subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('product', 'shop')
+        .in('status', ['active', 'trialing'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      // Count active team members
+      const { data: team } = await supabase
+        .from('provider_team_members')
+        .select('id', { count: 'exact' })
+        .eq('provider_id', user.id)
+        .eq('status', 'active');
+
+      const teamCount = team?.length || 0;
+      const plan = sub?.plan || 'none'; // 'starter' | 'pro' | 'business' | 'none'
+
+      // Solo (starter)=$49 = 1 seat, Team (pro)=$99 = 5 seats, Shop (business)=$199 = unlimited
+      const planLimits = { starter: 1, pro: 5, business: 999, none: 0 };
+      const planPrices = { starter: 4900, pro: 9900, business: 19900, none: 0 };
+      const seatLimit = planLimits[plan] ?? 0;
+      const planPrice = planPrices[plan] ?? 0;
+
+      const featureAccess = {
+        sms_reminders: ['pro', 'business'].includes(plan),
+        advanced_analytics: ['pro', 'business'].includes(plan),
+        car_club_loyalty: ['pro', 'business'].includes(plan),
+        white_label_widget: plan === 'business',
+        api_access: plan === 'business',
+        unlimited_seats: plan === 'business'
+      };
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        plan,
+        status: sub?.status || 'none',
+        plan_price: planPrice,
+        seat_limit: seatLimit,
+        seat_count: teamCount,
+        seats_remaining: seatLimit === Infinity ? 999 : Math.max(0, seatLimit - teamCount),
+        trial_ends_at: sub?.trial_ends_at || null,
+        current_period_end: sub?.current_period_end || null,
+        feature_access: featureAccess
+      }));
+    } catch (err) {
+      console.error('[Shop SaaS Status]', err.message);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ plan: 'none', status: 'none', seat_limit: 0, seat_count: 0, feature_access: {} }));
+    }
+    return;
+  }
+
+  // GET /api/shop/onboarding-status — get/update shop onboarding checklist state
+  if (req.method === 'GET' && req.url === '/api/shop/onboarding-status') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('business_name, phone, bio, services, hourly_rate, directory_slug, shop_onboarding_steps, stripe_charges_enabled, stripe_payouts_enabled')
+        .eq('id', user.id)
+        .single();
+
+      const steps = p?.shop_onboarding_steps || {};
+
+      // Check for first team member
+      const { data: teamMembers } = await supabase
+        .from('provider_team_members')
+        .select('id')
+        .eq('provider_id', user.id)
+        .eq('status', 'active')
+        .limit(1);
+      const hasTeamMember = (teamMembers?.length || 0) > 0;
+
+      // Check for first completed service (accepted/completed bid or booking request)
+      const { data: completedBids } = await supabase
+        .from('bids')
+        .select('id')
+        .eq('provider_id', user.id)
+        .in('status', ['accepted', 'completed', 'finished'])
+        .limit(1);
+      const hasCompletedService = (completedBids?.length || 0) > 0;
+
+      // Auto-derived step completion (4 required steps per task spec)
+      const auto = {
+        profile_complete: !!(p?.business_name && p?.phone),
+        stripe_connected: !!(p?.stripe_charges_enabled && p?.stripe_payouts_enabled),
+        first_team_member: hasTeamMember || !!(steps.first_team_member),
+        first_service: hasCompletedService || !!(steps.first_service)
+      };
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ steps: { ...steps, ...auto } }));
+    } catch (err) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ steps: {} }));
+    }
+    return;
+  }
+
+  // POST /api/shop/onboarding-status — mark a step as complete
+  if (req.method === 'POST' && req.url === '/api/shop/onboarding-status') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    let body = {};
+    try { body = await parseBody(req); } catch { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid body' })); return; }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+
+    try {
+      const { data: p } = await supabase.from('profiles').select('shop_onboarding_steps').eq('id', user.id).single();
+      const currentSteps = p?.shop_onboarding_steps || {};
+      const newSteps = { ...currentSteps, ...body.steps };
+
+      const { error } = await supabase.from('profiles').update({ shop_onboarding_steps: newSteps }).eq('id', user.id);
+      if (error && error.message?.includes('does not exist')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, note: 'Migration pending' }));
+        return;
+      }
+      if (error) throw error;
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error('[Onboarding Status]', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update onboarding' }));
+    }
+    return;
+  }
+
+  // ========== END PROVIDER SHOP SAAS (Task #89) ==========
+
+  // ========== END FLEET SAAS ROUTES ==========
+
+  // ========== DEVELOPER AI API (Task #90) ==========
+  // Per-key in-memory rate limiter (requests per 60-second window)
+  if (typeof global._v1RateLimiter === 'undefined') {
+    global._v1RateLimiter = new Map();
+    global._V1_RATE_LIMITS = { starter: 30, pro: 120, business: 300 }; // req/min
+  }
+
+  // GET /api/developer/keys — list user's API keys (requires ai_api plan)
+  if (req.method === 'GET' && req.url === '/api/developer/keys') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    const access = await checkPlanAccess(user.id, 'ai_api', 'starter');
+    if (!access.access) {
+      res.writeHead(402, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'AI API subscription required', upgrade_url: '/members.html?section=settings', keys: [] }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    try {
+      const { data: keys, error } = await supabase
+        .from('developer_api_keys')
+        .select('id, name, key_prefix, plan, status, calls_made, calls_limit, last_used_at, created_at')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ keys: keys || [] }));
+    } catch (err) {
+      console.error(`[${requestId}] API keys list error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load API keys' }));
+    }
+    return;
+  }
+
+  // POST /api/developer/keys — generate a new API key
+  if (req.method === 'POST' && req.url === '/api/developer/keys') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+    const access = await checkPlanAccess(user.id, 'ai_api', 'starter');
+    if (!access.access) {
+      res.writeHead(402, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'AI API subscription required', upgrade_url: '/members.html?section=settings' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { name = 'My API Key' } = body;
+
+      const rawKey = 'mcc_live_' + crypto.randomBytes(32).toString('base64url');
+      const keyPrefix = rawKey.slice(0, 16); // 16-char prefix stored for lookup
+      const keyHash = await bcryptjs.hash(rawKey, 4); // bcrypt cost=4 (API key has high entropy)
+      const planLimits = { starter: 5000, pro: 50000, business: -1 };
+      const callsLimit = planLimits[access.plan] || 5000;
+
+      const { data: key, error } = await supabase.from('developer_api_keys').insert({
+        user_id: user.id, name, key_prefix: keyPrefix, key_hash: keyHash,
+        plan: access.plan, calls_limit: callsLimit, status: 'active'
+      }).select('id, name, key_prefix, plan, status, calls_made, calls_limit, created_at').single();
+
+      if (error) throw error;
+
+      console.log(`[${requestId}] API key created for user ${user.id}: ${key.id}`);
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ key: { ...key, raw_key: rawKey }, message: 'Save this key — it will only be shown once.' }));
+    } catch (err) {
+      console.error(`[${requestId}] API key create error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to create API key' }));
+    }
+    return;
+  }
+
+  // DELETE /api/developer/keys/:id — revoke an API key
+  if (req.method === 'DELETE' && req.url.startsWith('/api/developer/keys/')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const keyId = req.url.split('/api/developer/keys/')[1]?.split('?')[0];
+    const supabase = getSupabaseClient();
+    try {
+      const { error } = await supabase.from('developer_api_keys')
+        .update({ status: 'revoked', updated_at: new Date().toISOString() })
+        .eq('id', keyId).eq('user_id', user.id);
+      if (error) throw error;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error(`[${requestId}] API key revoke error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to revoke key' }));
+    }
+    return;
+  }
+
+  // GET /api/v1/openapi.json — Public OpenAPI spec (no auth required)
+  if (req.method === 'GET' && req.url === '/api/v1/openapi.json') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const spec = {"openapi":"3.0.3","info":{"title":"My Car Concierge Automotive AI API","version":"1.0.0","description":"AI-powered automotive intelligence for developers — VIN decode, recall lookup, OBD diagnostics, vehicle health scoring, maintenance forecasting, and fair price estimation.","contact":{"name":"MCC Developer Support","email":"developers@mycarconcierge.com","url":"https://mycarconcierge.com/developers"},"license":{"name":"Commercial","url":"https://mycarconcierge.com/terms"}},"servers":[{"url":"https://mycarconcierge.com/api/v1","description":"Production"}],"security":[{"BearerAuth":[]}],"components":{"securitySchemes":{"BearerAuth":{"type":"http","scheme":"bearer","bearerFormat":"mcc_...","description":"Get your API key at mycarconcierge.com/developers"}},"schemas":{"Error":{"type":"object","properties":{"error":{"type":"string"}}},"VehicleRef":{"type":"object","properties":{"year":{"type":"integer","example":2020},"make":{"type":"string","example":"Toyota"},"model":{"type":"string","example":"Camry"},"mileage":{"type":"integer","example":45000}}}}},"paths":{"/vin/{vin}":{"get":{"summary":"Decode VIN","operationId":"decodeVin","parameters":[{"name":"vin","in":"path","required":true,"schema":{"type":"string","minLength":17,"maxLength":17}}],"responses":{"200":{"description":"VIN decoded"},"400":{"description":"Invalid VIN"},"401":{"description":"Unauthorized"}}}},"/recalls/{vin}":{"get":{"summary":"NHTSA recall lookup","operationId":"getRecalls","parameters":[{"name":"vin","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"Recalls"},"401":{"description":"Unauthorized"}}}},"/recalls/enrich":{"post":{"summary":"AI-enriched recall analysis (Pro+)","operationId":"enrichRecalls","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["vin"],"properties":{"vin":{"type":"string"},"make":{"type":"string"},"model":{"type":"string"},"year":{"type":"integer"}}}}}},"responses":{"200":{"description":"Enriched recalls with AI analysis"},"402":{"description":"Plan upgrade required"}}}},"/obd-codes":{"post":{"summary":"Analyze OBD-II codes (Pro+)","operationId":"analyzeObd","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["codes"],"properties":{"codes":{"type":"array","items":{"type":"string"}},"vehicle":{"$ref":"#/components/schemas/VehicleRef"}}}}}},"responses":{"200":{"description":"OBD analysis"},"402":{"description":"Plan upgrade required"}}}},"/price-estimate":{"post":{"summary":"Fair price estimate","operationId":"getPriceEstimate","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["category"],"properties":{"category":{"type":"string"},"zip_code":{"type":"string"},"vehicle":{"$ref":"#/components/schemas/VehicleRef"}}}}}},"responses":{"200":{"description":"Price range"}}}},"/vehicle/health":{"post":{"summary":"AI vehicle health score (Pro+)","operationId":"getVehicleHealth","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["year","make","model"],"properties":{"vin":{"type":"string"},"year":{"type":"integer"},"make":{"type":"string"},"model":{"type":"string"},"mileage":{"type":"integer"},"active_codes":{"type":"array","items":{"type":"string"}},"last_services":{"type":"object"}}}}}},"responses":{"200":{"description":"Health score 0-100"},"402":{"description":"Plan upgrade required"}}}},"/vehicle/forecast":{"post":{"summary":"Maintenance forecast","operationId":"getVehicleForecast","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["year","make","model"],"properties":{"year":{"type":"integer"},"make":{"type":"string"},"model":{"type":"string"},"mileage":{"type":"integer"},"last_services":{"type":"object"}}}}}},"responses":{"200":{"description":"Upcoming services"}}}}}}
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(spec));
+    return;
+  }
+
+  // Public AI API v1 endpoints (authenticated by API key)
+  if (req.url.startsWith('/api/v1/')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+
+    const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+    if (!apiKey || !apiKey.startsWith('mcc_')) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Valid API key required. Get one at mycarconcierge.com/members.html' }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    let apiKeyRecord = null;
+    try {
+      // New keys: 16-char prefix; legacy keys: 12-char + '...' display. Use 8-char as broadest common prefix.
+      const newPrefix = apiKey.slice(0, 16);
+      const legacyPrefixLike = apiKey.slice(0, 8) + '%';
+      let candidates = [];
+      const { data: exact } = await supabase.from('developer_api_keys')
+        .select('id, user_id, plan, status, calls_made, calls_limit, key_hash')
+        .eq('key_prefix', newPrefix).eq('status', 'active');
+      if (exact?.length) {
+        candidates = exact;
+      } else {
+        // Legacy key fallback: prefix stored as substring(0,12)+'...' — match by first 8 chars
+        const { data: legacy } = await supabase.from('developer_api_keys')
+          .select('id, user_id, plan, status, calls_made, calls_limit, key_hash')
+          .like('key_prefix', legacyPrefixLike).eq('status', 'active');
+        candidates = legacy || [];
+      }
+      // Verify with bcrypt (new) or SHA-256 (legacy)
+      for (const candidate of candidates) {
+        let valid = false;
+        if (candidate.key_hash?.startsWith('$2')) {
+          valid = await bcryptjs.compare(apiKey, candidate.key_hash);
+        } else {
+          const sha = crypto.createHash('sha256').update(apiKey).digest('hex');
+          valid = sha === candidate.key_hash;
+        }
+        if (valid) { apiKeyRecord = candidate; break; }
+      }
+    } catch (e) { /* fallthrough to 401 */ }
+
+    if (!apiKeyRecord) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid or revoked API key' }));
+      return;
+    }
+
+    // Declare routing vars early so all closures (finish event) have access
+    const v1Path = req.url.split('/api/v1/')[1]?.split('?')[0];
+    const _reqStart = Date.now();
+
+    // Per-key rate limiting (sliding 60-second window)
+    const _rlNow = Date.now();
+    const _rlEntry = global._v1RateLimiter.get(apiKeyRecord.id) || { count: 0, windowStart: _rlNow };
+    if (_rlNow - _rlEntry.windowStart > 60000) {
+      _rlEntry.count = 1; _rlEntry.windowStart = _rlNow;
+    } else {
+      _rlEntry.count++;
+    }
+    global._v1RateLimiter.set(apiKeyRecord.id, _rlEntry);
+    const _rlLimit = global._V1_RATE_LIMITS[apiKeyRecord.plan] || 30;
+    const _rlRemaining = Math.max(0, _rlLimit - _rlEntry.count);
+    const _rlReset = Math.ceil((_rlEntry.windowStart + 60000) / 1000);
+
+    if (_rlEntry.count > _rlLimit) {
+      res.writeHead(429, {
+        'Content-Type': 'application/json',
+        'X-RateLimit-Limit': String(_rlLimit),
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': String(_rlReset),
+        'Retry-After': String(Math.max(1, Math.ceil((_rlEntry.windowStart + 60000 - _rlNow) / 1000)))
+      });
+      res.end(JSON.stringify({ error: 'Rate limit exceeded. See X-RateLimit-Reset header.', retry_after_seconds: Math.ceil((_rlEntry.windowStart + 60000 - _rlNow) / 1000) }));
+      return;
+    }
+
+    // Inject X-RateLimit-* headers into all subsequent v1 responses + capture status for api_usage_log
+    const _origWriteHead = res.writeHead.bind(res);
+    let _capturedStatus = 200;
+    res.writeHead = (code, hdrs) => {
+      _capturedStatus = code;
+      return _origWriteHead(code, Object.assign({ 'X-RateLimit-Limit': String(_rlLimit), 'X-RateLimit-Remaining': String(_rlRemaining), 'X-RateLimit-Reset': String(_rlReset) }, hdrs || {}));
+    };
+    // Fire-and-forget api_usage_log write after response ends
+    res.on('finish', () => {
+      const _latency = Date.now() - (_reqStart || Date.now());
+      getSupabaseClient()?.from('api_usage_log').insert({
+        api_key_id: apiKeyRecord.id,
+        endpoint: v1Path || 'unknown',
+        method: req.method,
+        status_code: _capturedStatus,
+        latency_ms: _latency,
+        plan: apiKeyRecord.plan,
+        user_agent: (req.headers['user-agent'] || '').slice(0, 200)
+      }).then(() => {}).catch(() => {});
+    });
+
+    // Monthly call cap check
+    if (apiKeyRecord.calls_limit !== -1 && apiKeyRecord.calls_made >= apiKeyRecord.calls_limit) {
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Monthly call limit exceeded. Please upgrade your plan.' }));
+      return;
+    }
+
+    // Increment usage counter async
+    // Atomic increment (avoids race condition under concurrent traffic)
+    supabase.rpc('increment_api_key_calls', { p_key_id: apiKeyRecord.id }).then(() => {}).catch(() => {});
+
+    // Fire-and-forget Stripe metered usage recording for paid-plan subscribers
+    if (apiKeyRecord.user_id && apiKeyRecord.plan !== 'starter' && process.env.STRIPE_SECRET_KEY) {
+      (async () => {
+        try {
+          const { data: sub } = await supabase.from('saas_subscriptions')
+            .select('stripe_subscription_id')
+            .eq('user_id', apiKeyRecord.user_id)
+            .eq('product', 'ai_api')
+            .in('status', ['active', 'trialing'])
+            .maybeSingle();
+          if (sub?.stripe_subscription_id) {
+            const stripeInstance = getStripeClient();
+            if (stripeInstance) {
+              const stripeSub = await stripeInstance.subscriptions.retrieve(sub.stripe_subscription_id);
+              const meteredItem = stripeSub.items?.data?.find(i => i.price?.recurring?.usage_type === 'metered');
+              if (meteredItem?.id) {
+                await stripeInstance.subscriptionItems.createUsageRecord(meteredItem.id, {
+                  quantity: 1,
+                  timestamp: Math.floor(Date.now() / 1000),
+                  action: 'increment'
+                });
+              }
+            }
+          }
+        } catch (_) { /* non-blocking: ignore errors */ }
+      })();
+    }
+
+    // Route the actual API call (v1Path and _reqStart declared before rate limiter below for closure safety)
+    // Track usage atomically for ALL valid v1 requests (before routing so all endpoints are counted)
+    const _trackMonth = new Date().toISOString().slice(0,7);
+    getSupabaseClient()?.rpc('upsert_api_usage', { p_key_id: apiKeyRecord.id, p_month: _trackMonth, p_endpoint: v1Path || 'unknown' }).then(() => {}).catch(() => {});
+
+    // GET /api/v1/vin/:vin — VIN decode
+    if (req.method === 'GET' && v1Path?.startsWith('vin/')) {
+      const vin = v1Path.split('vin/')[1];
+      if (!vin || vin.length < 17) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid VIN (must be 17 characters)' })); return;
+      }
+      try {
+        const nhtsa = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/${vin}?format=json`);
+        const nhtsaData = await nhtsa.json();
+        const results = nhtsaData.Results || [];
+        const get = (v) => results.find(r => r.Variable === v)?.Value || null;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          vin,
+          year: get('Model Year'), make: get('Make'), model: get('Model'),
+          trim: get('Trim'), body_class: get('Body Class'), drive_type: get('Drive Type'),
+          fuel_type: get('Fuel Type - Primary'), engine: get('Engine Number of Cylinders'),
+          transmission: get('Transmission Style'), plant_country: get('Plant Country'),
+          source: 'NHTSA vPIC'
+        }));
+      } catch (e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'VIN decode failed' }));
+      }
+      return;
+    }
+
+    // GET /api/v1/recalls/:vin — NHTSA recall lookup
+    if (req.method === 'GET' && v1Path?.startsWith('recalls/')) {
+      const vin = v1Path.split('recalls/')[1];
+      try {
+        const recallRes = await fetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?vin=${vin}`);
+        const recallData = await recallRes.json();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ vin, recalls: recallData.results || [], count: recallData.count || 0, source: 'NHTSA' }));
+      } catch (e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Recall lookup failed' }));
+      }
+      return;
+    }
+
+    // POST /api/v1/recalls/enrich — AI-enriched recall analysis (Pro+)
+    if (req.method === 'POST' && v1Path === 'recalls/enrich') {
+      if (apiKeyRecord.plan === 'starter') {
+        res.writeHead(402); res.end(JSON.stringify({ error: 'Recall enrichment requires AI Pro plan or higher' })); return;
+      }
+      try {
+        const body = await getRequestBody(req);
+        const { vin, make, model, year } = body;
+        if (!vin) { res.writeHead(400); res.end(JSON.stringify({ error: 'vin is required' })); return; }
+        const recallRes = await fetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?vin=${encodeURIComponent(vin)}`);
+        const recallData = recallRes.ok ? await recallRes.json() : { results: [] };
+        const rawRecalls = recallData.results || [];
+        if (!rawRecalls.length) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ vin, recalls: [], enriched: true, message: 'No open recalls found', powered_by: 'MCC AI API' }));
+          return;
+        }
+        const Anthropic = require('@anthropic-ai/sdk');
+        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+                const recallSummary = rawRecalls.slice(0, 5).map(r => 'ID: ' + r.NHTSACampaignNumber + ', Component: ' + r.Component + ', Summary: ' + (r.Summary || '').slice(0, 200)).join('; ');
+        const vehicleDesc = [year, make, model].filter(Boolean).join(' ') || `VIN ${vin}`;
+        const prompt = `You are an automotive safety expert. Enrich these NHTSA recall records for a ${vehicleDesc} with plain-English analysis. For each recall, provide: plain_description (1-2 sentences in plain English for a car owner), safety_severity (critical/high/medium/low), recommended_action, and estimated_repair_time. Return JSON: {"recalls":[{"campaign_number":"...","plain_description":"...","safety_severity":"high","recommended_action":"...","estimated_repair_time":"..."}]}
+
+Recalls:
+${recallSummary}`;
+        const aiRes = await anthropic.messages.create({ model: 'claude-3-haiku-20240307', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] });
+        const aiText = aiRes.content?.[0]?.text || '{}';
+        let enriched;
+        try { const m = aiText.match(/\{[\s\S]*\}/); enriched = JSON.parse(m ? m[0] : aiText); } catch { enriched = { recalls: [] }; }
+        const merged = rawRecalls.map((r, i) => ({ ...r, ...(enriched.recalls?.[i] || {}), campaign_number: r.NHTSACampaignNumber }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ vin, count: merged.length, recalls: merged, enriched: true, powered_by: 'MCC AI API' }));
+      } catch (e) {
+        console.error(`Recall enrichment error:`, e.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Recall enrichment failed' }));
+      }
+      return;
+    }
+
+    // POST /api/v1/obd-codes — OBD code analysis
+    if (req.method === 'POST' && v1Path === 'obd-codes') {
+      const planRequired = 'pro';
+      if (['starter'].includes(apiKeyRecord.plan)) {
+        res.writeHead(402); res.end(JSON.stringify({ error: 'OBD analysis requires AI Pro plan or higher' })); return;
+      }
+      try {
+        const body = await getRequestBody(req);
+        const { codes = [], vehicle } = body;
+        if (!codes.length) { res.writeHead(400); res.end(JSON.stringify({ error: 'codes array required' })); return; }
+        const Anthropic = require('@anthropic-ai/sdk');
+        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+        const prompt = `You are an expert automotive diagnostic technician. Analyze these OBD-II codes${vehicle ? ` for a ${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}` : ''}: ${codes.join(', ')}. For each code provide: description, severity (1-10), likely causes (top 3), recommended actions, estimated repair cost range in USD. Return JSON: {"codes": [{"code":"...","description":"...","severity":5,"causes":[],"actions":[],"cost_estimate":"$X-$Y"}]}`;
+        const response = await anthropic.messages.create({ model: 'claude-3-haiku-20240307', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] });
+        const text = response.content?.[0]?.text || '{}';
+        let parsed;
+        try { const m = text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : text); } catch { parsed = { raw: text }; }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...parsed, powered_by: 'MCC AI API' }));
+      } catch (e) {
+        console.error(`[${requestId}] OBD API error:`, e.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'OBD analysis failed' }));
+      }
+      return;
+    }
+
+    // POST /api/v1/price-estimate — fair price estimate
+    if (req.method === 'POST' && v1Path === 'price-estimate') {
+      try {
+        const body = await getRequestBody(req);
+        const { category, zip_code, vehicle } = body;
+        if (!category) { res.writeHead(400); res.end(JSON.stringify({ error: 'category required' })); return; }
+        const lookupRes = await fetch(`http://localhost:${process.env.PORT || 5000}/api/fair-price?category=${encodeURIComponent(category)}&zip=${zip_code || ''}`);
+        const lookupData = lookupRes.ok ? await lookupRes.json() : {};
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ category, zip_code, vehicle, ...lookupData, powered_by: 'MCC AI API' }));
+      } catch (e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Price estimate failed' }));
+      }
+      return;
+    }
+
+    // POST /api/v1/vehicle/health — AI vehicle health score (no DB vehicle needed)
+    if (req.method === 'POST' && v1Path === 'vehicle/health') {
+      if (['starter'].includes(apiKeyRecord.plan)) {
+        res.writeHead(402); res.end(JSON.stringify({ error: 'Vehicle health requires AI Pro plan or higher' })); return;
+      }
+      try {
+        const body = await getRequestBody(req);
+        const { vin, year, make, model, mileage, active_codes = [], last_services = {} } = body;
+        if (!year || !make || !model) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'year, make, and model are required' })); return;
+        }
+        const overdueServices = Object.entries(last_services || {}).filter(([, s]) => s?.overdue).map(([k]) => k);
+        const prompt = `You are an automotive health assessment AI. Compute a vehicle health score (0-100) based on:
+Vehicle: ${year} ${make} ${model}${vin ? ' (VIN: ' + vin + ')' : ''}
+Mileage: ${mileage ? mileage.toLocaleString() + ' miles' : 'Unknown'}
+Active OBD codes: ${active_codes.length > 0 ? active_codes.join(', ') : 'None'}
+Overdue services: ${overdueServices.length > 0 ? overdueServices.join(', ') : 'None'}
+Return ONLY valid JSON: {"score":<0-100>,"factors":{"positive":[],"negative":[]},"summary":"one sentence"}`;
+        const aiResult = await generateAIContent(prompt, { maxTokens: 512, preferredProvider: 'anthropic' });
+        let parsed;
+        try { const m = aiResult.text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : aiResult.text); } catch { parsed = { score: 75, factors: { positive: [], negative: [] }, summary: 'Analysis complete.' }; }
+        // Usage already tracked above (pre-routing)
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...parsed, vehicle: { vin, year, make, model, mileage }, powered_by: 'MCC AI API' }));
+      } catch (e) {
+        console.error(`[${requestId}] Vehicle health API error:`, e.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Vehicle health analysis failed' }));
+      }
+      return;
+    }
+
+    // POST /api/v1/vehicle/forecast — maintenance forecast for API consumers
+    if (req.method === 'POST' && v1Path === 'vehicle/forecast') {
+      try {
+        const body = await getRequestBody(req);
+        const { year, make, model, mileage, last_services = {} } = body;
+        if (!year || !make || !model) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'year, make, and model are required' })); return;
+        }
+        const prompt = `You are an automotive maintenance expert. Generate a maintenance forecast for a ${year} ${make} ${model} with ${mileage ? mileage.toLocaleString() + ' miles' : 'unknown mileage'}.
+Last known services: ${Object.keys(last_services).length > 0 ? JSON.stringify(last_services) : 'None provided'}.
+Return ONLY valid JSON:
+{"forecast":[{"service":"Oil Change","due_miles":${mileage ? mileage + 3000 : 50000},"due_date":"${new Date(Date.now()+90*24*60*60*1000).toISOString().slice(0,10)}","priority":"high","estimated_cost":"$40-$80"},{"service":"Tire Rotation","due_miles":${mileage ? mileage + 5000 : 55000},"due_date":"${new Date(Date.now()+120*24*60*60*1000).toISOString().slice(0,10)}","priority":"medium","estimated_cost":"$20-$40"}],"summary":"Brief maintenance outlook"}
+Generate 3-5 relevant services based on vehicle age and mileage.`;
+        const aiResult = await generateAIContent(prompt, { maxTokens: 1024, preferredProvider: 'gemini' });
+        let parsed;
+        try { const m = aiResult.text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : aiResult.text); } catch { parsed = { forecast: [], summary: 'Could not generate forecast.' }; }
+        // Usage already tracked above (pre-routing)
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...parsed, vehicle: { year, make, model, mileage }, powered_by: 'MCC AI API' }));
+      } catch (e) {
+        console.error(`[${requestId}] Forecast API error:`, e.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Maintenance forecast failed' }));
+      }
+      return;
+    }
+
+    // Usage tracking moved to pre-routing block above (covers all endpoints)
+
+    // Unknown v1 endpoint
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unknown API endpoint', docs: 'https://mycarconcierge.com/developers/docs' }));
+    return;
+  }
+
+  // GET /api/developer/usage — usage stats for authenticated user's API keys
+  if (req.method === 'GET' && req.url === '/api/developer/usage') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+    try {
+      const now = new Date();
+      const monthYear = now.toISOString().slice(0,7);
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const { data: keys } = await supabase.from('developer_api_keys').select('id, name, plan, calls_made, calls_limit, status').eq('user_id', user.id).eq('status', 'active');
+      const keyIds = (keys || []).map(k => k.id);
+      let usageByEndpoint = [];
+      let callsToday = 0;
+      if (keyIds.length > 0) {
+        const [{ data: usage }, { count: todayCount }] = await Promise.all([
+          supabase.from('api_key_usage').select('api_key_id, endpoint, calls').in('api_key_id', keyIds).eq('month_year', monthYear),
+          supabase.from('api_usage_log').select('id', { count: 'exact', head: true }).in('api_key_id', keyIds).gte('created_at', todayStart)
+        ]);
+        usageByEndpoint = usage || [];
+        callsToday = todayCount || 0;
+      }
+      const planPrices = { starter: 0, pro: 0.02, business: 0.01 };
+      const keyStats = (keys || []).map(k => {
+        const keyUsage = usageByEndpoint.filter(u => u.api_key_id === k.id);
+        const callsThisMonth = keyUsage.reduce((sum, u) => sum + (u.calls || 0), 0);
+        const rate = planPrices[k.plan] || 0;
+        return { ...k, calls_this_month: callsThisMonth, estimated_cost_cents: Math.round(callsThisMonth * rate * 100), by_endpoint: keyUsage };
+      });
+      const totalCallsThisMonth = keyStats.reduce((sum, k) => sum + k.calls_this_month, 0);
+      const totalCostCents = keyStats.reduce((sum, k) => sum + k.estimated_cost_cents, 0);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ month: monthYear, keys: keyStats, total_calls_this_month: totalCallsThisMonth, calls_today: callsToday, estimated_cost_cents: totalCostCents, estimated_cost_display: '$' + (totalCostCents / 100).toFixed(2) }));
+    } catch (err) {
+      console.error(`[${requestId}] Developer usage error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load usage stats' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/api-usage — admin: all API usage stats
+  if (req.method === 'GET' && req.url === '/api/admin/api-usage') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const adminPassword = req.headers['x-admin-password'];
+    if (!adminPassword || adminPassword !== process.env.ADMIN_PASSWORD) {
+      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
+    }
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+    try {
+      const monthYear = new Date().toISOString().slice(0,7);
+      const { data: keys } = await supabase.from('developer_api_keys').select('id, user_id, name, plan, status, calls_made, calls_limit, last_used_at, created_at').order('calls_made', { ascending: false }).limit(100);
+      const { data: usage } = await supabase.from('api_key_usage').select('api_key_id, endpoint, calls, month_year').eq('month_year', monthYear).order('calls', { ascending: false });
+      const endpointTotals = {};
+      for (const u of (usage || [])) {
+        endpointTotals[u.endpoint] = (endpointTotals[u.endpoint] || 0) + u.calls;
+      }
+      const totalCallsThisMonth = Object.values(endpointTotals).reduce((a, b) => a + b, 0);
+      const planPrices = { starter: 0, pro: 0.02, business: 0.01 };
+      const revenueThisMonth = (usage || []).reduce((sum, u) => {
+        const keyPlan = (keys || []).find(k => k.id === u.api_key_id)?.plan;
+        return sum + u.calls * (planPrices[keyPlan] || 0);
+      }, 0);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ month: monthYear, total_keys: (keys || []).length, active_keys: (keys || []).filter(k => k.status === 'active').length, total_calls_this_month: totalCallsThisMonth, estimated_revenue_cents: Math.round(revenueThisMonth * 100), by_endpoint: endpointTotals, top_keys: (keys || []).slice(0,10) }));
+    } catch (err) {
+      console.error(`[${requestId}] Admin API usage error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load API usage' }));
+    }
+    return;
+  }
+
+  // POST /api/admin/api-keys/:id/revoke — admin: revoke any API key
+  const adminRevokeMatch = req.method === 'POST' && req.url.match(/^\/api\/admin\/api-keys\/([a-f0-9-]+)\/revoke$/);
+  if (adminRevokeMatch) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const adminPassword = req.headers['x-admin-password'];
+    if (!adminPassword || adminPassword !== process.env.ADMIN_PASSWORD) {
+      res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return;
+    }
+    const keyId = adminRevokeMatch[1];
+    const supabase = getSupabaseClient();
+    if (!supabase) { res.writeHead(500); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
+    try {
+      const { data, error } = await supabase.from('developer_api_keys')
+        .update({ status: 'revoked' })
+        .eq('id', keyId)
+        .select('id, name')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) { res.writeHead(404); res.end(JSON.stringify({ error: 'API key not found' })); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: `Key "${data.name}" revoked` }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to revoke key' }));
+    }
+    return;
+  }
+
+  // ========== END DEVELOPER AI API ==========
+
+  // ========== OUTREACH SAAS STATUS (Task #91) ==========
+
+  // GET /api/saas/outreach/status — outreach usage summary for current user
+  if (req.method === 'GET' && req.url === '/api/saas/outreach/status') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const access = await checkPlanAccess(user.id, 'outreach', 'starter');
+      const planLimits = { starter: 500, pro: 5000, business: -1 };
+      const leadsLimit = access.plan ? planLimits[access.plan] : 0;
+
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      let leadsThisMonth = 0;
+      if (supabase && access.access) {
+        const { count } = await supabase.from('outreach_leads')
+          .select('id', { count: 'exact', head: true })
+          .eq('created_by', user.id)
+          .gte('created_at', monthStart);
+        leadsThisMonth = count || 0;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        subscribed: access.access,
+        plan: access.plan || null,
+        limits: { leads_per_month: leadsLimit },
+        current: { leads_this_month: leadsThisMonth },
+        upgrade_url: access.upgrade_url || null,
+        pct_used: leadsLimit > 0 ? Math.round((leadsThisMonth / leadsLimit) * 100) : 0
+      }));
+    } catch (err) {
+      console.error(`[${requestId}] Outreach SaaS status error:`, err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load outreach status' }));
+    }
+    return;
+  }
+
+  // ========== END OUTREACH SAAS ==========
+
+  // ========== PROSPECT SURVEY & LEAD CAPTURE (Task #93) ==========
+
+  // POST /api/survey/response — save prospect survey responses (public, no auth)
+  // Supports both legacy feature_ratings and new discovery_answers (Task #96)
+  if (req.method === 'POST' && req.url === '/api/survey/response') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'survey:' + ip);
+    if (!rl.allowed) return;
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req, 50000);
+      const { feature_ratings, interested, session_id, email, response_id, discovery_answers, first_name } = body;
+      // If response_id provided, update existing row with new data (incremental saves)
+      if (response_id) {
+        if (supabase) {
+          const updatePayload = {};
+          if (email) updatePayload.email = email.trim().toLowerCase().slice(0, 254);
+          if (discovery_answers) updatePayload.discovery_answers = discovery_answers;
+          if (typeof interested === 'boolean') updatePayload.interested = interested;
+          if (first_name) updatePayload.first_name = first_name.trim().slice(0, 100);
+          if (Object.keys(updatePayload).length > 0) {
+            await supabase.from('survey_responses').update(updatePayload).eq('id', response_id);
+          }
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, id: response_id }));
+        return;
+      }
+      const ipHash = ip ? crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16) : null;
+      let inserted = null;
+      if (supabase) {
+        const { data } = await supabase.from('survey_responses').insert({
+          feature_ratings: feature_ratings || null,
+          discovery_answers: discovery_answers || null,
+          interested: typeof interested === 'boolean' ? interested : null,
+          session_id: session_id || null,
+          email: email ? email.trim().toLowerCase().slice(0, 254) : null,
+          first_name: first_name ? first_name.trim().slice(0, 100) : null,
+          ip_hash: ipHash
+        }).select('id').single();
+        inserted = data;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, id: inserted?.id || null }));
+    } catch (err) {
+      console.error('[Survey] POST /api/survey/response error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save survey response' }));
+    }
+    return;
+  }
+
+  // POST /api/survey/abandoned — trigger follow-up for partial survey exits (Task #96)
+  if (req.method === 'POST' && req.url === '/api/survey/abandoned') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'survey-abandoned:' + ip);
+    if (!rl.allowed) return;
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req, 50000);
+      const { session_id, response_id, email, first_name, type } = body;
+      if (!email || !email.includes('@')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, skipped: 'no_email' }));
+        return;
+      }
+      const cleanEmail = email.trim().toLowerCase().slice(0, 254);
+      if (supabase) {
+        // Upsert into abandoned_signups for existing follow-up outreach pipeline
+        const { data: existing } = await supabase
+          .from('abandoned_signups')
+          .select('id, recovery_email_count')
+          .eq('email', cleanEmail)
+          .eq('type', 'member')
+          .maybeSingle();
+        if (!existing) {
+          try {
+            await supabase.from('abandoned_signups').insert({
+              email: cleanEmail,
+              type: 'member',
+              step: 'discovery_survey',
+              recovered: false
+            });
+          } catch (insErr) {
+            console.warn('[Survey] abandoned_signups insert error:', insErr.message);
+          }
+        }
+        // Also update the survey_response if we have it
+        if (response_id) {
+          try {
+            await supabase.from('survey_responses')
+              .update({ email: cleanEmail, first_name: first_name ? first_name.trim().slice(0, 100) : null })
+              .eq('id', response_id);
+          } catch (upErr) {
+            console.warn('[Survey] survey_responses update error:', upErr.message);
+          }
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      console.error('[Survey] POST /api/survey/abandoned error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to record abandoned survey' }));
+    }
+    return;
+  }
+
+  // POST /api/survey/referral-link — generate a shareable referral link for survey completions (Task #96)
+  // Creates a real entry in the `referrals` table (the existing referral infrastructure) so the
+  // generated code is fully resolvable and redeemable via the standard handleApplyReferralCode path.
+  // Strategy: a shadow auth user is created for the prospect (no password set, email-unconfirmed)
+  // so the `referrals.referrer_id` FK constraint to auth.users is satisfied. The prospect's full
+  // account is completed when they go through signup-member.html, which activates this same user.
+  if (req.method === 'POST' && req.url === '/api/survey/referral-link') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'survey-referral:' + ip);
+    if (!rl.allowed) return;
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req, 20000);
+      const { customer_profile_id, survey_response_id, session_id, email } = body;
+      if (!customer_profile_id && !survey_response_id && !session_id) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'customer_profile_id, survey_response_id, or session_id required' })); return;
+      }
+      if (!email) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'email is required to generate a referral link' })); return;
+      }
+      // Basic email format check
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+      if (!emailRegex.test(email)) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'Valid email is required' })); return;
+      }
+      // Per-email rate limiting: max 3 referral link requests per email per day (prevents shadow-user flooding)
+      const emailRl = applyRateLimit(req, res, 'public', 'survey-referral-email:' + email.trim().toLowerCase());
+      if (!emailRl.allowed) return;
+
+      let referralCode = null;
+      if (supabase) {
+        // Step 1: Check if this customer already has a referral code (idempotent)
+        if (customer_profile_id) {
+          try {
+            const { data: prof } = await supabase
+              .from('customer_profiles')
+              .select('auth_user_id')
+              .eq('id', customer_profile_id)
+              .maybeSingle();
+            if (prof?.auth_user_id) {
+              // Auth user already exists — look up their referral code in referrals table
+              const { data: existingRef } = await supabase
+                .from('referrals')
+                .select('referral_code')
+                .eq('referrer_id', prof.auth_user_id)
+                .is('referred_id', null)
+                .maybeSingle();
+              if (existingRef?.referral_code) {
+                referralCode = existingRef.referral_code;
+              }
+            }
+          } catch (checkErr) {
+            console.warn('[Survey] referral idempotency check error:', checkErr.message);
+          }
+        }
+
+        // Step 2: Generate a new referral code if we don't have one
+        if (!referralCode) {
+          // Create or find the shadow auth user for this prospect
+          let shadowUserId = null;
+          try {
+            // Check if user already exists in auth by looking up profiles table first (faster than listUsers)
+            const cleanEmail = email.trim().toLowerCase();
+            const { data: existingProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('email', cleanEmail)
+              .maybeSingle();
+            if (existingProfile?.id) {
+              shadowUserId = existingProfile.id;
+              console.log('[Survey] Found existing auth user for prospect via profiles:', shadowUserId);
+            } else {
+              // Create shadow auth user (no password, email-unconfirmed — will be activated at signup)
+              const tempPassword = 'SurveyTemp!' + Math.random().toString(36).slice(2, 12);
+              const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
+                email: email.trim().toLowerCase(),
+                password: tempPassword,
+                email_confirm: false,
+                user_metadata: {
+                  account_type: 'member',
+                  source: 'discovery_survey',
+                  customer_profile_id: customer_profile_id || null
+                }
+              });
+              if (createErr) {
+                console.warn('[Survey] Shadow user creation error:', createErr.message);
+              } else {
+                shadowUserId = newUser?.user?.id;
+                console.log('[Survey] Created shadow auth user for prospect:', shadowUserId);
+              }
+            }
+          } catch (authErr) {
+            console.warn('[Survey] Auth user lookup/create error:', authErr.message);
+          }
+
+          if (shadowUserId) {
+            // Link shadow user to customer_profile
+            if (customer_profile_id) {
+              try {
+                await supabase.from('customer_profiles')
+                  .update({ auth_user_id: shadowUserId })
+                  .eq('id', customer_profile_id);
+              } catch (linkErr) {
+                console.warn('[Survey] customer_profile auth_user_id update error:', linkErr.message);
+              }
+            }
+
+            // Generate a unique referral code and insert into referrals table
+            let attempts = 0;
+            while (!referralCode && attempts < 5) {
+              const candidate = generateReferralCode();
+              const { data: dup } = await supabase
+                .from('referrals')
+                .select('id')
+                .eq('referral_code', candidate)
+                .maybeSingle();
+              if (!dup) {
+                const { error: refInsertErr } = await supabase.from('referrals').insert({
+                  referrer_id: shadowUserId,
+                  referral_code: candidate,
+                  status: 'pending',
+                  referrer_credit_amount: 1000,
+                  referred_credit_amount: 1000
+                });
+                if (!refInsertErr) {
+                  referralCode = candidate;
+                  // Also persist in survey_responses for traceability
+                  if (survey_response_id) {
+                    try {
+                      await supabase.from('survey_responses')
+                        .update({ referral_code: referralCode })
+                        .eq('id', survey_response_id);
+                    } catch (_) {}
+                  }
+                } else {
+                  console.warn('[Survey] referrals insert error:', refInsertErr.message);
+                }
+              }
+              attempts++;
+            }
+          }
+        }
+      }
+
+      // If we couldn't create a real referral (DB issue), return an error
+      if (!referralCode) {
+        res.writeHead(503); res.end(JSON.stringify({ error: 'Referral link unavailable. Please try again.' }));
+        return;
+      }
+
+      // Return the referral URL pointing to member signup with the code
+      const referralUrl = 'https://mycarconcierge.com/signup-member.html?ref=' + referralCode;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, referral_code: referralCode, referral_url: referralUrl }));
+    } catch (err) {
+      console.error('[Survey] POST /api/survey/referral-link error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to generate referral link' }));
+    }
+    return;
+  }
+
+  // GET /api/survey/area-check — check if MCC is live in a given ZIP (public, no auth)
+  // Returns { live: boolean, message: string } to drive post-onboarding routing
+  if (req.method === 'GET' && req.url && req.url.startsWith('/api/survey/area-check')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'survey-area:' + ip);
+    if (!rl.allowed) return;
+    try {
+      const urlParts = new URL(req.url, 'http://localhost');
+      const zip = (urlParts.searchParams.get('zip') || '').trim().slice(0, 10);
+      if (!zip) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'zip is required' })); return;
+      }
+      let isLive = false;
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        // Check live_service_areas table if it exists; fall back to pre-launch (waitlist) otherwise
+        try {
+          const { data: area } = await supabase
+            .from('live_service_areas')
+            .select('zip')
+            .eq('zip', zip)
+            .eq('active', true)
+            .maybeSingle();
+          if (area) isLive = true;
+        } catch (areaErr) {
+          // Table not created yet — MCC is pre-launch everywhere
+          isLive = false;
+        }
+      }
+      const message = isLive
+        ? 'MCC is live in your area — explore the platform now!'
+        : 'You\'re on the waitlist. We\'ll notify you the moment MCC launches near you.';
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, live: isLive, zip, message }));
+    } catch (err) {
+      console.error('[Survey] GET /api/survey/area-check error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Area check failed' }));
+    }
+    return;
+  }
+
+  // POST /api/survey/profile — save prospect profile (public, no auth)
+  if (req.method === 'POST' && req.url === '/api/survey/profile') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'survey-profile:' + ip);
+    if (!rl.allowed) return;
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req, 50000);
+      const { survey_response_id, session_id, first_name, last_name, email, phone, zip, vehicle_year, vehicle_make, vehicle_model } = body;
+      // last_name is optional in the new discovery flow (Task #96)
+      if (!first_name || !email) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'first_name and email are required' })); return;
+      }
+      let inserted = null;
+      if (supabase) {
+        // If we have a survey_response_id, update it with profile data too
+        if (survey_response_id) {
+          await supabase.from('survey_responses').update({
+            first_name: first_name.trim().slice(0, 100),
+            last_name:  last_name ? last_name.trim().slice(0, 100) : null,
+            email:      email.trim().toLowerCase().slice(0, 254),
+            phone:      phone ? phone.trim().slice(0, 30) : null,
+            zip:        zip   ? zip.trim().slice(0, 20) : null
+          }).eq('id', survey_response_id);
+        }
+        const { data, error: insertErr } = await supabase.from('customer_profiles').insert({
+          survey_response_id: survey_response_id || null,
+          first_name: first_name.trim().slice(0, 100),
+          last_name:  last_name ? last_name.trim().slice(0, 100) : '',
+          email:      email.trim().toLowerCase().slice(0, 254),
+          phone:      phone ? phone.trim().slice(0, 30) : null,
+          zip:        zip   ? zip.trim().slice(0, 20) : null,
+          vehicle_year:  vehicle_year  ? vehicle_year.trim().slice(0, 10) : null,
+          vehicle_make:  vehicle_make  ? vehicle_make.trim().slice(0, 60) : null,
+          vehicle_model: vehicle_model ? vehicle_model.trim().slice(0, 80) : null
+        }).select('id').single();
+        if (insertErr) {
+          console.error('[Survey] customer_profiles insert error:', insertErr.message, insertErr.details);
+          throw new Error(insertErr.message);
+        }
+        inserted = data;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, id: inserted?.id || null }));
+    } catch (err) {
+      console.error('[Survey] POST /api/survey/profile error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save profile' }));
+    }
+    return;
+  }
+
+  // POST /api/survey/job — save prospect job listing (public, no auth)
+  if (req.method === 'POST' && req.url === '/api/survey/job') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const ip = getClientIP(req);
+    const rl = applyRateLimit(req, res, 'public', 'survey-job:' + ip);
+    if (!rl.allowed) return;
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req, 50000);
+      const { customer_profile_id, session_id, service_type, vehicle_description, issue_description, urgency, zip, budget_range } = body;
+      if (!issue_description) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'issue_description is required' })); return;
+      }
+      let inserted = null;
+      if (supabase) {
+        const { data } = await supabase.from('job_listings').insert({
+          customer_profile_id: customer_profile_id || null,
+          service_type:        service_type        ? service_type.slice(0, 80) : null,
+          vehicle_description: vehicle_description ? vehicle_description.slice(0, 300) : null,
+          issue_description:   issue_description.slice(0, 2000),
+          urgency:             urgency             ? urgency.slice(0, 40) : null,
+          zip:                 zip                 ? zip.trim().slice(0, 20) : null,
+          budget_range:        budget_range        ? budget_range.slice(0, 40) : null
+        }).select('id').single();
+        inserted = data;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, id: inserted?.id || null }));
+    } catch (err) {
+      console.error('[Survey] POST /api/survey/job error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save job listing' }));
+    }
+    return;
+  }
+
+  // Helper: validate admin auth (password, token session, or Supabase admin role)
+  async function surveyAdminAuth(req, res, supabase) {
+    const adminPassHeader  = req.headers['x-admin-password'];
+    const adminTokenHeader = req.headers['x-admin-token'];
+    const authHeader       = req.headers.authorization;
+    const expectedPass     = process.env.ADMIN_PASSWORD;
+    if (adminPassHeader && expectedPass && adminPassHeader === expectedPass) return true;
+    if (adminTokenHeader) {
+      const session = getAdminSessionFromReq(req);
+      if (!session) { res.writeHead(401); res.end(JSON.stringify({ error: 'Invalid or expired admin session' })); return false; }
+      return true;
+    }
+    if (authHeader && authHeader.startsWith('Bearer ') && supabase) {
+      const token = authHeader.split(' ')[1];
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (error || !user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Invalid or expired token' })); return false; }
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+      if (!profile || profile.role !== 'admin') { res.writeHead(403); res.end(JSON.stringify({ error: 'Admin access required' })); return false; }
+      return true;
+    }
+    res.writeHead(401); res.end(JSON.stringify({ error: 'Authentication required' })); return false;
+  }
+
+  // GET /api/admin/survey-stats — aggregate counts + feature rating breakdown (admin only)
+  if (req.method === 'GET' && req.url === '/api/admin/survey-stats') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const supabase = getSupabaseClient();
+    if (!(await surveyAdminAuth(req, res, supabase))) return;
+    try {
+      // Use exact COUNT queries for scalar totals — accurate at any scale
+      const [
+        { count: totalProspects },
+        { count: totalInterested },
+        { count: totalProfiles },
+        { count: totalJobs },
+        { data: heatmapRows },
+        { data: trendRows }
+      ] = await Promise.all([
+        supabase.from('survey_responses').select('*', { count: 'exact', head: true }).not('interested', 'is', null),
+        supabase.from('survey_responses').select('*', { count: 'exact', head: true }).eq('interested', true),
+        supabase.from('customer_profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('job_listings').select('*', { count: 'exact', head: true }),
+        // Fetch only feature_ratings for heatmap — limit generous (100k rows feasible as JSONB is small)
+        supabase.from('survey_responses').select('feature_ratings').not('interested', 'is', null).not('feature_ratings', 'is', null).limit(100000),
+        // Fetch only created_at for last 30 days trend — filtered server-side for efficiency
+        supabase.from('survey_responses').select('created_at').not('interested', 'is', null)
+          .gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString()).order('created_at', { ascending: true }).limit(100000)
+      ]);
+
+      const pctInterested = totalProspects ? Math.round(((totalInterested || 0) / totalProspects) * 100) : 0;
+
+      // Feature heatmap: { featureId: { yes:N, maybe:N, no:N } }
+      const FEATURE_IDS = ['get_quotes','manage_vehicles','maintenance','shop_smarter','booking','obd_diagnostics','provider_ratings','price_estimator'];
+      const heatmap = {};
+      for (const fid of FEATURE_IDS) heatmap[fid] = { yes: 0, maybe: 0, no: 0 };
+      for (const row of (heatmapRows || [])) {
+        if (!row.feature_ratings || typeof row.feature_ratings !== 'object') continue;
+        for (const [fid, val] of Object.entries(row.feature_ratings)) {
+          if (heatmap[fid] && (val === 'yes' || val === 'maybe' || val === 'no')) heatmap[fid][val]++;
+        }
+      }
+
+      // Daily counts: last 30 days (fetched server-side from DB, already filtered)
+      const dailyCounts = {};
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+        dailyCounts[d] = 0;
+      }
+      for (const row of (trendRows || [])) {
+        const d = new Date(row.created_at).toISOString().slice(0, 10);
+        if (dailyCounts[d] !== undefined) dailyCounts[d]++;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        total_responses: totalProspects || 0,
+        pct_interested: pctInterested,
+        total_profiles: totalProfiles || 0,
+        total_jobs: totalJobs || 0,
+        feature_heatmap: heatmap,
+        daily_counts: dailyCounts
+      }));
+    } catch (err) {
+      console.error('[Survey] GET /api/admin/survey-stats error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load survey stats' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/survey-leads — paginated lead list (admin only)
+  // Base table: survey_responses (filter at DB level); LEFT JOIN customer_profiles + job_listings
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/survey-leads') && !req.url.includes('export')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const supabase = getSupabaseClient();
+    if (!(await surveyAdminAuth(req, res, supabase))) return;
+    try {
+      const urlObj = new URL(req.url, 'http://localhost');
+      const page    = Math.max(1, parseInt(urlObj.searchParams.get('page')     || '1', 10));
+      const limit   = Math.min(50, Math.max(1, parseInt(urlObj.searchParams.get('limit')   || '25', 10)));
+      const search  = (urlObj.searchParams.get('search')   || '').trim().slice(0, 100);
+      const filter  = urlObj.searchParams.get('filter')   || 'all'; // 'all' | 'interested' | 'not_interested'
+      const sortDir = urlObj.searchParams.get('sort_dir') === 'asc';
+      const offset  = (page - 1) * limit;
+
+      // Query survey_responses as base — DB-level filter so pagination is accurate
+      // LEFT JOIN customer_profiles (via survey_response_id FK) and nested job_listings
+      let query = supabase.from('survey_responses')
+        .select(
+          'id, first_name, last_name, email, phone, zip, interested, feature_ratings, created_at, customer_profiles(id, vehicle_year, vehicle_make, vehicle_model, job_listings(service_type, issue_description, urgency, zip, budget_range))',
+          { count: 'exact' }
+        )
+        .not('interested', 'is', null)  // must have been through survey
+        .order('created_at', { ascending: sortDir })
+        .range(offset, offset + limit - 1);
+
+      // DB-level interest filter
+      if (filter === 'interested')     query = query.eq('interested', true);
+      if (filter === 'not_interested') query = query.eq('interested', false);
+
+      // DB-level search on survey_responses columns
+      if (search) {
+        query = query.or(`email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,zip.ilike.%${search}%`);
+      }
+
+      const { data, count, error: qErr } = await query;
+      if (qErr) throw qErr;
+
+      const rows = (data || []).map(r => {
+        const cp  = Array.isArray(r.customer_profiles) ? r.customer_profiles[0] : r.customer_profiles;
+        const job = cp ? (Array.isArray(cp.job_listings) ? cp.job_listings[0] : cp.job_listings) : null;
+        const fr  = r.feature_ratings || {};
+        const topFeature = Object.entries(fr).filter(([,v]) => v === 'yes').map(([k]) => k)[0] || null;
+        const vehicle = cp ? [cp.vehicle_year, cp.vehicle_make, cp.vehicle_model].filter(Boolean).join(' ') || null : null;
+        return {
+          id: r.id,
+          name: ((r.first_name || '') + ' ' + (r.last_name || '')).trim() || null,
+          email: r.email || null,
+          phone: r.phone || cp?.phone || null,
+          zip:   r.zip   || cp?.zip   || null,
+          vehicle,
+          interested: r.interested,
+          feature_ratings: fr,
+          top_feature: topFeature,
+          job_service: job?.service_type  || null,
+          job_urgency: job?.urgency       || null,
+          job_budget:  job?.budget_range  || null,
+          job_issue:   job?.issue_description || null,
+          created_at:  r.created_at
+        };
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ leads: rows, total: count || 0, page, limit }));
+    } catch (err) {
+      console.error('[Survey] GET /api/admin/survey-leads error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load survey leads' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/survey-leads/export — CSV download (admin only)
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/survey-leads/export')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const supabase = getSupabaseClient();
+    if (!(await surveyAdminAuth(req, res, supabase))) return;
+    try {
+      // Export from survey_responses as base (covers both interested and not-interested)
+      const { data } = await supabase.from('survey_responses')
+        .select('id, first_name, last_name, email, phone, zip, interested, feature_ratings, created_at, customer_profiles(vehicle_year, vehicle_make, vehicle_model, job_listings(service_type, issue_description, urgency, zip, budget_range))')
+        .not('interested', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(5000);
+
+      const rows = data || [];
+      const FEATURE_NAMES = {
+        get_quotes: 'Get Quotes', manage_vehicles: 'Manage Vehicles', maintenance: 'Maintenance',
+        shop_smarter: 'Shop Smarter', booking: 'Easy Booking', obd_diagnostics: 'OBD Diagnostics',
+        provider_ratings: 'Provider Ratings', price_estimator: 'Price Estimator'
+      };
+      const headers = [
+        'Name','Email','Phone','ZIP','Vehicle','Interested','Created',
+        'Rating: Get Quotes','Rating: Manage Vehicles','Rating: Maintenance','Rating: Shop Smarter',
+        'Rating: Easy Booking','Rating: OBD Diagnostics','Rating: Provider Ratings','Rating: Price Estimator',
+        'Job: Service Type','Job: Issue','Job: Urgency','Job: ZIP','Job: Budget'
+      ];
+
+      const csvRows = [headers.join(',')];
+      for (const r of rows) {
+        const cp  = Array.isArray(r.customer_profiles) ? r.customer_profiles[0] : r.customer_profiles;
+        const job = cp ? (Array.isArray(cp.job_listings) ? cp.job_listings[0] : cp.job_listings) : null;
+        const fr  = r.feature_ratings || {};
+        const esc = v => v ? '"' + String(v).replace(/"/g, '""').slice(0, 500) + '"' : '';
+        const vehicle = cp ? [cp.vehicle_year, cp.vehicle_make, cp.vehicle_model].filter(Boolean).join(' ') : '';
+        csvRows.push([
+          esc(((r.first_name || '') + ' ' + (r.last_name || '')).trim()),
+          esc(r.email), esc(r.phone), esc(r.zip), esc(vehicle),
+          r.interested === true ? 'Yes' : r.interested === false ? 'No' : '',
+          r.created_at ? new Date(r.created_at).toISOString().slice(0, 10) : '',
+          fr.get_quotes || '', fr.manage_vehicles || '', fr.maintenance || '', fr.shop_smarter || '',
+          fr.booking || '', fr.obd_diagnostics || '', fr.provider_ratings || '', fr.price_estimator || '',
+          esc(job?.service_type), esc(job?.issue_description), esc(job?.urgency), esc(job?.zip), esc(job?.budget_range)
+        ].join(','));
+      }
+
+      const csv = csvRows.join('\r\n');
+      const filename = 'survey-leads-' + new Date().toISOString().slice(0, 10) + '.csv';
+      res.writeHead(200, {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': Buffer.byteLength(csv, 'utf8')
+      });
+      res.end(csv);
+    } catch (err) {
+      console.error('[Survey] GET /api/admin/survey-leads/export error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to export leads' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/survey-not-interested — email list for not-interested prospects (admin only)
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/survey-not-interested')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const supabase = getSupabaseClient();
+    if (!(await surveyAdminAuth(req, res, supabase))) return;
+    try {
+      const urlObj = new URL(req.url, 'http://localhost');
+      const page  = Math.max(1, parseInt(urlObj.searchParams.get('page') || '1', 10));
+      const limit = Math.min(100, Math.max(1, parseInt(urlObj.searchParams.get('limit') || '50', 10)));
+      const offset = (page - 1) * limit;
+      const { data, count } = await supabase.from('survey_responses')
+        .select('id, email, created_at, feature_ratings', { count: 'exact' })
+        .eq('interested', false)
+        .not('email', 'is', null)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ emails: data || [], total: count || 0, page, limit }));
+    } catch (err) {
+      console.error('[Survey] GET /api/admin/survey-not-interested error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load not-interested list' }));
+    }
+    return;
+  }
+
+  // ========== END PROSPECT SURVEY & LEAD CAPTURE ==========
+
+  // ========== MEMBER ONBOARDING & SURVEY (Task #94) ==========
+
+  // POST /api/member/survey — submit survey answers.
+  // Optional-auth by design: supports both authenticated users (session-linked, idempotent)
+  // and anonymous submissions during email-confirm signup flows (linked later when user confirms).
+  // Anonymous submissions are deduplicated per IP hash (24h window) to prevent spam.
+  if (req.method === 'POST' && req.url === '/api/member/survey') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+
+    // Rate limit: 5 submissions per IP per 5 minutes
+    const rl = applyRateLimit(req, res, 'memberSurvey');
+    if (!rl.allowed) return;
+
+    const supabase = getSupabaseClient();
+    try {
+      let body;
+      try {
+        body = await getRequestBody(req, 32768); // 32 KB hard cap
+      } catch (parseErr) {
+        res.writeHead(400); res.end(JSON.stringify({ error: parseErr.message || 'Invalid request body' })); return;
+      }
+
+      // Allowed enum values per field — reject anything not on the list (or empty string for optional)
+      const ALLOWED = {
+        provider_discovery: ['word_of_mouth','google_search','social_media','ad','app_store','other',''],
+        provider_satisfaction: ['very_satisfied','somewhat_satisfied','neutral','somewhat_dissatisfied','very_dissatisfied',''],
+        service_frequency: ['monthly_or_more','every_2_3_months','twice_a_year','once_a_year','less_often',''],
+        service_types: ['routine','tires_brakes','repairs','detailing','body_work','mix',''],
+        pricing_confidence: ['very_fair','mostly_fair','sometimes_questionable','often_too_high',''],
+        estimate_surprise: ['yes_regularly','yes_once','no_never',''],
+        quote_behavior: ['go_with_first','compare_few','always_shop',''],
+        provider_honesty: ['very_honest','mostly_honest','sometimes_questionable','often_dishonest',''],
+        provider_vetting: ['always','sometimes','rarely','never',''],
+        history_tracking: ['spreadsheet','notes_app','memory','no_system',''],
+        maintenance_avoidance: ['yes_often','yes_sometimes','rarely','never',''],
+        job_status_updates: ['they_call','i_call','no_updates',''],
+        maintenance_reminders: ['yes_use_them','no_try_to_remember','no_just_go',''],
+        competitive_bids: ['yes_always','open_to_it','prefer_one_provider','never_tried',''],
+        app_usage: ['yes_multiple','yes_one','no_old_fashioned',''],
+        payment_comfort: ['already_do','open_to_it','prefer_traditional',''],
+        dispute_history: ['never','once','multiple_times',''],
+        annual_spend: ['under_500','500_to_1500','1500_to_3000','over_3000',''],
+        decision_maker: ['yes_primary','shared','no_someone_else',''],
+        near_term_need: ['yes_routine','yes_repair','yes_shopping','no_not_now',''],
+        top_priority: ['trust','pricing','convenience','quality','proximity',''],
+        vehicle_count: ['1','2','3_or_more','']
+      };
+
+      const SURVEY_KEYS = Object.keys(ALLOWED);
+      const MAX_FIELD_LEN = 100;
+      const sanitized = {};
+      for (const k of SURVEY_KEYS) {
+        const raw = body[k];
+        if (raw === undefined || raw === null) { sanitized[k] = ''; continue; }
+        const val = String(raw).slice(0, MAX_FIELD_LEN).trim();
+        if (ALLOWED[k] && !ALLOWED[k].includes(val)) {
+          res.writeHead(400); res.end(JSON.stringify({ error: `Invalid value for field: ${k}` })); return;
+        }
+        sanitized[k] = val;
+      }
+
+      const { provider_discovery, provider_satisfaction, service_frequency, service_types, pricing_confidence, estimate_surprise, quote_behavior, provider_honesty, provider_vetting, history_tracking, maintenance_avoidance, job_status_updates, maintenance_reminders, competitive_bids, app_usage, payment_comfort, dispute_history, annual_spend, decision_maker, near_term_need, top_priority, vehicle_count } = sanitized;
+
+      // Require at least 3 core fields to be non-empty
+      const filledCount = SURVEY_KEYS.filter(k => sanitized[k]).length;
+      if (filledCount < 3) { res.writeHead(400); res.end(JSON.stringify({ error: 'Insufficient survey data' })); return; }
+
+      let userId = null;
+      try {
+        const u = await authenticateRequest(req);
+        if (u) userId = u.id;
+      } catch (_) {}
+
+      const ipRaw = getClientIP(req);
+      const ipHash = ipRaw ? crypto.createHash('sha256').update(ipRaw).digest('hex').slice(0, 16) : null;
+
+      if (supabase) {
+        // Idempotent: skip if same user already submitted
+        if (userId) {
+          const { data: existing } = await supabase.from('survey_responses').select('id').eq('user_id', userId).limit(1).maybeSingle();
+          if (existing) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, already_submitted: true }));
+            return;
+          }
+        } else if (ipHash) {
+          // Anonymous rate-limit: one submission per IP per 24h
+          const since = new Date(Date.now() - 86400000).toISOString();
+          const { data: anonExisting } = await supabase.from('survey_responses').select('id').eq('ip_hash', ipHash).is('user_id', null).gte('created_at', since).limit(1).maybeSingle();
+          if (anonExisting) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, already_submitted: true }));
+            return;
+          }
+        }
+        const { error: insertErr } = await supabase.from('survey_responses').insert({
+          user_id: userId,
+          provider_discovery,
+          provider_satisfaction,
+          service_frequency,
+          service_types,
+          pricing_confidence,
+          estimate_surprise,
+          quote_behavior,
+          provider_honesty,
+          provider_vetting,
+          history_tracking,
+          maintenance_avoidance,
+          job_status_updates,
+          maintenance_reminders,
+          competitive_bids,
+          app_usage,
+          payment_comfort,
+          dispute_history,
+          annual_spend,
+          decision_maker,
+          near_term_need,
+          top_priority,
+          vehicle_count,
+          raw: sanitized,
+          ip_hash: ipHash
+        });
+        // Graceful fallback for pre-migration state (table not yet created)
+        if (insertErr && (insertErr.code === '42P01' || insertErr.message?.includes('does not exist'))) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, fallback: true }));
+          return;
+        }
+        if (userId) {
+          // Merge survey:true into existing checklist instead of overwriting
+          const { data: existingOnboarding } = await supabase.from('member_onboarding').select('checklist').eq('user_id', userId).maybeSingle();
+          const mergedChecklist = { ...(existingOnboarding?.checklist || {}), survey: true, ...(pain_point ? { pain_point } : {}) };
+          await supabase.from('member_onboarding').upsert(
+            { user_id: userId, survey_completed: true, checklist: mergedChecklist, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' }
+          );
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      if (err.code === '42P01' || (err.message && err.message.includes('does not exist'))) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, fallback: true }));
+        return;
+      }
+      console.error('[Survey] POST error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save survey' }));
+    }
+    return;
+  }
+
+  // GET /api/member/onboarding — fetch checklist + survey status
+  // GET /api/member/onboarding — fetch checklist + survey status.
+  // Accepts optional ?role=provider query param for UI context (client filters displayed keys).
+  // Response always includes both member + provider step keys in a unified payload.
+  if (req.method === 'GET' && (req.url === '/api/member/onboarding' || req.url.startsWith('/api/member/onboarding?'))) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    const EMPTY_CHECKLIST = { account_created: true, profile_completed: false, vehicle_added: false, request_posted: false, notifications_enabled: false, provider_profile: false, provider_docs: false, provider_services: false, provider_stripe: false, provider_first_booking: false };
+    try {
+      let row = null;
+      let profile = null;
+      let vehicleCount = 0;
+      let packageCount = 0;
+      let acceptedBidCount = 0;
+      if (supabase) {
+        const [onboardRes, profileRes, vehicleRes, packageRes, bidRes] = await Promise.all([
+          supabase.from('member_onboarding').select('*').eq('user_id', user.id).maybeSingle().catch(() => ({ data: null })),
+          supabase.from('profiles').select('zip_code, bio, services, verification_status, stripe_onboarding_complete, push_token, sms_notifications_enabled').eq('id', user.id).maybeSingle().catch(() => ({ data: null })),
+          supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('owner_id', user.id).catch(() => ({ count: 0 })),
+          supabase.from('maintenance_packages').select('id', { count: 'exact', head: true }).eq('member_id', user.id).catch(() => ({ count: 0 })),
+          supabase.from('plan_bids').select('id', { count: 'exact', head: true }).eq('provider_id', user.id).eq('status', 'accepted').catch(() => ({ count: 0 }))
+        ]);
+        row = onboardRes.data;
+        profile = profileRes.data;
+        vehicleCount = vehicleRes.count || 0;
+        packageCount = packageRes.count || 0;
+        acceptedBidCount = bidRes.count || 0;
+      }
+
+      const checklist = row?.checklist || {};
+      // Auto-detect all step completion states from real data
+      const profileCompleted = !!(profile?.zip_code || checklist.profile_completed);
+      const vehicleAdded = vehicleCount > 0 || !!checklist.vehicle_added;
+      const requestPosted = packageCount > 0 || !!checklist.request_posted;
+      const notificationsEnabled = !!(profile?.push_token || profile?.sms_notifications_enabled || checklist.notifications_enabled);
+      // Provider steps — auto-detect from profile data
+      const providerProfile = !!(profile?.bio || checklist.provider_profile);
+      const providerDocs = !!(profile?.verification_status && profile.verification_status !== 'unverified' && profile.verification_status !== 'pending') || !!checklist.provider_docs;
+      const providerServices = !!(profile?.services && (Array.isArray(profile.services) ? profile.services.length > 0 : String(profile.services).trim().length > 2)) || !!checklist.provider_services;
+      const providerStripe = !!(profile?.stripe_onboarding_complete || checklist.provider_stripe);
+      const providerFirstBooking = acceptedBidCount > 0 || !!checklist.provider_first_booking;
+
+      // Auto-upsert account_created on first load so state is anchored in DB.
+      // Grandfather pre-launch users (account > 7 days old): auto-mark survey_completed to prevent
+      // legacy members from being forced into the post-signup survey flow.
+      const isNewMember = user.created_at
+        ? (Date.now() - new Date(user.created_at).getTime()) < 7 * 24 * 3600 * 1000
+        : false;
+      if (supabase && !row) {
+        const grandfathered = !isNewMember; // legacy accounts skip survey requirement
+        supabase.from('member_onboarding').upsert({
+          user_id: user.id,
+          survey_completed: grandfathered,
+          welcome_shown: grandfathered,
+          checklist: { account_created: true },
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' }).catch(() => {});
+      }
+
+      // Unified payload: always returns all keys (member + provider).
+      // Clients use the role param to selectively render relevant subset of checklist.
+      // isNewMember is already computed above (used for grandfathering logic).
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        survey_completed: row?.survey_completed || (!row && !isNewMember) || false,
+        welcome_shown: row?.welcome_shown || (!row && !isNewMember) || false,
+        pain_point: checklist.pain_point || null,
+        is_new_member: isNewMember,
+        checklist: {
+          account_created: row ? (checklist.account_created ?? true) : true,
+          profile_completed: profileCompleted,
+          vehicle_added: vehicleAdded,
+          request_posted: requestPosted,
+          notifications_enabled: notificationsEnabled,
+          provider_profile: providerProfile,
+          provider_docs: providerDocs,
+          provider_services: providerServices,
+          provider_stripe: providerStripe,
+          provider_first_booking: providerFirstBooking
+        }
+      }));
+    } catch (err) {
+      if (err.code === '42P01' || (err.message && err.message.includes('does not exist'))) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ survey_completed: false, welcome_shown: false, pain_point: null, is_new_member: false, checklist: EMPTY_CHECKLIST }));
+        return;
+      }
+      console.error('[Onboarding] GET error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load onboarding status' }));
+    }
+    return;
+  }
+
+  // POST /api/member/onboarding/step — mark a step or field complete
+  if (req.method === 'POST' && req.url === '/api/member/onboarding/step') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const body = await getRequestBody(req);
+      const { step, value } = body; // step = 'vehicle_added' | 'request_posted' | 'notifications_enabled' | 'welcome_shown' | 'survey'
+      if (!step) { res.writeHead(400); res.end(JSON.stringify({ error: 'step required' })); return; }
+
+      if (supabase) {
+        const { data: existing } = await supabase.from('member_onboarding').select('checklist, welcome_shown').eq('user_id', user.id).maybeSingle();
+        const currentChecklist = existing?.checklist || {};
+        const topLevelFields = { welcome_shown: true };
+
+        if (topLevelFields[step]) {
+          await supabase.from('member_onboarding').upsert(
+            { user_id: user.id, [step]: value !== false, checklist: currentChecklist, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' }
+          );
+        } else {
+          const updatedChecklist = { ...currentChecklist, [step]: value !== false };
+          await supabase.from('member_onboarding').upsert(
+            { user_id: user.id, checklist: updatedChecklist, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' }
+          );
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      if (err.code === '42P01' || (err.message && err.message.includes('does not exist'))) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, fallback: true }));
+        return;
+      }
+      console.error('[Onboarding] POST step error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update onboarding step' }));
+    }
+    return;
+  }
+
+  // GET /api/admin/survey-analytics — aggregate survey response counts (admin only)
+  if (req.method === 'GET' && req.url === '/api/admin/survey-analytics') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const supabase = getSupabaseClient();
+    try {
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+      if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Admin access required' })); return;
+      }
+      let rows = [];
+      let total = 0;
+      try {
+        // True count (no cap) for headline stat
+        const { count: trueCount, error: cErr } = await supabase.from('survey_responses').select('*', { count: 'exact', head: true });
+        if (!cErr) total = trueCount || 0;
+        // Sample last 1000 for chart breakdown
+        const { data, error: qErr } = await supabase.from('survey_responses').select('provider_discovery, provider_satisfaction, service_frequency, service_types, pricing_confidence, estimate_surprise, quote_behavior, provider_honesty, provider_vetting, history_tracking, maintenance_avoidance, job_status_updates, maintenance_reminders, competitive_bids, app_usage, payment_comfort, dispute_history, annual_spend, decision_maker, near_term_need, top_priority, vehicle_count, created_at').order('created_at', { ascending: false }).limit(1000);
+        if (qErr && qErr.code === '42P01') { rows = []; total = 0; } // table not yet migrated
+        else rows = data || [];
+      } catch (_) { rows = []; total = 0; }
+      const agg = {};
+      const keys = ['provider_discovery','provider_satisfaction','service_frequency','service_types','pricing_confidence','estimate_surprise','quote_behavior','provider_honesty','provider_vetting','history_tracking','maintenance_avoidance','job_status_updates','maintenance_reminders','competitive_bids','app_usage','payment_comfort','dispute_history','annual_spend','decision_maker','near_term_need','top_priority','vehicle_count'];
+      for (const k of keys) agg[k] = {};
+      for (const r of (rows || [])) {
+        for (const k of keys) {
+          if (r[k]) agg[k][r[k]] = (agg[k][r[k]] || 0) + 1;
+        }
+      }
+      const recentWeek = (rows || []).filter(r => new Date(r.created_at) > new Date(Date.now() - 7 * 86400000)).length;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ total, recent_week: recentWeek, ...Object.fromEntries(keys.map(k => ['by_' + k, agg[k]])) }));
+    } catch (err) {
+      console.error('[SurveyAnalytics] GET error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load analytics' }));
+    }
+    return;
+  }
+
+  // ========== PROVIDER JOB BOARD ==========
+
+  // GET /api/job-board — paginated open care plans for verified providers
+  if (req.method === 'GET' && req.url.startsWith('/api/job-board')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    try {
+      const { data: prov } = await supabase.from('profiles').select('role, verification_status, zip_code, auto_bid_enabled').eq('id', user.id).single();
+      if (!prov || !['provider','admin'].includes(prov.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
+      }
+      // Strictly enforce verification — null or non-verified means unverified
+      const isVerified = prov.role === 'admin' || prov.verification_status === 'verified';
+      const qs = new URLSearchParams(req.url.split('?')[1] || '');
+      const page = Math.max(1, parseInt(qs.get('page') || '1'));
+      const pageSize = Math.min(50, parseInt(qs.get('limit') || '20'));
+      const serviceType = qs.get('service_type') || '';
+      const maxDistance = parseInt(qs.get('max_distance') || '0');
+      const minValue = parseFloat(qs.get('min_value') || '0');
+      const sort = qs.get('sort') || 'newest';
+      const tab = qs.get('tab') || 'all';
+      // Strip PostgREST filter-expression delimiters to prevent query injection via .or() interpolation
+      const searchQ = (qs.get('q') || '').trim().slice(0, 100).replace(/[(),\\]/g, '');
+      const from = (page - 1) * pageSize;
+      // Unverified providers receive a stripped-down payload with no PII/contact info
+      // NOTE: care_plans.member_id FK is to auth.users, NOT profiles. PostgREST cannot
+      // traverse the FK to profiles directly. Member profile data is enriched separately
+      // via enrichMemberProfiles() after the main query.
+      const SELECT_FIELDS = isVerified
+        ? `id, title, description, services, value_min, value_max, service_types, city, state, zip_code, status, bid_count, bid_closes_at, created_at, member_id, vehicle_id, vehicles!care_plans_vehicle_id_fkey(id, year, make, model, mileage, color)`
+        : `id, title, value_min, value_max, service_types, city, state, status, bid_count, bid_closes_at, created_at`;
+
+      // Fetch my-bids plan IDs up front
+      let myBidMap = {};
+      const { data: myBidRows } = await supabase.from('plan_bids').select('care_plan_id, id, amount, status, note, is_auto_bid').eq('provider_id', user.id);
+      (myBidRows || []).forEach(b => { myBidMap[b.care_plan_id] = b; });
+      const myBidPlanIds = Object.keys(myBidMap);
+
+      // Authoritative tab badge counts — run in parallel on first page load
+      const nowForCounts = new Date().toISOString();
+      const sixHForCounts = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+      const [cAll, cNoBids, cClosing] = await Promise.all([
+        supabase.from('care_plans').select('id', { count: 'exact', head: true }).eq('status', 'open').gt('bid_closes_at', nowForCounts),
+        supabase.from('care_plans').select('id', { count: 'exact', head: true }).eq('status', 'open').eq('bid_count', 0).gt('bid_closes_at', nowForCounts),
+        supabase.from('care_plans').select('id', { count: 'exact', head: true }).eq('status', 'open').lte('bid_closes_at', sixHForCounts).gte('bid_closes_at', nowForCounts),
+      ]);
+      const tabCounts = { all: cAll.count || 0, no_bids: cNoBids.count || 0, closing_soon: cClosing.count || 0, my_bids: myBidPlanIds.length };
+
+      // When distance filtering OR sort=nearest, fetch all candidates and paginate in memory for correct ordering
+      const needsDistanceFilter = maxDistance > 0 || sort === 'nearest';
+      let query = supabase.from('care_plans').select(SELECT_FIELDS, { count: needsDistanceFilter ? undefined : 'exact' });
+
+      // Tab semantics
+      if (tab === 'my-bids') {
+        if (!myBidPlanIds.length) {
+          res.writeHead(200); res.end(JSON.stringify({ plans: [], total: 0, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled), tab_counts: tabCounts })); return;
+        }
+        query = query.in('id', myBidPlanIds);
+      } else {
+        const nowIso = new Date().toISOString();
+        query = query.eq('status', 'open').gt('bid_closes_at', nowIso);
+        if (tab === 'no-bids') query = query.eq('bid_count', 0);
+        if (tab === 'closing-soon') query = query.lte('bid_closes_at', new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString());
+      }
+
+      if (serviceType) query = query.contains('service_types', [serviceType]);
+      if (minValue > 0) query = query.gte('value_min', minValue);
+      if (searchQ) {
+        // Search across title, description, and vehicle make/model
+        const { data: matchingVehicles } = await supabase.from('vehicles')
+          .select('id').or(`make.ilike.%${searchQ}%,model.ilike.%${searchQ}%,year::text.ilike.%${searchQ}%`).limit(200);
+        const matchVehicleIds = (matchingVehicles || []).map(v => v.id);
+        let searchFilter = `title.ilike.%${searchQ}%,description.ilike.%${searchQ}%`;
+        if (matchVehicleIds.length) searchFilter += `,vehicle_id.in.(${matchVehicleIds.join(',')})`;
+        query = query.or(searchFilter);
+      }
+
+      // Sort
+      if (sort === 'closing') query = query.order('bid_closes_at', { ascending: true });
+      else if (sort === 'value_high') query = query.order('value_max', { ascending: false });
+      else if (sort === 'bids_low') query = query.order('bid_count', { ascending: true });
+      else query = query.order('created_at', { ascending: false }); // newest, nearest both start with full set
+
+      if (needsDistanceFilter) {
+        // Fetch all (up to 500) then sort/filter in memory for accurate pagination
+        const { data: allPlans, error } = await query.range(0, 499);
+        if (error) throw error;
+        let result = (allPlans || []).map(p => ({
+          ...p, estimated_distance_miles: estimateZipDistanceSrv(prov.zip_code, p.zip_code || p.member?.zip_code)
+        }));
+        // Only apply distance cap when explicitly requested (maxDistance > 0)
+        if (maxDistance > 0) result = result.filter(p => p.estimated_distance_miles <= maxDistance);
+        if (sort === 'nearest') result.sort((a, b) => a.estimated_distance_miles - b.estimated_distance_miles);
+        const total = result.length;
+        let paged = result.slice(from, from + pageSize).map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
+        paged = await enrichMemberProfiles(supabase, paged, isVerified);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ plans: paged, total, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled), tab_counts: tabCounts }));
+      } else {
+        const { data: plans, count, error } = await query.range(from, from + pageSize - 1);
+        if (error) throw error;
+        let result = (plans || []).map(p => ({
+          ...p, estimated_distance_miles: estimateZipDistanceSrv(prov.zip_code, p.zip_code || p.member?.zip_code)
+        }));
+        if (sort === 'nearest') result.sort((a, b) => a.estimated_distance_miles - b.estimated_distance_miles);
+        result = result.map(p => ({ ...p, my_bid: myBidMap[p.id] || null }));
+        result = await enrichMemberProfiles(supabase, result, isVerified);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ plans: result, total: count || result.length, page, pageSize, provider_verified: isVerified, auto_bid_enabled: !!(prov.auto_bid_enabled), tab_counts: tabCounts }));
+      }
+    } catch (err) {
+      console.error('[JobBoard] GET error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load job board' }));
+    }
+    return;
+  }
+
+  // POST /api/plan-bids — submit bid on a care plan
+  if (req.method === 'POST' && req.url === '/api/plan-bids') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const { care_plan_id, amount, note } = JSON.parse(body || '{}');
+        if (!care_plan_id || !amount || amount <= 0) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'care_plan_id and positive amount required' })); return;
+        }
+        const { data: plan } = await supabase.from('care_plans').select('id, status, bid_closes_at, member_id').eq('id', care_plan_id).single();
+        if (!plan || plan.status !== 'open' || new Date(plan.bid_closes_at) < new Date()) {
+          res.writeHead(409); res.end(JSON.stringify({ error: 'Care plan is closed or not found' })); return;
+        }
+        const { data: prov } = await supabase.from('profiles').select('role, business_name, full_name, zip_code, verification_status').eq('id', user.id).single();
+        if (!prov || !['provider','admin'].includes(prov.role)) {
+          res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
+        }
+        const isVerified = prov.role === 'admin' || prov.verification_status === 'verified';
+        if (!isVerified) {
+          res.writeHead(403); res.end(JSON.stringify({ error: 'verification_required', message: 'Your provider account must be verified before you can place bids.' })); return;
+        }
+        // Reject if a bid from this provider already exists — edits must go through PATCH
+        const { data: dupCheck } = await supabase.from('plan_bids').select('id').eq('care_plan_id', care_plan_id).eq('provider_id', user.id).maybeSingle();
+        if (dupCheck) {
+          res.writeHead(409); res.end(JSON.stringify({ error: 'Bid already placed. Use the edit action to change your bid.' })); return;
+        }
+        const { data: bid, error } = await supabase.from('plan_bids').insert({
+          care_plan_id, provider_id: user.id, amount: parseFloat(amount), note: note || null, is_auto_bid: false
+        }).select().single();
+        if (error) {
+          // Map DB unique-constraint violation (race condition) to deterministic 409 conflict
+          if (error.code === '23505') {
+            res.writeHead(409); res.end(JSON.stringify({ error: 'Bid already placed. Use the edit action to change your bid.' })); return;
+          }
+          throw error;
+        }
+        // Notify member via push/SMS (best-effort)
+        const { data: member } = await supabase.from('profiles').select('phone, push_token, sms_notifications_enabled').eq('id', plan.member_id).single().catch(() => ({ data: null }));
+        if (member) {
+          const provName = prov.business_name || prov.full_name || 'A provider';
+          if (member.push_token) {
+            sendPushNotification(member.push_token, { title: 'New Bid Received', body: `${provName} placed a $${parseFloat(amount).toFixed(2)} bid on your care plan.`, data: { care_plan_id } }).catch(e => console.warn('[PlanBids] Push notify failed:', e.message));
+          }
+          if (member.sms_notifications_enabled && member.phone) {
+            sendSms(member.phone, `${provName} placed a $${parseFloat(amount).toFixed(2)} bid on your care plan. Log in to review.`).catch(e => console.warn('[PlanBids] SMS notify failed:', e.message));
+          }
+        }
+        res.writeHead(201, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, bid }));
+      } catch (err) {
+        console.error('[PlanBids] POST error:', err.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to submit bid' }));
+      }
+    });
+    return;
+  }
+
+  // PATCH /api/plan-bids/:id — update own bid (amount / note) — only while plan is still open
+  if (req.method === 'PATCH' && /^\/api\/plan-bids\/[^/]+$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const bidId = req.url.split('/').pop();
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const updates = JSON.parse(body || '{}');
+        // Check bid status and plan openness
+        const { data: existingBid } = await supabase.from('plan_bids').select('care_plan_id, status').eq('id', bidId).eq('provider_id', user.id).single();
+        if (existingBid) {
+          // Block edits (amount/note/status) once the bid has been accepted — only withdrawal is still allowed
+          if (existingBid.status === 'accepted' && updates.status !== 'withdrawn') {
+            res.writeHead(409); res.end(JSON.stringify({ error: 'Cannot edit an accepted bid' })); return;
+          }
+          // Check plan is still open (except for withdraw)
+          if (updates.status !== 'withdrawn') {
+            const { data: plan } = await supabase.from('care_plans').select('status, bid_closes_at').eq('id', existingBid.care_plan_id).single();
+            if (!plan || plan.status !== 'open' || new Date(plan.bid_closes_at) < new Date()) {
+              res.writeHead(409); res.end(JSON.stringify({ error: 'Care plan is no longer accepting bid changes' })); return;
+            }
+          }
+        }
+        const allowed = {};
+        if (updates.amount !== undefined && parseFloat(updates.amount) > 0) allowed.amount = parseFloat(updates.amount);
+        if (updates.note !== undefined) allowed.note = updates.note;
+        if (updates.status === 'withdrawn') allowed.status = 'withdrawn';
+        if (!Object.keys(allowed).length) { res.writeHead(400); res.end(JSON.stringify({ error: 'No valid fields to update' })); return; }
+        const { data: bid, error } = await supabase.from('plan_bids').update(allowed).eq('id', bidId).eq('provider_id', user.id).select().single();
+        if (error || !bid) { res.writeHead(404); res.end(JSON.stringify({ error: 'Bid not found' })); return; }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, bid }));
+      } catch (err) {
+        console.error('[PlanBids] PATCH error:', err.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to update bid' }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/auto-bid/settings — load auto-bid config for current provider
+  if (req.method === 'GET' && req.url === '/api/auto-bid/settings') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    try {
+      const { data } = await supabase.from('profiles')
+        .select('role, auto_bid_enabled, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate')
+        .eq('id', user.id).single();
+      if (!data || !['provider', 'admin'].includes(data.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        auto_bid_enabled: data?.auto_bid_enabled || false,
+        auto_bid_max_distance_miles: data?.auto_bid_max_distance_miles || 25,
+        auto_bid_service_types: data?.auto_bid_service_types || [],
+        auto_bid_percent_of_estimate: data?.auto_bid_percent_of_estimate || 85
+      }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load settings' }));
+    }
+    return;
+  }
+
+  // PATCH /api/auto-bid/settings — save auto-bid config
+  if (req.method === 'PATCH' && req.url === '/api/auto-bid/settings') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const { data: provRole } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+        if (!provRole || !['provider', 'admin'].includes(provRole.role)) {
+          res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
+        }
+        const { auto_bid_enabled, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate } = JSON.parse(body || '{}');
+        const updates = {};
+        if (auto_bid_enabled !== undefined) updates.auto_bid_enabled = !!auto_bid_enabled;
+        if (auto_bid_max_distance_miles !== undefined) updates.auto_bid_max_distance_miles = Math.min(200, Math.max(5, parseInt(auto_bid_max_distance_miles) || 25));
+        if (Array.isArray(auto_bid_service_types)) updates.auto_bid_service_types = auto_bid_service_types;
+        if (auto_bid_percent_of_estimate !== undefined) updates.auto_bid_percent_of_estimate = Math.min(100, Math.max(70, parseInt(auto_bid_percent_of_estimate) || 85));
+        const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
+        if (error) throw error;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save auto-bid settings' }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/care-plans/preview — count of open plans matching auto-bid criteria (providers only)
+  if (req.method === 'GET' && req.url.startsWith('/api/care-plans/preview')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    try {
+      const qs = new URLSearchParams(req.url.split('?')[1] || '');
+      const maxDist = parseInt(qs.get('max_distance') || '25');
+      const serviceTypes = qs.get('service_types') ? qs.get('service_types').split(',').filter(Boolean) : [];
+      const { data: prov } = await supabase.from('profiles').select('role, zip_code').eq('id', user.id).single();
+      if (!prov || !['provider', 'admin'].includes(prov.role)) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Provider account required' })); return;
+      }
+      // Look at the truly last 10 posted plans (any status) so the preview count reflects historical posting frequency
+      let query = supabase.from('care_plans').select('id, zip_code, service_types')
+        .order('created_at', { ascending: false }).limit(10);
+      const { data: recentPlans } = await query;
+      // Also fetch total matching (across all open plans) for a broader count
+      let allQuery = supabase.from('care_plans').select('id, zip_code, service_types').eq('status', 'open').gt('bid_closes_at', new Date().toISOString());
+      if (serviceTypes.length) allQuery = allQuery.overlaps('service_types', serviceTypes);
+      const { data: allPlans } = await allQuery;
+      let countOfLast10 = 0;
+      (recentPlans || []).forEach(p => {
+        const dist = estimateZipDistanceSrv(prov?.zip_code, p.zip_code);
+        const svcMatch = !serviceTypes.length || (p.service_types || []).some(s => serviceTypes.includes(s));
+        if (dist <= maxDist && svcMatch) countOfLast10++;
+      });
+      let countAll = 0;
+      (allPlans || []).forEach(p => {
+        const dist = estimateZipDistanceSrv(prov?.zip_code, p.zip_code);
+        if (dist <= maxDist) countAll++;
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ count: countAll, count_of_last_10: countOfLast10 }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Preview failed' }));
+    }
+    return;
+  }
+
+  // POST /api/auto-bid/process — internal: auto-bid on new care plans (called by scheduler or Realtime trigger)
+  if (req.method === 'POST' && req.url === '/api/auto-bid/process') {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const authHeader = req.headers['authorization'] || '';
+    const internalToken = process.env.INTERNAL_SCHEDULER_SECRET;
+    if (!internalToken || authHeader !== `Bearer ${internalToken}`) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const { care_plan_id } = JSON.parse(body || '{}');
+        if (!care_plan_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'care_plan_id required' })); return; }
+        const placed = await runAutoBidForPlan(care_plan_id);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ placed }));
+      } catch (err) {
+        res.writeHead(500); res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/vehicle-photos/:vehicleId — list photos for a vehicle
+  if (req.method === 'GET' && /^\/api\/vehicle-photos\/[^/]+$/.test(req.url) && !req.url.includes('/primary')) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const vehicleId = req.url.split('/').pop();
+    try {
+      // Determine if caller is the vehicle owner or a verified provider viewing an open care plan
+      const { data: callerProfile } = await supabase.from('profiles').select('role, verification_status').eq('id', user.id).single();
+      const isVerifiedProvider = callerProfile && (callerProfile.role === 'admin' || (callerProfile.role === 'provider' && callerProfile.verification_status === 'verified'));
+      let query = supabase.from('vehicle_photos')
+        .select('id, storage_path, url, is_primary, created_at')
+        .eq('vehicle_id', vehicleId)
+        .order('is_primary', { ascending: false }).order('created_at', { ascending: true });
+      if (!isVerifiedProvider) {
+        // Non-provider or unverified provider can only see own photos (member flow)
+        query = query.eq('member_id', user.id);
+      } else {
+        // Verified provider can only see photos if the vehicle has an open care plan
+        const { data: openPlan } = await supabase.from('care_plans')
+          .select('id').eq('vehicle_id', vehicleId).eq('status', 'open').limit(1).maybeSingle();
+        if (!openPlan) { res.writeHead(403); res.end(JSON.stringify({ error: 'No open care plan for this vehicle' })); return; }
+      }
+      const { data: photos, error } = await query;
+      if (error) throw error;
+      // Always generate short-lived signed URLs (1 hour) via service role — never expose public URLs
+      let enriched = photos || [];
+      if (enriched.length) {
+        const paths = enriched.map(p => p.storage_path).filter(Boolean);
+        const { data: signedData } = await supabase.storage.from('vehicle-photos').createSignedUrls(paths, 3600);
+        const signedMap = {};
+        (signedData || []).forEach(s => { if (s.signedUrl) signedMap[s.path] = s.signedUrl; });
+        enriched = enriched.map(p => ({ ...p, url: signedMap[p.storage_path] || null }));
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ photos: enriched }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load photos' }));
+    }
+    return;
+  }
+
+  // POST /api/vehicle-photos/:vehicleId — register an already-uploaded storage object and return a server-signed URL
+  if (req.method === 'POST' && /^\/api\/vehicle-photos\/[^/]+$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const vehicleId = req.url.split('/').pop();
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const { storage_path, url, is_primary } = JSON.parse(body || '{}');
+        if (!storage_path) { res.writeHead(400); res.end(JSON.stringify({ error: 'storage_path required' })); return; }
+        // Validate path prefix — must be {userId}/{vehicleId}/filename to prevent path traversal / URL signing of arbitrary objects
+        const expectedPrefix = `${user.id}/${vehicleId}/`;
+        if (!storage_path.startsWith(expectedPrefix)) { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid storage path' })); return; }
+        // Validate extension — only image types accepted
+        const storagExt = (storage_path.split('.').pop() || '').toLowerCase();
+        const allowedExts = ['jpg', 'jpeg', 'png'];
+        if (!allowedExts.includes(storagExt)) { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid file type' })); return; }
+        // Ownership check: vehicle must belong to the authenticated member
+        const { data: ownedVehicle } = await supabase.from('vehicles').select('id').eq('id', vehicleId).eq('owner_id', user.id).maybeSingle();
+        if (!ownedVehicle) { res.writeHead(403); res.end(JSON.stringify({ error: 'Vehicle not found or access denied' })); return; }
+        const { data: existing } = await supabase.from('vehicle_photos').select('id').eq('vehicle_id', vehicleId).eq('member_id', user.id);
+        if ((existing || []).length >= 6) { res.writeHead(409); res.end(JSON.stringify({ error: 'Maximum 6 photos per vehicle' })); return; }
+        const makePrimary = is_primary || (existing || []).length === 0;
+        if (makePrimary) {
+          await supabase.from('vehicle_photos').update({ is_primary: false }).eq('vehicle_id', vehicleId).eq('member_id', user.id);
+        }
+        const { data: photo, error } = await supabase.from('vehicle_photos').insert({
+          member_id: user.id, vehicle_id: vehicleId, storage_path, url: url || null, is_primary: makePrimary
+        }).select().single();
+        if (error) throw error;
+        // Generate short-lived signed URL for immediate display
+        const { data: signedData } = await supabase.storage.from('vehicle-photos').createSignedUrl(storage_path, 3600);
+        res.writeHead(201, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, photo: { ...photo, url: signedData?.signedUrl || null } }));
+      } catch (err) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to save photo record' }));
+      }
+    });
+    return;
+  }
+
+  // PATCH /api/vehicle-photos/:photoId/primary — set a photo as primary
+  if (req.method === 'PATCH' && /^\/api\/vehicle-photos\/[^/]+\/primary$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const photoId = req.url.split('/')[3];
+    try {
+      const { data: photo } = await supabase.from('vehicle_photos').select('vehicle_id').eq('id', photoId).eq('member_id', user.id).single();
+      if (!photo) { res.writeHead(404); res.end(JSON.stringify({ error: 'Photo not found' })); return; }
+      await supabase.from('vehicle_photos').update({ is_primary: false }).eq('vehicle_id', photo.vehicle_id).eq('member_id', user.id);
+      await supabase.from('vehicle_photos').update({ is_primary: true }).eq('id', photoId);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to set primary photo' }));
+    }
+    return;
+  }
+
+  // DELETE /api/vehicle-photos/:photoId — delete a vehicle photo
+  if (req.method === 'DELETE' && /^\/api\/vehicle-photos\/[^/]+$/.test(req.url)) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const photoId = req.url.split('/').pop();
+    try {
+      const { data: photo } = await supabase.from('vehicle_photos').select('storage_path, is_primary, vehicle_id').eq('id', photoId).eq('member_id', user.id).single();
+      if (!photo) { res.writeHead(404); res.end(JSON.stringify({ error: 'Photo not found' })); return; }
+      await supabase.storage.from('vehicle-photos').remove([photo.storage_path]);
+      await supabase.from('vehicle_photos').delete().eq('id', photoId);
+      // Promote next photo to primary if this was primary
+      if (photo.is_primary) {
+        const { data: rest } = await supabase.from('vehicle_photos').select('id').eq('vehicle_id', photo.vehicle_id).eq('member_id', user.id).order('created_at').limit(1);
+        if (rest?.[0]) await supabase.from('vehicle_photos').update({ is_primary: true }).eq('id', rest[0].id);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to delete photo' }));
+    }
+    return;
+  }
+
+  // ========== END PROVIDER JOB BOARD ==========
+
+  // ========== END MEMBER ONBOARDING ==========
+
   // Apple Pay domain verification file
   if (req.method === 'GET' && req.url === '/.well-known/apple-developer-merchantid-domain-association') {
     const verificationFile = './.well-known/apple-developer-merchantid-domain-association';
@@ -37958,12 +43248,34 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     '/founding-member': '/member-founder.html',
     '/founding-provider': '/provider-pilot.html',
     '/provider-founder.html': '/provider-pilot.html',
-    '/providers': '/providers-directory.html'
+    '/providers': '/providers-directory.html',
+    // Fleet SaaS clean URLs
+    '/fleet': '/fleet-landing.html',
+    '/fleet/driver': '/fleet-driver.html',
+    '/fleet/join': '/fleet-join.html',
+    '/fleet/signup': '/fleet-signup.html',
+    // Provider Shop SaaS clean URLs
+    '/for-shops': '/for-shops.html',
+    // Developer Portal clean URLs
+    '/developers': '/developers.html',
+    // Survey clean URL
+    '/survey': '/survey.html',
+    // Provider Job Board clean URL
+    '/provider/jobs': '/job-board.html'
   };
   
+  // GET /developers/docs — Swagger UI for AI API
+  if (req.url === '/developers/docs' || req.url === '/developers/docs/') {
+    setSecurityHeaders(res);
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MCC AI API Docs</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css"><style>body{margin:0;background:#1a1e24}#swagger-ui .topbar{background:#12161c;padding:12px 16px}#swagger-ui .topbar .download-url-wrapper{display:none}#swagger-ui .info .title{color:#c9a84c}#swagger-ui .info__contact a{color:#4db6ac}</style></head><body><div id="swagger-ui"></div><script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script><script>SwaggerUIBundle({url:'/api/v1/openapi.json',dom_id:'#swagger-ui',presets:[SwaggerUIBundle.presets.apis,SwaggerUIBundle.SwaggerUIStandalonePreset],layout:'BaseLayout',deepLinking:true,displayRequestDuration:true,filter:true})</script></body></html>`);
+    return;
+  }
+
   const urlPath = req.url.split('?')[0];
   if (urlRedirects[urlPath]) {
-    res.writeHead(301, { 'Location': urlRedirects[urlPath] });
+    const queryString = req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
+    res.writeHead(301, { 'Location': urlRedirects[urlPath] + queryString });
     res.end();
     return;
   }
@@ -37976,6 +43288,11 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
   if (urlPath.startsWith('/p/') && urlPath.split('/p/')[1] && !urlPath.split('/p/')[1].includes('.html')) {
     filePath = './p.html';
+  }
+
+  // Serve shop profile for /shop/:slug
+  if (urlPath.startsWith('/shop/') && urlPath.split('/shop/')[1] && !urlPath.split('/shop/')[1].includes('.')) {
+    filePath = './shop.html';
   }
   
   // Serve rideshare calculator from www/rideshare folder
@@ -38320,6 +43637,8 @@ async function handleMatchProviders(req, res, requestId) {
         .select('id, full_name, business_name, zip_code, state, rating, tier, role, is_also_provider')
         .or('role.eq.provider,is_also_provider.eq.true')
         .not('is_suspended', 'eq', true)
+        .not('marketplace_visible', 'eq', false)
+        .not('shop_only_mode', 'eq', true)
         .limit(100);
 
       if (!providers || providers.length === 0) {
@@ -38432,8 +43751,11 @@ server.listen(PORT, '0.0.0.0', () => {
   startAnniversaryReminderScheduler();
   startSplitPaymentExpiryScheduler();
   startBidDeadlineScheduler();
+  startCarePlanClosingScheduler();
+  startCarePlanRealtimeListener();
   seedFoundingProviderAgreements();
   createAiOpsTablesIfNeeded();
+  initSmsLogTable();
 });
 
 // ========== AI OPS FOUNDATION ==========
@@ -38487,6 +43809,44 @@ function isTableMissingError(err) {
   if (!err) return false;
   const msg = err.message || '';
   return err.code === '42P01' || msg.includes('does not exist') || msg.includes('schema cache') || msg.includes('relation') || msg.includes('Could not find');
+}
+
+async function initSmsLogTable() {
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { error: checkErr } = await supabase.from('sms_log').select('id').limit(1);
+    if (!checkErr) return;
+    if (!isTableMissingError(checkErr)) return;
+    console.log('[SMS_LOG] Creating sms_log table...');
+    const sql = `CREATE TABLE IF NOT EXISTS public.sms_log (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      to_phone_masked text NOT NULL,
+      message_type text NOT NULL DEFAULT 'general',
+      message_sid text,
+      status text NOT NULL DEFAULT 'unknown',
+      error_code text,
+      error_message text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS sms_log_created_idx ON public.sms_log(created_at DESC);
+    CREATE INDEX IF NOT EXISTS sms_log_status_idx ON public.sms_log(status);
+    CREATE INDEX IF NOT EXISTS sms_log_type_idx ON public.sms_log(message_type);
+    ALTER TABLE public.sms_log ENABLE ROW LEVEL SECURITY;
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='sms_log' AND policyname='service_role_sms_log') THEN
+        CREATE POLICY service_role_sms_log ON public.sms_log FOR ALL TO service_role USING (true) WITH CHECK (true);
+      END IF;
+    END $$;`;
+    const createResult = await runSupabaseSQL(sql);
+    if (createResult.error) {
+      console.log('[SMS_LOG] Table creation skipped (table may already exist or rpc unavailable):', createResult.error);
+    } else {
+      console.log('[SMS_LOG] sms_log table ready.');
+    }
+  } catch (err) {
+    console.error('[SMS_LOG] initSmsLogTable error:', err.message);
+  }
 }
 
 async function createAiOpsTablesIfNeeded() {
@@ -39261,6 +44621,209 @@ function startBidDeadlineScheduler() {
 
 // SQL migration for deadline_warning_sent:
 // ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE;
+
+// ========== MODULE-LEVEL HELPER: enrich plans with member profiles ==========
+// care_plans.member_id FK points to auth.users, NOT profiles — PostgREST cannot
+// traverse it to profiles directly. We fetch profiles in a separate batch instead.
+async function enrichMemberProfiles(supabase, plans, isVerified) {
+  if (!isVerified) return plans.map(p => ({ ...p, member: null }));
+  const memberIds = [...new Set(plans.map(p => p.member_id).filter(Boolean))];
+  if (!memberIds.length) return plans;
+  const { data } = await supabase.from('profiles').select('id, full_name, city, state, zip_code').in('id', memberIds);
+  const map = {};
+  (data || []).forEach(m => { map[m.id] = m; });
+  return plans.map(p => ({ ...p, member: map[p.member_id] || null }));
+}
+
+// ========== MODULE-LEVEL HELPER: zip-prefix distance estimate ==========
+// Shared by job-board route handler, auto-bid engine, and schedulers.
+// Mirrors client-side estimateZipDistance in providers-bids.js.
+function estimateZipDistanceSrv(zip1, zip2) {
+  if (!zip1 || !zip2) return 999;
+  if (zip1 === zip2) return 0;
+  if (zip1.substring(0, 3) === zip2.substring(0, 3)) {
+    return Math.abs(parseInt(zip1) - parseInt(zip2)) * 0.5;
+  }
+  const diff = Math.abs(parseInt(zip1.substring(0, 3)) - parseInt(zip2.substring(0, 3)));
+  if (diff <= 2) return 15 + diff * 10;
+  if (diff <= 5) return 30 + diff * 8;
+  if (diff <= 10) return 50 + diff * 5;
+  return 100 + diff * 3;
+}
+
+// ========== AUTO-BID CORE LOGIC (shared by API endpoint + Realtime trigger) ==========
+async function runAutoBidForPlan(care_plan_id) {
+  const supabase = getSupabaseClient();
+  const { data: plan } = await supabase.from('care_plans').select('*').eq('id', care_plan_id).single();
+  if (!plan || plan.status !== 'open') return 0;
+  const { data: providers } = await supabase.from('profiles')
+    .select('id, zip_code, auto_bid_max_distance_miles, auto_bid_service_types, auto_bid_percent_of_estimate, verification_status')
+    .eq('auto_bid_enabled', true).in('role', ['provider', 'admin'])
+    .or('role.eq.admin,verification_status.eq.verified');
+  let placed = 0;
+  for (const prov of (providers || [])) {
+    const dist = estimateZipDistanceSrv(prov.zip_code, plan.zip_code);
+    if (prov.auto_bid_max_distance_miles && dist > prov.auto_bid_max_distance_miles) continue;
+    if (prov.auto_bid_service_types?.length && plan.service_types?.length) {
+      const overlap = prov.auto_bid_service_types.some(s => plan.service_types.includes(s));
+      if (!overlap) continue;
+    }
+    const pct = (prov.auto_bid_percent_of_estimate || 85) / 100;
+    const estimate = plan.value_min || plan.value_max || 200;
+    const amount = parseFloat((estimate * pct).toFixed(2));
+    const { error } = await supabase.from('plan_bids').upsert({
+      care_plan_id, provider_id: prov.id, amount, is_auto_bid: true
+    }, { onConflict: 'care_plan_id,provider_id', ignoreDuplicates: true });
+    if (!error) placed++;
+  }
+  console.log(`[AutoBid] Placed ${placed} auto-bid(s) for care plan ${care_plan_id}`);
+  return placed;
+}
+
+// ========== REALTIME SUBSCRIPTION: trigger auto-bid on new care plan inserts ==========
+function startCarePlanRealtimeListener() {
+  try {
+    const supabase = getSupabaseClient();
+    supabase.channel('care-plans-insert')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'care_plans' }, async (payload) => {
+        const newPlan = payload.new;
+        if (newPlan?.status === 'open' && newPlan?.id) {
+          console.log(`[AutoBid] New care plan detected (${newPlan.id}), triggering auto-bid...`);
+          runAutoBidForPlan(newPlan.id).catch(e => console.error('[AutoBid] Realtime trigger error:', e.message));
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') console.log('[AutoBid] Realtime listener active on care_plans');
+        else if (status === 'CHANNEL_ERROR') console.warn('[AutoBid] Realtime listener error — auto-bid will rely on scheduler only');
+      });
+  } catch (e) {
+    console.warn('[AutoBid] Could not start Realtime listener:', e.message);
+  }
+}
+
+// ========== CARE PLAN CLOSING-SOON SCHEDULER ==========
+function startCarePlanClosingScheduler() {
+  const INTERVAL = 60 * 60 * 1000; // hourly
+  const INITIAL_DELAY = 2 * 60 * 1000; // 2 min after boot
+  // Dedupe set: tracks plan+provider pairs already notified this process run (resets on restart)
+  const closingSoonNotified = new Set();
+
+  async function runCarePlanClosingCheck() {
+    try {
+      // 1. Expire plans past bid_closes_at
+      const { data: expired } = await supabase.from('care_plans')
+        .update({ status: 'expired' }).eq('status', 'open')
+        .lt('bid_closes_at', new Date().toISOString()).select('id, title, member_id');
+      if (expired?.length) console.log(`[CarePlanScheduler] Expired ${expired.length} care plans`);
+
+      // 2. Closing-soon (< 6 hours): notify ALL verified providers who haven't bid yet.
+      // closing_soon_notified_at guards against re-notifying on subsequent hourly runs.
+      const sixHoursLater = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+      const now = new Date().toISOString();
+      const { data: closingSoon } = await supabase.from('care_plans')
+        .select('id, title, zip_code, service_types, value_min, value_max, bid_closes_at')
+        .eq('status', 'open').lte('bid_closes_at', sixHoursLater).gte('bid_closes_at', now)
+        .is('closing_soon_notified_at', null);
+      if (!closingSoon?.length) return;
+
+      // Load all verified providers (SMS + push; each channel checks its own preferences)
+      const { data: allProviders } = await supabase.from('profiles')
+        .select('id, phone, full_name, business_name, zip_code, sms_notifications_enabled, verification_status, auto_bid_max_distance_miles')
+        .in('role', ['provider', 'admin']).eq('verification_status', 'verified');
+
+      // Load existing bids for closing-soon plans (batch lookup)
+      const closingIds = closingSoon.map(p => p.id);
+      const { data: existingBids } = await supabase.from('plan_bids')
+        .select('care_plan_id, provider_id').in('care_plan_id', closingIds);
+      const biddedSet = new Set((existingBids || []).map(b => `${b.care_plan_id}:${b.provider_id}`));
+
+      for (const plan of closingSoon) {
+        const minsLeft = Math.round((new Date(plan.bid_closes_at) - Date.now()) / 60000);
+        for (const prov of (allProviders || [])) {
+          // Skip if already notified this process run (dedupe)
+          const dedupeKey = `${plan.id}:${prov.id}`;
+          if (closingSoonNotified.has(dedupeKey)) continue;
+          // Skip if provider already bid
+          if (biddedSet.has(dedupeKey)) continue;
+          // Distance filter using auto-bid distance if set, otherwise 50-mile default
+          const maxDist = prov.auto_bid_max_distance_miles || 50;
+          const dist = estimateZipDistanceSrv(prov.zip_code, plan.zip_code);
+          if (dist > maxDist) continue;
+          const provName = prov.business_name || prov.full_name || 'Provider';
+          const msg = `MCC Alert: Care plan "${plan.title}" closes in ~${minsLeft} min. Est. value: $${plan.value_min || '?'}–$${plan.value_max || '?'}. Bid now: mycarconcierge.com/provider/jobs`;
+          if (prov.phone && prov.sms_notifications_enabled) await sendSms(prov.phone, msg).catch(() => {});
+          // Push notification (fires regardless of SMS preference)
+          await sendFCMPushNotification(
+            [prov.id],
+            '⏰ Care Plan Closing Soon',
+            `"${plan.title}" closes in ~${minsLeft} min. Est. $${plan.value_min || '?'}–$${plan.value_max || '?'} — bid now!`,
+            { url: '/provider/jobs', care_plan_id: plan.id },
+            'bid_opportunities'
+          ).catch(() => {});
+          closingSoonNotified.add(dedupeKey);
+        }
+        // Mark plan as notified so subsequent hourly runs skip it
+        await supabase.from('care_plans')
+          .update({ closing_soon_notified_at: new Date().toISOString() })
+          .eq('id', plan.id).catch(() => {});
+      }
+    } catch (err) { console.error('[CarePlanScheduler] Closing-soon error:', err.message); }
+  }
+
+  // 3. First Mover daily digest — 7 AM UTC each day
+  async function runFirstMoverDigest() {
+    try {
+      const { data: openPlans } = await supabase.from('care_plans')
+        .select('id, title, service_types, value_min, value_max, zip_code, bid_count, bid_closes_at')
+        .eq('status', 'open').gt('bid_closes_at', new Date().toISOString())
+        .order('created_at', { ascending: false }).limit(10);
+      if (!openPlans?.length) return;
+      // Digest targets providers who have NOT enabled auto-bid (those who opted in already get bids placed automatically)
+      const { data: providers } = await supabase.from('profiles')
+        .select('id, phone, email, full_name, business_name, zip_code, sms_notifications_enabled, auto_bid_max_distance_miles, verification_status')
+        .in('role', ['provider', 'admin']).eq('verification_status', 'verified')
+        .or('auto_bid_enabled.is.null,auto_bid_enabled.eq.false');
+      for (const prov of (providers || [])) {
+        const maxDist = prov.auto_bid_max_distance_miles || 50;
+        // Only show zero-bid plans (First Mover opportunity)
+        const matching = openPlans.filter(p => {
+          const dist = estimateZipDistanceSrv(prov.zip_code, p.zip_code);
+          return dist <= maxDist && (p.bid_count || 0) === 0;
+        });
+        if (!matching.length) continue;
+        const summary = matching.slice(0, 3).map(p =>
+          `"${p.title}" – $${p.value_min || '?'}–$${p.value_max || '?'} (${p.bid_count || 0} bids)`
+        ).join('; ');
+        const msg = `MCC Daily Jobs: ${matching.length} open care plan${matching.length > 1 ? 's' : ''} near you. Top picks: ${summary}. View all: mycarconcierge.com/provider/jobs`;
+        if (prov.phone && prov.sms_notifications_enabled) await sendSms(prov.phone, msg).catch(() => {});
+        // Push notification (First Mover opportunity)
+        const pushTitle = matching.length === 1 ? '🥇 First Mover Opportunity' : `🥇 ${matching.length} New Care Plans Near You`;
+        const pushBody = matching.length === 1
+          ? `Be first to bid on "${matching[0].title}" — $${matching[0].value_min || '?'}–$${matching[0].value_max || '?'}`
+          : `${matching.length} care plans with no bids yet near you. Be first to win!`;
+        await sendFCMPushNotification([prov.id], pushTitle, pushBody, { url: '/provider/jobs' }, 'bid_opportunities').catch(() => {});
+      }
+      console.log(`[CarePlanScheduler] First Mover digest sent to up to ${(providers || []).length} providers`);
+    } catch (err) { console.error('[CarePlanScheduler] Digest error:', err.message); }
+  }
+
+  // Schedule hourly closing-soon check
+  setTimeout(runCarePlanClosingCheck, INITIAL_DELAY);
+  setInterval(runCarePlanClosingCheck, INTERVAL);
+
+  // Schedule First Mover daily digest at 7 AM UTC
+  const now = new Date();
+  const next7am = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 7, 0, 0, 0));
+  if (next7am <= now) next7am.setUTCDate(next7am.getUTCDate() + 1);
+  const msUntil7am = next7am - now;
+  setTimeout(() => {
+    runFirstMoverDigest();
+    setInterval(runFirstMoverDigest, 24 * 60 * 60 * 1000);
+  }, msUntil7am);
+  console.log('[Scheduler] Care plan closing-soon check scheduled hourly');
+  console.log(`[Scheduler] First Mover daily digest scheduled in ${Math.round(msUntil7am / 60000)} min (7:00 UTC)`);
+}
+// ========== END CARE PLAN CLOSING-SOON SCHEDULER ==========
 
 async function handleServiceRecommendations(req, res, requestId) {
   setSecurityHeaders(res, true);

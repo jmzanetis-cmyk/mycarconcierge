@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Join Fleet – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#12161c" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.15);
+      --accent-blue: #38bdf8;
+      --accent-green: #34d399;
+      --accent-red: #f87171;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 460px;
+      text-align: center;
+    }
+    .logo { height: 80px; margin-bottom: 24px; }
+    .fleet-icon {
+      width: 72px; height: 72px;
+      background: var(--accent-gold-soft);
+      border: 2px solid var(--accent-gold);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+      margin: 0 auto 20px;
+    }
+    h1 { font-family: 'Playfair Display', serif; font-size: 1.7rem; margin-bottom: 8px; }
+    .subtitle { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5; margin-bottom: 28px; }
+    .invite-detail {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+    .invite-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.9rem; }
+    .invite-row:last-child { margin-bottom: 0; }
+    .invite-label { color: var(--text-muted); }
+    .invite-value { font-weight: 500; color: var(--text-primary); }
+    .role-badge {
+      display: inline-block;
+      background: var(--accent-blue);
+      color: white;
+      font-size: 0.78rem;
+      padding: 3px 10px;
+      border-radius: 10px;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: var(--radius-md);
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      margin-bottom: 12px;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: linear-gradient(135deg, #c9a227, #e8b843); color: #12161c; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-secondary { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .alert {
+      padding: 14px 18px;
+      border-radius: var(--radius-md);
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+    .alert-success { background: rgba(52, 211, 153, 0.12); border: 1px solid rgba(52,211,153,0.3); color: var(--accent-green); }
+    .alert-error { background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248,113,113,0.3); color: var(--accent-red); }
+    .alert-info { background: var(--accent-gold-soft); border: 1px solid rgba(201,162,39,0.3); color: var(--accent-gold); }
+    .spinner {
+      display: inline-block;
+      width: 20px; height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .divider { border-top: 1px solid var(--border-subtle); margin: 20px 0; }
+    .small-link { font-size: 0.85rem; color: var(--text-muted); text-decoration: none; }
+    .small-link:hover { color: var(--accent-gold); }
+    #loading-state, #error-state, #invite-state, #accepted-state { display: none; }
+    #loading-state.active, #error-state.active, #invite-state.active, #accepted-state.active { display: block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="/logo.png" alt="My Car Concierge" class="logo">
+
+    <!-- Loading -->
+    <div id="loading-state" class="active">
+      <div class="fleet-icon">🚛</div>
+      <h1>Fleet Invitation</h1>
+      <p class="subtitle"><span class="spinner"></span> Loading your invitation...</p>
+    </div>
+
+    <!-- Error -->
+    <div id="error-state">
+      <div class="fleet-icon" style="border-color:var(--accent-red);background:rgba(248,113,113,0.12);">❌</div>
+      <h1>Invitation Issue</h1>
+      <div id="error-message" class="alert alert-error" style="margin-top:16px;"></div>
+      <a href="/members.html" class="btn btn-secondary" style="display:block;text-align:center;text-decoration:none;margin-top:8px;">Go to Dashboard</a>
+    </div>
+
+    <!-- Valid Invite -->
+    <div id="invite-state">
+      <div class="fleet-icon">🚛</div>
+      <h1>You're Invited!</h1>
+      <p class="subtitle" id="invite-subtitle">You've been invited to join a fleet on My Car Concierge.</p>
+
+      <div class="invite-detail" id="invite-details">
+        <!-- filled dynamically -->
+      </div>
+
+      <div id="auth-notice" class="alert alert-info" style="display:none;">
+        You'll need to sign in (or create a free account) to accept this invitation.
+      </div>
+
+      <button id="accept-btn" class="btn btn-primary" onclick="acceptInvite()">
+        Accept &amp; Join Fleet
+      </button>
+      <a href="/members.html" class="small-link">Already have an account? Sign in first</a>
+    </div>
+
+    <!-- Accepted -->
+    <div id="accepted-state">
+      <div class="fleet-icon" style="border-color:var(--accent-green);background:rgba(52,211,153,0.12);">✓</div>
+      <h1>Welcome to the Fleet!</h1>
+      <p class="subtitle" id="accepted-subtitle">You've successfully joined the fleet.</p>
+      <div class="alert alert-success" id="accepted-detail"></div>
+      <a href="/members.html?section=fleet" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;margin-top:16px;">
+        Go to Fleet Dashboard →
+      </a>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="/supabaseclient.js"></script>
+  <script>
+    let inviteToken = null;
+    let inviteData = null;
+
+    function getToken() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('token');
+    }
+
+    function showState(id) {
+      ['loading-state', 'error-state', 'invite-state', 'accepted-state'].forEach(s => {
+        document.getElementById(s).classList.toggle('active', s === id);
+      });
+    }
+
+    function showError(msg) {
+      document.getElementById('error-message').textContent = msg;
+      showState('error-state');
+    }
+
+    async function loadInvite() {
+      inviteToken = getToken();
+      if (!inviteToken) {
+        showError('No invitation token found in this link.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/fleet/invite/${inviteToken}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || 'This invitation is no longer valid.');
+          return;
+        }
+
+        if (data.already_accepted) {
+          document.getElementById('accepted-subtitle').textContent = 'This invitation has already been accepted.';
+          document.getElementById('accepted-detail').textContent = 'You are already a member of this fleet.';
+          showState('accepted-state');
+          return;
+        }
+
+        inviteData = data.invite;
+        const fleet = inviteData.fleets;
+        const fleetName = fleet?.name || fleet?.company_name || 'the fleet';
+
+        document.getElementById('invite-subtitle').textContent = `You've been invited to join ${fleetName} as a ${inviteData.role}.`;
+
+        document.getElementById('invite-details').innerHTML = `
+          <div class="invite-row">
+            <span class="invite-label">Fleet</span>
+            <span class="invite-value">${fleetName}</span>
+          </div>
+          <div class="invite-row">
+            <span class="invite-label">Role</span>
+            <span class="invite-value"><span class="role-badge">${inviteData.role || 'driver'}</span></span>
+          </div>
+          ${inviteData.department ? `<div class="invite-row"><span class="invite-label">Department</span><span class="invite-value">${inviteData.department}</span></div>` : ''}
+          ${inviteData.spending_limit ? `<div class="invite-row"><span class="invite-label">Spending Limit</span><span class="invite-value">$${Number(inviteData.spending_limit).toLocaleString()}/request</span></div>` : ''}
+          <div class="invite-row">
+            <span class="invite-label">Expires</span>
+            <span class="invite-value">${new Date(inviteData.expires_at).toLocaleDateString()}</span>
+          </div>
+        `;
+
+        // Check if user is logged in
+        const user = await getCurrentUser();
+        if (!user) {
+          document.getElementById('auth-notice').style.display = 'block';
+          document.getElementById('accept-btn').textContent = 'Sign In to Accept';
+          document.getElementById('accept-btn').onclick = () => {
+            window.location.href = `/login.html?redirect=${encodeURIComponent(window.location.href)}`;
+          };
+        }
+
+        showState('invite-state');
+      } catch (err) {
+        showError('Failed to load invitation details. Please try again.');
+        console.error(err);
+      }
+    }
+
+    async function acceptInvite() {
+      const user = await getCurrentUser();
+      if (!user) {
+        window.location.href = `/login.html?redirect=${encodeURIComponent(window.location.href)}`;
+        return;
+      }
+
+      const btn = document.getElementById('accept-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Joining fleet...';
+
+      try {
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const token = sessionData?.session?.access_token;
+
+        const res = await fetch(`/api/fleet/invite/${inviteToken}/accept`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          }
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || 'Failed to accept invitation.');
+          return;
+        }
+
+        const fleet = inviteData?.fleets;
+        const fleetName = fleet?.name || fleet?.company_name || 'the fleet';
+        document.getElementById('accepted-subtitle').textContent = `You've successfully joined ${fleetName}!`;
+        document.getElementById('accepted-detail').textContent = `You are now a ${data.role} on ${fleetName}. Head to your fleet dashboard to get started.`;
+        showState('accepted-state');
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Accept & Join Fleet';
+        showError('An error occurred. Please try again.');
+        console.error(err);
+      }
+    }
+
+    loadInvite();
+  </script>
+</body>
+</html>

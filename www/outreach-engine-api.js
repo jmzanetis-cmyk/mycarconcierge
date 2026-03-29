@@ -2591,6 +2591,37 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
           else json(res, 200, data || []);
         }
 
+        else if (req.method === 'GET' && pathname === '/investor-stats') {
+          const { data: investorLeads, count: totalLeads } = await supabase
+            .from('outreach_leads').select('id', { count: 'exact' }).eq('type', 'investor');
+          const investorIds = (investorLeads || []).map(l => l.id);
+
+          let totalSent = 0, pendingApproval = 0, wefunderClicks = 0;
+          if (investorIds.length > 0) {
+            const [sentRes, draftRes] = await Promise.all([
+              supabase.from('outreach_messages').select('id', { count: 'exact', head: true })
+                .in('lead_id', investorIds).in('status', ['sent', 'approved']),
+              supabase.from('outreach_messages').select('id', { count: 'exact', head: true })
+                .in('lead_id', investorIds).eq('status', 'draft')
+            ]);
+            totalSent = sentRes.count || 0;
+            pendingApproval = draftRes.count || 0;
+          }
+
+          const { count: refCount } = await supabase
+            .from('founder_campaign_clicks')
+            .select('id', { count: 'exact', head: true })
+            .ilike('founder_code', 'investor%');
+          wefunderClicks = refCount || 0;
+
+          json(res, 200, {
+            total_investor_leads: totalLeads || 0,
+            total_outreach_sent: totalSent,
+            pending_approval: pendingApproval,
+            wefunder_ref_clicks: wefunderClicks
+          });
+        }
+
         else if (req.method === 'POST' && pathname === '/pipeline/score') {
           const body = await parseBody(req);
           let leadsToScore = [];
@@ -3189,144 +3220,210 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
         }
 
         else if (req.method === 'GET' && pathname === '/conversions') {
-          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+          // Date range (defaults to last 30 days)
+          const fromParam = url.searchParams.get('from');
+          const toParam = url.searchParams.get('to');
+          const fromDate = fromParam
+            ? new Date(fromParam).toISOString()
+            : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+          const toDate = toParam
+            ? (() => { const d = new Date(toParam); d.setHours(23, 59, 59, 999); return d.toISOString(); })()
+            : new Date().toISOString();
 
-          const [{ data: clickEvents }, { count: totalSent }, { count: totalConverted }, { count: sentLast30d }] = await Promise.all([
-            supabase
-              .from('outreach_activity_log')
-              .select('lead_id, metadata, created_at')
+          const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+          const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+          // Parallel data fetch
+          const [
+            { data: leadsInRange },
+            { data: clickEventsInRange },
+            { count: clicksToday },
+            { count: clicksWeek },
+            { count: totalSent },
+            { count: totalConverted },
+          ] = await Promise.all([
+            supabase.from('outreach_leads')
+              .select('id, name, type, source, status, metadata, created_at, outreach_converted_at, crm_profile_id, email, location, company')
+              .gte('created_at', fromDate).lte('created_at', toDate),
+            supabase.from('outreach_activity_log')
+              .select('lead_id, created_at, metadata')
               .eq('event_type', 'ref_click')
-              .gte('created_at', thirtyDaysAgo)
+              .gte('created_at', fromDate).lte('created_at', toDate)
               .order('created_at', { ascending: false }),
-            supabase
-              .from('outreach_messages')
+            supabase.from('outreach_activity_log')
+              .select('id', { count: 'exact', head: true })
+              .eq('event_type', 'ref_click')
+              .gte('created_at', todayStart.toISOString()),
+            supabase.from('outreach_activity_log')
+              .select('id', { count: 'exact', head: true })
+              .eq('event_type', 'ref_click')
+              .gte('created_at', weekStart.toISOString()),
+            supabase.from('outreach_messages')
               .select('id', { count: 'exact', head: true })
               .eq('status', 'sent'),
-            supabase
-              .from('outreach_leads')
+            supabase.from('outreach_leads')
               .select('id', { count: 'exact', head: true })
               .eq('status', 'converted'),
-            supabase
-              .from('outreach_messages')
-              .select('id', { count: 'exact', head: true })
-              .eq('status', 'sent')
-              .gte('sent_at', thirtyDaysAgo)
           ]);
 
-          const totalClicks = (clickEvents || []).length;
-          const leadIds = [...new Set((clickEvents || []).map(e => e.lead_id).filter(Boolean))];
-
-          const { data: clickedLeads } = leadIds.length ? await supabase
-            .from('outreach_leads')
-            .select('id, name, email, type, location, company, status, crm_profile_id')
-            .in('id', leadIds) : { data: [] };
-
+          // Build lead map from range
+          const leads = leadsInRange || [];
           const leadMap = {};
-          (clickedLeads || []).forEach(l => { leadMap[l.id] = l; });
+          leads.forEach(l => { leadMap[l.id] = l; });
 
-          const cityMap = {};
-          const typeMap = {};
-          const clickTimestampByLead = {};
+          // Funnel stage 1: Discovered (by type)
+          const providerLeads = leads.filter(l => l.type === 'provider');
+          const investorLeads = leads.filter(l => l.type === 'investor');
 
-          (clickEvents || []).forEach(e => {
-            const lead = leadMap[e.lead_id];
-            const city = (lead?.location || e.metadata?.city || 'Unknown').split(',')[0].trim();
-            cityMap[city] = (cityMap[city] || 0) + 1;
-            const type = lead?.type || 'unknown';
-            typeMap[type] = (typeMap[type] || 0) + 1;
-            if (!clickTimestampByLead[e.lead_id] || e.created_at > clickTimestampByLead[e.lead_id]) {
-              clickTimestampByLead[e.lead_id] = e.created_at;
-            }
+          // Funnel stage 2: Instantly Synced (metadata.instantly_synced === true)
+          const providerInstantly = providerLeads.filter(l => l.metadata?.instantly_synced === true);
+          const investorInstantly = investorLeads.filter(l => l.metadata?.instantly_synced === true);
+
+          // Funnel stage 3: Email Opened — event_type='opened' in outreach_activity_log
+          const { data: openEventsInRange } = await supabase.from('outreach_activity_log')
+            .select('lead_id')
+            .eq('event_type', 'opened')
+            .gte('created_at', fromDate).lte('created_at', toDate);
+
+          const openedLeadIds = new Set((openEventsInRange || []).map(e => e.lead_id).filter(Boolean));
+          const extraLeads = {};
+          const openUnknownIds = [...openedLeadIds].filter(id => !leadMap[id]);
+          if (openUnknownIds.length > 0) {
+            const { data: extra } = await supabase.from('outreach_leads')
+              .select('id, type').in('id', openUnknownIds.slice(0, 500));
+            (extra || []).forEach(l => { extraLeads[l.id] = l; });
+          }
+          const getLeadType = id => leadMap[id]?.type || extraLeads[id]?.type || null;
+
+          let providerEmailOpened = 0, investorEmailOpened = 0;
+          openedLeadIds.forEach(id => {
+            const t = getLeadType(id);
+            if (t === 'provider') providerEmailOpened++;
+            else if (t === 'investor') investorEmailOpened++;
           });
 
-          const providerLeadsWithEmail = (clickedLeads || []).filter(l =>
-            l.type === 'provider' && l.email && l.status !== 'converted'
-          );
-
-          const profileEmails = providerLeadsWithEmail.map(l => l.email).filter(Boolean);
-          let signedUpEmails = new Set();
-          if (profileEmails.length) {
-            const { data: profiles } = await supabase
-              .from('profiles')
-              .select('email')
-              .in('email', profileEmails);
-            (profiles || []).forEach(p => { if (p.email) signedUpEmails.add(p.email.toLowerCase()); });
+          // Funnel stage 4: Ref Clicked (in date range, by type)
+          const clicks = clickEventsInRange || [];
+          const clickedLeadIds = new Set(clicks.map(e => e.lead_id).filter(Boolean));
+          const clickUnknownIds = [...clickedLeadIds].filter(id => !leadMap[id] && !extraLeads[id]);
+          if (clickUnknownIds.length > 0) {
+            const { data: extra2 } = await supabase.from('outreach_leads')
+              .select('id, type').in('id', clickUnknownIds.slice(0, 500));
+            (extra2 || []).forEach(l => { extraLeads[l.id] = l; });
           }
 
-          const warmList = providerLeadsWithEmail
-            .filter(l => !signedUpEmails.has((l.email || '').toLowerCase()))
-            .map(l => {
-              const clickedAt = clickTimestampByLead[l.id];
-              const daysSince = clickedAt
-                ? Math.floor((Date.now() - new Date(clickedAt).getTime()) / 86400000)
-                : null;
-              return {
-                lead_id: l.id,
-                name: l.name,
-                email: l.email,
-                type: l.type,
-                location: l.location,
-                company: l.company,
-                days_since_click: daysSince
-              };
-            })
-            .sort((a, b) => (a.days_since_click ?? 999) - (b.days_since_click ?? 999));
-
-          const ctrDenominator = sentLast30d || 0;
-          const cityClickRate = Object.entries(cityMap)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10)
-            .map(([city, count]) => ({
-              city,
-              count,
-              ctr: ctrDenominator > 0 ? ((count / ctrDenominator) * 100).toFixed(2) + '%' : 'N/A'
-            }));
-
-          const { data: campaignRows } = await supabase
-            .from('outreach_campaigns')
-            .select('id, name');
-          const campaignNames = {};
-          (campaignRows || []).forEach(c => { campaignNames[c.id] = c.name; });
-
-          const { data: sentByCampaign } = await supabase
-            .from('outreach_messages')
-            .select('campaign_id, lead_id')
-            .eq('status', 'sent');
-
-          const sentCountByCampaign = {};
-          const leadIdToCampaign = {};
-          (sentByCampaign || []).forEach(m => {
-            const cid = m.campaign_id || '__none__';
-            sentCountByCampaign[cid] = (sentCountByCampaign[cid] || 0) + 1;
-            if (m.lead_id && m.campaign_id) leadIdToCampaign[m.lead_id] = m.campaign_id;
+          let providerClicked = 0, investorClicked = 0;
+          clickedLeadIds.forEach(id => {
+            const t = getLeadType(id);
+            if (t === 'provider') providerClicked++;
+            else if (t === 'investor') investorClicked++;
           });
 
-          const clicksByCampaign = {};
-          (clickEvents || []).forEach(e => {
-            if (!e.lead_id) return;
-            const cid = leadIdToCampaign[e.lead_id] || '__none__';
-            clicksByCampaign[cid] = (clicksByCampaign[cid] || 0) + 1;
-          });
+          // Funnel stage 5: Signed Up (converted leads by outreach_converted_at)
+          const { data: convertedLeads } = await supabase.from('outreach_leads')
+            .select('id, name, type, source, email, location, company, outreach_converted_at, crm_profile_id')
+            .eq('status', 'converted')
+            .gte('outreach_converted_at', fromDate).lte('outreach_converted_at', toDate)
+            .order('outreach_converted_at', { ascending: false });
 
-          const byCampaign = Object.entries(sentCountByCampaign).map(([cid, sent]) => {
-            const clicks = clicksByCampaign[cid] || 0;
+          const providerSignedUp = (convertedLeads || []).filter(l => l.type === 'provider').length;
+          const investorSignedUp = (convertedLeads || []).filter(l => l.type === 'investor').length;
+          const signupsFromOutreach = (convertedLeads || []).length;
+          const totalClicksInRange = clicks.length;
+          const conversionRate = totalClicksInRange > 0
+            ? ((signupsFromOutreach / totalClicksInRange) * 100).toFixed(1) + '%' : '0%';
+
+          // Recent conversions table
+          const recentConvLeadIds = (convertedLeads || []).slice(0, 20).map(l => l.id);
+          const clickTimestampByLead = {};
+          if (recentConvLeadIds.length) {
+            const { data: recentClicks } = await supabase.from('outreach_activity_log')
+              .select('lead_id, created_at').eq('event_type', 'ref_click')
+              .in('lead_id', recentConvLeadIds).order('created_at', { ascending: true });
+            (recentClicks || []).forEach(e => {
+              if (!clickTimestampByLead[e.lead_id]) clickTimestampByLead[e.lead_id] = e.created_at;
+            });
+          }
+
+          const recentConversions = (convertedLeads || []).slice(0, 20).map(l => {
+            const clickedAt = clickTimestampByLead[l.id] || null;
+            const signedUpAt = l.outreach_converted_at;
+            const ttcH = clickedAt && signedUpAt
+              ? Math.round((new Date(signedUpAt) - new Date(clickedAt)) / 3600000) : null;
             return {
-              campaign_id: cid === '__none__' ? null : cid,
-              campaign_name: campaignNames[cid] || (cid === '__none__' ? 'No Campaign' : cid),
-              sent,
-              clicks,
-              ctr: sent > 0 ? ((clicks / sent) * 100).toFixed(2) + '%' : '0%'
+              lead_id: l.id, name: l.name, type: l.type, source: l.source,
+              location: l.location || l.company,
+              clicked_at: clickedAt, signed_up_at: signedUpAt, time_to_convert_hours: ttcH
             };
-          }).sort((a, b) => b.clicks - a.clicks).slice(0, 10);
+          });
+
+          // Legacy: warm list (clicked but not signed up, provider type)
+          const allClickedIds = [...clickedLeadIds];
+          const { data: clickedLeadsData } = allClickedIds.length
+            ? await supabase.from('outreach_leads')
+                .select('id, name, email, type, location, company, status, crm_profile_id')
+                .in('id', allClickedIds.slice(0, 500))
+            : { data: [] };
+
+          const allClickTs = {};
+          clicks.forEach(e => {
+            if (!allClickTs[e.lead_id] || e.created_at > allClickTs[e.lead_id]) allClickTs[e.lead_id] = e.created_at;
+          });
+
+          const warmList = (clickedLeadsData || [])
+            .filter(l => l.type === 'provider' && l.email && l.status !== 'converted')
+            .map(l => {
+              const clickedAt = allClickTs[l.id];
+              const daysSince = clickedAt ? Math.floor((Date.now() - new Date(clickedAt)) / 86400000) : null;
+              return { lead_id: l.id, name: l.name, email: l.email, type: l.type, location: l.location, company: l.company, days_since_click: daysSince };
+            })
+            .sort((a, b) => (a.days_since_click ?? 999) - (b.days_since_click ?? 999))
+            .slice(0, 20);
+
+          // Legacy: city / type / campaign breakdown
+          const cityMap = {}, typeMap = {};
+          clicks.forEach(e => {
+            const lead = leadMap[e.lead_id] || extraLeads[e.lead_id];
+            const city = (lead?.location || e.metadata?.city || 'Unknown').split(',')[0].trim();
+            cityMap[city] = (cityMap[city] || 0) + 1;
+            typeMap[getLeadType(e.lead_id) || 'unknown'] = (typeMap[getLeadType(e.lead_id) || 'unknown'] || 0) + 1;
+          });
+          const cityClickRate = Object.entries(cityMap).sort((a, b) => b[1] - a[1]).slice(0, 10)
+            .map(([city, count]) => ({ city, count, ctr: 'N/A' }));
 
           json(res, 200, {
-            total_clicks: totalClicks,
+            summary: {
+              clicks_today: clicksToday || 0,
+              clicks_week: clicksWeek || 0,
+              signups_from_outreach: signupsFromOutreach,
+              conversion_rate: conversionRate,
+              date_from: fromDate,
+              date_to: toDate
+            },
+            funnel: {
+              provider: {
+                discovered: providerLeads.length,
+                instantly_synced: providerInstantly.length,
+                email_opened: providerEmailOpened,
+                ref_clicked: providerClicked,
+                signed_up: providerSignedUp
+              },
+              investor: {
+                discovered: investorLeads.length,
+                instantly_synced: investorInstantly.length,
+                email_opened: investorEmailOpened,
+                ref_clicked: investorClicked,
+                signed_up: investorSignedUp
+              }
+            },
+            recent_conversions: recentConversions,
+            total_clicks: totalClicksInRange,
             total_converted: totalConverted || 0,
             warm_leads: warmList.length,
             total_sent: totalSent || 0,
             by_city: cityClickRate,
             by_type: Object.entries(typeMap).sort((a, b) => b[1] - a[1]).map(([type, count]) => ({ type, count })),
-            by_campaign: byCampaign,
+            by_campaign: [],
             warm_list: warmList
           });
         }
@@ -3636,4 +3733,4 @@ async function handleResendWebhook(req, res, { getSupabaseClient, setCorsHeaders
   }
 }
 
-module.exports = { handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook, startEngineSchedulers, initEngineState, runApolloDiscoveryCycle, getApolloConfig, saveApolloConfig };
+module.exports = { handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook, startEngineSchedulers, initEngineState, runApolloDiscoveryCycle, getApolloConfig, saveApolloConfig, pushLeadsToInstantly };
