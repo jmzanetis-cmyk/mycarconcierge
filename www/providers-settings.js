@@ -586,10 +586,12 @@ async function submitBackgroundCheck() {
   const teamMemberSelect = document.getElementById('bg-check-team-member');
   const teamMemberId = teamMemberSelect?.value || null;
 
+  const fcraAck = document.getElementById('bg-check-fcra-ack')?.checked;
   if (!firstName) { showToast('Please enter first name', 'error'); return; }
   if (!lastName)  { showToast('Please enter last name', 'error');  return; }
   if (!email)     { showToast('Please enter email address', 'error'); return; }
   if (!state)     { showToast('Please select work state', 'error'); return; }
+  if (!fcraAck)   { showToast('You must acknowledge the FCRA disclosure before initiating a background check', 'error'); return; }
 
   const btn = document.getElementById('bg-check-submit-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
