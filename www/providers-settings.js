@@ -615,7 +615,8 @@ async function submitBackgroundCheck() {
         state,
         phone: phone || undefined,
         providerEmail: currentUser?.email || undefined,
-        providerName: providerProfile?.business_name || providerProfile?.full_name || undefined
+        providerName: providerProfile?.business_name || providerProfile?.full_name || undefined,
+        fcraAcknowledged: true
       })
     });
 

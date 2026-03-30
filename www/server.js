@@ -19157,12 +19157,33 @@ async function handleBgChecksInitiate(req, res, requestId) {
   req.on('end', async () => {
     try {
       const parsed = JSON.parse(body);
-      const { providerId, firstName, lastName, email, phone, city, state, zipcode, subjectType, employeeId, providerEmail, providerName } = parsed;
+      const { providerId, firstName, lastName, email, phone, city, state, zipcode, subjectType, employeeId, providerEmail, providerName, fcraAcknowledged } = parsed;
 
       if (!providerId || !firstName || !lastName || !email || !state) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Missing required fields: providerId, firstName, lastName, email, state' }));
         return;
+      }
+
+      if (!fcraAcknowledged) {
+        console.warn(`[${requestId}] FCRA acknowledgment missing for background check initiated by user ${user.id} (provider ${providerId})`);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'FCRA disclosure acknowledgment is required before initiating a background check (15 U.S.C. § 1681b(b)(2)(A)).' }));
+        return;
+      }
+
+      const fcraAckTimestamp = new Date().toISOString();
+      const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+      console.log(`[${requestId}] FCRA acknowledgment recorded: user=${user.id} provider=${providerId} subject=${email} type=${subjectType||'provider'} ip=${clientIp} at=${fcraAckTimestamp}`);
+      try {
+        const localDb = getLocalPool();
+        await localDb.query(
+          `INSERT INTO fcra_acknowledgment_log (user_id, subject_email, subject_type, provider_id, ip_address, acknowledged_at, disclosure_url)
+           VALUES (, , , , , , '/background-check-disclosure.html')`,
+          [user.id, email, subjectType || 'provider', providerId, clientIp, fcraAckTimestamp]
+        );
+      } catch (logErr) {
+        console.error(`[${requestId}] Failed to write FCRA audit log:`, logErr.message);
       }
 
       const supabase = getSupabaseClient();
