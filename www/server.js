@@ -19178,8 +19178,7 @@ async function handleBgChecksInitiate(req, res, requestId) {
       try {
         const localDb = getLocalPool();
         await localDb.query(
-          `INSERT INTO fcra_acknowledgment_log (user_id, subject_email, subject_type, provider_id, ip_address, acknowledged_at, disclosure_url)
-           VALUES (, , , , , , '/background-check-disclosure.html')`,
+          'INSERT INTO fcra_acknowledgment_log (user_id, subject_email, subject_type, provider_id, ip_address, acknowledged_at, disclosure_url) VALUES ($1, $2, $3, $4, $5, $6, \'/background-check-disclosure.html\')',
           [user.id, email, subjectType || 'provider', providerId, clientIp, fcraAckTimestamp]
         );
       } catch (logErr) {
