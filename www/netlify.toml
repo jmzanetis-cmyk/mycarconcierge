@@ -16,33 +16,8 @@
   schedule = "0 0 * * 0"
 
 [[redirects]]
-  from = "/api/survey/response"
-  to = "/.netlify/functions/survey/response"
-  status = 200
-
-[[redirects]]
-  from = "/api/survey/abandoned"
-  to = "/.netlify/functions/survey/abandoned"
-  status = 200
-
-[[redirects]]
   from = "/api/survey/profile"
-  to = "/.netlify/functions/survey/profile"
-  status = 200
-
-[[redirects]]
-  from = "/api/survey/area-check"
-  to = "/.netlify/functions/survey/area-check"
-  status = 200
-
-[[redirects]]
-  from = "/api/survey/referral-link"
-  to = "/.netlify/functions/survey/referral-link"
-  status = 200
-
-[[redirects]]
-  from = "/api/survey/job"
-  to = "/.netlify/functions/survey/job"
+  to = "/.netlify/functions/survey-profile"
   status = 200
 
 [[redirects]]
