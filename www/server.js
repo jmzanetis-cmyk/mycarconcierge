@@ -42191,6 +42191,19 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
           vehicle_model: vehicle_model ? vehicle_model.trim().slice(0, 80) : null
         }).select('id').single();
         if (insertErr) {
+          if (insertErr.code === '23505') {
+            // Duplicate email — return existing profile id gracefully
+            const { data: existingProfile } = await supabase
+              .from('customer_profiles')
+              .select('id')
+              .eq('email', email.trim().toLowerCase().slice(0, 254))
+              .maybeSingle();
+            if (existingProfile) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ ok: true, id: existingProfile.id, duplicate: true }));
+              return;
+            }
+          }
           console.error('[Survey] customer_profiles insert error:', insertErr.message, insertErr.details);
           throw new Error(insertErr.message);
         }
