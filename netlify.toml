@@ -21,6 +21,21 @@
 [functions."outreach-cleanup"]
   schedule = "0 0 * * 0"
 
+<<<<<<< HEAD
+=======
+[functions."payment-tracker-scheduled"]
+  schedule = "0 */6 * * *"
+
+[functions."daily-digest-scheduled"]
+  schedule = "0 1 * * *"
+
+[functions."apollo-discovery-scheduled"]
+  schedule = "0 */6 * * *"
+
+[functions."wefunder-blast-scheduled"]
+  schedule = "0 2 * * 0"
+
+>>>>>>> main
 [[redirects]]
   from = "/t/o"
   to = "/.netlify/functions/email-tracking?a=open"
@@ -117,6 +132,19 @@
   status = 200
 
 [[redirects]]
+<<<<<<< HEAD
+=======
+  from = "/api/admin/ai-ops/*"
+  to = "/.netlify/functions/ai-ops-admin/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/outreach/ref"
+  to = "/.netlify/functions/outreach-ref"
+  status = 200
+
+[[redirects]]
+>>>>>>> main
   from = "/api/admin/outreach/*"
   to = "/.netlify/functions/outreach-admin/:splat"
   status = 200

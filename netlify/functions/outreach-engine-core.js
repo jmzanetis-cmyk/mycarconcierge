@@ -761,7 +761,11 @@ async function draftMessageWithAI(lead, channel, sequenceStep) {
     const audienceContext = {
       member: 'a potential founding member — a vehicle owner, property manager, fleet operator, or business invited to join My Car Concierge while it is still in its early startup stage. Founding members get in on the ground floor: early access, the chance to shape the platform, and loyalty perks from day one. They benefit from posting their auto or property service needs and receiving competitive bids from vetted local providers, with secure escrow payments and vehicle maintenance tracking all in one platform',
       provider: 'a potential founding provider — an auto service provider (mechanic, body shop, detailer, etc.) invited to join My Car Concierge while it is still in its early startup stage. Founding providers get priority visibility, early access to new customers as the platform grows, and the chance to build their reputation before the competition arrives. They benefit from a steady stream of pre-qualified local customers, secure escrow payments, and tools like Car Club loyalty programs to build repeat business — with no platform fees',
+<<<<<<< HEAD
       investor: 'a potential investor or strategic partner evaluating My Car Concierge — an early-stage automotive marketplace startup with a growing founding community, escrow payments, Car Club loyalty, AI-powered customer acquisition, and a clear path to scale'
+=======
+      investor: 'a potential investor or strategic partner evaluating My Car Concierge — an early-stage automotive marketplace startup with a growing founding community, escrow payments, Car Club loyalty, AI-powered customer acquisition, and a clear path to scale. My Car Concierge is actively raising on Wefunder at wefunder.com/my.car.concierge?utm_source=email&utm_medium=outreach&utm_campaign=followup — direct them there to learn more and invest. This is a community crowdfunding round open to everyday investors, not just institutions'
+>>>>>>> main
     };
 
     const channelInstruction = channel === 'sms'
@@ -774,7 +778,11 @@ async function draftMessageWithAI(lead, channel, sequenceStep) {
     } else if (sequenceStep === 2) {
       followUpNote = 'This is follow-up #2. Reference that we reached out a few days ago. Add a new angle or benefit they may have missed. Keep it shorter than the original.';
     } else {
+<<<<<<< HEAD
       followUpNote = 'This is the FINAL follow-up (#3). Use social proof (mention growing community of providers and members). Create gentle urgency — founding partner spots are limited. Keep it concise and respectful of their time. Make it clear this is the last message unless they respond.';
+=======
+      followUpNote = 'This is the FINAL follow-up (#3). Reference that My Car Concierge has an active community fundraising round live on Wefunder (wefunder.com/my.car.concierge?utm_source=email&utm_medium=outreach&utm_campaign=followup) — the team is actively investing in growing the platform and this is the time to get in early as a founding partner before it scales. Create genuine urgency — founding partner perks exist specifically for the early stage and will not carry the same weight once the platform is established. Keep it concise and respectful of their time. Make it clear this is the last message unless they respond.';
+>>>>>>> main
     }
 
     let contextNote = '';
@@ -840,7 +848,17 @@ async function draftMessageWithAI(lead, channel, sequenceStep) {
         contextNote = 'IMPORTANT: This is a car owner community, club, or group discovered online. The lead is the community organizer or admin — NOT an individual car owner. My Car Concierge is in its early startup stage and actively looking for founding community partners. Pitch a partnership: their members already love their vehicles and would benefit from a trusted platform to find vetted local mechanics, compare competitive repair quotes, and track vehicle maintenance. Offer concrete founding-partner benefits: a dedicated Car Club loyalty program on My Car Concierge with custom punch card rewards for their members, a co-branded landing page, referral commissions for the club, and the opportunity to shape how My Car Concierge serves car enthusiast communities as it grows. Being an early community partner means more influence, more visibility, and preferred status. Be respectful of their community — position My Car Concierge as a resource that enhances the ownership experience, not as advertising.';
       }
     } else if (lead.source === 'google_places' && lead.type === 'provider') {
+<<<<<<< HEAD
       contextNote = 'IMPORTANT: This is an auto service shop or provider discovered online. They have NOT heard of My Car Concierge before. My Car Concierge is in its early startup stage and actively recruiting founding providers. Pitch the founding provider opportunity: they get in on the ground floor of a growing marketplace, with early-mover advantage — priority visibility, first access to new customers in their area, and the ability to build their reputation and reviews before competitors join. Emphasize there are no platform fees — providers keep 100% of what they earn, plus secure escrow payments, Car Club loyalty tools to build repeat business, and a steady pipeline of pre-qualified local customers. Frame this as a rare chance to be among the first providers on a platform built to grow — not just another listing site.';
+=======
+      contextNote = 'IMPORTANT: This is an auto service shop or provider discovered online. They have NOT heard of My Car Concierge before. My Car Concierge is in its early startup stage and actively recruiting founding providers. Pitch the founding provider opportunity: they get in on the ground floor of a growing marketplace, with early-mover advantage — priority visibility, first access to new customers in their area, and the ability to build their reputation and reviews before competitors join. Emphasize there are no platform fees — providers keep 100% of what they earn, plus secure escrow payments, Car Club loyalty tools to build repeat business, and a steady pipeline of pre-qualified local customers. CONTEXT: My Car Concierge currently has an active community fundraising round on Wefunder (wefunder.com/my.car.concierge?utm_source=email&utm_medium=outreach&utm_campaign=followup), which reflects the team\'s commitment to growing the platform — mention it as a signal that the platform is serious and actively building. Frame this as a rare chance to be among the first providers on a platform that is actively investing in its growth — not just another listing site.';
+    } else if (lead.source === 'Apollo' && lead.type === 'investor') {
+      contextNote = 'IMPORTANT: This is a potential angel investor, VC, or financial professional discovered via Apollo.io. They may NOT have heard of My Car Concierge before. My Car Concierge is an early-stage automotive marketplace startup currently raising on Wefunder at wefunder.com/my.car.concierge?utm_source=email&utm_medium=outreach&utm_campaign=followup — a community crowdfunding round open to everyday investors, not just institutions. Describe what the platform actually is: a marketplace connecting car owners with vetted local service providers, featuring competitive bidding, escrow payments, Car Club loyalty programs, AI-powered tools, and vehicle maintenance tracking. Explain that the platform is in its early stage, actively building its founding community of members and providers, and seeking capital to fuel growth. Direct them to wefunder.com/my.car.concierge?utm_source=email&utm_medium=outreach&utm_campaign=followup to learn more and invest if interested. Do NOT make specific ROI promises, guaranteed return claims, earnings projections, or any securities-law-violating statements. Stick only to factual descriptions of what the platform does and what the Wefunder campaign is. Be warm, direct, and concise — this is an introduction, not a pitch deck.';
+    } else if (lead.source === 'Apollo' && lead.type === 'provider') {
+      contextNote = 'IMPORTANT: This is an auto service business owner or manager discovered via Apollo.io. They have NOT heard of My Car Concierge before. My Car Concierge is in its early startup stage and actively recruiting founding providers. Pitch the founding provider opportunity: they get in on the ground floor of a marketplace that is actively building and growing, with early-mover advantage — priority visibility, first access to new local customers in their area, and the chance to build their reputation and reviews before competitors join. No platform fees — providers keep 100% of what they earn. Secure escrow payments protect both parties. Car Club loyalty tools help build repeat business. You may mention that My Car Concierge has an active fundraising campaign on Wefunder (wefunder.com/my.car.concierge?utm_source=email&utm_medium=outreach&utm_campaign=followup) as a factual signal that the platform is in active growth mode — but do NOT claim or imply that investors have committed funds or that the platform is "backed by investors."';
+    } else if (lead.source === 'Apollo') {
+      contextNote = 'IMPORTANT: This person was discovered via Apollo.io. They have NOT heard of My Car Concierge before. My Car Concierge is in its early startup stage and actively building its founding community. Mention the Wefunder campaign (wefunder.com/my.car.concierge?utm_source=email&utm_medium=outreach&utm_campaign=followup) as a credibility signal. Pitch based on their apparent role — if they are in the auto industry, invite them as a founding provider; if they appear to be an investor or in finance, direct them to the Wefunder investment opportunity.';
+>>>>>>> main
     }
 
     const prompt = `${BRAND_INFO}
@@ -978,6 +996,7 @@ async function sendMessage(supabase, messageId) {
     if (!resend) return { error: 'Email service not configured' };
 
     const unsubLink = `${UNSUBSCRIBE_URL}?email=${encodeURIComponent(lead.email)}&id=${lead.id}`;
+<<<<<<< HEAD
     const textBody = bodyBase + `\n\n---\n${PHYSICAL_ADDRESS}\nTo stop receiving these emails: ${unsubLink}`;
     const trackingBase = BASE_URL;
     const openPixel = `<img src="${trackingBase}/t/o?m=${messageId}" width="1" height="1" style="display:none;" alt="">`;
@@ -985,6 +1004,22 @@ async function sendMessage(supabase, messageId) {
     const htmlBody = bodyBase
       .replace(/\n/g, '<br>')
       .replace(/https:\/\/mycarconcierge\.com/g, `<a href="${clickUrl}" style="color:#c9a84c;">mycarconcierge.com</a>`)
+=======
+    const refLink = lead.type === 'provider' ? `${BASE_URL}/api/outreach/ref?id=${lead.id}` : null;
+    const textBody = bodyBase
+      + (refLink ? `\n\nGet started here: ${refLink}` : '')
+      + `\n\n---\n${PHYSICAL_ADDRESS}\nTo stop receiving these emails: ${unsubLink}`;
+    const trackingBase = BASE_URL;
+    const openPixel = `<img src="${trackingBase}/t/o?m=${messageId}" width="1" height="1" style="display:none;" alt="">`;
+    const clickUrl = `${trackingBase}/t/c?m=${messageId}&u=${encodeURIComponent('https://mycarconcierge.com')}`;
+    const refButtonHtml = refLink
+      ? `<br><br><p style="text-align:center;margin:20px 0;"><a href="${refLink}" style="display:inline-block;padding:12px 28px;background:#c9a227;color:#0a0a0f;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;">Get Started — It's Free</a></p>`
+      : '';
+    const htmlBody = bodyBase
+      .replace(/\n/g, '<br>')
+      .replace(/https:\/\/mycarconcierge\.com/g, `<a href="${clickUrl}" style="color:#c9a84c;">mycarconcierge.com</a>`)
+      + refButtonHtml
+>>>>>>> main
       + `<br><br><hr style="border-color:#333;"><p style="font-size:12px;color:#888;">${PHYSICAL_ADDRESS}<br><a href="${unsubLink}" style="color:#888;">Unsubscribe</a></p>${openPixel}`;
 
     try {
@@ -1165,7 +1200,17 @@ async function runEngineCycle(supabase) {
           .not('email', 'is', null)
           .not('score', 'is', null)
           .limit(500);
+<<<<<<< HEAD
         const leadsToSync = (unsyncedLeads || []).filter(l => l.email && !l.metadata?.instantly_synced);
+=======
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        const leadsToSync = (unsyncedLeads || []).filter(l => {
+          if (!l.email) return false;
+          if (!l.metadata?.instantly_synced) return true;
+          const syncedAt = l.metadata?.instantly_synced_at;
+          return syncedAt && (Date.now() - new Date(syncedAt).getTime()) > thirtyDaysMs;
+        });
+>>>>>>> main
         if (leadsToSync.length > 0) {
           const syncResult = await pushLeadsToInstantly(supabase, leadsToSync, state.instantly_campaign_id || null);
           results.instantly_synced = syncResult.synced || 0;
@@ -1246,12 +1291,69 @@ async function runEngineCycle(supabase) {
 
     results.drafted = drafted;
     results.auto_sent = autoSent;
+<<<<<<< HEAD
     await supabase.from('engine_state').update({
       last_draft_run: now.toISOString(),
       total_messages_drafted: (state.total_messages_drafted || 0) + drafted,
       updated_at: now.toISOString()
     }).eq('id', 1);
 
+=======
+
+    // Flush approved queue — pick up any messages stuck in 'approved' status
+    // (e.g. from previous cycles where sendMessage failed) and retry them.
+    let queueFlushed = 0;
+    let queueErrors = 0;
+    if (state.auto_send) {
+      try {
+        const { data: approvedMsgs } = await supabase
+          .from('outreach_messages')
+          .select('id')
+          .eq('status', 'approved')
+          .order('created_at', { ascending: true })
+          .limit(15);
+
+        for (const msg of (approvedMsgs || [])) {
+          try {
+            const sr = await sendMessage(supabase, msg.id);
+            if (sr.success) {
+              queueFlushed++;
+              console.log(`[OutreachEngine] Queue flush: sent message ${msg.id}`);
+            } else {
+              queueErrors++;
+              console.log(`[OutreachEngine] Queue flush: skipped message ${msg.id} — ${sr.error}`);
+              if (sr.error && sr.error.includes('Daily send limit')) break;
+            }
+          } catch (sendErr) {
+            queueErrors++;
+            console.error(`[OutreachEngine] Queue flush error for ${msg.id}:`, sendErr.message);
+          }
+          // Small pause between sends to avoid rate-limiting Resend
+          await new Promise(r => setTimeout(r, 600));
+        }
+      } catch (flushErr) {
+        console.error('[OutreachEngine] Queue flush step failed:', flushErr.message);
+      }
+    }
+    results.queue_flushed = queueFlushed;
+    results.queue_errors = queueErrors;
+
+    await supabase.from('engine_state').update({
+      last_draft_run: now.toISOString(),
+      total_messages_drafted: (state.total_messages_drafted || 0) + drafted,
+      total_messages_sent: (state.total_messages_sent || 0) + autoSent + queueFlushed,
+      updated_at: now.toISOString()
+    }).eq('id', 1);
+
+    // Run AI decision layer after each outreach cycle
+    try {
+      const aiDecision = await runOutreachAiDecisionLayer(supabase);
+      if (aiDecision) results.ai_decision = aiDecision;
+    } catch (aiErr) {
+      console.error('[OutreachEngine] AI decision layer error in cycle:', aiErr.message);
+    }
+
+>>>>>>> main
     console.log('[OutreachEngine] Cycle complete:', JSON.stringify(results));
     return { success: true, ...results };
   } catch (err) {
@@ -1260,6 +1362,118 @@ async function runEngineCycle(supabase) {
   }
 }
 
+<<<<<<< HEAD
+=======
+// ========== AI DECISION LAYER ==========
+async function getAiOpsSettings(supabase) {
+  const threshold = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
+  const maxRefund = parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
+  try {
+    const { data: rows } = await supabase.from('ai_ops_settings').select('key,value');
+    if (rows) {
+      const settings = {};
+      for (const r of rows) {
+        if (r.key === 'confidence_threshold') settings.threshold = parseFloat(r.value);
+        if (r.key === 'max_auto_refund') settings.maxRefund = parseFloat(r.value);
+      }
+      return { threshold: settings.threshold ?? threshold, maxRefund: settings.maxRefund ?? maxRefund };
+    }
+  } catch {}
+  return { threshold, maxRefund };
+}
+
+async function sendOutreachSMS(toPhone, body) {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_PHONE_NUMBER;
+  if (!sid || !token || !from || !toPhone) return false;
+  try {
+    const clean = toPhone.replace(/\D/g, '');
+    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
+    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+    const form = new URLSearchParams({ To: to, From: from, Body: body });
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: 'POST',
+      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString()
+    });
+    return r.ok;
+  } catch { return false; }
+}
+
+async function runOutreachAiDecisionLayer(supabase) {
+  const { threshold } = await getAiOpsSettings(supabase);
+  const shadowMode = threshold >= 1.0;
+
+  const staleThreshold = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const inactiveThreshold = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { count: activeProviders } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'provider').eq('is_active', true);
+  const { count: staleApplications } = await supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).eq('type', 'provider').eq('status', 'new').lt('created_at', staleThreshold);
+  const { count: inactiveProviders } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'provider').lt('updated_at', inactiveThreshold);
+
+  const pipelineStats = { active_providers: activeProviders || 0, stale_applications: staleApplications || 0, inactive_providers: inactiveProviders || 0, pipeline_target: 5 };
+
+  const prompt = `You are the AI Ops Outreach Coordinator for My Car Concierge.
+PIPELINE STATS: active_providers=${pipelineStats.active_providers} stale_applications=${pipelineStats.stale_applications} inactive_providers=${pipelineStats.inactive_providers} target=5
+Respond ONLY with valid JSON: {"provider_actions":["follow_up_sms"|"re_engagement"|"enroll_sequence"|"pipeline_alert"],"confidence":0.0-1.0,"priority":"high"|"medium"|"low","reasoning":"one sentence","sms_message":"brief SMS text (required if follow_up_sms or re_engagement)"}
+Rules: pipeline_alert if active<3; follow_up_sms if stale>5; re_engagement if inactive>10; enroll_sequence if stale>0 and active<5; empty array if no issues.`;
+
+  const response = await callAI(prompt, 512);
+  let decision;
+  try { const m = response.text.match(/\{[\s\S]*\}/); decision = JSON.parse(m ? m[0] : response.text); }
+  catch { return null; }
+
+  const actions = decision.provider_actions || [];
+  const aiConfidence = decision.confidence || 0.8;
+  const executedActions = [];
+  const shadowedActions = [];
+
+  for (const action of actions) {
+    if (shadowMode) { shadowedActions.push(action); continue; }
+
+    if (action === 'pipeline_alert') {
+      await supabase.from('ai_escalations').insert({ module: 'outreach_engine', target_id: 'provider_pipeline', recommendation: { action, stats: pipelineStats, reasoning: decision.reasoning }, confidence: aiConfidence, status: 'pending', created_at: new Date().toISOString() });
+      executedActions.push('pipeline_alert_escalated');
+    }
+
+    if ((action === 'follow_up_sms' || action === 're_engagement') && decision.sms_message) {
+      let leadsQuery = supabase.from('outreach_leads').select('id, name, phone').eq('type', 'provider').not('phone', 'is', null).limit(10);
+      if (action === 'follow_up_sms') { leadsQuery = leadsQuery.eq('status', 'new').lt('created_at', staleThreshold); }
+      else { leadsQuery = leadsQuery.in('status', ['contacted', 'responded']); }
+      const { data: leads } = await leadsQuery;
+      let smsSent = 0;
+      for (const lead of (leads || [])) {
+        if (lead.phone && await sendOutreachSMS(lead.phone, `${decision.sms_message} Reply STOP to opt out.`)) smsSent++;
+      }
+      executedActions.push(`${action}:sms_sent=${smsSent}`);
+    }
+
+    if (action === 'enroll_sequence') {
+      const { data: staleLeads } = await supabase.from('outreach_leads').select('id, name, email, location').eq('type', 'provider').eq('status', 'new').lt('created_at', staleThreshold).not('email', 'is', null).limit(20);
+      const instantlyKey = process.env.INSTANTLY_API_KEY;
+      let enrolled = 0;
+      if (instantlyKey && staleLeads) {
+        for (const lead of staleLeads) {
+          if (!lead.email) continue;
+          try {
+            await fetch('https://api.instantly.ai/api/v2/leads', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${instantlyKey}` }, body: JSON.stringify({ email: lead.email, first_name: lead.name, personalization: `Provider opportunity in ${lead.location || 'your area'}` }) });
+            enrolled++;
+          } catch {}
+        }
+      }
+      executedActions.push(`enroll_sequence:enrolled=${enrolled}`);
+    }
+  }
+
+  const outcome = shadowMode ? 'shadow_logged' : (executedActions.length > 0 ? 'executed' : 'no_action');
+  await supabase.from('ai_action_log').insert({ module: 'outreach_engine', action_type: 'ai_decision_layer', target_id: 'pipeline', decision: { ...decision, stats: pipelineStats, executed: executedActions, shadowed: shadowedActions }, confidence: aiConfidence, auto_executed: !shadowMode && executedActions.length > 0, escalated: actions.includes('pipeline_alert'), outcome, execution_time_ms: 0, created_at: new Date().toISOString() }).catch(() => {});
+
+  console.log(`[OutreachEngine] AI decision layer (shadow=${shadowMode}):`, decision.reasoning, '| Actions:', (shadowMode ? shadowedActions : executedActions).join(', ') || 'none');
+  return { actions: shadowMode ? shadowedActions : executedActions, reasoning: decision.reasoning, priority: decision.priority, shadow_mode: shadowMode };
+}
+
+>>>>>>> main
 async function runFollowUpDrafts(supabase) {
   try {
     const { data: state } = await supabase.from('engine_state').select('*').eq('id', 1).single();
@@ -1366,7 +1580,11 @@ async function pushLeadsToInstantly(supabase, leads, campaignId) {
   const apiKey = process.env.INSTANTLY_API_KEY;
   if (!apiKey) return { error: 'INSTANTLY_API_KEY not configured', synced: 0 };
 
+<<<<<<< HEAD
   const validLeads = (leads || []).filter(l => l.email && !l.metadata?.instantly_synced);
+=======
+  const validLeads = (leads || []).filter(l => l.email);
+>>>>>>> main
   if (validLeads.length === 0) return { synced: 0, skipped: leads?.length || 0 };
 
   const batchSize = 100;
@@ -1546,6 +1764,453 @@ function createSupabaseClient() {
   return createClient(url, key);
 }
 
+<<<<<<< HEAD
+=======
+async function getAdminNotificationPhone(supabase) {
+  try {
+    const { data } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    return data?.metadata?.admin_notification_phone || null;
+  } catch (_) { return null; }
+}
+
+async function sendAdminSMS(supabase, message) {
+  try {
+    const phone = await getAdminNotificationPhone(supabase);
+    if (!phone) return false;
+    const ok = await sendOutreachSMS(phone, message);
+    if (ok) console.log('[AdminSMS] Notification sent to admin phone');
+    else console.warn('[AdminSMS] Failed to send notification (Twilio error)');
+    return ok;
+  } catch (err) {
+    console.warn('[AdminSMS] Error:', err.message);
+    return false;
+  }
+}
+
+const DEFAULT_APOLLO_CONFIG = {
+  enabled: false,
+  interval_hours: 6,
+  per_page: 25,
+  auto_enrich: true,
+  enrich_batch: 15,
+  instantly_auto_sync: false,
+  instantly_provider_campaign_id: null,
+  profile_rotation_index: 0,
+  city_rotation_index: 0,
+  page_rotation_index: 1,
+  last_run: null,
+  search_profiles: [
+    {
+      name: 'Providers',
+      lead_type: 'provider',
+      cities: [
+        'Newark, NJ', 'Jersey City, NJ', 'East Rutherford, NJ', 'Paterson, NJ', 'Trenton, NJ',
+        'New York, NY', 'Brooklyn, NY', 'Queens, NY', 'Bronx, NY', 'Staten Island, NY',
+        'Philadelphia, PA', 'Stamford, CT', 'Bridgeport, CT', 'Hartford, CT',
+        'Edison, NJ', 'Hoboken, NJ', 'Elizabeth, NJ', 'Woodbridge, NJ', 'Hackensack, NJ',
+        'Long Island City, NY', 'White Plains, NY', 'Yonkers, NY'
+      ],
+      titles: ['owner', 'co-owner', 'founder', 'president', 'ceo', 'managing partner', 'general manager', 'operator', 'proprietor', 'shop foreman', 'service manager'],
+      industries: ['auto repair', 'automotive', 'car repair', 'auto body', 'tire shop', 'oil change', 'vehicle maintenance', 'collision repair', 'auto detailing', 'car wash']
+    },
+    {
+      name: 'Angel Investors',
+      lead_type: 'investor',
+      cities: [
+        'New York, NY', 'Brooklyn, NY', 'Hoboken, NJ', 'Princeton, NJ', 'Short Hills, NJ',
+        'San Francisco, CA', 'Palo Alto, CA', 'Menlo Park, CA', 'San Jose, CA',
+        'Boston, MA', 'Cambridge, MA',
+        'Austin, TX', 'Chicago, IL', 'Miami, FL', 'Los Angeles, CA',
+        'Atlanta, GA', 'Seattle, WA', 'Denver, CO', 'Nashville, TN'
+      ],
+      titles: [
+        'angel investor', 'active investor', 'general partner', 'managing partner', 'venture partner',
+        'principal', 'investment director', 'managing director', 'chief investment officer',
+        'portfolio manager', 'fund manager', 'founder', 'co-founder', 'partner',
+        'limited partner', 'family office', 'startup advisor', 'board member'
+      ],
+      industries: [
+        'venture capital', 'private equity', 'investment management', 'financial services',
+        'angel investing', 'family office', 'startup', 'automotive', 'marketplace',
+        'mobile applications', 'consumer technology', 'on-demand services'
+      ]
+    }
+  ]
+};
+
+async function getApolloConfig(supabase) {
+  try {
+    const { data } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    const cfg = data?.metadata?.apollo_config || {};
+    return { ...DEFAULT_APOLLO_CONFIG, ...cfg };
+  } catch (_) {
+    return DEFAULT_APOLLO_CONFIG;
+  }
+}
+
+async function saveApolloConfig(supabase, updates) {
+  try {
+    const { data } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    const currentMeta = data?.metadata || {};
+    const currentCfg = currentMeta.apollo_config || {};
+    const newCfg = { ...DEFAULT_APOLLO_CONFIG, ...currentCfg, ...updates, last_saved: new Date().toISOString() };
+    await supabase.from('engine_state').update({ metadata: { ...currentMeta, apollo_config: newCfg } }).eq('id', 1);
+    return newCfg;
+  } catch (err) {
+    throw new Error('Failed to save Apollo config: ' + err.message);
+  }
+}
+
+async function draftWefunderBlastEmail(lead) {
+  const firstName = lead.name?.split(' ')[0] || 'there';
+  const companyCtx = lead.company ? ` at ${lead.company}` : '';
+  const wefunderUrl = `wefunder.com/my.car.concierge?utm_source=email&utm_medium=outreach&utm_campaign=apollo_blast&utm_content=${lead.id}`;
+  const prompt = `You are writing a cold outreach email on behalf of My Car Concierge to ${firstName}${companyCtx} — a potential angel investor or financial professional.
+
+${BRAND_INFO}
+
+My Car Concierge has an active community fundraising campaign live on Wefunder at ${wefunderUrl} — open to everyday investors and professionals alike.
+
+Write a short, direct, warm email introducing My Car Concierge and pointing them to the Wefunder campaign. Keep it to 3–4 short paragraphs:
+1. A brief personalized intro (use their first name; reference their company if available)
+2. What My Car Concierge actually is and what problem it solves for car owners and service providers
+3. That there is an active community funding round on Wefunder they can review at their own pace
+4. A clear, soft CTA — check it out at ${wefunderUrl}, and offer to answer any questions
+
+STRICT RULES:
+- Do NOT make ROI promises, earnings projections, or guaranteed return claims
+- Do NOT imply that investors have already committed funds — you do not know this
+- Stick only to factual descriptions of what the platform does
+- Be concise and respectful — this is an introduction, not a pitch deck
+- Write as Jordan from My Car Concierge
+- Sign off warmly
+
+Write TWO subject line variants on the first two lines:
+Subject A: [subject]
+Subject B: [subject]
+Then a blank line, then the email body starting with "Hi ${firstName},"`;
+
+  try {
+    const anthropic = getAnthropic();
+    if (!anthropic) return { error: 'AI not configured' };
+
+    const resp = await anthropic.messages.create({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 700,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    const text = resp.content[0]?.text || '';
+
+    const lines = text.trim().split('\n');
+    let subject = '', subjectB = '', bodyLines = [], pastHeaders = false;
+    for (const line of lines) {
+      if (!pastHeaders && line.startsWith('Subject A:')) {
+        subject = line.replace('Subject A:', '').trim();
+      } else if (!pastHeaders && line.startsWith('Subject B:')) {
+        subjectB = line.replace('Subject B:', '').trim();
+      } else if (subject && subjectB && line.trim() === '') {
+        pastHeaders = true;
+      } else if (pastHeaders || (subject && line.trim() !== '')) {
+        pastHeaders = true;
+        bodyLines.push(line);
+      }
+    }
+
+    const body = bodyLines.join('\n').trim();
+    const urlPattern = /wefunder\.com\/my\.car\.concierge(?!\?)/g;
+    const finalBody = body.replace(urlPattern, wefunderUrl);
+    const finalSubject = (subject || 'My Car Concierge — Community Round Now Live on Wefunder').replace(urlPattern, wefunderUrl);
+    const finalSubjectB = subjectB ? subjectB.replace(urlPattern, wefunderUrl) : null;
+
+    return {
+      subject: finalSubject,
+      subjectB: finalSubjectB,
+      body: finalBody
+    };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+async function runWefunderBlastForEligible(supabase, { notify = true } = {}) {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600000).toISOString();
+
+  const { data: investorLeads } = await supabase
+    .from('outreach_leads')
+    .select('*')
+    .eq('type', 'investor')
+    .not('email', 'is', null)
+    .neq('status', 'unsubscribed');
+
+  const ids = (investorLeads || []).map(l => l.id);
+  let recentLeadIds = new Set();
+  if (ids.length > 0) {
+    const { data: recent } = await supabase
+      .from('outreach_messages')
+      .select('lead_id')
+      .eq('channel', 'email')
+      .gte('created_at', thirtyDaysAgo)
+      .in('lead_id', ids);
+    recentLeadIds = new Set((recent || []).map(m => m.lead_id));
+  }
+
+  const eligible = (investorLeads || []).filter(l => !recentLeadIds.has(l.id));
+  if (eligible.length === 0) return { drafted: 0, failed: 0, skipped: recentLeadIds.size, total: ids.length };
+
+  let drafted = 0, failed = 0;
+  for (const lead of eligible) {
+    try {
+      const result = await draftWefunderBlastEmail(lead);
+      if (!result || result.error) { failed++; continue; }
+      await supabase.from('outreach_messages').insert({
+        lead_id: lead.id,
+        channel: 'email',
+        subject: result.subject,
+        body: result.body,
+        status: 'draft',
+        metadata: {
+          blast_type: 'wefunder',
+          subject_a: result.subject,
+          subject_b: result.subjectB || null,
+          ab_variant: 'A',
+          auto_drafted: true
+        }
+      });
+      drafted++;
+    } catch (_) { failed++; }
+    await new Promise(r => setTimeout(r, 350));
+  }
+
+  if (notify && drafted > 0) {
+    try {
+      await sendAdminSMS(supabase, `MCC Weekly Blast: ${drafted} new Wefunder draft${drafted !== 1 ? 's' : ''} queued for ${eligible.length} eligible investor leads. Review & approve in the admin Messages tab.`);
+    } catch (_) {}
+  }
+
+  console.log(`[Wefunder] Blast run complete — drafted:${drafted} failed:${failed} eligible:${eligible.length}`);
+  return { drafted, failed, skipped: recentLeadIds.size, total: ids.length };
+}
+
+async function runApolloDiscoveryCycle(supabase) {
+  const apolloKey = process.env.APOLLO_API_KEY;
+  if (!apolloKey) return { skipped: true, reason: 'no_api_key' };
+
+  const cfg = await getApolloConfig(supabase);
+  if (!cfg.enabled) return { skipped: true, reason: 'automation_disabled' };
+
+  const now = new Date();
+  const lastRun = cfg.last_run ? new Date(cfg.last_run) : null;
+  const hoursSinceLast = lastRun ? (now - lastRun) / 3600000 : Infinity;
+  if (hoursSinceLast < cfg.interval_hours) {
+    return { skipped: true, reason: 'not_due', next_run_in_hours: (cfg.interval_hours - hoursSinceLast).toFixed(1) };
+  }
+
+  console.log('[Apollo] Starting automated discovery cycle...');
+  const results = { started_at: now.toISOString(), search_results: 0, with_email: 0, added: 0, enriched: 0, wefunder_drafted: 0, errors: [] };
+
+  const apolloHeaders = { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'X-Api-Key': apolloKey };
+
+  try {
+    const profiles = cfg.search_profiles || DEFAULT_APOLLO_CONFIG.search_profiles;
+    const profileIdx = (cfg.profile_rotation_index || 0) % profiles.length;
+    const profile = profiles[profileIdx];
+    const leadType = profile.lead_type || 'provider';
+
+    const cities = profile.cities;
+    const cityIdx = (cfg.city_rotation_index || 0) % cities.length;
+    const city = cities[cityIdx];
+    const page = cfg.page_rotation_index || 1;
+
+    console.log(`[Apollo] Profile "${profile.name}" — city "${city}" page ${page}...`);
+
+    const searchPayload = {
+      page,
+      per_page: Math.min(cfg.per_page || 25, 100),
+      person_titles: profile.titles,
+      q_organization_keyword_tags: profile.industries,
+      person_locations: [city]
+    };
+
+    const searchResp = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
+      method: 'POST', headers: apolloHeaders, body: JSON.stringify(searchPayload)
+    });
+    const searchData = await searchResp.json();
+    const people = searchData.people || [];
+
+    results.search_results = people.length;
+    results.profile = profile.name;
+    console.log(`[Apollo] Found ${people.length} ${leadType} contacts in "${city}"`);
+
+    const totalPages = Math.ceil((searchData.pagination?.total_entries || 25) / (cfg.per_page || 25));
+    const nextPage = page >= totalPages ? 1 : page + 1;
+    const nextCityIdx = nextPage === 1 ? (cityIdx + 1) % cities.length : cityIdx;
+    const nextProfileIdx = nextPage === 1 && nextCityIdx === 0 ? (profileIdx + 1) % profiles.length : profileIdx;
+
+    for (const person of people) {
+      try {
+        const email = person.email || null;
+        const phone = person.phone_numbers?.[0]?.sanitized_number || null;
+        const org = person.organization || {};
+        const name = person.name || `${person.first_name || ''} ${person.last_name || ''}`.trim() || null;
+        const website = org.website_url || null;
+        const domain = website ? website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : null;
+        const apolloPersonId = person.id || null;
+        const metadata = { title: person.title, industry: org.industry, apollo_org_id: org.id, domain, apollo_id: apolloPersonId, apollo_profile: profile.name };
+
+        const baseScore = leadType === 'investor' ? (email ? 85 : 40) : (email ? 72 : 32);
+
+        const leadData = {
+          name: name || org.name || 'Unknown',
+          email: email || null,
+          phone: phone || org.phone || null,
+          company: org.name || null,
+          type: leadType,
+          source: 'Apollo',
+          location: city,
+          status: email ? 'new' : 'email_unknown',
+          score: baseScore,
+          apollo_id: apolloPersonId || null,
+          linkedin_url: person.linkedin_url || null,
+          website: website || null,
+          metadata
+        };
+
+        let existing = null;
+        if (apolloPersonId) {
+          const { data: byId } = await supabase.from('outreach_leads').select('id,email').eq('apollo_id', apolloPersonId).maybeSingle();
+          existing = byId;
+        }
+        if (!existing && email) {
+          const { data: byEmail } = await supabase.from('outreach_leads').select('id,email').eq('email', email).maybeSingle();
+          existing = byEmail;
+        }
+
+        if (!existing) {
+          const { data: inserted } = await supabase.from('outreach_leads').insert(leadData).select('id').single();
+          results.added++;
+          if (email) {
+            results.with_email++;
+            if (leadType === 'investor' && inserted?.id) {
+              try {
+                const { count: existingDraft } = await supabase
+                  .from('outreach_messages')
+                  .select('id', { count: 'exact', head: true })
+                  .eq('lead_id', inserted.id)
+                  .eq('channel', 'email')
+                  .in('status', ['draft', 'approved', 'sent'])
+                  .filter('metadata->>blast_type', 'eq', 'wefunder');
+                if (!existingDraft || existingDraft === 0) {
+                  const draft = await draftWefunderBlastEmail({ ...leadData, id: inserted.id });
+                  if (draft && !draft.error) {
+                    await supabase.from('outreach_messages').insert({
+                      lead_id: inserted.id,
+                      channel: 'email',
+                      subject: draft.subject,
+                      body: draft.body,
+                      status: 'draft',
+                      metadata: { blast_type: 'wefunder', subject_a: draft.subject, subject_b: draft.subjectB || null, ab_variant: 'A', auto_drafted: true }
+                    });
+                    results.wefunder_drafted++;
+                  }
+                }
+              } catch (_) {}
+              await new Promise(r => setTimeout(r, 350));
+            }
+            if (leadType === 'provider' && inserted?.id && cfg.instantly_auto_sync && cfg.instantly_provider_campaign_id && process.env.INSTANTLY_API_KEY) {
+              try {
+                const pushResult = await pushLeadsToInstantly(supabase, [{ ...leadData, id: inserted.id }], cfg.instantly_provider_campaign_id);
+                if (pushResult.synced > 0) {
+                  results.instantly_enrolled = (results.instantly_enrolled || 0) + 1;
+                } else if (pushResult.error || (pushResult.errors && pushResult.errors.length > 0)) {
+                  console.warn(`[Apollo] Instantly first-touch failed for ${leadData.name}:`, pushResult.error || pushResult.errors?.[0]);
+                }
+              } catch (pushErr) {
+                console.warn(`[Apollo] Instantly first-touch exception for ${leadData.name}:`, pushErr.message);
+              }
+            }
+          }
+        } else if (email && !existing.email) {
+          await supabase.from('outreach_leads').update({ email, apollo_id: apolloPersonId || undefined, status: 'new', score: 72 }).eq('id', existing.id);
+          results.with_email++;
+        }
+      } catch (personErr) {
+        results.errors.push(personErr.message);
+      }
+    }
+
+    if (cfg.auto_enrich) {
+      console.log('[Apollo] Running enrichment on email-less leads...');
+      const { data: toEnrich } = await supabase
+        .from('outreach_leads')
+        .select('id, name, email, company, website, phone, location, linkedin_url, metadata')
+        .is('email', null)
+        .not('company', 'is', null)
+        .neq('status', 'unsubscribed')
+        .neq('status', 'bounced')
+        .order('score', { ascending: false })
+        .limit(cfg.enrich_batch || 15);
+
+      for (const lead of (toEnrich || [])) {
+        try {
+          const domain = lead.website ? lead.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : null;
+          const ap = lead.metadata?.apollo_id;
+          const enrichPayload = { reveal_personal_emails: true };
+          if (ap) enrichPayload.id = ap;
+          if (lead.name) enrichPayload.name = lead.name;
+          if (lead.company) enrichPayload.organization_name = lead.company;
+          if (domain) enrichPayload.domain = domain;
+          if (lead.linkedin_url) enrichPayload.linkedin_url = lead.linkedin_url;
+
+          const er = await fetch('https://api.apollo.io/api/v1/people/match', {
+            method: 'POST', headers: apolloHeaders, body: JSON.stringify(enrichPayload)
+          });
+          if (er.ok) {
+            const ed = await er.json();
+            const foundEmail = ed.person?.email;
+            const foundPhone = ed.person?.phone_numbers?.[0]?.sanitized_number;
+            if (foundEmail) {
+              await supabase.from('outreach_leads').update({ email: foundEmail, phone: foundPhone || lead.phone, status: 'new', score: 75 }).eq('id', lead.id);
+              results.enriched++;
+            }
+          }
+          await new Promise(r => setTimeout(r, 250));
+        } catch (_) {}
+      }
+    }
+
+    await saveApolloConfig(supabase, { last_run: now.toISOString(), city_rotation_index: nextCityIdx, page_rotation_index: nextPage, profile_rotation_index: nextProfileIdx });
+
+    try {
+      await supabase.from('outreach_activity_log').insert({ event_type: 'apollo_discovery_cycle', metadata: { city, page, ...results } });
+    } catch (_) {}
+
+    console.log(`[Apollo] Cycle complete — found:${results.search_results} added:${results.added} enriched:${results.enriched} wefunder_drafted:${results.wefunder_drafted} instantly_enrolled:${results.instantly_enrolled || 0}`);
+
+    try {
+      const newInvestors = leadType === 'investor' ? results.added : 0;
+      const newProviders = leadType === 'provider' ? results.added : 0;
+      const parts = [
+        `MCC Outreach (${profile.name} · ${city}):`,
+        `+${newInvestors} investor${newInvestors !== 1 ? 's' : ''}`,
+        `+${newProviders} provider${newProviders !== 1 ? 's' : ''}`
+      ];
+      if (results.enriched > 0) parts.push(`${results.enriched} enriched`);
+      if (results.wefunder_drafted > 0) parts.push(`⚡ ${results.wefunder_drafted} Wefunder draft${results.wefunder_drafted !== 1 ? 's' : ''} queued`);
+      if (results.instantly_enrolled > 0) parts.push(`📧 ${results.instantly_enrolled} enrolled in Instantly`);
+      if (results.added === 0 && results.enriched === 0) parts.push('no new leads this cycle');
+      await sendAdminSMS(supabase, parts.join(' | '));
+    } catch (_) {}
+
+    return { success: true, city, page, ...results };
+
+  } catch (err) {
+    console.error('[Apollo] Discovery cycle error:', err.message);
+    try { await supabase.from('outreach_activity_log').insert({ event_type: 'apollo_discovery_error', metadata: { error: err.message } }); } catch (_) {}
+    return { success: false, error: err.message };
+  }
+}
+
+>>>>>>> main
 module.exports = {
   createSupabaseClient,
   initEngineState,
@@ -1573,5 +2238,17 @@ module.exports = {
   BASE_URL,
   UNSUBSCRIBE_URL,
   EMAIL_FOOTER,
+<<<<<<< HEAD
   SMS_OPT_OUT
+=======
+  SMS_OPT_OUT,
+  getAdminNotificationPhone,
+  sendAdminSMS,
+  DEFAULT_APOLLO_CONFIG,
+  getApolloConfig,
+  saveApolloConfig,
+  draftWefunderBlastEmail,
+  runWefunderBlastForEligible,
+  runApolloDiscoveryCycle
+>>>>>>> main
 };

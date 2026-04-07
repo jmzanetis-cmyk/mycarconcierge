@@ -222,10 +222,14 @@
     }
 
     .card .bullet::before {
-      content: "✓";
+      content: '';
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2328a745' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center;
+      vertical-align: middle;
       position: absolute;
       left: 0;
-      color: #28a745;
     }
 
     .card .body {
@@ -307,10 +311,14 @@
     }
 
     .panel .bullet::before {
-      content: "✓";
+      content: '';
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2328a745' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center;
+      vertical-align: middle;
       position: absolute;
       left: 0;
-      color: #28a745;
     }
 
     .steps {
@@ -406,8 +414,8 @@
   <div class="print-controls">
     <h2>MCC Provider Brochure V2</h2>
     <p>A4 Format - Print double-sided for best results</p>
-    <button class="print-btn" onclick="window.print()">🖨️ Print Brochure</button>
-    <button class="print-btn" onclick="generatePDF()">📄 Save as PDF</button>
+    <button class="print-btn" onclick="window.print()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="8"/></svg> Print Brochure</button>
+    <button class="print-btn" onclick="generatePDF()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg> Save as PDF</button>
   </div>
 
   <div class="brochure-container">
@@ -500,14 +508,14 @@
               <tr><td>Dipstick</td><td>50</td><td>$200</td><td>$4.00</td></tr>
               <tr><td>Spark Plug</td><td>70</td><td>$250</td><td>$3.57</td></tr>
               <tr><td>Turbo</td><td>95</td><td>$300</td><td>$3.16</td></tr>
-              <tr><td>V8 <span class="tag">★ POPULAR</span></td><td>140</td><td>$400</td><td>$2.86</td></tr>
+              <tr><td>V8 <span class="tag"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> POPULAR</span></td><td>140</td><td>$400</td><td>$2.86</td></tr>
               <tr><td>Muscle Car</td><td>195</td><td>$500</td><td>$2.56</td></tr>
               <tr><td>Supercharger</td><td>270</td><td>$625</td><td>$2.31</td></tr>
-              <tr><td>Racing Team <span class="tag">★ POPULAR</span></td><td>385</td><td>$800</td><td>$2.08</td></tr>
+              <tr><td>Racing Team <span class="tag"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> POPULAR</span></td><td>385</td><td>$800</td><td>$2.08</td></tr>
               <tr><td>Pit Crew</td><td>535</td><td>$1,000</td><td>$1.87</td></tr>
               <tr><td>Speedway</td><td>745</td><td>$1,250</td><td>$1.68</td></tr>
               <tr><td>Grand Prix</td><td>990</td><td>$1,500</td><td>$1.52</td></tr>
-              <tr><td>Formula One <span class="tag">★ POPULAR</span></td><td>1,470</td><td>$2,000</td><td>$1.36</td></tr>
+              <tr><td>Formula One <span class="tag"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> POPULAR</span></td><td>1,470</td><td>$2,000</td><td>$1.36</td></tr>
               <tr><td>Championship</td><td>15,400</td><td>$10,000</td><td>$0.65</td></tr>
             </tbody>
           </table>
@@ -526,6 +534,15 @@
           
           <div class="subh">Why This Matters</div>
           <div class="p">Gig economy drivers are a massive, underserved market segment actively looking for ways to maximize earnings and reduce costs. By helping them understand the true cost of vehicle ownership, we position MCC services as the solution to minimize those costs. Every driver who realizes they need better pricing or service quality becomes a potential customer for your shop.</div>
+        </div>
+
+        <div class="panel">
+          <div class="h">Built-In Customer Loyalty</div>
+          <div class="p">Launch your own <strong>Car Club</strong> loyalty program at no extra cost. Punch card rewards keep your customers coming back.</div>
+          <div class="bullet">Members auto-join on their first job</div>
+          <div class="bullet">Earn 10 free bid credits every time a referred customer books with you</div>
+          <div class="bullet">Punch card rewards drive repeat business</div>
+          <div class="bullet">Rewards never expire—customers stay loyal longer</div>
         </div>
 
         <div class="panel founding-highlight">
@@ -547,7 +564,7 @@
         <div class="panel">
           <div class="h">Payment Protection</div>
           <div class="p"><strong>Guaranteed Payment:</strong> When a member accepts your bid, funds are held in escrow. You complete the work, the member confirms, and you get paid. No chasing invoices. No bad checks.</div>
-          <div class="p"><strong>Platform Fee:</strong> 7.5% on completed jobs (waived for Founding Providers during pilot)</div>
+          <div class="p"><strong>Platform Fee:</strong> None — you keep 100% of what you earn</div>
 
           <div class="h">Build Your Reputation</div>
           <div class="p"><strong>5-Star Rating System:</strong> Members rate providers after every completed job. Your rating directly impacts your visibility and success on the platform.</div>

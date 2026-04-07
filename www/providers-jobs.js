@@ -61,6 +61,7 @@ function renderActiveJobs() {
           <span>${mccIcon('dollar-sign', 16)} Your bid: <strong>$${job.price}</strong></span>
           <span>${mccIcon('calendar', 16)} Accepted ${formatTimeAgo(job.updated_at || job.created_at)}</span>
         </div>
+        <div id="provider-mediation-${job.package_id}" style="display:none;margin-bottom:8px;"></div>
         <div class="package-footer">
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-secondary btn-sm" onclick="openMessageModal('${pkg?.member_id}', '${job.package_id}')">${mccIcon('message-square', 16)} Message</button>
@@ -78,13 +79,17 @@ function renderActiveJobs() {
                 <button class="dropdown-item" style="display:block;width:100%;padding:10px 16px;text-align:left;background:none;border:none;cursor:pointer;color:var(--text-primary);font-size:0.9rem;" onclick="viewAdditionalWorkRequests('${job.package_id}');toggleJobActionsMenu('${job.package_id}')">${mccIcon('clipboard-list', 16)} View Additional Work</button>
                 <button class="dropdown-item" style="display:block;width:100%;padding:10px 16px;text-align:left;background:none;border:none;cursor:pointer;color:var(--text-primary);font-size:0.9rem;" onclick="viewDiscountsOffered('${job.package_id}');toggleJobActionsMenu('${job.package_id}')">${mccIcon('gift', 16)} View Discounts</button>
                 <button class="dropdown-item" style="display:block;width:100%;padding:10px 16px;text-align:left;background:none;border:none;cursor:pointer;color:var(--text-primary);font-size:0.9rem;" onclick="fetchAndShowCalendarOptions('${job.package_id}');toggleJobActionsMenu('${job.package_id}')">${mccIcon('calendar', 16)} Add to Calendar</button>
+                <button class="dropdown-item" style="display:block;width:100%;padding:10px 16px;text-align:left;background:none;border:none;cursor:pointer;color:var(--accent-blue);font-size:0.9rem;" onclick="providerGenerateDebrief('${job.package_id}');toggleJobActionsMenu('${job.package_id}')">${mccIcon('file-text', 16)} AI Service Summary</button>
               </div>
             </div>
           </div>
         </div>
+        <div id="provider-debrief-panel-${job.package_id}" style="display:none;margin-top:12px;"></div>
       </div>
     `;
   }).join('');
+
+  setTimeout(() => loadProviderMediations(), 300);
 }
 
 // ========== GPS TRACKING ==========
@@ -1592,5 +1597,157 @@ function showProviderApptCalendarOptions(apptId, dateStr, timeStr, serviceTitle)
   `;
   document.body.appendChild(modal);
 }
+
+function escapeAITextLocal(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function loadProviderMediations() {
+  const activeJobs = (typeof myBids !== 'undefined' ? myBids : []).filter(b => b.status === 'accepted');
+  if (!activeJobs.length) return;
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    for (const job of activeJobs) {
+      const container = document.getElementById(`provider-mediation-${job.package_id}`);
+      if (!container) continue;
+
+      try {
+        const resp = await fetch(`${apiBase}/api/packages/${job.package_id}/ai-mediation`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!resp.ok) continue;
+
+        const data = await resp.json();
+        if (!data.mediation) continue;
+
+        const m = data.mediation;
+        const discList = (m.discrepancies && m.discrepancies.length > 0)
+          ? m.discrepancies.map(d => `<li>${escapeAITextLocal(d)}</li>`).join('')
+          : '<li style="color:var(--text-muted);">None noted</li>';
+
+        container.style.display = 'block';
+        container.innerHTML = `
+          <div style="border:1px solid rgba(56,189,248,0.25);border-radius:var(--radius-md);padding:14px;background:rgba(56,189,248,0.05);margin-top:8px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+              <span style="font-weight:600;font-size:0.88rem;">${mccIcon('gavel', 14)} AI Mediation Assessment</span>
+              <span style="font-size:0.65rem;padding:2px 6px;background:rgba(56,189,248,0.15);border-radius:100px;color:var(--accent-blue);">AI</span>
+              <span style="font-size:0.72rem;color:var(--text-muted);margin-left:auto;">${m.confidence ? m.confidence.toUpperCase() + ' confidence' : ''}</span>
+            </div>
+            <p style="font-size:0.88rem;margin:0 0 8px;line-height:1.5;">${escapeAITextLocal(m.summary)}</p>
+            <div style="font-size:0.82rem;margin-bottom:8px;">
+              <span style="font-weight:500;color:var(--text-secondary);">Discrepancies:</span>
+              <ul style="margin:4px 0 0;padding-left:18px;">${discList}</ul>
+            </div>
+            <div style="padding:10px;background:rgba(56,189,248,0.08);border-radius:var(--radius-sm);font-size:0.88rem;">
+              <span style="font-weight:500;color:var(--accent-blue);">Recommendation:</span> ${escapeAITextLocal(m.recommendation)}
+            </div>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin:8px 0 0;">This assessment is advisory only and does not affect payment automatically.</p>
+          </div>
+        `;
+      } catch (e) {}
+    }
+  } catch (e) {}
+}
+
+window.loadProviderMediations = loadProviderMediations;
+
+async function providerGenerateDebrief(packageId) {
+  const panel = document.getElementById(`provider-debrief-panel-${packageId}`);
+  if (!panel) return;
+
+  const job = myBids.find(b => b.package_id === packageId);
+  if (!job) return;
+
+  panel.style.display = 'block';
+  panel.innerHTML = `<div style="padding:12px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+    <div style="display:flex;align-items:center;gap:8px;color:var(--accent-blue);font-size:0.9rem;">
+      ${mccIcon('loader', 16)} Generating AI service summary...
+    </div>
+  </div>`;
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const resp = await fetch(`${apiBase}/api/ai/appointment-debrief`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ package_id: packageId })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed to generate summary');
+
+    const summaryText = data.summary || '';
+    panel.innerHTML = `
+      <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px;font-size:0.88rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <span style="font-weight:600;color:var(--accent-blue);display:flex;align-items:center;gap:6px;">${mccIcon('file-text', 16)} AI Service Summary</span>
+          <button onclick="document.getElementById('provider-debrief-panel-${packageId}').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--text-muted);">${mccIcon('x', 14)}</button>
+        </div>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin:0 0 8px;">Review and edit the AI-generated summary before saving to the member's service record.</p>
+        <textarea id="debrief-edit-${packageId}" style="width:100%;min-height:120px;padding:10px;border:1px solid var(--border-subtle);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:0.88rem;line-height:1.5;resize:vertical;font-family:inherit;" placeholder="Service summary...">${escapeAITextLocal(summaryText)}</textarea>
+        <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end;">
+          <button onclick="document.getElementById('provider-debrief-panel-${packageId}').style.display='none'" class="btn btn-secondary btn-sm">Cancel</button>
+          <button onclick="saveProviderDebrief('${packageId}')" class="btn btn-primary btn-sm" id="debrief-save-btn-${packageId}">${mccIcon('save', 14)} Save to Service Record</button>
+        </div>
+        <p style="font-size:0.72rem;color:var(--text-muted);margin:8px 0 0;">Saving will update the member's service history and completion notes.</p>
+      </div>
+    `;
+  } catch (err) {
+    panel.innerHTML = `<div style="padding:10px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--accent-red);font-size:0.85rem;">${mccIcon('alert-triangle', 14)} ${err.message || 'Could not generate summary'}</div>`;
+  }
+}
+window.providerGenerateDebrief = providerGenerateDebrief;
+
+async function saveProviderDebrief(packageId) {
+  const textarea = document.getElementById(`debrief-edit-${packageId}`);
+  const saveBtn = document.getElementById(`debrief-save-btn-${packageId}`);
+  if (!textarea) return;
+
+  const summaryText = textarea.value.trim();
+  if (!summaryText) {
+    showToast('Please enter a summary before saving', 'error');
+    return;
+  }
+
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const resp = await fetch(`${apiBase}/api/ai/save-debrief`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ package_id: packageId, summary: summaryText })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed to save summary');
+
+    const panel = document.getElementById(`provider-debrief-panel-${packageId}`);
+    if (panel) {
+      panel.innerHTML = `
+        <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px;font-size:0.88rem;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;color:var(--accent-green);">${mccIcon('check-circle', 16)} Summary saved to service record</div>
+          <p style="margin:0;line-height:1.5;color:var(--text-secondary);">${escapeAITextLocal(summaryText)}</p>
+        </div>
+      `;
+    }
+    showToast('Service summary saved successfully', 'success');
+  } catch (err) {
+    showToast(err.message || 'Could not save summary', 'error');
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = `${mccIcon('save', 14)} Save to Service Record`; }
+  }
+}
+window.saveProviderDebrief = saveProviderDebrief;
 
 console.log('providers-jobs.js loaded');

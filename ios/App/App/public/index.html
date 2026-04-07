@@ -2145,7 +2145,7 @@
         const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', data.user.id).single();
         
         if (profile?.role === 'admin') {
-          window.location.href = 'admin.html';
+          window.location.href = 'members.html';
         } else if (profile?.role === 'provider' || profile?.role === 'pending_provider') {
           window.location.href = 'providers.html';
         } else {

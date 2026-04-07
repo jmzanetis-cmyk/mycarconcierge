@@ -1,6 +1,7 @@
 (function() {
   const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
   let outreachState = {};
+  let apolloConfig = null;
   let outreachLeads = [];
   let outreachPipeline = [];
   let outreachMessages = [];
@@ -78,9 +79,15 @@
 
   async function loadEngineState() {
     try {
-      const res = await outreachFetch('/engine-state');
-      const data = await res.json();
-      outreachState = data;
+      const [stateRes, apolloRes] = await Promise.all([
+        outreachFetch('/engine-state'),
+        fetch(`${apiBase}/api/admin/apollo/config`, { headers: getOutreachHeaders() })
+      ]);
+      outreachState = await stateRes.json();
+      if (apolloRes.ok) {
+        const apolloData = await apolloRes.json();
+        if (apolloData.config) apolloConfig = apolloData.config;
+      }
       renderEngineControlPanel();
     } catch (e) {
       console.error('Failed to load engine state:', e);
@@ -97,6 +104,27 @@
     const pausedText = outreachState.paused_at ? `Paused ${timeAgo(new Date(outreachState.paused_at))}${outreachState.paused_by ? ' by ' + outreachState.paused_by : ''}` : '';
 
     const autoSendOn = outreachState.auto_send !== false;
+    const apolloConfigLoaded = apolloConfig !== null;
+    const apolloEnabled = apolloConfig?.enabled === true;
+    const apolloLastRun = apolloConfig?.last_run ? (() => {
+      const mins = Math.round((Date.now() - new Date(apolloConfig.last_run)) / 60000);
+      return mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
+    })() : null;
+    const apolloBadgeHtml = !apolloConfigLoaded
+      ? `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--text-muted);font-size:12px;font-weight:600;">
+           <span style="width:7px;height:7px;border-radius:50%;background:var(--text-muted);display:inline-block;"></span>
+           Discovery — unavailable
+         </span>`
+      : apolloEnabled
+      ? `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;font-size:12px;font-weight:600;">
+           <span style="width:7px;height:7px;border-radius:50%;background:#4ade80;display:inline-block;"></span>
+           Discovery Active${apolloLastRun ? ' · last run ' + apolloLastRun : ''}
+         </span>`
+      : `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#f87171;font-size:12px;font-weight:600;">
+           <span style="width:7px;height:7px;border-radius:50%;background:#f87171;display:inline-block;"></span>
+           Discovery Disabled
+         </span>
+         <button class="btn btn-sm" onclick="window.enableApolloDiscovery()" style="font-size:12px;padding:3px 10px;background:var(--accent-blue,#2563eb);color:#fff;border:none;">Enable Discovery</button>`;
     panel.innerHTML = `
       <div class="engine-status-row">
         <div class="engine-status-left">
@@ -123,6 +151,11 @@
           <button class="btn btn-sm" onclick="window.enrichLeadContacts()" title="Enrich Lead Contacts" style="background:var(--accent-gold,#d4a843);color:#000"><span class="icon-inline" data-icon="search"></span> Enrich Contacts</button>
         </div>
       </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-top:4px;background:var(--bg-elevated,#1a1f2e);border-radius:8px;border:1px solid var(--border-subtle,#2a3040);flex-wrap:wrap;">
+        <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Apollo Discovery:</span>
+        ${apolloBadgeHtml}
+        ${apolloConfigLoaded && !apolloEnabled ? `<span style="font-size:11px;color:var(--text-muted);margin-left:4px;">After enabling, also add <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">&#123;&#123;ref_link&#125;&#125;</code> as a variable in your <a href="https://app.instantly.ai/app/campaigns" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue,#2563eb);text-decoration:underline;">Instantly.ai campaign template</a> to track provider signups.</span>` : ''}
+      </div>
     `;
     if (typeof initInlineIcons !== 'undefined') initInlineIcons(panel);
   }
@@ -145,9 +178,45 @@
     await loadEngineState();
   }
 
+  async function enableApolloDiscovery() {
+    if (typeof showToast !== 'undefined') showToast('Enabling Apollo discovery...');
+    try {
+      const saveRes = await fetch(`${apiBase}/api/admin/apollo/config`, {
+        method: 'POST',
+        headers: getOutreachHeaders(),
+        body: JSON.stringify({ enabled: true })
+      });
+      if (!saveRes.ok) throw new Error('Failed to save config');
+      apolloConfig = (await saveRes.json()).config || { ...apolloConfig, enabled: true };
+      renderEngineControlPanel();
+      if (typeof showToast !== 'undefined') showToast('Apollo discovery enabled — starting first cycle...');
+      const cycleRes = await fetch(`${apiBase}/api/admin/apollo/cycle`, {
+        method: 'POST',
+        headers: getOutreachHeaders(),
+        body: JSON.stringify({ force: true })
+      });
+      const cycleData = await cycleRes.json();
+      if (cycleData.success) {
+        if (typeof showToast !== 'undefined') showToast(`Discovery cycle complete: ${cycleData.added || 0} leads added`);
+      } else if (cycleData.skipped) {
+        if (typeof showToast !== 'undefined') showToast(`Cycle skipped: ${cycleData.reason}`, 'warning');
+      }
+      await loadEngineState();
+    } catch (e) {
+      if (typeof showToast !== 'undefined') showToast('Failed to enable Apollo: ' + e.message, 'error');
+    }
+  }
+  window.enableApolloDiscovery = enableApolloDiscovery;
+
   async function runManualCycle() {
     if (typeof showToast !== 'undefined') showToast('Running engine cycle...');
     const res = await outreachFetch('/engine-cycle', { method: 'POST' });
+    if (!res.ok) {
+      let errMsg = `Engine cycle failed (${res.status})`;
+      try { const e = await res.json(); errMsg = e.error || e.message || errMsg; } catch {}
+      if (typeof showToast !== 'undefined') showToast(errMsg, 'error');
+      return;
+    }
     const data = await res.json();
     if (data.skipped) {
       if (typeof showToast !== 'undefined') showToast('Cycle skipped — engine is paused', 'error');
@@ -252,6 +321,8 @@
       case 'campaigns': await loadCampaigns(); break;
       case 'analytics': await loadAnalytics(); break;
       case 'instantly': await loadInstantlyCampaigns(); break;
+      case 'apollo': await loadApolloStatus(); break;
+      case 'conversions': await loadConversions(); break;
     }
   }
 
@@ -261,32 +332,124 @@
 
     const priority = document.getElementById('pipeline-filter-priority')?.value || '';
     const stage = document.getElementById('pipeline-filter-stage')?.value || '';
+    const typeFilter = document.getElementById('pipeline-filter-type')?.value || '';
     const params = new URLSearchParams();
     if (priority) params.set('priority', priority);
     if (stage) params.set('stage', stage);
+    if (typeFilter) params.set('type', typeFilter);
 
     container.innerHTML = '<div class="loading-spinner" style="padding:40px;text-align:center;"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>';
 
     const res = await outreachFetch('/pipeline?' + params.toString());
     outreachPipeline = await res.json();
 
-    if (!outreachPipeline.length) {
-      container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);"><p>No opportunities in the pipeline yet.</p><p style="margin-top:8px;">Add leads manually or import from Google Places to get started.</p></div>';
+    let displayed = outreachPipeline;
+    if (typeFilter) {
+      displayed = outreachPipeline.filter(opp => (opp.outreach_leads || {}).type === typeFilter);
+    }
+
+    if (typeFilter === 'investor') {
+      displayed = [...displayed].sort((a, b) => (b.opportunity_score || 0) - (a.opportunity_score || 0));
+    }
+
+    let wefunderCard = '';
+    if (typeFilter === 'investor') {
+      let iStats = { total_investor_leads: displayed.length, total_outreach_sent: 0, pending_approval: 0, wefunder_ref_clicks: 0 };
+      try {
+        const statsRes = await outreachFetch('/investor-stats');
+        if (statsRes.ok) iStats = await statsRes.json();
+      } catch (_) {}
+
+      wefunderCard = `
+        <div style="margin:0 0 16px;padding:16px;background:linear-gradient(135deg,rgba(180,120,20,0.12),rgba(100,70,10,0.08));border:1px solid rgba(180,140,40,0.3);border-radius:10px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <span style="font-size:1.3rem;">💛</span>
+            <div>
+              <div style="font-weight:700;font-size:1rem;color:var(--accent-gold,#c9a227);">Wefunder Investor Pipeline</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">wefunder.com/my.car.concierge — community fundraising round</div>
+            </div>
+            <a href="https://wefunder.com/my.car.concierge" target="_blank" rel="noopener" class="btn btn-sm" style="margin-left:auto;border-color:rgba(180,140,40,0.5);color:var(--accent-gold,#c9a227);">View Campaign ↗</a>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
+            <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-gold,#c9a227);">${iStats.total_investor_leads}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Investor Leads</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-blue);">${iStats.total_outreach_sent}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Outreach Sent</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-orange);">${iStats.pending_approval}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Drafts Pending Approval</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-green,#22c55e);">${iStats.wefunder_ref_clicks}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Wefunder Ref Clicks</div>
+            </div>
+          </div>
+          <div style="margin-top:10px;padding:8px 12px;background:rgba(255,200,50,0.07);border-left:3px solid rgba(180,140,40,0.5);border-radius:0 6px 6px 0;font-size:0.8rem;color:var(--text-secondary);">
+            <strong>⚖️ Compliance:</strong> All investor messages require manual approval and must not promise returns or guaranteed outcomes.
+          </div>
+        </div>`;
+    }
+
+    if (!displayed.length) {
+      container.innerHTML = wefunderCard + '<div style="padding:40px;text-align:center;color:var(--text-muted);"><p>No opportunities in the pipeline yet.</p><p style="margin-top:8px;">Add leads manually or import from Google Places to get started.</p></div>';
       return;
     }
 
-    container.innerHTML = outreachPipeline.map(opp => {
+    const investorHeaderRow = typeFilter === 'investor'
+      ? `<div class="pipeline-header-row" style="grid-template-columns:80px 1fr 100px 1fr 1fr 90px 130px;">
+           <div>Score</div><div>Name</div><div>Source</div><div>AI Notes</div><div>Last Contact</div><div>Stage</div><div>Actions</div>
+         </div>`
+      : '';
+
+    const prevHeader = document.querySelector('#outreach-pipeline .pipeline-header-row');
+    if (prevHeader) prevHeader.style.display = typeFilter === 'investor' ? 'none' : '';
+
+    container.innerHTML = wefunderCard + investorHeaderRow + displayed.map(opp => {
       const lead = opp.outreach_leads || {};
       const isDuplicate = lead.crm_sync_status === 'duplicate';
       const isReengagement = lead.source === 'crm_reengagement';
+      const isInvestor = lead.type === 'investor';
+
+      if (isInvestor && typeFilter === 'investor') {
+        const lastContact = opp.last_action_at
+          ? timeAgo(new Date(opp.last_action_at))
+          : (opp.added_at ? timeAgo(new Date(opp.added_at)) : '—');
+        const srcLabel = escapeHtml((lead.source || 'manual').replace(/_/g, ' '));
+        return `
+          <div class="pipeline-row" style="animation:slideIn 0.3s ease;border-left:3px solid rgba(180,140,40,0.5);grid-template-columns:80px 1fr 100px 1fr 1fr 90px 130px;">
+            <div class="pipeline-cell">
+              <div class="score-bar"><div class="score-fill" style="width:${opp.opportunity_score}%"></div></div>
+              <span class="score-text">${opp.opportunity_score}</span>
+            </div>
+            <div class="pipeline-cell">
+              <strong>${escapeHtml(lead.name || 'Unknown')}</strong>
+              <span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;background:rgba(180,140,40,0.18);color:#c9a227;border:1px solid rgba(180,140,40,0.35);margin-left:4px;">Investor</span>
+              ${isDuplicate ? '<span class="crm-badge duplicate">CRM User</span>' : ''}
+            </div>
+            <div class="pipeline-cell"><span class="source-badge">${srcLabel}</span></div>
+            <div class="pipeline-cell pipeline-notes">${escapeHtml(opp.ai_notes || '-')}</div>
+            <div class="pipeline-cell">${lastContact}</div>
+            <div class="pipeline-cell"><span class="stage-badge ${opp.stage}">${opp.stage.replace(/_/g, ' ')}</span></div>
+            <div class="pipeline-cell" style="display:flex;gap:4px;">
+              <button class="btn btn-sm" onclick="window.previewMessage('${lead.id}')" title="Preview message">Preview</button>
+              ${!isDuplicate && lead.status !== 'unsubscribed' ? `<button class="btn btn-sm btn-primary" onclick="window.draftForLead('${lead.id}')">Draft Message</button>` : '<span class="text-muted">—</span>'}
+            </div>
+          </div>
+        `;
+      }
+
       return `
-        <div class="pipeline-row" style="animation:slideIn 0.3s ease;">
+        <div class="pipeline-row" style="animation:slideIn 0.3s ease;${isInvestor ? 'border-left:3px solid rgba(180,140,40,0.5);' : ''}">
           <div class="pipeline-cell">
             <span class="priority-badge ${opp.priority}">${opp.priority}</span>
           </div>
           <div class="pipeline-cell">
             <strong>${escapeHtml(lead.name || 'Unknown')}</strong>
-            <span class="type-badge ${lead.type}">${lead.type || '?'}</span>
+            ${isInvestor ? '<span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;background:rgba(180,140,40,0.18);color:#c9a227;border:1px solid rgba(180,140,40,0.35);margin-left:4px;">Investor</span>' : `<span class="type-badge ${lead.type}">${lead.type || '?'}</span>`}
             ${isDuplicate ? '<span class="crm-badge duplicate">CRM User</span>' : ''}
             ${isReengagement ? '<span class="crm-badge reengagement">Re-engagement</span>' : ''}
             ${lead.crm_sync_status === 'converted' ? '<span class="crm-badge converted">Converted</span>' : ''}
@@ -329,12 +492,21 @@
 
     container.innerHTML = outreachMessages.map(msg => {
       const lead = msg.outreach_leads || {};
+      const isInvestor = lead.type === 'investor';
+      const investorBadge = isInvestor
+        ? `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:rgba(180,140,40,0.18);color:#c9a227;border:1px solid rgba(180,140,40,0.35);margin-left:4px;">Investor</span>`
+        : '';
+      const complianceNote = isInvestor
+        ? `<div style="margin-bottom:8px;padding:7px 10px;background:rgba(255,200,50,0.07);border-left:3px solid rgba(180,140,40,0.5);border-radius:0 6px 6px 0;font-size:0.78rem;color:var(--text-secondary);">
+            <strong>⚖️ Compliance reminder:</strong> All investor messages require manual approval and must not promise returns or guaranteed outcomes.
+           </div>`
+        : '';
       return `
-        <div class="queue-card" id="queue-card-${msg.id}">
+        <div class="queue-card" id="queue-card-${msg.id}" style="${isInvestor ? 'border-left:3px solid rgba(180,140,40,0.4);' : ''}">
           <div class="queue-card-header">
             <div>
               <strong>${escapeHtml(lead.name || 'Unknown')}</strong>
-              <span class="type-badge ${lead.type}">${lead.type}</span>
+              ${isInvestor ? investorBadge : `<span class="type-badge ${lead.type}">${lead.type}</span>`}
               <span class="channel-badge">${msg.channel}</span>
             </div>
             <span class="text-muted">${timeAgo(new Date(msg.created_at))}</span>
@@ -342,6 +514,7 @@
           ${msg.subject ? `<div class="queue-subject"><strong>Subject:</strong> ${escapeHtml(msg.subject)}</div>` : ''}
           <div class="queue-body">${escapeHtml(msg.body)}</div>
           <div class="queue-actions">
+            ${complianceNote}
             <button class="btn btn-sm" onclick="window.toggleEditMessage('${msg.id}')"><span class="icon-inline" data-icon="edit"></span> Edit</button>
             <button class="btn btn-sm btn-danger" onclick="window.skipMessage('${msg.id}')">Skip</button>
             <button class="btn btn-sm btn-primary" onclick="window.approveAndSend('${msg.id}')"><span class="icon-inline" data-icon="send"></span> Approve & Send</button>
@@ -362,6 +535,23 @@
     if (area) area.style.display = area.style.display === 'none' ? 'block' : 'none';
   }
 
+  function setCardApprovedBadge(msgId, sent) {
+    const card = document.getElementById('queue-card-' + msgId);
+    if (!card) return;
+    const btnArea = card.querySelector('.queue-actions');
+    const badge = document.createElement('span');
+    if (sent) {
+      badge.style.cssText = 'display:inline-block;padding:4px 10px;border-radius:12px;background:#16a34a;color:#fff;font-size:12px;font-weight:600;';
+      badge.textContent = '✓ Sent';
+    } else {
+      badge.style.cssText = 'display:inline-block;padding:4px 10px;border-radius:12px;background:#2563eb;color:#fff;font-size:12px;font-weight:600;';
+      badge.textContent = '✓ Approved — awaiting flush';
+    }
+    if (!btnArea) return;
+    btnArea.innerHTML = '';
+    btnArea.appendChild(badge);
+  }
+
   async function saveEditedMessage(msgId) {
     const body = document.getElementById('edit-body-' + msgId)?.value;
     const subject = document.getElementById('edit-subject-' + msgId)?.value;
@@ -370,16 +560,14 @@
       body: JSON.stringify({ message_id: msgId, edited_body: body, edited_subject: subject })
     });
     if (res.ok) {
-      const sendRes = await outreachFetch('/messages/send', {
-        method: 'POST',
-        body: JSON.stringify({ message_id: msgId })
-      });
-      const sendData = await sendRes.json();
-      if (sendData.success) {
-        if (typeof showToast !== 'undefined') showToast('Message edited, approved, and sent');
+      const data = await res.json();
+      setCardApprovedBadge(msgId, data.sent);
+      if (data.sent) {
+        if (typeof showToast !== 'undefined') showToast('Message edited, approved — sending now');
       } else {
-        if (typeof showToast !== 'undefined') showToast('Approved but send failed: ' + (sendData.error || 'Unknown error'), 'error');
+        if (typeof showToast !== 'undefined') showToast('Approved — awaiting flush', 'info');
       }
+      await new Promise(r => setTimeout(r, 1200));
       await loadMessageQueue();
       await loadEngineState();
     }
@@ -394,16 +582,12 @@
       if (typeof showToast !== 'undefined') showToast('Failed to approve message', 'error');
       return;
     }
-    const sendRes = await outreachFetch('/messages/send', {
-      method: 'POST',
-      body: JSON.stringify({ message_id: msgId })
-    });
-    const sendData = await sendRes.json();
-    if (sendData.success) {
-      if (typeof showToast !== 'undefined') showToast('Message approved and sent');
-      document.getElementById('queue-card-' + msgId)?.remove();
+    const data = await res.json();
+    setCardApprovedBadge(msgId, data.sent);
+    if (data.sent) {
+      if (typeof showToast !== 'undefined') showToast('Message approved — sending now');
     } else {
-      if (typeof showToast !== 'undefined') showToast('Approved but send failed: ' + (sendData.error || 'Unknown'), 'error');
+      if (typeof showToast !== 'undefined') showToast('Approved — awaiting flush', 'info');
     }
     await loadEngineState();
   }
@@ -422,22 +606,22 @@
     if (!confirm(`Approve and send all ${outreachMessages.length} messages?`)) return;
     const ids = outreachMessages.map(m => m.id);
 
-    await outreachFetch('/messages/approve-bulk', {
+    const bulkRes = await outreachFetch('/messages/approve-bulk', {
       method: 'POST',
       body: JSON.stringify({ message_ids: ids })
     });
+    const bulkData = await bulkRes.json();
+    const autoSent = bulkData.sent || 0;
+    const approved = bulkData.approved || ids.length;
 
-    let sent = 0;
-    for (const id of ids) {
-      const sendRes = await outreachFetch('/messages/send', {
-        method: 'POST',
-        body: JSON.stringify({ message_id: id })
-      });
-      const data = await sendRes.json();
-      if (data.success) sent++;
+    if (autoSent > 0 && autoSent >= approved) {
+      if (typeof showToast !== 'undefined') showToast(`${autoSent} of ${approved} messages approved and sent`);
+    } else if (autoSent > 0) {
+      if (typeof showToast !== 'undefined') showToast(`${autoSent} sent immediately; ${approved - autoSent} approved — awaiting flush (investor messages require manual review)`);
+    } else {
+      if (typeof showToast !== 'undefined') showToast(`${approved} messages approved — awaiting flush`);
     }
 
-    if (typeof showToast !== 'undefined') showToast(`${sent} of ${ids.length} messages sent`);
     await loadMessageQueue();
     await loadEngineState();
   }
@@ -1294,7 +1478,64 @@
     if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Generate from Real Stats'; }
   }
 
+  async function resyncInstantlyRefLinks() {
+    const btn = document.getElementById('instantly-resync-btn');
+    const resultDiv = document.getElementById('instantly-resync-result');
+    const campaignId = document.getElementById('instantly-resync-campaign')?.value?.trim() || '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="icon-inline" data-icon="loader"></span> Starting...'; }
+    if (resultDiv) { resultDiv.style.display = 'block'; resultDiv.innerHTML = 'Starting re-sync job…'; }
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const payload = {};
+      if (campaignId) payload.campaign_id = campaignId;
+
+      // Start the async job
+      const startRes = await fetch('/api/admin/apollo/resync-instantly-ref-links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify(payload)
+      });
+      if (!startRes.ok) throw new Error('Re-sync start failed: ' + startRes.status);
+      const { job_id } = await startRes.json();
+      if (!job_id) throw new Error('No job ID returned');
+
+      if (btn) btn.innerHTML = '<span class="icon-inline" data-icon="loader"></span> Re-syncing…';
+
+      // Poll for progress every 1.5 seconds
+      await new Promise((resolve, reject) => {
+        const interval = setInterval(async () => {
+          try {
+            const pollRes = await fetch(`/api/admin/apollo/resync-instantly-ref-links?job_id=${job_id}`, {
+              headers: { 'x-admin-password': adminPassword }
+            });
+            if (!pollRes.ok) { clearInterval(interval); reject(new Error('Progress poll failed: ' + pollRes.status)); return; }
+            const progress = await pollRes.json();
+            const pct = progress.total ? Math.round((progress.synced / progress.total) * 100) : null;
+            const pctLabel = pct !== null ? ` (${pct}%)` : '';
+            if (resultDiv) {
+              resultDiv.innerHTML = progress.done
+                ? `<strong>Re-sync Complete:</strong> ${(progress.synced || 0).toLocaleString()} of ${(progress.total || 0).toLocaleString()} leads updated in Instantly.ai with correct <code>ref_link</code>` +
+                  (progress.errors?.length ? `<br><span style="color:var(--accent-red);">Errors (${progress.errors.length}): ${progress.errors.slice(0,3).join('; ')}${progress.errors.length > 3 ? '…' : ''}</span>` : '')
+                : `Re-syncing… ${(progress.synced || 0).toLocaleString()}${progress.total ? ' / ' + progress.total.toLocaleString() : ''} leads processed${pctLabel}`;
+            }
+            if (progress.done) { clearInterval(interval); resolve(progress); }
+          } catch (pollErr) { clearInterval(interval); reject(pollErr); }
+        }, 1500);
+      }).then(progress => {
+        if (typeof showToast !== 'undefined') showToast(`${(progress.synced || 0).toLocaleString()} leads re-synced with ref_link`);
+      });
+    } catch (e) {
+      if (resultDiv) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `<span style="color:var(--accent-red);">Error: ${e.message}</span>`;
+      }
+      if (typeof showToast !== 'undefined') showToast(e.message, 'error');
+    }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="refresh-cw"></span> Re-sync Ref Links'; }
+  }
+
   window.syncLeadsToInstantly = syncLeadsToInstantly;
+  window.resyncInstantlyRefLinks = resyncInstantlyRefLinks;
   window.createInstantlyCampaign = createInstantlyCampaign;
   window.loadInstantlyCampaigns = loadInstantlyCampaigns;
   window.generateWeeklyCalendar = generateWeeklyCalendar;
@@ -1302,6 +1543,432 @@
   window.clearAndRedraft = clearAndRedraft;
   window.runCycleNow = runCycleNow;
   window.toggleOutreachEngine = toggleOutreachEngine;
+  // ========== APOLLO.IO ==========
+
+  async function loadApolloStatus() {
+    const bar = document.getElementById('apollo-status-bar');
+    if (!bar) return;
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const [statusResp, cfgResp] = await Promise.all([
+        fetch('/api/admin/apollo/status', { headers: { 'x-admin-password': adminPassword } }),
+        fetch('/api/admin/apollo/config', { headers: { 'x-admin-password': adminPassword } })
+      ]);
+      const data = await statusResp.json();
+      if (statusResp.ok && cfgResp.ok) {
+        const cfgData = await cfgResp.json();
+        if (cfgData.config) populateApolloConfigForm(cfgData.config);
+      }
+      loadNotificationConfig();
+      if (!statusResp.ok || data.error) {
+        bar.innerHTML = `<span style="color:var(--error);font-size:0.88rem;">⚠️ ${data.error || 'Apollo API error'}</span><button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Retry</button>`;
+        return;
+      }
+      const minute = data.minute_requests_left !== undefined ? `<span style="margin-right:16px;"><strong>${data.minute_requests_left ?? '—'}</strong> <span style="color:var(--text-muted)">req/min left</span></span>` : '';
+      const hour = data.hour_requests_left !== undefined ? `<span style="margin-right:16px;"><strong>${data.hour_requests_left ?? '—'}</strong> <span style="color:var(--text-muted)">req/hr left</span></span>` : '';
+      const credits = data.credits !== undefined ? `<span style="margin-right:16px;"><strong>${data.credits ?? '—'}</strong> <span style="color:var(--text-muted)">export credits</span></span>` : '';
+      const total = data.total_results ? `<span style="margin-right:16px;color:var(--text-muted);font-size:0.82rem;">${data.total_results.toLocaleString()} auto contacts in DB</span>` : '';
+      bar.innerHTML = `
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+          <span style="margin-right:12px;font-weight:700;color:var(--success);">✓ Apollo Connected</span>
+          ${minute}${hour}${credits}${total}
+        </div>
+        <button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>`;
+    } catch (e) {
+      bar.innerHTML = `<span style="color:var(--error);font-size:0.88rem;">⚠️ Could not reach Apollo API</span><button class="btn btn-sm" onclick="loadApolloStatus()"><span class="icon-inline" data-icon="refresh-cw"></span> Retry</button>`;
+    }
+  }
+
+  function populateApolloConfigForm(cfg) {
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+    const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+    const setOpt = (id, val) => { const el = document.getElementById(id); if (el) el.value = String(val); };
+
+    setChk('apollo-auto-toggle', cfg.enabled);
+    setOpt('apollo-auto-interval', cfg.interval_hours || 6);
+    setOpt('apollo-auto-per-page', cfg.per_page || 25);
+    setChk('apollo-auto-enrich-toggle', cfg.auto_enrich !== false);
+    setOpt('apollo-auto-enrich-batch', cfg.enrich_batch || 15);
+    setChk('apollo-instantly-auto-sync', cfg.instantly_auto_sync);
+    setVal('apollo-instantly-provider-campaign-id', cfg.instantly_provider_campaign_id);
+    setVal('apollo-auto-cities', (cfg.cities || []).join('\n'));
+    setVal('apollo-auto-titles', (cfg.titles || []).join(', '));
+    setVal('apollo-auto-industries', (cfg.industries || []).join(', '));
+
+    const badge = document.getElementById('apollo-auto-badge');
+    if (badge) badge.style.display = cfg.enabled ? 'inline' : 'none';
+
+    const lastRunLabel = document.getElementById('apollo-last-run-label');
+    if (lastRunLabel) {
+      if (cfg.last_run) {
+        const ago = Math.round((Date.now() - new Date(cfg.last_run)) / 60000);
+        lastRunLabel.textContent = ago < 60 ? `Last run ${ago}m ago` : `Last run ${Math.round(ago/60)}h ago`;
+      } else {
+        lastRunLabel.textContent = 'Never run';
+      }
+    }
+  }
+
+  async function loadApolloConfig() {
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/config', { headers: { 'x-admin-password': adminPassword } });
+      const data = await resp.json();
+      if (data.config) populateApolloConfigForm(data.config);
+    } catch (e) {
+      console.error('loadApolloConfig error:', e);
+    }
+  }
+
+  async function saveApolloConfig() {
+    const statusEl = document.getElementById('apollo-config-save-status');
+    if (statusEl) statusEl.textContent = 'Saving...';
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const citiesRaw = document.getElementById('apollo-auto-cities')?.value || '';
+      const titlesRaw = document.getElementById('apollo-auto-titles')?.value || '';
+      const industriesRaw = document.getElementById('apollo-auto-industries')?.value || '';
+
+      const payload = {
+        enabled: document.getElementById('apollo-auto-toggle')?.checked || false,
+        interval_hours: parseInt(document.getElementById('apollo-auto-interval')?.value || '6'),
+        per_page: parseInt(document.getElementById('apollo-auto-per-page')?.value || '25'),
+        auto_enrich: document.getElementById('apollo-auto-enrich-toggle')?.checked !== false,
+        enrich_batch: parseInt(document.getElementById('apollo-auto-enrich-batch')?.value || '15'),
+        instantly_auto_sync: document.getElementById('apollo-instantly-auto-sync')?.checked || false,
+        instantly_provider_campaign_id: document.getElementById('apollo-instantly-provider-campaign-id')?.value?.trim() || null,
+        cities: citiesRaw.split('\n').map(s => s.trim()).filter(Boolean),
+        titles: titlesRaw.split(',').map(s => s.trim()).filter(Boolean),
+        industries: industriesRaw.split(',').map(s => s.trim()).filter(Boolean)
+      };
+
+      const resp = await fetch('/api/admin/apollo/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      if (!resp.ok || data.error) throw new Error(data.error || 'Save failed');
+
+      if (statusEl) { statusEl.style.color = 'var(--success)'; statusEl.textContent = '✓ Settings saved'; setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000); }
+      const badge = document.getElementById('apollo-auto-badge');
+      if (badge) badge.style.display = payload.enabled ? 'inline' : 'none';
+    } catch (e) {
+      if (statusEl) { statusEl.style.color = 'var(--error)'; statusEl.textContent = '✗ ' + e.message; }
+    }
+  }
+
+  async function loadNotificationConfig() {
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/outreach/notification-config', { headers: { 'x-admin-password': adminPassword } });
+      if (resp.ok) {
+        const data = await resp.json();
+        const phoneEl = document.getElementById('admin-notification-phone');
+        if (phoneEl && data.admin_notification_phone) phoneEl.value = data.admin_notification_phone;
+        const digestEl = document.getElementById('digest-hour-utc');
+        if (digestEl && typeof data.digest_hour_utc === 'number') digestEl.value = String(data.digest_hour_utc);
+      }
+    } catch (e) {
+      console.error('loadNotificationConfig error:', e);
+    }
+  }
+
+  async function saveNotificationConfig() {
+    const statusEl = document.getElementById('notification-config-status');
+    const phoneEl = document.getElementById('admin-notification-phone');
+    const digestEl = document.getElementById('digest-hour-utc');
+    if (!phoneEl) return;
+    if (statusEl) statusEl.textContent = 'Saving...';
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const payload = { admin_notification_phone: phoneEl.value.trim() || null };
+      if (digestEl) payload.digest_hour_utc = parseInt(digestEl.value, 10);
+      const resp = await fetch('/api/admin/outreach/notification-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.success) throw new Error('Save failed');
+      if (statusEl) {
+        statusEl.style.color = 'var(--success)';
+        statusEl.textContent = '✓ Saved';
+        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+      }
+    } catch (e) {
+      if (statusEl) { statusEl.style.color = 'var(--error)'; statusEl.textContent = '✗ ' + e.message; }
+    }
+  }
+  window.saveNotificationConfig = saveNotificationConfig;
+
+  async function runApolloCycle() {
+    const btn = document.getElementById('apollo-run-now-btn');
+    const resultEl = document.getElementById('apollo-cycle-result');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span style="opacity:0.7">Running...</span>'; }
+    if (resultEl) resultEl.style.display = 'none';
+
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/cycle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify({ force: true })
+      });
+      const data = await resp.json();
+
+      if (resultEl) {
+        resultEl.style.display = 'block';
+        if (data.success) {
+          resultEl.style.background = 'rgba(34,197,94,0.1)';
+          resultEl.style.border = '1px solid rgba(34,197,94,0.3)';
+          const wfDrafted = data.wefunder_drafted > 0 ? ` · <strong style="color:var(--accent-gold);">⚡ ${data.wefunder_drafted} Wefunder draft${data.wefunder_drafted !== 1 ? 's' : ''} queued</strong>` : '';
+          resultEl.innerHTML = `<strong style="color:var(--success);">✓ Cycle complete</strong> — City: <strong>${data.city}</strong> · Found: <strong>${data.search_results}</strong> · Added: <strong>${data.added}</strong> · Enriched: <strong>${data.enriched}</strong>${wfDrafted}`;
+        } else if (data.skipped) {
+          resultEl.style.background = 'var(--bg-elevated)';
+          resultEl.style.border = '1px solid var(--border-subtle)';
+          resultEl.innerHTML = `Skipped: ${data.reason}`;
+        } else {
+          resultEl.style.background = 'rgba(239,68,68,0.1)';
+          resultEl.style.border = '1px solid rgba(239,68,68,0.3)';
+          resultEl.innerHTML = `<span style="color:var(--error);">Error: ${data.error || 'Unknown error'}</span>`;
+        }
+      }
+      if (data.success) await loadApolloStatus();
+    } catch (e) {
+      if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = `<span style="color:var(--error);">Error: ${e.message}</span>`; }
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="play"></span> Run Now'; if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn); }
+    }
+  }
+
+  async function apolloSearch() {
+    const btn = document.getElementById('apollo-search-btn');
+    const resultEl = document.getElementById('apollo-search-result');
+    const listEl = document.getElementById('apollo-results-list');
+    const countEl = document.getElementById('apollo-results-count');
+
+    const citiesRaw = document.getElementById('apollo-cities')?.value || '';
+    const cities = citiesRaw.split('\n').map(s => s.trim()).filter(Boolean);
+    const titlesRaw = document.getElementById('apollo-titles')?.value || '';
+    const titles = titlesRaw.split(',').map(s => s.trim()).filter(Boolean);
+    const industriesRaw = document.getElementById('apollo-industries')?.value || '';
+    const industries = industriesRaw.split(',').map(s => s.trim()).filter(Boolean);
+    const per_page = parseInt(document.getElementById('apollo-per-page')?.value || '25');
+    const page = parseInt(document.getElementById('apollo-page')?.value || '1');
+    const enrich = document.getElementById('apollo-enrich')?.checked || false;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span style="opacity:0.7">Searching Apollo...</span>';
+    resultEl.style.display = 'none';
+    listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">Searching Apollo database...</div>';
+
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify({ cities, titles, industries, per_page, page, enrich })
+      });
+      const data = await resp.json();
+
+      if (!resp.ok || data.error) {
+        listEl.innerHTML = `<div style="padding:20px;color:var(--error);text-align:center;">${data.error || 'Search failed'}</div>`;
+        return;
+      }
+
+      const withEmail = data.results.filter(r => r.has_email);
+      resultEl.style.display = 'block';
+      resultEl.style.background = 'var(--bg-elevated)';
+      resultEl.style.border = '1px solid var(--border-subtle)';
+      resultEl.innerHTML = `
+        <div style="display:flex;gap:20px;flex-wrap:wrap;">
+          <span>Found: <strong>${data.found}</strong></span>
+          <span style="color:var(--success);">With email: <strong>${data.with_email}</strong></span>
+          <span style="color:var(--text-muted);">Added to leads: <strong>${data.added}</strong></span>
+          ${data.pagination?.total_entries ? `<span style="color:var(--text-muted);">Total available: <strong>${data.pagination.total_entries.toLocaleString()}</strong></span>` : ''}
+        </div>`;
+
+      countEl.textContent = `${data.results.length} results`;
+
+      if (data.results.length === 0) {
+        listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">No results found. Try different cities or titles.</div>';
+      } else {
+        listEl.innerHTML = `
+          <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border-subtle);text-align:left;">
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Name</th>
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Title</th>
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Company</th>
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Location</th>
+                <th style="padding:10px 12px;font-weight:600;color:var(--text-secondary);">Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.results.map(r => `
+                <tr style="border-bottom:1px solid var(--border-subtle);">
+                  <td style="padding:10px 12px;">${r.name || '<span style="color:var(--text-muted)">—</span>'}</td>
+                  <td style="padding:10px 12px;color:var(--text-secondary);">${r.title || '—'}</td>
+                  <td style="padding:10px 12px;">${r.company || '—'}</td>
+                  <td style="padding:10px 12px;color:var(--text-secondary);">${r.location || '—'}</td>
+                  <td style="padding:10px 12px;">${r.has_email ? `<span style="color:var(--success);font-weight:600;">${r.email}</span>` : '<span style="color:var(--text-muted);font-size:0.82rem;">Needs enrichment</span>'}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`;
+      }
+    } catch (e) {
+      listEl.innerHTML = `<div style="padding:20px;color:var(--error);text-align:center;">Error: ${e.message}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="icon-inline" data-icon="search"></span> Search Apollo';
+      if (typeof initInlineIcons !== 'undefined') initInlineIcons(document.getElementById('apollo-search-btn'));
+    }
+  }
+
+  async function checkApolloEnrichQueue() {
+    const statsEl = document.getElementById('apollo-enrich-stats');
+    if (!statsEl) return;
+    statsEl.innerHTML = 'Checking...';
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/outreach/leads?per_page=1&no_email=true', { headers: { 'x-admin-password': adminPassword } });
+      const data = await resp.json();
+      const count = data.total || data.count || (Array.isArray(data) ? data.length : 0);
+      statsEl.innerHTML = `<span style="font-size:1rem;font-weight:700;color:var(--accent-gold);">${count.toLocaleString()}</span> leads without email addresses — ready to enrich via Apollo.`;
+    } catch (e) {
+      statsEl.innerHTML = `<span style="color:var(--error);">Error checking queue: ${e.message}</span>`;
+    }
+  }
+
+  async function apolloEnrich() {
+    const btn = document.getElementById('apollo-enrich-btn');
+    const resultEl = document.getElementById('apollo-enrich-result');
+    const limit = parseInt(document.getElementById('apollo-enrich-limit')?.value || '10');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span style="opacity:0.7">Enriching leads...</span>';
+    resultEl.style.display = 'none';
+
+    try {
+      const adminPassword = window.adminPassword || localStorage.getItem('adminPassword') || '';
+      const resp = await fetch('/api/admin/apollo/enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+        body: JSON.stringify({ limit })
+      });
+      const data = await resp.json();
+
+      resultEl.style.display = 'block';
+      if (!resp.ok || data.error) {
+        resultEl.style.background = 'rgba(239,68,68,0.1)';
+        resultEl.innerHTML = `<span style="color:var(--error);">Error: ${data.error}</span>`;
+        return;
+      }
+
+      resultEl.style.background = 'var(--bg-elevated)';
+      resultEl.style.border = '1px solid var(--border-subtle)';
+      resultEl.innerHTML = `
+        <div style="margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap;">
+          <span>Processed: <strong>${data.total}</strong></span>
+          <span style="color:var(--success);">Enriched: <strong>${data.enriched}</strong></span>
+          <span style="color:var(--text-muted);">No match: <strong>${data.failed}</strong></span>
+        </div>
+        ${data.details?.length ? `<div style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;">
+          ${data.details.map(d => `<div style="display:flex;gap:8px;align-items:center;"><span style="color:${d.status==='enriched'?'var(--success)':'var(--text-muted)'};">●</span><span>${d.lead}</span>${d.email?`<span style="color:var(--success);margin-left:auto;font-size:0.82rem;">${d.email}</span>`:''}</div>`).join('')}
+        </div>` : ''}`;
+
+      if (data.enriched > 0 && typeof showToast !== 'undefined') showToast(`Enriched ${data.enriched} leads with verified emails!`, 'success');
+      await checkApolloEnrichQueue();
+    } catch (e) {
+      resultEl.style.display = 'block';
+      resultEl.style.background = 'rgba(239,68,68,0.1)';
+      resultEl.innerHTML = `<span style="color:var(--error);">Error: ${e.message}</span>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Enrich Leads Now';
+      if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn);
+    }
+  }
+
+  async function loadWefunderBlastStatus() {
+    const statsEl = document.getElementById('wefunder-blast-stats');
+    if (statsEl) statsEl.innerHTML = '<span style="color:var(--text-muted);font-size:0.88rem;">Checking...</span>';
+    try {
+      const resp = await fetch('/api/admin/outreach/wefunder-blast/status', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || ''}` }
+      });
+      const data = await resp.json();
+      if (statsEl) {
+        if (data.eligible === 0) {
+          statsEl.innerHTML = `<span style="color:var(--text-muted);font-size:0.88rem;">No eligible investor leads at this time. Total investor leads: <strong>${data.total_investor_leads}</strong> · Recently contacted (30d): <strong>${data.recently_contacted}</strong></span>`;
+        } else {
+          statsEl.innerHTML = `
+            <div style="display:flex;gap:20px;flex-wrap:wrap;">
+              <div><div style="font-size:1.6rem;font-weight:700;color:var(--accent-gold,#c9a84c);">${data.eligible}</div><div style="font-size:0.78rem;color:var(--text-muted);">Eligible to contact</div></div>
+              <div><div style="font-size:1.6rem;font-weight:700;">${data.total_investor_leads}</div><div style="font-size:0.78rem;color:var(--text-muted);">Total investor leads</div></div>
+              <div><div style="font-size:1.6rem;font-weight:700;">${data.recently_contacted}</div><div style="font-size:0.78rem;color:var(--text-muted);">Contacted last 30d</div></div>
+            </div>`;
+        }
+      }
+    } catch (e) {
+      if (statsEl) statsEl.innerHTML = `<span style="color:var(--error);font-size:0.88rem;">Error: ${e.message}</span>`;
+    }
+  }
+
+  async function launchWefunderBlast(dryRun = false) {
+    const resultEl = document.getElementById('wefunder-blast-result');
+    const btn = document.getElementById('wefunder-blast-btn');
+    if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = dryRun ? 'Checking eligible leads...' : 'Generating drafts — this may take a minute...'; }
+    if (!dryRun && btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
+    try {
+      const resp = await fetch('/api/admin/outreach/wefunder-blast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token') || ''}` },
+        body: JSON.stringify({ dry_run: dryRun })
+      });
+      const data = await resp.json();
+      if (resultEl) {
+        if (dryRun) {
+          const sampleHtml = (data.sample_leads || []).map(l =>
+            `<div style="padding:6px 0;border-bottom:1px solid var(--border-subtle);font-size:0.85rem;"><strong>${l.name || 'Unknown'}</strong>${l.company ? ` · ${l.company}` : ''}<span style="color:var(--text-muted);margin-left:8px;">${l.email || ''}</span>${l.location ? ` · ${l.location}` : ''}</div>`
+          ).join('');
+          resultEl.innerHTML = `
+            <strong style="color:var(--accent-gold,#c9a84c);">Dry Run Preview</strong><br>
+            <span>${data.eligible} eligible investor leads would receive a Wefunder campaign email.</span>
+            <span style="color:var(--text-muted);"> (${data.recently_contacted} skipped — contacted in last 30 days)</span>
+            ${sampleHtml ? `<div style="margin-top:10px;"><strong style="font-size:0.82rem;">Sample leads:</strong>${sampleHtml}</div>` : ''}`;
+        } else if (data.started) {
+          resultEl.innerHTML = `<span style="color:var(--success);">✓ Blast started — drafting emails for <strong>${data.eligible}</strong> investor leads in the background. Check the <strong>Messages</strong> tab in a minute to review and approve before they send.</span>`;
+          loadWefunderBlastStatus();
+        } else if (data.drafted !== undefined) {
+          resultEl.innerHTML = `<span style="color:var(--success);">✓ ${data.drafted} drafts created.</span> ${data.failed ? `<span style="color:var(--error);">${data.failed} failed.</span>` : ''} <br>${data.message || ''}`;
+          loadWefunderBlastStatus();
+        } else {
+          resultEl.innerHTML = `<span style="color:var(--text-muted);">${data.message || JSON.stringify(data)}</span>`;
+        }
+      }
+    } catch (e) {
+      if (resultEl) resultEl.innerHTML = `<span style="color:var(--error);">Error: ${e.message}</span>`;
+    } finally {
+      if (!dryRun && btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Generate Wefunder Blast Drafts';
+        if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn);
+      }
+    }
+  }
+
+  window.loadApolloStatus = loadApolloStatus;
+  window.loadApolloConfig = loadApolloConfig;
+  window.saveApolloConfig = saveApolloConfig;
+  window.runApolloCycle = runApolloCycle;
+  window.apolloSearch = apolloSearch;
+  window.checkApolloEnrichQueue = checkApolloEnrichQueue;
+  window.apolloEnrich = apolloEnrich;
+  window.loadWefunderBlastStatus = loadWefunderBlastStatus;
+  window.launchWefunderBlast = launchWefunderBlast;
+
   window.runManualCycle = runManualCycle;
   window.showEngineSettings = showEngineSettings;
   window.saveEngineSettings = saveEngineSettings;
@@ -1328,4 +1995,193 @@
   window.pauseCampaign = pauseCampaign;
   window.resumeCampaign = resumeCampaign;
   window.renderOutreachHistoryPanel = renderOutreachHistoryPanel;
+  window.loadConversions = loadConversions;
+
+  function convResetDateRange() {
+    const toEl = document.getElementById('conv-date-to');
+    const fromEl = document.getElementById('conv-date-from');
+    const today = new Date();
+    const past30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const fmt = d => d.toISOString().split('T')[0];
+    if (fromEl) fromEl.value = fmt(past30);
+    if (toEl) toEl.value = fmt(today);
+    loadConversions();
+  }
+  window.convResetDateRange = convResetDateRange;
+
+  function renderFunnelStages(containerId, stages, accentColor) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const labels = ['Discovered', 'Instantly Synced', 'Email Opened', 'Ref Link Clicked', 'Signed Up'];
+    const keys = ['discovered', 'instantly_synced', 'email_opened', 'ref_clicked', 'signed_up'];
+    const maxVal = stages.discovered || 1;
+    el.innerHTML = keys.map((key, i) => {
+      const val = stages[key] || 0;
+      const pct = maxVal > 0 ? ((val / maxVal) * 100).toFixed(1) : '0.0';
+      const prevVal = i > 0 ? (stages[keys[i - 1]] || 0) : stages.discovered;
+      const stepPct = prevVal > 0 ? ((val / prevVal) * 100).toFixed(0) + '%' : '—';
+      const barWidth = maxVal > 0 ? Math.max(4, Math.round((val / maxVal) * 100)) : 4;
+      return `
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+            <span style="font-size:0.82rem;font-weight:600;color:var(--text-secondary);">${labels[i]}</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:0.78rem;color:var(--text-muted);">${i > 0 ? stepPct + ' from prev' : ''}</span>
+              <span style="font-weight:700;font-size:1rem;">${val.toLocaleString()}</span>
+            </div>
+          </div>
+          <div style="height:10px;background:var(--bg-input);border-radius:5px;overflow:hidden;">
+            <div style="height:100%;width:${barWidth}%;background:${accentColor};border-radius:5px;transition:width 0.5s ease;"></div>
+          </div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">${pct}% of total</div>
+        </div>`;
+    }).join('');
+  }
+
+  async function loadConversions() {
+    try {
+      const fromEl = document.getElementById('conv-date-from');
+      const toEl = document.getElementById('conv-date-to');
+      const labelEl = document.getElementById('conv-date-label');
+
+      // Initialize date range to last 30 days if not set
+      if (fromEl && !fromEl.value) {
+        const past30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        fromEl.value = past30.toISOString().split('T')[0];
+      }
+      if (toEl && !toEl.value) {
+        toEl.value = new Date().toISOString().split('T')[0];
+      }
+
+      const fromVal = fromEl?.value || '';
+      const toVal = toEl?.value || '';
+      const params = new URLSearchParams();
+      if (fromVal) params.set('from', fromVal);
+      if (toVal) params.set('to', toVal);
+      if (labelEl) labelEl.textContent = fromVal && toVal ? `(${fromVal} – ${toVal})` : '';
+
+      const res = await outreachFetch('/conversions?' + params.toString());
+      if (!res.ok) throw new Error('Failed to load conversions');
+      const data = await res.json();
+
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+
+      // Summary cards
+      const summary = data.summary || {};
+      set('conv-clicks-today', (summary.clicks_today || 0).toLocaleString());
+      set('conv-clicks-week', (summary.clicks_week || 0).toLocaleString());
+      set('conv-signups', (summary.signups_from_outreach || 0).toLocaleString());
+      set('conv-rate', summary.conversion_rate || '0%');
+
+      // Legacy compat
+      set('conv-total-clicks', (data.total_clicks || 0).toLocaleString());
+      set('conv-total-converted', (data.total_converted || 0).toLocaleString());
+      set('conv-warm-leads', (data.warm_leads || 0).toLocaleString());
+      set('conv-click-rate', summary.conversion_rate || '0%');
+
+      // Funnels
+      const funnel = data.funnel || {};
+      renderFunnelStages('conv-funnel-provider', funnel.provider || {}, 'var(--accent-teal)');
+      renderFunnelStages('conv-funnel-investor', funnel.investor || {}, 'var(--accent-gold)');
+      if (typeof initInlineIcons !== 'undefined') {
+        const pEl = document.getElementById('conv-funnel-provider');
+        const iEl = document.getElementById('conv-funnel-investor');
+        if (pEl) initInlineIcons(pEl);
+        if (iEl) initInlineIcons(iEl);
+      }
+
+      // Recent conversions table
+      const recentEl = document.getElementById('conv-recent-table');
+      const recentCountEl = document.getElementById('conv-recent-count');
+      const recent = data.recent_conversions || [];
+      if (recentCountEl) recentCountEl.textContent = recent.length ? `${recent.length} conversions` : '';
+      if (recentEl) {
+        if (recent.length) {
+          recentEl.innerHTML = `
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                  <tr style="border-bottom:2px solid var(--border-subtle);">
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Name</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Type</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Source</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Clicked</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Signed Up</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Time to Convert</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${recent.map(r => {
+                    const clickedFmt = r.clicked_at ? new Date(r.clicked_at).toLocaleDateString() : '—';
+                    const signedFmt = r.signed_up_at ? new Date(r.signed_up_at).toLocaleDateString() : '—';
+                    const ttc = r.time_to_convert_hours != null
+                      ? (r.time_to_convert_hours < 24 ? r.time_to_convert_hours + 'h' : Math.round(r.time_to_convert_hours / 24) + 'd')
+                      : '—';
+                    const typeColor = r.type === 'investor' ? 'var(--accent-gold)' : 'var(--accent-teal)';
+                    return `
+                      <tr style="border-bottom:1px solid var(--border-subtle);">
+                        <td style="padding:8px 12px;font-weight:600;font-size:0.9rem;">${escapeHtml(r.name || '—')}</td>
+                        <td style="padding:8px 12px;">
+                          <span style="font-size:0.78rem;font-weight:600;text-transform:uppercase;color:${typeColor};background:${typeColor}22;padding:2px 7px;border-radius:10px;">
+                            ${escapeHtml(r.type || '—')}
+                          </span>
+                        </td>
+                        <td style="padding:8px 12px;font-size:0.85rem;color:var(--text-muted);">${escapeHtml(r.source || '—')}</td>
+                        <td style="padding:8px 12px;font-size:0.85rem;color:var(--text-muted);">${clickedFmt}</td>
+                        <td style="padding:8px 12px;font-size:0.85rem;font-weight:600;color:var(--accent-green);">${signedFmt}</td>
+                        <td style="padding:8px 12px;font-size:0.85rem;color:var(--text-secondary);">${ttc}</td>
+                      </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>`;
+        } else {
+          recentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No conversions recorded in this date range yet.</p>';
+        }
+      }
+
+      // Warm leads
+      const warmEl = document.getElementById('conv-warm-list');
+      const warmCountEl = document.getElementById('conv-warm-count');
+      const warm = data.warm_list || [];
+      if (warmCountEl) warmCountEl.textContent = warm.length ? `${warm.length} warm leads` : '';
+      if (warmEl) {
+        if (warm.length) {
+          warmEl.innerHTML = `
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                  <tr style="border-bottom:2px solid var(--border-subtle);">
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Name</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Company / City</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Email</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Clicked</th>
+                    <th style="text-align:left;padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${warm.map(l => `
+                    <tr style="border-bottom:1px solid var(--border-subtle);">
+                      <td style="padding:8px 12px;font-weight:600;font-size:0.9rem;">${escapeHtml(l.name || '—')}</td>
+                      <td style="padding:8px 12px;font-size:0.85rem;color:var(--text-muted);">${escapeHtml(l.location || l.company || '—')}</td>
+                      <td style="padding:8px 12px;font-size:0.85rem;">${escapeHtml(l.email || '—')}</td>
+                      <td style="padding:8px 12px;font-size:0.82rem;color:var(--text-muted);">${l.days_since_click != null ? l.days_since_click + 'd ago' : '—'}</td>
+                      <td style="padding:8px 12px;">
+                        <button class="btn btn-sm btn-primary" onclick="window.draftForLead && window.draftForLead('${l.lead_id}')" title="Send follow-up">Follow Up</button>
+                      </td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>`;
+        } else {
+          warmEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No warm leads yet — ref clicks will appear here once providers open your emails.</p>';
+        }
+        if (typeof initInlineIcons !== 'undefined') initInlineIcons(warmEl);
+      }
+    } catch (e) {
+      console.error('[Conversions] Load error:', e);
+      const warmEl = document.getElementById('conv-warm-list');
+      if (warmEl) warmEl.innerHTML = `<p style="color:var(--accent-red);text-align:center;padding:20px;">Failed to load conversion data: ${e.message}</p>`;
+    }
+  }
 })();

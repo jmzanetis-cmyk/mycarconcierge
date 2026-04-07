@@ -1,6 +1,7 @@
 // ========== MY CAR CONCIERGE - VEHICLES MODULE ==========
 // Vehicle management, recalls, registration verification, vehicle details
 
+
     // ========== VEHICLE RECALLS FUNCTIONS ==========
     
     async function fetchVehicleRecalls(vehicleId, refresh = false) {
@@ -73,6 +74,33 @@
       }
     }
     
+    function getSeverityBadge(severity) {
+      if (!severity) return '';
+      const cfg = {
+        critical: { label: 'Critical', color: '#dc2626', bg: 'rgba(220,38,38,0.12)' },
+        important: { label: 'Important', color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
+        monitor: { label: 'Monitor', color: '#2563eb', bg: 'rgba(37,99,235,0.12)' }
+      };
+      const s = cfg[severity] || cfg.monitor;
+      return `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;letter-spacing:0.03em;color:${s.color};background:${s.bg};border:1px solid ${s.color}40;">${s.label}</span>`;
+    }
+
+    function mapRecallComponentToCategory(component) {
+      if (!component) return 'maintenance';
+      const c = component.toLowerCase();
+      if (c.includes('brake') || c.includes('abs') || c.includes('parking brake')) return 'maintenance';
+      if (c.includes('tire') || c.includes('wheel') || c.includes('rim') || c.includes('alignment')) return 'maintenance';
+      if (c.includes('engine') || c.includes('fuel') || c.includes('ignition') || c.includes('emission') || c.includes('exhaust')) return 'maintenance';
+      if (c.includes('transmission') || c.includes('drivetrain') || c.includes('axle') || c.includes('driveshaft')) return 'maintenance';
+      if (c.includes('electrical') || c.includes('battery') || c.includes('wiring') || c.includes('fuse')) return 'audio_electronics';
+      if (c.includes('light') || c.includes('lamp') || c.includes('headlight') || c.includes('taillight')) return 'lighting';
+      if (c.includes('steering') || c.includes('suspension') || c.includes('control arm') || c.includes('shock') || c.includes('strut')) return 'maintenance';
+      if (c.includes('body') || c.includes('door') || c.includes('latch') || c.includes('hood') || c.includes('trunk') || c.includes('hatch')) return 'cosmetic';
+      if (c.includes('seat') || c.includes('interior') || c.includes('upholstery')) return 'interior';
+      if (c.includes('ev') || c.includes('hybrid') || c.includes('battery pack') || c.includes('electric motor')) return 'ev_hybrid';
+      return 'maintenance';
+    }
+
     function renderRecallsList(recallData) {
       const listEl = document.getElementById('recalls-list');
       const emptyEl = document.getElementById('recalls-empty');
@@ -93,45 +121,67 @@
         const statusClass = isAcknowledged ? 'addressed' : 'active';
         const cardClass = isAcknowledged ? 'acknowledged' : 'unacknowledged';
         const statusText = isAcknowledged ? 'Addressed' : 'Active';
-        
+        const severityBadge = getSeverityBadge(recall.severity);
+        const hasAiSummary = !!recall.ai_summary;
+
         return `
-          <div class="recall-card ${cardClass}">
+          <div class="recall-card ${cardClass}" data-recall-id="${recall.id}" data-vehicle-id="${escapeHtml(currentRecallsVehicleId)}">
             <div class="recall-card-header">
-              <div>
-                <div class="recall-card-title">${escapeHtml(recall.component || 'Unknown Component')}</div>
+              <div style="flex:1;min-width:0;">
+                <div class="recall-card-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  ${escapeHtml(recall.component || 'Unknown Component')}
+                  ${severityBadge || '<span class="recall-ai-loading" style="font-size:0.72rem;color:var(--text-muted);">Analyzing...</span>'}
+                </div>
                 <div class="recall-card-campaign">Campaign #${escapeHtml(recall.nhtsa_campaign_number || 'N/A')}</div>
               </div>
               <span class="recall-card-status ${statusClass}">${statusText}</span>
             </div>
             
-            ${recall.summary ? `
+            ${hasAiSummary ? `
               <div class="recall-card-section">
-                <div class="recall-card-section-title">Summary</div>
-                <div class="recall-card-section-content">${escapeHtml(recall.summary)}</div>
+                <div class="recall-card-section-title" style="display:flex;align-items:center;gap:6px;">
+                  ${mccIcon('info', 14)} Plain-Language Summary
+                </div>
+                <div class="recall-card-section-content recall-ai-summary-text">${escapeHtml(recall.ai_summary)}</div>
+                ${(recall.summary || recall.consequence || recall.remedy) ? `
+                  <details style="margin-top:8px;">
+                    <summary style="font-size:0.78rem;color:var(--text-muted);cursor:pointer;user-select:none;">View original NHTSA text</summary>
+                    <div style="margin-top:8px;padding:10px;background:var(--bg-tertiary,var(--card-bg));border-radius:6px;font-size:0.78rem;">
+                      ${recall.summary ? `<p style="margin:0 0 6px;"><strong>Summary:</strong> ${escapeHtml(recall.summary)}</p>` : ''}
+                      ${recall.consequence ? `<p style="margin:0 0 6px;color:var(--accent-red);"><strong>Consequence:</strong> ${escapeHtml(recall.consequence)}</p>` : ''}
+                      ${recall.remedy ? `<p style="margin:0;"><strong>Remedy:</strong> ${escapeHtml(recall.remedy)}</p>` : ''}
+                    </div>
+                  </details>
+                ` : ''}
               </div>
-            ` : ''}
-            
-            ${recall.consequence ? `
-              <div class="recall-card-section">
-                <div class="recall-card-section-title">${mccIcon('alert-triangle', 16)} Consequence</div>
-                <div class="recall-card-section-content" style="color: var(--accent-red);">${escapeHtml(recall.consequence)}</div>
-              </div>
-            ` : ''}
-            
-            ${recall.remedy ? `
-              <div class="recall-card-section">
-                <div class="recall-card-section-title">${mccIcon('check-circle', 14)} Remedy</div>
-                <div class="recall-card-section-content">${escapeHtml(recall.remedy)}</div>
-              </div>
-            ` : ''}
+            ` : `
+              ${recall.summary ? `
+                <div class="recall-card-section">
+                  <div class="recall-card-section-title">Summary</div>
+                  <div class="recall-card-section-content">${escapeHtml(recall.summary)}</div>
+                </div>
+              ` : ''}
+              ${recall.consequence ? `
+                <div class="recall-card-section">
+                  <div class="recall-card-section-title">${mccIcon('alert-triangle', 16)} Consequence</div>
+                  <div class="recall-card-section-content" style="color: var(--accent-red);">${escapeHtml(recall.consequence)}</div>
+                </div>
+              ` : ''}
+              ${recall.remedy ? `
+                <div class="recall-card-section">
+                  <div class="recall-card-section-title">${mccIcon('check-circle', 14)} Remedy</div>
+                  <div class="recall-card-section-content">${escapeHtml(recall.remedy)}</div>
+                </div>
+              ` : ''}
+            `}
             
             ${!isAcknowledged ? `
               <div class="recall-card-actions">
                 <button class="btn btn-success btn-sm" onclick="acknowledgeRecall('${recall.id}')">
                   ${mccIcon('check-circle', 14)} Mark as Addressed
                 </button>
-                <button class="btn btn-secondary btn-sm" onclick="createPackageForVehicle('${currentRecallsVehicleId}')">
-                  ${mccIcon('package', 16)} Request Service
+                <button class="btn btn-primary btn-sm recall-book-btn">
+                  ${mccIcon('tool', 14)} Book Recall Fix
                 </button>
               </div>
             ` : `
@@ -144,6 +194,91 @@
           </div>
         `;
       }).join('');
+
+      listEl.querySelectorAll('.recall-book-btn').forEach(btn => {
+        const card = btn.closest('[data-recall-id]');
+        if (!card) return;
+        const rid = card.getAttribute('data-recall-id');
+        const vid = card.getAttribute('data-vehicle-id');
+        const recall = recallData.recalls.find(r => r.id === rid);
+        if (!recall) return;
+        btn.addEventListener('click', () => {
+          const title = `Recall: ${recall.component || 'Safety Recall'} (Campaign #${recall.nhtsa_campaign_number || 'N/A'})`;
+          const description = recall.ai_summary || recall.summary || '';
+          const category = mapRecallComponentToCategory(recall.component);
+          createPackageForVehicle(vid, { title, description, category });
+        });
+      });
+
+      enrichUnanalyzedRecalls(recallData.recalls);
+    }
+
+    async function enrichUnanalyzedRecalls(recalls) {
+      if (!recalls || recalls.length === 0) return;
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const needsEnrich = recalls.filter(r => !r.ai_summary);
+      for (const recall of needsEnrich) {
+        try {
+          const resp = await fetch(`${apiBase}/api/recalls/${recall.id}/enrich`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+          });
+          if (!resp.ok) continue;
+          const data = await resp.json();
+          if (!data.success) continue;
+          const recallId = recall.id;
+          const card = document.querySelector(`[data-recall-id="${recallId}"]`);
+          if (!card) continue;
+          if (data.severity) {
+            const titleEl = card.querySelector('.recall-card-title');
+            if (titleEl) {
+              const loadingEl = titleEl.querySelector('.recall-ai-loading');
+              if (loadingEl) loadingEl.remove();
+              titleEl.insertAdjacentHTML('beforeend', getSeverityBadge(data.severity));
+            }
+          }
+          if (data.ai_summary) {
+            const existingSections = card.querySelectorAll('.recall-card-section');
+            existingSections.forEach(s => s.remove());
+            const actionsEl = card.querySelector('.recall-card-actions');
+            const recallRecord = recalls.find(r => r.id === recallId);
+            const hasOriginal = recallRecord && (recallRecord.summary || recallRecord.consequence || recallRecord.remedy);
+            const originalHtml = hasOriginal ? `
+              <details style="margin-top:8px;">
+                <summary style="font-size:0.78rem;color:var(--text-muted);cursor:pointer;user-select:none;">View original NHTSA text</summary>
+                <div style="margin-top:8px;padding:10px;background:var(--bg-tertiary,var(--card-bg));border-radius:6px;font-size:0.78rem;">
+                  ${recallRecord.summary ? `<p style="margin:0 0 6px;"><strong>Summary:</strong> ${escapeHtml(recallRecord.summary)}</p>` : ''}
+                  ${recallRecord.consequence ? `<p style="margin:0 0 6px;color:var(--accent-red);"><strong>Consequence:</strong> ${escapeHtml(recallRecord.consequence)}</p>` : ''}
+                  ${recallRecord.remedy ? `<p style="margin:0;"><strong>Remedy:</strong> ${escapeHtml(recallRecord.remedy)}</p>` : ''}
+                </div>
+              </details>` : '';
+            const summaryHtml = `
+              <div class="recall-card-section">
+                <div class="recall-card-section-title" style="display:flex;align-items:center;gap:6px;">${mccIcon('info', 14)} Plain-Language Summary</div>
+                <div class="recall-card-section-content recall-ai-summary-text">${escapeHtml(data.ai_summary)}</div>
+                ${originalHtml}
+              </div>`;
+            if (actionsEl) {
+              actionsEl.insertAdjacentHTML('beforebegin', summaryHtml);
+            }
+            const bookBtn = card.querySelector('.recall-book-btn');
+            if (bookBtn && recallRecord) {
+              bookBtn.removeEventListener('click', bookBtn._bookHandler);
+              bookBtn._bookHandler = () => {
+                const title = `Recall: ${recallRecord.component || 'Safety Recall'} (Campaign #${recallRecord.nhtsa_campaign_number || 'N/A'})`;
+                const description = data.ai_summary || recallRecord.summary || '';
+                const category = mapRecallComponentToCategory(recallRecord.component);
+                createPackageForVehicle(card.getAttribute('data-vehicle-id'), { title, description, category });
+              };
+              bookBtn.addEventListener('click', bookBtn._bookHandler);
+            }
+          }
+        } catch {
+        }
+      }
     }
     
     async function acknowledgeRecall(recallId) {
@@ -718,6 +853,7 @@
         }
       }
     }
+    window.submitInsuranceExtraction = submitInsuranceExtraction;
     
     function showInsuranceReviewUI(extracted, vehicleId, uploadResult) {
       const extractionStatus = document.getElementById('insurance-extraction-status');
@@ -743,7 +879,7 @@
         ${iField('Expiration Date', extracted.expirationDate, 'ins-review-expiration')}
         
         <div style="display:flex;gap:10px;margin-top:14px;">
-          <button class="btn btn-gold" onclick="confirmInsuranceExtraction('${vehicleId}', '${uploadResult?.url || ''}', '${uploadResult?.storagePath || ''}')" style="flex:1;">
+          <button id="ins-review-confirm" class="btn btn-gold" onclick="confirmInsuranceExtraction('${vehicleId}', '${uploadResult?.url || ''}', '${uploadResult?.storagePath || ''}')" style="flex:1;">
             ${mccIcon('check-circle', 14)} Confirm & Save
           </button>
           <button class="btn btn-secondary" onclick="document.getElementById('insurance-extraction-status').style.display='none'" style="flex:0 0 auto;">
@@ -751,8 +887,9 @@
           </button>
         </div>
       `;
-      
+      extractionStatus.style.display = 'block';
     }
+    window.showInsuranceReviewUI = showInsuranceReviewUI;
     
     async function confirmInsuranceExtraction(vehicleId, fileUrl, storagePath) {
       const provider = document.getElementById('ins-review-provider')?.value?.trim() || '';
@@ -783,6 +920,7 @@
       document.getElementById('insurance-extraction-status').style.display = 'none';
       showToast('Fields pre-filled! Review and save the document.', 'success');
     }
+    window.confirmInsuranceExtraction = confirmInsuranceExtraction;
     
     // ========== END INSURANCE CARD EXTRACTION ==========
 
@@ -969,18 +1107,30 @@
       // Upload new photo if one was selected
       if (pendingEditVehiclePhoto) {
         showToast('Uploading photo...', 'success');
-        const fileName = `${currentUser.id}/${editingVehicleId}-${Date.now()}-${pendingEditVehiclePhoto.file.name}`;
+        // Path must be {userId}/{vehicleId}/{timestamp}-{filename} so server validation passes
+        const safeFileName = pendingEditVehiclePhoto.file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileName = `${currentUser.id}/${editingVehicleId}/${Date.now()}-${safeFileName}`;
         
         try {
-          const { data: uploadData, error: uploadError } = await supabaseClient.storage
+          const { error: uploadError } = await supabaseClient.storage
             .from('vehicle-photos')
             .upload(fileName, pendingEditVehiclePhoto.file);
           
           if (!uploadError) {
-            const { data: urlData } = supabaseClient.storage
-              .from('vehicle-photos')
-              .getPublicUrl(fileName);
-            photoUrl = urlData.publicUrl;
+            // Register photo in vehicle_photos table via server (generates signed URL for immediate display)
+            const session = (await supabaseClient.auth.getSession()).data.session;
+            const regRes = await fetch(`/api/vehicle-photos/${editingVehicleId}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+              body: JSON.stringify({ storage_path: fileName, is_primary: true })
+            });
+            if (regRes.ok) {
+              // Photo is registered in vehicle_photos table; signed URLs are resolved at read time.
+              // Do NOT update vehicles.photo_url — that legacy field keeps its existing value.
+              // The new photo will be served through the vehicle-photos API.
+            } else {
+              console.error('Photo registration failed:', await regRes.text());
+            }
           } else {
             console.error('Photo upload error:', uploadError);
             showToast('Photo upload failed, but updating vehicle info...', 'error');
@@ -1091,7 +1241,7 @@
       });
     }
 
-    async function uploadVehiclePhoto(vehicleId) {
+    async function _uploadPhotoFileToStorage(vehicleId) {
       if (!pendingVehiclePhoto) return null;
       
       try {
@@ -1107,12 +1257,8 @@
           return null;
         }
 
-        // Get public URL
-        const { data: urlData } = supabaseClient.storage
-          .from('vehicle-photos')
-          .getPublicUrl(fileName);
-
-        return urlData.publicUrl;
+        // Return storage path only — signed URL generated server-side on retrieval
+        return fileName;
       } catch (err) {
         console.error('Error uploading vehicle photo:', err);
         return null;
@@ -1200,7 +1346,7 @@
         
         <div id="vehicle-tab-photos" style="display:none;">
           <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
-            <input type="file" class="form-input" id="vehicle-photo-upload" accept="image/*" multiple style="flex:1;">
+            <input type="file" class="form-input" id="vehicle-photo-upload" accept="image/jpeg,image/png" multiple style="flex:1;">
             <select class="form-select" id="photo-type-select" style="width:auto;">
               <option value="general">General</option>
               <option value="exterior">Exterior</option>
@@ -1328,7 +1474,7 @@
       
       let successCount = 0;
       for (const file of Array.from(input.files)) {
-        const result = await window.uploadVehiclePhoto(vehicleId, file, photoType);
+        const result = await window.uploadVehiclePhotoFile(vehicleId, file, photoType);
         if (result) successCount++;
       }
       
@@ -1788,120 +1934,180 @@
       updateStats();
     }
 
-    // ========== AI PREDICTIVE MAINTENANCE ==========
 
-    let vehiclePredictions = {};
+// ========== VEHICLE PHOTOS (Multi-Photo Gallery) ==========
+let currentPhotoVehicleId = null;
+let vehiclePhotos = [];
 
-    async function fetchVehiclePredictions(vehicleId) {
-      try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) return null;
+async function openVehiclePhotos(vehicleId, vehicleName) {
+  currentPhotoVehicleId = vehicleId;
+  const modal = document.getElementById('vehicle-photos-modal');
+  if (!modal) return;
+  const titleEl = document.getElementById('vp-modal-title');
+  if (titleEl) titleEl.textContent = 'Photos — ' + vehicleName;
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  await loadVehiclePhotos(vehicleId);
+}
 
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/vehicle/${vehicleId}/predictions`, {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        });
-        const data = await response.json();
+function closeVehiclePhotosModal() {
+  const modal = document.getElementById('vehicle-photos-modal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+  currentPhotoVehicleId = null;
+}
 
-        if (data.success) {
-          vehiclePredictions[vehicleId] = {
-            health_summary: data.health_summary,
-            predictions: data.predictions || [],
-            generated_at: data.generated_at,
-            cached: data.cached
-          };
-          return vehiclePredictions[vehicleId];
-        }
-        return null;
-      } catch (error) {
-        console.error('Error fetching predictions:', error);
-        return null;
-      }
-    }
-
-    async function loadAllVehiclePredictions() {
-      if (_predictionsLoading) return;
-      _predictionsLoading = true;
-      try {
-        const promises = vehicles.map(v => fetchVehiclePredictions(v.id));
-        await Promise.allSettled(promises);
-        renderVehicles();
-      } finally {
-        _predictionsLoading = false;
-      }
-    }
-
-    function getUrgencyConfig(urgency) {
-      const configs = {
-        critical: { label: 'Critical', color: 'var(--accent-red)', bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.3)', icon: 'alert-triangle' },
-        soon: { label: 'Soon', color: 'var(--accent-orange)', bg: 'var(--accent-orange-soft)', border: 'rgba(251,146,60,0.3)', icon: 'clock' },
-        upcoming: { label: 'Upcoming', color: 'var(--accent-blue)', bg: 'var(--accent-blue-soft)', border: 'rgba(56,189,248,0.3)', icon: 'calendar' },
-        routine: { label: 'Routine', color: 'var(--accent-green)', bg: 'var(--accent-green-soft)', border: 'rgba(52,211,153,0.3)', icon: 'check-circle' }
-      };
-      return configs[urgency] || configs.routine;
-    }
-
-    function renderPredictionsSection(vehicleId) {
-      const predData = vehiclePredictions[vehicleId];
-      if (!predData) {
-        return `<div class="predictions-section predictions-loading" id="predictions-${vehicleId}">
-          <div class="predictions-header">
-            <span class="predictions-title">${mccIcon('cpu', 14)} AI Maintenance Forecast</span>
-          </div>
-          <div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.82rem;">Analyzing vehicle data...</div>
-        </div>`;
-      }
-
-      const predictions = predData.predictions || [];
-      if (predictions.length === 0 && !predData.health_summary) {
-        return '';
-      }
-
-      let predictionsHtml = predictions.slice(0, 4).map((p, idx) => {
-        const config = getUrgencyConfig(p.urgency);
-        const milesText = p.estimated_miles ? `~${p.estimated_miles.toLocaleString()} mi` : '';
-        const dateText = p.estimated_date ? new Date(p.estimated_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
-        const timeInfo = [milesText, dateText].filter(Boolean).join(' · ');
-
-        return `<div class="prediction-item" data-vehicle-id="${vehicleId}" data-prediction-idx="${idx}" data-prediction-title="${escapeHtml(p.title)}">
-          <div class="prediction-item-left">
-            <span class="prediction-urgency-dot" style="background:${config.color};"></span>
-            <div>
-              <div class="prediction-item-title">${escapeHtml(p.title)}</div>
-              <div class="prediction-item-meta">${timeInfo ? timeInfo + ' — ' : ''}${escapeHtml(p.reason)}</div>
-            </div>
-          </div>
-          <div class="prediction-item-right">
-            <span class="prediction-urgency-badge" style="background:${config.bg};color:${config.color};border:1px solid ${config.border};">${config.label}</span>
-            <span class="prediction-action-icon">${mccIcon('package', 14)}</span>
-          </div>
-        </div>`;
-      }).join('');
-
-      return `<div class="predictions-section" id="predictions-${vehicleId}">
-        <div class="predictions-header">
-          <span class="predictions-title">${mccIcon('cpu', 14)} AI Maintenance Forecast</span>
-        </div>
-        ${predData.health_summary ? `<div class="predictions-health-summary">${escapeHtml(predData.health_summary)}</div>` : ''}
-        ${predictionsHtml ? `<div class="predictions-list">${predictionsHtml}</div>` : ''}
-      </div>`;
-    }
-
-    function createPackageFromPrediction(vehicleId, title) {
-      openPackageModal();
-      document.getElementById('p-vehicle').value = vehicleId;
-      document.getElementById('p-title').value = title;
-    }
-
-    let _predictionsLoading = false;
-
-    document.addEventListener('click', function(e) {
-      const item = e.target.closest('.prediction-item[data-vehicle-id]');
-      if (item) {
-        const vehicleId = item.getAttribute('data-vehicle-id');
-        const title = item.getAttribute('data-prediction-title') || '';
-        const decoded = document.createElement('textarea');
-        decoded.innerHTML = title;
-        createPackageFromPrediction(vehicleId, decoded.value);
-      }
+async function loadVehiclePhotos(vehicleId) {
+  const grid = document.getElementById('vp-grid');
+  if (!grid) return;
+  grid.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">Loading...</div>';
+  try {
+    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
+    const res = await fetch('/api/vehicle-photos/' + vehicleId, {
+      headers: { 'Authorization': 'Bearer ' + token }
     });
+    if (!res.ok) throw new Error('Load failed');
+    vehiclePhotos = (await res.json()).photos || [];
+    renderVehiclePhotosGrid(vehiclePhotos);
+  } catch (e) {
+    grid.innerHTML = '<div style="color:var(--accent-red);font-size:0.85rem;">Failed to load photos.</div>';
+  }
+}
+
+function renderVehiclePhotosGrid(photos) {
+  const grid = document.getElementById('vp-grid');
+  if (!grid) return;
+  const addDisabled = photos.length >= 6;
+  let html = photos.map(p => `
+    <div style="position:relative;aspect-ratio:4/3;border-radius:var(--radius-md);overflow:hidden;border:2px solid ${p.is_primary ? 'var(--accent-gold)' : 'var(--border-subtle)'};">
+      <img src="${p.url}" alt="Vehicle photo" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="openPhotoLightbox('${p.url}')">
+      ${p.is_primary ? '<div style="position:absolute;top:6px;left:6px;background:var(--accent-gold);color:var(--bg-deep);font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:100px;">PRIMARY</div>' : ''}
+      <div style="position:absolute;bottom:0;left:0;right:0;display:flex;gap:4px;padding:6px;background:linear-gradient(transparent,rgba(0,0,0,0.7));">
+        ${!p.is_primary ? `<button onclick="setVehiclePhotoPrimary('${p.id}')" style="flex:1;font-size:0.65rem;padding:3px 6px;border-radius:4px;border:none;background:rgba(201,162,39,0.8);color:var(--bg-deep);cursor:pointer;font-weight:600;">Set Primary</button>` : ''}
+        <button onclick="deleteVehiclePhoto('${p.id}')" style="font-size:0.65rem;padding:3px 8px;border-radius:4px;border:none;background:rgba(220,53,69,0.8);color:#fff;cursor:pointer;font-weight:600;">✕</button>
+      </div>
+    </div>
+  `).join('');
+  if (!addDisabled) {
+    html += `
+      <label style="aspect-ratio:4/3;border-radius:var(--radius-md);border:2px dashed var(--border-subtle);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:8px;color:var(--text-muted);transition:border-color 0.2s;" onmouseenter="this.style.borderColor='var(--accent-gold)'" onmouseleave="this.style.borderColor='var(--border-subtle)'">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+        <span style="font-size:0.78rem;">Add Photo</span>
+        <input type="file" accept="image/jpeg,image/png" style="display:none;" onchange="uploadVehiclePhoto(this)">
+      </label>
+    `;
+  }
+  if (!photos.length && addDisabled) {
+    html = '<div style="color:var(--text-muted);font-size:0.85rem;text-align:center;grid-column:1/-1;padding:20px 0;">No photos yet. Add up to 6 photos.</div>';
+  }
+  grid.innerHTML = html;
+  const countEl = document.getElementById('vp-count');
+  if (countEl) countEl.textContent = photos.length + '/6 photos';
+}
+
+// uploadVehiclePhotoFile — called by the vehicle details multi-upload flow
+// Takes vehicleId, a File object, and optional photoType string
+async function uploadVehiclePhotoFile(vehicleId, file, photoType) {
+  if (!file) return false;
+  if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) { showToast('Please upload a JPEG or PNG photo', 'error'); return false; }
+  if (file.size > 10 * 1024 * 1024) { showToast('Photo must be under 10MB', 'error'); return false; }
+  try {
+    const session = await supabaseClient.auth.getSession();
+    const uid = session.data.session?.user?.id;
+    const token = session.data.session?.access_token;
+    if (!uid || !token) throw new Error('Not authenticated');
+    const ext = file.name.split('.').pop().toLowerCase().replace('heic', 'jpg');
+    const fileName = uid + '/' + vehicleId + '/' + Date.now() + '.' + ext;
+    const { error: uploadErr } = await supabaseClient.storage.from('vehicle-photos').upload(fileName, file, { contentType: file.type, upsert: false });
+    if (uploadErr) throw uploadErr;
+    const res = await fetch('/api/vehicle-photos/' + vehicleId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ storage_path: fileName, is_primary: false })
+    });
+    if (!res.ok) throw new Error('Register failed');
+    return true;
+  } catch (e) {
+    showToast('Upload failed: ' + e.message, 'error');
+    return false;
+  }
+}
+
+// uploadVehiclePhoto — called from the photo modal's file input (onchange handler)
+async function uploadVehiclePhoto(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) { showToast('Please upload a JPEG or PNG photo', 'error'); return; }
+  if (file.size > 10 * 1024 * 1024) { showToast('Photo must be under 10MB', 'error'); return; }
+  try {
+    showToast('Uploading photo...', 'info');
+    const ext = file.name.split('.').pop().toLowerCase().replace('heic','jpg');
+    const session = await supabaseClient.auth.getSession();
+    const uid = session.data.session?.user?.id;
+    const token = session.data.session?.access_token;
+    if (!uid || !token) throw new Error('Not authenticated');
+    const fileName = uid + '/' + currentPhotoVehicleId + '/' + Date.now() + '.' + ext;
+    const { data: uploadData, error: uploadErr } = await supabaseClient.storage
+      .from('vehicle-photos').upload(fileName, file, { contentType: file.type, upsert: false });
+    if (uploadErr) throw uploadErr;
+    // Do NOT use getPublicUrl — send only storage_path; server generates signed URL
+    const res = await fetch('/api/vehicle-photos/' + currentPhotoVehicleId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ storage_path: fileName, is_primary: vehiclePhotos.length === 0 })
+    });
+    if (!res.ok) throw new Error('Register failed');
+    showToast('Photo uploaded!', 'success');
+    await loadVehiclePhotos(currentPhotoVehicleId);
+  } catch (e) {
+    showToast('Upload failed: ' + e.message, 'error');
+  }
+}
+
+async function setVehiclePhotoPrimary(photoId) {
+  try {
+    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
+    const res = await fetch('/api/vehicle-photos/' + photoId + '/primary', {
+      method: 'PATCH',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) throw new Error('Failed');
+    await loadVehiclePhotos(currentPhotoVehicleId);
+  } catch (e) {
+    showToast('Could not set primary photo', 'error');
+  }
+}
+
+async function deleteVehiclePhoto(photoId) {
+  if (!confirm('Remove this photo?')) return;
+  try {
+    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
+    const photo = vehiclePhotos.find(p => p.id === photoId);
+    const res = await fetch('/api/vehicle-photos/' + photoId, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) throw new Error('Delete failed');
+    if (photo?.storage_path) {
+      await supabaseClient.storage.from('vehicle-photos').remove([photo.storage_path]);
+    }
+    showToast('Photo removed', 'success');
+    await loadVehiclePhotos(currentPhotoVehicleId);
+  } catch (e) {
+    showToast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+function openPhotoLightbox(url) {
+  const lb = document.getElementById('vp-lightbox');
+  if (!lb) return;
+  const img = lb.querySelector('img');
+  if (img) img.src = url;
+  lb.style.display = 'flex';
+}
+
+function closePhotoLightbox() {
+  const lb = document.getElementById('vp-lightbox');
+  if (lb) lb.style.display = 'none';
+}
+// ========== END VEHICLE PHOTOS ==========

@@ -161,11 +161,15 @@
     }
     
     .service-card ul li::before {
-      content: "✓";
-      color: #b8942d;
-      font-weight: bold;
+      content: "";
+      width: 14px;
+      height: 14px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23b8942d' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-size: contain;
       position: absolute;
       left: 0;
+      top: 10px;
     }
     
     .pricing-table {
@@ -240,6 +244,15 @@
     .tier .tier-period {
       font-size: 0.8rem;
       color: rgba(255, 255, 255, 0.7);
+    }
+    
+    .tier .tier-criteria {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(212, 175, 55, 0.3);
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.85);
+      line-height: 1.5;
     }
     
     .terms {
@@ -372,8 +385,8 @@
   <div class="print-controls">
     <h2>My Car Concierge - Services Proposal</h2>
     <p>Review the proposal below. Print or save as PDF when ready.</p>
-    <button class="print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
-    <button class="print-btn" onclick="window.history.back()" style="background: #6c757d;">← Back</button>
+    <button class="print-btn" onclick="window.print()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="8"/></svg> Print / Save PDF</button>
+    <button class="print-btn" onclick="window.history.back()" style="background: #6c757d;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Back</button>
   </div>
   
   <div class="proposal-container">
@@ -391,10 +404,11 @@
     
     <div class="section">
       <h2>Services Offered</h2>
+      <p style="margin-bottom: 20px; color: #1e3a5f; font-weight: 500;">All services below are included in the bi-weekly fee - one simple payment covers everything.</p>
       
       <div class="service-card">
-        <h3><span class="icon">📢</span> Advertising & Marketing</h3>
-        <div class="price">$200 Bi-Weekly</div>
+        <h3><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg></span> Advertising & Marketing</h3>
+        <div class="price">Included</div>
         <ul>
           <li>Google Ads campaign setup and management</li>
           <li>Social media advertising (Facebook, Instagram)</li>
@@ -403,12 +417,13 @@
           <li>Performance reporting and analytics</li>
           <li>App Store Optimization (ASO) recommendations</li>
           <li>Brand awareness campaigns</li>
+          <li><strong>Ad spend budget included</strong></li>
         </ul>
       </div>
       
       <div class="service-card">
-        <h3><span class="icon">🔧</span> Technical Services</h3>
-        <div class="price">Billed Per Hour (As Needed)</div>
+        <h3><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Technical Services</h3>
+        <div class="price">Included</div>
         <ul>
           <li>Platform maintenance and bug fixes</li>
           <li>Troubleshooting and issue resolution</li>
@@ -418,6 +433,18 @@
           <li>Feature enhancements (quoted separately)</li>
         </ul>
       </div>
+      
+      <div class="service-card">
+        <h3><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span> Platform Feature Management</h3>
+        <div class="price">Included</div>
+        <ul>
+          <li>Car Club loyalty program setup and configuration</li>
+          <li>Punch card reward design and optimization</li>
+          <li>Provider retention analytics and reporting</li>
+          <li>Member engagement feature updates</li>
+          <li>Loyalty program performance tracking</li>
+        </ul>
+      </div>
     </div>
     
     <div class="section">
@@ -425,29 +452,24 @@
       <table class="pricing-table">
         <thead>
           <tr>
-            <th>Service</th>
+            <th>What's Included</th>
             <th>Rate</th>
             <th>Billing Cycle</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Advertising & Marketing</td>
+            <td><strong>Complete Package</strong><br><span style="font-size: 0.85rem; color: #666;">Advertising, Ad Spend, Technical Work</span></td>
             <td><strong>$200</strong></td>
             <td>Bi-Weekly (every 2 weeks)</td>
           </tr>
-          <tr>
-            <td>Technical Services</td>
-            <td><strong>Per Hour</strong></td>
-            <td>As Needed</td>
-          </tr>
         </tbody>
       </table>
-      <p style="font-size: 0.9rem; color: #888; margin-top: 10px;">* Note: Ad spend budget (Google Ads, Facebook, etc.) is separate from the management fee and controlled by MCC.</p>
+      <p style="font-size: 0.9rem; color: #1e3a5f; margin-top: 10px; font-weight: 500;">One payment covers everything - no hidden fees or separate invoices.</p>
     </div>
     
     <div class="scaling-section">
-      <h3>📈 Growth-Based Scaling</h3>
+      <h3><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 6px;"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg> Growth-Based Scaling</h3>
       <p>As My Car Concierge grows and revenue increases, service rates will scale accordingly. This ensures alignment between service investment and business success.</p>
       
       <div class="scaling-tiers">
@@ -455,20 +477,23 @@
           <h4>Launch Phase</h4>
           <div class="tier-price">$200</div>
           <div class="tier-period">bi-weekly</div>
+          <div class="tier-criteria">Pre-revenue or &lt;$5K MRR<br>Building user base<br>Pre-funding</div>
         </div>
         <div class="tier">
           <h4>Growth Phase</h4>
           <div class="tier-price">$300</div>
           <div class="tier-period">bi-weekly</div>
+          <div class="tier-criteria">$5K-$25K MRR<br>or 500+ active users<br>or seed funding raised</div>
         </div>
         <div class="tier">
           <h4>Scale Phase</h4>
           <div class="tier-price">$400+</div>
           <div class="tier-period">bi-weekly</div>
+          <div class="tier-criteria">$25K+ MRR<br>or 2,000+ active users<br>or Series A+</div>
         </div>
       </div>
       
-      <p style="margin-top: 20px; font-size: 0.9rem;">Scaling triggers to be mutually agreed upon based on revenue milestones, user growth, or funding events.</p>
+      <p style="margin-top: 20px; font-size: 0.9rem;">Phase transitions based on whichever milestone is reached first. MRR = Monthly Recurring Revenue.</p>
     </div>
     
     <div class="terms">
@@ -476,11 +501,10 @@
       <ul>
         <li><strong>Communication:</strong> Direct communication with Jordan Zanetis for all work requests and updates</li>
         <li><strong>Payment Schedule:</strong> Bi-weekly payments due on agreed dates</li>
-        <li><strong>Technical Work:</strong> Hours tracked and reported; invoiced at end of billing period</li>
         <li><strong>Response Time:</strong> 24-48 hours for non-urgent requests; same-day for critical issues</li>
         <li><strong>Reporting:</strong> Monthly performance reports for advertising campaigns</li>
         <li><strong>Term:</strong> Month-to-month with 14 days notice for cancellation</li>
-        <li><strong>Ad Spend:</strong> Advertising budget controlled by MCC; management fee is separate</li>
+        <li><strong>All-Inclusive:</strong> Bi-weekly fee covers all work, advertising, and ad spend</li>
       </ul>
     </div>
     

@@ -5,6 +5,17 @@
       div.textContent = String(text);
       return div.innerHTML;
     }
+
+    // ========== FETCH HELPER ==========
+    async function safeFetch(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) {
+        let errMsg = `Server error (${res.status})`;
+        try { const e = await res.clone().json(); errMsg = e.error || e.message || errMsg; } catch {}
+        throw new Error(errMsg);
+      }
+      return res.json();
+    }
     
     // ========== STATE ==========
     let currentUser = null;
@@ -32,7 +43,8 @@
       providers: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
       members: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
       packages: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
-      agreements: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' }
+      agreements: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
+      refunds: { page: 1, limit: 25, total: 0, totalPages: 0, filter: 'all' }
     };
     
     // Debounce helper for search functions
@@ -82,6 +94,7 @@
       packages: false,
       payments: false,
       disputes: false,
+      refunds: false,
       'registration-verifications': false,
       tickets: false,
       members: false,
@@ -89,7 +102,16 @@
       'user-management': false,
       'merch-manager': false,
       agreements: false,
-      settings: false
+      settings: false,
+      'ai-chat-insights': false,
+      crm: false,
+      traffic: false,
+      'marketing-outreach': false,
+      'ai-ops': false,
+      'saas-subscriptions': false,
+      'white-label': false,
+      'survey-analytics': false,
+      'member-surveys': false
     };
 
     const sectionLoaders = {
@@ -105,6 +127,7 @@
       packages: async () => { await loadAllPackages(); },
       payments: async () => { await loadPayments(); },
       disputes: async () => { await loadDisputes(); },
+      refunds: async () => { await loadRefunds(); },
       'registration-verifications': async () => { await loadRegistrationVerifications(); },
       tickets: async () => { await loadTickets(); },
       members: async () => { await loadMembers(); },
@@ -112,7 +135,20 @@
       'user-management': async () => { await loadUserManagement(); },
       'merch-manager': async () => { await loadDesignLibrary(); await loadMerchPreferences(); },
       agreements: async () => { await loadAgreements(); },
-      settings: async () => { await load2faGlobalStatus(); }
+      settings: async () => { await load2faGlobalStatus(); },
+      'ai-chat-insights': async () => { await loadChatInsights(); },
+      crm: async () => { await loadCrmData(); },
+      'team-management': async () => { await loadTeamMembers(); },
+      traffic: async () => { await loadTrafficData(); },
+      'marketing-outreach': async () => { await initMarketingHub(); if (typeof window.initOutreachEngine === 'function') await window.initOutreachEngine(); },
+      'ai-ops': async () => { await initAiOps(); },
+      'sms-log': async () => { await loadSmsLog(1); },
+      'saas-subscriptions': async () => { await loadSaasSubscriptions(); },
+      'white-label': async () => { await loadWhiteLabelTenants(); },
+      'api-usage': async () => { await loadApiUsage(); },
+      'survey-analytics': async () => { await loadSurveyAnalytics(); },
+      'member-surveys': async () => { await loadMemberSurveyAnalytics(); },
+      'car-clubs': async () => { if (typeof loadCarClubs === 'function') await loadCarClubs(); }
     };
 
     function showSectionLoading(sectionId) {
@@ -158,34 +194,45 @@
 
     // ========== INIT ==========
     let adminPasswordVerified = false;
-    let currentModalState = 'loading'; // 'loading', 'login', 'password', 'not-admin'
+    let adminTeamToken = null;
+    let adminTeamUser = null;
+    let adminPermissions = null;
+    let currentModalState = 'loading'; // 'loading', 'login', 'password', 'not-admin', 'team-login'
     
     function showModalState(state) {
       currentModalState = state;
       const loginForm = document.getElementById('admin-login-form');
       const passwordForm = document.getElementById('admin-password-form');
+      const teamLoginForm = document.getElementById('admin-team-login-form');
       const notAdminError = document.getElementById('admin-not-admin-error');
       const modalBtn = document.getElementById('admin-modal-btn');
       const modalTitle = document.getElementById('admin-modal-title');
       
       loginForm.style.display = 'none';
       passwordForm.style.display = 'none';
+      if (teamLoginForm) teamLoginForm.style.display = 'none';
       notAdminError.style.display = 'none';
       
       if (state === 'login') {
-        modalTitle.textContent = '🔐 Admin Sign In';
+        modalTitle.innerHTML = mccIcon('lock', 16) + ' Admin Sign In';
         loginForm.style.display = 'block';
         modalBtn.textContent = 'Sign In';
         modalBtn.style.display = 'block';
         document.getElementById('admin-login-email').focus();
       } else if (state === 'password') {
-        modalTitle.textContent = '🔐 Admin Access';
+        modalTitle.innerHTML = mccIcon('lock', 16) + ' Admin Access';
         passwordForm.style.display = 'block';
         modalBtn.textContent = 'Verify';
         modalBtn.style.display = 'block';
         document.getElementById('admin-password-input').focus();
+      } else if (state === 'team-login') {
+        modalTitle.innerHTML = mccIcon('users', 16) + ' Team Login';
+        if (teamLoginForm) teamLoginForm.style.display = 'block';
+        modalBtn.textContent = 'Sign In';
+        modalBtn.style.display = 'block';
+        document.getElementById('team-login-email')?.focus();
       } else if (state === 'not-admin') {
-        modalTitle.textContent = '⚠️ Access Denied';
+        modalTitle.innerHTML = mccIcon('alert-triangle', 16) + ' Access Denied';
         notAdminError.style.display = 'block';
         modalBtn.textContent = 'Sign Out & Try Again';
         modalBtn.style.display = 'block';
@@ -193,10 +240,30 @@
     }
     
     async function handleAdminModalAction() {
+      if (currentModalState === 'loading') {
+        var pwForm = document.getElementById('admin-password-form');
+        var loginForm = document.getElementById('admin-login-form');
+        var teamForm = document.getElementById('admin-team-login-form');
+        if (teamForm && teamForm.style.display !== 'none') {
+          currentModalState = 'team-login';
+          await performTeamLogin();
+        } else if (pwForm && pwForm.style.display !== 'none') {
+          currentModalState = 'password';
+          await verifyAdminPassword();
+        } else if (loginForm && loginForm.style.display !== 'none') {
+          currentModalState = 'login';
+          await performAdminLogin();
+        } else {
+          showModalState('login');
+        }
+        return;
+      }
       if (currentModalState === 'login') {
         await performAdminLogin();
       } else if (currentModalState === 'password') {
         await verifyAdminPassword();
+      } else if (currentModalState === 'team-login') {
+        await performTeamLogin();
       } else if (currentModalState === 'not-admin') {
         await supabaseClient.auth.signOut();
         showModalState('login');
@@ -254,11 +321,12 @@
     }
     
     // Listen for auth state changes
-    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    try { supabaseClient.auth.onAuthStateChange(async (event, session) => {
       console.log('[Admin] Auth state changed:', event, { hasSession: !!session });
       
       if (event === 'SIGNED_IN' && session?.user && currentModalState === 'login') {
         currentUser = session.user;
+        window._adminEmail = session.user.email || '';
         const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
         if (profile?.role === 'admin') {
           showModalState('password');
@@ -267,6 +335,7 @@
         }
       }
     });
+    } catch(e) { console.error('[Admin] onAuthStateChange setup error:', e); }
     
     // ========== 2FA ACCESS CHECK ==========
     async function checkAccessAuthorization() {
@@ -307,30 +376,45 @@
       document.getElementById('admin-password-input').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleAdminModalAction();
       });
+      const teamEmailEl = document.getElementById('team-login-email');
+      if (teamEmailEl) {
+        teamEmailEl.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') document.getElementById('team-login-password')?.focus();
+        });
+        document.getElementById('team-login-password')?.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') handleAdminModalAction();
+        });
+      }
       
-      // Check for existing session
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      console.log('[Admin] getSession result:', { hasSession: !!session, hasUser: !!session?.user });
-      
-      if (session?.user) {
-        currentUser = session.user;
+      try {
+        // Check for existing session
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        console.log('[Admin] getSession result:', { hasSession: !!session, hasUser: !!session?.user });
         
-        // Check 2FA authorization before checking admin role
-        const authorized = await checkAccessAuthorization();
-        if (!authorized) return;
-        
-        // Check if admin
-        const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
-        console.log('[Admin] Profile:', profile);
-        
-        if (profile?.role === 'admin') {
-          showModalState('password');
+        if (session?.user) {
+          currentUser = session.user;
+          window._adminEmail = session.user.email || '';
+          
+          // Check 2FA authorization before checking admin role
+          const authorized = await checkAccessAuthorization();
+          if (!authorized) return;
+          
+          // Check if admin
+          const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
+          console.log('[Admin] Profile:', profile);
+          
+          if (profile?.role === 'admin') {
+            showModalState('password');
+          } else {
+            showModalState('not-admin');
+          }
         } else {
-          showModalState('not-admin');
+          // No session - show login form (NO REDIRECT!)
+          console.log('[Admin] No session, showing login form');
+          showModalState('login');
         }
-      } else {
-        // No session - show login form (NO REDIRECT!)
-        console.log('[Admin] No session, showing login form');
+      } catch (err) {
+        console.error('[Admin] Init error, falling back to login:', err);
         showModalState('login');
       }
     });
@@ -366,8 +450,11 @@
         }
         
         if (data === true) {
-          adminPasswordVerified = true;
+          adminPasswordVerified = password;
+          localStorage.setItem('mcc_admin_pass', password);
+          adminPermissions = null;
           document.getElementById('admin-password-modal').style.display = 'none';
+          applyRolePermissions(null);
           await loadAllData();
           setupEventListeners();
         } else {
@@ -385,8 +472,27 @@
       }
     }
     
-    // Expose to global scope for Mobile Safari onclick compatibility
+    window.handleAdminModalAction = handleAdminModalAction;
     window.verifyAdminPassword = verifyAdminPassword;
+
+    (function bindAdminButtons() {
+      function attach() {
+        var btn = document.getElementById('admin-modal-btn');
+        var cancelBtn = document.getElementById('admin-cancel-btn');
+        if (btn) {
+          btn.removeEventListener('click', handleAdminModalAction);
+          btn.addEventListener('click', handleAdminModalAction);
+        }
+        if (cancelBtn) {
+          cancelBtn.onclick = function() { window.location.href = 'index.html'; };
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', attach);
+      } else {
+        attach();
+      }
+    })();
     
     function showForgotAdminPassword(event) {
       event.preventDefault();
@@ -424,9 +530,9 @@
           supabaseClient.from('provider_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved'),
           supabaseClient.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
-          supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open'),
-          supabaseClient.from('violation_reports').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabaseClient.from('completed_activity_reviews').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          Promise.resolve(supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open')).catch(() => ({ count: 0 })),
+          Promise.resolve(supabaseClient.from('violation_reports').select('*', { count: 'exact', head: true }).eq('status', 'pending')).catch(() => ({ count: 0 })),
+          Promise.resolve(supabaseClient.from('completed_activity_reviews').select('*', { count: 'exact', head: true }).eq('status', 'pending')).catch(() => ({ count: 0 })),
           supabaseClient.from('pilot_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('member_founder_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('founder_payouts').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -544,7 +650,7 @@
 
         document.getElementById('health-bid-rate').textContent = bidRate + '%';
         document.getElementById('health-avg-bids').textContent = avgBidsPerPackage;
-        document.getElementById('health-avg-rating').textContent = avgRating + ' ⭐';
+        document.getElementById('health-avg-rating').innerHTML = avgRating + ' ' + mccIcon('star', 16);
         document.getElementById('health-dispute-rate').textContent = disputeRate + '%';
         document.getElementById('health-time-to-accept').textContent = '~24 hrs'; // Placeholder
 
@@ -629,8 +735,8 @@
         `;
       }).join('') + `
         <div style="position:absolute;top:0;right:0;font-size:0.75rem;">
-          <span style="color:var(--accent-blue);">● Members</span>
-          <span style="color:var(--accent-gold);margin-left:8px;">● Providers</span>
+          <span style="color:var(--accent-blue);"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-blue);margin-right:4px;"></span> Members</span>
+          <span style="color:var(--accent-gold);margin-left:8px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-gold);margin-right:4px;"></span> Providers</span>
         </div>
       `;
       container.style.position = 'relative';
@@ -684,11 +790,11 @@
         return `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;${i < ranked.length - 1 ? 'border-bottom:1px solid var(--border-subtle);' : ''}">
             <div style="display:flex;align-items:center;gap:10px;">
-              <span style="font-size:1.2rem;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '⭐'}</span>
+              <span style="font-size:1.2rem;">${i === 0 ? mccIcon('award', 20) : i === 1 ? mccIcon('award', 20) : i === 2 ? mccIcon('award', 20) : mccIcon('star', 20)}</span>
               <span>${name}</span>
             </div>
             <div style="text-align:right;">
-              <div style="font-weight:600;">${p.avg.toFixed(1)} ⭐</div>
+              <div style="font-weight:600;">${p.avg.toFixed(1)} ${mccIcon('star', 16)}</div>
               <div style="font-size:0.75rem;color:var(--text-muted);">${p.count} reviews</div>
             </div>
           </div>
@@ -720,11 +826,11 @@
         other: 'var(--text-muted)'
       };
       const labels = {
-        maintenance: '🔧 Maintenance',
-        detailing: '✨ Detailing',
-        cosmetic: '🎨 Cosmetic',
-        accident_repair: '🚗 Accident Repair',
-        other: '📦 Other'
+        maintenance: mccIcon('wrench', 16) + ' Maintenance',
+        detailing: mccIcon('sparkles', 16) + ' Detailing',
+        cosmetic: mccIcon('sparkles', 16) + ' Cosmetic',
+        accident_repair: mccIcon('car', 16) + ' Accident Repair',
+        other: mccIcon('package', 16) + ' Other'
       };
 
       container.innerHTML = sorted.map(([cat, count]) => {
@@ -805,11 +911,12 @@
     async function loadDashboardCharts() {
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const statsHeaders = getAdminHeaders();
         const [overviewRes, revenueRes, usersRes, ordersRes] = await Promise.all([
-          fetch(`${apiBase}/api/admin/stats/overview`),
-          fetch(`${apiBase}/api/admin/stats/revenue?period=${dashboardPeriod}`),
-          fetch(`${apiBase}/api/admin/stats/users?period=${dashboardPeriod}`),
-          fetch(`${apiBase}/api/admin/stats/orders?period=${dashboardPeriod}`)
+          fetch(`${apiBase}/api/admin/stats/overview`, { headers: statsHeaders }),
+          fetch(`${apiBase}/api/admin/stats/revenue?period=${dashboardPeriod}`, { headers: statsHeaders }),
+          fetch(`${apiBase}/api/admin/stats/users?period=${dashboardPeriod}`, { headers: statsHeaders }),
+          fetch(`${apiBase}/api/admin/stats/orders?period=${dashboardPeriod}`, { headers: statsHeaders })
         ]);
 
         const [overview, revenue, users, orders] = await Promise.all([
@@ -1000,10 +1107,12 @@
         filter: state.filter
       });
       
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       try {
-        const response = await fetch(`/api/admin/providers?${params}`, {
+        const response = await fetch(`${apiBase}/api/admin/providers?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        if (!response.ok) { let e; try { e = await response.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load providers (${response.status})`); }
         const result = await response.json();
         
         if (result.success) {
@@ -1084,8 +1193,9 @@
         filter: state.filter
       });
       
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       try {
-        const response = await fetch(`/api/admin/members?${params}`, {
+        const response = await fetch(`${apiBase}/api/admin/members?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         const result = await response.json();
@@ -1154,8 +1264,9 @@
         params.append('type', state.filter);
       }
       
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       try {
-        const response = await fetch(`/api/admin/agreements?${params}`, {
+        const response = await fetch(`${apiBase}/api/admin/agreements?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         const result = await response.json();
@@ -1204,9 +1315,44 @@
     }
     window.filterAgreementsApi = filterAgreementsApi;
 
+    async function submitAddAgreement() {
+      const name = document.getElementById('add-agreement-name')?.value?.trim();
+      const business = document.getElementById('add-agreement-business')?.value?.trim();
+      const type = document.getElementById('add-agreement-type')?.value;
+      const date = document.getElementById('add-agreement-date')?.value;
+      const pdfUrl = document.getElementById('add-agreement-pdf-url')?.value?.trim();
+      const notes = document.getElementById('add-agreement-notes')?.value?.trim();
+      const errEl = document.getElementById('add-agreement-error');
+      if (errEl) errEl.style.display = 'none';
+      if (!name || !type) {
+        if (errEl) { errEl.textContent = 'Full Name and Agreement Type are required.'; errEl.style.display = 'block'; }
+        return;
+      }
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (adminPasswordVerified) headers['x-admin-password'] = adminPasswordVerified;
+        else if (localStorage.getItem('mcc_admin_pass')) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass');
+        const res = await fetch(`${apiBase}/api/admin/agreements`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ full_name: name, business_name: business || null, agreement_type: type, signed_at: date ? new Date(date).toISOString() : null, pdf_url: pdfUrl || null, notes: notes || null })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to save agreement');
+        document.getElementById('add-agreement-modal').style.display = 'none';
+        if (window.showToast) showToast('Agreement added successfully', 'success');
+        loadAgreements(1);
+      } catch (err) {
+        if (errEl) { errEl.textContent = 'Error: ' + err.message; errEl.style.display = 'block'; }
+      }
+    }
+    window.submitAddAgreement = submitAddAgreement;
+
     function formatAgreementType(type) {
       const types = {
         'founding_partner': 'Founding Partner',
+        'founding_provider_chris_agrapidis': 'Founding Provider',
         'member_founder': 'Member Founder',
         'provider': 'Provider'
       };
@@ -1216,6 +1362,7 @@
     function getAgreementTypeBadgeClass(type) {
       const classes = {
         'founding_partner': 'background:var(--accent-gold-soft);color:var(--accent-gold);',
+        'founding_provider_chris_agrapidis': 'background:linear-gradient(135deg,rgba(212,168,85,0.15),rgba(184,148,45,0.15));color:var(--accent-gold);border:1px solid rgba(212,168,85,0.3);',
         'member_founder': 'background:var(--accent-blue-soft);color:var(--accent-blue);',
         'provider': 'background:var(--accent-green-soft);color:var(--accent-green);'
       };
@@ -1278,7 +1425,7 @@
 
       let signatureHtml = '';
       if (a.signature_data) {
-        if (a.signature_type === 'drawn') {
+        if (a.signature_data.startsWith('data:image')) {
           signatureHtml = `
             <div class="form-section">
               <div class="form-section-title">Signature</div>
@@ -1287,12 +1434,13 @@
               </div>
             </div>
           `;
-        } else if (a.signature_type === 'typed') {
+        } else if (a.signature_type === 'typed' || a.signature_data.startsWith('typed:')) {
+          const typedName = a.signature_data.startsWith('typed:') ? a.signature_data.substring(6) : a.signature_data;
           signatureHtml = `
             <div class="form-section">
               <div class="form-section-title">Typed Signature</div>
               <div style="font-family:'Brush Script MT', cursive;font-size:2rem;color:var(--text-primary);padding:16px;background:var(--bg-input);border-radius:var(--radius-md);">
-                ${a.signature_data}
+                ${typedName}
               </div>
             </div>
           `;
@@ -1318,9 +1466,56 @@
         ${signatureHtml}
       `;
 
+      const downloadBtn = document.getElementById('download-agreement-btn');
+      if (downloadBtn) {
+        downloadBtn.style.display = 'inline-flex';
+      }
+
       document.getElementById('agreement-modal').classList.add('active');
     }
     window.viewAgreement = viewAgreement;
+
+    async function downloadAgreementPDF() {
+      if (!currentAgreement) return;
+      const a = currentAgreement;
+      const btn = document.getElementById('download-agreement-btn');
+      const origText = btn.innerHTML;
+      btn.innerHTML = mccIcon('clock', 16) + ' Generating...';
+      btn.disabled = true;
+
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+
+        const response = await fetch(`${apiBase}/api/admin/agreements/${a.id}/pdf`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: 'Failed to generate PDF' }));
+          throw new Error(err.error || 'Failed to generate PDF');
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const safeName = (a.full_name || 'agreement').replace(/[^a-zA-Z0-9]/g, '-');
+        link.download = `MCC-Agreement-${safeName}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error('Error downloading PDF:', err);
+        alert('Failed to download PDF. Please try again.');
+      } finally {
+        btn.innerHTML = origText;
+        btn.disabled = false;
+      }
+    }
+    window.downloadAgreementPDF = downloadAgreementPDF;
 
     // ========== USER ROLES MANAGEMENT ==========
     let allUsersForRoles = [];
@@ -1469,8 +1664,9 @@
         filter: state.filter
       });
       
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       try {
-        const response = await fetch(`/api/admin/packages?${params}`, {
+        const response = await fetch(`${apiBase}/api/admin/packages?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         const result = await response.json();
@@ -1594,7 +1790,7 @@
           supabaseClient.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
           supabaseClient.from('payments').select('amount_mcc_fee').eq('status', 'released'),
           supabaseClient.from('maintenance_packages').select('*', { count: 'exact', head: true }).in('status', ['open', 'accepted', 'in_progress']),
-          supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open')
+          Promise.resolve(supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open')).catch(() => ({ count: 0 }))
         ]);
 
         document.getElementById('stat-pending-apps').textContent = pendingAppsCount || 0;
@@ -1611,13 +1807,13 @@
         document.getElementById('stat-packages').textContent = activePackagesCount || 0;
 
         const attentionItems = [];
-        if (pendingAppsCount > 0) attentionItems.push({ icon: '📋', text: `${pendingAppsCount} provider application(s) awaiting review`, section: 'applications' });
-        if (openDisputesCount > 0) attentionItems.push({ icon: '⚠️', text: `${openDisputesCount} dispute(s) need resolution`, section: 'disputes' });
-        if (openTicketsCount > 0) attentionItems.push({ icon: '🎫', text: `${openTicketsCount} support ticket(s) awaiting response`, section: 'tickets' });
+        if (pendingAppsCount > 0) attentionItems.push({ icon: mccIcon('clipboard-list', 16), text: `${pendingAppsCount} provider application(s) awaiting review`, section: 'applications' });
+        if (openDisputesCount > 0) attentionItems.push({ icon: mccIcon('alert-triangle', 16), text: `${openDisputesCount} dispute(s) need resolution`, section: 'disputes' });
+        if (openTicketsCount > 0) attentionItems.push({ icon: mccIcon('ticket', 16), text: `${openTicketsCount} support ticket(s) awaiting response`, section: 'tickets' });
 
         const container = document.getElementById('attention-items');
         if (attentionItems.length === 0) {
-          container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><p>All caught up!</p></div>';
+          container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('check-circle', 40) + '</div><p>All caught up!</p></div>';
         } else {
           container.innerHTML = attentionItems.map(item => `
             <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--bg-elevated);border-radius:var(--radius-md);margin-bottom:8px;cursor:pointer;" onclick="showSection('${item.section}')">
@@ -1650,23 +1846,23 @@
         const activities = [];
         (recentPayments || []).forEach(p => {
           activities.push({
-            icon: p.status === 'released' ? '💰' : p.status === 'held' ? '🔒' : '💳',
+            icon: p.status === 'released' ? mccIcon('dollar-sign', 16) : p.status === 'held' ? mccIcon('lock', 16) : mccIcon('credit-card', 16),
             text: `${p.status === 'released' ? 'Payment released' : p.status === 'held' ? 'Payment held in escrow' : 'Payment'} - $${p.amount_total?.toFixed(2) || 0}`,
             time: p.created_at,
             type: 'payment'
           });
         });
         (recentApps || []).forEach(a => {
-          activities.push({ icon: '📋', text: `New provider application: ${a.business_name}`, time: a.created_at, type: 'application' });
+          activities.push({ icon: mccIcon('clipboard-list', 16), text: `New provider application: ${a.business_name}`, time: a.created_at, type: 'application' });
         });
         (recentDisputes || []).forEach(d => {
-          activities.push({ icon: '⚠️', text: `Dispute ${d.status}: ${d.maintenance_packages?.title || 'Package'}`, time: d.created_at, type: 'dispute' });
+          activities.push({ icon: mccIcon('alert-triangle', 16), text: `Dispute ${d.status}: ${d.maintenance_packages?.title || 'Package'}`, time: d.created_at, type: 'dispute' });
         });
 
         activities.sort((a, b) => new Date(b.time) - new Date(a.time));
         const container = document.getElementById('recent-activity-feed');
         if (activities.length === 0) {
-          container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><p>No recent activity</p></div>';
+          container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('bar-chart', 40) + '</div><p>No recent activity</p></div>';
           return;
         }
         container.innerHTML = activities.slice(0, 8).map(a => `
@@ -1841,12 +2037,32 @@
     let selectedProviders = new Set();
     let filteredProviders = [];
 
+    function renderBgCheckBadge(status, updatedAt) {
+      const cfg = {
+        eligible:     { bg: 'rgba(74,200,140,0.15)',  border: 'rgba(74,200,140,0.3)',  color: 'var(--accent-green)',  icon: '✅', label: 'Cleared'    },
+        clear:        { bg: 'rgba(74,200,140,0.15)',  border: 'rgba(74,200,140,0.3)',  color: 'var(--accent-green)',  icon: '✅', label: 'Cleared'    },
+        needs_review: { bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)',  color: 'var(--accent-orange)', icon: '⚠️', label: 'Review'     },
+        not_eligible: { bg: 'rgba(239,95,95,0.15)',   border: 'rgba(239,95,95,0.3)',   color: 'var(--accent-red)',    icon: '🚫', label: 'Not Eligible'},
+        initiated:    { bg: 'rgba(56,189,248,0.1)',   border: 'rgba(56,189,248,0.25)', color: 'var(--accent-blue)',   icon: '⏳', label: 'Initiated'  },
+        pending:      { bg: 'rgba(201,162,39,0.12)',  border: 'rgba(201,162,39,0.3)',  color: 'var(--accent-gold)',   icon: '⏳', label: 'Pending'    },
+        processing:   { bg: 'rgba(56,189,248,0.1)',   border: 'rgba(56,189,248,0.25)', color: 'var(--accent-blue)',   icon: '🔍', label: 'Processing' },
+        canceled:     { bg: 'rgba(100,100,120,0.1)',  border: 'var(--border-subtle)',  color: 'var(--text-muted)',    icon: '—',  label: 'Canceled'   },
+        disputed:     { bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.25)', color: 'var(--accent-orange)', icon: '⚠️', label: 'Disputed'   },
+      };
+      if (!status) {
+        return `<span style="font-size:0.75rem;color:var(--text-muted);">Not started</span>`;
+      }
+      const s = cfg[status] || { bg: 'rgba(100,100,120,0.1)', border: 'var(--border-subtle)', color: 'var(--text-muted)', icon: '—', label: status };
+      const title = updatedAt ? `title="Updated ${new Date(updatedAt).toLocaleDateString()}"` : '';
+      return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;background:${s.bg};color:${s.color};border:1px solid ${s.border};" ${title}>${s.icon} ${s.label}</span>`;
+    }
+
     function renderProviders() {
       const tbody = document.getElementById('providers-table');
       filteredProviders = filterProvidersData();
       
       if (!filteredProviders.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No providers match filters</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No providers match filters</td></tr>';
         updateBulkBar();
         return;
       }
@@ -1862,22 +2078,23 @@
           <tr style="${isSelected ? 'background:var(--accent-blue-soft);' : ''}">
             <td><input type="checkbox" class="provider-checkbox" data-id="${p.id}" ${isSelected ? 'checked' : ''} onchange="toggleProviderSelection('${p.id}')"></td>
             <td>
-              <div><strong>${p.business_name || p.full_name || 'Unnamed'}</strong>${p.is_founding_provider ? ' <span style="background:linear-gradient(135deg,var(--accent-gold),#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;margin-left:8px;">🌟 FOUNDING</span>' : ''}</div>
+              <div><strong>${p.business_name || p.full_name || 'Unnamed'}</strong>${p.is_founding_provider ? ' <span style="background:linear-gradient(135deg,var(--accent-gold),#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;margin-left:8px;">' + mccIcon('star', 16) + ' FOUNDING</span>' : ''}</div>
               <div style="font-size:0.8rem;color:var(--text-muted);">${p.email || ''}</div>
             </td>
             <td>
               <span style="padding:4px 8px;border-radius:4px;font-size:0.85rem;background:${totalCredits === 0 ? 'var(--accent-red-soft)' : totalCredits < 10 ? 'var(--accent-orange-soft)' : 'var(--accent-green-soft)'};color:${totalCredits === 0 ? 'var(--accent-red)' : totalCredits < 10 ? 'var(--accent-orange)' : 'var(--accent-green)'};">
-                🎟️ ${totalCredits}
+                ${mccIcon('ticket', 16)} ${totalCredits}
               </span>
             </td>
-            <td>⭐ ${stats.average_rating?.toFixed(1) || 'New'}${stats.average_rating && stats.average_rating < 4 ? ' <span style="color:var(--accent-red);">⚠️</span>' : ''}</td>
+            <td>${mccIcon('star', 16)} ${stats.average_rating?.toFixed(1) || 'New'}${stats.average_rating && stats.average_rating < 4 ? ' <span style="color:var(--accent-red);">' + mccIcon('alert-triangle', 16) + '</span>' : ''}</td>
             <td>${stats.jobs_completed || 0}</td>
             <td>$${(stats.total_earnings || 0).toLocaleString()}</td>
+            <td>${renderBgCheckBadge(p.bgcheck_status, p.bgcheck_updated_at)}</td>
             <td><span class="status-badge ${isSuspended ? 'rejected' : 'approved'}">${isSuspended ? 'Suspended' : 'Active'}</span></td>
             <td>
               <div style="display:flex;gap:4px;">
                 <button class="btn btn-secondary btn-sm" onclick="viewProvider('${p.id}')">View</button>
-                <button class="btn btn-ghost btn-sm" onclick="quickAddCredits('${p.id}')" title="Add Credits">🎟️</button>
+                <button class="btn btn-ghost btn-sm" onclick="quickAddCredits('${p.id}')" title="Add Credits">${mccIcon('ticket', 16)}</button>
               </div>
             </td>
           </tr>
@@ -2043,7 +2260,7 @@
         const { error } = await supabaseClient.from('notifications').insert({
           user_id: providerId,
           type: 'admin_message',
-          title: '📢 Message from MCC Admin',
+          title: mccIcon('bell', 16) + ' Message from MCC Admin',
           message: message
         });
         if (!error) success++;
@@ -2067,9 +2284,9 @@
         return;
       }
 
-      const names = lowRated.map(p => `• ${p.business_name || p.full_name} (${p.provider_stats?.[0]?.average_rating?.toFixed(1)} ⭐)`).join('\n');
+      const names = lowRated.map(p => `• ${p.business_name || p.full_name} (${p.provider_stats?.[0]?.average_rating?.toFixed(1)} ${mccIcon('star', 16)})`).join('\n');
       
-      const action = confirm(`⚠️ Found ${lowRated.length} provider(s) with ratings below 4 stars:\n\n${names}\n\nDo you want to suspend these providers?`);
+      const action = confirm(`${mccIcon('alert-triangle', 16)} Found ${lowRated.length} provider(s) with ratings below 4 stars:\n\n${names}\n\nDo you want to suspend these providers?`);
       
       if (!action) {
         // Just filter to show them
@@ -2097,7 +2314,7 @@
           await supabaseClient.from('notifications').insert({
             user_id: provider.id,
             type: 'account_suspended',
-            title: '⚠️ Account Suspended',
+            title: mccIcon('alert-triangle', 16) + ' Account Suspended',
             message: 'Your provider account has been suspended due to ratings falling below 4 stars. Please contact support to discuss reinstatement.'
           });
         }
@@ -2196,6 +2413,165 @@
           </td>
         </tr>
       `).join('');
+    }
+
+    let allRefunds = [];
+    
+    async function loadRefunds(page = 1) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return;
+      
+      const state = paginationState.refunds;
+      state.page = page;
+      
+      const params = new URLSearchParams({
+        page: state.page,
+        limit: state.limit,
+        filter: state.filter
+      });
+      
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const response = await fetch(`${apiBase}/api/admin/refunds?${params}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          allRefunds = result.data || [];
+          state.total = result.total;
+          state.totalPages = result.totalPages;
+          renderRefunds();
+          updateRefundStats();
+        } else {
+          console.error('Failed to load refunds:', result.error);
+          allRefunds = [];
+          renderRefunds();
+        }
+      } catch (err) {
+        console.error('Error loading refunds:', err);
+        allRefunds = [];
+        renderRefunds();
+      }
+    }
+    
+    function changeRefundsPage(delta) {
+      const state = paginationState.refunds;
+      const newPage = state.page + delta;
+      if (newPage >= 1 && newPage <= state.totalPages) {
+        loadRefunds(newPage);
+      }
+    }
+    
+    function updateRefundStats() {
+      document.getElementById('refunds-requested').textContent = allRefunds.filter(r => r.status === 'requested').length;
+      document.getElementById('refunds-processed').textContent = allRefunds.filter(r => r.status === 'processed').length;
+      const totalRefunded = allRefunds.filter(r => r.status === 'processed').reduce((s, r) => s + (r.amount_cents || 0), 0);
+      document.getElementById('refunds-total-amount').textContent = '$' + (totalRefunded / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById('refund-count').textContent = allRefunds.filter(r => r.status === 'requested').length;
+    }
+    
+    function renderRefunds() {
+      const tbody = document.getElementById('refunds-table');
+      
+      if (!allRefunds.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No refunds found</td></tr>';
+        document.getElementById('refunds-pagination').innerHTML = '';
+        return;
+      }
+      
+      tbody.innerHTML = allRefunds.map(r => {
+        const memberName = r.member?.full_name || 'Unknown';
+        const pkgTitle = r.package?.title || r.package_id?.slice(0, 8) || '-';
+        const amount = (r.amount_cents || 0) / 100;
+        const statusClass = r.status === 'processed' ? 'released' : r.status === 'requested' ? 'held' : r.status === 'cancelled' ? 'refunded' : 'pending';
+        
+        let actionHtml = '-';
+        if (r.status === 'requested') {
+          actionHtml = `
+            <button class="btn btn-sm btn-success" onclick="approveRefund('${escapeHtml(r.id)}', ${r.amount_cents})">Approve</button>
+            <button class="btn btn-sm btn-secondary" onclick="denyRefund('${escapeHtml(r.id)}')">Deny</button>
+          `;
+        }
+        
+        return `
+          <tr>
+            <td>${escapeHtml(memberName)}</td>
+            <td title="${escapeHtml(r.package_id || '')}">${escapeHtml(pkgTitle)}</td>
+            <td><span class="status-badge ${r.refund_type === 'partial' ? 'pending' : 'held'}">${escapeHtml(r.refund_type || 'full')}</span></td>
+            <td>$${amount.toFixed(2)}</td>
+            <td title="${escapeHtml(r.reason || '')}">${escapeHtml((r.reason || '-').substring(0, 40))}${(r.reason || '').length > 40 ? '...' : ''}</td>
+            <td><span class="status-badge ${statusClass}">${escapeHtml(r.status)}</span></td>
+            <td>${r.requested_at ? new Date(r.requested_at).toLocaleDateString() : '-'}</td>
+            <td>${actionHtml}</td>
+          </tr>
+        `;
+      }).join('');
+      
+      const state = paginationState.refunds;
+      document.getElementById('refunds-pagination').innerHTML = renderPaginationControls(state, 'changeRefundsPage');
+    }
+    
+    async function approveRefund(refundId, amountCents) {
+      if (!confirm(`Approve this refund of $${(amountCents / 100).toFixed(2)}? This will process the refund via Stripe immediately.`)) return;
+      
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return;
+      
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const response = await fetch(`${apiBase}/api/admin/refunds/${refundId}/process`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ action: 'approve' })
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          showToast(`Refund of ${result.message || 'processed'} successfully`, 'success');
+          loadedSections.refunds = false;
+          await loadRefunds(paginationState.refunds.page);
+        } else {
+          showToast(result.error || 'Failed to process refund', 'error');
+        }
+      } catch (err) {
+        console.error('Approve refund error:', err);
+        showToast('Error processing refund', 'error');
+      }
+    }
+    
+    async function denyRefund(refundId) {
+      if (!confirm('Deny this refund request? The member will be notified.')) return;
+      
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return;
+      
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const response = await fetch(`${apiBase}/api/admin/refunds/${refundId}/process`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ action: 'deny' })
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          showToast('Refund denied', 'success');
+          loadedSections.refunds = false;
+          await loadRefunds(paginationState.refunds.page);
+        } else {
+          showToast(result.error || 'Failed to deny refund', 'error');
+        }
+      } catch (err) {
+        console.error('Deny refund error:', err);
+        showToast('Error denying refund', 'error');
+      }
     }
 
     function renderDisputes() {
@@ -2327,22 +2703,22 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">🚗 Loaner Vehicle Program</div>
+          <div class="form-section-title">${mccIcon('car', 24)} Loaner Vehicle Program</div>
           ${app.has_loaner_vehicles ? `
             <div class="detail-grid">
-              <span class="detail-label">Loaner Vehicles:</span><span class="detail-value" style="color:var(--accent-green);">✓ Yes (${app.loaner_vehicle_count || '?'} vehicles)</span>
+              <span class="detail-label">Loaner Vehicles:</span><span class="detail-value" style="color:var(--accent-green);">${mccIcon('check', 16)} Yes (${app.loaner_vehicle_count || '?'} vehicles)</span>
               <span class="detail-label">Vehicle Types:</span><span class="detail-value">${app.loaner_vehicle_types || 'N/A'}</span>
               <span class="detail-label">Delivery Options:</span><span class="detail-value">${loanerOptions}</span>
               <span class="detail-label">Requirements:</span><span class="detail-value">${app.loaner_requirements || 'N/A'}</span>
               <span class="detail-label">Fee:</span><span class="detail-value">${app.loaner_fee_type === 'free' ? 'Free with service' : app.loaner_fee_type === 'deposit' ? 'Deposit only' : app.loaner_fee_amount ? '$' + app.loaner_fee_amount + '/day' : 'N/A'}</span>
             </div>
           ` : `
-            <p style="color:var(--text-muted);">❌ No loaner vehicles available</p>
+            <p style="color:var(--text-muted);">${mccIcon('x', 16)} No loaner vehicles available</p>
           `}
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">🚚 Pickup & Delivery</div>
+          <div class="form-section-title">${mccIcon('truck', 24)} Pickup & Delivery</div>
           <div class="detail-grid">
             <span class="detail-label">Capabilities:</span><span class="detail-value">${pickupOptions}</span>
             <span class="detail-label">Radius:</span><span class="detail-value">${app.pickup_radius_miles ? app.pickup_radius_miles + ' miles' : 'N/A'}</span>
@@ -2356,7 +2732,7 @@
             ${docs?.length ? docs.map(d => `
               <div class="doc-item">
                 <div class="doc-item-info">
-                  <span class="doc-icon">📄</span>
+                  <span class="doc-icon">${mccIcon('file-text', 16)}</span>
                   <span>${d.document_type}: ${d.document_name || 'Document'}</span>
                 </div>
                 <a href="${d.file_url}" target="_blank" class="btn btn-sm btn-secondary">View</a>
@@ -2370,7 +2746,7 @@
           ${reviews?.length ? reviews.map(r => `
             <div class="doc-item">
               <div class="doc-item-info">
-                <span class="doc-icon">⭐</span>
+                <span class="doc-icon">${mccIcon('star', 16)}</span>
                 <span>${r.platform}: ${r.rating || '?'}/5 (${r.review_count || '?'} reviews)</span>
               </div>
               <a href="${r.profile_url}" target="_blank" class="btn btn-sm btn-secondary">View</a>
@@ -2383,7 +2759,7 @@
           ${refs?.length ? refs.map(r => `
             <div class="doc-item">
               <div class="doc-item-info">
-                <span class="doc-icon">👤</span>
+                <span class="doc-icon">${mccIcon('user', 16)}</span>
                 <div>
                   <strong>${r.reference_name}</strong> - ${r.relationship}<br>
                   <span style="font-size:0.82rem;color:var(--text-muted)">${r.reference_phone || ''} ${r.reference_email || ''}</span>
@@ -2402,7 +2778,7 @@
             </div>
             <div class="checklist-item ${app.insurance_verified ? 'checked' : ''}">
               <input type="checkbox" id="chk-insurance" ${app.insurance_verified ? 'checked' : ''}>
-              <label for="chk-insurance">Insurance certificate verified (adequate coverage)</label>
+              <label for="chk-insurance">Insurance acknowledgment confirmed (provider agreed to maintain coverage)</label>
             </div>
             <div class="checklist-item ${app.certifications_verified ? 'checked' : ''}">
               <input type="checkbox" id="chk-certs" ${app.certifications_verified ? 'checked' : ''}>
@@ -2516,7 +2892,7 @@
 
         ${isHighValue ? `
           <div class="alert warning">
-            ⚠️ This dispute is over $1,000. Third-party inspection may be required.
+            ${mccIcon('alert-triangle', 16)} This dispute is over $1,000. Third-party inspection may be required.
           </div>
         ` : ''}
 
@@ -2526,7 +2902,7 @@
             <div class="evidence-grid">
               ${evidence.map(e => `
                 <div class="evidence-item" onclick="window.open('${e.file_url}','_blank')">
-                  <img src="${e.file_url}" onerror="this.parentElement.innerHTML='📄'">
+                  <img src="${e.file_url}" onerror="this.parentElement.innerHTML=mccIcon('file-text', 16)">
                 </div>
               `).join('')}
             </div>
@@ -2718,6 +3094,7 @@
             if (section === 'payments') renderPayments();
             if (section === 'disputes') renderDisputes();
             if (section === 'tickets') renderTickets();
+            if (section === 'refunds') { paginationState.refunds.filter = tab.dataset.filter; paginationState.refunds.page = 1; loadRefunds(1); }
           });
         });
       });
@@ -2742,15 +3119,286 @@
     }
     window.navigateToSection = navigateToSection;
 
-    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    function closeModal(id) { const m = document.getElementById(id); m.classList.remove('active'); m.style.display = 'none'; }
 
     function showToast(msg, type = 'success') {
       const toast = document.createElement('div');
       toast.className = 'toast';
-      toast.innerHTML = `<span>${type === 'success' ? '✓' : '⚠'}</span><span>${msg}</span>`;
+      toast.innerHTML = `<span>${type === 'success' ? mccIcon('check', 16) : mccIcon('alert-triangle', 16)}</span><span>${msg}</span>`;
       document.getElementById('toast-container').appendChild(toast);
       setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
     }
+
+    // ========== HUBSPOT CRM ==========
+    let crmContactsData = [];
+    let crmDealsData = [];
+    let crmCompaniesData = [];
+    let currentCrmFormType = 'contact';
+
+    async function loadCrmData() {
+      try {
+        const [contactsRes, dealsRes, companiesRes] = await Promise.all([
+          fetch('/api/admin/hubspot/contacts', { headers: getAdminHeaders() }),
+          fetch('/api/admin/hubspot/deals', { headers: getAdminHeaders() }),
+          fetch('/api/admin/hubspot/companies', { headers: getAdminHeaders() })
+        ]);
+
+        if (contactsRes.ok) {
+          const cData = await contactsRes.json();
+          crmContactsData = cData.contacts || [];
+          document.getElementById('crm-stat-contacts').textContent = crmContactsData.length;
+          renderCrmContacts(crmContactsData);
+        }
+        if (dealsRes.ok) {
+          const dData = await dealsRes.json();
+          crmDealsData = dData.deals || [];
+          document.getElementById('crm-stat-deals').textContent = crmDealsData.length;
+          renderCrmDeals(crmDealsData);
+        }
+        if (companiesRes.ok) {
+          const coData = await companiesRes.json();
+          crmCompaniesData = coData.companies || [];
+          document.getElementById('crm-stat-companies').textContent = crmCompaniesData.length;
+          renderCrmCompanies(crmCompaniesData);
+        }
+      } catch (err) {
+        console.error('Error loading CRM data:', err);
+        showToast('Failed to load CRM data', 'error');
+      }
+    }
+
+    function renderCrmContacts(contacts) {
+      const tbody = document.getElementById('crm-contacts-body');
+      if (!contacts.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">No contacts found</td></tr>';
+        return;
+      }
+      tbody.innerHTML = contacts.map(c => {
+        const p = c.properties || {};
+        const name = [p.firstname, p.lastname].filter(Boolean).join(' ') || '—';
+        const stage = p.lifecyclestage ? `<span class="status-badge" style="background:var(--accent-blue-soft);color:var(--accent-blue);">${p.lifecyclestage}</span>` : '—';
+        const created = p.createdate ? new Date(p.createdate).toLocaleDateString() : '—';
+        return `<tr>
+          <td style="font-weight:600;">${name}</td>
+          <td>${p.email || '—'}</td>
+          <td>${p.phone || '—'}</td>
+          <td>${p.company || '—'}</td>
+          <td>${stage}</td>
+          <td>${created}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderCrmDeals(deals) {
+      const tbody = document.getElementById('crm-deals-body');
+      if (!deals.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">No deals found</td></tr>';
+        return;
+      }
+      tbody.innerHTML = deals.map(d => {
+        const p = d.properties || {};
+        const amount = p.amount ? `$${parseFloat(p.amount).toLocaleString('en-US', {minimumFractionDigits:2})}` : '—';
+        const stageColors = {
+          closedwon: 'background:var(--accent-green-soft);color:var(--accent-green);',
+          closedlost: 'background:var(--accent-red-soft);color:var(--accent-red);',
+        };
+        const stageStyle = stageColors[p.dealstage] || 'background:var(--accent-blue-soft);color:var(--accent-blue);';
+        const stage = p.dealstage ? `<span class="status-badge" style="${stageStyle}">${p.dealstage}</span>` : '—';
+        const closeDate = p.closedate ? new Date(p.closedate).toLocaleDateString() : '—';
+        const created = p.createdate ? new Date(p.createdate).toLocaleDateString() : '—';
+        return `<tr>
+          <td style="font-weight:600;">${p.dealname || '—'}</td>
+          <td>${amount}</td>
+          <td>${stage}</td>
+          <td>${p.pipeline || '—'}</td>
+          <td>${closeDate}</td>
+          <td>${created}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderCrmCompanies(companies) {
+      const tbody = document.getElementById('crm-companies-body');
+      if (!companies.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">No companies found</td></tr>';
+        return;
+      }
+      tbody.innerHTML = companies.map(co => {
+        const p = co.properties || {};
+        const location = [p.city, p.state].filter(Boolean).join(', ') || '—';
+        const created = p.createdate ? new Date(p.createdate).toLocaleDateString() : '—';
+        return `<tr>
+          <td style="font-weight:600;">${p.name || '—'}</td>
+          <td>${p.domain ? `<a href="https://${p.domain}" target="_blank" style="color:var(--accent-blue);">${p.domain}</a>` : '—'}</td>
+          <td>${p.industry || '—'}</td>
+          <td>${p.phone || '—'}</td>
+          <td>${location}</td>
+          <td>${created}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function switchCrmTab(tab) {
+      document.querySelectorAll('.crm-tab-panel').forEach(p => p.style.display = 'none');
+      document.querySelectorAll('.crm-tab-btn').forEach(b => {
+        b.classList.remove('active');
+        b.classList.remove('btn-primary');
+        b.classList.add('btn-secondary');
+      });
+      document.getElementById('crm-tab-' + tab).style.display = 'block';
+      const activeBtn = document.querySelector(`.crm-tab-btn[data-crm-tab="${tab}"]`);
+      if (activeBtn) {
+        activeBtn.classList.add('active');
+        activeBtn.classList.remove('btn-secondary');
+        activeBtn.classList.add('btn-primary');
+      }
+    }
+    window.switchCrmTab = switchCrmTab;
+
+    function filterCrmContacts() {
+      const q = document.getElementById('crm-contact-search').value.toLowerCase();
+      const filtered = crmContactsData.filter(c => {
+        const p = c.properties || {};
+        return [p.firstname, p.lastname, p.email, p.phone, p.company].some(v => v && v.toLowerCase().includes(q));
+      });
+      renderCrmContacts(filtered);
+    }
+    window.filterCrmContacts = filterCrmContacts;
+
+    function filterCrmDeals() {
+      const q = document.getElementById('crm-deal-search').value.toLowerCase();
+      const filtered = crmDealsData.filter(d => {
+        const p = d.properties || {};
+        return [p.dealname, p.dealstage, p.pipeline].some(v => v && v.toLowerCase().includes(q));
+      });
+      renderCrmDeals(filtered);
+    }
+    window.filterCrmDeals = filterCrmDeals;
+
+    function filterCrmCompanies() {
+      const q = document.getElementById('crm-company-search').value.toLowerCase();
+      const filtered = crmCompaniesData.filter(co => {
+        const p = co.properties || {};
+        return [p.name, p.domain, p.industry, p.city, p.state].some(v => v && v.toLowerCase().includes(q));
+      });
+      renderCrmCompanies(filtered);
+    }
+    window.filterCrmCompanies = filterCrmCompanies;
+
+    function showCrmModal(type) {
+      currentCrmFormType = type;
+      document.getElementById('crm-form-contact').style.display = type === 'contact' ? 'block' : 'none';
+      document.getElementById('crm-form-deal').style.display = type === 'deal' ? 'block' : 'none';
+      document.getElementById('crm-form-company').style.display = type === 'company' ? 'block' : 'none';
+      const titles = { contact: 'Add Contact', deal: 'Add Deal', company: 'Add Company' };
+      document.getElementById('crm-modal-title').textContent = titles[type] || 'Add Record';
+      const modal = document.getElementById('crm-add-modal');
+      modal.style.display = 'flex';
+      modal.classList.add('active');
+    }
+    window.showCrmModal = showCrmModal;
+
+    function closeCrmModal() {
+      const modal = document.getElementById('crm-add-modal');
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+    }
+    window.closeCrmModal = closeCrmModal;
+
+    async function saveCrmRecord() {
+      const btn = document.getElementById('crm-modal-save-btn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+        let url, body;
+        if (currentCrmFormType === 'contact') {
+          const email = document.getElementById('crm-contact-email').value.trim();
+          if (!email) { showToast('Email is required', 'error'); return; }
+          url = '/api/admin/hubspot/contacts';
+          body = {
+            firstname: document.getElementById('crm-contact-firstname').value.trim(),
+            lastname: document.getElementById('crm-contact-lastname').value.trim(),
+            email,
+            phone: document.getElementById('crm-contact-phone').value.trim(),
+            company: document.getElementById('crm-contact-company').value.trim(),
+            lifecyclestage: document.getElementById('crm-contact-stage').value
+          };
+        } else if (currentCrmFormType === 'deal') {
+          const dealname = document.getElementById('crm-deal-name').value.trim();
+          if (!dealname) { showToast('Deal name is required', 'error'); return; }
+          url = '/api/admin/hubspot/deals';
+          body = {
+            dealname,
+            amount: document.getElementById('crm-deal-amount').value || '',
+            dealstage: document.getElementById('crm-deal-stage').value,
+            closedate: document.getElementById('crm-deal-closedate').value || ''
+          };
+        } else if (currentCrmFormType === 'company') {
+          const name = document.getElementById('crm-company-name').value.trim();
+          if (!name) { showToast('Company name is required', 'error'); return; }
+          url = '/api/admin/hubspot/companies';
+          body = {
+            name,
+            domain: document.getElementById('crm-company-domain').value.trim(),
+            industry: document.getElementById('crm-company-industry').value.trim(),
+            phone: document.getElementById('crm-company-phone').value.trim(),
+            city: document.getElementById('crm-company-city').value.trim(),
+            state: document.getElementById('crm-company-state').value.trim()
+          };
+        }
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: getAdminHeaders(),
+          body: JSON.stringify(body)
+        });
+
+        if (res.ok) {
+          showToast(`${currentCrmFormType.charAt(0).toUpperCase() + currentCrmFormType.slice(1)} created successfully`);
+          closeCrmModal();
+          loadedSections['crm'] = false;
+          await loadCrmData();
+        } else {
+          const err = await res.json();
+          showToast(err.error || 'Failed to create record', 'error');
+        }
+      } catch (err) {
+        console.error('CRM save error:', err);
+        showToast('Failed to save record', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save';
+      }
+    }
+    window.saveCrmRecord = saveCrmRecord;
+
+    async function syncMembersToHubSpot() {
+      const btn = event.target;
+      btn.disabled = true;
+      btn.textContent = 'Syncing...';
+      try {
+        const res = await fetch('/api/admin/hubspot/sync-members', {
+          method: 'POST',
+          headers: getAdminHeaders()
+        });
+        if (res.ok) {
+          const data = await res.json();
+          showToast(`Synced ${data.synced || 0} members to HubSpot`);
+          loadedSections['crm'] = false;
+          await loadCrmData();
+        } else {
+          const err = await res.json();
+          showToast(err.error || 'Sync failed', 'error');
+        }
+      } catch (err) {
+        showToast('Failed to sync members', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sync Members';
+      }
+    }
+    window.syncMembersToHubSpot = syncMembersToHubSpot;
 
     // ========== GLOBAL 2FA TOGGLE ==========
     async function load2faGlobalStatus() {
@@ -2953,8 +3601,8 @@
               <div style="display:flex;gap:4px;">
                 <button class="btn btn-secondary btn-sm" onclick="viewPilotApplication('${app.id}')">View</button>
                 ${app.status === 'pending' ? `
-                  <button class="btn btn-success btn-sm" onclick="approvePilotApplication('${app.id}')">✓</button>
-                  <button class="btn btn-danger btn-sm" onclick="rejectPilotApplication('${app.id}')">✗</button>
+                  <button class="btn btn-success btn-sm" onclick="approvePilotApplication('${app.id}')">${mccIcon('check', 16)}</button>
+                  <button class="btn btn-danger btn-sm" onclick="rejectPilotApplication('${app.id}')">${mccIcon('x', 16)}</button>
                 ` : ''}
               </div>
             </td>
@@ -2971,7 +3619,7 @@
       
       const modalContent = `
         <div class="form-section">
-          <div class="form-section-title">🌟 Founding Provider Application</div>
+          <div class="form-section-title">${mccIcon('star', 24)} Founding Provider Application</div>
           <div class="detail-grid">
             <span class="detail-label">Business Name:</span><span class="detail-value">${app.business_name || 'N/A'}</span>
             <span class="detail-label">Contact Name:</span><span class="detail-value">${app.contact_name || 'N/A'}</span>
@@ -2992,13 +3640,13 @@
           <div class="form-section-title">Agreements</div>
           <div style="display:grid;gap:8px;">
             <div style="display:flex;align-items:center;gap:8px;">
-              ${app.agree_tos ? '✅' : '❌'} Agreed to Terms of Service
+              ${app.agree_tos ? mccIcon('check-circle', 16) : mccIcon('x', 16)} Agreed to Terms of Service
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
-              ${app.agree_contractor ? '✅' : '❌'} Agreed to Independent Contractor Terms
+              ${app.agree_contractor ? mccIcon('check-circle', 16) : mccIcon('x', 16)} Agreed to Independent Contractor Terms
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
-              ${app.agree_accuracy ? '✅' : '❌'} Confirmed Information Accuracy
+              ${app.agree_accuracy ? mccIcon('check-circle', 16) : mccIcon('x', 16)} Confirmed Information Accuracy
             </div>
           </div>
         </div>
@@ -3213,11 +3861,11 @@
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
                 <button class="btn btn-secondary btn-sm" onclick="viewMemberFounder('${app.id}')">View</button>
                 ${(app.status || '').toLowerCase().trim() === 'pending' ? `
-                  <button class="btn btn-success btn-sm" onclick="approveMemberFounder('${app.id}')">✓</button>
-                  <button class="btn btn-danger btn-sm" onclick="rejectMemberFounder('${app.id}')">✗</button>
+                  <button class="btn btn-success btn-sm" onclick="approveMemberFounder('${app.id}')">${mccIcon('check', 16)}</button>
+                  <button class="btn btn-danger btn-sm" onclick="rejectMemberFounder('${app.id}')">${mccIcon('x', 16)}</button>
                 ` : ''}
                 ${['approved', 'active'].includes((app.status || '').toLowerCase().trim()) ? `
-                  <button class="btn btn-primary btn-sm" onclick="resendFounderWelcomeEmail('${app.id}')" title="Resend Welcome Email">📧</button>
+                  <button class="btn btn-primary btn-sm" onclick="resendFounderWelcomeEmail('${app.id}')" title="Resend Welcome Email">${mccIcon('mail', 16)}</button>
                 ` : ''}
               </div>
             </td>
@@ -3253,7 +3901,7 @@
       
       const modalContent = `
         <div class="form-section">
-          <div class="form-section-title">👤 Applicant Information</div>
+          <div class="form-section-title">${mccIcon('user', 24)} Applicant Information</div>
           <div class="detail-grid">
             <span class="detail-label">Full Name:</span><span class="detail-value">${app.full_name || 'N/A'}</span>
             <span class="detail-label">Email:</span><span class="detail-value">${app.email || 'N/A'}</span>
@@ -3263,7 +3911,7 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">📣 Promotion Strategy</div>
+          <div class="form-section-title">${mccIcon('bell', 24)} Promotion Strategy</div>
           <div class="detail-grid">
             <span class="detail-label">Primary Method:</span><span class="detail-value">${promotionLabels[app.promotion_method] || app.promotion_method || 'N/A'}</span>
             <span class="detail-label">Social Following:</span><span class="detail-value">${app.social_following || 'Not specified'}</span>
@@ -3273,25 +3921,25 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">💬 Motivation</div>
+          <div class="form-section-title">${mccIcon('message-square', 24)} Motivation</div>
           <p style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);line-height:1.6;">${app.motivation || 'No motivation provided.'}</p>
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">📋 Agreements</div>
+          <div class="form-section-title">${mccIcon('clipboard-list', 24)} Agreements</div>
           <div style="display:grid;gap:8px;">
             ${app.agreements_accepted ? `
               <div style="display:flex;align-items:center;gap:8px;">
-                ${app.agreements_accepted.terms_of_service ? '✅' : '❌'} Terms of Service
+                ${app.agreements_accepted.terms_of_service ? mccIcon('check-circle', 16) : mccIcon('x', 16)} Terms of Service
               </div>
               <div style="display:flex;align-items:center;gap:8px;">
-                ${app.agreements_accepted.independent_contractor ? '✅' : '❌'} Independent Contractor Terms
+                ${app.agreements_accepted.independent_contractor ? mccIcon('check-circle', 16) : mccIcon('x', 16)} Independent Contractor Terms
               </div>
               <div style="display:flex;align-items:center;gap:8px;">
-                ${app.agreements_accepted.commission_terms ? '✅' : '❌'} Commission Terms
+                ${app.agreements_accepted.commission_terms ? mccIcon('check-circle', 16) : mccIcon('x', 16)} Commission Terms
               </div>
               <div style="display:flex;align-items:center;gap:8px;">
-                ${app.agreements_accepted.accurate_information ? '✅' : '❌'} Information Accuracy
+                ${app.agreements_accepted.accurate_information ? mccIcon('check-circle', 16) : mccIcon('x', 16)} Information Accuracy
               </div>
             ` : '<div style="color:var(--text-muted);">Agreement details not available</div>'}
           </div>
@@ -3603,12 +4251,22 @@
       }
     }
 
+    const PAYOUT_THRESHOLD = 10;
+
     function updatePayoutStats() {
       const activeFounders = founderProfiles.filter(f => f.status === 'active').length;
       const totalReferrals = founderProfiles.reduce((sum, f) => sum + (f.total_provider_referrals || 0), 0);
       const pendingBalance = founderProfiles.reduce((sum, f) => sum + parseFloat(f.pending_balance || 0), 0);
       const totalPaid = founderProfiles.reduce((sum, f) => sum + parseFloat(f.total_commissions_paid || 0), 0);
-      const pendingPayoutsCount = founderProfiles.filter(f => parseFloat(f.pending_balance || 0) >= 25).length;
+      
+      const eligibleFounders = founderProfiles.filter(f => 
+        f.status === 'active' && 
+        parseFloat(f.pending_balance || 0) >= PAYOUT_THRESHOLD &&
+        f.stripe_connect_account_id
+      );
+      const eligibleCount = eligibleFounders.length;
+      const eligibleTotal = eligibleFounders.reduce((sum, f) => sum + parseFloat(f.pending_balance || 0), 0);
+      const pendingPayoutsCount = eligibleCount;
 
       document.getElementById('total-founders').textContent = activeFounders;
       document.getElementById('total-referrals').textContent = totalReferrals;
@@ -3616,6 +4274,17 @@
       document.getElementById('total-paid').textContent = '$' + totalPaid.toFixed(2);
       document.getElementById('payout-count').textContent = pendingPayoutsCount;
       document.getElementById('payout-count').style.display = pendingPayoutsCount > 0 ? 'inline' : 'none';
+      
+      const bulkBar = document.getElementById('bulk-payout-bar');
+      if (bulkBar) {
+        if (eligibleCount > 0) {
+          bulkBar.style.display = 'block';
+          document.getElementById('eligible-founders-count').textContent = eligibleCount;
+          document.getElementById('eligible-total-amount').textContent = '$' + eligibleTotal.toFixed(2);
+        } else {
+          bulkBar.style.display = 'none';
+        }
+      }
     }
 
     function renderPayoutContent() {
@@ -3626,6 +4295,7 @@
         header.innerHTML = `
           <th>Founder</th>
           <th>Referral Code</th>
+          <th>Commission Rate</th>
           <th>Provider Referrals</th>
           <th>Pending Balance</th>
           <th>Total Earned</th>
@@ -3635,7 +4305,7 @@
         `;
 
         if (!founderProfiles.length) {
-          tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No member founders yet</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9" class="empty-state">No member founders yet</td></tr>`;
           return;
         }
 
@@ -3643,26 +4313,37 @@
           const hasStripeConnect = f.stripe_connect_account_id && f.payout_details?.transfers_enabled;
           const stripePending = f.stripe_connect_account_id && !f.payout_details?.transfers_enabled;
           const stripeStatus = hasStripeConnect ? 
-            '<span class="status-badge approved" title="Ready for payouts">💳 Connected</span>' : 
+            '<span class="status-badge approved" title="Ready for payouts">' + mccIcon('credit-card', 16) + ' Connected</span>' : 
             stripePending ? 
-            '<span class="status-badge orange" title="Onboarding incomplete">⏳ Pending</span>' : 
+            '<span class="status-badge orange" title="Onboarding incomplete">' + mccIcon('clock', 16) + ' Pending</span>' : 
             '<span class="status-badge" style="background:var(--bg-input);color:var(--text-muted);">Not Setup</span>';
+          const commissionRate = parseFloat(f.commission_rate || 0.50) * 100;
+          const pendingBal = parseFloat(f.pending_balance || 0);
+          const isEligible = f.status === 'active' && pendingBal >= PAYOUT_THRESHOLD && f.stripe_connect_account_id;
+          const eligibilityBadge = isEligible ? 
+            '<span class="status-badge approved" style="margin-left:6px;font-size:0.7rem;" title="Ready for bulk payout">' + mccIcon('check', 16) + ' Eligible</span>' : 
+            (pendingBal >= PAYOUT_THRESHOLD && !f.stripe_connect_account_id) ?
+            '<span class="status-badge orange" style="margin-left:6px;font-size:0.7rem;" title="Needs Stripe Connect setup">' + mccIcon('alert-triangle', 16) + ' No Stripe</span>' : '';
           return `
-          <tr>
+          <tr${isEligible ? ' style="background:var(--accent-green-soft);"' : ''}>
             <td>
-              <div><strong>${f.full_name}</strong></div>
+              <div><strong>${f.full_name}</strong>${eligibilityBadge}</div>
               <div style="font-size:0.8rem;color:var(--text-muted);">${f.email}</div>
             </td>
             <td><code style="background:var(--accent-gold-soft);color:var(--accent-gold);padding:4px 8px;border-radius:4px;font-weight:600;">${f.referral_code}</code></td>
+            <td>
+              <span style="font-weight:600;color:var(--accent-gold);">${commissionRate.toFixed(0)}%</span>
+              <button class="btn btn-sm" style="margin-left:6px;padding:2px 8px;font-size:0.75rem;" onclick="editFounderCommission('${f.id}', '${f.full_name}', ${commissionRate})">Edit</button>
+            </td>
             <td>${f.total_provider_referrals || 0}</td>
-            <td style="font-weight:600;color:${parseFloat(f.pending_balance || 0) >= 25 ? 'var(--accent-green)' : 'var(--text-primary)'};">$${parseFloat(f.pending_balance || 0).toFixed(2)}</td>
+            <td style="font-weight:600;color:${pendingBal >= PAYOUT_THRESHOLD ? 'var(--accent-green)' : 'var(--text-primary)'};">$${pendingBal.toFixed(2)}${pendingBal >= PAYOUT_THRESHOLD ? ' ' + mccIcon('check', 16) : ''}</td>
             <td>$${parseFloat(f.total_commissions_earned || 0).toFixed(2)}</td>
             <td>${stripeStatus}</td>
             <td><span class="status-badge ${f.status === 'active' ? 'approved' : f.status}">${f.status}</span></td>
             <td>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
                 <button class="btn btn-secondary btn-sm" onclick="viewFounderDetails('${f.id}')">View</button>
-                ${parseFloat(f.pending_balance || 0) >= 25 ? `<button class="btn btn-success btn-sm" onclick="createPayout('${f.id}')">Pay</button>` : ''}
+                ${pendingBal >= PAYOUT_THRESHOLD ? `<button class="btn btn-success btn-sm" onclick="createPayout('${f.id}')">Pay</button>` : ''}
               </div>
             </td>
           </tr>
@@ -3673,6 +4354,7 @@
           <th>Period</th>
           <th>Amount</th>
           <th>Method</th>
+          <th>Type</th>
           <th>Created</th>
           <th>Status</th>
           <th>Action</th>
@@ -3681,7 +4363,7 @@
         const pendingPayouts = founderPayouts.filter(p => p.status === 'pending' || p.status === 'processing');
         
         if (!pendingPayouts.length) {
-          tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No pending payouts</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No pending payouts</td></tr>`;
           return;
         }
 
@@ -3694,11 +4376,17 @@
             <td>${p.payout_period}</td>
             <td style="font-weight:600;color:var(--accent-green);">$${parseFloat(p.amount).toFixed(2)}</td>
             <td>${p.payout_method}</td>
+            <td>
+              <select id="payout-type-${p.id}" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-primary);font-size:0.85rem;">
+                <option value="weekly" selected>${mccIcon('calendar', 16)} Weekly (FREE)</option>
+                <option value="instant">${mccIcon('zap', 16)} Instant (1% fee)</option>
+              </select>
+            </td>
             <td>${new Date(p.created_at).toLocaleDateString()}</td>
             <td><span class="status-badge ${p.status === 'processing' ? 'blue' : 'orange'}">${p.status}</span></td>
             <td>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                ${p.payout_method === 'stripe_connect' ? `<button class="btn btn-primary btn-sm" onclick="processStripePayout('${p.id}')">💳 Process via Stripe</button>` : `<button class="btn btn-success btn-sm" onclick="completePayout('${p.id}')">Mark Complete</button>`}
+                ${p.payout_method === 'stripe_connect' ? `<button class="btn btn-primary btn-sm" onclick="processStripePayout('${p.id}')">${mccIcon('credit-card', 16)} Process</button>` : `<button class="btn btn-success btn-sm" onclick="completePayout('${p.id}')">Mark Complete</button>`}
                 <button class="btn btn-danger btn-sm" onclick="cancelPayout('${p.id}')">Cancel</button>
               </div>
             </td>
@@ -3708,34 +4396,123 @@
         header.innerHTML = `
           <th>Founder</th>
           <th>Period</th>
-          <th>Amount</th>
-          <th>Method</th>
+          <th>Gross</th>
+          <th>Fee</th>
+          <th>Net</th>
+          <th>Type</th>
           <th>Paid On</th>
           <th>Status</th>
-          <th>Notes</th>
         `;
 
         const completedPayouts = founderPayouts.filter(p => p.status === 'completed');
         
         if (!completedPayouts.length) {
-          tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No completed payouts yet</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No completed payouts yet</td></tr>`;
           return;
         }
 
-        tbody.innerHTML = completedPayouts.map(p => `
-          <tr>
-            <td>
-              <div><strong>${p.founder?.full_name || 'Unknown'}</strong></div>
-              <div style="font-size:0.8rem;color:var(--text-muted);">${p.founder?.email || ''}</div>
-            </td>
-            <td>${p.payout_period}</td>
-            <td style="font-weight:600;color:var(--accent-green);">$${parseFloat(p.amount).toFixed(2)}</td>
-            <td>${p.payout_method}</td>
-            <td>${p.processed_at ? new Date(p.processed_at).toLocaleDateString() : 'N/A'}</td>
-            <td><span class="status-badge approved">completed</span></td>
-            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.notes || '-'}</td>
-          </tr>
-        `).join('');
+        tbody.innerHTML = completedPayouts.map(p => {
+          const grossAmount = parseFloat(p.amount || 0);
+          const feeAmount = parseFloat(p.fee_amount || 0);
+          const netAmount = parseFloat(p.net_amount || grossAmount);
+          const payoutType = p.payout_type || 'instant';
+          
+          return `
+            <tr>
+              <td>
+                <div><strong>${p.founder?.full_name || 'Unknown'}</strong></div>
+                <div style="font-size:0.8rem;color:var(--text-muted);">${p.founder?.email || ''}</div>
+              </td>
+              <td>${p.payout_period}</td>
+              <td>$${grossAmount.toFixed(2)}</td>
+              <td style="color:${feeAmount > 0 ? 'var(--accent-orange)' : 'var(--accent-green)'};">${feeAmount > 0 ? '-$' + feeAmount.toFixed(2) : 'FREE'}</td>
+              <td style="font-weight:600;color:var(--accent-green);">$${netAmount.toFixed(2)}</td>
+              <td><span class="status-badge ${payoutType === 'weekly' ? 'blue' : 'orange'}">${payoutType === 'weekly' ? mccIcon('calendar', 16) + ' Weekly' : mccIcon('zap', 16) + ' Instant'}</span></td>
+              <td>${p.processed_at ? new Date(p.processed_at).toLocaleDateString() : 'N/A'}</td>
+              <td><span class="status-badge approved">completed</span></td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    // Founder Commission Rate Management
+    async function editFounderCommission(founderId, founderName, currentRate) {
+      document.getElementById('commission-founder-id').value = founderId;
+      document.getElementById('commission-founder-name').textContent = founderName;
+      document.getElementById('commission-rate-input').value = Math.round(currentRate);
+      document.getElementById('founder-commission-modal').style.display = 'flex';
+      
+      const historyContainer = document.getElementById('commission-history-container');
+      historyContainer.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Loading history...</p>';
+      
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/founders/${founderId}/commission-history`, {
+          headers: {
+            'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+          }
+        });
+        
+        if (!response.ok) throw new Error('Failed to fetch history');
+        
+        const { history } = await response.json();
+        
+        if (!history || history.length === 0) {
+          historyContainer.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">No rate changes recorded yet.</p>';
+        } else {
+          historyContainer.innerHTML = `
+            <p style="font-weight:600;margin-bottom:8px;font-size:0.85rem;color:var(--text-secondary);">Recent Changes</p>
+            ${history.map(h => {
+              const date = new Date(h.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+              return `<p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:4px;">Changed from ${Math.round(h.old_rate * 100)}% to ${Math.round(h.new_rate * 100)}% by ${escapeHtml(h.admin_email)} on ${date}</p>`;
+            }).join('')}
+          `;
+        }
+      } catch (err) {
+        console.error('Error loading commission history:', err);
+        historyContainer.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Could not load history.</p>';
+      }
+    }
+
+    function closeCommissionModal() {
+      document.getElementById('founder-commission-modal').style.display = 'none';
+    }
+
+    async function saveFounderCommission() {
+      const founderId = document.getElementById('commission-founder-id').value;
+      const ratePercent = parseInt(document.getElementById('commission-rate-input').value);
+      
+      if (isNaN(ratePercent) || ratePercent < 0 || ratePercent > 100) {
+        showNotification('Please enter a valid rate between 0 and 100', 'error');
+        return;
+      }
+
+      const commissionRate = ratePercent / 100; // Convert to decimal (e.g., 50% -> 0.50)
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      
+      try {
+        const response = await fetch(`${apiBase}/api/admin/founders/${founderId}/commission`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+          },
+          body: JSON.stringify({ commission_rate: commissionRate })
+        });
+
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to update commission rate');
+        }
+
+        showNotification(`Commission rate updated to ${ratePercent}%`, 'success');
+        closeCommissionModal();
+        await loadFounderPayouts();
+      } catch (err) {
+        console.error('Error updating commission rate:', err);
+        showNotification(err.message || 'Failed to update commission rate', 'error');
       }
     }
 
@@ -3758,7 +4535,7 @@
 
       const modalContent = `
         <div class="form-section">
-          <div class="form-section-title">👤 Founder Information</div>
+          <div class="form-section-title">${mccIcon('user', 24)} Founder Information</div>
           <div class="detail-grid">
             <span class="detail-label">Name:</span><span class="detail-value">${founder.full_name}</span>
             <span class="detail-label">Email:</span><span class="detail-value">${founder.email}</span>
@@ -3769,7 +4546,7 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">💰 Commission Summary</div>
+          <div class="form-section-title">${mccIcon('dollar-sign', 24)} Commission Summary</div>
           <div class="stats-grid" style="margin-bottom:0;">
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);text-align:center;">
               <div style="font-size:1.4rem;font-weight:600;color:var(--accent-gold);">${founder.total_provider_referrals || 0}</div>
@@ -3791,7 +4568,7 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">🔗 Provider Referrals (${referrals?.length || 0})</div>
+          <div class="form-section-title">${mccIcon('link', 24)} Provider Referrals (${referrals?.length || 0})</div>
           ${referrals?.length ? `
             <div style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;">
               ${referrals.map(r => `
@@ -3808,14 +4585,14 @@
         </div>
 
         <div class="form-section" style="border-bottom:none;">
-          <div class="form-section-title">📋 Recent Commissions (${commissions?.length || 0})</div>
+          <div class="form-section-title">${mccIcon('clipboard-list', 24)} Recent Commissions (${commissions?.length || 0})</div>
           ${commissions?.length ? `
             <div style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;">
               ${commissions.map(c => `
                 <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-input);padding:12px;border-radius:var(--radius-md);">
                   <div>
                     <strong>$${parseFloat(c.commission_amount).toFixed(2)}</strong>
-                    <span style="font-size:0.8rem;color:var(--text-muted);">(${c.commission_type === 'bid_pack' ? '📦 Bid Pack' : '💳 Platform Fee'})</span>
+                    <span style="font-size:0.8rem;color:var(--text-muted);">(${c.commission_type === 'bid_pack' ? mccIcon('package', 16) + ' Bid Pack' : mccIcon('credit-card', 16) + ' Platform Fee'})</span>
                     <div style="font-size:0.8rem;color:var(--text-muted);">${new Date(c.created_at).toLocaleDateString()}</div>
                   </div>
                   <span class="status-badge ${c.status}">${c.status}</span>
@@ -3826,7 +4603,7 @@
         </div>
 
         <div class="form-section" style="border-bottom:none;">
-          <div class="form-section-title">💳 Payout Settings</div>
+          <div class="form-section-title">${mccIcon('credit-card', 24)} Payout Settings</div>
           <div class="detail-grid">
             <span class="detail-label">Method:</span><span class="detail-value">${founder.payout_method || 'Not set'}</span>
             <span class="detail-label">Email:</span><span class="detail-value">${founder.payout_email || 'Not set'}</span>
@@ -3977,7 +4754,11 @@
         return;
       }
 
-      if (!confirm(`Process Stripe transfer of $${parseFloat(payout.amount).toFixed(2)} to ${payout.founder?.full_name || 'founder'}? This will initiate a real payment.`)) {
+      const payoutTypeSelect = document.getElementById(`payout-type-${payoutId}`);
+      const payoutType = payoutTypeSelect?.value || 'weekly';
+      const feeText = payoutType === 'instant' ? ' (1% fee will be deducted)' : ' (no fee)';
+
+      if (!confirm(`Process Stripe transfer of $${parseFloat(payout.amount).toFixed(2)} to ${payout.founder?.full_name || 'founder'}?${feeText}\n\nThis will initiate a real payment.`)) {
         return;
       }
 
@@ -3993,7 +4774,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             payout_id: payoutId,
-            admin_password: adminPassword
+            admin_password: adminPassword,
+            payout_type: payoutType
           })
         });
 
@@ -4012,14 +4794,584 @@
       }
     }
 
+    async function processBulkPayouts() {
+      const eligibleFounders = founderProfiles.filter(f => 
+        f.status === 'active' && 
+        parseFloat(f.pending_balance || 0) >= PAYOUT_THRESHOLD &&
+        f.stripe_connect_account_id
+      );
+      
+      if (eligibleFounders.length === 0) {
+        showToast('No eligible founders for payout', 'info');
+        return;
+      }
+
+      const totalAmount = eligibleFounders.reduce((sum, f) => sum + parseFloat(f.pending_balance || 0), 0);
+      
+      const payoutType = await new Promise(resolve => {
+        const choice = confirm(
+          `Process bulk payouts for ${eligibleFounders.length} founder${eligibleFounders.length > 1 ? 's' : ''}?\n\n` +
+          `Total amount: $${totalAmount.toFixed(2)}\n\n` +
+          `Click OK for WEEKLY payout (FREE, no fees)\n` +
+          `Click Cancel to abort, then use individual payouts for instant transfers.`
+        );
+        resolve(choice ? 'weekly' : null);
+      });
+      
+      if (!payoutType) return;
+
+      const adminPassword = prompt('Enter admin password to authorize bulk payout:');
+      if (!adminPassword) return;
+
+      const btn = document.getElementById('bulk-payout-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = mccIcon('clock', 16) + ' Processing...';
+      }
+
+      try {
+        showToast(`Processing ${eligibleFounders.length} payouts...`, 'info');
+        
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/process-bulk-payouts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            admin_password: adminPassword,
+            threshold: PAYOUT_THRESHOLD,
+            payout_type: payoutType
+          })
+        });
+
+        const result = await response.json();
+        
+        if (!response.ok) {
+          showToast(result.error || 'Failed to process bulk payouts', 'error');
+          return;
+        }
+
+        const { summary } = result;
+        
+        if (summary.succeeded > 0 && summary.failed === 0) {
+          showToast(`${mccIcon('check-circle', 16)} All ${summary.succeeded} payouts processed successfully! Total: $${summary.total_amount.toFixed(2)}`, 'success');
+        } else if (summary.succeeded > 0 && summary.failed > 0) {
+          showToast(`${mccIcon('alert-triangle', 16)} ${summary.succeeded} succeeded, ${summary.failed} failed. Check details below.`, 'warning');
+        } else if (summary.failed > 0) {
+          showToast(`${mccIcon('x', 16)} All ${summary.failed} payouts failed. Check details below.`, 'error');
+        } else {
+          showToast('No payouts were processed.', 'info');
+        }
+
+        if (result.results && result.results.length > 0) {
+          showBulkPayoutResults(result.results);
+        }
+
+        await loadFounderPayouts();
+      } catch (err) {
+        console.error('processBulkPayouts error:', err);
+        showToast('Error processing bulk payouts', 'error');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = mccIcon('credit-card', 16) + ' Process All Pending Payouts';
+        }
+      }
+    }
+
+    function showBulkPayoutResults(results) {
+      const succeeded = results.filter(r => r.status === 'success');
+      const failed = results.filter(r => r.status === 'failed');
+      
+      let message = `<div style="max-height:400px;overflow-y:auto;">`;
+      
+      if (succeeded.length > 0) {
+        message += `<h4 style="color:var(--accent-green);margin-bottom:8px;">${mccIcon('check-circle', 16)} Succeeded (${succeeded.length})</h4>`;
+        message += `<table style="width:100%;font-size:0.85rem;margin-bottom:16px;">`;
+        message += `<tr style="background:var(--bg-elevated);"><th style="padding:6px;text-align:left;">Founder</th><th style="padding:6px;text-align:right;">Amount</th><th style="padding:6px;text-align:left;">Transfer ID</th></tr>`;
+        succeeded.forEach(r => {
+          message += `<tr><td style="padding:6px;">${escapeHtml(r.founder_name)}</td><td style="padding:6px;text-align:right;">$${r.amount.toFixed(2)}</td><td style="padding:6px;font-family:monospace;font-size:0.75rem;">${r.stripe_transfer_id || '-'}</td></tr>`;
+        });
+        message += `</table>`;
+      }
+      
+      if (failed.length > 0) {
+        message += `<h4 style="color:var(--accent-red);margin-bottom:8px;">${mccIcon('x', 16)} Failed (${failed.length})</h4>`;
+        message += `<table style="width:100%;font-size:0.85rem;">`;
+        message += `<tr style="background:var(--bg-elevated);"><th style="padding:6px;text-align:left;">Founder</th><th style="padding:6px;text-align:right;">Amount</th><th style="padding:6px;text-align:left;">Error</th></tr>`;
+        failed.forEach(r => {
+          message += `<tr><td style="padding:6px;">${escapeHtml(r.founder_name)}</td><td style="padding:6px;text-align:right;">$${r.amount.toFixed(2)}</td><td style="padding:6px;color:var(--accent-red);">${escapeHtml(r.error || 'Unknown error')}</td></tr>`;
+        });
+        message += `</table>`;
+      }
+      
+      message += `</div>`;
+      
+      showModal('Bulk Payout Results', message, [
+        { text: 'Close', className: 'btn btn-secondary', onclick: 'closeModal()' }
+      ]);
+    }
+
     document.getElementById('payout-tabs')?.addEventListener('click', (e) => {
       if (e.target.classList.contains('tab')) {
         document.querySelectorAll('#payout-tabs .tab').forEach(t => t.classList.remove('active'));
         e.target.classList.add('active');
         currentPayoutTab = e.target.dataset.filter;
-        renderPayoutContent();
+        
+        const payoutContent = document.getElementById('payout-content');
+        const settingsContent = document.getElementById('payout-settings-content');
+        const milestonesContent = document.getElementById('milestones-content');
+        const bonusReserveContent = document.getElementById('bonus-reserve-content');
+        
+        payoutContent.style.display = 'none';
+        settingsContent.style.display = 'none';
+        if (milestonesContent) milestonesContent.style.display = 'none';
+        if (bonusReserveContent) bonusReserveContent.style.display = 'none';
+        
+        if (currentPayoutTab === 'payout-settings') {
+          settingsContent.style.display = 'block';
+          loadPayoutSettings();
+        } else if (currentPayoutTab === 'milestones') {
+          if (milestonesContent) milestonesContent.style.display = 'block';
+          loadMilestonesData();
+        } else if (currentPayoutTab === 'bonus-reserve') {
+          if (bonusReserveContent) bonusReserveContent.style.display = 'block';
+          loadBonusReserveData();
+        } else {
+          payoutContent.style.display = 'block';
+          renderPayoutContent();
+        }
       }
     });
+
+    let payoutSettings = null;
+
+    async function loadPayoutSettings() {
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/payout-settings`, {
+          headers: {
+            'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+          }
+        });
+        
+        if (!response.ok) throw new Error('Failed to fetch settings');
+        
+        const data = await response.json();
+        payoutSettings = data.settings;
+        
+        document.getElementById('setting-min-payout-threshold').value = payoutSettings.min_payout_threshold || 10.00;
+        document.getElementById('setting-instant-fee-percent').value = payoutSettings.instant_payout_fee_percent || 1.00;
+        document.getElementById('setting-instant-fee-min').value = payoutSettings.instant_payout_fee_min || 0.50;
+        document.getElementById('setting-instant-fee-max').value = payoutSettings.instant_payout_fee_max || 10.00;
+        document.getElementById('setting-weekly-fee').value = payoutSettings.weekly_payout_fee || 0.00;
+      } catch (err) {
+        console.error('Error loading payout settings:', err);
+        showNotification('Failed to load payout settings', 'error');
+      }
+    }
+
+    async function savePayoutSettings() {
+      const settings = {
+        min_payout_threshold: parseFloat(document.getElementById('setting-min-payout-threshold').value) || 10.00,
+        instant_payout_fee_percent: parseFloat(document.getElementById('setting-instant-fee-percent').value) || 1.00,
+        instant_payout_fee_min: parseFloat(document.getElementById('setting-instant-fee-min').value) || 0.50,
+        instant_payout_fee_max: parseFloat(document.getElementById('setting-instant-fee-max').value) || 10.00,
+        weekly_payout_fee: parseFloat(document.getElementById('setting-weekly-fee').value) || 0.00
+      };
+
+      if (settings.min_payout_threshold < 1) {
+        showNotification('Minimum payout threshold must be at least $1', 'error');
+        return;
+      }
+
+      if (settings.instant_payout_fee_percent < 0 || settings.instant_payout_fee_percent > 10) {
+        showNotification('Instant fee percentage must be between 0% and 10%', 'error');
+        return;
+      }
+
+      if (settings.instant_payout_fee_min < 0 || settings.instant_payout_fee_max < 0) {
+        showNotification('Fee amounts cannot be negative', 'error');
+        return;
+      }
+
+      if (settings.instant_payout_fee_min > settings.instant_payout_fee_max) {
+        showNotification('Minimum fee cannot be greater than maximum fee', 'error');
+        return;
+      }
+
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/payout-settings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+          },
+          body: JSON.stringify({ 
+            settings,
+            admin_password: currentAdminPassword 
+          })
+        });
+
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to save settings');
+        }
+
+        payoutSettings = settings;
+        showNotification('Payout settings saved successfully', 'success');
+      } catch (err) {
+        console.error('Error saving payout settings:', err);
+        showNotification(err.message || 'Failed to save payout settings', 'error');
+      }
+    }
+
+    // ========== MILESTONES AND BONUS RESERVE ==========
+    let milestonesData = null;
+    let bonusReserveData = null;
+
+    async function loadMilestonesData() {
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/milestones`, {
+          headers: {
+            'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+          }
+        });
+        
+        if (!response.ok) throw new Error('Failed to fetch milestones');
+        
+        milestonesData = await response.json();
+        renderMilestonesContent();
+      } catch (err) {
+        console.error('Error loading milestones:', err);
+        showToast('Failed to load milestones data', 'error');
+      }
+    }
+
+    function renderMilestonesContent() {
+      if (!milestonesData) return;
+      
+      const revenue = milestonesData.total_bid_pack_revenue || 0;
+      const milestones = milestonesData.milestones || [];
+      const achievedCount = milestones.filter(m => m.is_achieved).length;
+      const pendingCount = milestones.filter(m => !m.is_achieved).length;
+      
+      document.getElementById('total-platform-revenue').textContent = '$' + revenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      document.getElementById('achieved-milestones-count').textContent = achievedCount;
+      document.getElementById('pending-milestones-count').textContent = pendingCount;
+      document.getElementById('anniversary-countdown').textContent = milestonesData.days_until_anniversary || '-';
+      
+      const nextMilestone = milestonesData.next_milestone;
+      const progressPercent = milestonesData.progress_percent || 0;
+      
+      if (nextMilestone) {
+        const remaining = nextMilestone.threshold_amount - revenue;
+        document.getElementById('next-milestone-info').innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <strong style="color:var(--accent-gold);">$${nextMilestone.threshold_amount.toLocaleString()}</strong>
+              <span style="color:var(--text-secondary);"> - ${nextMilestone.description}</span>
+            </div>
+            <div style="font-weight:600;">
+              <span style="color:var(--accent-green);">$${remaining.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+              <span style="color:var(--text-muted);"> remaining</span>
+            </div>
+          </div>
+        `;
+      } else {
+        document.getElementById('next-milestone-info').innerHTML = `
+          <span style="color:var(--accent-green);font-weight:600;">${mccIcon('party-popper', 16)} All milestones achieved!</span>
+        `;
+      }
+      
+      document.getElementById('milestone-progress-bar').style.width = progressPercent + '%';
+      document.getElementById('milestone-progress-text').textContent = progressPercent.toFixed(1) + '%';
+      
+      const partners = milestonesData.founding_partners || [];
+      const chrisPartner = partners.find(p => p.partner_name?.toLowerCase().includes('chris agrapidis'));
+      
+      if (chrisPartner) {
+        const achievedBonuses = milestones.filter(m => m.is_achieved && m.is_paid);
+        const pendingBonuses = milestones.filter(m => m.is_achieved && !m.is_paid);
+        const achievedTotal = achievedBonuses.reduce((sum, m) => sum + parseFloat(m.bonus_amount || 0), 0);
+        const pendingTotal = pendingBonuses.reduce((sum, m) => sum + parseFloat(m.bonus_amount || 0), 0);
+        
+        document.getElementById('founding-partner-info').innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:16px;">
+            <div style="padding:16px;background:var(--bg-input);border-radius:8px;">
+              <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">Partner Name</div>
+              <div style="font-weight:600;color:var(--text-primary);">${chrisPartner.partner_name}</div>
+            </div>
+            <div style="padding:16px;background:var(--bg-input);border-radius:8px;">
+              <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">Commission Rate</div>
+              <div style="font-weight:600;color:var(--accent-gold);">${(chrisPartner.commission_rate * 100).toFixed(0)}%</div>
+            </div>
+            <div style="padding:16px;background:var(--accent-green-soft);border-radius:8px;">
+              <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">Bonuses Paid</div>
+              <div style="font-weight:600;color:var(--accent-green);">$${achievedTotal.toLocaleString()}</div>
+            </div>
+            <div style="padding:16px;background:var(--accent-orange-soft);border-radius:8px;">
+              <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">Bonuses Pending</div>
+              <div style="font-weight:600;color:var(--accent-orange);">$${pendingTotal.toLocaleString()}</div>
+            </div>
+          </div>
+          <div style="margin-top:12px;font-size:0.85rem;color:var(--text-secondary);">
+            <span style="display:inline-block;margin-right:16px;">${mccIcon('calendar', 16)} Partnership Start: ${new Date(chrisPartner.partnership_start_date).toLocaleDateString()}</span>
+            <span style="display:inline-block;margin-right:16px;">${mccIcon('calendar', 16)} Next Anniversary: January 23, ${new Date().getFullYear() + (new Date() > new Date(new Date().getFullYear(), 0, 23) ? 1 : 0)}</span>
+            <span style="display:inline-block;">${mccIcon('sparkles', 16)} Status: <span class="status-badge approved">${chrisPartner.status}</span></span>
+          </div>
+        `;
+      } else {
+        document.getElementById('founding-partner-info').innerHTML = `<span style="color:var(--text-muted);">No founding partner record found</span>`;
+      }
+      
+      const tbody = document.getElementById('milestones-table-body');
+      if (!milestones.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No milestones configured</td></tr>`;
+        return;
+      }
+      
+      tbody.innerHTML = milestones.map(m => {
+        const statusBadge = m.is_paid 
+          ? '<span class="status-badge approved">' + mccIcon('check', 16) + ' Paid</span>'
+          : m.is_achieved 
+            ? '<span class="status-badge orange">' + mccIcon('clock', 16) + ' Achieved - Unpaid</span>'
+            : '<span class="status-badge" style="background:var(--bg-input);color:var(--text-muted);">Pending</span>';
+        
+        const paidDate = m.achievement?.paid_at ? new Date(m.achievement.paid_at).toLocaleDateString() : '-';
+        
+        const canPay = m.is_achieved && !m.is_paid;
+        const actionBtn = canPay 
+          ? `<button class="btn btn-success btn-sm" onclick="payMilestone('${m.id}', '${m.description}', ${m.bonus_amount})">${mccIcon('credit-card', 16)} Pay $${m.bonus_amount.toLocaleString()}</button>`
+          : m.is_paid
+            ? `<span style="color:var(--text-muted);font-size:0.85rem;">Paid</span>`
+            : `<span style="color:var(--text-muted);font-size:0.85rem;">-</span>`;
+        
+        return `
+          <tr style="${m.is_achieved ? 'background:var(--accent-green-soft);' : ''}">
+            <td style="font-weight:600;">$${parseFloat(m.threshold_amount).toLocaleString()}</td>
+            <td style="font-weight:600;color:var(--accent-gold);">$${parseFloat(m.bonus_amount).toLocaleString()}</td>
+            <td>${m.description}</td>
+            <td>${statusBadge}</td>
+            <td>${paidDate}</td>
+            <td>${actionBtn}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function payMilestone(milestoneId, description, amount) {
+      const confirmed = await showConfirmDialog(
+        'Pay Milestone Bonus',
+        `Are you sure you want to mark this milestone as paid?<br><br>
+        <strong>${description}</strong><br>
+        Amount: <span style="color:var(--accent-gold);font-weight:600;">$${amount.toLocaleString()}</span><br><br>
+        <small style="color:var(--text-muted);">This will deduct from the bonus reserve balance.</small>`
+      );
+      
+      if (!confirmed) return;
+      
+      const stripeTransferId = prompt('Enter Stripe Transfer ID (optional):');
+      const notes = prompt('Add notes (optional):');
+      
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/milestones/${milestoneId}/pay`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+          },
+          body: JSON.stringify({
+            stripe_transfer_id: stripeTransferId || null,
+            notes: notes || null
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to process payment');
+        }
+        
+        showToast(result.message || 'Milestone marked as paid!', 'success');
+        loadMilestonesData();
+      } catch (err) {
+        console.error('Error paying milestone:', err);
+        showToast(err.message || 'Failed to process milestone payment', 'error');
+      }
+    }
+
+    async function loadBonusReserveData() {
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/bonus-reserve`, {
+          headers: {
+            'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+          }
+        });
+        
+        if (!response.ok) throw new Error('Failed to fetch bonus reserve');
+        
+        bonusReserveData = await response.json();
+        renderBonusReserveContent();
+      } catch (err) {
+        console.error('Error loading bonus reserve:', err);
+        showToast('Failed to load bonus reserve data', 'error');
+      }
+    }
+
+    function renderBonusReserveContent() {
+      if (!bonusReserveData) return;
+      
+      const currentBalance = bonusReserveData.current_balance || 0;
+      const totalAccruals = bonusReserveData.total_accruals || 0;
+      const totalPayouts = bonusReserveData.total_payouts || 0;
+      const reserveRate = (bonusReserveData.reserve_rate || 0.15) * 100;
+      const treasury = bonusReserveData.treasury || {};
+      
+      document.getElementById('reserve-balance').textContent = '$' + currentBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      document.getElementById('total-accruals').textContent = '$' + totalAccruals.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      document.getElementById('total-payouts-reserve').textContent = '$' + totalPayouts.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      document.getElementById('reserve-rate').textContent = reserveRate.toFixed(0) + '%';
+      
+      // Render Treasury status
+      const treasuryContainer = document.getElementById('treasury-status-container');
+      if (treasuryContainer) {
+        const statusBadge = treasury.status === 'active' 
+          ? '<span class="status-badge approved">Active</span>'
+          : treasury.status === 'pending_setup'
+            ? '<span class="status-badge orange">Pending Setup</span>'
+            : '<span class="status-badge rejected">Error</span>';
+        
+        const treasuryBalance = treasury.active ? '$' + (treasury.balance || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-';
+        const pendingBalance = treasury.active && treasury.pendingBalance ? '$' + treasury.pendingBalance.toLocaleString(undefined, {minimumFractionDigits: 2}) : '-';
+        
+        treasuryContainer.innerHTML = `
+          <div class="stat-card" style="border-left:4px solid var(--accent-primary);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <h4 style="margin:0;color:var(--text-primary);">Stripe Treasury</h4>
+              ${statusBadge}
+            </div>
+            ${treasury.active ? `
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div>
+                  <div style="color:var(--text-muted);font-size:12px;margin-bottom:4px;">Available Balance</div>
+                  <div style="font-size:24px;font-weight:700;color:var(--accent-green);">${treasuryBalance}</div>
+                </div>
+                <div>
+                  <div style="color:var(--text-muted);font-size:12px;margin-bottom:4px;">Pending</div>
+                  <div style="font-size:24px;font-weight:700;color:var(--text-secondary);">${pendingBalance}</div>
+                </div>
+              </div>
+              <div style="margin-top:12px;font-size:11px;color:var(--text-muted);">Interest accrues automatically. FDIC insured up to $250K.</div>
+            ` : `
+              <div style="color:var(--text-secondary);font-size:14px;">
+                ${treasury.message || 'Treasury approval pending. Reserve funds tracked in database until setup complete.'}
+              </div>
+              <div style="margin-top:12px;padding:10px;background:rgba(212,168,85,0.1);border-radius:8px;font-size:12px;">
+                <strong style="color:var(--accent-primary);">Note:</strong> Once Treasury is active, 15% of bid pack revenue will be automatically transferred to earn interest.
+              </div>
+            `}
+          </div>
+        `;
+      }
+      
+      const monthlyData = bonusReserveData.monthly_breakdown || [];
+      const monthlyTbody = document.getElementById('monthly-reserve-body');
+      
+      if (!monthlyData.length) {
+        monthlyTbody.innerHTML = `<tr><td colspan="4" class="empty-state">No monthly data available</td></tr>`;
+      } else {
+        monthlyTbody.innerHTML = monthlyData.map(m => `
+          <tr>
+            <td style="font-weight:600;">${m.month_year}</td>
+            <td>$${parseFloat(m.bid_pack_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            <td style="color:var(--accent-green);">$${parseFloat(m.reserve_accrual || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            <td><span class="status-badge ${m.status === 'finalized' ? 'approved' : 'orange'}">${m.status || 'pending'}</span></td>
+          </tr>
+        `).join('');
+      }
+      
+      const transactions = bonusReserveData.transactions || [];
+      const txTbody = document.getElementById('reserve-transactions-body');
+      
+      if (!transactions.length) {
+        txTbody.innerHTML = `<tr><td colspan="5" class="empty-state">No transactions yet</td></tr>`;
+      } else {
+        txTbody.innerHTML = transactions.map(t => {
+          const typeColor = t.transaction_type === 'accrual' ? 'var(--accent-green)' 
+            : t.transaction_type === 'payout' ? 'var(--accent-orange)' 
+            : 'var(--accent-blue)';
+          const amountPrefix = t.amount >= 0 ? '+' : '';
+          
+          return `
+            <tr>
+              <td>${new Date(t.created_at).toLocaleString()}</td>
+              <td><span style="color:${typeColor};font-weight:600;text-transform:capitalize;">${t.transaction_type}</span></td>
+              <td style="font-weight:600;color:${t.amount >= 0 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${amountPrefix}$${parseFloat(t.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              <td>$${parseFloat(t.balance_after || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${t.notes || ''}">${t.notes || '-'}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    async function adjustBonusReserve() {
+      const amountInput = document.getElementById('reserve-adjust-amount');
+      const notesInput = document.getElementById('reserve-adjust-notes');
+      
+      const amount = parseFloat(amountInput.value);
+      const notes = notesInput.value.trim();
+      
+      if (isNaN(amount) || amount === 0) {
+        showToast('Please enter a valid non-zero amount', 'error');
+        return;
+      }
+      
+      if (!notes) {
+        showToast('Notes are required for reserve adjustments', 'error');
+        return;
+      }
+      
+      const confirmed = await showConfirmDialog(
+        'Adjust Bonus Reserve',
+        `Are you sure you want to adjust the reserve balance?<br><br>
+        Amount: <span style="font-weight:600;color:${amount >= 0 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${amount >= 0 ? '+' : ''}$${amount.toFixed(2)}</span><br>
+        Notes: ${notes}`
+      );
+      
+      if (!confirmed) return;
+      
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/bonus-reserve/adjust`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+          },
+          body: JSON.stringify({ amount, notes })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to adjust reserve');
+        }
+        
+        showToast(result.message || 'Reserve adjusted successfully!', 'success');
+        amountInput.value = '';
+        notesInput.value = '';
+        loadBonusReserveData();
+      } catch (err) {
+        console.error('Error adjusting reserve:', err);
+        showToast(err.message || 'Failed to adjust reserve balance', 'error');
+      }
+    }
 
     // ========== VIOLATION REPORTS ==========
     let violationReports = [];
@@ -4073,7 +5425,7 @@
       }
 
       if (!filtered.length) {
-        container.innerHTML = `<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">🚩</div><p>No ${currentViolationFilter} reports</p></div>`;
+        container.innerHTML = `<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">${mccIcon('flag', 40)}</div><p>No ${currentViolationFilter} reports</p></div>`;
         return;
       }
 
@@ -4144,7 +5496,7 @@
               <div style="margin-bottom:16px;">
                 <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px;">Evidence (${report.evidence_urls.length} file${report.evidence_urls.length > 1 ? 's' : ''})</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                  ${report.evidence_urls.map((url, i) => `<a href="${url}" target="_blank" class="btn btn-secondary btn-sm">📎 Evidence ${i + 1}</a>`).join('')}
+                  ${report.evidence_urls.map((url, i) => `<a href="${url}" target="_blank" class="btn btn-secondary btn-sm">${mccIcon('paperclip', 16)} Evidence ${i + 1}</a>`).join('')}
                 </div>
               </div>
             ` : ''}
@@ -4158,24 +5510,24 @@
 
             ${report.status === 'confirmed' && report.reward_amount ? `
               <div style="background:var(--accent-gold-soft);padding:12px;border-radius:var(--radius-md);border:1px solid rgba(212,168,85,0.3);margin-bottom:16px;">
-                <strong>💰 Reward:</strong> $${report.reward_amount.toFixed(2)} ${report.reward_paid_at ? '(Paid)' : '(Pending)'}
+                <strong>${mccIcon('dollar-sign', 16)} Reward:</strong> $${report.reward_amount.toFixed(2)} ${report.reward_paid_at ? '(Paid)' : '(Pending)'}
               </div>
             ` : ''}
 
             <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:16px;border-top:1px solid var(--border-subtle);">
               ${report.status === 'pending' ? `
-                <button class="btn btn-primary btn-sm" onclick="updateViolationStatus('${report.id}', 'investigating')">🔍 Start Investigation</button>
-                <button class="btn btn-secondary btn-sm" onclick="updateViolationStatus('${report.id}', 'dismissed')">✗ Dismiss</button>
+                <button class="btn btn-primary btn-sm" onclick="updateViolationStatus('${report.id}', 'investigating')">${mccIcon('search', 16)} Start Investigation</button>
+                <button class="btn btn-secondary btn-sm" onclick="updateViolationStatus('${report.id}', 'dismissed')">${mccIcon('x', 16)} Dismiss</button>
               ` : ''}
               ${report.status === 'investigating' ? `
-                <button class="btn btn-primary btn-sm" onclick="confirmViolation('${report.id}')">✓ Confirm Violation</button>
-                <button class="btn btn-secondary btn-sm" onclick="updateViolationStatus('${report.id}', 'dismissed')">✗ Dismiss</button>
+                <button class="btn btn-primary btn-sm" onclick="confirmViolation('${report.id}')">${mccIcon('check', 16)} Confirm Violation</button>
+                <button class="btn btn-secondary btn-sm" onclick="updateViolationStatus('${report.id}', 'dismissed')">${mccIcon('x', 16)} Dismiss</button>
               ` : ''}
               ${report.status === 'confirmed' && !report.reward_paid_at ? `
-                <button class="btn btn-primary btn-sm" onclick="markRewardPaid('${report.id}')">💰 Mark Reward Paid</button>
+                <button class="btn btn-primary btn-sm" onclick="markRewardPaid('${report.id}')">${mccIcon('dollar-sign', 16)} Mark Reward Paid</button>
               ` : ''}
-              <button class="btn btn-ghost btn-sm" onclick="addViolationNotes('${report.id}')">📝 Add Notes</button>
-              <button class="btn btn-ghost btn-sm" onclick="viewProviderHistory('${report.provider_id}')">👤 Provider History</button>
+              <button class="btn btn-ghost btn-sm" onclick="addViolationNotes('${report.id}')">${mccIcon('file-text', 16)} Add Notes</button>
+              <button class="btn btn-ghost btn-sm" onclick="viewProviderHistory('${report.provider_id}')">${mccIcon('user', 16)} Provider History</button>
             </div>
           </div>
         `;
@@ -4460,7 +5812,7 @@
             <td>${statusBadge}</td>
             <td>${new Date(u.created_at).toLocaleDateString()}</td>
             <td>
-              <button class="btn btn-secondary btn-sm" onclick="openUserEditModal('${u.id}')">✏️ Edit</button>
+              <button class="btn btn-secondary btn-sm" onclick="openUserEditModal('${u.id}')">${mccIcon('file-text', 16)} Edit</button>
             </td>
           </tr>
         `;
@@ -4491,7 +5843,7 @@
 
     function getFounderStatus(user) {
       if (user.isFoundingMember && user.isFoundingProvider) {
-        return `<span style="background:linear-gradient(135deg,#9b59b6,#8e44ad);color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">👑 Founding Partner</span>`;
+        return `<span style="background:linear-gradient(135deg,#9b59b6,#8e44ad);color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">${mccIcon('award', 16)} Founding Partner</span>`;
       }
       
       const statuses = [];
@@ -4503,9 +5855,9 @@
       // Intentional contrast: dark text (#0a0a0f) on gold/light backgrounds for readability
       return statuses.map(s => {
         if (s === 'Member Founder') {
-          return `<span style="background:linear-gradient(135deg,var(--accent-blue),#6b9fff);color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;margin-right:4px;">🌟 ${s}</span>`;
+          return `<span style="background:linear-gradient(135deg,var(--accent-blue),#6b9fff);color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;margin-right:4px;">${mccIcon('star', 16)} ${s}</span>`;
         }
-        return `<span style="background:linear-gradient(135deg,var(--accent-gold),#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;">🌟 ${s}</span>`;
+        return `<span style="background:linear-gradient(135deg,var(--accent-gold),#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;">${mccIcon('star', 16)} ${s}</span>`;
       }).join(' ');
     }
 
@@ -4521,7 +5873,7 @@
       const mfp = user.memberFounderProfile;
       const founderSection = mfp ? `
         <div class="form-section">
-          <div class="form-section-title">🌟 Member Founder Details</div>
+          <div class="form-section-title">${mccIcon('star', 24)} Member Founder Details</div>
           <div class="detail-grid">
             <span class="detail-label">Referral Code:</span>
             <span class="detail-value"><code style="background:var(--accent-gold-soft);color:var(--accent-gold);padding:4px 8px;border-radius:4px;font-weight:600;">${mfp.referral_code || 'N/A'}</code></span>
@@ -4535,7 +5887,7 @@
             <span class="detail-value">${user.referralCount}</span>
             <span class="detail-label">Stripe Connect:</span>
             <span class="detail-value">${mfp.stripe_connect_account_id ? 
-              (mfp.payout_details?.transfers_enabled ? '<span class="status-badge approved">💳 Connected</span>' : '<span class="status-badge orange">⏳ Pending</span>') : 
+              (mfp.payout_details?.transfers_enabled ? '<span class="status-badge approved">' + mccIcon('credit-card', 16) + ' Connected</span>' : '<span class="status-badge orange">' + mccIcon('clock', 16) + ' Pending</span>') : 
               '<span class="status-badge muted">Not Setup</span>'}</span>
           </div>
           <div class="form-group" style="margin-top:16px;">
@@ -4552,9 +5904,9 @@
 
       const providerFounderSection = user.isFoundingProvider ? `
         <div class="form-section">
-          <div class="form-section-title">🔧 Provider Founder Status</div>
+          <div class="form-section-title">${mccIcon('wrench', 24)} Provider Founder Status</div>
           <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--accent-gold-soft);border-radius:var(--radius-md);">
-            <span style="font-size:24px;">🌟</span>
+            <span style="font-size:24px;">${mccIcon('star', 24)}</span>
             <div>
               <div style="font-weight:600;color:var(--accent-gold);">Founding Provider</div>
               <div style="font-size:0.85rem;color:var(--text-secondary);">This provider is part of the founding program</div>
@@ -4565,7 +5917,7 @@
 
       const modalContent = `
         <div class="form-section">
-          <div class="form-section-title">👤 Basic Information</div>
+          <div class="form-section-title">${mccIcon('user', 24)} Basic Information</div>
           <div class="detail-grid">
             <span class="detail-label">Name:</span><span class="detail-value">${user.full_name || 'Not set'}</span>
             <span class="detail-label">Email:</span><span class="detail-value">${user.email || 'Not set'}</span>
@@ -4575,7 +5927,7 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">🔄 Role Management</div>
+          <div class="form-section-title">${mccIcon('refresh-cw', 24)} Role Management</div>
           <div style="margin-bottom:12px;">
             <span class="form-label">Current Role:</span>
             ${getRoleDisplay(user)}
@@ -4588,13 +5940,13 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">🌟 Founder Status</div>
+          <div class="form-section-title">${mccIcon('star', 24)} Founder Status</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
             <button class="btn ${user.isFoundingMember ? 'btn-success' : 'btn-secondary'}" onclick="toggleFounderStatus('${user.id}', 'member')">
-              ${user.isFoundingMember ? '✓ Member Founder' : 'Make Founding Member'}
+              ${user.isFoundingMember ? mccIcon('check', 16) + ' Member Founder' : 'Make Founding Member'}
             </button>
             <button class="btn ${user.isFoundingProvider ? 'btn-success' : 'btn-secondary'}" onclick="toggleFounderStatus('${user.id}', 'provider')">
-              ${user.isFoundingProvider ? '✓ Provider Founder' : 'Make Founding Provider'}
+              ${user.isFoundingProvider ? mccIcon('check', 16) + ' Provider Founder' : 'Make Founding Provider'}
             </button>
           </div>
         </div>
@@ -4603,24 +5955,26 @@
         ${providerFounderSection}
 
         <div class="form-section" style="border-bottom:none;">
-          <div class="form-section-title">⚙️ Account Actions</div>
+          <div class="form-section-title">${mccIcon('settings', 24)} Account Actions</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             ${user.isSuspended ? `
-              <button class="btn btn-success" onclick="toggleUserSuspension('${user.id}', false)">✓ Unsuspend Account</button>
+              <button class="btn btn-success" onclick="toggleUserSuspension('${user.id}', false)">${mccIcon('check', 16)} Unsuspend Account</button>
               <div style="margin-top:8px;padding:12px;background:var(--accent-red-soft);border-radius:var(--radius-md);width:100%;">
-                <div style="color:var(--accent-red);font-weight:600;">🚫 Account Suspended</div>
+                <div style="color:var(--accent-red);font-weight:600;">${mccIcon('x', 16)} Account Suspended</div>
                 <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;">Reason: ${user.suspension_reason || 'Not specified'}</div>
                 ${user.suspended_at ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Suspended on: ${new Date(user.suspended_at).toLocaleString()}</div>` : ''}
               </div>
             ` : `
-              <button class="btn btn-danger" onclick="toggleUserSuspension('${user.id}', true)">🚫 Suspend Account</button>
+              <button class="btn btn-danger" onclick="toggleUserSuspension('${user.id}', true)">${mccIcon('x', 16)} Suspend Account</button>
             `}
           </div>
         </div>
       `;
 
       document.getElementById('user-edit-modal-body').innerHTML = modalContent;
-      document.getElementById('user-edit-modal').classList.add('active');
+      const userEditModal = document.getElementById('user-edit-modal');
+      userEditModal.style.display = '';
+      userEditModal.classList.add('active');
     }
 
     async function updateUserRole(userId, newRole) {
@@ -4975,7 +6329,7 @@
       const modalBody = document.getElementById('car-modal-body');
       modalBody.innerHTML = `
         <div class="form-section">
-          <div class="form-section-title">👤 Provider Information</div>
+          <div class="form-section-title">${mccIcon('user', 24)} Provider Information</div>
           <div class="detail-grid">
             <span class="detail-label">Provider Name:</span>
             <span class="detail-value"><strong>${providerName}</strong></span>
@@ -4986,14 +6340,14 @@
             <span class="detail-label">Suspended Date:</span>
             <span class="detail-value">${suspendedDate ? new Date(suspendedDate).toLocaleString() : 'N/A'}</span>
             <span class="detail-label">Average Rating:</span>
-            <span class="detail-value">${avgRating ? avgRating.toFixed(1) + ' ⭐' : 'N/A'} (${totalReviews || 0} reviews)</span>
+            <span class="detail-value">${avgRating ? avgRating.toFixed(1) + ' ' + mccIcon('star', 16) : 'N/A'} (${totalReviews || 0} reviews)</span>
             <span class="detail-label">CAR Status:</span>
             <span class="detail-value"><span class="status-badge ${statusClass}">${statusLabel}</span></span>
           </div>
         </div>
         
         <div class="form-section">
-          <div class="form-section-title">⚠️ Complaint Information</div>
+          <div class="form-section-title">${mccIcon('alert-triangle', 24)} Complaint Information</div>
           <div class="detail-grid">
             <span class="detail-label">Primary Complaint:</span>
             <span class="detail-value">
@@ -5009,21 +6363,21 @@
         </div>
         
         <div class="form-section">
-          <div class="form-section-title">🔍 Root Cause Analysis</div>
+          <div class="form-section-title">${mccIcon('search', 24)} Root Cause Analysis</div>
           <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);white-space:pre-wrap;line-height:1.6;">
             ${car.root_cause_analysis || 'No root cause analysis provided.'}
           </div>
         </div>
         
         <div class="form-section">
-          <div class="form-section-title">✅ Corrective Action Plan</div>
+          <div class="form-section-title">${mccIcon('check-circle', 24)} Corrective Action Plan</div>
           <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);white-space:pre-wrap;line-height:1.6;">
             ${car.corrective_action_plan || 'No corrective action plan provided.'}
           </div>
         </div>
         
         <div class="form-section">
-          <div class="form-section-title">🛡️ Preventative Action</div>
+          <div class="form-section-title">${mccIcon('shield', 24)} Preventative Action</div>
           <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);white-space:pre-wrap;line-height:1.6;">
             ${car.preventative_action || 'No preventative action provided.'}
           </div>
@@ -5031,7 +6385,7 @@
         
         ${car.additional_notes ? `
         <div class="form-section">
-          <div class="form-section-title">📝 Additional Notes from Provider</div>
+          <div class="form-section-title">${mccIcon('file-text', 24)} Additional Notes from Provider</div>
           <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);white-space:pre-wrap;line-height:1.6;">
             ${car.additional_notes}
           </div>
@@ -5040,7 +6394,7 @@
         
         ${car.reviewed_at ? `
         <div class="form-section">
-          <div class="form-section-title">📋 Review Information</div>
+          <div class="form-section-title">${mccIcon('clipboard-list', 24)} Review Information</div>
           <div class="detail-grid">
             <span class="detail-label">Reviewed At:</span>
             <span class="detail-value">${new Date(car.reviewed_at).toLocaleString()}</span>
@@ -5056,12 +6410,12 @@
         </div>
         ` : `
         <div class="form-section" style="border-bottom:none;">
-          <div class="form-section-title">📝 Admin Notes</div>
+          <div class="form-section-title">${mccIcon('file-text', 24)} Admin Notes</div>
           <textarea class="form-textarea" id="car-admin-notes" placeholder="Add internal notes about this CAR review (optional)..." rows="3"></textarea>
         </div>
         
         <div class="form-section" id="car-rejection-section" style="display:none;border-bottom:none;">
-          <div class="form-section-title" style="color:var(--accent-red);">❌ Rejection Reason</div>
+          <div class="form-section-title" style="color:var(--accent-red);">${mccIcon('x', 24)} Rejection Reason</div>
           <textarea class="form-textarea" id="car-rejection-reason" placeholder="Explain why this CAR is being rejected..." rows="3"></textarea>
         </div>
         `}
@@ -5280,7 +6634,7 @@
       const modalBody = document.getElementById('verification-modal-body');
       modalBody.innerHTML = `
         <div class="form-section">
-          <div class="form-section-title">👤 User & Vehicle Information</div>
+          <div class="form-section-title">${mccIcon('user', 24)} User & Vehicle Information</div>
           <div class="detail-grid">
             <span class="detail-label">User Name:</span>
             <span class="detail-value">${userName}</span>
@@ -5296,7 +6650,7 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">📷 Registration Image</div>
+          <div class="form-section-title">${mccIcon('camera', 24)} Registration Image</div>
           ${v.image_url ? `
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);text-align:center;">
               <img src="${v.image_url}" alt="Registration Document" style="max-width:100%;max-height:400px;border-radius:var(--radius-sm);cursor:pointer;" onclick="window.open('${v.image_url}', '_blank')">
@@ -5306,14 +6660,14 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">🔤 Extracted Text (OCR Results)</div>
+          <div class="form-section-title">${mccIcon('file-text', 24)} Extracted Text (OCR Results)</div>
           <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);max-height:200px;overflow-y:auto;">
             <pre style="font-family:monospace;font-size:0.85rem;white-space:pre-wrap;color:var(--text-primary);margin:0;">${v.extracted_text || 'No text extracted'}</pre>
           </div>
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">🔍 Name Comparison</div>
+          <div class="form-section-title">${mccIcon('search', 24)} Name Comparison</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);">
               <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">Extracted Owner Name</div>
@@ -5329,7 +6683,7 @@
               <div style="display:flex;align-items:center;gap:16px;">
                 <div style="font-size:2rem;font-weight:700;color:${matchScore >= 80 ? 'var(--accent-green)' : matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)'};">${matchScore}%</div>
                 <div>
-                  <div style="font-weight:600;color:${matchScore >= 80 ? 'var(--accent-green)' : matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)'}">${matchScore >= 80 ? '✓ Good Match' : matchScore >= 50 ? '⚠️ Partial Match' : '✗ Poor Match'}</div>
+                  <div style="font-weight:600;color:${matchScore >= 80 ? 'var(--accent-green)' : matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)'}">${matchScore >= 80 ? mccIcon('check', 16) + ' Good Match' : matchScore >= 50 ? mccIcon('alert-triangle', 16) + ' Partial Match' : mccIcon('x', 16) + ' Poor Match'}</div>
                   <div style="font-size:0.85rem;color:var(--text-muted);">Name match confidence score</div>
                 </div>
               </div>
@@ -5341,7 +6695,7 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">📋 Extracted Details</div>
+          <div class="form-section-title">${mccIcon('clipboard-list', 24)} Extracted Details</div>
           <div class="detail-grid">
             <span class="detail-label">VIN:</span>
             <span class="detail-value" style="font-family:monospace;">${v.extracted_vin || 'Not detected'}</span>
@@ -5352,14 +6706,14 @@
 
         ${v.status !== 'approved' && v.status !== 'rejected' ? `
         <div class="form-section" style="border-bottom:none;">
-          <div class="form-section-title">📝 Admin Notes</div>
+          <div class="form-section-title">${mccIcon('file-text', 24)} Admin Notes</div>
           <textarea class="form-textarea" id="verification-admin-notes" placeholder="Add notes about this verification decision (optional)..." rows="3"></textarea>
         </div>
         ` : ''}
 
         ${v.admin_notes ? `
         <div class="form-section" style="border-bottom:none;">
-          <div class="form-section-title">📝 Previous Admin Notes</div>
+          <div class="form-section-title">${mccIcon('file-text', 24)} Previous Admin Notes</div>
           <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);">${v.admin_notes}</div>
         </div>
         ` : ''}
@@ -5399,7 +6753,8 @@
           return;
         }
 
-        const response = await fetch(`/api/registration/verifications/${currentVerification.id}`, {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/registration/verifications/${currentVerification.id}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -5443,7 +6798,8 @@
           return;
         }
 
-        const response = await fetch(`/api/registration/verifications/${currentVerification.id}`, {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/registration/verifications/${currentVerification.id}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -5479,7 +6835,12 @@
       }
     });
 
-    async function logout() { await supabaseClient.auth.signOut(); window.location.href = 'login.html'; }
+    window.loadRefunds = loadRefunds;
+    window.changeRefundsPage = changeRefundsPage;
+    window.approveRefund = approveRefund;
+    window.denyRefund = denyRefund;
+
+    async function logout() { localStorage.removeItem('mcc_admin_pass'); localStorage.removeItem('mcc_admin_team_token'); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; }
     window.logout = logout;
 
     function toggleSidebar() {
@@ -5613,11 +6974,21 @@
     });
 
     async function getAdminAuthHeader() {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session?.access_token) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session?.access_token) {
+          return { 'Authorization': `Bearer ${session.access_token}` };
+        }
+      } catch (_) {}
+      const headers = {};
+      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
+      else if (adminPasswordVerified || localStorage.getItem('mcc_admin_pass')) {
+        headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass') || adminPasswordVerified || '';
+      }
+      if (!headers['Authorization'] && !headers['x-admin-token'] && !headers['x-admin-password']) {
         throw new Error('Not authenticated');
       }
-      return { 'Authorization': `Bearer ${session.access_token}` };
+      return headers;
     }
 
     async function loadPrintfulCatalog() {
@@ -5712,7 +7083,8 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const response = await fetch(`/api/admin/printful/catalog/${catalogProductId}`, { headers });
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/printful/catalog/${catalogProductId}`, { headers });
         const data = await response.json();
         
         if (!data.success) {
@@ -5914,7 +7286,7 @@
       contentEl.style.display = 'none';
       errorEl.style.display = 'none';
       btn.disabled = true;
-      btnText.textContent = '⏳ Loading...';
+      btnText.innerHTML = mccIcon('clock', 16) + ' Loading...';
       
       try {
         const authHeaders = await getAdminAuthHeader();
@@ -5946,7 +7318,7 @@
         document.getElementById('mockup-error-text').textContent = 'Error: ' + error.message;
       } finally {
         btn.disabled = false;
-        btnText.textContent = '👁️ Preview';
+        btnText.innerHTML = mccIcon('eye', 16) + ' Preview';
       }
     }
     window.generateMockupPreview = generateMockupPreview;
@@ -5989,7 +7361,7 @@
         gridEl.innerHTML = printfulStoreProducts.map(product => `
           <div style="background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--radius-md);overflow:hidden;position:relative;">
             <div style="height:120px;background:var(--bg-input);display:flex;align-items:center;justify-content:center;overflow:hidden;">
-              ${product.thumbnail ? `<img src="${product.thumbnail}" alt="${product.name}" style="max-width:100%;max-height:100%;object-fit:contain;">` : '<div style="font-size:48px;">📦</div>'}
+              ${product.thumbnail ? `<img src="${product.thumbnail}" alt="${product.name}" style="max-width:100%;max-height:100%;object-fit:contain;">` : '<div style="font-size:48px;">' + mccIcon('package', 40) + '</div>'}
             </div>
             <div style="padding:12px;">
               <div style="font-weight:600;font-size:0.85rem;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${product.name}</div>
@@ -6014,7 +7386,8 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const response = await fetch(`/api/admin/printful/products/${productId}`, {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/printful/products/${productId}`, {
           method: 'DELETE',
           headers
         });
@@ -6189,16 +7562,17 @@
       for (const cat of selectedCategories) {
         const config = BULK_CATEGORY_DEFAULTS[cat.categoryId];
         if (!config) {
-          progressLog.innerHTML += `<div style="color:var(--accent-orange);">⚠️ Unknown category: ${cat.categoryName}</div>`;
+          progressLog.innerHTML += `<div style="color:var(--accent-orange);">${mccIcon('alert-triangle', 16)} Unknown category: ${cat.categoryName}</div>`;
           continue;
         }
         
-        progressLog.innerHTML += `<div style="color:var(--text-muted);">📦 Fetching variants for ${cat.categoryName}...</div>`;
+        progressLog.innerHTML += `<div style="color:var(--text-muted);">${mccIcon('package', 16)} Fetching variants for ${cat.categoryName}...</div>`;
         progressLog.scrollTop = progressLog.scrollHeight;
         
         try {
           const headers = await getAdminAuthHeader();
-          const response = await fetch(`/api/admin/printful/catalog/${config.productId}`, { headers });
+          const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+          const response = await fetch(`${apiBase}/api/admin/printful/catalog/${config.productId}`, { headers });
           const data = await response.json();
           
           if (!data.success || !data.product) {
@@ -6229,12 +7603,12 @@
               productName: `${namePrefix} ${cat.categoryName}`,
               variantIds
             });
-            progressLog.innerHTML += `<div style="color:var(--accent-green);">✓ ${cat.categoryName}: ${variantIds.length} variants</div>`;
+            progressLog.innerHTML += `<div style="color:var(--accent-green);">${mccIcon('check', 16)} ${cat.categoryName}: ${variantIds.length} variants</div>`;
           } else {
-            progressLog.innerHTML += `<div style="color:var(--accent-orange);">⚠️ ${cat.categoryName}: No variants found</div>`;
+            progressLog.innerHTML += `<div style="color:var(--accent-orange);">${mccIcon('alert-triangle', 16)} ${cat.categoryName}: No variants found</div>`;
           }
         } catch (error) {
-          progressLog.innerHTML += `<div style="color:var(--accent-red);">✗ ${cat.categoryName}: ${error.message}</div>`;
+          progressLog.innerHTML += `<div style="color:var(--accent-red);">${mccIcon('x', 16)} ${cat.categoryName}: ${error.message}</div>`;
         }
         
         completed++;
@@ -6276,9 +7650,9 @@
         
         for (const result of data.results) {
           if (result.success) {
-            progressLog.innerHTML += `<div style="color:var(--accent-green);">✓ Created: ${result.product.name} (${result.product.variants} variants)</div>`;
+            progressLog.innerHTML += `<div style="color:var(--accent-green);">${mccIcon('check', 16)} Created: ${result.product.name} (${result.product.variants} variants)</div>`;
           } else {
-            progressLog.innerHTML += `<div style="color:var(--accent-red);">✗ Failed: ${result.error}</div>`;
+            progressLog.innerHTML += `<div style="color:var(--accent-red);">${mccIcon('x', 16)} Failed: ${result.error}</div>`;
           }
         }
         
@@ -6296,7 +7670,7 @@
         }, 2000);
       } catch (error) {
         console.error('Bulk creation error:', error);
-        progressLog.innerHTML += `<div style="color:var(--accent-red);font-weight:600;">✗ Error: ${error.message}</div>`;
+        progressLog.innerHTML += `<div style="color:var(--accent-red);font-weight:600;">${mccIcon('x', 16)} Error: ${error.message}</div>`;
         showToast('Bulk creation failed: ' + error.message, 'error');
         submitBtn.disabled = false;
         submitBtn.textContent = 'Retry';
@@ -6360,8 +7734,8 @@
           <div style="padding:10px;">
             <div style="font-size:0.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px;" title="${design.filename}">${design.filename}</div>
             <div style="display:flex;gap:6px;">
-              <button onclick="copyDesignUrl('${design.url}')" style="flex:1;padding:6px;border:none;border-radius:var(--radius-sm);background:var(--accent-blue-soft);color:var(--accent-blue);cursor:pointer;font-size:0.72rem;">📋 Copy URL</button>
-              <button onclick="deleteDesign('${encodeURIComponent(design.filename)}')" style="padding:6px 8px;border:none;border-radius:var(--radius-sm);background:var(--accent-red-soft);color:var(--accent-red);cursor:pointer;font-size:0.72rem;">🗑️</button>
+              <button onclick="copyDesignUrl('${design.url}')" style="flex:1;padding:6px;border:none;border-radius:var(--radius-sm);background:var(--accent-blue-soft);color:var(--accent-blue);cursor:pointer;font-size:0.72rem;">${mccIcon('clipboard-list', 16)} Copy URL</button>
+              <button onclick="deleteDesign('${encodeURIComponent(design.filename)}')" style="padding:6px 8px;border:none;border-radius:var(--radius-sm);background:var(--accent-red-soft);color:var(--accent-red);cursor:pointer;font-size:0.72rem;">${mccIcon('x', 16)}</button>
             </div>
           </div>
         </div>
@@ -6417,7 +7791,8 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const response = await fetch(`/api/admin/designs/${encodedFilename}`, {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/designs/${encodedFilename}`, {
           method: 'DELETE',
           headers
         });
@@ -6530,3 +7905,3796 @@
       `).join('');
     }
     window.renderModalDesignGallery = renderModalDesignGallery;
+
+    async function loadChatInsights() {
+      try {
+        const resp = await fetch('/api/admin/chat-insights', {
+          headers: getAdminHeaders()
+        });
+        if (!resp.ok) throw new Error('Failed to load chat insights');
+        const data = await resp.json();
+        
+        document.getElementById('chat-stat-total-sessions').textContent = data.totalSessions || 0;
+        document.getElementById('chat-stat-total-messages').textContent = data.totalMessages || 0;
+        document.getElementById('chat-stat-thumbs-up').textContent = data.thumbsUp || 0;
+        document.getElementById('chat-stat-thumbs-down').textContent = data.thumbsDown || 0;
+        document.getElementById('chat-mode-driver').textContent = data.modeCount?.driver || 0;
+        document.getElementById('chat-mode-provider').textContent = data.modeCount?.provider || 0;
+        document.getElementById('chat-mode-education').textContent = data.modeCount?.education || 0;
+        
+        const activityEl = document.getElementById('chat-recent-activity');
+        if (data.recentActivity && data.recentActivity.length > 0) {
+          activityEl.innerHTML = data.recentActivity.map(a => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--border-subtle);">
+              <div>
+                <span style="color:var(--text-primary);font-weight:500;">${escapeHtml(a.mode)} session</span>
+                <span style="color:var(--text-muted);font-size:0.85rem;margin-left:8px;">${a.messageCount} messages</span>
+              </div>
+              <div style="color:var(--text-secondary);font-size:0.85rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(a.lastMessage)}</div>
+            </div>
+          `).join('');
+        } else {
+          activityEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No chat activity yet. Sessions appear here once users interact with the AI assistant.</p>';
+        }
+        
+        const feedbackEl = document.getElementById('chat-feedback-list');
+        feedbackEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Feedback is stored locally on each user\'s device. Aggregate feedback tracking will be available in a future update.</p>';
+        
+      } catch (err) {
+        console.error('Failed to load chat insights:', err);
+      }
+    }
+
+    // ========== TEAM LOGIN & ROLE-BASED ACCESS ==========
+    function getAdminHeaders() {
+      const headers = { 'Content-Type': 'application/json' };
+      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
+      else if (adminPasswordVerified) headers['x-admin-password'] = adminPasswordVerified;
+      return headers;
+    }
+
+    async function performTeamLogin() {
+      const email = document.getElementById('team-login-email')?.value?.trim();
+      const password = document.getElementById('team-login-password')?.value;
+      const errorEl = document.getElementById('team-login-error');
+      const btn = document.getElementById('admin-modal-btn');
+      
+      if (!email || !password) {
+        if (errorEl) { errorEl.textContent = 'Please enter email and password.'; errorEl.style.display = 'block'; }
+        return;
+      }
+      
+      btn.textContent = 'Signing in...';
+      btn.disabled = true;
+      if (errorEl) errorEl.style.display = 'none';
+      
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/team-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+          if (errorEl) { errorEl.textContent = data.error || 'Login failed'; errorEl.style.display = 'block'; }
+          btn.textContent = 'Sign In';
+          btn.disabled = false;
+          return;
+        }
+        
+        adminTeamToken = data.token;
+        adminTeamUser = data.user;
+        adminPermissions = data.permissions;
+        adminPasswordVerified = false;
+        
+        document.getElementById('admin-password-modal').style.display = 'none';
+        applyRolePermissions(data.permissions);
+        await loadAllData();
+        setupEventListeners();
+      } catch (err) {
+        if (errorEl) { errorEl.textContent = 'Login failed. Please try again.'; errorEl.style.display = 'block'; }
+        btn.textContent = 'Sign In';
+        btn.disabled = false;
+      }
+    }
+    window.performTeamLogin = performTeamLogin;
+
+    function showTeamLoginMode(e) {
+      if (e) e.preventDefault();
+      showModalState('team-login');
+    }
+    window.showTeamLoginMode = showTeamLoginMode;
+
+    function showAdminLoginMode(e) {
+      if (e) e.preventDefault();
+      showModalState(currentUser ? 'password' : 'login');
+    }
+    window.showAdminLoginMode = showAdminLoginMode;
+
+    function applyRolePermissions(permissions) {
+      const navItems = document.querySelectorAll('.nav-item[data-section]');
+      const navLabels = document.querySelectorAll('.nav-label');
+      
+      if (!permissions) {
+        navItems.forEach(item => item.style.display = '');
+        navLabels.forEach(label => label.style.display = '');
+        return;
+      }
+      
+      navItems.forEach(item => {
+        const section = item.dataset.section;
+        if (permissions.includes(section)) {
+          item.style.display = '';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+      
+      navLabels.forEach(label => {
+        let next = label.nextElementSibling;
+        let hasVisible = false;
+        while (next && !next.classList.contains('nav-label')) {
+          if (next.classList.contains('nav-item') && next.style.display !== 'none') {
+            hasVisible = true;
+            break;
+          }
+          next = next.nextElementSibling;
+        }
+        label.style.display = hasVisible ? '' : 'none';
+      });
+      
+      const userInfo = document.createElement('div');
+      const existingInfo = document.getElementById('admin-role-badge');
+      if (existingInfo) existingInfo.remove();
+      if (adminTeamUser) {
+        const badge = document.createElement('div');
+        badge.id = 'admin-role-badge';
+        badge.style.cssText = 'padding:12px 16px;margin-bottom:12px;background:var(--accent-blue-soft);border-radius:var(--radius-md);text-align:center;';
+        const roleLabel = (adminTeamUser.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        badge.innerHTML = `<div style="font-weight:600;color:var(--text-primary);font-size:0.9rem;">${escapeHtml(adminTeamUser.displayName)}</div><div style="font-size:0.8rem;color:var(--accent-gold);margin-top:4px;">${escapeHtml(roleLabel)}</div>`;
+        const sidebarNav = document.querySelector('.sidebar-nav');
+        if (sidebarNav) sidebarNav.insertBefore(badge, sidebarNav.firstChild);
+      }
+    }
+
+    // ========== TEAM MANAGEMENT ==========
+    let teamMembers = [];
+
+    async function loadTeamMembers() {
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/team-members`, { headers: getAdminHeaders() });
+        if (!response.ok) throw new Error('Failed to fetch');
+        const data = await response.json();
+        teamMembers = Array.isArray(data) ? data : (data.members || []);
+        renderTeamMembers();
+        loadPendingInvites();
+      } catch (err) {
+        console.error('Failed to load team members:', err);
+        document.getElementById('team-members-body').innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load team members</td></tr>';
+      }
+    }
+
+    function renderTeamMembers() {
+      const tbody = document.getElementById('team-members-body');
+      if (!tbody) return;
+      
+      const total = teamMembers.length;
+      const active = teamMembers.filter(m => m.status === 'active').length;
+      const disabled = total - active;
+      const roles = new Set(teamMembers.map(m => m.role));
+      
+      const totalEl = document.getElementById('team-total');
+      const activeEl = document.getElementById('team-active');
+      const disabledEl = document.getElementById('team-disabled');
+      const rolesEl = document.getElementById('team-roles-count');
+      if (totalEl) totalEl.textContent = total;
+      if (activeEl) activeEl.textContent = active;
+      if (disabledEl) disabledEl.textContent = disabled;
+      if (rolesEl) rolesEl.textContent = roles.size;
+      
+      if (teamMembers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No team members yet. Click "Add Team Member" to get started.</td></tr>';
+        return;
+      }
+      
+      const roleBadgeClass = {
+        super_admin: 'badge-green',
+        crm_manager: 'badge-blue',
+        marketing: 'badge-purple',
+        operations: 'badge-orange',
+        finance: 'badge-gold',
+        support: 'badge-teal'
+      };
+      
+      tbody.innerHTML = teamMembers.map(m => {
+        const roleLabel = (m.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const badgeClass = roleBadgeClass[m.role] || 'badge-blue';
+        const statusBadge = m.status === 'active' ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Disabled</span>';
+        const lastLogin = m.last_login ? new Date(m.last_login).toLocaleDateString() + ' ' + new Date(m.last_login).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'Never';
+        return `<tr>
+          <td>${escapeHtml(m.display_name)}</td>
+          <td>${escapeHtml(m.email)}</td>
+          <td><span class="badge ${badgeClass}">${escapeHtml(roleLabel)}</span></td>
+          <td>${statusBadge}</td>
+          <td>${lastLogin}</td>
+          <td>
+            <button class="btn btn-secondary" style="padding:6px 12px;font-size:0.8rem;" onclick="editTeamMember('${m.id}')">Edit</button>
+            <button class="btn btn-secondary" style="padding:6px 12px;font-size:0.8rem;color:var(--accent-red);" onclick="deleteTeamMember('${m.id}', '${escapeHtml(m.display_name)}')">Remove</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    function showAddTeamMemberModal() {
+      document.getElementById('team-add-name').value = '';
+      document.getElementById('team-add-email').value = '';
+      document.getElementById('team-add-password').value = '';
+      document.getElementById('team-add-role').value = 'crm_manager';
+      document.getElementById('team-add-error').style.display = 'none';
+      document.getElementById('add-team-member-modal').style.display = 'flex';
+    }
+    window.showAddTeamMemberModal = showAddTeamMemberModal;
+
+    function closeTeamMemberModal() {
+      document.getElementById('add-team-member-modal').style.display = 'none';
+    }
+    window.closeTeamMemberModal = closeTeamMemberModal;
+
+    async function addTeamMember() {
+      const name = document.getElementById('team-add-name').value.trim();
+      const email = document.getElementById('team-add-email').value.trim();
+      const password = document.getElementById('team-add-password').value;
+      const role = document.getElementById('team-add-role').value;
+      const errorEl = document.getElementById('team-add-error');
+      const btn = document.getElementById('team-add-btn');
+      
+      if (!name || !email || !password || !role) {
+        errorEl.textContent = 'All fields are required.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      if (password.length < 8) {
+        errorEl.textContent = 'Password must be at least 8 characters.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      
+      btn.textContent = 'Adding...';
+      btn.disabled = true;
+      errorEl.style.display = 'none';
+      
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/team-members`, {
+          method: 'POST',
+          headers: getAdminHeaders(),
+          body: JSON.stringify({ email, password, display_name: name, role })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to add member');
+        
+        showToast(`${name} added as ${role.replace(/_/g, ' ')}`);
+        closeTeamMemberModal();
+        await loadTeamMembers();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      } finally {
+        btn.textContent = 'Add Member';
+        btn.disabled = false;
+      }
+    }
+    window.addTeamMember = addTeamMember;
+
+    function editTeamMember(id) {
+      const member = teamMembers.find(m => m.id === id);
+      if (!member) return;
+      document.getElementById('team-edit-id').value = id;
+      document.getElementById('team-edit-name').value = member.display_name;
+      document.getElementById('team-edit-role').value = member.role;
+      document.getElementById('team-edit-status').value = member.status;
+      document.getElementById('team-edit-password').value = '';
+      document.getElementById('team-edit-error').style.display = 'none';
+      document.getElementById('edit-team-member-modal').style.display = 'flex';
+    }
+    window.editTeamMember = editTeamMember;
+
+    function closeEditTeamModal() {
+      document.getElementById('edit-team-member-modal').style.display = 'none';
+    }
+    window.closeEditTeamModal = closeEditTeamModal;
+
+    async function saveTeamMember() {
+      const id = document.getElementById('team-edit-id').value;
+      const name = document.getElementById('team-edit-name').value.trim();
+      const role = document.getElementById('team-edit-role').value;
+      const status = document.getElementById('team-edit-status').value;
+      const password = document.getElementById('team-edit-password').value;
+      const errorEl = document.getElementById('team-edit-error');
+      const btn = document.getElementById('team-edit-btn');
+      
+      if (!name) {
+        errorEl.textContent = 'Display name is required.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      if (password && password.length < 8) {
+        errorEl.textContent = 'Password must be at least 8 characters.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      
+      btn.textContent = 'Saving...';
+      btn.disabled = true;
+      errorEl.style.display = 'none';
+      
+      try {
+        const body = { display_name: name, role, status };
+        if (password) body.password = password;
+        
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/team-members/${id}`, {
+          method: 'PUT',
+          headers: getAdminHeaders(),
+          body: JSON.stringify(body)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to update');
+        
+        showToast('Team member updated');
+        closeEditTeamModal();
+        await loadTeamMembers();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      } finally {
+        btn.textContent = 'Save Changes';
+        btn.disabled = false;
+      }
+    }
+    window.saveTeamMember = saveTeamMember;
+
+    async function deleteTeamMember(id, name) {
+      if (!confirm(`Are you sure you want to remove ${name} from the team? This cannot be undone.`)) return;
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/team-members/${id}`, {
+          method: 'DELETE',
+          headers: getAdminHeaders()
+        });
+        if (!response.ok) throw new Error('Failed to delete');
+        showToast(`${name} removed from team`);
+        await loadTeamMembers();
+      } catch (err) {
+        showToast('Failed to remove team member', 'error');
+      }
+    }
+    window.deleteTeamMember = deleteTeamMember;
+
+    // ========== TEAM INVITES ==========
+    let currentInviteId = null;
+    let currentInviteUrl = null;
+
+    function showInviteModal() {
+      document.getElementById('invite-email').value = '';
+      document.getElementById('invite-role').value = 'crm_manager';
+      document.getElementById('invite-error').style.display = 'none';
+      document.getElementById('invite-result').style.display = 'none';
+      document.getElementById('invite-send-status').textContent = '';
+      document.getElementById('invite-generate-btn').style.display = '';
+      document.getElementById('invite-send-btn').style.display = 'none';
+      const smsBtn = document.getElementById('invite-sms-btn');
+      if (smsBtn) smsBtn.style.display = 'none';
+      currentInviteId = null;
+      currentInviteUrl = null;
+      document.getElementById('invite-team-member-modal').style.display = 'flex';
+    }
+    window.showInviteModal = showInviteModal;
+
+    function closeInviteModal() {
+      document.getElementById('invite-team-member-modal').style.display = 'none';
+      if (currentInviteId) loadPendingInvites();
+    }
+    window.closeInviteModal = closeInviteModal;
+
+    async function generateInvite() {
+      const email = document.getElementById('invite-email').value.trim();
+      const role = document.getElementById('invite-role').value;
+      const errorEl = document.getElementById('invite-error');
+      const btn = document.getElementById('invite-generate-btn');
+
+      if (!email) {
+        errorEl.textContent = 'Please enter an email address.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Generating...';
+      errorEl.style.display = 'none';
+
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/team-invites`, {
+          method: 'POST',
+          headers: getAdminHeaders(),
+          body: JSON.stringify({ email, role })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to generate invite');
+
+        currentInviteId = data.invite.id;
+        currentInviteUrl = data.inviteUrl;
+        document.getElementById('invite-link-display').value = data.inviteUrl;
+        document.getElementById('invite-result').style.display = 'block';
+        document.getElementById('invite-generate-btn').style.display = 'none';
+        document.getElementById('invite-send-btn').style.display = '';
+        document.getElementById('invite-sms-btn').style.display = '';
+        showToast('Invite generated successfully');
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generate Invite';
+      }
+    }
+    window.generateInvite = generateInvite;
+
+    function copyInviteLink() {
+      const linkEl = document.getElementById('invite-link-display');
+      if (linkEl && linkEl.value) {
+        navigator.clipboard.writeText(linkEl.value).then(() => {
+          showToast('Invite link copied to clipboard');
+        }).catch(() => {
+          linkEl.select();
+          document.execCommand('copy');
+          showToast('Invite link copied');
+        });
+      }
+    }
+    window.copyInviteLink = copyInviteLink;
+
+    async function sendInviteEmail() {
+      if (!currentInviteId) return;
+      const btn = document.getElementById('invite-send-btn');
+      const statusEl = document.getElementById('invite-send-status');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      statusEl.textContent = '';
+
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/team-invites/${currentInviteId}/send-email`, {
+          method: 'POST',
+          headers: getAdminHeaders()
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to send email');
+        statusEl.innerHTML = '<span style="color:var(--accent-green);">✓ Email sent successfully</span>';
+        showToast('Invite email sent');
+      } catch (err) {
+        statusEl.innerHTML = '<span style="color:var(--accent-red);">✗ ' + escapeHtml(err.message) + '</span>';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send via Email';
+      }
+    }
+    window.sendInviteEmail = sendInviteEmail;
+
+    function showSmsSendDialog() {
+      if (!currentInviteId) return;
+      const statusEl = document.getElementById('invite-send-status');
+      statusEl.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+          <input type="tel" id="invite-sms-phone" placeholder="+1 (555) 123-4567" style="flex:1;padding:8px 12px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.9rem;" />
+          <button class="btn btn-primary" onclick="sendInviteSms()" style="background:#2d8a6e;white-space:nowrap;">Send SMS</button>
+        </div>
+      `;
+      const phoneInput = document.getElementById('invite-sms-phone');
+      if (phoneInput) phoneInput.focus();
+    }
+    window.showSmsSendDialog = showSmsSendDialog;
+
+    async function sendInviteSms() {
+      if (!currentInviteId) return;
+      const phoneInput = document.getElementById('invite-sms-phone');
+      const phone = phoneInput ? phoneInput.value.trim() : '';
+      const statusEl = document.getElementById('invite-send-status');
+
+      if (!phone) {
+        statusEl.innerHTML = '<span style="color:var(--accent-red);">Please enter a phone number</span>';
+        return;
+      }
+
+      const smsBtn = document.getElementById('invite-sms-btn');
+      if (smsBtn) { smsBtn.disabled = true; smsBtn.textContent = 'Sending...'; }
+
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/team-invites/${currentInviteId}/send-sms`, {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to send SMS');
+        statusEl.innerHTML = '<span style="color:var(--accent-green);">✓ SMS sent successfully</span>';
+        showToast('Invite SMS sent');
+      } catch (err) {
+        statusEl.innerHTML = '<span style="color:var(--accent-red);">✗ ' + escapeHtml(err.message) + '</span>';
+      } finally {
+        if (smsBtn) { smsBtn.disabled = false; smsBtn.textContent = 'Send via SMS'; }
+      }
+    }
+    window.sendInviteSms = sendInviteSms;
+
+    async function loadPendingInvites() {
+      const tbody = document.getElementById('pending-invites-body');
+      if (!tbody) return;
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/team-invites`, { headers: getAdminHeaders() });
+        if (!response.ok) throw new Error('Failed to fetch');
+        const invites = await response.json();
+
+        const roleBadgeClass = {
+          super_admin: 'badge-green', crm_manager: 'badge-blue', marketing: 'badge-purple',
+          operations: 'badge-orange', finance: 'badge-gold', support: 'badge-teal'
+        };
+
+        if (invites.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No pending invites</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = invites.map(inv => {
+          const roleLabel = (inv.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          const badgeClass = roleBadgeClass[inv.role] || 'badge-blue';
+          const statusClass = inv.status === 'pending' ? 'badge-orange' : inv.status === 'accepted' ? 'badge-green' : 'badge-red';
+          const statusLabel = inv.status.charAt(0).toUpperCase() + inv.status.slice(1);
+          const created = new Date(inv.created_at).toLocaleDateString();
+          const expires = new Date(inv.expires_at).toLocaleDateString() + ' ' + new Date(inv.expires_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+          const inviteUrl = inv.token ? `https://mycarconcierge.com/admin-invite.html?token=${inv.token}` : '';
+          const copyBtn = inv.token && inv.status === 'pending'
+            ? `<button class="btn btn-secondary btn-sm" onclick="copyInviteLinkUrl('${inviteUrl}')" style="font-size:0.78rem;" title="Copy invite link">Copy Link</button>`
+            : '';
+          const actions = inv.status === 'pending'
+            ? `${copyBtn}
+               <button class="btn btn-secondary btn-sm" onclick="resendInviteEmail('${inv.id}')" style="font-size:0.78rem;">Resend</button>
+               <button class="btn btn-secondary btn-sm" onclick="revokeInvite('${inv.id}', '${escapeHtml(inv.email)}')" style="font-size:0.78rem;color:var(--accent-red);">Revoke</button>`
+            : '-';
+          return `<tr>
+            <td>${escapeHtml(inv.email)}</td>
+            <td><span class="badge ${badgeClass}">${escapeHtml(roleLabel)}</span></td>
+            <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+            <td>${created}</td>
+            <td>${expires}</td>
+            <td>${actions}</td>
+          </tr>`;
+        }).join('');
+      } catch (err) {
+        console.error('Failed to load invites:', err);
+        tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load invites</td></tr>';
+      }
+    }
+
+    async function resendInviteEmail(inviteId) {
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/team-invites/${inviteId}/send-email`, {
+          method: 'POST',
+          headers: getAdminHeaders()
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to send');
+        showToast('Invite email resent');
+      } catch (err) {
+        showToast('Failed to resend: ' + err.message, 'error');
+      }
+    }
+    window.resendInviteEmail = resendInviteEmail;
+
+    async function revokeInvite(id, email) {
+      if (!confirm(`Revoke invite for ${email}? They will no longer be able to use this invite link.`)) return;
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/team-invites/${id}`, {
+          method: 'DELETE',
+          headers: getAdminHeaders()
+        });
+        if (!response.ok) throw new Error('Failed to revoke');
+        showToast('Invite revoked');
+        await loadPendingInvites();
+      } catch (err) {
+        showToast('Failed to revoke invite', 'error');
+      }
+    }
+    window.revokeInvite = revokeInvite;
+
+    function getTeamApiUrl(endpoint) {
+      const isNetlify = window.location.hostname.includes('netlify') ||
+                        window.location.hostname === 'mycarconcierge.com' ||
+                        window.location.hostname === 'www.mycarconcierge.com';
+      if (isNetlify) {
+        return `/.netlify/functions/admin-team/${endpoint}`;
+      }
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      if (endpoint === 'members') return `${apiBase}/api/admin/team-members`;
+      if (endpoint === 'invites') return `${apiBase}/api/admin/team-invites`;
+      return `${apiBase}/api/admin/team-${endpoint}`;
+    }
+
+    let mktShareLinkUrl = null;
+    let mktShareLinkGenEmail = null;
+
+    function openMarketingShareModal() {
+      const modal = document.getElementById('marketing-share-modal');
+      if (!modal) return;
+      document.getElementById('mkt-share-email').value = '';
+      document.getElementById('mkt-share-invite-error').style.display = 'none';
+      mktShareLinkUrl = null;
+      mktShareLinkGenEmail = null;
+      const copyText = document.getElementById('mkt-share-copy-text');
+      if (copyText) copyText.textContent = 'Copy link';
+      modal.style.display = 'flex';
+      loadMarketingSharePeople();
+    }
+    window.openMarketingShareModal = openMarketingShareModal;
+    const _mktShareBtn = document.getElementById('marketing-share-btn');
+    if (_mktShareBtn) _mktShareBtn.addEventListener('click', openMarketingShareModal);
+
+    function closeMarketingShareModal() {
+      const modal = document.getElementById('marketing-share-modal');
+      if (modal) modal.style.display = 'none';
+    }
+    window.closeMarketingShareModal = closeMarketingShareModal;
+
+    async function loadMarketingSharePeople() {
+      const container = document.getElementById('mkt-share-people-list');
+      if (!container) return;
+      container.innerHTML = '<div style="text-align:center;padding:20px;"><div style="width:24px;height:24px;border:2px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>';
+      try {
+        const [membersRes, invitesRes] = await Promise.all([
+          fetch(getTeamApiUrl('members'), { headers: getAdminHeaders() }),
+          fetch(getTeamApiUrl('invites'), { headers: getAdminHeaders() })
+        ]);
+        if (!membersRes.ok) throw new Error('Load failed');
+        const membersData = await membersRes.json();
+        const allMembers = (membersData.members || membersData || []).filter(m =>
+          m.role === 'marketing' || m.role === 'super_admin'
+        );
+        const currentEmail = window._adminEmail || '';
+        let html = '';
+        if (allMembers.length === 0 && (!invitesRes.ok)) {
+          html = '<p style="color:var(--text-muted);text-align:center;padding:16px;font-size:0.88rem;">No collaborators yet. Add people above or share a link.</p>';
+          container.innerHTML = html;
+          return;
+        }
+        allMembers.forEach(m => {
+          const isYou = currentEmail && m.email && m.email.toLowerCase() === currentEmail.toLowerCase();
+          const isOwner = m.role === 'super_admin';
+          const roleLabel = isOwner ? 'Owner' : 'Marketing';
+          const initials = (m.displayName || m.email || '??').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+          const avatarColors = ['#4285f4','#ea4335','#34a853','#fbbc05','#8e24aa','#00acc1'];
+          const colorIdx = (m.email || '').length % avatarColors.length;
+          html += `<div style="display:flex;align-items:center;gap:12px;padding:8px 4px;">
+            <div style="width:36px;height:36px;border-radius:50%;background:${avatarColors[colorIdx]};display:flex;align-items:center;justify-content:center;font-weight:600;color:#fff;font-size:0.82rem;flex-shrink:0;">${initials}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.88rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(m.displayName || m.email)}${isYou ? ' <span style="color:var(--text-muted);font-weight:400;">(you)</span>' : ''}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(m.email || '')}</div>
+            </div>
+            <div style="font-size:0.82rem;color:var(--text-secondary);white-space:nowrap;">${roleLabel}</div>
+          </div>`;
+        });
+        if (invitesRes.ok) {
+          const invitesData = await invitesRes.json();
+          const pendingMarketing = (invitesData.invites || invitesData || []).filter(inv => inv.role === 'marketing' && inv.status === 'pending');
+          pendingMarketing.forEach(inv => {
+            const initials = (inv.email || '??').substring(0, 2).toUpperCase();
+            html += `<div style="display:flex;align-items:center;gap:12px;padding:8px 4px;">
+              <div style="width:36px;height:36px;border-radius:50%;background:var(--border-subtle);display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--text-muted);font-size:0.82rem;flex-shrink:0;">${initials}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:0.88rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(inv.email)}</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);">Invitation sent</div>
+              </div>
+              <div style="font-size:0.78rem;padding:2px 10px;border-radius:12px;background:var(--accent-gold-soft, rgba(251,188,5,0.15));color:var(--accent-gold);">Pending</div>
+            </div>`;
+          });
+        }
+        if (!html) {
+          html = '<p style="color:var(--text-muted);text-align:center;padding:16px;font-size:0.88rem;">No collaborators yet. Add people above or share a link.</p>';
+        }
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<p style="color:var(--accent-red);text-align:center;padding:16px;font-size:0.85rem;">Error loading: ${err.message}</p>`;
+      }
+    }
+
+    async function sendMarketingInvite() {
+      const emailInput = document.getElementById('mkt-share-email');
+      const errorEl = document.getElementById('mkt-share-invite-error');
+      const btn = document.getElementById('mkt-share-send-btn');
+      const email = (emailInput?.value || '').trim();
+      errorEl.style.display = 'none';
+      if (!email || !email.includes('@')) {
+        errorEl.textContent = 'Please enter a valid email address.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      try {
+        const res = await fetch(getTeamApiUrl('invites'), {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, role: 'marketing' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to send invite');
+        emailInput.value = '';
+        showToast(`Invite sent to ${email}`);
+        loadMarketingSharePeople();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send invite';
+      }
+    }
+    window.sendMarketingInvite = sendMarketingInvite;
+
+    async function copyMarketingShareLink() {
+      const copyText = document.getElementById('mkt-share-copy-text');
+      const btn = document.getElementById('mkt-share-copy-btn');
+      if (mktShareLinkUrl) {
+        await clipboardCopy(mktShareLinkUrl);
+        copyText.textContent = 'Copied!';
+        setTimeout(() => { copyText.textContent = 'Copy link'; }, 2000);
+        return;
+      }
+      btn.disabled = true;
+      copyText.textContent = 'Generating...';
+      try {
+        const res = await fetch(getTeamApiUrl('invites'), {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'link-invite@mycarconcierge.com', role: 'marketing' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to generate link');
+        const inviteUrl = data.inviteUrl || data.invite_url || data.link;
+        if (!inviteUrl) throw new Error('No invite link returned');
+        mktShareLinkUrl = inviteUrl;
+        await clipboardCopy(inviteUrl);
+        copyText.textContent = 'Copied!';
+        setTimeout(() => { copyText.textContent = 'Copy link'; }, 2000);
+        loadMarketingSharePeople();
+      } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+        copyText.textContent = 'Copy link';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    window.copyMarketingShareLink = copyMarketingShareLink;
+
+    async function clipboardCopy(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (err) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+    }
+
+    let trafficDays = 7;
+
+    document.querySelectorAll('.traffic-range').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.traffic-range').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        trafficDays = parseInt(btn.dataset.days);
+        loadedSections['traffic'] = false;
+        loadTrafficData();
+      });
+    });
+
+    async function loadTrafficData() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const headers = {};
+      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
+      else if (adminPasswordVerified) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass') || '';
+
+      try {
+        const response = await fetch(`${apiBase}/api/analytics/data?days=${trafficDays}`, { headers });
+        if (!response.ok) throw new Error('Failed to load traffic data');
+        const data = await response.json();
+
+        document.getElementById('traffic-total-views').textContent = (data.totalViews || 0).toLocaleString();
+        document.getElementById('traffic-total-visitors').textContent = (data.totalVisitors || 0).toLocaleString();
+        document.getElementById('traffic-active-now').textContent = (data.activeNow || 0).toLocaleString();
+
+        const dailyData = data.dailyViews || [];
+        const avgDaily = dailyData.length > 0 ? Math.round(dailyData.reduce((s, d) => s + d.views, 0) / dailyData.length) : 0;
+        document.getElementById('traffic-avg-daily').textContent = avgDaily.toLocaleString();
+
+        renderTrafficBarChart('traffic-daily-chart', dailyData, 'views', 'var(--accent-blue)');
+        renderTrafficBarChart('traffic-visitors-chart', dailyData, 'visitors', 'var(--accent-green)');
+        renderDeviceBreakdown(data.deviceBreakdown || {});
+        renderTopPages(data.topPages || []);
+        renderReferrals(data.referralSources || []);
+      } catch (err) {
+        console.error('Traffic data error:', err);
+      }
+    }
+
+    function renderTrafficBarChart(containerId, data, field, color) {
+      const container = document.getElementById(containerId);
+      if (!container || !data.length) {
+        if (container) container.innerHTML = '<p style="color:var(--text-muted);padding:20px;text-align:center;">No data available yet</p>';
+        return;
+      }
+      const maxVal = Math.max(...data.map(d => d[field] || 0), 1);
+      container.innerHTML = data.map(d => {
+        const val = d[field] || 0;
+        const height = Math.max((val / maxVal) * 200, 2);
+        const dateLabel = d.date ? d.date.slice(5) : '';
+        return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:20px;max-width:40px;" title="${d.date}: ${val}">
+          <span style="font-size:10px;color:var(--text-muted);margin-bottom:4px;">${val}</span>
+          <div style="width:100%;height:${height}px;background:${color};border-radius:4px 4px 0 0;min-height:2px;transition:height 0.3s;"></div>
+          <span style="font-size:9px;color:var(--text-muted);margin-top:4px;transform:rotate(-45deg);white-space:nowrap;">${dateLabel}</span>
+        </div>`;
+      }).join('');
+    }
+
+    function renderDeviceBreakdown(devices) {
+      const container = document.getElementById('traffic-device-breakdown');
+      if (!container) return;
+      const total = Object.values(devices).reduce((s, v) => s + v, 0);
+      if (total === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;">No data available yet</p>';
+        return;
+      }
+      const labels = {
+        ios_app: { name: 'iOS App', color: '#007AFF', icon: 'smartphone' },
+        android_app: { name: 'Android App', color: '#34A853', icon: 'smartphone' },
+        desktop_web: { name: 'Desktop Web', color: 'var(--accent-blue)', icon: 'monitor' },
+        mobile_web: { name: 'Mobile Web', color: 'var(--accent-gold)', icon: 'smartphone' },
+        unknown: { name: 'Unknown', color: 'var(--text-muted)', icon: 'help-circle' }
+      };
+      let html = '<div style="display:flex;flex-direction:column;gap:12px;">';
+      for (const [key, count] of Object.entries(devices).sort((a, b) => b[1] - a[1])) {
+        if (count === 0) continue;
+        const pct = ((count / total) * 100).toFixed(1);
+        const info = labels[key] || { name: key, color: 'var(--text-muted)', icon: 'help-circle' };
+        html += `<div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="display:flex;align-items:center;gap:8px;"><span class="icon-inline" data-icon="${info.icon}"></span> ${info.name}</span>
+            <span style="font-weight:600;">${count.toLocaleString()} (${pct}%)</span>
+          </div>
+          <div style="height:8px;background:var(--bg-elevated);border-radius:4px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:${info.color};border-radius:4px;transition:width 0.3s;"></div>
+          </div>
+        </div>`;
+      }
+      html += '</div>';
+      container.innerHTML = html;
+      if (typeof mccIcon !== 'undefined') initInlineIcons(container);
+    }
+
+    function renderTopPages(pages) {
+      const container = document.getElementById('traffic-top-pages');
+      if (!container) return;
+      if (!pages.length) {
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:16px;">No data available yet</p>';
+        return;
+      }
+      let html = '<table style="width:100%;border-collapse:collapse;"><thead><tr><th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);font-weight:500;">Page</th><th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);font-weight:500;">Views</th></tr></thead><tbody>';
+      pages.forEach(p => {
+        html += `<tr><td style="padding:10px 12px;border-bottom:1px solid var(--border-subtle);font-size:0.9rem;word-break:break-all;">${escapeHtml(p.page)}</td><td style="padding:10px 12px;border-bottom:1px solid var(--border-subtle);text-align:right;font-weight:600;">${p.views.toLocaleString()}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    function renderReferrals(sources) {
+      const container = document.getElementById('traffic-referrals');
+      if (!container) return;
+      if (!sources.length) {
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:16px;">No data available yet</p>';
+        return;
+      }
+      let html = '<table style="width:100%;border-collapse:collapse;"><thead><tr><th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);font-weight:500;">Source</th><th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);font-weight:500;">Visits</th></tr></thead><tbody>';
+      sources.forEach(s => {
+        html += `<tr><td style="padding:10px 12px;border-bottom:1px solid var(--border-subtle);font-size:0.9rem;word-break:break-all;">${escapeHtml(s.source)}</td><td style="padding:10px 12px;border-bottom:1px solid var(--border-subtle);text-align:right;font-weight:600;">${s.count.toLocaleString()}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    let currentMktContent = '';
+    let currentEmailHtml = '';
+    let currentEmailSubject = '';
+    let currentStrategyContent = '';
+    let currentFundContent = '';
+
+    document.querySelectorAll('.mo-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.mo-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('.mo-panel').forEach(p => p.style.display = 'none');
+        const panelId = 'mo-' + tab.dataset.tab;
+        const panel = document.getElementById(panelId);
+        if (panel) panel.style.display = 'block';
+        if (tab.dataset.tab === 'growth-funnel') loadGrowthFunnel();
+      });
+    });
+
+    async function generateSocialPosts() {
+      const topic = document.getElementById('social-topic').value;
+      if (!topic) { showToast('Please enter a topic', 'error'); return; }
+      const platforms = [];
+      document.querySelectorAll('.social-platform-cb:checked').forEach(cb => platforms.push(cb.value));
+      if (platforms.length === 0) { showToast('Select at least one platform', 'error'); return; }
+      const tone = document.getElementById('social-tone').value;
+      const audience = document.getElementById('social-audience').value;
+      const context = document.getElementById('social-context').value;
+      const btn = document.getElementById('social-generate-btn');
+      const output = document.getElementById('social-posts-output');
+      btn.disabled = true;
+      btn.textContent = 'Generating...';
+      output.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px;"></div>Creating platform-optimized posts...</div>';
+      try {
+        const res = await fetch('/api/admin/marketing/generate', {
+          method: 'POST',
+          headers: getMarketingHeaders(),
+          body: JSON.stringify({
+            type: 'social_post',
+            topic,
+            tone,
+            audience,
+            context: `Generate SEPARATE optimized posts for each of these platforms: ${platforms.join(', ')}. For each platform, follow its specific best practices:\n- Twitter/X: Max 280 characters, punchy, 2-3 relevant hashtags\n- Facebook: Conversational, can be longer (1-2 paragraphs), include a call to action, 3-5 hashtags\n- Instagram: Visual-focused caption, storytelling tone, 10-15 relevant hashtags at the end, include emoji\n- LinkedIn: Professional tone, thought leadership angle, 3-5 hashtags\n\nFormat your response with clear headers for each platform like:\n\n## X (Twitter)\n[post content]\n\n## Facebook\n[post content]\n\n## Instagram\n[post content]\n\n## LinkedIn\n[post content]\n\nAdditional context: ${context || 'None'}`,
+            platform: 'general'
+          })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        const content = data.content || data.result || '';
+        const platformConfigs = {
+          twitter: { name: 'X (Twitter)', icon: 'message-circle', color: '#1DA1F2', maxChars: 280 },
+          facebook: { name: 'Facebook', icon: 'thumbs-up', color: '#1877F2', maxChars: null },
+          instagram: { name: 'Instagram', icon: 'camera', color: '#E4405F', maxChars: null },
+          linkedin: { name: 'LinkedIn', icon: 'briefcase', color: '#0A66C2', maxChars: null }
+        };
+        const sections = content.split(/##\s+/);
+        let html = '';
+        platforms.forEach(p => {
+          const cfg = platformConfigs[p];
+          let postContent = '';
+          for (const sec of sections) {
+            const lower = sec.toLowerCase();
+            if ((p === 'twitter' && (lower.startsWith('x (twitter)') || lower.startsWith('twitter') || lower.startsWith('x\n'))) ||
+                (p === 'facebook' && lower.startsWith('facebook')) ||
+                (p === 'instagram' && lower.startsWith('instagram')) ||
+                (p === 'linkedin' && lower.startsWith('linkedin'))) {
+              postContent = sec.replace(/^[^\n]+\n/, '').trim();
+              break;
+            }
+          }
+          if (!postContent) postContent = content;
+          const charInfo = cfg.maxChars ? ` <span style="color:${postContent.length > cfg.maxChars ? 'var(--accent-red)' : 'var(--text-muted)'};font-size:0.8rem;">${postContent.length}/${cfg.maxChars}</span>` : '';
+          html += `<div style="border:1px solid var(--border-subtle);border-radius:var(--radius-md);overflow:hidden;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg-elevated);border-bottom:1px solid var(--border-subtle);">
+              <div style="display:flex;align-items:center;gap:8px;"><span style="width:10px;height:10px;border-radius:50%;background:${cfg.color};display:inline-block;"></span><strong>${cfg.name}</strong>${charInfo}</div>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-sm" onclick="copySocialPost('${p}')"><span class="icon-inline" data-icon="clipboard"></span> Copy</button>
+                <button class="btn btn-sm" onclick="saveSocialPost('${p}')"><span class="icon-inline" data-icon="bookmark"></span> Save</button>
+              </div>
+            </div>
+            <div id="social-post-${p}" style="padding:16px;white-space:pre-wrap;font-size:0.95rem;line-height:1.6;color:var(--text-primary);">${postContent}</div>
+          </div>`;
+        });
+        output.innerHTML = html;
+      } catch(e) {
+        output.innerHTML = `<p style="color:var(--accent-red);text-align:center;padding:40px;">Error: ${e.message}</p>`;
+      }
+      btn.disabled = false;
+      btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Generate Posts for All Platforms';
+    }
+    window.generateSocialPosts = generateSocialPosts;
+
+    function copySocialPost(platform) {
+      const el = document.getElementById('social-post-' + platform);
+      if (el) { navigator.clipboard.writeText(el.textContent); showToast('Copied ' + platform + ' post'); }
+    }
+    window.copySocialPost = copySocialPost;
+
+    function copyAllSocialPosts() {
+      const posts = [];
+      document.querySelectorAll('[id^="social-post-"]').forEach(el => {
+        const platform = el.id.replace('social-post-', '').toUpperCase();
+        posts.push(`--- ${platform} ---\n${el.textContent}`);
+      });
+      if (posts.length) { navigator.clipboard.writeText(posts.join('\n\n')); showToast('All posts copied'); }
+    }
+    window.copyAllSocialPosts = copyAllSocialPosts;
+
+    function saveSocialPost(platform) {
+      const el = document.getElementById('social-post-' + platform);
+      if (!el) return;
+      const saved = JSON.parse(localStorage.getItem('mcc_social_posts') || '[]');
+      saved.unshift({ platform, content: el.textContent, date: new Date().toISOString() });
+      if (saved.length > 50) saved.length = 50;
+      localStorage.setItem('mcc_social_posts', JSON.stringify(saved));
+      showToast('Post saved to history');
+    }
+    window.saveSocialPost = saveSocialPost;
+
+    function loadSocialPostHistory() {
+      const container = document.getElementById('social-post-history');
+      if (!container) return;
+      const saved = JSON.parse(localStorage.getItem('mcc_social_posts') || '[]');
+      if (!saved.length) { container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No posts saved yet.</p>'; return; }
+      const platformColors = { twitter: '#1DA1F2', facebook: '#1877F2', instagram: '#E4405F', linkedin: '#0A66C2' };
+      const platformNames = { twitter: 'X', facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn' };
+      container.innerHTML = saved.map((p, i) => `<div style="display:flex;gap:12px;align-items:flex-start;padding:12px;border-bottom:1px solid var(--border-subtle);${i === saved.length - 1 ? 'border:none;' : ''}">
+        <span style="width:10px;height:10px;border-radius:50%;background:${platformColors[p.platform] || '#888'};flex-shrink:0;margin-top:6px;"></span>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <strong style="font-size:0.85rem;">${platformNames[p.platform] || p.platform}</strong>
+            <span style="font-size:0.8rem;color:var(--text-muted);">${new Date(p.date).toLocaleDateString()}</span>
+          </div>
+          <div style="font-size:0.9rem;color:var(--text-secondary);white-space:pre-wrap;max-height:80px;overflow:hidden;text-overflow:ellipsis;">${p.content.substring(0, 200)}${p.content.length > 200 ? '...' : ''}</div>
+        </div>
+        <button class="btn btn-sm" onclick="navigator.clipboard.writeText(${JSON.stringify(p.content).replace(/'/g, "\\'")}); showToast('Copied');"><span class="icon-inline" data-icon="clipboard"></span></button>
+      </div>`).join('');
+    }
+    window.loadSocialPostHistory = loadSocialPostHistory;
+
+    function updatePlatformVisibility() {
+      const type = document.getElementById('mkt-content-type')?.value;
+      const platformWrap = document.getElementById('mkt-platform-wrap');
+      if (platformWrap) {
+        platformWrap.style.display = (type === 'social_post' || type === 'ad_copy') ? 'block' : 'none';
+      }
+    }
+    if (document.getElementById('mkt-content-type')) {
+      document.getElementById('mkt-content-type').addEventListener('change', updatePlatformVisibility);
+    }
+
+    async function initMarketingHub() {
+      updatePlatformVisibility();
+      await loadSavedCampaigns();
+    }
+
+    function getMarketingHeaders() {
+      const headers = { 'Content-Type': 'application/json' };
+      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
+      else if (adminPasswordVerified) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass') || '';
+      return headers;
+    }
+
+    async function generateMarketingContent() {
+      const type = document.getElementById('mkt-content-type').value;
+      const platform = document.getElementById('mkt-platform').value;
+      const topic = document.getElementById('mkt-topic').value;
+      const tone = document.getElementById('mkt-tone').value;
+      const audience = document.getElementById('mkt-audience').value;
+      const context = document.getElementById('mkt-context').value;
+      if (!topic) { showToast('Please enter a topic', 'error'); return; }
+      const output = document.getElementById('mkt-output');
+      const btn = document.getElementById('mkt-generate-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px;"></span> Generating...';
+      output.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is crafting your content...</p></div>';
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/generate`, {
+          method: 'POST',
+          headers: getMarketingHeaders(),
+          body: JSON.stringify({ type, platform, topic, tone, targetAudience: audience, additionalContext: context })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Generation failed');
+        currentMktContent = data.content;
+        output.textContent = data.content;
+      } catch (err) {
+        output.innerHTML = '<p style="color:var(--accent-red);padding:20px;">Error: ' + escapeHtml(err.message) + '</p>';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Generate Content';
+        if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn);
+      }
+    }
+    window.generateMarketingContent = generateMarketingContent;
+
+    function copyMarketingContent() {
+      if (!currentMktContent) { showToast('No content to copy', 'error'); return; }
+      navigator.clipboard.writeText(currentMktContent).then(() => showToast('Content copied to clipboard'));
+    }
+    window.copyMarketingContent = copyMarketingContent;
+
+    async function saveMarketingContent() {
+      if (!currentMktContent) { showToast('No content to save', 'error'); return; }
+      const type = document.getElementById('mkt-content-type').value;
+      const topic = document.getElementById('mkt-topic').value;
+      await saveCampaignToServer(topic || 'Untitled', type, currentMktContent, { platform: document.getElementById('mkt-platform').value });
+    }
+    window.saveMarketingContent = saveMarketingContent;
+
+    async function generateEmailCampaign() {
+      const campaignType = document.getElementById('email-campaign-type').value;
+      const subjectTopic = document.getElementById('email-subject-topic').value;
+      const keyMessage = document.getElementById('email-key-message').value;
+      if (!subjectTopic) { showToast('Please enter a subject topic', 'error'); return; }
+      const preview = document.getElementById('email-preview');
+      preview.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:#999;"><div style="width:32px;height:32px;border:3px solid #ddd;border-top-color:#007bff;border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">Generating email...</p></div>';
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/generate`, {
+          method: 'POST',
+          headers: getMarketingHeaders(),
+          body: JSON.stringify({ type: 'email_campaign', topic: campaignType + ': ' + subjectTopic, tone: 'professional', targetAudience: 'car_owners', additionalContext: keyMessage || '' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Generation failed');
+        currentEmailHtml = data.content;
+        const subjectMatch = data.content.match(/Subject:\s*(.+?)(?:\n|<)/i);
+        currentEmailSubject = subjectMatch ? subjectMatch[1].trim() : subjectTopic;
+        preview.innerHTML = data.content;
+        document.getElementById('email-subject-preview').style.display = 'block';
+        document.getElementById('email-subject-text').textContent = currentEmailSubject;
+      } catch (err) {
+        preview.innerHTML = '<p style="color:red;padding:20px;">Error: ' + escapeHtml(err.message) + '</p>';
+      }
+    }
+    window.generateEmailCampaign = generateEmailCampaign;
+
+    async function sendEmailCampaign() {
+      if (!currentEmailHtml) { showToast('Generate an email first', 'error'); return; }
+      const recipientText = document.getElementById('email-recipients').value;
+      if (!recipientText.trim()) { showToast('Enter recipient emails', 'error'); return; }
+      const recipients = recipientText.split(',').map(e => e.trim()).filter(e => e.includes('@'));
+      if (recipients.length === 0) { showToast('No valid email addresses', 'error'); return; }
+      if (recipients.length > 50) { showToast('Maximum 50 recipients per send', 'error'); return; }
+      const btn = document.getElementById('email-send-btn');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/send-email`, {
+          method: 'POST',
+          headers: getMarketingHeaders(),
+          body: JSON.stringify({ to: recipients, subject: currentEmailSubject, html: currentEmailHtml, fromName: 'My Car Concierge' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Send failed');
+        showToast('Email sent to ' + (data.sent || recipients.length) + ' recipient(s)');
+      } catch (err) {
+        showToast('Failed to send: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Send Campaign';
+        if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn);
+      }
+    }
+    window.sendEmailCampaign = sendEmailCampaign;
+
+    function copyEmailContent() {
+      if (!currentEmailHtml) { showToast('No email to copy', 'error'); return; }
+      navigator.clipboard.writeText(currentEmailHtml).then(() => showToast('Email HTML copied'));
+    }
+    window.copyEmailContent = copyEmailContent;
+
+    function saveEmailCampaign() {
+      if (!currentEmailHtml) { showToast('No email to save', 'error'); return; }
+      saveCampaignToServer(currentEmailSubject || 'Email Campaign', 'email_campaign', currentEmailHtml, {});
+    }
+    window.saveEmailCampaign = saveEmailCampaign;
+
+    async function generateStrategy() {
+      const goal = document.getElementById('strategy-goal').value;
+      const budget = document.getElementById('strategy-budget').value;
+      const timeline = document.getElementById('strategy-timeline').value;
+      const channels = Array.from(document.querySelectorAll('.strategy-channel:checked')).map(c => c.value);
+      if (!goal) { showToast('Please enter a goal', 'error'); return; }
+      const output = document.getElementById('strategy-output');
+      output.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is building your strategy...</p></div>';
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/strategy`, {
+          method: 'POST',
+          headers: getMarketingHeaders(),
+          body: JSON.stringify({ goal, budget: budget || 'Not specified', timeline, channels })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Strategy generation failed');
+        currentStrategyContent = data.strategy;
+        output.textContent = data.strategy;
+      } catch (err) {
+        output.innerHTML = '<p style="color:var(--accent-red);padding:20px;">Error: ' + escapeHtml(err.message) + '</p>';
+      }
+    }
+    window.generateStrategy = generateStrategy;
+
+    function copyStrategyContent() {
+      if (!currentStrategyContent) { showToast('No strategy to copy', 'error'); return; }
+      navigator.clipboard.writeText(currentStrategyContent).then(() => showToast('Strategy copied'));
+    }
+    window.copyStrategyContent = copyStrategyContent;
+
+    function saveStrategyContent() {
+      if (!currentStrategyContent) { showToast('No strategy to save', 'error'); return; }
+      saveCampaignToServer(document.getElementById('strategy-goal').value || 'Marketing Strategy', 'campaign_strategy', currentStrategyContent, {});
+    }
+    window.saveStrategyContent = saveStrategyContent;
+
+    async function generateFundraising() {
+      const type = document.getElementById('fund-type').value;
+      const goal = document.getElementById('fund-goal').value;
+      const differentiators = document.getElementById('fund-differentiators').value;
+      const stage = document.getElementById('fund-stage').value;
+      if (!goal) { showToast('Please enter a funding goal', 'error'); return; }
+      const output = document.getElementById('fund-output');
+      output.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is generating fundraising content...</p></div>';
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/generate`, {
+          method: 'POST',
+          headers: getMarketingHeaders(),
+          body: JSON.stringify({ type, topic: goal, tone: 'professional', targetAudience: 'investors', additionalContext: 'Stage: ' + stage + '. ' + (differentiators || '') })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Generation failed');
+        currentFundContent = data.content;
+        output.textContent = data.content;
+      } catch (err) {
+        output.innerHTML = '<p style="color:var(--accent-red);padding:20px;">Error: ' + escapeHtml(err.message) + '</p>';
+      }
+    }
+    window.generateFundraising = generateFundraising;
+
+    function copyFundraisingContent() {
+      if (!currentFundContent) { showToast('No content to copy', 'error'); return; }
+      navigator.clipboard.writeText(currentFundContent).then(() => showToast('Content copied'));
+    }
+    window.copyFundraisingContent = copyFundraisingContent;
+
+    function saveFundraisingContent() {
+      if (!currentFundContent) { showToast('No content to save', 'error'); return; }
+      saveCampaignToServer(document.getElementById('fund-goal').value || 'Fundraising Content', document.getElementById('fund-type').value, currentFundContent, { stage: document.getElementById('fund-stage').value });
+    }
+    window.saveFundraisingContent = saveFundraisingContent;
+
+    async function saveCampaignToServer(title, type, content, metadata) {
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/save-campaign`, {
+          method: 'POST',
+          headers: getMarketingHeaders(),
+          body: JSON.stringify({ title, type, content, metadata })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Save failed');
+        showToast('Content saved successfully');
+      } catch (err) {
+        showToast('Failed to save: ' + err.message, 'error');
+      }
+    }
+
+    async function loadSavedCampaigns() {
+      const container = document.getElementById('saved-campaigns-list');
+      if (!container) return;
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/saved-campaigns`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const campaigns = data.campaigns || [];
+        if (campaigns.length === 0) {
+          container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No saved content yet. Generate and save content from other tabs.</p>';
+          return;
+        }
+        const typeLabels = { social_post: 'Social Post', email_campaign: 'Email Campaign', ad_copy: 'Ad Copy', blog_outline: 'Blog Outline', outreach_email: 'Outreach Email', press_release: 'Press Release', kickstarter_campaign: 'Crowdfunding', grant_application: 'Grant Application', investor_pitch: 'Investor Pitch', funding_research: 'Funding Research', campaign_strategy: 'Strategy' };
+        container.innerHTML = campaigns.map(c => {
+          const safeContent = escapeHtml(c.content);
+          return '<div style="padding:16px;border-bottom:1px solid var(--border-subtle);cursor:pointer;" onclick="this.querySelector(\'.saved-body\').style.display=this.querySelector(\'.saved-body\').style.display===\'none\'?\'block\':\'none\'">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+            '<div><strong>' + escapeHtml(c.title) + '</strong> <span style="background:var(--accent-blue-soft);color:var(--accent-blue);padding:2px 8px;border-radius:12px;font-size:0.75rem;margin-left:8px;">' + (typeLabels[c.type] || c.type) + '</span></div>' +
+            '<span style="color:var(--text-muted);font-size:0.85rem;">' + new Date(c.createdAt).toLocaleDateString() + '</span>' +
+            '</div>' +
+            '<div class="saved-body" style="display:none;margin-top:12px;padding:12px;background:var(--bg-elevated);border-radius:8px;white-space:pre-wrap;font-size:0.9rem;max-height:400px;overflow-y:auto;">' + safeContent + '</div>' +
+            '</div>';
+        }).join('');
+      } catch (err) {
+        container.innerHTML = '<p style="color:var(--accent-red);padding:20px;">Error loading saved content: ' + escapeHtml(err.message) + '</p>';
+      }
+    }
+    window.loadSavedCampaigns = loadSavedCampaigns;
+
+    async function runResearch() {
+      const category = document.getElementById('research-category').value;
+      const focus = document.getElementById('research-focus').value;
+      const customQuery = document.getElementById('research-custom').value;
+      const resultsDiv = document.getElementById('research-results');
+      const btn = document.getElementById('research-btn');
+      const sourceCount = document.getElementById('research-source-count');
+      btn.disabled = true;
+      btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px;"></span> Searching the web...';
+      resultsDiv.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is searching the internet for real opportunities...</p><p style="font-size:0.85rem;margin-top:8px;">This may take 30-60 seconds</p></div>';
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/research`, {
+          method: 'POST',
+          headers: getMarketingHeaders(),
+          body: JSON.stringify({ category, focus, customQuery: customQuery || undefined })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Research failed');
+        const opps = data.opportunities || [];
+        if (sourceCount) sourceCount.textContent = (data.sources?.length || 0) + ' web sources found';
+        if (opps.length === 0) {
+          resultsDiv.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No opportunities found. Try a different category or focus area.</p>';
+          return;
+        }
+        renderResearchResults(opps, data.sources || []);
+      } catch (err) {
+        resultsDiv.innerHTML = '<p style="color:var(--accent-red);padding:20px;">Error: ' + escapeHtml(err.message) + '</p>';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="icon-inline" data-icon="search"></span> Search & Find Opportunities';
+        if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn);
+      }
+    }
+    window.runResearch = runResearch;
+
+    function renderResearchResults(opportunities, sources) {
+      const container = document.getElementById('research-results');
+      if (!container) return;
+      const categoryColors = { grants: 'var(--accent-green)', investors: 'var(--accent-blue)', accelerators: 'var(--accent-gold)', partnerships: 'var(--accent-purple, #8b5cf6)', media: 'var(--accent-teal, #14b8a6)', competitions: 'var(--accent-red, #ef4444)' };
+      let html = '';
+      opportunities.forEach((opp, idx) => {
+        const color = categoryColors[opp.type] || 'var(--accent-blue)';
+        const statusBadge = opp.status === 'sent' ? '<span style="background:var(--accent-green-soft);color:var(--accent-green);padding:2px 8px;border-radius:12px;font-size:0.75rem;margin-left:8px;">Sent</span>' : '<span style="background:var(--accent-gold-soft);color:var(--accent-gold);padding:2px 8px;border-radius:12px;font-size:0.75rem;margin-left:8px;">Draft</span>';
+        html += '<div style="border:1px solid var(--border-subtle);border-radius:12px;padding:16px;margin-bottom:12px;border-left:4px solid ' + color + ';">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
+        html += '<div><strong style="font-size:1.05rem;">' + escapeHtml(opp.name) + '</strong>' + statusBadge + '</div>';
+        html += '<div style="display:flex;align-items:center;gap:4px;"><span class="icon-inline" data-icon="star"></span><span style="font-weight:600;">' + (opp.relevanceScore || '?') + '/10</span></div>';
+        html += '</div>';
+        html += '<p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:8px;">' + escapeHtml(opp.description || '') + '</p>';
+        html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;">';
+        if (opp.value) html += '<span><strong>Value:</strong> ' + escapeHtml(opp.value) + '</span>';
+        if (opp.deadline) html += '<span><strong>Deadline:</strong> ' + escapeHtml(opp.deadline) + '</span>';
+        if (opp.contactMethod) html += '<span><strong>Contact:</strong> ' + escapeHtml(opp.contactMethod) + '</span>';
+        html += '</div>';
+        html += '<details style="margin-top:8px;"><summary style="cursor:pointer;font-weight:500;color:var(--accent-blue);user-select:none;">View/Edit Outreach Email</summary>';
+        html += '<div style="margin-top:12px;padding:12px;background:var(--bg-elevated);border-radius:8px;">';
+        html += '<div style="margin-bottom:8px;"><label style="font-weight:500;font-size:0.85rem;">Subject:</label><input type="text" class="form-input outreach-subject" data-id="' + opp.id + '" value="' + escapeHtml(opp.emailSubject || '') + '" style="width:100%;margin-top:4px;"></div>';
+        html += '<div style="margin-bottom:8px;"><label style="font-weight:500;font-size:0.85rem;">Email Body:</label><textarea class="form-input outreach-body" data-id="' + opp.id + '" style="width:100%;min-height:120px;margin-top:4px;">' + escapeHtml(opp.emailBody || '') + '</textarea></div>';
+        html += '<div style="margin-bottom:8px;"><label style="font-weight:500;font-size:0.85rem;">Send To:</label><input type="email" class="form-input outreach-to" data-id="' + opp.id + '" placeholder="recipient@example.com" style="width:100%;margin-top:4px;"></div>';
+        html += '<div style="display:flex;gap:8px;margin-top:8px;">';
+        html += '<button class="btn btn-sm btn-primary" onclick="sendOutreach(' + opp.id + ', event)" style="background:var(--accent-green);"><span class="icon-inline" data-icon="send"></span> Send Email</button>';
+        html += '<button class="btn btn-sm" onclick="updateOutreach(' + opp.id + ')"><span class="icon-inline" data-icon="check"></span> Save Edits</button>';
+        html += '<button class="btn btn-sm" onclick="copyOutreachEmail(' + opp.id + ')"><span class="icon-inline" data-icon="clipboard"></span> Copy</button>';
+        html += '</div></div></details></div>';
+      });
+      if (sources.length > 0) {
+        html += '<div style="margin-top:16px;padding:12px;background:var(--bg-elevated);border-radius:8px;"><strong style="font-size:0.9rem;">Web Sources Used:</strong><ul style="margin:8px 0 0 16px;font-size:0.85rem;color:var(--text-muted);">';
+        sources.forEach(s => {
+          html += '<li style="margin-bottom:4px;"><a href="' + escapeHtml(s.url) + '" target="_blank" rel="noopener" style="color:var(--accent-blue);">' + escapeHtml(s.title || s.url) + '</a></li>';
+        });
+        html += '</ul></div>';
+      }
+      container.innerHTML = html;
+      if (typeof initInlineIcons !== 'undefined') initInlineIcons(container);
+    }
+
+    async function sendOutreach(id, evt) {
+      const subjectEl = document.querySelector('.outreach-subject[data-id="' + id + '"]');
+      const bodyEl = document.querySelector('.outreach-body[data-id="' + id + '"]');
+      const toEl = document.querySelector('.outreach-to[data-id="' + id + '"]');
+      if (!toEl || !toEl.value.trim()) { showToast('Enter a recipient email address', 'error'); return; }
+      if (!subjectEl?.value || !bodyEl?.value) { showToast('Subject and body are required', 'error'); return; }
+      const btn = evt ? evt.target.closest('button') : null;
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/outreach-send`, {
+          method: 'POST',
+          headers: getMarketingHeaders(),
+          body: JSON.stringify({ id, to: toEl.value.trim(), subject: subjectEl.value, body: bodyEl.value })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Send failed');
+        showToast('Outreach email sent successfully!');
+        if (btn) { btn.innerHTML = '<span class="icon-inline" data-icon="check"></span> Sent!'; btn.style.background = 'var(--accent-green)'; }
+      } catch (err) {
+        showToast('Failed to send: ' + err.message, 'error');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Send Email'; }
+      }
+    }
+    window.sendOutreach = sendOutreach;
+
+    async function updateOutreach(id) {
+      const subjectEl = document.querySelector('.outreach-subject[data-id="' + id + '"]');
+      const bodyEl = document.querySelector('.outreach-body[data-id="' + id + '"]');
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/outreach-update`, {
+          method: 'POST',
+          headers: getMarketingHeaders(),
+          body: JSON.stringify({ id, emailSubject: subjectEl?.value, emailBody: bodyEl?.value })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast('Edits saved');
+      } catch (err) {
+        showToast('Failed to save: ' + err.message, 'error');
+      }
+    }
+    window.updateOutreach = updateOutreach;
+
+    function copyOutreachEmail(id) {
+      const subjectEl = document.querySelector('.outreach-subject[data-id="' + id + '"]');
+      const bodyEl = document.querySelector('.outreach-body[data-id="' + id + '"]');
+      const text = 'Subject: ' + (subjectEl?.value || '') + '\n\n' + (bodyEl?.value || '');
+      navigator.clipboard.writeText(text).then(() => showToast('Email copied'));
+    }
+    window.copyOutreachEmail = copyOutreachEmail;
+
+    async function loadOutreachQueue() {
+      const resultsDiv = document.getElementById('research-results');
+      if (!resultsDiv) return;
+      resultsDiv.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:40px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">Loading outreach queue...</p></div>';
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/outreach-queue`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const items = data.items || [];
+        if (items.length === 0) {
+          resultsDiv.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No items in outreach queue. Run a research search first.</p>';
+          return;
+        }
+        renderResearchResults(items, []);
+      } catch (err) {
+        resultsDiv.innerHTML = '<p style="color:var(--accent-red);padding:20px;">Error: ' + escapeHtml(err.message) + '</p>';
+      }
+    }
+    window.loadOutreachQueue = loadOutreachQueue;
+
+    let emailOutreachLeads = [];
+
+    function toggleEmailOutreachSection() {
+      const filtersDiv = document.getElementById('email-outreach-filters');
+      const icon = document.getElementById('outreach-toggle-icon');
+      if (!filtersDiv) return;
+      const isHidden = filtersDiv.style.display === 'none';
+      filtersDiv.style.display = isHidden ? 'flex' : 'none';
+      if (icon) icon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+    window.toggleEmailOutreachSection = toggleEmailOutreachSection;
+
+    async function loadEmailOutreachLeads() {
+      const preview = document.getElementById('email-outreach-leads-preview');
+      if (!preview) return;
+      preview.style.display = 'block';
+      preview.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);">Loading leads...</div>';
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const type = document.getElementById('email-lead-type')?.value || '';
+        const minScore = document.getElementById('email-lead-score')?.value || '';
+        const source = document.getElementById('email-lead-source')?.value || '';
+        const params = new URLSearchParams();
+        if (type) params.set('type', type);
+        if (minScore) params.set('min_score', minScore);
+        if (source) params.set('source', source);
+        params.set('limit', '200');
+        const res = await fetch(`${apiBase}/api/admin/marketing/outreach-leads?${params}`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        emailOutreachLeads = (data.leads || []).filter(l => l.email);
+        if (emailOutreachLeads.length === 0) {
+          preview.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);">No leads with email addresses found for these filters.</div>';
+          const addBtn = document.getElementById('email-add-leads-btn');
+          if (addBtn) addBtn.style.display = 'none';
+          return;
+        }
+        preview.innerHTML = `<div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><span style="font-weight:500;">${emailOutreachLeads.length} leads with emails</span><label style="cursor:pointer;font-size:0.85rem;"><input type="checkbox" id="email-lead-select-all" onchange="toggleAllEmailLeads(this.checked)" checked> Select all</label></div>` +
+          emailOutreachLeads.map((l, i) => `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.85rem;border-bottom:1px solid var(--border-subtle);"><input type="checkbox" class="email-lead-cb" data-idx="${i}" checked onchange="updateEmailLeadCount()"> <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><strong>${escapeHtml(l.name || 'Unknown')}</strong> (${l.type})</span><span style="color:var(--text-muted);">${escapeHtml(l.email)}</span></div>`).join('');
+        const addBtn = document.getElementById('email-add-leads-btn');
+        if (addBtn) addBtn.style.display = 'block';
+        showToast(`Loaded ${emailOutreachLeads.length} leads from Outreach Engine`);
+      } catch (err) {
+        preview.innerHTML = '<div style="color:var(--accent-red);padding:12px;">Error: ' + escapeHtml(err.message) + '</div>';
+        const addBtn = document.getElementById('email-add-leads-btn');
+        if (addBtn) addBtn.style.display = 'none';
+      }
+    }
+    window.loadEmailOutreachLeads = loadEmailOutreachLeads;
+
+    function toggleAllEmailLeads(checked) {
+      document.querySelectorAll('.email-lead-cb').forEach(cb => cb.checked = checked);
+    }
+    window.toggleAllEmailLeads = toggleAllEmailLeads;
+
+    function updateEmailLeadCount() {
+      const checked = document.querySelectorAll('.email-lead-cb:checked').length;
+      const selectAll = document.getElementById('email-lead-select-all');
+      if (selectAll) selectAll.checked = checked === emailOutreachLeads.length;
+    }
+    window.updateEmailLeadCount = updateEmailLeadCount;
+
+    function addSelectedLeadsToRecipients() {
+      const selected = [];
+      document.querySelectorAll('.email-lead-cb:checked').forEach(cb => {
+        const idx = parseInt(cb.dataset.idx);
+        if (emailOutreachLeads[idx]?.email) selected.push(emailOutreachLeads[idx].email);
+      });
+      if (selected.length === 0) { showToast('No leads selected', 'error'); return; }
+      const textarea = document.getElementById('email-recipients');
+      if (!textarea) return;
+      const existing = textarea.value.split(',').map(e => e.trim()).filter(Boolean);
+      const merged = [...new Set([...existing, ...selected])];
+      textarea.value = merged.join(', ');
+      showToast(`Added ${selected.length} leads (${merged.length} total recipients)`);
+      checkEmailDedup();
+    }
+    window.addSelectedLeadsToRecipients = addSelectedLeadsToRecipients;
+
+    async function checkEmailDedup() {
+      const status = document.getElementById('email-dedup-status');
+      if (!status) return;
+      const textarea = document.getElementById('email-recipients');
+      if (!textarea) return;
+      const emails = textarea.value.split(',').map(e => e.trim()).filter(e => e.includes('@'));
+      if (emails.length === 0) { status.textContent = ''; return; }
+      status.innerHTML = '<span style="color:var(--text-muted);font-size:0.8rem;">Checking duplicates...</span>';
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/check-dedup`, {
+          method: 'POST',
+          headers: getMarketingHeaders(),
+          body: JSON.stringify({ emails })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const dupCount = (data.duplicates || []).length;
+        if (dupCount > 0) {
+          status.innerHTML = `<span style="color:var(--accent-gold);font-size:0.8rem;">${dupCount} recipient(s) recently contacted via Outreach Engine</span>`;
+        } else {
+          status.innerHTML = '<span style="color:var(--accent-green);font-size:0.8rem;">No recent duplicates found</span>';
+        }
+      } catch (err) {
+        status.innerHTML = '<span style="color:var(--text-muted);font-size:0.8rem;">Dedup check unavailable</span>';
+      }
+    }
+    window.checkEmailDedup = checkEmailDedup;
+
+    async function sendCampaignToLeads() {
+      if (!currentEmailHtml) { showToast('Generate an email first', 'error'); return; }
+      const selectedIds = [];
+      document.querySelectorAll('.email-lead-cb:checked').forEach(cb => {
+        const idx = parseInt(cb.dataset.idx);
+        if (emailOutreachLeads[idx]?.id) selectedIds.push(emailOutreachLeads[idx].id);
+      });
+      if (selectedIds.length === 0) { showToast('No leads selected', 'error'); return; }
+      if (!confirm(`Send this email campaign to ${selectedIds.length} outreach leads? This will also log the send in the Outreach Engine.`)) return;
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/marketing/campaign-to-leads`, {
+          method: 'POST',
+          headers: getMarketingHeaders(),
+          body: JSON.stringify({ subject: currentEmailSubject || 'MCC Campaign', html: currentEmailHtml, lead_ids: selectedIds, fromName: 'My Car Concierge' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Send failed');
+        showToast(`Campaign sent: ${data.sent} delivered, ${data.skipped} skipped, ${data.failed} failed`);
+      } catch (err) {
+        showToast('Send failed: ' + err.message, 'error');
+      }
+    }
+    window.sendCampaignToLeads = sendCampaignToLeads;
+
+    async function loadGrowthFunnel() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/marketing/pipeline-metrics`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load metrics');
+
+        const el = (id) => document.getElementById(id);
+        if (el('funnel-total-leads')) el('funnel-total-leads').textContent = (data.total_leads || 0).toLocaleString();
+        if (el('funnel-messages-sent')) el('funnel-messages-sent').textContent = (data.total_messages_sent || 0).toLocaleString();
+        if (el('funnel-response-rate')) el('funnel-response-rate').textContent = (data.response_rate || 0).toFixed(1) + '%';
+
+        const funnel = data.conversion_funnel || {};
+        const convRate = funnel.discovered > 0 ? ((funnel.converted || 0) / funnel.discovered * 100).toFixed(1) : '0.0';
+        if (el('funnel-conversion-rate')) el('funnel-conversion-rate').textContent = convRate + '%';
+
+        const byType = data.leads_by_type || {};
+        const typeContainer = el('funnel-leads-by-type');
+        if (typeContainer) {
+          const typeColors = { provider: 'var(--accent-blue)', member: 'var(--accent-green)', investor: 'var(--accent-gold)' };
+          const total = Object.values(byType).reduce((s, v) => s + v, 0) || 1;
+          typeContainer.innerHTML = Object.entries(byType).map(([type, count]) => 
+            `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-subtle);"><div style="display:flex;align-items:center;gap:8px;"><span style="width:10px;height:10px;border-radius:50%;background:${typeColors[type] || 'var(--text-muted)'};"></span><span style="text-transform:capitalize;">${type}</span></div><div style="display:flex;align-items:center;gap:12px;"><div style="width:120px;height:6px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;"><div style="height:100%;background:${typeColors[type] || 'var(--text-muted)'};width:${(count/total*100).toFixed(0)}%;border-radius:3px;"></div></div><strong>${count.toLocaleString()}</strong></div></div>`
+          ).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px;">No leads yet</p>';
+        }
+
+        const bySource = data.leads_by_source || {};
+        const sourceContainer = el('funnel-leads-by-source');
+        if (sourceContainer) {
+          const srcTotal = Object.values(bySource).reduce((s, v) => s + v, 0) || 1;
+          const sourceLabels = { google_places: 'Google Places', community_discovery: 'Community Discovery', crm_reengagement: 'CRM Re-engagement', referral_nudge: 'Referral Nudge', stalled_application: 'Stalled Applications', manual: 'Manual Entry', csv_import: 'CSV Import', member_places: 'Member Places' };
+          sourceContainer.innerHTML = Object.entries(bySource).sort((a,b) => b[1]-a[1]).map(([src, count]) => 
+            `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;"><span style="font-size:0.9rem;">${sourceLabels[src] || src.replace(/_/g, ' ')}</span><div style="display:flex;align-items:center;gap:8px;"><div style="width:80px;height:5px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--accent-blue);width:${(count/srcTotal*100).toFixed(0)}%;border-radius:3px;"></div></div><span style="font-weight:500;min-width:30px;text-align:right;">${count}</span></div></div>`
+          ).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px;">No data</p>';
+        }
+
+        const stagesContainer = el('funnel-stages');
+        if (stagesContainer) {
+          const stages = [
+            { key: 'discovered', label: 'Discovered', color: '#6366f1' },
+            { key: 'scored', label: 'Scored', color: '#8b5cf6' },
+            { key: 'drafted', label: 'Drafted', color: '#a855f7' },
+            { key: 'sent', label: 'Sent', color: '#d946ef' },
+            { key: 'responded', label: 'Responded', color: '#ec4899' },
+            { key: 'converted', label: 'Converted', color: '#22c55e' }
+          ];
+          const maxVal = Math.max(...stages.map(s => funnel[s.key] || 0), 1);
+          stagesContainer.innerHTML = stages.map(s => {
+            const val = funnel[s.key] || 0;
+            const pct = (val / maxVal * 100).toFixed(0);
+            return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;"><span style="min-width:80px;font-size:0.85rem;text-align:right;">${s.label}</span><div style="flex:1;height:24px;background:var(--bg-tertiary);border-radius:6px;overflow:hidden;position:relative;"><div style="height:100%;background:${s.color};width:${pct}%;border-radius:6px;transition:width 0.5s ease;"></div><span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:0.8rem;font-weight:600;">${val.toLocaleString()}</span></div></div>`;
+          }).join('');
+        }
+
+        const regionsContainer = el('funnel-top-regions');
+        if (regionsContainer) {
+          const regions = data.top_regions || [];
+          regionsContainer.innerHTML = regions.length > 0 ? regions.slice(0, 15).map((r, i) => 
+            `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;${i < regions.length - 1 ? 'border-bottom:1px solid var(--border-subtle);' : ''}"><span style="font-size:0.9rem;">${escapeHtml(r.region || r.city || 'Unknown')}</span><strong>${(r.count || 0).toLocaleString()}</strong></div>`
+          ).join('') : '<p style="color:var(--text-muted);text-align:center;padding:20px;">No regional data yet</p>';
+        }
+
+      } catch (err) {
+        console.error('Growth funnel load error:', err);
+      }
+    }
+    window.loadGrowthFunnel = loadGrowthFunnel;
+
+    function switchOutreachTab(tab) {
+      const panels = document.querySelectorAll('.outreach-panel');
+      panels.forEach(p => { p.style.display = 'none'; });
+      const buttons = document.querySelectorAll('.outreach-tab');
+      buttons.forEach(b => b.classList.remove('active'));
+      const activeBtn = document.querySelector(`.outreach-tab[data-tab="${tab}"]`);
+      if (activeBtn) activeBtn.classList.add('active');
+      const panelMap = {
+        pipeline: 'outreach-pipeline', queue: 'outreach-queue', leads: 'outreach-leads',
+        campaigns: 'outreach-campaigns', import: 'outreach-import', analytics: 'outreach-analytics', instantly: 'outreach-instantly'
+      };
+      const panelId = panelMap[tab];
+      if (panelId) {
+        const panel = document.getElementById(panelId);
+        if (panel) panel.style.display = 'block';
+      }
+      if (tab === 'queue') loadApprovalQueue();
+      else if (tab === 'leads') loadOutreachLeads();
+      else if (tab === 'campaigns') loadOutreachCampaigns();
+      else if (tab === 'pipeline') loadOutreachPipeline();
+      else if (tab === 'analytics') { if (window.loadGrowthFunnel) loadGrowthFunnel(); if (window.loadOutreachAnalytics) loadOutreachAnalytics(); }
+      else if (tab === 'instantly') loadInstantlyCampaigns();
+    }
+    window.switchOutreachTab = switchOutreachTab;
+
+    async function loadApprovalQueue() {
+      const listEl = document.getElementById('outreach-queue-list');
+      const bulkBar = document.getElementById('outreach-bulk-bar');
+      if (!listEl) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading approval queue...</div>';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/marketing/outreach-queue?status=draft&limit=50`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load queue');
+        const messages = data.data || data.items || [];
+        if (bulkBar) bulkBar.style.display = messages.length > 0 ? 'block' : 'none';
+        if (messages.length === 0) {
+          listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No messages pending approval. Run a cycle to generate new drafts.</p>';
+          return;
+        }
+        listEl.innerHTML = messages.map(m => {
+          const lead = m.outreach_leads || {};
+          const ch = m.channel === 'email' ? '✉️' : '💬';
+          return `<div id="queue-msg-${m.id}" style="padding:16px;border-bottom:1px solid var(--border-subtle);">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;margin-bottom:2px;">${ch} ${escapeHtml(lead.name || 'Unknown')} <span style="font-size:0.8rem;color:var(--text-muted);font-weight:400;">${escapeHtml(lead.company || lead.type || '')}</span></div>
+                <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${escapeHtml(m.channel === 'email' ? (lead.email || '') : (lead.phone || ''))}</div>
+                ${m.subject ? `<div style="font-size:0.85rem;font-weight:500;margin-bottom:6px;">Subject: ${escapeHtml(m.subject)}</div>` : ''}
+                <div style="font-size:0.9rem;color:var(--text-secondary);white-space:pre-wrap;max-height:120px;overflow:hidden;line-height:1.5;">${escapeHtml((m.body || '').substring(0, 400))}${(m.body || '').length > 400 ? '…' : ''}</div>
+              </div>
+              <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button class="btn btn-sm btn-primary" onclick="approveMessage('${m.id}')"><span class="icon-inline" data-icon="check"></span> Approve</button>
+                <button class="btn btn-sm" onclick="skipMessage('${m.id}')" style="border-color:var(--text-muted);color:var(--text-muted);"><span class="icon-inline" data-icon="x"></span> Skip</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+        if (window.renderIcons) renderIcons(listEl);
+      } catch (err) {
+        listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+    window.loadApprovalQueue = loadApprovalQueue;
+
+    async function approveMessage(messageId) {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/messages/approve`, {
+          method: 'POST',
+          headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message_id: messageId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to approve');
+        const el = document.getElementById(`queue-msg-${messageId}`);
+        if (el) { el.style.opacity = '0.4'; el.style.pointerEvents = 'none'; el.querySelector('.btn.btn-primary').textContent = '✓ Approved'; }
+        if (window.showToast) showToast('Message approved and queued for sending', 'success');
+      } catch (err) {
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.approveMessage = approveMessage;
+
+    async function skipMessage(messageId) {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/messages/skip`, {
+          method: 'POST',
+          headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message_id: messageId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to skip');
+        const el = document.getElementById(`queue-msg-${messageId}`);
+        if (el) el.remove();
+        if (window.showToast) showToast('Message skipped', 'success');
+      } catch (err) {
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.skipMessage = skipMessage;
+
+    async function runCycleNow() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const btn = document.querySelector('[onclick="runCycleNow()"]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Running…'; }
+      try {
+        const res = await fetch(`${apiBase}/api/admin/marketing/outreach-cycle`, {
+          method: 'POST',
+          headers: getMarketingHeaders()
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Cycle failed');
+        if (window.showToast) showToast(`Cycle complete — ${data.drafted || 0} drafted, ${data.sent || 0} sent`, 'success');
+        setTimeout(loadApprovalQueue, 1000);
+      } catch (err) {
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Run Cycle Now'; if (window.renderIcons) renderIcons(btn); }
+      }
+    }
+    window.runCycleNow = runCycleNow;
+
+    async function flushApprovedQueue() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const btn = document.getElementById('flush-queue-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/messages/flush-queue`, {
+          method: 'POST',
+          headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ batch_size: 50 })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Flush failed');
+        if (window.showToast) showToast(`Sent ${data.sent} — ${data.skipped} skipped (${data.errors} errors)`, data.sent > 0 ? 'success' : 'info');
+        setTimeout(loadApprovalQueue, 1500);
+      } catch (err) {
+        if (window.showToast) showToast('Flush error: ' + err.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Send Approved'; if (window.renderIcons) renderIcons(btn); }
+      }
+    }
+    window.flushApprovedQueue = flushApprovedQueue;
+
+    async function clearAndRedraft() {
+      if (!confirm('This will delete all draft/approved messages and run a fresh cycle. Continue?')) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/clear-and-redraft`, {
+          method: 'POST',
+          headers: getMarketingHeaders()
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        if (window.showToast) showToast(`Cleared ${data.cleared || 0} messages and ran fresh cycle`, 'success');
+        setTimeout(loadApprovalQueue, 1000);
+      } catch (err) {
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.clearAndRedraft = clearAndRedraft;
+
+    async function bulkApproveAll() {
+      if (!confirm('Approve all draft messages for sending?')) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const listRes = await fetch(`${apiBase}/api/admin/marketing/outreach-queue?status=draft&limit=200`, { headers: getMarketingHeaders() });
+        const listData = await listRes.json();
+        if (!listRes.ok) throw new Error(listData.error || 'Failed to load messages');
+        const messageIds = (listData.data || listData.items || []).map(m => m.id);
+        if (messageIds.length === 0) { if (window.showToast) showToast('No draft messages to approve', 'error'); return; }
+        const res = await fetch(`${apiBase}/api/admin/outreach/messages/approve-bulk`, {
+          method: 'POST',
+          headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message_ids: messageIds })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to approve');
+        if (window.showToast) showToast(`Approved ${data.approved || 0} messages`, 'success');
+        setTimeout(loadApprovalQueue, 800);
+      } catch (err) {
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.bulkApproveAll = bulkApproveAll;
+
+    async function syncLeadsToInstantly() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const campaignId = (document.getElementById('instantly-sync-campaign') || {}).value?.trim() || '';
+      const syncLimit = parseInt((document.getElementById('instantly-sync-limit') || {}).value || '500', 10);
+      const resultEl = document.getElementById('instantly-sync-result');
+      const btn = document.getElementById('instantly-sync-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+      if (resultEl) { resultEl.style.display = 'none'; resultEl.innerHTML = ''; }
+      try {
+        const payload = { limit: syncLimit, min_score: 0 };
+        if (campaignId) payload.campaign_id = campaignId;
+        const res = await fetch(`${apiBase}/api/admin/marketing/instantly-sync`, {
+          method: 'POST',
+          headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Sync failed');
+        if (resultEl) {
+          resultEl.style.display = 'block';
+          resultEl.style.color = 'var(--accent-green)';
+          resultEl.innerHTML = `<strong>Sync complete!</strong><br>Leads synced: ${data.synced || 0}<br>${data.message || ''}`;
+        }
+        if (window.showToast) showToast(`Synced ${data.synced || 0} leads to Instantly.ai`, 'success');
+      } catch (err) {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Sync Leads Now'; if (window.renderIcons) renderIcons(btn); }
+      }
+    }
+    window.syncLeadsToInstantly = syncLeadsToInstantly;
+
+    async function createInstantlyCampaign() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const name = (document.getElementById('instantly-campaign-name') || {}).value?.trim() || '';
+      const resultEl = document.getElementById('instantly-campaign-result');
+      if (!name) { if (window.showToast) showToast('Campaign name is required', 'error'); return; }
+      if (resultEl) { resultEl.style.display = 'none'; resultEl.innerHTML = ''; }
+      try {
+        const res = await fetch(`${apiBase}/api/admin/marketing/instantly-create-campaign`, {
+          method: 'POST',
+          headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, subject: 'Grow your auto service business with My Car Concierge', body: 'Hi {{first_name}},\n\nI wanted to reach out about My Car Concierge — a platform connecting local auto service providers with car owners in your area.\n\nWould you be open to a quick chat?\n\nBest,\nThe My Car Concierge Team' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || JSON.stringify(data));
+        if (resultEl) {
+          resultEl.style.display = 'block';
+          resultEl.style.color = 'var(--accent-green)';
+          resultEl.innerHTML = `<strong>Campaign created!</strong><br>ID: ${data.id || data.campaign_id || 'N/A'}<br>Name: ${escapeHtml(data.name || name)}`;
+        }
+        if (window.showToast) showToast('Instantly campaign created successfully', 'success');
+        setTimeout(loadInstantlyCampaigns, 1000);
+      } catch (err) {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.createInstantlyCampaign = createInstantlyCampaign;
+
+    async function loadInstantlyCampaigns() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const listEl = document.getElementById('instantly-campaigns-list');
+      if (!listEl) return;
+      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:24px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading campaigns…</div>';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/marketing/instantly-campaigns`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const campaigns = data.items || data.campaigns || data.data || [];
+        if (campaigns.length === 0) {
+          listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;">No campaigns found in Instantly.ai.</p>';
+          return;
+        }
+        listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+          <thead><tr style="border-bottom:1px solid var(--border-subtle);">
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Name</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Status</th>
+            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Emails Sent</th>
+            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Open Rate</th>
+            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Reply Rate</th>
+          </tr></thead>
+          <tbody>${campaigns.map(c => {
+            const sent = c.emails_sent_count || 0;
+            const openRate = typeof c.open_rate === 'number' ? c.open_rate.toFixed(1) + '%' : '—';
+            const replyRate = typeof c.reply_rate === 'number' ? c.reply_rate.toFixed(1) + '%' : '—';
+            return `<tr style="border-bottom:1px solid var(--border-subtle);">
+              <td style="padding:10px 12px;font-weight:500;">${escapeHtml(c.name || 'Unnamed')}</td>
+              <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.8rem;background:${c.status === 'active' ? 'var(--accent-green)' : 'var(--bg-tertiary)'};color:${c.status === 'active' ? '#fff' : 'var(--text-muted)'};">${escapeHtml(c.status || 'draft')}</span></td>
+              <td style="padding:10px 12px;text-align:right;">${sent.toLocaleString()}</td>
+              <td style="padding:10px 12px;text-align:right;font-weight:${c.open_rate > 0 ? '600' : '400'};color:${c.open_rate > 20 ? 'var(--accent-green)' : c.open_rate > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${openRate}</td>
+              <td style="padding:10px 12px;text-align:right;font-weight:${c.reply_rate > 0 ? '600' : '400'};color:${c.reply_rate > 5 ? 'var(--accent-green)' : c.reply_rate > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${replyRate}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>`;
+      } catch (err) {
+        listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+    window.loadInstantlyCampaigns = loadInstantlyCampaigns;
+
+    async function loadOutreachPipeline() {
+      const listEl = document.getElementById('outreach-pipeline-list');
+      if (!listEl) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const priority = document.getElementById('pipeline-filter-priority')?.value || '';
+      const stage = document.getElementById('pipeline-filter-stage')?.value || '';
+      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading pipeline…</div>';
+      try {
+        const params = new URLSearchParams();
+        if (priority) params.set('priority', priority);
+        if (stage) params.set('stage', stage);
+        const res = await fetch(`${apiBase}/api/admin/outreach/pipeline?${params}`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const rows = Array.isArray(data) ? data : (data.data || []);
+        if (rows.length === 0) {
+          listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No leads in pipeline yet. Score some leads to populate this view.</p>';
+          return;
+        }
+        const priorityColors = { high: 'var(--accent-green)', medium: 'var(--accent-gold)', low: 'var(--text-muted)' };
+        const stageLabels = { new: 'New', draft_ready: 'Draft Ready', message_queued: 'Queued', contacted: 'Contacted', converted: 'Converted' };
+        listEl.innerHTML = rows.map(r => {
+          const lead = r.outreach_leads || {};
+          const score = (r.opportunity_score || 0).toFixed(0);
+          const pColor = priorityColors[r.priority] || 'var(--text-muted)';
+          return `<div style="display:grid;grid-template-columns:60px 1fr 60px 1fr auto 100px 90px auto;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border-subtle);font-size:0.875rem;">
+            <span style="padding:2px 8px;border-radius:20px;background:${pColor};color:#fff;font-size:0.75rem;text-align:center;font-weight:600;">${(r.priority || 'low').toUpperCase()}</span>
+            <div><div style="font-weight:500;">${escapeHtml(lead.name || '—')}</div><div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(lead.company || lead.type || '')}</div></div>
+            <span style="font-weight:700;text-align:center;">${score}</span>
+            <span style="font-size:0.8rem;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml((r.ai_notes || '').substring(0, 60))}${(r.ai_notes || '').length > 60 ? '…' : ''}</span>
+            <span style="font-size:0.8rem;">${r.preferred_channel || 'email'}</span>
+            <span style="padding:2px 8px;border-radius:20px;background:var(--bg-tertiary);font-size:0.75rem;">${stageLabels[r.stage] || r.stage || ''}</span>
+            <span style="font-size:0.75rem;color:var(--text-muted);">${r.added_at ? new Date(r.added_at).toLocaleDateString() : '—'}</span>
+            <button class="btn btn-sm" onclick="window.outreachFetch && outreachFetch('/messages/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:'${lead.id}'})}).then(()=>{showToast('Draft created');loadApprovalQueue();switchOutreachTab('queue');})">Draft</button>
+          </div>`;
+        }).join('');
+      } catch (err) {
+        listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+    window.loadOutreachPipeline = loadOutreachPipeline;
+
+    async function loadOutreachLeads() {
+      const listEl = document.getElementById('outreach-leads-list');
+      if (!listEl) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const search = document.getElementById('leads-search')?.value?.trim() || '';
+      const type = document.getElementById('leads-filter-type')?.value || '';
+      const status = document.getElementById('leads-filter-status')?.value || '';
+      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading leads…</div>';
+      try {
+        const params = new URLSearchParams({ limit: '50' });
+        if (search) params.set('search', search);
+        if (type) params.set('type', type);
+        if (status) params.set('status', status);
+        const res = await fetch(`${apiBase}/api/admin/outreach/leads?${params}`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const leads = data.data || [];
+        if (leads.length === 0) {
+          listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No leads found.</p>';
+          return;
+        }
+        listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+          <thead><tr style="border-bottom:1px solid var(--border-subtle);">
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Name</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Type</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Email</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Location</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Status</th>
+            <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Score</th>
+          </tr></thead>
+          <tbody>${leads.map(l => `<tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px 12px;font-weight:500;">${escapeHtml(l.name || '—')}<div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(l.company || '')}</div></td>
+            <td style="padding:10px 12px;text-transform:capitalize;">${escapeHtml(l.type || '—')}</td>
+            <td style="padding:10px 12px;font-size:0.85rem;">${escapeHtml(l.email || '—')}</td>
+            <td style="padding:10px 12px;font-size:0.85rem;">${escapeHtml(l.location || '—')}</td>
+            <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.75rem;background:var(--bg-tertiary);">${escapeHtml(l.status || 'new')}</span></td>
+            <td style="padding:10px 12px;text-align:right;font-weight:600;">${l.score != null ? l.score.toFixed(0) : '—'}</td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+      } catch (err) {
+        listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+    window.loadOutreachLeads = loadOutreachLeads;
+
+    async function loadOutreachCampaigns() {
+      const listEl = document.getElementById('outreach-campaigns-list');
+      if (!listEl) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading campaigns…</div>';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/outreach/campaigns`, { headers: getMarketingHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const campaigns = Array.isArray(data) ? data : (data.data || []);
+        if (campaigns.length === 0) {
+          listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No campaigns yet. Create one to get started.</p>';
+          return;
+        }
+        listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+          <thead><tr style="border-bottom:1px solid var(--border-subtle);">
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Name</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Target</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Channel</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Status</th>
+            <th style="text-align:left;padding:8px 12px;color:var(--text-muted);font-weight:500;">Auto-Send</th>
+          </tr></thead>
+          <tbody>${campaigns.map(c => `<tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px 12px;font-weight:500;">${escapeHtml(c.name || '—')}</td>
+            <td style="padding:10px 12px;text-transform:capitalize;">${escapeHtml(c.target_type || '—')}</td>
+            <td style="padding:10px 12px;text-transform:capitalize;">${escapeHtml(c.channel || '—')}</td>
+            <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.75rem;background:${c.status === 'active' ? 'var(--accent-green)' : 'var(--bg-tertiary)'};color:${c.status === 'active' ? '#fff' : 'var(--text-primary)'};">${escapeHtml(c.status || 'draft')}</span></td>
+            <td style="padding:10px 12px;">${c.auto_send_followups ? '<span style="color:var(--accent-green);">Yes</span>' : '<span style="color:var(--text-muted);">No</span>'}</td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+      } catch (err) {
+        listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+    window.loadOutreachCampaigns = loadOutreachCampaigns;
+
+    function outreachFetch(pathname, opts) {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      return fetch(`${apiBase}/api/admin/outreach${pathname}`, {
+        ...opts,
+        headers: { ...getMarketingHeaders(), ...(opts && opts.headers ? opts.headers : {}) }
+      }).then(r => r.json());
+    }
+    window.outreachFetch = outreachFetch;
+
+    // ========== AI OPS AGENT ==========
+
+    let aiOpsCurrentTab = 'activity';
+    let aiOpsActivityPage = 1;
+    let aiOpsDigests = [];
+
+    function getAiOpsHeaders() {
+      const headers = {};
+      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
+      else if (adminPasswordVerified) headers['x-admin-password'] = adminPasswordVerified;
+      else { const p = localStorage.getItem('mcc_admin_pass'); if (p) headers['x-admin-password'] = p; }
+      return headers;
+    }
+
+    function switchAiOpsTab(tab) {
+      aiOpsCurrentTab = tab;
+      ['activity', 'escalations', 'digest', 'settings'].forEach(t => {
+        const btn = document.getElementById(`ai-ops-tab-${t}`);
+        const panel = document.getElementById(`ai-ops-panel-${t}`);
+        if (btn) { btn.style.borderBottomColor = t === tab ? 'var(--accent-blue)' : 'transparent'; btn.style.color = t === tab ? 'var(--accent-blue)' : 'var(--text-secondary)'; btn.style.fontWeight = t === tab ? '600' : '400'; }
+        if (panel) panel.style.display = t === tab ? '' : 'none';
+      });
+      if (tab === 'activity') loadAiOpsActivity();
+      else if (tab === 'escalations') loadAiOpsEscalations();
+      else if (tab === 'digest') loadAiOpsDigests();
+      else if (tab === 'settings') loadAiOpsSettings();
+    }
+    window.switchAiOpsTab = switchAiOpsTab;
+
+    async function initAiOps() {
+      await loadAiOpsActivity();
+      loadAiOpsEscalations();
+      loadAiOpsSettings();
+    }
+
+    async function loadAiOpsActivity() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const listEl = document.getElementById('ai-ops-activity-list');
+      const pagEl = document.getElementById('ai-ops-activity-pagination');
+      if (!listEl) return;
+      const mod = document.getElementById('ai-ops-module-filter')?.value || '';
+      listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>';
+      try {
+        const params = new URLSearchParams({ page: aiOpsActivityPage, limit: 25 });
+        if (mod) params.set('module', mod);
+        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/actions?${params}`, { headers: getAiOpsHeaders() });
+        const actions = data.actions || [];
+        if (actions.length === 0) {
+          listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No AI actions logged yet. Run an AI Ops module to see activity here.</div>';
+          if (pagEl) pagEl.innerHTML = '';
+          return;
+        }
+        const confColor = c => c >= 0.9 ? 'var(--accent-green)' : c >= 0.7 ? 'var(--accent-gold)' : 'var(--accent-red)';
+        listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead><tr style="border-bottom:2px solid var(--border-subtle);">
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Module</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Action</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Target</th>
+            <th style="padding:10px 12px;text-align:center;color:var(--text-muted);font-weight:500;">Confidence</th>
+            <th style="padding:10px 12px;text-align:center;color:var(--text-muted);font-weight:500;">Auto</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Outcome</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Time</th>
+          </tr></thead>
+          <tbody>${actions.map(a => `<tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px 12px;"><span style="background:var(--bg-tertiary);padding:2px 8px;border-radius:6px;font-size:0.8rem;font-family:monospace;">${escapeHtml(a.module || '—')}</span></td>
+            <td style="padding:10px 12px;">${escapeHtml(a.action_type || '—')}</td>
+            <td style="padding:10px 12px;color:var(--text-muted);font-size:0.82rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(a.target_id || '')}">${escapeHtml((a.target_id || '—').substring(0, 12))}…</td>
+            <td style="padding:10px 12px;text-align:center;"><span style="color:${confColor(a.confidence || 0)};font-weight:600;">${((a.confidence || 0) * 100).toFixed(0)}%</span></td>
+            <td style="padding:10px 12px;text-align:center;">${a.auto_executed ? '<span style="color:var(--accent-green);">✓</span>' : a.escalated ? '<span style="color:var(--accent-gold);">⬆</span>' : '<span style="color:var(--text-muted);">—</span>'}</td>
+            <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.78rem;background:${a.outcome === 'executed' ? 'var(--accent-green)' : a.outcome === 'escalated' ? '#f59e0b' : a.outcome === 'error' ? 'var(--accent-red)' : 'var(--bg-tertiary)'};color:${a.outcome === 'executed' || a.outcome === 'escalated' || a.outcome === 'error' ? '#fff' : 'var(--text-primary)'};">${escapeHtml(a.outcome || 'pending')}</span></td>
+            <td style="padding:10px 12px;color:var(--text-muted);font-size:0.82rem;">${new Date(a.created_at).toLocaleDateString()} ${new Date(a.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+        if (pagEl) {
+          const total = data.total || 0;
+          const totalPages = data.totalPages || 1;
+          pagEl.innerHTML = total > 25 ? renderPaginationControls({ page: aiOpsActivityPage, limit: 25, total, totalPages }, 'changeAiOpsActivityPage') : '';
+        }
+      } catch (err) {
+        listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+    window.loadAiOpsActivity = loadAiOpsActivity;
+
+    function changeAiOpsActivityPage(delta) { aiOpsActivityPage += delta; loadAiOpsActivity(); }
+    window.changeAiOpsActivityPage = changeAiOpsActivityPage;
+
+    async function loadAiOpsEscalations() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const listEl = document.getElementById('ai-ops-escalations-list');
+      if (!listEl) return;
+      listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading escalations…</div>';
+      try {
+        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/escalations?status=pending`, { headers: getAiOpsHeaders() });
+        const escs = data.escalations || [];
+        const badge = document.getElementById('ai-ops-esc-badge');
+        if (badge) { badge.textContent = escs.length; badge.style.display = escs.length > 0 ? 'inline' : 'none'; }
+        if (escs.length === 0) {
+          listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No pending escalations. All clear!</div>';
+          return;
+        }
+        listEl.innerHTML = escs.map(e => {
+          const rec = e.recommendation || {};
+          return `<div style="border:1px solid var(--border-subtle);border-radius:12px;padding:20px;margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+              <div>
+                <span style="background:var(--bg-tertiary);padding:2px 10px;border-radius:6px;font-size:0.8rem;font-family:monospace;">${escapeHtml(e.module || '—')}</span>
+                <span style="margin-left:8px;color:var(--text-muted);font-size:0.85rem;">${new Date(e.created_at).toLocaleDateString()}</span>
+              </div>
+              <span style="color:var(--accent-gold);font-weight:600;font-size:0.85rem;">Confidence: ${((e.confidence || 0) * 100).toFixed(0)}%</span>
+            </div>
+            <div style="margin-bottom:8px;"><strong>Target:</strong> <code style="font-size:0.82rem;background:var(--bg-tertiary);padding:2px 6px;border-radius:4px;">${escapeHtml(e.target_id || '—')}</code></div>
+            <div style="margin-bottom:8px;"><strong>AI Recommendation:</strong> <span style="color:var(--accent-blue);">${escapeHtml(rec.recommendation || '—')}</span></div>
+            ${rec.reasoning ? `<div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:0.88rem;color:var(--text-secondary);">${escapeHtml(rec.reasoning)}</div>` : ''}
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-primary btn-sm" onclick="resolveAiEscalation('${e.id}', 'approve')">✓ Approve AI Recommendation</button>
+              <button class="btn btn-secondary btn-sm" onclick="showEscalationOverride('${e.id}')">↩ Override</button>
+            </div>
+            <div id="esc-override-${e.id}" style="display:none;margin-top:12px;padding:12px;background:var(--bg-secondary);border-radius:8px;">
+              <label style="display:block;font-size:0.82rem;color:var(--text-muted);margin-bottom:6px;">Admin Decision</label>
+              <select id="esc-decision-${e.id}" style="width:100%;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-tertiary);color:var(--text-primary);font-size:0.88rem;margin-bottom:8px;">
+                <option value="deny_refund">Deny Refund</option>
+                <option value="full_refund">Issue Full Refund</option>
+                <option value="partial_refund">Issue Partial Refund</option>
+                <option value="escalate_to_support">Escalate to Support Team</option>
+                <option value="no_action">No Action Required</option>
+                <option value="manual_review">Requires Manual Review</option>
+              </select>
+              <label style="display:block;font-size:0.82rem;color:var(--text-muted);margin-bottom:6px;">Override Notes</label>
+              <textarea id="esc-notes-${e.id}" placeholder="Explain your override reason…" style="width:100%;padding:8px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-tertiary);color:var(--text-primary);font-size:0.85rem;min-height:60px;resize:vertical;"></textarea>
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <button class="btn btn-secondary btn-sm" onclick="resolveAiEscalation('${e.id}', 'override')">Confirm Override</button>
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('esc-override-${e.id}').style.display='none'">Cancel</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+      } catch (err) {
+        listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+    window.loadAiOpsEscalations = loadAiOpsEscalations;
+
+    function showEscalationOverride(id) {
+      const el = document.getElementById(`esc-override-${id}`);
+      if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+    }
+    window.showEscalationOverride = showEscalationOverride;
+
+    async function resolveAiEscalation(id, action) {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const notes = document.getElementById(`esc-notes-${id}`)?.value || '';
+      const adminDecision = action === 'override' ? (document.getElementById(`esc-decision-${id}`)?.value || 'manual_review') : action;
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/escalations/${id}/resolve`, {
+          method: 'POST',
+          headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, notes, admin_decision: adminDecision })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        if (window.showToast) showToast(action === 'approve' ? 'AI recommendation approved' : 'Override recorded', 'success');
+        loadAiOpsEscalations();
+      } catch (err) {
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.resolveAiEscalation = resolveAiEscalation;
+
+    async function loadAiOpsDigests() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const contentEl = document.getElementById('ai-ops-digest-content');
+      const selectorEl = document.getElementById('ai-ops-digest-selector');
+      const dateEl = document.getElementById('ai-ops-digest-date');
+      if (!contentEl) return;
+      try {
+        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/digests`, { headers: getAiOpsHeaders() });
+        aiOpsDigests = data.digests || [];
+        if (aiOpsDigests.length === 0) {
+          contentEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No digests yet. Click "Generate Now" to create today\'s digest.</div>';
+          if (selectorEl) selectorEl.style.display = 'none';
+          return;
+        }
+        if (dateEl) {
+          dateEl.innerHTML = aiOpsDigests.map(d => `<option value="${d.date}">${new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'})}</option>`).join('');
+        }
+        if (selectorEl) selectorEl.style.display = '';
+        renderSelectedDigest();
+      } catch (err) {
+        contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+    window.loadAiOpsDigests = loadAiOpsDigests;
+
+    function renderSelectedDigest() {
+      const dateEl = document.getElementById('ai-ops-digest-date');
+      const contentEl = document.getElementById('ai-ops-digest-content');
+      if (!contentEl) return;
+      const date = dateEl?.value;
+      const digest = aiOpsDigests.find(d => d.date === date) || aiOpsDigests[0];
+      if (!digest) { contentEl.innerHTML = '<div style="color:var(--text-muted);padding:24px;">No digest found for this date.</div>'; return; }
+      const stats = digest.stats || {};
+      const moduleCount = Object.keys(stats).length;
+      contentEl.innerHTML = `
+        <div style="padding:20px;background:var(--bg-secondary);border-radius:10px;margin-bottom:16px;">
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">${new Date(digest.date + 'T12:00:00').toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'})}</div>
+          <p style="line-height:1.6;color:var(--text-primary);">${escapeHtml(digest.narrative || 'No narrative generated.')}</p>
+        </div>
+        ${moduleCount > 0 ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">
+          ${Object.entries(stats).map(([mod, s]) => `<div style="border:1px solid var(--border-subtle);border-radius:10px;padding:16px;">
+            <div style="font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">${escapeHtml(mod.replace(/_/g,' '))}</div>
+            <div style="font-size:1.6rem;font-weight:700;color:var(--text-primary);">${s.total || 0}</div>
+            <div style="font-size:0.8rem;color:var(--text-secondary);">actions<br>${s.auto_executed || 0} auto · ${s.escalated || 0} escalated</div>
+          </div>`).join('')}
+        </div>` : ''}
+      `;
+    }
+    window.renderSelectedDigest = renderSelectedDigest;
+
+    async function runAiOpsDigest() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const resultEl = document.getElementById('ai-ops-digest-trigger-result');
+      try {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Generating…'; }
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/daily-digest/run`, { method: 'POST', headers: getAiOpsHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        if (window.showToast) showToast('Digest generated successfully', 'success');
+        if (resultEl) { resultEl.style.color = 'var(--accent-green)'; resultEl.textContent = `Generated: ${data.date} (${data.totalActions} actions)`; }
+        if (aiOpsCurrentTab === 'digest') setTimeout(loadAiOpsDigests, 500);
+      } catch (err) {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.runAiOpsDigest = runAiOpsDigest;
+
+    async function loadAiOpsSettings() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const contentEl = document.getElementById('ai-ops-settings-content');
+      if (!contentEl) return;
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/settings`, { headers: getAiOpsHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        const shadowMode = data.shadow_mode;
+        const shadowBanner = document.getElementById('ai-ops-shadow-banner');
+        if (shadowBanner) shadowBanner.style.display = shadowMode ? 'flex' : 'none';
+        contentEl.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:20px;">
+            <div style="border:1px solid var(--border-subtle);border-radius:10px;padding:16px;">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Current Confidence Threshold</div>
+              <div style="font-size:1.8rem;font-weight:700;color:${shadowMode ? '#a78bfa' : 'var(--accent-blue)'};">${(data.confidence_threshold * 100).toFixed(0)}%</div>
+              <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">${shadowMode ? '🛡️ Shadow Mode — nothing auto-executes' : '✓ Autonomous actions enabled'}</div>
+            </div>
+            <div style="border:1px solid var(--border-subtle);border-radius:10px;padding:16px;">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Current Max Auto-Refund</div>
+              <div style="font-size:1.8rem;font-weight:700;color:var(--accent-green);">$${data.max_auto_refund}</div>
+              <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">Per dispute auto-resolution ceiling</div>
+            </div>
+          </div>
+          <div style="border:1px solid var(--border-subtle);border-radius:12px;padding:20px;max-width:480px;">
+            <div style="font-weight:600;margin-bottom:16px;">Override Settings (Session)</div>
+            <div style="margin-bottom:14px;">
+              <label style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">Confidence Threshold (0.0 – 1.0)</label>
+              <input id="ai-ops-threshold-input" type="number" min="0" max="1" step="0.05" value="${data.confidence_threshold}" style="width:100%;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-tertiary);color:var(--text-primary);font-size:0.95rem;">
+              <div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">1.0 = Shadow Mode (recommend for initial setup)</div>
+            </div>
+            <div style="margin-bottom:16px;">
+              <label style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">Max Auto-Refund ($)</label>
+              <input id="ai-ops-max-refund-input" type="number" min="0" max="10000" step="50" value="${data.max_auto_refund}" style="width:100%;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-tertiary);color:var(--text-primary);font-size:0.95rem;">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="saveAiOpsSettings()">Save Settings</button>
+            <div id="ai-ops-settings-save-msg" style="margin-top:10px;font-size:0.85rem;display:none;"></div>
+          </div>
+          <div style="margin-top:16px;padding:12px 16px;background:var(--bg-secondary);border-radius:8px;font-size:0.82rem;color:var(--text-secondary);">
+            <strong>Note:</strong> These overrides are stored in the database and take precedence over environment variables at runtime. For permanent changes, also update <code>AI_CONFIDENCE_THRESHOLD</code> and <code>AI_MAX_AUTO_REFUND</code> env vars.
+          </div>
+        `;
+      } catch (err) {
+        if (contentEl) contentEl.innerHTML = `<div style="color:var(--text-muted);font-size:0.9rem;">Settings unavailable: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+    window.loadAiOpsSettings = loadAiOpsSettings;
+
+    async function saveAiOpsSettings() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const threshold = parseFloat(document.getElementById('ai-ops-threshold-input')?.value || '1');
+      const maxRefund = parseFloat(document.getElementById('ai-ops-max-refund-input')?.value || '500');
+      const msgEl = document.getElementById('ai-ops-settings-save-msg');
+      if (isNaN(threshold) || threshold < 0 || threshold > 1) { if (window.showToast) showToast('Threshold must be between 0.0 and 1.0', 'error'); return; }
+      if (isNaN(maxRefund) || maxRefund < 0) { if (window.showToast) showToast('Max refund must be a positive number', 'error'); return; }
+      if (msgEl) { msgEl.style.display = 'block'; msgEl.style.color = 'var(--text-muted)'; msgEl.textContent = 'Saving…'; }
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/settings`, {
+          method: 'POST',
+          headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confidence_threshold: threshold, max_auto_refund: maxRefund })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Save failed');
+        if (msgEl) { msgEl.style.color = 'var(--accent-green)'; msgEl.textContent = '✓ Settings saved'; setTimeout(() => { msgEl.style.display = 'none'; }, 3000); }
+        if (window.showToast) showToast('AI Ops settings saved', 'success');
+        setTimeout(loadAiOpsSettings, 500);
+      } catch (err) {
+        if (msgEl) { msgEl.style.color = 'var(--accent-red)'; msgEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Save failed: ' + err.message, 'error');
+      }
+    }
+    window.saveAiOpsSettings = saveAiOpsSettings;
+
+    async function triggerDisputeResolver() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const disputeId = document.getElementById('ai-ops-dispute-id')?.value?.trim();
+      const resultEl = document.getElementById('ai-ops-dispute-result');
+      if (!disputeId) { if (window.showToast) showToast('Enter a dispute ID', 'error'); return; }
+      if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Analyzing dispute…'; }
+      try {
+        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/dispute-resolver/trigger`, {
+          method: 'POST',
+          headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dispute_id: disputeId })
+        });
+        if (resultEl) {
+          resultEl.style.color = 'var(--accent-green)';
+          resultEl.textContent = `Action: ${data.action || '—'} | Confidence: ${((data.confidence || 0) * 100).toFixed(0)}% | ${data.reasoning || ''}`;
+        }
+        if (window.showToast) showToast(`Dispute ${data.action || 'analyzed'} (${((data.confidence || 0) * 100).toFixed(0)}% confidence)`, 'success');
+        setTimeout(() => { if (aiOpsCurrentTab === 'activity') loadAiOpsActivity(); else if (aiOpsCurrentTab === 'escalations') loadAiOpsEscalations(); }, 500);
+      } catch (err) {
+        if (resultEl) { resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.triggerDisputeResolver = triggerDisputeResolver;
+
+    async function triggerPaymentTracker() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const resultEl = document.getElementById('ai-ops-payment-result');
+      if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Running payment tracker…'; }
+      try {
+        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/payment-tracker/run`, { method: 'POST', headers: getAiOpsHeaders() });
+        if (resultEl) {
+          resultEl.style.color = 'var(--accent-green)';
+          resultEl.textContent = data.message || `Processed ${data.processed || 0} orders, ${data.anomalies || 0} anomalies`;
+        }
+        if (window.showToast) showToast(data.message || `Payment tracker: ${data.processed || 0} orders`, 'success');
+      } catch (err) {
+        if (resultEl) { resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.triggerPaymentTracker = triggerPaymentTracker;
+
+    // ========== END AI OPS AGENT ==========
+
+    // ========== SMS LOG ==========
+
+    let smsLogPage = 1;
+    const SMS_LOG_PAGE_SIZE = 50;
+
+    function smsStatusBadge(status) {
+      const map = {
+        delivered: 'approved',
+        sent: 'blue',
+        queued: 'orange',
+        failed: 'rejected',
+        undelivered: 'rejected',
+        unknown: 'muted'
+      };
+      return `<span class="status-badge ${map[status] || 'muted'}">${status || 'unknown'}</span>`;
+    }
+
+    function smsTypeBadge(type) {
+      const labels = {
+        '2fa': '2FA',
+        appointment_reminders: 'Appt Reminder',
+        maintenance_reminders: 'Maintenance',
+        bid_alert: 'Bid Alert',
+        general: 'General',
+        maintenance_nudge: 'Maintenance',
+        dream_car: 'Dream Car'
+      };
+      return `<span class="badge badge-gray">${labels[type] || type || 'unknown'}</span>`;
+    }
+
+    async function loadSmsLog(page = 1) {
+      smsLogPage = page;
+      const statusFilter = document.getElementById('sms-log-status-filter')?.value || '';
+      const typeFilter = document.getElementById('sms-log-type-filter')?.value || '';
+      const tbody = document.getElementById('sms-log-tbody');
+      const paginationEl = document.getElementById('sms-log-pagination');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px;"><div style="display:inline-block;width:24px;height:24px;border:2px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div></td></tr>`;
+
+      try {
+        const params = new URLSearchParams({ page, limit: SMS_LOG_PAGE_SIZE });
+        if (statusFilter) params.set('status', statusFilter);
+        if (typeFilter) params.set('type', typeFilter);
+        const data = await safeFetch(`/api/admin/sms-log?${params}`, {
+          headers: { 'x-admin-password': localStorage.getItem('adminPassword') || '', 'x-admin-token': localStorage.getItem('adminTeamToken') || '' }
+        });
+
+        const { rows = [], total = 0, summary = {} } = data;
+
+        const total7dEl = document.getElementById('sms-stat-total7d');
+        const rateEl = document.getElementById('sms-stat-rate');
+        const failedEl = document.getElementById('sms-stat-failed');
+        if (total7dEl) total7dEl.textContent = summary.total7d ?? '--';
+        if (rateEl) rateEl.textContent = summary.deliveryRate != null ? `${summary.deliveryRate}%` : '--';
+        if (failedEl) {
+          failedEl.textContent = summary.failed7d ?? '--';
+          failedEl.style.color = summary.failed7d > 0 ? 'var(--accent-red)' : 'inherit';
+        }
+
+        if (!tbody) return;
+        if (rows.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px;">No SMS messages found</td></tr>`;
+        } else {
+          tbody.innerHTML = rows.map(row => {
+            const isFailed = row.status === 'failed' || row.status === 'undelivered';
+            const rowStyle = isFailed ? 'border-left:3px solid var(--accent-red);' : '';
+            const errorCell = row.error_code
+              ? `<span style="color:var(--accent-red);font-size:0.82rem;">${row.error_code}${row.error_message ? ' — ' + row.error_message.substring(0, 60) : ''}</span>`
+              : `<span style="color:var(--text-muted);">—</span>`;
+            const sidCell = row.message_sid
+              ? `<span style="font-size:0.75rem;font-family:monospace;color:var(--text-muted);">${row.message_sid}</span>`
+              : `<span style="color:var(--text-muted);">—</span>`;
+            const actionCell = row.message_sid
+              ? `<button class="btn btn-ghost btn-sm" onclick="refreshSingleSmsStatus('${row.message_sid}', this)" title="Refresh status from Twilio" style="padding:4px 8px;font-size:0.75rem;"><span class="icon-inline" data-icon="refresh-cw"></span></button>`
+              : '';
+            const ts = row.created_at ? new Date(row.created_at).toLocaleString() : '—';
+            return `<tr style="${rowStyle}">
+              <td style="font-size:0.82rem;white-space:nowrap;">${ts}</td>
+              <td style="font-family:monospace;font-size:0.85rem;">${row.to_phone_masked || '—'}</td>
+              <td>${smsTypeBadge(row.message_type)}</td>
+              <td>${smsStatusBadge(row.status)}</td>
+              <td style="max-width:260px;">${errorCell}</td>
+              <td>${sidCell}</td>
+              <td>${actionCell}</td>
+            </tr>`;
+          }).join('');
+          if (window.MCC_ICONS) {
+            tbody.querySelectorAll('[data-icon]').forEach(el => {
+              const svg = MCC_ICONS[el.getAttribute('data-icon')];
+              if (svg) el.innerHTML = svg;
+            });
+          }
+        }
+
+        if (paginationEl) {
+          const totalPages = Math.ceil(total / SMS_LOG_PAGE_SIZE);
+          const start = total > 0 ? (page - 1) * SMS_LOG_PAGE_SIZE + 1 : 0;
+          const end = Math.min(page * SMS_LOG_PAGE_SIZE, total);
+          paginationEl.innerHTML = `
+            <span>${total > 0 ? `${start}–${end} of ${total}` : '0 results'}</span>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-secondary btn-sm" onclick="loadSmsLog(${page - 1})" ${page <= 1 ? 'disabled' : ''}>← Prev</button>
+              <span style="padding:6px 12px;font-size:0.85rem;">Page ${page} of ${totalPages || 1}</span>
+              <button class="btn btn-secondary btn-sm" onclick="loadSmsLog(${page + 1})" ${page >= totalPages ? 'disabled' : ''}>Next →</button>
+            </div>`;
+        }
+      } catch (err) {
+        console.error('[SMS_LOG] Load error:', err);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--accent-red);padding:40px;">${err.message}</td></tr>`;
+      }
+    }
+
+    async function refreshSingleSmsStatus(sid, btn) {
+      if (!sid) return;
+      if (btn) { btn.disabled = true; btn.textContent = '…'; }
+      try {
+        const res = await fetch('/api/admin/sms-log/refresh-status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-password': localStorage.getItem('adminPassword') || '',
+            'x-admin-token': localStorage.getItem('adminTeamToken') || ''
+          },
+          body: JSON.stringify({ sids: [sid] })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        const result = data.results?.[0];
+        if (result?.status) {
+          if (window.showToast) showToast(`Status updated: ${result.status}`, 'success');
+          await loadSmsLog(smsLogPage);
+        }
+      } catch (err) {
+        if (window.showToast) showToast('Refresh failed: ' + err.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; if (btn.querySelector) btn.innerHTML = (window.MCC_ICONS?.['refresh-cw'] || '↻'); }
+      }
+    }
+
+    window.loadSmsLog = loadSmsLog;
+    window.refreshSingleSmsStatus = refreshSingleSmsStatus;
+
+    // ========== END SMS LOG ==========
+
+    // ========== SAAS SUBSCRIPTIONS ADMIN ==========
+    async function loadSaasSubscriptions() {
+      const container = document.getElementById('saas-subscriptions-content');
+      if (!container) return;
+      container.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading subscription data…</div>';
+      try {
+        const resp = await safeFetch('/api/admin/saas/subscriptions', {
+          headers: { 'x-admin-token': window.__adminToken || '' }
+        });
+
+        const { subscriptions = [], stats = {}, by_product = {}, recent_churns = [] } = resp;
+
+        const productLabels = {
+          fleet: 'Fleet Management', shop: 'Provider Shop', ai_api: 'AI API',
+          outreach: 'Outreach Engine', white_label: 'White-label'
+        };
+        const statusColors = {
+          active: 'var(--accent-green)', trialing: 'var(--accent-blue)',
+          canceled: 'var(--text-muted)', past_due: 'var(--accent-red)',
+          incomplete: 'var(--accent-orange)'
+        };
+
+        container.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:28px;">
+            <div class="stat-card" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Total Subscriptions</div>
+              <div style="font-size:1.8rem;font-weight:700;">${stats.total || 0}</div>
+            </div>
+            <div class="stat-card" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Active</div>
+              <div style="font-size:1.8rem;font-weight:700;color:var(--accent-green);">${stats.active || 0}</div>
+            </div>
+            <div class="stat-card" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Trialing</div>
+              <div style="font-size:1.8rem;font-weight:700;color:var(--accent-blue);">${stats.trialing || 0}</div>
+            </div>
+            <div class="stat-card" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Past Due</div>
+              <div style="font-size:1.8rem;font-weight:700;color:var(--accent-red);">${stats.past_due || 0}</div>
+            </div>
+            <div class="stat-card" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Est. MRR</div>
+              <div style="font-size:1.8rem;font-weight:700;color:var(--accent-gold);">$${stats.mrr_dollars || '0.00'}</div>
+            </div>
+            <div class="stat-card" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">Churned (30d)</div>
+              <div style="font-size:1.8rem;font-weight:700;color:var(--accent-orange);">${stats.recent_churns || 0}</div>
+            </div>
+          </div>
+
+          ${recent_churns.length > 0 ? `
+          <div style="margin-bottom:24px;">
+            <div style="font-weight:600;margin-bottom:10px;color:var(--accent-orange);">Recent Churns (Last 30 Days)</div>
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                <thead>
+                  <tr style="background:var(--bg-input);">
+                    <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:500;">User</th>
+                    <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Product</th>
+                    <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Plan</th>
+                    <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Canceled At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${recent_churns.map(c => `
+                    <tr style="border-top:1px solid var(--border-subtle);">
+                      <td style="padding:8px 12px;color:var(--text-muted);">${c.user_id?.slice(0,8)}…</td>
+                      <td style="padding:8px 12px;font-weight:500;">${{ fleet: 'Fleet', shop: 'Shop', ai_api: 'AI API', outreach: 'Outreach', white_label: 'White-label' }[c.product] || c.product}</td>
+                      <td style="padding:8px 12px;text-transform:capitalize;">${c.plan}</td>
+                      <td style="padding:8px 12px;color:var(--text-muted);">${new Date(c.canceled_at).toLocaleDateString()}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>` : ''}
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:28px;">
+            ${Object.entries(by_product).map(([product, counts]) => `
+              <div style="padding:16px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+                <div style="font-weight:600;margin-bottom:10px;">${productLabels[product] || product}</div>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:0.82rem;">
+                  <span style="color:var(--accent-green);">Active: ${counts.active || 0}</span>
+                  <span style="color:var(--accent-blue);">Trial: ${counts.trialing || 0}</span>
+                  <span style="color:var(--text-muted);">Canceled: ${counts.canceled || 0}</span>
+                  <span style="font-weight:600;">Total: ${counts.total || 0}</span>
+                </div>
+              </div>
+            `).join('')}
+            ${Object.keys(by_product).length === 0 ? '<div style="color:var(--text-muted);padding:16px;">No subscriptions yet.</div>' : ''}
+          </div>
+
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);overflow:hidden;">
+            <div style="padding:16px 20px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between;">
+              <h3 style="margin:0;font-size:1rem;">All Subscriptions</h3>
+              <button class="btn btn-secondary btn-sm" onclick="loadSaasSubscriptions()">↻ Refresh</button>
+            </div>
+            ${subscriptions.length === 0 ? `
+              <div style="padding:40px;text-align:center;color:var(--text-muted);">
+                <div style="font-size:2.5rem;margin-bottom:12px;">📋</div>
+                <p>No SaaS subscriptions yet.</p>
+                <p style="font-size:0.85rem;">Once users subscribe to a SaaS product line, their subscriptions will appear here.</p>
+              </div>
+            ` : `
+              <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;">
+                  <thead>
+                    <tr style="background:var(--bg-input);">
+                      <th style="padding:10px 16px;text-align:left;font-size:0.8rem;color:var(--text-muted);font-weight:500;">User ID</th>
+                      <th style="padding:10px 16px;text-align:left;font-size:0.8rem;color:var(--text-muted);font-weight:500;">Product</th>
+                      <th style="padding:10px 16px;text-align:left;font-size:0.8rem;color:var(--text-muted);font-weight:500;">Plan</th>
+                      <th style="padding:10px 16px;text-align:left;font-size:0.8rem;color:var(--text-muted);font-weight:500;">Status</th>
+                      <th style="padding:10px 16px;text-align:left;font-size:0.8rem;color:var(--text-muted);font-weight:500;">Renews</th>
+                      <th style="padding:10px 16px;text-align:left;font-size:0.8rem;color:var(--text-muted);font-weight:500;">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${subscriptions.map(s => `
+                      <tr style="border-top:1px solid var(--border-subtle);">
+                        <td style="padding:10px 16px;font-size:0.82rem;color:var(--text-muted);">${s.user_id?.slice(0,8)}…</td>
+                        <td style="padding:10px 16px;font-weight:500;">${productLabels[s.product] || s.product}</td>
+                        <td style="padding:10px 16px;text-transform:capitalize;">${s.plan}</td>
+                        <td style="padding:10px 16px;">
+                          <span style="padding:2px 8px;border-radius:100px;font-size:0.75rem;font-weight:600;background:${statusColors[s.status] || 'var(--text-muted)'}22;color:${statusColors[s.status] || 'var(--text-muted)'};border:1px solid ${statusColors[s.status] || 'var(--text-muted)'}44;">${s.status}</span>
+                          ${s.cancel_at_period_end ? '<span style="margin-left:4px;font-size:0.72rem;color:var(--accent-orange);">Cancels at period end</span>' : ''}
+                        </td>
+                        <td style="padding:10px 16px;font-size:0.82rem;color:var(--text-muted);">${s.current_period_end ? new Date(s.current_period_end).toLocaleDateString() : '—'}</td>
+                        <td style="padding:10px 16px;font-size:0.82rem;color:var(--text-muted);">${new Date(s.created_at).toLocaleDateString()}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+        `;
+      } catch (err) {
+        container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Failed to load subscriptions: ${err.message}</div>`;
+      }
+    }
+
+    window.loadSaasSubscriptions = loadSaasSubscriptions;
+
+    // ========== END SAAS SUBSCRIPTIONS ADMIN ==========
+
+    // ========== WHITE-LABEL TENANTS (Task #87) ==========
+
+    let _editingTenantId = null;
+
+    async function loadWhiteLabelTenants() {
+      const statsEl = document.getElementById('white-label-stats');
+      const contentEl = document.getElementById('white-label-content');
+      if (!statsEl || !contentEl) return;
+
+      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
+      const headers = token ? { 'x-admin-token': token } : {};
+
+      try {
+        const res = await fetch('/api/admin/white-label/tenants', { headers });
+        if (!res.ok) throw new Error('Failed to load tenants');
+        const { tenants, meta } = await res.json();
+
+        const active = tenants.filter(t => t.status === 'active').length;
+        const byPlan = { starter: 0, pro: 0, business: 0 };
+        for (const t of tenants) if (byPlan[t.plan] !== undefined) byPlan[t.plan]++;
+        const totalMrr = meta?.total_mrr || tenants.filter(t=>t.status==='active').reduce((s,t)=>s+({starter:149,pro:499,business:999}[t.plan]||0),0);
+        const totalMembers = tenants.reduce((s,t)=>s+(t._stats?.member_count||0),0);
+
+        statsEl.innerHTML = `
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-blue-soft);color:var(--accent-blue);">🏢</div><div class="stat-value">${tenants.length}</div><div class="stat-label">Total Tenants</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);">✅</div><div class="stat-value">${active}</div><div class="stat-label">Active</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-gold-soft);color:var(--accent-gold);">💰</div><div class="stat-value">$${totalMrr.toLocaleString()}</div><div class="stat-label">Est. MRR</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-teal-soft);color:var(--accent-teal);">👥</div><div class="stat-value">${totalMembers}</div><div class="stat-label">Total Members</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-gold-soft);color:var(--accent-gold);">⭐</div><div class="stat-value">${byPlan.starter}</div><div class="stat-label">Starter</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-teal-soft);color:var(--accent-teal);">🚀</div><div class="stat-value">${byPlan.pro}</div><div class="stat-label">Pro</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--accent-purple-soft,#7c3aed22);color:#7c3aed;">💼</div><div class="stat-value">${byPlan.business}</div><div class="stat-label">Business</div></div>
+        `;
+
+        if (!tenants.length) {
+          contentEl.innerHTML = `
+            <div style="padding:64px;text-align:center;color:var(--text-muted);">
+              <div style="font-size:48px;margin-bottom:16px;">🏢</div>
+              <h3 style="margin:0 0 8px;">No White-label Tenants Yet</h3>
+              <p style="margin:0 0 20px;">Create your first branded platform instance for an enterprise client.</p>
+              <button class="btn btn-primary" onclick="openCreateTenantModal()">Create First Tenant</button>
+            </div>`;
+          return;
+        }
+
+        const planBadge = (plan) => {
+          const colors = { starter: 'var(--accent-blue)', pro: 'var(--accent-teal)', business: '#7c3aed' };
+          return `<span style="background:${colors[plan] || '#888'}22;color:${colors[plan] || '#888'};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;">${plan}</span>`;
+        };
+        const statusBadge = (s) => {
+          const m = { active: ['var(--accent-green)','Active'], suspended: ['var(--accent-orange)','Suspended'], canceled: ['var(--accent-red)','Canceled'], pending: ['var(--accent-blue)','Pending'] };
+          const [col, label] = m[s] || ['#888', s];
+          return `<span style="background:${col}22;color:${col};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">${label}</span>`;
+        };
+
+        contentEl.innerHTML = `
+          <div style="overflow-x:auto;">
+            <table class="data-table" style="width:100%;">
+              <thead><tr>
+                <th>Brand Name</th><th>Domain</th><th>Plan</th><th>Status</th>
+                <th>Members Used</th><th>Providers Used</th><th>Est. MRR</th><th>Created</th><th>Actions</th>
+              </tr></thead>
+              <tbody>
+                ${tenants.map(t => {
+                  const stats = t._stats || {};
+                  const mLimit = t.max_members === -1 ? '∞' : t.max_members;
+                  const pLimit = t.max_providers === -1 ? '∞' : t.max_providers;
+                  const planMrr = { starter: 149, pro: 499, business: 999 };
+                  const mrr = t.status === 'active' ? (planMrr[t.plan] || 0) : 0;
+                  const tenantDomain = t.domain || (t.subdomain ? t.subdomain + '.mycarconcierge.com' : null);
+                  return `
+                  <tr>
+                    <td><div style="font-weight:600;">${t.brand_name}</div><div style="font-size:12px;color:var(--text-muted);">${t.name}</div></td>
+                    <td style="font-family:monospace;font-size:12px;">${tenantDomain ? `<a href="https://${tenantDomain}" target="_blank" style="color:var(--accent-teal);">${tenantDomain}</a>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+                    <td>${planBadge(t.plan)}</td>
+                    <td>${statusBadge(t.status)}</td>
+                    <td style="text-align:center;">${stats.member_count || 0} / ${mLimit}</td>
+                    <td style="text-align:center;">${stats.provider_count || 0} / ${pLimit}</td>
+                    <td style="font-weight:600;color:var(--accent-gold);">$${mrr}</td>
+                    <td style="font-size:12px;color:var(--text-muted);">${new Date(t.created_at).toLocaleDateString()}</td>
+                    <td style="white-space:nowrap;">
+                      <button class="btn btn-sm btn-secondary" onclick="openEditTenantModal('${t.id}')">Edit</button>
+                      <button class="btn btn-sm btn-secondary" onclick="openTenantAccessModal('${t.id}')" style="margin-left:4px;" title="View tenant portal as admin">View Portal</button>
+                      ${tenantDomain ? `<button class="btn btn-sm btn-secondary" onclick="previewTenantBranding('${tenantDomain}')" style="margin-left:4px;" title="Preview branding">Preview</button>` : ''}
+                      ${t.status === 'active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateTenant('${t.id}')" style="margin-left:4px;">Suspend</button>` : ''}
+                    </td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`;
+
+        // Store for edit lookups
+        window._wlTenants = tenants;
+      } catch (err) {
+        contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${err.message}</div>`;
+      }
+    }
+
+    // ===== TENANT ONBOARDING WIZARD (Task #87) =====
+    let _tenantWizardStep = 1;
+    const _WIZARD_STEPS = 4;
+    const _WIZARD_SUBTITLES = [
+      'Step 1 of 4 — Tenant Identity',
+      'Step 2 of 4 — Domain Configuration',
+      'Step 3 of 4 — Branding',
+      'Step 4 of 4 — Plan & Review'
+    ];
+
+    function _tenantWizardShowStep(step) {
+      _tenantWizardStep = step;
+      for (let i = 1; i <= _WIZARD_STEPS; i++) {
+        const el = document.getElementById('tenant-wz-step-' + i);
+        if (el) el.style.display = i === step ? '' : 'none';
+        const bar = document.getElementById('wz-step-bar-' + i);
+        if (bar) bar.style.background = i <= step ? 'var(--accent-gold)' : 'var(--border-subtle)';
+      }
+      const sub = document.getElementById('tenant-wizard-subtitle');
+      if (sub) sub.textContent = _WIZARD_SUBTITLES[step - 1] || '';
+      const backBtn = document.getElementById('tenant-wz-back-btn');
+      if (backBtn) backBtn.style.display = step > 1 ? '' : 'none';
+      const nextBtn = document.getElementById('tenant-wz-next-btn');
+      if (nextBtn) nextBtn.textContent = step < _WIZARD_STEPS ? 'Next →' : 'Create Tenant';
+      // Update branding preview on step 3
+      if (step === 3) _updateBrandingPreview();
+      // Update review on step 4
+      if (step === 4) _updateTenantReview();
+      // Hide error on step change
+      const errEl = document.getElementById('tenant-modal-error');
+      if (errEl) errEl.style.display = 'none';
+    }
+
+    function _updateBrandingPreview() {
+      const primary = document.getElementById('tenant-primary-color')?.value || '#C9A227';
+      const accent = document.getElementById('tenant-accent-color')?.value || '#2CC4B4';
+      const bg = document.getElementById('tenant-bg-color')?.value || '#12161c';
+      const bgEl = document.getElementById('wz-preview-bg');
+      const btnEl = document.getElementById('wz-preview-btn');
+      const badgeEl = document.getElementById('wz-preview-badge');
+      if (bgEl) bgEl.style.background = bg;
+      if (btnEl) { btnEl.style.background = primary; btnEl.style.color = '#000'; }
+      if (badgeEl) badgeEl.style.background = accent;
+    }
+
+    function _updateTenantReview() {
+      const reviewEl = document.getElementById('tenant-wizard-review');
+      if (!reviewEl) return;
+      const name = document.getElementById('tenant-name')?.value || '—';
+      const brand = document.getElementById('tenant-brand-name')?.value || '—';
+      const ownerEmail = document.getElementById('tenant-owner-email')?.value || '—';
+      const domain = document.getElementById('tenant-domain')?.value || '—';
+      const subdomain = document.getElementById('tenant-subdomain')?.value || '—';
+      const plan = document.getElementById('tenant-plan')?.value || 'starter';
+      const planLabels = { starter: 'Starter (500 members)', pro: 'Pro (5,000 members)', business: 'Business (Unlimited)' };
+      const logo = document.getElementById('tenant-logo-url')?.value || '—';
+      reviewEl.innerHTML = `
+        <span style="color:var(--text-muted);">Internal Name</span><span style="font-weight:500;">${name}</span>
+        <span style="color:var(--text-muted);">Brand Name</span><span style="font-weight:500;">${brand}</span>
+        <span style="color:var(--text-muted);">Owner Email</span><span style="font-weight:500;">${ownerEmail}</span>
+        <span style="color:var(--text-muted);">Custom Domain</span><span style="font-weight:500;">${domain}</span>
+        <span style="color:var(--text-muted);">Subdomain</span><span style="font-weight:500;">${subdomain !== '—' ? subdomain + '.mycarconcierge.com' : '—'}</span>
+        <span style="color:var(--text-muted);">Plan</span><span style="font-weight:500;">${planLabels[plan] || plan}</span>
+        <span style="color:var(--text-muted);">Logo</span><span style="font-weight:500;word-break:break-all;">${logo}</span>
+      `;
+    }
+
+    function tenantWizardBack() {
+      if (_tenantWizardStep > 1) _tenantWizardShowStep(_tenantWizardStep - 1);
+    }
+
+    async function tenantWizardNext() {
+      const errEl = document.getElementById('tenant-modal-error');
+      if (errEl) errEl.style.display = 'none';
+      // Validate step 1
+      if (_tenantWizardStep === 1) {
+        const name = document.getElementById('tenant-name')?.value.trim();
+        const brand = document.getElementById('tenant-brand-name')?.value.trim();
+        if (!name || !brand) {
+          if (errEl) { errEl.textContent = 'Internal name and brand name are required.'; errEl.style.display = 'block'; }
+          return;
+        }
+      }
+      if (_tenantWizardStep < _WIZARD_STEPS) {
+        _tenantWizardShowStep(_tenantWizardStep + 1);
+      } else {
+        await _saveTenantFromWizard();
+      }
+    }
+
+    async function _saveTenantFromWizard() {
+      const errEl = document.getElementById('tenant-modal-error');
+      if (errEl) errEl.style.display = 'none';
+      const body = {
+        name: document.getElementById('tenant-name')?.value.trim(),
+        brand_name: document.getElementById('tenant-brand-name')?.value.trim(),
+        owner_email: document.getElementById('tenant-owner-email')?.value.trim() || null,
+        domain: document.getElementById('tenant-domain')?.value.trim() || null,
+        subdomain: document.getElementById('tenant-subdomain')?.value.trim() || null,
+        logo_url: document.getElementById('tenant-logo-url')?.value.trim() || null,
+        favicon_url: document.getElementById('tenant-favicon-url')?.value.trim() || null,
+        support_email: document.getElementById('tenant-support-email')?.value.trim() || null,
+        primary_color: document.getElementById('tenant-primary-color')?.value || '#C9A227',
+        accent_color: document.getElementById('tenant-accent-color')?.value || '#2CC4B4',
+        bg_color: document.getElementById('tenant-bg-color')?.value || '#12161c',
+        plan: document.getElementById('tenant-plan')?.value || 'starter',
+        status: document.getElementById('tenant-status')?.value || 'active'
+      };
+      if (!body.name || !body.brand_name) {
+        if (errEl) { errEl.textContent = 'Internal name and brand name are required.'; errEl.style.display = 'block'; }
+        return;
+      }
+      const nextBtn = document.getElementById('tenant-wz-next-btn');
+      if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = 'Creating…'; }
+      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
+      const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
+      try {
+        const res = await fetch('/api/admin/white-label/tenants', { method: 'POST', headers, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create tenant');
+        closeTenantModal();
+        loadedSections['white-label'] = false;
+        await loadWhiteLabelTenants();
+      } catch (err) {
+        if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+      } finally {
+        if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = 'Create Tenant'; }
+      }
+    }
+
+    function openCreateTenantModal() {
+      _editingTenantId = null;
+      document.getElementById('tenant-modal-title').textContent = 'New White-label Tenant';
+      document.getElementById('tenant-modal-id').value = '';
+      const wizardProgress = document.getElementById('tenant-wizard-progress');
+      if (wizardProgress) wizardProgress.style.display = '';
+      const backBtn = document.getElementById('tenant-wz-back-btn');
+      if (backBtn) backBtn.style.display = 'none';
+      // Reset all wizard fields
+      ['tenant-name','tenant-brand-name','tenant-owner-email','tenant-domain','tenant-subdomain','tenant-logo-url','tenant-favicon-url','tenant-support-email'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      const pc = document.getElementById('tenant-primary-color'); if (pc) pc.value = '#C9A227';
+      const ac = document.getElementById('tenant-accent-color'); if (ac) ac.value = '#2CC4B4';
+      const bc = document.getElementById('tenant-bg-color'); if (bc) bc.value = '#12161c';
+      const plan = document.getElementById('tenant-plan'); if (plan) plan.value = 'starter';
+      const status = document.getElementById('tenant-status'); if (status) status.value = 'active';
+      const errEl = document.getElementById('tenant-modal-error'); if (errEl) errEl.style.display = 'none';
+      _tenantWizardShowStep(1);
+      document.getElementById('tenant-modal').style.display = 'flex';
+    }
+
+    function openEditTenantModal(id) {
+      const t = (window._wlTenants || []).find(x => x.id === id);
+      if (!t) return;
+      _editingTenantId = id;
+      const editModal = document.getElementById('tenant-edit-modal');
+      if (!editModal) return;
+      document.getElementById('tenant-edit-id').value = id;
+      document.getElementById('tenant-edit-name').value = t.name || '';
+      document.getElementById('tenant-edit-brand-name').value = t.brand_name || '';
+      document.getElementById('tenant-edit-domain').value = t.domain || '';
+      document.getElementById('tenant-edit-subdomain').value = t.subdomain || '';
+      document.getElementById('tenant-edit-logo-url').value = t.logo_url || '';
+      document.getElementById('tenant-edit-support-email').value = t.support_email || '';
+      document.getElementById('tenant-edit-primary-color').value = t.primary_color || '#C9A227';
+      document.getElementById('tenant-edit-accent-color').value = t.accent_color || '#2CC4B4';
+      document.getElementById('tenant-edit-bg-color').value = t.bg_color || '#12161c';
+      document.getElementById('tenant-edit-plan').value = t.plan || 'starter';
+      document.getElementById('tenant-edit-status').value = t.status || 'active';
+      const errEl = document.getElementById('tenant-edit-error'); if (errEl) errEl.style.display = 'none';
+      editModal.style.display = 'flex';
+    }
+
+    function closeTenantModal() {
+      document.getElementById('tenant-modal').style.display = 'none';
+    }
+
+    function closeTenantEditModal() {
+      const m = document.getElementById('tenant-edit-modal'); if (m) m.style.display = 'none';
+    }
+
+    async function saveTenantEdit() {
+      const errEl = document.getElementById('tenant-edit-error');
+      if (errEl) errEl.style.display = 'none';
+      const id = document.getElementById('tenant-edit-id')?.value;
+      if (!id) return;
+      const body = {
+        name: document.getElementById('tenant-edit-name')?.value.trim(),
+        brand_name: document.getElementById('tenant-edit-brand-name')?.value.trim(),
+        domain: document.getElementById('tenant-edit-domain')?.value.trim() || null,
+        subdomain: document.getElementById('tenant-edit-subdomain')?.value.trim() || null,
+        logo_url: document.getElementById('tenant-edit-logo-url')?.value.trim() || null,
+        support_email: document.getElementById('tenant-edit-support-email')?.value.trim() || null,
+        primary_color: document.getElementById('tenant-edit-primary-color')?.value || '#C9A227',
+        accent_color: document.getElementById('tenant-edit-accent-color')?.value || '#2CC4B4',
+        bg_color: document.getElementById('tenant-edit-bg-color')?.value || '#12161c',
+        plan: document.getElementById('tenant-edit-plan')?.value || 'starter',
+        status: document.getElementById('tenant-edit-status')?.value || 'active'
+      };
+      if (!body.name || !body.brand_name) { if (errEl) { errEl.textContent = 'Name and brand name required.'; errEl.style.display = 'block'; } return; }
+      const btn = document.getElementById('save-tenant-edit-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
+      const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
+      try {
+        const res = await fetch(`/api/admin/white-label/tenants/${id}`, { method: 'PUT', headers, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to save');
+        closeTenantEditModal();
+        loadedSections['white-label'] = false;
+        await loadWhiteLabelTenants();
+      } catch (err) {
+        if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+      }
+    }
+
+    // Keep legacy saveTenant for backward compat (not called from new wizard)
+    async function saveTenant() { await _saveTenantFromWizard(); }
+
+    async function deactivateTenant(id) {
+      if (!confirm('Suspend this tenant? They will lose access to white-label features.')) return;
+      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
+      const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
+      try {
+        await fetch(`/api/admin/white-label/tenants/${id}`, { method: 'PUT', headers, body: JSON.stringify({ status: 'suspended' }) });
+        loadedSections['white-label'] = false;
+        await loadWhiteLabelTenants();
+      } catch (err) { alert('Error: ' + err.message); }
+    }
+
+    async function previewTenantBranding(domain) {
+      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
+      if (!token) { alert('Admin auth required to preview branding.'); return; }
+      try {
+        const res = await fetch(`/api/white-label/config?preview_domain=${encodeURIComponent(domain)}`, {
+          headers: { 'x-admin-token': token }
+        });
+        const data = await res.json();
+        if (!data.is_white_label || !data.tenant) {
+          alert(`No active white-label tenant found for domain: ${domain}`);
+          return;
+        }
+        const t = data.tenant;
+        const preview = document.createElement('div');
+        preview.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;`;
+        preview.innerHTML = `
+          <div style="background:${t.bg_color||'#12161c'};border-radius:16px;padding:32px;width:min(480px,95vw);position:relative;">
+            <button onclick="this.closest('div[style*=fixed]').remove()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:${t.primary_color||'#C9A227'};font-size:20px;cursor:pointer;">✕</button>
+            <div style="margin-bottom:20px;">
+              ${t.logo_url ? `<img src="${t.logo_url}" alt="${t.brand_name}" style="height:48px;object-fit:contain;margin-bottom:12px;">` : ''}
+              <h2 style="color:${t.primary_color||'#C9A227'};margin:0 0 4px;font-size:1.4rem;">${t.brand_name}</h2>
+              <p style="color:${t.accent_color||'#2CC4B4'};margin:0;font-size:0.85rem;">White-label Branding Preview</p>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">
+              <div style="text-align:center;">
+                <div style="width:100%;height:40px;border-radius:8px;background:${t.primary_color||'#C9A227'};margin-bottom:6px;"></div>
+                <div style="font-size:11px;color:#888;">Primary</div>
+                <div style="font-size:11px;color:#ccc;">${t.primary_color||'#C9A227'}</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="width:100%;height:40px;border-radius:8px;background:${t.accent_color||'#2CC4B4'};margin-bottom:6px;"></div>
+                <div style="font-size:11px;color:#888;">Accent</div>
+                <div style="font-size:11px;color:#ccc;">${t.accent_color||'#2CC4B4'}</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="width:100%;height:40px;border-radius:8px;background:${t.bg_color||'#12161c'};border:1px solid #333;margin-bottom:6px;"></div>
+                <div style="font-size:11px;color:#888;">Background</div>
+                <div style="font-size:11px;color:#ccc;">${t.bg_color||'#12161c'}</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;">
+              <button style="flex:1;padding:12px;border-radius:8px;background:${t.primary_color||'#C9A227'};border:none;color:#12161c;font-weight:600;cursor:pointer;">Sample CTA Button</button>
+              <button style="flex:1;padding:12px;border-radius:8px;background:transparent;border:1px solid ${t.accent_color||'#2CC4B4'};color:${t.accent_color||'#2CC4B4'};font-weight:600;cursor:pointer;">Secondary Action</button>
+            </div>
+            ${t.plan ? `<div style="margin-top:16px;font-size:12px;color:#888;">Plan: <strong style="color:#ccc;">${t.plan}</strong> · Domain: <strong style="color:#ccc;">${domain}</strong></div>` : ''}
+          </div>`;
+        document.body.appendChild(preview);
+        preview.addEventListener('click', (e) => { if (e.target === preview) preview.remove(); });
+      } catch (err) { alert('Preview failed: ' + err.message); }
+    }
+
+    window.loadWhiteLabelTenants = loadWhiteLabelTenants;
+    window.openCreateTenantModal = openCreateTenantModal;
+    window.openEditTenantModal = openEditTenantModal;
+    window.closeTenantModal = closeTenantModal;
+    window.saveTenant = saveTenant;
+    window.deactivateTenant = deactivateTenant;
+    window.previewTenantBranding = previewTenantBranding;
+
+    // ===== TENANT PORTAL ACCESS MODAL (Admin Impersonation-Lite) =====
+    async function openTenantAccessModal(tenantId) {
+      const modal = document.getElementById('tenant-access-modal');
+      const contentEl = document.getElementById('tenant-access-content');
+      if (!modal || !contentEl) return;
+      contentEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading tenant data…</div>';
+      modal.style.display = 'flex';
+      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
+      const headers = token ? { 'x-admin-token': token } : {};
+      try {
+        const res = await fetch(`/api/admin/white-label/tenants/${tenantId}/portal`, { headers });
+        if (!res.ok) throw new Error('Failed to load tenant portal');
+        const { tenant, usage, estimated_mrr, recent_members } = await res.json();
+        const titleEl = document.getElementById('tenant-access-title');
+        if (titleEl) titleEl.textContent = `Portal View — ${tenant.brand_name}`;
+        const planColors = { starter: 'var(--accent-teal)', pro: 'var(--accent-gold)', business: '#7c3aed' };
+        const planColor = planColors[tenant.plan] || 'var(--text-muted)';
+        const domain = tenant.domain || (tenant.subdomain ? `${tenant.subdomain}.mycarconcierge.com` : '—');
+        const mPct = usage.members.unlimited ? 0 : Math.min(100, Math.round((usage.members.current / usage.members.limit) * 100));
+        const pPct = usage.providers.unlimited ? 0 : Math.min(100, Math.round((usage.providers.current / usage.providers.limit) * 100));
+        const barColor = (pct) => pct >= 90 ? 'var(--accent-red)' : pct >= 70 ? 'var(--accent-orange)' : 'var(--accent-teal)';
+
+        contentEl.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px;">
+            <div style="padding:12px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.3rem;font-weight:700;color:${planColor};">${tenant.plan?.toUpperCase()}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">Plan</div>
+            </div>
+            <div style="padding:12px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.3rem;font-weight:700;color:var(--accent-teal);">${usage.members.current}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">Members</div>
+            </div>
+            <div style="padding:12px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.3rem;font-weight:700;color:var(--accent-gold);">${usage.providers.current}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">Providers</div>
+            </div>
+            <div style="padding:12px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.3rem;font-weight:700;color:var(--accent-gold);">$${estimated_mrr}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">Est. MRR</div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;"><span>Member Seats</span><span>${usage.members.current} / ${usage.members.unlimited ? '∞' : usage.members.limit}</span></div>
+            <div style="height:6px;background:var(--border-subtle);border-radius:3px;overflow:hidden;margin-bottom:8px;"><div style="height:100%;background:${barColor(mPct)};width:${mPct}%;border-radius:3px;"></div></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;"><span>Provider Seats</span><span>${usage.providers.current} / ${usage.providers.unlimited ? '∞' : usage.providers.limit}</span></div>
+            <div style="height:6px;background:var(--border-subtle);border-radius:3px;overflow:hidden;"><div style="height:100%;background:${barColor(pPct)};width:${pPct}%;border-radius:3px;"></div></div>
+          </div>
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:0.83rem;">
+              <span style="color:var(--text-muted);">Brand</span><span>${tenant.brand_name}</span>
+              <span style="color:var(--text-muted);">Domain</span><span style="font-family:monospace;">${domain}</span>
+              <span style="color:var(--text-muted);">Status</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;">
+                <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${tenant.status === 'active' ? 'var(--accent-teal)' : 'var(--accent-red)'}"></span>
+                <span style="text-transform:capitalize;">${tenant.status}</span>
+              </span>
+              <span style="color:var(--text-muted);">Created</span><span>${new Date(tenant.created_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+          ${recent_members.length ? `
+          <div>
+            <div style="font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Recent Members</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${recent_members.map(m => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface-3);border-radius:6px;font-size:0.83rem;">
+                  <span style="font-family:monospace;color:var(--text-muted);">${m.user_id.slice(0,12)}…</span>
+                  <span style="background:var(--accent-teal-soft,rgba(44,196,180,0.1));color:var(--accent-teal);padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;">${m.role}</span>
+                  <span style="color:var(--text-muted);font-size:11px;">${new Date(m.joined_at).toLocaleDateString()}</span>
+                </div>`).join('')}
+            </div>
+          </div>` : '<div style="color:var(--text-muted);font-size:0.85rem;padding:8px 0;">No members have joined yet.</div>'}
+          <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">
+            <button class="btn btn-secondary" onclick="closeTenantAccessModal()">Close</button>
+            <button class="btn btn-primary" onclick="openEditTenantModal('${tenant.id}');closeTenantAccessModal();">Edit Tenant</button>
+          </div>`;
+      } catch (err) {
+        contentEl.innerHTML = `<div style="color:var(--accent-red);padding:16px;">Error: ${err.message}</div>`;
+      }
+    }
+
+    function closeTenantAccessModal() {
+      const modal = document.getElementById('tenant-access-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    window.openTenantAccessModal = openTenantAccessModal;
+    window.closeTenantAccessModal = closeTenantAccessModal;
+
+    // ========== END WHITE-LABEL TENANTS ==========
+
+    // ========== AI API USAGE DASHBOARD (Task #90) ==========
+    let _apiUsageChart = null;
+    async function loadApiUsage() {
+      const adminPassword = sessionStorage.getItem('adminPassword');
+      if (!adminPassword) return;
+      const keysEl = document.getElementById('api-stat-keys');
+      const callsEl = document.getElementById('api-stat-calls');
+      const revenueEl = document.getElementById('api-stat-revenue');
+      const monthEl = document.getElementById('api-stat-month');
+      const tableEl = document.getElementById('api-keys-table');
+      if (callsEl) callsEl.textContent = '…';
+      try {
+        const resp = await fetch('/api/admin/api-usage', { headers: { 'x-admin-password': adminPassword } });
+        if (!resp.ok) throw new Error('Failed to load API usage');
+        const data = await resp.json();
+        if (keysEl) keysEl.textContent = data.active_keys ?? '--';
+        if (callsEl) callsEl.textContent = (data.total_calls_this_month || 0).toLocaleString();
+        if (revenueEl) revenueEl.textContent = '$' + ((data.estimated_revenue_cents || 0) / 100).toFixed(2);
+        if (monthEl) monthEl.textContent = data.month || '--';
+        // Chart
+        const canvas = document.getElementById('api-endpoint-chart');
+        if (canvas && data.by_endpoint) {
+          const labels = Object.keys(data.by_endpoint);
+          const callValues = Object.values(data.by_endpoint);
+          // Estimated revenue: avg blended rate per call
+          const totalCalls = callValues.reduce((a, b) => a + b, 0);
+          const revenuePerCall = totalCalls > 0 ? (data.estimated_revenue_cents || 0) / 100 / totalCalls : 0;
+          const revenueValues = callValues.map(c => parseFloat((c * revenuePerCall).toFixed(2)));
+          if (_apiUsageChart) _apiUsageChart.destroy();
+          _apiUsageChart = new Chart(canvas, {
+            type: 'bar',
+            data: { labels, datasets: [
+              { label: 'API Calls', data: callValues, backgroundColor: 'rgba(201,168,76,0.7)', borderColor: '#c9a84c', borderWidth: 1, yAxisID: 'y' },
+              { label: 'Est. Revenue ($ based on plan rate)', data: revenueValues, backgroundColor: 'rgba(52,211,153,0.5)', borderColor: '#34d399', borderWidth: 1, yAxisID: 'y1' }
+            ] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#9ca3af' } } }, scales: { y: { beginAtZero: true, position: 'left', ticks: { color: '#9ca3af' }, grid: { color: 'rgba(156,163,175,0.1)' } }, y1: { beginAtZero: true, position: 'right', ticks: { color: '#34d399', callback: v => '$' + v.toFixed(2) }, grid: { display: false } }, x: { ticks: { color: '#9ca3af' }, grid: { display: false } } } }
+          });
+        }
+        // Table
+        if (tableEl) {
+          if (!data.top_keys || data.top_keys.length === 0) {
+            tableEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">No API keys found.</div>';
+          } else {
+            tableEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+              <thead><tr style="border-bottom:1px solid var(--border-subtle);">
+                <th style="text-align:left;padding:10px 8px;color:var(--text-muted);">Key Name</th>
+                <th style="text-align:left;padding:10px 8px;color:var(--text-muted);">Plan</th>
+                <th style="text-align:right;padding:10px 8px;color:var(--text-muted);">Total Calls</th>
+                <th style="text-align:right;padding:10px 8px;color:var(--text-muted);">Limit</th>
+                <th style="text-align:left;padding:10px 8px;color:var(--text-muted);">Last Used</th>
+                <th style="text-align:left;padding:10px 8px;color:var(--text-muted);">Status</th>
+                <th style="text-align:center;padding:10px 8px;color:var(--text-muted);">Actions</th>
+              </tr></thead>
+              <tbody>${data.top_keys.map(k => {
+                const safeName = escapeHtml(k.name || 'Unnamed');
+                const safePlan = escapeHtml(String(k.plan || ''));
+                const safeStatus = escapeHtml(String(k.status || ''));
+                const statusBg = safeStatus === 'active' ? 'var(--accent-green-soft)' : 'var(--accent-red-soft)';
+                const statusColor = safeStatus === 'active' ? 'var(--accent-green)' : 'var(--accent-red)';
+                return `<tr style="border-bottom:1px solid var(--border-subtle);">
+                  <td style="padding:10px 8px;">${safeName}</td>
+                  <td style="padding:10px 8px;"><span class="badge" style="background:var(--accent-gold-soft);color:var(--accent-gold);text-transform:capitalize;">${safePlan}</span></td>
+                  <td style="padding:10px 8px;text-align:right;">${(k.calls_made || 0).toLocaleString()}</td>
+                  <td style="padding:10px 8px;text-align:right;">${k.calls_limit === -1 ? '∞' : (k.calls_limit || 0).toLocaleString()}</td>
+                  <td style="padding:10px 8px;color:var(--text-muted);">${k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : 'Never'}</td>
+                  <td style="padding:10px 8px;"><span class="badge" style="background:${statusBg};color:${statusColor};">${safeStatus}</span></td>
+                  <td style="padding:10px 8px;text-align:center;">${safeStatus === 'active' ? `<button onclick="adminRevokeApiKey('${escapeHtml(String(k.id || ''))}', this)" style="padding:3px 10px;background:var(--accent-red-soft);color:var(--accent-red);border:1px solid var(--accent-red);border-radius:4px;cursor:pointer;font-size:0.8rem;">Revoke</button>` : '<span style="color:var(--text-muted);font-size:0.8rem;">—</span>'}</td>
+                </tr>`;
+              }).join('')}
+              </tbody>
+            </table>`;
+          }
+        }
+      } catch (err) {
+        if (callsEl) callsEl.textContent = 'Error';
+        console.error('[Admin] API usage load error:', err.message);
+      }
+    }
+    window.loadApiUsage = loadApiUsage;
+
+    async function adminRevokeApiKey(keyId, btn) {
+      if (!keyId || !confirm('Revoke this API key? This cannot be undone.')) return;
+      const adminPassword = sessionStorage.getItem('adminPassword');
+      if (!adminPassword) { alert('Admin session not found. Please refresh.'); return; }
+      btn.disabled = true; btn.textContent = 'Revoking…';
+      try {
+        const res = await fetch(`/api/admin/api-keys/${encodeURIComponent(keyId)}/revoke`, {
+          method: 'POST',
+          headers: { 'x-admin-password': adminPassword }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          btn.textContent = 'Revoked';
+          btn.style.opacity = '0.5';
+          btn.disabled = true;
+          const statusCell = btn.closest('tr').cells[5];
+          if (statusCell) {
+            const badge = statusCell.querySelector('.badge');
+            if (badge) { badge.textContent = 'revoked'; badge.style.background = 'var(--accent-red-soft)'; badge.style.color = 'var(--accent-red)'; }
+          }
+        } else {
+          btn.disabled = false; btn.textContent = 'Revoke';
+          alert(data.error || 'Failed to revoke key');
+        }
+      } catch (e) {
+        btn.disabled = false; btn.textContent = 'Revoke';
+        alert('Network error');
+      }
+    }
+    window.adminRevokeApiKey = adminRevokeApiKey;
+    // ========== END AI API USAGE DASHBOARD ==========
+
+    // ========== SURVEY LEADS (Task #93) ==========
+
+    const SURVEY_FEATURE_NAMES = {
+      get_quotes:       'Get Instant Quotes',
+      manage_vehicles:  'Manage Your Vehicles',
+      maintenance:      'Maintenance Tracking',
+      shop_smarter:     'Shop Smarter',
+      booking:          'Easy Service Booking',
+      obd_diagnostics:  'OBD Diagnostics',
+      provider_ratings: 'Verified Ratings',
+      price_estimator:  'AI Price Estimator'
+    };
+
+    const SURVEY_SERVICE_NAMES = {
+      oil_change: 'Oil Change', tire_rotation: 'Tire Rotation', brake_service: 'Brake Service',
+      diagnostic: 'Diagnostic', ac_repair: 'A/C Repair', transmission: 'Transmission',
+      body_paint: 'Body Work', detailing: 'Detailing', towing: 'Towing',
+      inspection: 'Inspection', windshield: 'Windshield', electrical: 'Electrical',
+      suspension: 'Suspension', snow_removal: 'Snow Removal', other: 'Other'
+    };
+
+    let surveyLeadsState = { page: 1, limit: 25, total: 0, totalPages: 0, sortDir: 'desc' };
+    let surveyNiState    = { page: 1, limit: 50, total: 0, totalPages: 0 };
+    let surveyTrendData  = null;
+    let surveyTrendChart = null;
+    let surveyTrendView  = 'daily';
+    let surveySearchTimer = null;
+    // Cache leads rows so onclick can reference by index (avoids unsafe inline JSON)
+    let _surveyLeadsCache = [];
+
+    async function loadSurveyAnalytics() {
+      try {
+        const headers = getAdminHeaders();
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(apiBase + '/api/admin/survey-stats', { headers });
+        if (!res.ok) throw new Error('Stats fetch failed');
+        const data = await res.json();
+
+        const el = id => document.getElementById(id);
+        if (el('sl-total'))          el('sl-total').textContent          = (data.total_responses || 0).toLocaleString();
+        if (el('sl-pct-interested')) el('sl-pct-interested').textContent = (data.pct_interested || 0) + '%';
+        if (el('sl-profiles'))       el('sl-profiles').textContent       = (data.total_profiles || 0).toLocaleString();
+        if (el('sl-jobs'))           el('sl-jobs').textContent           = (data.total_jobs || 0).toLocaleString();
+
+        // Render heatmap
+        renderSurveyHeatmap(data.feature_heatmap || {});
+
+        // Store trend data for chart
+        surveyTrendData = data.daily_counts || {};
+        if (document.getElementById('sl-trend-chart')) renderSurveyTrendChart();
+
+        // Load leads table
+        await loadSurveyLeads(1);
+
+      } catch (err) {
+        console.error('[SurveyLeads] loadSurveyAnalytics error:', err.message);
+      }
+    }
+    window.loadSurveyAnalytics = loadSurveyAnalytics;
+
+    // ===== MEMBER SURVEY ANALYTICS =====
+    const MS_LABELS = {
+      provider_discovery: { word_of_mouth: 'Word of mouth', online_search: 'Online search', stick_with_known: 'Stick with known', trial_error: 'Trial & error' },
+      provider_satisfaction: { very_satisfied: 'Very satisfied', somewhat_satisfied: 'Somewhat satisfied', not_satisfied: 'Not satisfied', avoid_service: 'Avoids service' },
+      service_frequency: { monthly_plus: 'Monthly+', every_2_3_months: 'Every 2-3 months', few_times_year: 'Few times/year', once_a_year: 'Once a year', only_problems: 'Only when broken' },
+      service_types: { routine: 'Routine maintenance', repairs: 'Repairs/diagnostics', cosmetic: 'Detailing/cosmetic', mixed: 'Mixed/varies' },
+      pricing_confidence: { very_fair: 'Very fair', mostly_fair: 'Mostly fair', not_sure: 'Not sure', not_fair: 'Not fair' },
+      estimate_surprise: { yes_regularly: 'Yes, regularly', yes_once: 'Yes, once', rarely: 'Rarely', never: 'Never' },
+      quote_behavior: { trust_one: 'Trust one shop', compare_few: 'Compare 2-3', online_research: 'Research online', just_pay: 'Just pay' },
+      provider_honesty: { very_honest: 'Very honest', mostly_honest: 'Mostly honest', skeptical: 'Skeptical', very_skeptical: 'Very skeptical' },
+      provider_vetting: { yes_nervous: 'Yes, concerned me', yes_went_anyway: 'Yes, went anyway', rarely: 'Rarely', never: 'Never' },
+      history_tracking: { no_system: 'No system', manual: 'Manual notes', mechanic_tracks: 'Mechanic tracks it', app: 'Uses an app' },
+      maintenance_avoidance: { yes_regularly: 'Yes, regularly', yes_sometimes: 'Yes, sometimes', rarely: 'Rarely', never: 'Never' },
+      job_status_updates: { i_call: 'I call the shop', they_call: 'They call when ready', just_show_up: 'Just show up', has_system: 'Shop has a system' },
+      maintenance_reminders: { from_shop: 'From shop/dealer', self_set: 'Self-set reminders', no_try_to_remember: 'Tries to remember', dashboard_light: 'Waits for warning light' },
+      competitive_bids: { love_it: 'Love it', open_to_it: 'Open to it', unsure: 'Unsure', prefer_one_shop: 'Prefer one shop' },
+      app_usage: { yes_regularly: 'Uses app regularly', tried_none_stuck: 'Tried, nothing stuck', no_old_fashioned: 'No app', didnt_know: "Didn't know apps exist" },
+      payment_comfort: { very_comfortable: 'Very comfortable', open_to_it: 'Open to it', prefer_in_person: 'Prefers in-person', not_comfortable: 'Not comfortable' },
+      dispute_history: { yes_hard_to_resolve: 'Yes, hard to resolve', yes_resolved: 'Yes, resolved', concerns_not_voiced: 'Concerns not voiced', never: 'Never' },
+      annual_spend: { under_500: 'Under $500', '500_to_1500': '$500-$1,500', '1500_to_3000': '$1,500-$3,000', over_3000: 'Over $3,000' },
+      decision_maker: { yes_primary: 'Yes, entirely', shared: 'Shared', mostly_me: 'Mostly me', not_me: 'Not usually me' },
+      near_term_need: { yes_urgent: 'Urgent need', yes_routine: 'Routine due soon', not_right_now: 'Just exploring', no_need: 'No need right now' },
+      top_priority: { trust: 'Trustworthiness', pricing: 'Fair pricing', convenience: 'Convenience', quality: 'Work quality', proximity: 'Location/proximity' },
+      vehicle_count: { '1': '1 vehicle', '2': '2 vehicles', '3plus': '3+ vehicles' }
+    };
+    const MS_CHART_COLORS = ['#c9a227','#22d3ee','#38bdf8','#34d399','#fb923c','#f87171','#a78bfa'];
+    let _msCharts = {};
+
+    function buildMsDoughnut(canvasId, labelMap, countMap) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const keys = Object.keys(countMap).filter(k => countMap[k] > 0);
+      // No data: show placeholder but preserve canvas so re-render works without full reload
+      let placeholder = canvas.parentElement.querySelector('.ms-chart-empty');
+      if (!keys.length) {
+        canvas.style.display = 'none';
+        if (!placeholder) {
+          placeholder = document.createElement('p');
+          placeholder.className = 'ms-chart-empty';
+          placeholder.style.cssText = 'color:var(--text-muted);text-align:center;font-size:0.88rem;padding:32px 0;';
+          placeholder.textContent = 'No data yet';
+          canvas.parentElement.appendChild(placeholder);
+        }
+        return;
+      }
+      // Has data: hide placeholder, restore canvas
+      if (placeholder) placeholder.remove();
+      canvas.style.display = '';
+      const labels = keys.map(k => labelMap[k] || k);
+      const values = keys.map(k => countMap[k]);
+      if (_msCharts[canvasId]) { _msCharts[canvasId].destroy(); }
+      _msCharts[canvasId] = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{ data: values, backgroundColor: MS_CHART_COLORS.slice(0, keys.length), borderWidth: 0 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right', labels: { color: '#a0a8b8', font: { size: 11 }, padding: 10, boxWidth: 12 } },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} (${Math.round(ctx.raw / values.reduce((a,b) => a+b,0) * 100)}%)` } }
+          },
+          cutout: '60%'
+        }
+      });
+    }
+
+    async function loadMemberSurveyAnalytics() {
+      try {
+        const headers = getAdminHeaders();
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(apiBase + '/api/admin/survey-analytics', { headers });
+        if (!res.ok) throw new Error('fetch failed');
+        const data = await res.json();
+
+        const el = id => document.getElementById(id);
+        if (el('ms-total')) el('ms-total').textContent = (data.total || 0).toLocaleString();
+        if (el('ms-week')) el('ms-week').textContent = (data.recent_week || 0).toLocaleString();
+
+        const topPriority = Object.entries(data.by_top_priority || {}).sort((a,b) => b[1]-a[1])[0];
+        if (el('ms-top-pain')) el('ms-top-pain').textContent = topPriority ? (MS_LABELS.top_priority[topPriority[0]] || topPriority[0]) : '—';
+
+        const topSat = Object.entries(data.by_provider_satisfaction || {}).sort((a,b) => b[1]-a[1])[0];
+        if (el('ms-top-improvement')) el('ms-top-improvement').textContent = topSat ? (MS_LABELS.provider_satisfaction[topSat[0]] || topSat[0]) : '—';
+
+        const CHART_MAP = [
+          ['ms-mech-sat-chart', 'provider_discovery'],
+          ['ms-cosmetic-chart', 'provider_satisfaction'],
+          ['ms-pain-chart', 'pricing_confidence'],
+          ['ms-improvement-chart', 'estimate_surprise'],
+          ['ms-discovery-chart', 'top_priority'],
+          ['ms-services-chart', 'vehicle_count']
+        ];
+        for (const [canvasId, key] of CHART_MAP) {
+          buildMsDoughnut(canvasId, MS_LABELS[key] || {}, data['by_' + key] || {});
+        }
+      } catch (err) {
+        console.error('[MemberSurveys] load error:', err.message);
+      }
+    }
+    window.loadMemberSurveyAnalytics = loadMemberSurveyAnalytics;
+
+    function renderSurveyHeatmap(heatmap) {
+      const container = document.getElementById('sl-heatmap');
+      if (!container) return;
+      const FEATURE_IDS = Object.keys(SURVEY_FEATURE_NAMES);
+      if (!FEATURE_IDS.some(fid => (heatmap[fid]?.yes || 0) + (heatmap[fid]?.maybe || 0) + (heatmap[fid]?.no || 0) > 0)) {
+        container.innerHTML = '<p style="color:var(--text-muted);padding:24px;text-align:center;">No feature ratings yet.</p>';
+        return;
+      }
+      container.innerHTML = FEATURE_IDS.map(fid => {
+        const counts = heatmap[fid] || { yes: 0, maybe: 0, no: 0 };
+        const total  = counts.yes + counts.maybe + counts.no || 1;
+        const yPct   = Math.round((counts.yes   / total) * 100);
+        const mPct   = Math.round((counts.maybe / total) * 100);
+        const nPct   = 100 - yPct - mPct;
+        return `
+          <div style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+              <span style="font-size:0.88rem;font-weight:500;color:var(--text-primary);">${escapeHtml(SURVEY_FEATURE_NAMES[fid] || fid)}</span>
+              <span style="font-size:0.78rem;color:var(--text-muted);">${counts.yes}👍 ${counts.maybe}🤔 ${counts.no}👎</span>
+            </div>
+            <div style="display:flex;height:10px;border-radius:6px;overflow:hidden;gap:2px;">
+              <div style="width:${yPct}%;background:#22c55e;border-radius:6px 0 0 6px;" title="Yes: ${yPct}%"></div>
+              <div style="width:${mPct}%;background:var(--accent-gold);" title="Maybe: ${mPct}%"></div>
+              <div style="width:${nPct}%;background:#94a3b8;border-radius:0 6px 6px 0;" title="No: ${nPct}%"></div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function renderSurveyTrendChart() {
+      if (!surveyTrendData) return;
+      const canvas = document.getElementById('sl-trend-chart');
+      if (!canvas) return;
+      if (typeof Chart === 'undefined') {
+        // Lazy-load Chart.js
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+        s.onload = () => renderSurveyTrendChart();
+        document.head.appendChild(s);
+        return;
+      }
+      if (surveyTrendChart) { surveyTrendChart.destroy(); surveyTrendChart = null; }
+
+      const daily   = Object.entries(surveyTrendData).sort((a, b) => a[0].localeCompare(b[0]));
+      let labels, values;
+      if (surveyTrendView === 'weekly') {
+        const weekMap = {};
+        for (const [date, count] of daily) {
+          const d = new Date(date);
+          const wStart = new Date(d); wStart.setDate(d.getDate() - d.getDay());
+          const key = wStart.toISOString().slice(0, 10);
+          weekMap[key] = (weekMap[key] || 0) + count;
+        }
+        const weeks = Object.entries(weekMap).sort((a, b) => a[0].localeCompare(b[0]));
+        labels = weeks.map(([d]) => 'Wk ' + d.slice(5));
+        values = weeks.map(([, v]) => v);
+      } else {
+        labels = daily.map(([d]) => d.slice(5));
+        values = daily.map(([, v]) => v);
+      }
+
+      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+      const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+      const textColor = isDark ? '#a0a8b8' : '#4a5568';
+      surveyTrendChart = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Responses',
+            data: values,
+            borderColor: '#C9A84C',
+            backgroundColor: 'rgba(201,168,76,0.12)',
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.3,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: textColor, maxTicksLimit: 14 }, grid: { color: gridColor } },
+            y: { ticks: { color: textColor, stepSize: 1, precision: 0 }, grid: { color: gridColor }, beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function switchTrendView(view) {
+      surveyTrendView = view;
+      const dailyBtn  = document.getElementById('sl-trend-daily');
+      const weeklyBtn = document.getElementById('sl-trend-weekly');
+      if (dailyBtn)  dailyBtn.style.background  = view === 'daily'  ? 'var(--accent-blue-soft)' : '';
+      if (dailyBtn)  dailyBtn.style.color        = view === 'daily'  ? 'var(--accent-blue)' : '';
+      if (weeklyBtn) weeklyBtn.style.background  = view === 'weekly' ? 'var(--accent-blue-soft)' : '';
+      if (weeklyBtn) weeklyBtn.style.color        = view === 'weekly' ? 'var(--accent-blue)' : '';
+      renderSurveyTrendChart();
+    }
+    window.switchTrendView = switchTrendView;
+
+    async function loadSurveyLeads(page) {
+      page = page || surveyLeadsState.page;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const search  = (document.getElementById('sl-search')?.value || '').trim();
+      const filter  = document.getElementById('sl-filter')?.value || 'all';
+      const sortDir = surveyLeadsState.sortDir || 'desc';
+      const params  = new URLSearchParams({ page, limit: surveyLeadsState.limit, search, filter, sort_dir: sortDir });
+      const tbody   = document.getElementById('sl-table-body');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Loading…</td></tr>';
+      try {
+        const res = await fetch(apiBase + '/api/admin/survey-leads?' + params.toString(), { headers: getAdminHeaders() });
+        if (!res.ok) throw new Error('Fetch failed');
+        const data = await res.json();
+        surveyLeadsState.page       = page;
+        surveyLeadsState.total      = data.total || 0;
+        surveyLeadsState.totalPages = Math.max(1, Math.ceil((data.total || 0) / surveyLeadsState.limit));
+        _surveyLeadsCache = data.leads || [];
+
+        // Update sort button labels
+        const sortBtn = document.getElementById('sl-sort-date-btn');
+        if (sortBtn) sortBtn.textContent = sortDir === 'desc' ? '📅 Newest First' : '📅 Oldest First';
+
+        if (tbody) {
+          const leads = _surveyLeadsCache;
+          if (!leads.length) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">No leads found.</td></tr>';
+          } else {
+            // Use data-idx to avoid unsafe inline JSON in onclick
+            tbody.innerHTML = leads.map((lead, idx) => {
+              const badge = lead.interested === true
+                ? '<span class="badge badge-green">✅ Yes</span>'
+                : lead.interested === false
+                  ? '<span class="badge badge-gray">👎 No</span>'
+                  : '<span class="badge badge-gray">—</span>';
+              const topFeature = lead.top_feature ? (SURVEY_FEATURE_NAMES[lead.top_feature] || lead.top_feature) : '—';
+              const service    = lead.job_service  ? (SURVEY_SERVICE_NAMES[lead.job_service]  || lead.job_service)  : '—';
+              const date       = lead.created_at   ? new Date(lead.created_at).toLocaleDateString() : '—';
+              return `<tr class="sl-lead-row" data-idx="${idx}" style="cursor:pointer;">
+                <td><span style="font-weight:500;">${escapeHtml(lead.name || '—')}</span></td>
+                <td><a href="mailto:${escapeHtml(lead.email||'')}" class="sl-email-link" style="color:var(--accent-blue);">${escapeHtml(lead.email||'—')}</a></td>
+                <td>${escapeHtml(lead.zip||'—')}</td>
+                <td style="font-size:0.83rem;">${escapeHtml(lead.vehicle||'—')}</td>
+                <td>${badge}</td>
+                <td style="font-size:0.83rem;">${escapeHtml(topFeature)}</td>
+                <td style="font-size:0.83rem;">${escapeHtml(service)}</td>
+                <td style="font-size:0.83rem;color:var(--text-muted);">${date}</td>
+              </tr>`;
+            }).join('');
+            // Attach click events via delegation (safe — no inline JSON)
+            tbody.querySelectorAll('.sl-lead-row').forEach(row => {
+              row.addEventListener('click', e => {
+                if (e.target.classList.contains('sl-email-link')) return;
+                openSurveyLeadDetail(_surveyLeadsCache[parseInt(row.dataset.idx, 10)]);
+              });
+            });
+          }
+        }
+
+        const pagEl = document.getElementById('sl-pagination');
+        if (pagEl) pagEl.innerHTML = renderPaginationControls(surveyLeadsState, 'loadSurveyLeads');
+      } catch (err) {
+        console.error('[SurveyLeads] loadSurveyLeads error:', err.message);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--accent-red);">Failed to load leads.</td></tr>';
+      }
+    }
+    window.loadSurveyLeads = loadSurveyLeads;
+
+    function toggleSurveyDateSort() {
+      surveyLeadsState.sortDir = surveyLeadsState.sortDir === 'desc' ? 'asc' : 'desc';
+      loadSurveyLeads(1);
+    }
+    window.toggleSurveyDateSort = toggleSurveyDateSort;
+
+    function openSurveyLeadDetail(lead) {
+      if (!lead) return;
+      const modal = document.getElementById('sl-detail-modal');
+      const body  = document.getElementById('sl-detail-body');
+      if (!modal || !body) return;
+
+      const fr = lead.feature_ratings || {};
+      const featureRows = Object.entries(fr).map(([fid, val]) => {
+        const icon = val === 'yes' ? '👍' : val === 'maybe' ? '🤔' : '👎';
+        return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border-subtle);font-size:0.85rem;">
+          <span style="color:var(--text-secondary);">${escapeHtml(SURVEY_FEATURE_NAMES[fid] || fid)}</span>
+          <span>${icon} ${escapeHtml(val)}</span>
+        </div>`;
+      }).join('') || '<p style="color:var(--text-muted);font-size:0.83rem;">No feature ratings.</p>';
+
+      const urgencyMap = { asap: '🚨 ASAP', this_week: '📅 This Week', this_month: '🗓️ This Month', just_curious: '👀 Just Pricing' };
+      const budgetMap  = { under_100: 'Under $100', '100_500': '$100–$500', '500_1000': '$500–$1,000', '1000_plus': '$1,000+', unsure: 'Not sure' };
+
+      body.innerHTML = `
+        <div style="margin-bottom:20px;">
+          <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Contact</div>
+          <div class="detail-grid">
+            <span class="detail-label">Name</span><span class="detail-value">${escapeHtml(lead.name||'—')}</span>
+            <span class="detail-label">Email</span><span class="detail-value"><a href="mailto:${escapeHtml(lead.email||'')}" style="color:var(--accent-blue);">${escapeHtml(lead.email||'—')}</a></span>
+            <span class="detail-label">Phone</span><span class="detail-value">${escapeHtml(lead.phone||'—')}</span>
+            <span class="detail-label">ZIP</span><span class="detail-value">${escapeHtml(lead.zip||'—')}</span>
+            <span class="detail-label">Vehicle</span><span class="detail-value">${escapeHtml(lead.vehicle||'—')}</span>
+            <span class="detail-label">Interested</span><span class="detail-value">${lead.interested === true ? '✅ Yes' : lead.interested === false ? '👎 No' : '—'}</span>
+            <span class="detail-label">Date</span><span class="detail-value">${lead.created_at ? new Date(lead.created_at).toLocaleString() : '—'}</span>
+          </div>
+        </div>
+        ${lead.job_service || lead.job_issue ? `
+        <div style="margin-bottom:20px;">
+          <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Job Request</div>
+          <div class="detail-grid">
+            <span class="detail-label">Service</span><span class="detail-value">${escapeHtml(SURVEY_SERVICE_NAMES[lead.job_service] || lead.job_service || '—')}</span>
+            <span class="detail-label">Urgency</span><span class="detail-value">${escapeHtml(urgencyMap[lead.job_urgency] || lead.job_urgency || '—')}</span>
+            <span class="detail-label">Budget</span><span class="detail-value">${escapeHtml(budgetMap[lead.job_budget] || lead.job_budget || '—')}</span>
+            <span class="detail-label" style="align-self:start;">Issue</span><span class="detail-value" style="white-space:pre-wrap;">${escapeHtml(lead.job_issue || '—')}</span>
+          </div>
+        </div>` : ''}
+        <div>
+          <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px;">Feature Ratings</div>
+          ${featureRows}
+        </div>`;
+
+      modal.classList.add('active');
+    }
+    window.openSurveyLeadDetail = openSurveyLeadDetail;
+
+    async function loadSurveyNotInterested(page) {
+      page = page || surveyNiState.page;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const tbody   = document.getElementById('sl-ni-body');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text-muted);">Loading…</td></tr>';
+      try {
+        const params = new URLSearchParams({ page, limit: surveyNiState.limit });
+        const res = await fetch(apiBase + '/api/admin/survey-not-interested?' + params.toString(), { headers: getAdminHeaders() });
+        if (!res.ok) throw new Error('Fetch failed');
+        const data = await res.json();
+        surveyNiState.page       = page;
+        surveyNiState.total      = data.total || 0;
+        surveyNiState.totalPages = Math.max(1, Math.ceil((data.total || 0) / surveyNiState.limit));
+
+        if (tbody) {
+          const emails = data.emails || [];
+          if (!emails.length) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:32px;color:var(--text-muted);">No not-interested emails yet.</td></tr>';
+          } else {
+            tbody.innerHTML = emails.map(row => {
+              const hasRatings = row.feature_ratings && Object.keys(row.feature_ratings).length > 0;
+              return `<tr>
+                <td><a href="mailto:${escapeHtml(row.email||'')}" style="color:var(--accent-blue);">${escapeHtml(row.email||'—')}</a></td>
+                <td style="color:var(--text-muted);font-size:0.85rem;">${row.created_at ? new Date(row.created_at).toLocaleDateString() : '—'}</td>
+                <td>${hasRatings ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-gray">No</span>'}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+
+        const pagEl = document.getElementById('sl-ni-pagination');
+        if (pagEl) pagEl.innerHTML = renderPaginationControls(surveyNiState, 'loadSurveyNotInterested');
+      } catch (err) {
+        console.error('[SurveyLeads] loadSurveyNotInterested error:', err.message);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--accent-red);">Failed to load emails.</td></tr>';
+      }
+    }
+    window.loadSurveyNotInterested = loadSurveyNotInterested;
+
+    function switchSurveyTab(tab, el) {
+      document.querySelectorAll('#survey-leads-tabs .tab').forEach(t => t.classList.remove('active'));
+      if (el) el.classList.add('active');
+      ['leads','not-interested','heatmap','trends'].forEach(t => {
+        const div = document.getElementById('survey-tab-' + t);
+        if (div) div.style.display = t === tab ? '' : 'none';
+      });
+      if (tab === 'not-interested') loadSurveyNotInterested(1);
+      if (tab === 'trends' && surveyTrendData) setTimeout(renderSurveyTrendChart, 50);
+    }
+    window.switchSurveyTab = switchSurveyTab;
+
+    function debounceSurveySearch() {
+      if (surveySearchTimer) clearTimeout(surveySearchTimer);
+      surveySearchTimer = setTimeout(() => loadSurveyLeads(1), 300);
+    }
+    window.debounceSurveySearch = debounceSurveySearch;
+
+    function exportSurveyLeads() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const headers = getAdminHeaders();
+      const pw      = headers['x-admin-password'] || headers['x-admin-token'] || '';
+      const url     = apiBase + '/api/admin/survey-leads/export';
+      const a       = document.createElement('a');
+      a.href = url + (pw ? '?_t=' + Date.now() : '');
+      // Pass password via fetch and redirect to blob URL
+      fetch(url, { headers }).then(r => r.blob()).then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        a.href = blobUrl;
+        a.download = 'survey-leads-' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      }).catch(err => { console.error('[SurveyLeads] export error:', err); alert('Export failed.'); });
+    }
+    window.exportSurveyLeads = exportSurveyLeads;
+
+    // ========== END SURVEY LEADS ==========

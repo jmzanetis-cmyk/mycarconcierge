@@ -530,6 +530,13 @@ async function initializeDashboard() {
   setupEventListeners();
   setupRealtimeSubscriptions();
   if (typeof initAiPackageAssistant === 'function') initAiPackageAssistant();
+
+  // Initialize native push notifications on member login
+  // members-push.js handles permission check, first-launch prompt, and FCM token registration
+  if (typeof window.initCapacitorPush === 'function') {
+    window._mccPushContext = 'member';
+    setTimeout(() => window.initCapacitorPush('member'), 1500);
+  }
 }
 
 // ========== REALTIME SUBSCRIPTIONS ==========
@@ -891,7 +898,9 @@ function renderVehicles() {
   const grid = document.getElementById('vehicles-grid');
   if (!grid) return;
   
+  const nudge = document.getElementById('vehicle-photo-nudge');
   if (!vehicles.length) {
+    if (nudge) nudge.style.display = 'none';
     grid.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">${mccIcon('car', 40)}</div>
@@ -900,6 +909,11 @@ function renderVehicles() {
       </div>
     `;
     return;
+  }
+  // Only show nudge if at least one vehicle actually has no photos (check after render)
+  if (nudge && !nudge.dataset.dismissed) {
+    nudge.style.display = 'none';
+    checkPhotoNudge(vehicles.map(v => v.id));
   }
 
   grid.innerHTML = vehicles.map(v => {
@@ -922,6 +936,7 @@ function renderVehicles() {
         ${renderPredictionsSection(v.id)}
         <div class="vehicle-card-actions">
           <button class="btn btn-sm btn-secondary" onclick="editVehicle('${v.id}')">Edit</button>
+          <button class="btn btn-sm" onclick="openVehiclePhotos('${v.id}','${escapeHtml(displayName).replace(/'/g,"\\'")}')" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-secondary);">📷 Photos</button>
           <button class="btn btn-sm btn-danger" onclick="deleteVehicle('${v.id}')">Delete</button>
         </div>
       </div>
@@ -962,6 +977,21 @@ function renderServiceHistory() {
       </div>
     `;
   }).join('');
+}
+
+// Check if any vehicle has no photos and show nudge accordingly
+async function checkPhotoNudge(vehicleIds) {
+  const nudge = document.getElementById('vehicle-photo-nudge');
+  if (!nudge || nudge.dataset.dismissed) return;
+  try {
+    if (!vehicleIds || !vehicleIds.length) { nudge.style.display = 'none'; return; }
+    const { data: photos } = await supabaseClient.from('vehicle_photos').select('vehicle_id').in('vehicle_id', vehicleIds);
+    const vehiclesWithPhotos = new Set((photos || []).map(p => p.vehicle_id));
+    const anyMissingPhotos = vehicleIds.some(id => !vehiclesWithPhotos.has(id));
+    nudge.style.display = anyMissingPhotos ? 'block' : 'none';
+  } catch {
+    nudge.style.display = 'none';
+  }
 }
 
 async function loadProfile() {
@@ -2729,9 +2759,12 @@ function loadModuleForSection(section) {
 async function showSection(sectionId) {
   // Load required module first
   await loadModuleForSection(sectionId);
-  
+
+  const target = document.getElementById(sectionId);
+  if (!target) { console.warn('[showSection] Unknown section:', sectionId); return; }
+
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById(sectionId).classList.add('active');
+  target.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector(`.nav-item[data-section="${sectionId}"]`)?.classList.add('active');
   document.getElementById('sidebar').classList.remove('open');
@@ -2986,6 +3019,14 @@ function openPackageModal() {
   pendingPackagePhotos = [];
   document.getElementById('package-photo-previews').innerHTML = '';
   
+  // Reset crowd-funded controls
+  const crowdFundedCheckbox = document.getElementById('p-crowd-funded');
+  const crowdFundedInfo = document.getElementById('crowd-funded-info');
+  const fundingGoalInput = document.getElementById('p-funding-goal');
+  if (crowdFundedCheckbox) crowdFundedCheckbox.checked = false;
+  if (crowdFundedInfo) crowdFundedInfo.style.display = 'none';
+  if (fundingGoalInput) fundingGoalInput.value = '';
+
   // Handle private job section
   const privateJobSection = document.getElementById('private-job-section');
   const privateJobCheckbox = document.getElementById('p-private-job');
@@ -3220,12 +3261,13 @@ async function loadCrowdFundedProgress() {
       if (!raisedEl || !barEl) return;
       const raisedDollars = (data.total_cents / 100).toFixed(2);
       const goalCents = pkg.funding_goal_cents;
+      const contributorLabel = data.count === 1 ? '1 contributor' : `${data.count} contributors`;
       if (goalCents) {
         const pct = Math.min(100, Math.round((data.total_cents / goalCents) * 100));
-        raisedEl.textContent = `$${raisedDollars} of $${(goalCents / 100).toFixed(0)} raised (${pct}%)`;
+        raisedEl.textContent = `$${raisedDollars} of $${(goalCents / 100).toFixed(0)} raised (${pct}%) · ${contributorLabel}`;
         barEl.style.width = pct + '%';
       } else {
-        raisedEl.textContent = data.total_cents > 0 ? `$${raisedDollars} raised by ${data.count} ${data.count === 1 ? 'member' : 'members'}` : 'No contributions yet';
+        raisedEl.textContent = data.total_cents > 0 ? `$${raisedDollars} raised · ${contributorLabel}` : 'No contributions yet';
         barEl.style.width = data.total_cents > 0 ? '100%' : '0%';
       }
     } catch {}
@@ -3280,7 +3322,7 @@ async function loadCommunityBoard() {
         <div class="package-header">
           <div>
             <div class="package-title">${escapeHtml(pkg.title)}</div>
-            <div class="package-vehicle" style="color:var(--text-muted);font-size:0.85rem;">${escapeHtml(pkg.member_name || 'Community Member')}</div>
+            <div class="package-vehicle" style="color:var(--text-muted);font-size:0.85rem;">${escapeHtml(pkg.member_first_name || pkg.member_name || 'A member')} needs help${pkg.vehicle_label ? ` · ${escapeHtml(pkg.vehicle_label)}` : ''}${pkg.category ? ` · ${escapeHtml(pkg.category.replace(/_/g, ' '))}` : ''}</div>
           </div>
           <span class="package-status open">Open</span>
         </div>
@@ -3405,7 +3447,7 @@ async function submitContribution(packageId) {
     const session = await supabaseClient.auth.getSession();
     const token = session.data.session?.access_token;
     const amountCents = Math.round(amount * 100);
-    const intentRes = await fetch(`/api/packages/${packageId}/contribute/intent`, {
+    const intentRes = await fetch(`/api/packages/${packageId}/contribute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ amount_cents: amountCents })

@@ -338,26 +338,33 @@
       }
     }
     
+    const MEMBER_PUSH_PREF_FIELDS = [
+      { id: 'push-bid-alerts',         key: 'push_bid_alerts' },
+      { id: 'push-vehicle-status',     key: 'push_vehicle_status' },
+      { id: 'push-dream-car',          key: 'push_dream_car_matches' },
+      { id: 'push-maintenance',        key: 'push_maintenance_reminders' },
+      { id: 'push-bid-accepted',       key: 'push_bid_accepted' },
+      { id: 'push-payment-released',   key: 'push_payment_released' },
+      { id: 'push-appointment-reminder', key: 'push_appointment_reminder' },
+      { id: 'push-ai-match',           key: 'push_ai_match' },
+      { id: 'push-car-club',           key: 'push_car_club' }
+    ];
+
     async function loadPushPreferences() {
-      const bidAlerts = document.getElementById('push-bid-alerts');
-      const vehicleStatus = document.getElementById('push-vehicle-status');
-      const dreamCar = document.getElementById('push-dream-car');
-      const maintenance = document.getElementById('push-maintenance');
-      
-      if (!bidAlerts) return;
+      const firstEl = document.getElementById(MEMBER_PUSH_PREF_FIELDS[0].id);
+      if (!firstEl) return;
       
       try {
         const response = await fetch(`/api/member/${currentUser.id}/notification-preferences`);
         const data = await response.json();
         const prefs = data.preferences || {};
         
-        bidAlerts.checked = prefs.push_bid_alerts !== false;
-        vehicleStatus.checked = prefs.push_vehicle_status !== false;
-        dreamCar.checked = prefs.push_dream_car_matches !== false;
-        maintenance.checked = prefs.push_maintenance_reminders !== false;
-        
-        [bidAlerts, vehicleStatus, dreamCar, maintenance].forEach(el => {
-          el.addEventListener('change', savePushPreferences);
+        MEMBER_PUSH_PREF_FIELDS.forEach(({ id, key }) => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.checked = prefs[key] !== false;
+            el.addEventListener('change', savePushPreferences);
+          }
         });
         
       } catch (error) {
@@ -368,12 +375,10 @@
     async function savePushPreferences() {
       if (!currentUser) return;
       
-      const preferences = {
-        push_bid_alerts: document.getElementById('push-bid-alerts')?.checked ?? true,
-        push_vehicle_status: document.getElementById('push-vehicle-status')?.checked ?? true,
-        push_dream_car_matches: document.getElementById('push-dream-car')?.checked ?? true,
-        push_maintenance_reminders: document.getElementById('push-maintenance')?.checked ?? true
-      };
+      const preferences = {};
+      MEMBER_PUSH_PREF_FIELDS.forEach(({ id, key }) => {
+        preferences[key] = document.getElementById(id)?.checked ?? true;
+      });
       
       try {
         await fetch(`/api/member/${currentUser.id}/notification-preferences`, {
@@ -754,6 +759,21 @@
     }
 
     async function logout() {
+      try {
+        const storedToken = localStorage.getItem('mcc_fcm_token');
+        if (storedToken) {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (session) {
+            const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+            await fetch(`${apiBase}/api/push/unregister-device`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+              body: JSON.stringify({ token: storedToken })
+            }).catch(() => {});
+            localStorage.removeItem('mcc_fcm_token');
+          }
+        }
+      } catch {}
       await supabaseClient.auth.signOut();
       window.location.href = 'login.html';
     }

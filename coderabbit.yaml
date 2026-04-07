@@ -1,0 +1,40 @@
+# .coderabbit.yaml - My Car Concierge
+# AI-powered code review configuration for CodeRabbit
+# Place this file in the root of the mycarconcierge repository
+
+reviews:
+  auto_review:
+    enabled: true
+  path_instructions:
+    - path: "netlify/functions/**"
+      instructions: |
+        Focus on Stripe payment security, input validation, error handling,
+        and serverless best practices. Check for proper environment variable
+        usage. Verify Stripe Connect flows and webhook signature validation.
+    - path: "android/**"
+      instructions: |
+        Check for Android best practices, proper permissions handling,
+        and Capacitor bridge compatibility.
+    - path: "ios/**"
+      instructions: |
+        Check for iOS build configuration, App Store compliance,
+        and Capacitor compatibility.
+    - path: "outreach-runner/**"
+      instructions: |
+        Review email/SMS outreach logic for rate limiting, opt-out
+        compliance (CAN-SPAM, TCPA), and proper Twilio API usage.
+    - path: "scripts/**"
+      instructions: |
+        Ensure scripts are idempotent, have proper error handling,
+        and don't expose secrets or API keys.
+    - path: "src/**"
+      instructions: |
+        Check for responsive design, accessibility, and consistent
+        UI patterns across the bidding marketplace flow. Verify
+        proper state management and error boundaries.
+    - path: "rideshare-calculator/**"
+      instructions: |
+        Validate calculation logic accuracy and input sanitization.
+    - path: "locales/**"
+      instructions: |
+        Check for missing translation keys and consistent formatting.

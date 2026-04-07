@@ -1238,9 +1238,14 @@
       if (linkEl) linkEl.textContent = personalUrl;
       const investEl = document.getElementById('wefunder-invest-link');
       if (investEl) investEl.href = personalUrl;
+      loadWefunderClickStats().catch(() => {});
 
       try {
-        const res = await fetch('/api/wefunder/stats');
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const res = await fetch('/api/founder/campaign-stats', {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (!res.ok) throw new Error(`Campaign stats error: ${res.status}`);
         const s = await res.json();
         const loading = document.getElementById('wefunder-loading');
         const body = document.getElementById('wefunder-body');
@@ -1283,13 +1288,74 @@
         const body = document.getElementById('wefunder-body');
         if (loading) loading.style.display = 'none';
         if (body) body.style.display = 'block';
+        // Show explicit fallback so founders can still reach the campaign
+        const grid = document.getElementById('wefunder-stats-grid');
+        if (grid) {
+          grid.innerHTML = `<div style="grid-column:1/-1;padding:14px;background:rgba(255,180,50,0.07);border:1px solid rgba(255,180,50,0.18);border-radius:var(--radius-md);display:flex;align-items:center;gap:12px;font-size:0.85rem;color:var(--text-muted);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex-shrink:0;color:#f0a500;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>Live campaign stats couldn't be loaded right now. <a href="https://wefunder.com/my.car.concierge" target="_blank" rel="noopener noreferrer" style="color:#00c48c;font-weight:600;text-decoration:none;">View Campaign on Wefunder &rarr;</a></span>
+          </div>`;
+        }
       }
     }
 
     function getPersonalWefunderLink() {
       const code = founderProfile?.referral_code || founderProfile?.id || '';
       if (!code) return 'https://wefunder.com/my.car.concierge';
-      return `https://wefunder.com/my.car.concierge?utm_source=mcc_founder&utm_medium=referral&utm_campaign=wefunder&utm_content=${encodeURIComponent(code)}`;
+      return `${window.location.origin}/api/founder/campaign-link?code=${encodeURIComponent(code)}`;
+    }
+
+    async function loadWefunderClickStats() {
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        if (!token) return;
+        // Server resolves the authenticated founder's own code — no code param needed
+        const res = await fetch(`/api/founder/campaign-link-stats`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const statsEl = document.getElementById('wefunder-click-stats');
+        const totalEl = document.getElementById('wefunder-click-total');
+        const weekEl = document.getElementById('wefunder-click-7d');
+        if (statsEl && totalEl && weekEl) {
+          totalEl.textContent = data.total_clicks || 0;
+          weekEl.textContent = data.clicks_last_7d || 0;
+          statsEl.style.display = 'block';
+        }
+        // Render investment pipeline: visits → investments conversion
+        renderInvestmentPipeline(data);
+      } catch {}
+    }
+
+    function renderInvestmentPipeline(data) {
+      const pipelineEl = document.getElementById('wefunder-pipeline');
+      if (!pipelineEl) return;
+      const visits = data.total_clicks || 0;
+      const investments = data.attributed_investments || 0;
+      const convRate = visits > 0 ? ((investments / visits) * 100).toFixed(1) : '0.0';
+      pipelineEl.innerHTML = `
+        <div style="margin-top:12px;padding:12px 14px;background:rgba(0,196,140,0.05);border:1px solid rgba(0,196,140,0.15);border-radius:var(--radius-md);">
+          <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:10px;font-weight:600;">Your Referral Pipeline</div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div style="text-align:center;min-width:60px;">
+              <div style="font-size:1.2rem;font-weight:700;color:#00c48c;">${visits.toLocaleString()}</div>
+              <div style="font-size:0.7rem;color:var(--text-muted);">Link Visits</div>
+            </div>
+            <div style="color:var(--text-muted);font-size:0.9rem;">→</div>
+            <div style="text-align:center;min-width:60px;">
+              <div style="font-size:1.2rem;font-weight:700;color:var(--accent-gold);">${investments.toLocaleString()}</div>
+              <div style="font-size:0.7rem;color:var(--text-muted);">Investments</div>
+            </div>
+            <div style="color:var(--text-muted);font-size:0.9rem;">→</div>
+            <div style="text-align:center;min-width:60px;">
+              <div style="font-size:1.2rem;font-weight:700;color:var(--accent-blue);">${convRate}%</div>
+              <div style="font-size:0.7rem;color:var(--text-muted);">Conversion</div>
+            </div>
+          </div>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:8px;">Investment counts updated manually by the MCC team after Wefunder processes contributions.</div>
+        </div>
+      `;
     }
 
     function copyWefunderLink() {

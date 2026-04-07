@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -45,7 +46,7 @@
 
     /* Light mode sidebar */
     [data-theme="light"] .sidebar {
-      background: linear-gradient(180deg, #ffffff 0%, #fefdfb 100%);
+      background: linear-gradient(180deg, #ffffff 0%, #f3f4f6 100%);
       border-right: 1px solid rgba(30, 58, 95, 0.1);
     }
     [data-theme="light"] .nav-item:hover {
@@ -53,7 +54,7 @@
     }
     @media (max-width: 768px) {
       [data-theme="light"] .sidebar {
-        background: linear-gradient(180deg, #ffffff 0%, #fefdfb 100%);
+        background: linear-gradient(180deg, #ffffff 0%, #f3f4f6 100%);
       }
     }
 
@@ -63,7 +64,8 @@
 
     /* Sidebar */
     .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 20px; text-decoration: none; border-bottom: 1px solid var(--border-subtle); }
-    .brand-icon { height: 120px; width: auto; border-radius: var(--radius-sm); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+    .brand-icon { height: 120px; width: auto; border-radius: var(--radius-sm); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25)); transition: filter 0.3s ease; }
+    .sidebar-brand:hover .brand-icon { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.4)); }
     .brand-text-sm { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--text-primary); }
     .brand-fleet { font-size: 0.75rem; color: var(--accent-gold); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
 
@@ -182,6 +184,8 @@
       .form-row { grid-template-columns: 1fr; }
     }
     @media (min-width: 901px) { .mobile-header { display: none; } }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
   <script src="/i18n.js"></script>
 </head>
@@ -193,18 +197,18 @@
     <div id="language-switcher" style="padding:0 20px 16px;"></div>
 
     <div class="nav-label">Dashboard</div>
-    <div class="nav-item active" data-section="overview">📊 Overview</div>
-    <div class="nav-item" data-section="vehicles">🚗 Fleet Vehicles <span class="nav-badge" id="vehicle-count">0</span></div>
-    <div class="nav-item" data-section="drivers">👥 Drivers</div>
+    <div class="nav-item active" data-section="overview"><span class="icon-inline" data-icon="bar-chart"></span> Overview</div>
+    <div class="nav-item" data-section="vehicles"><span class="icon-inline" data-icon="car"></span> Fleet Vehicles <span class="nav-badge" id="vehicle-count">0</span></div>
+    <div class="nav-item" data-section="drivers"><span class="icon-inline" data-icon="users"></span> Drivers</div>
     
     <div class="nav-label">Services</div>
-    <div class="nav-item" data-section="services">🔧 Active Services <span class="nav-badge" id="active-service-count" style="display:none;">0</span></div>
-    <div class="nav-item" data-section="approvals">✓ Pending Approvals <span class="nav-badge" id="approval-count" style="background:var(--accent-orange);display:none;">0</span></div>
-    <div class="nav-item" data-section="history">📜 Service History</div>
+    <div class="nav-item" data-section="services"><span class="icon-inline" data-icon="wrench"></span> Active Services <span class="nav-badge" id="active-service-count" style="display:none;">0</span></div>
+    <div class="nav-item" data-section="approvals"<span class="icon-inline" data-icon="check"></span> Pending Approvals <span class="nav-badge" id="approval-count" style="background:var(--accent-orange);display:none;">0</span></div>
+    <div class="nav-item" data-section="history"><span class="icon-inline" data-icon="file-text"></span> Service History</div>
     
     <div class="nav-label">Reports</div>
-    <div class="nav-item" data-section="spending">💰 Spending</div>
-    <div class="nav-item" data-section="maintenance">📅 Maintenance Schedule</div>
+    <div class="nav-item" data-section="spending"><span class="icon-inline" data-icon="dollar-sign"></span> Spending</div>
+    <div class="nav-item" data-section="maintenance"><span class="icon-inline" data-icon="calendar"></span> Maintenance Schedule</div>
 
     <div class="sidebar-footer">
       <div class="user-info">
@@ -214,13 +218,13 @@
           <div class="user-email" id="fleet-name">Company Fleet</div>
         </div>
       </div>
-      <div class="nav-item" onclick="logout()">🚪 Log Out</div>
+      <div class="nav-item" onclick="logout()"><span class="icon-inline" data-icon="log-out"></span> Log Out</div>
     </div>
   </aside>
 
   <main class="main">
     <div class="mobile-header">
-      <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+      <button class="mobile-menu-btn" onclick="toggleSidebar()"><span class="icon-inline" data-icon="list-ordered"></span></button>
       <span style="font-weight:600;">Fleet Dashboard</span>
     </div>
 
@@ -232,27 +236,27 @@
       </div>
 
       <div id="budget-alert" class="alert-banner warning" style="display:none;">
-        ⚠️ <span id="budget-alert-text">You've used 80% of your monthly maintenance budget.</span>
+        <span class="icon-inline" data-icon="alert-triangle"></span> <span id="budget-alert-text">You've used 80% of your monthly maintenance budget.</span>
       </div>
 
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon blue">🚗</div>
+          <div class="stat-icon blue"><span class="icon-inline" data-icon="car"></span></div>
           <div class="stat-value" id="stat-total-vehicles">0</div>
           <div class="stat-label">Total Vehicles</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon green">✓</div>
+          <div class="stat-icon green"><span class="icon-inline" data-icon="check"></span></div>
           <div class="stat-value" id="stat-active-vehicles">0</div>
           <div class="stat-label">Active</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon orange">🔧</div>
+          <div class="stat-icon orange"><span class="icon-inline" data-icon="wrench"></span></div>
           <div class="stat-value" id="stat-in-maintenance">0</div>
           <div class="stat-label">In Maintenance</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon gold">💰</div>
+          <div class="stat-icon gold"><span class="icon-inline" data-icon="dollar-sign"></span></div>
           <div class="stat-value" id="stat-monthly-spend">$0</div>
           <div class="stat-label">This Month</div>
           <div class="stat-change up" id="stat-spend-change">↑ 12% vs last month</div>
@@ -267,7 +271,7 @@
           </div>
           <div id="upcoming-maintenance">
             <div class="empty-state">
-              <div class="empty-state-icon">📅</div>
+              <div class="empty-state-icon"><span class="icon-inline" data-icon="calendar"></span></div>
               <p>No upcoming maintenance scheduled.</p>
             </div>
           </div>
@@ -285,19 +289,19 @@
           </div>
           <div style="font-size:0.88rem;">
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span><span style="color:var(--accent-blue);">●</span> Maintenance</span>
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-blue);"></span> Maintenance</span>
               <span id="cat-maintenance">$0</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span><span style="color:var(--accent-green);">●</span> Repairs</span>
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);"></span> Repairs</span>
               <span id="cat-repairs">$0</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span><span style="color:var(--accent-orange);">●</span> Detailing</span>
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-orange);"></span> Detailing</span>
               <span id="cat-detailing">$0</span>
             </div>
             <div style="display:flex;justify-content:space-between;">
-              <span><span style="color:var(--accent-gold);">●</span> Other</span>
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-gold);"></span> Other</span>
               <span id="cat-other">$0</span>
             </div>
           </div>
@@ -311,7 +315,7 @@
         </div>
         <div id="pending-approvals-preview">
           <div class="empty-state">
-            <div class="empty-state-icon">✓</div>
+            <div class="empty-state-icon"><span class="icon-inline" data-icon="check"></span></div>
             <p>No pending approvals.</p>
           </div>
         </div>
@@ -327,7 +331,7 @@
 
       <div style="display:flex;gap:12px;margin-bottom:24px;">
         <button class="btn btn-primary" onclick="openAddVehicleModal()">+ Add Vehicle</button>
-        <button class="btn btn-secondary">📥 Import CSV</button>
+        <button class="btn btn-secondary" onclick="openFleetCsvImport()"><span class="icon-inline" data-icon="download"></span> Import CSV</button>
       </div>
 
       <div class="card">
@@ -392,7 +396,7 @@
       <div class="card">
         <div id="active-services-list">
           <div class="empty-state">
-            <div class="empty-state-icon">🔧</div>
+            <div class="empty-state-icon"><span class="icon-inline" data-icon="wrench"></span></div>
             <p>No active services.</p>
           </div>
         </div>
@@ -407,13 +411,13 @@
       </div>
 
       <div class="alert-banner info">
-        💡 Services under <strong>$<span id="auto-approve-amount">100</span></strong> are automatically approved based on your settings.
+        <span class="icon-inline" data-icon="lightbulb"></span> Services under <strong>$<span id="auto-approve-amount">100</span></strong> are automatically approved based on your settings.
       </div>
 
       <div class="card">
         <div id="approval-list">
           <div class="empty-state">
-            <div class="empty-state-icon">✓</div>
+            <div class="empty-state-icon"><span class="icon-inline" data-icon="check"></span></div>
             <p>No pending approvals. All caught up!</p>
           </div>
         </div>
@@ -441,7 +445,7 @@
             <option value="all">All Time</option>
           </select>
         </div>
-        <button class="btn btn-secondary">📤 Export CSV</button>
+        <button class="btn btn-secondary"><span class="icon-inline" data-icon="upload"></span> Export CSV</button>
       </div>
 
       <div class="card">
@@ -480,27 +484,27 @@
             <option value="year">This Year</option>
           </select>
         </div>
-        <button class="btn btn-secondary">📤 Export Report</button>
+        <button class="btn btn-secondary"><span class="icon-inline" data-icon="upload"></span> Export Report</button>
       </div>
 
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon gold">💰</div>
+          <div class="stat-icon gold"><span class="icon-inline" data-icon="dollar-sign"></span></div>
           <div class="stat-value" id="spend-total">$0</div>
           <div class="stat-label">Total Spending</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon blue">📊</div>
+          <div class="stat-icon blue"><span class="icon-inline" data-icon="bar-chart"></span></div>
           <div class="stat-value" id="spend-per-vehicle">$0</div>
           <div class="stat-label">Avg per Vehicle</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon green">🔧</div>
+          <div class="stat-icon green"><span class="icon-inline" data-icon="wrench"></span></div>
           <div class="stat-value" id="spend-services">0</div>
           <div class="stat-label">Services Completed</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon orange">💵</div>
+          <div class="stat-icon orange"><span class="icon-inline" data-icon="dollar-sign"></span></div>
           <div class="stat-value" id="spend-savings">$0</div>
           <div class="stat-label">Est. Savings via MCC</div>
         </div>
@@ -511,7 +515,7 @@
           <h2 class="card-title">Spending Trend</h2>
         </div>
         <div class="chart-placeholder">
-          📈 Chart coming soon - spending over time
+          <span class="icon-inline" data-icon="trending-up"></span> Chart coming soon - spending over time
         </div>
       </div>
 
@@ -546,17 +550,17 @@
 
       <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
         <div class="stat-card">
-          <div class="stat-icon red">⚠️</div>
+          <div class="stat-icon red"><span class="icon-inline" data-icon="alert-triangle"></span></div>
           <div class="stat-value" id="maint-overdue">0</div>
           <div class="stat-label">Overdue</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon orange">🔔</div>
+          <div class="stat-icon orange"><span class="icon-inline" data-icon="bell"></span></div>
           <div class="stat-value" id="maint-due-soon">0</div>
           <div class="stat-label">Due This Week</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon green">✓</div>
+          <div class="stat-icon green"><span class="icon-inline" data-icon="check"></span></div>
           <div class="stat-value" id="maint-upcoming">0</div>
           <div class="stat-label">Upcoming (30 days)</div>
         </div>
@@ -723,13 +727,290 @@
 
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
+  <script src="/white-label-client.js"></script>
   <script src="fleet.js"></script>
   <script src="/pwa-init.js?v=20260202"></script>
   <script>
+    var currentFleet = null; // Current fleet context for CSV import and other operations
+
+    async function loadCurrentFleet() {
+      try {
+        var session = await window.supabaseClient.auth.getSession();
+        var user = session?.data?.session?.user;
+        if (!user) return;
+
+        // Fetch the fleet where the logged-in user is the owner
+        var { data: fleet, error } = await window.supabaseClient
+          .from('fleets')
+          .select('id, name, company_name, owner_id, status')
+          .eq('owner_id', user.id)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (fleet && !error) {
+          currentFleet = fleet;
+          var nameEl = document.getElementById('fleet-name-nav');
+          if (nameEl && currentFleet.name) nameEl.textContent = currentFleet.name;
+        } else {
+          // Fallback: user may be a fleet member (manager), look up via fleet_members
+          var { data: membership } = await window.supabaseClient
+            .from('fleet_members')
+            .select('fleet_id, role, fleets(id, name, company_name, owner_id, status)')
+            .eq('user_id', user.id)
+            .in('role', ['owner', 'manager'])
+            .eq('status', 'active')
+            .limit(1)
+            .maybeSingle();
+          if (membership?.fleets) {
+            currentFleet = membership.fleets;
+          }
+        }
+      } catch (e) {
+        console.warn('Fleet context load error:', e.message);
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
+      await loadCurrentFleet();
     });
+  </script>
+  <!-- CSV Import Modal -->
+  <div id="fleet-csv-import-modal" class="modal" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal-overlay" onclick="closeFleetCsvImport()"></div>
+    <div class="modal-container" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Import Vehicles from CSV</h3>
+        <button class="modal-close" onclick="closeFleetCsvImport()" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:16px;">
+          Upload a CSV file with one vehicle per row. Required columns: <strong>year</strong>, <strong>make</strong>, <strong>model</strong>. Optional: <em>color, license_plate, vin, mileage, fleet_number, department</em>.
+        </p>
+        <div style="background:var(--bg-input,#1e2630);border:1px solid var(--border-subtle);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-family:monospace;font-size:0.78rem;color:var(--text-muted);">
+          year,make,model,color,license_plate,vin,mileage,fleet_number,department<br>
+          2021,Ford,F-150,White,ABC123,1FTFW1ET0MFA12345,42000,F-01,Operations<br>
+          2020,Toyota,Camry,Black,XYZ789,,25000,C-01,Sales
+        </div>
+        <div id="csv-drop-zone" style="border:2px dashed var(--border-medium,rgba(160,168,184,0.3));border-radius:12px;padding:36px;text-align:center;cursor:pointer;transition:border-color 0.2s;"
+          ondragover="event.preventDefault();this.style.borderColor='var(--accent-gold)'"
+          ondragleave="this.style.borderColor=''"
+          ondrop="handleCsvDrop(event)">
+          <div style="font-size:32px;margin-bottom:10px;">📄</div>
+          <div style="font-weight:500;margin-bottom:6px;">Drop your CSV file here</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">or</div>
+          <button class="btn btn-secondary" style="font-size:0.85rem;padding:8px 20px;" onclick="document.getElementById('csv-file-input').click()">Browse File</button>
+          <input type="file" id="csv-file-input" accept=".csv,text/csv" style="display:none;" onchange="handleCsvFile(this.files[0])">
+        </div>
+        <div id="csv-preview" style="display:none;margin-top:16px;">
+          <div style="font-weight:600;margin-bottom:10px;" id="csv-preview-title"></div>
+          <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border-subtle);border-radius:10px;background:var(--bg-input,#1e2630);">
+            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+              <thead id="csv-preview-head" style="position:sticky;top:0;background:var(--bg-elevated,#242c38);"></thead>
+              <tbody id="csv-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="csv-import-error" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.3);color:#f87171;font-size:0.88rem;"></div>
+        <div id="csv-import-progress" style="display:none;margin-top:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;">
+            <span id="csv-progress-label">Importing...</span>
+            <span id="csv-progress-pct">0%</span>
+          </div>
+          <div style="background:var(--border-subtle);border-radius:4px;height:8px;">
+            <div id="csv-progress-bar" style="background:var(--accent-gold);border-radius:4px;height:8px;width:0%;transition:width 0.3s;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeFleetCsvImport()">Cancel</button>
+        <button class="btn btn-primary" id="csv-import-btn" onclick="runCsvImport()" disabled>Import Vehicles</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
+  <script>
+    // ===== Fleet CSV Import =====
+    var _csvRows = [];
+
+    function openFleetCsvImport() {
+      document.getElementById('fleet-csv-import-modal').style.display = 'flex';
+      _csvRows = [];
+      document.getElementById('csv-preview').style.display = 'none';
+      document.getElementById('csv-import-error').style.display = 'none';
+      document.getElementById('csv-import-progress').style.display = 'none';
+      document.getElementById('csv-import-btn').disabled = true;
+    }
+
+    function closeFleetCsvImport() {
+      document.getElementById('fleet-csv-import-modal').style.display = 'none';
+    }
+
+    function handleCsvDrop(event) {
+      event.preventDefault();
+      document.getElementById('csv-drop-zone').style.borderColor = '';
+      var file = event.dataTransfer.files[0];
+      if (file) handleCsvFile(file);
+    }
+
+    function handleCsvFile(file) {
+      if (!file || !file.name.endsWith('.csv')) {
+        showCsvError('Please upload a .csv file.');
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        parseCsv(e.target.result);
+      };
+      reader.readAsText(file);
+    }
+
+    // RFC-4180-compliant CSV row parser — handles quoted fields with embedded commas/newlines
+    function parseCsvRow(line) {
+      var cols = [];
+      var cur = '';
+      var inQuotes = false;
+      for (var i = 0; i < line.length; i++) {
+        var ch = line[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (line[i + 1] === '"') { cur += '"'; i++; } // escaped quote
+            else { inQuotes = false; }
+          } else {
+            cur += ch;
+          }
+        } else {
+          if (ch === '"') {
+            inQuotes = true;
+          } else if (ch === ',') {
+            cols.push(cur.trim()); cur = '';
+          } else {
+            cur += ch;
+          }
+        }
+      }
+      cols.push(cur.trim());
+      return cols;
+    }
+
+    function parseCsv(text) {
+      var lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) { showCsvError('CSV must have a header row and at least one data row.'); return; }
+      var headers = parseCsvRow(lines[0]).map(h => h.toLowerCase().replace(/[\s-]/g, '_'));
+      var yearIdx = headers.indexOf('year');
+      var makeIdx = headers.indexOf('make');
+      var modelIdx = headers.indexOf('model');
+      if (yearIdx < 0 || makeIdx < 0 || modelIdx < 0) {
+        showCsvError('CSV must include "year", "make", and "model" columns.');
+        return;
+      }
+      _csvRows = [];
+      var errors = [];
+      lines.slice(1).forEach(function(line, i) {
+        var cols = parseCsvRow(line);
+        var row = {};
+        headers.forEach((h, idx) => { row[h] = cols[idx] || null; });
+        if (!row.year || !row.make || !row.model) {
+          errors.push('Row ' + (i + 2) + ': missing year/make/model');
+          return;
+        }
+        _csvRows.push(row);
+      });
+      if (!_csvRows.length) { showCsvError('No valid rows found. ' + errors.join('; ')); return; }
+
+      document.getElementById('csv-import-error').style.display = 'none';
+      document.getElementById('csv-preview-title').textContent = _csvRows.length + ' vehicles ready to import' + (errors.length ? ' (' + errors.length + ' rows skipped)' : '');
+
+      var previewHeaders = ['year','make','model','color','license_plate','vin','fleet_number','department'].filter(h => headers.includes(h));
+      document.getElementById('csv-preview-head').innerHTML = '<tr>' + previewHeaders.map(h => '<th style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);text-align:left;font-size:0.78rem;color:var(--text-muted);">' + h + '</th>').join('') + '</tr>';
+      document.getElementById('csv-preview-body').innerHTML = _csvRows.slice(0, 8).map(row =>
+        '<tr>' + previewHeaders.map(h => '<td style="padding:7px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.8rem;">' + (row[h] || '-') + '</td>').join('') + '</tr>'
+      ).join('');
+      document.getElementById('csv-preview').style.display = 'block';
+      document.getElementById('csv-import-btn').disabled = false;
+    }
+
+    function showCsvError(msg) {
+      var el = document.getElementById('csv-import-error');
+      el.textContent = msg;
+      el.style.display = 'block';
+      _csvRows = [];
+      document.getElementById('csv-import-btn').disabled = true;
+    }
+
+    async function runCsvImport() {
+      if (!_csvRows.length) return;
+      // Guard: if fleet hasn't loaded yet, attempt to load it now (handles early-click race)
+      if (!currentFleet || !currentFleet.id) {
+        await loadCurrentFleet();
+      }
+      if (!currentFleet || !currentFleet.id) {
+        showCsvError('No fleet found for your account. Please ensure you have an active fleet.');
+        return;
+      }
+
+      document.getElementById('csv-import-btn').disabled = true;
+      document.getElementById('csv-import-progress').style.display = 'block';
+      updateCsvProgress(0, _csvRows.length);
+
+      var fleetId = currentFleet.id;
+      var session = await window.supabaseClient.auth.getSession();
+      var token = session?.data?.session?.access_token;
+
+      try {
+        // Use server-side endpoint for authoritative limit enforcement
+        var res = await fetch('/api/fleet/import-vehicles', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+          },
+          body: JSON.stringify({ fleet_id: fleetId, vehicles: _csvRows })
+        });
+        var data = await res.json();
+
+        if (!res.ok) {
+          if (res.status === 402) {
+            document.getElementById('csv-import-progress').style.display = 'none';
+            showCsvError(data.error || 'Vehicle limit reached. Please upgrade your fleet plan.');
+            document.getElementById('csv-import-btn').disabled = false;
+            return;
+          }
+          throw new Error(data.error || 'Import failed');
+        }
+
+        updateCsvProgress(data.imported, _csvRows.length);
+        var label = 'Imported ' + data.imported + '/' + _csvRows.length + ' vehicles';
+        if (data.failed) label += ' (' + data.failed + ' failed)';
+        document.getElementById('csv-progress-label').textContent = label;
+
+        setTimeout(function() {
+          closeFleetCsvImport();
+          if (typeof loadFleetDetails === 'function') loadFleetDetails(fleetId);
+          if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
+        }, 1200);
+      } catch (err) {
+        document.getElementById('csv-import-progress').style.display = 'none';
+        document.getElementById('csv-import-btn').disabled = false;
+        showCsvError('Import error: ' + err.message);
+      }
+    }
+
+    function updateCsvProgress(done, total) {
+      var pct = Math.round((done / total) * 100);
+      document.getElementById('csv-progress-pct').textContent = pct + '%';
+      document.getElementById('csv-progress-bar').style.width = pct + '%';
+      document.getElementById('csv-progress-label').textContent = 'Imported ' + done + ' of ' + total + '...';
+    }
   </script>
 </body>
 </html>
