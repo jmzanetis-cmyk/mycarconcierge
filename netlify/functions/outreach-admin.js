@@ -372,9 +372,6 @@ exports.handler = async function(event, context) {
       await supabase.from('outreach_activity_log').insert({
         lead_id: msg.lead_id, message_id: msg.id, event_type: 'approved'
       });
-<<<<<<< HEAD
-      return jsonResponse(200, msg);
-=======
 
       const leadType = msg.outreach_leads?.type;
       const isProvider = leadType === 'provider';
@@ -383,19 +380,12 @@ exports.handler = async function(event, context) {
       }
 
       return jsonResponse(200, { approved: true, sent: isProvider, lead_type: leadType });
->>>>>>> main
     }
 
     if (method === 'POST' && path === 'messages/approve-bulk') {
       const { message_ids } = body;
       if (!Array.isArray(message_ids) || message_ids.length === 0) return jsonResponse(400, { error: 'message_ids array is required' });
 
-<<<<<<< HEAD
-      const { data, error } = await supabase.from('outreach_messages')
-        .update({ status: 'approved', approved_by: 'admin', approved_at: new Date().toISOString() })
-        .in('id', message_ids).eq('status', 'draft').select();
-      return jsonResponse(200, { approved: data?.length || 0 });
-=======
       const { data } = await supabase.from('outreach_messages')
         .update({ status: 'approved', approved_by: 'admin', approved_at: new Date().toISOString() })
         .in('id', message_ids).eq('status', 'draft').select('*, outreach_leads(*)');
@@ -411,7 +401,6 @@ exports.handler = async function(event, context) {
       })().catch(() => {});
 
       return jsonResponse(200, { approved: approved.length, sent: providerMsgs.length, queued: approved.length - providerMsgs.length });
->>>>>>> main
     }
 
     if (method === 'POST' && path === 'messages/send') {
@@ -421,8 +410,6 @@ exports.handler = async function(event, context) {
       return jsonResponse(result.error ? 500 : 200, result);
     }
 
-<<<<<<< HEAD
-=======
     if (method === 'POST' && path === 'messages/flush-queue') {
       const batchSize = Math.min(parseInt(body.batch_size || '50', 10), 200);
       const { data: approvedMsgs } = await supabase
@@ -453,7 +440,6 @@ exports.handler = async function(event, context) {
       return jsonResponse(200, { success: true, sent, skipped, errors, total_approved: approvedMsgs?.length || 0 });
     }
 
->>>>>>> main
     if (method === 'POST' && path === 'messages/skip') {
       const { message_id } = body;
       const { error } = await supabase.from('outreach_messages').update({ status: 'skipped' }).eq('id', message_id);
@@ -693,8 +679,6 @@ exports.handler = async function(event, context) {
       return jsonResponse(200, data);
     }
 
-<<<<<<< HEAD
-=======
     if (method === 'GET' && path === 'conversions') {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -789,7 +773,6 @@ exports.handler = async function(event, context) {
       });
     }
 
->>>>>>> main
     if (method === 'GET' && path === 'instantly-analytics') {
       const instantlyKey = process.env.INSTANTLY_API_KEY;
       if (!instantlyKey) return jsonResponse(400, { error: 'INSTANTLY_API_KEY not configured' });
