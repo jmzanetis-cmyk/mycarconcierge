@@ -38365,9 +38365,10 @@ function saveAdminInvites(invites) {
           res.end(JSON.stringify({ error: `Bid at index ${i} is not a valid object` }));
           return;
         }
-        if (bids[i].price === undefined || bids[i].price === null) {
+        const parsedPrice = parseFloat(bids[i].price);
+        if (bids[i].price === undefined || bids[i].price === null || !Number.isFinite(parsedPrice)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: `Bid at index ${i} is missing required field: price` }));
+          res.end(JSON.stringify({ error: `Bid at index ${i} is missing or has invalid price (must be a finite number)` }));
           return;
         }
       }
@@ -38450,7 +38451,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
       const rationale = typeof parsed.top_pick_rationale === 'string' ? parsed.top_pick_rationale : `Bid ${(parsed.ranked_indices[0] || 0) + 1} is the top pick based on overall value analysis.`;
 
-      const validIndices = parsed.ranked_indices.filter(i => typeof i === 'number' && i >= 0 && i < bids.length);
+      const validIndices = parsed.ranked_indices.filter(i => Number.isInteger(i) && i >= 0 && i < bids.length);
       const uniqueIndices = [...new Set(validIndices)];
       if (uniqueIndices.length === 0) {
         console.warn(`[${requestId}] AI returned no valid bid indices, using deterministic fallback`);
@@ -38481,18 +38482,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       }));
     } catch (error) {
       console.error(`[${requestId}] AI bid ranking unexpected error:`, error.message);
-      try {
-        const body2 = typeof error._parsedBody === 'object' ? error._parsedBody : {};
-        const bids2 = body2.bids || [];
-        if (Array.isArray(bids2) && bids2.length >= 2) {
-          const fallback = computeDeterministicRanking(bids2);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(fallback));
-          return;
-        }
-      } catch (e) {}
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'AI analysis unavailable' }));
+      res.end(JSON.stringify({ error: 'Failed to process bid ranking request' }));
     }
     return;
   }
