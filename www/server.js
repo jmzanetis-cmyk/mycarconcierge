@@ -38468,7 +38468,11 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
 
       let rankings = [];
       if (Array.isArray(parsed.rankings)) {
-        rankings = parsed.rankings.filter(r => typeof r.index === 'number' && r.index >= 0 && r.index < bids.length);
+        rankings = parsed.rankings.filter(r => r && typeof r === 'object' && Number.isInteger(r.index) && r.index >= 0 && r.index < bids.length).map(r => ({
+          index: r.index,
+          score: Number.isFinite(Number(r.score)) ? Number(r.score) : 0,
+          brief: typeof r.brief === 'string' ? r.brief.slice(0, 200) : ''
+        }));
       }
 
       console.log(`[${requestId}] AI bid ranking completed for ${bids.length} bids via ${aiResult.provider}`);
