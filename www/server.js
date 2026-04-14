@@ -38297,6 +38297,58 @@ function saveAdminInvites(invites) {
       return;
     }
 
+    function computeDeterministicRanking(bids) {
+      const scored = bids.map((b, i) => {
+        let score = 0;
+        const price = parseFloat(b.price) || 0;
+        const rating = (typeof b.rating === 'number') ? b.rating : 0;
+        const jobsDone = parseInt(b.jobs_completed) || 0;
+        const onTime = parseFloat(b.on_time_rate) || 0;
+        const overallScore = parseFloat(b.overall_score) || 0;
+        const yrs = parseInt(b.years_in_business) || 0;
+
+        score += rating * 15;
+        score += Math.min(jobsDone, 100) * 0.3;
+        score += onTime * 0.5;
+        score += overallScore * 0.2;
+        score += yrs * 1.5;
+        if (b.is_verified) score += 10;
+        if (b.is_background_verified) score += 10;
+        if (b.tier === 'gold') score += 8;
+        else if (b.tier === 'silver') score += 4;
+
+        if (price > 0) {
+          const avgPrice = bids.reduce((s, x) => s + (parseFloat(x.price) || 0), 0) / bids.length;
+          if (avgPrice > 0) score += Math.max(0, 20 - (price / avgPrice) * 10);
+        }
+
+        return { index: i, score: Math.round(Math.min(score, 100)), price, rating };
+      });
+
+      scored.sort((a, b) => b.score - a.score);
+      const top = scored[0];
+      const topBid = bids[top.index];
+      let rationale = `Bid ${top.index + 1} ranks highest`;
+      const reasons = [];
+      if (top.rating > 0) reasons.push(`${top.rating}/5 rating`);
+      if (topBid.jobs_completed) reasons.push(`${topBid.jobs_completed} jobs completed`);
+      if (topBid.is_background_verified) reasons.push('background verified');
+      if (reasons.length > 0) rationale += ` with ${reasons.join(', ')}`;
+      rationale += ` at $${top.price.toFixed(2)}.`;
+
+      return {
+        ranked_indices: scored.map(s => s.index),
+        top_pick_rationale: rationale,
+        rankings: scored.map(s => ({
+          index: s.index,
+          score: s.score,
+          brief: `Score ${s.score} — $${s.price.toFixed(2)}${s.rating > 0 ? `, ${s.rating}/5 rating` : ''}`
+        })),
+        ai_generated: false,
+        provider: 'deterministic'
+      };
+    }
+
     try {
       const body = await getRequestBody(req, MAX_BODY_SIZE);
       const { bids } = body;
@@ -38307,9 +38359,22 @@ function saveAdminInvites(invites) {
         return;
       }
 
+      for (let i = 0; i < bids.length; i++) {
+        if (typeof bids[i] !== 'object' || bids[i] === null) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Bid at index ${i} is not a valid object` }));
+          return;
+        }
+        if (bids[i].price === undefined || bids[i].price === null) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Bid at index ${i} is missing required field: price` }));
+          return;
+        }
+      }
+
       const bidSummaries = bids.map((b, i) => {
         const parts = [];
-        parts.push(`Bid ${i + 1}: $${(b.price || 0).toFixed(2)}`);
+        parts.push(`Bid ${i + 1}: $${(parseFloat(b.price) || 0).toFixed(2)}`);
         if (b.rating && b.rating !== 'New') parts.push(`Rating: ${b.rating}/5`);
         if (b.jobs_completed) parts.push(`${b.jobs_completed} jobs completed`);
         if (b.on_time_rate) parts.push(`${b.on_time_rate}% on-time`);
@@ -38348,48 +38413,84 @@ Return your response as valid JSON with this exact structure (no markdown, no co
 
 The indices correspond to the bid numbers (0-based). Keep rationale concise and jargon-free.`;
 
-      const aiResult = await generateAIContent(prompt, { maxTokens: 1024, preferredProvider: 'gemini' });
+      let aiResult;
+      try {
+        aiResult = await generateAIContent(prompt, { maxTokens: 1024, preferredProvider: 'gemini' });
+      } catch (aiErr) {
+        console.warn(`[${requestId}] AI providers failed for bid ranking, using deterministic fallback:`, aiErr.message);
+        const fallback = computeDeterministicRanking(bids);
+        console.log(`[${requestId}] Deterministic bid ranking completed for ${bids.length} bids`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(fallback));
+        return;
+      }
       
       let parsed;
       try {
-        let text = aiResult.text.trim();
+        let text = (aiResult.text || '').trim();
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) text = jsonMatch[0];
         parsed = JSON.parse(text);
       } catch (parseErr) {
-        console.error(`[${requestId}] AI bid ranking parse error:`, parseErr.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to parse AI response' }));
+        console.error(`[${requestId}] AI bid ranking parse error:`, parseErr.message, '| Raw AI response:', (aiResult.text || '').substring(0, 500));
+        const fallback = computeDeterministicRanking(bids);
+        console.log(`[${requestId}] Deterministic bid ranking fallback after parse failure for ${bids.length} bids`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(fallback));
         return;
       }
 
-      if (!Array.isArray(parsed.ranked_indices) || typeof parsed.top_pick_rationale !== 'string') {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid AI response structure' }));
+      if (!parsed || !Array.isArray(parsed.ranked_indices)) {
+        console.warn(`[${requestId}] AI bid ranking invalid structure, falling back to deterministic | parsed keys:`, parsed ? Object.keys(parsed) : 'null');
+        const fallback = computeDeterministicRanking(bids);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(fallback));
         return;
       }
+
+      const rationale = typeof parsed.top_pick_rationale === 'string' ? parsed.top_pick_rationale : `Bid ${(parsed.ranked_indices[0] || 0) + 1} is the top pick based on overall value analysis.`;
+
       const validIndices = parsed.ranked_indices.filter(i => typeof i === 'number' && i >= 0 && i < bids.length);
       const uniqueIndices = [...new Set(validIndices)];
       if (uniqueIndices.length === 0) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'AI returned invalid bid indices' }));
+        console.warn(`[${requestId}] AI returned no valid bid indices, using deterministic fallback`);
+        const fallback = computeDeterministicRanking(bids);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(fallback));
         return;
       }
-      parsed.ranked_indices = uniqueIndices;
+
+      const allIndices = new Set(uniqueIndices);
+      for (let i = 0; i < bids.length; i++) {
+        if (!allIndices.has(i)) uniqueIndices.push(i);
+      }
+
+      let rankings = [];
       if (Array.isArray(parsed.rankings)) {
-        parsed.rankings = parsed.rankings.filter(r => typeof r.index === 'number' && r.index >= 0 && r.index < bids.length);
+        rankings = parsed.rankings.filter(r => typeof r.index === 'number' && r.index >= 0 && r.index < bids.length);
       }
 
       console.log(`[${requestId}] AI bid ranking completed for ${bids.length} bids via ${aiResult.provider}`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        ranked_indices: parsed.ranked_indices,
-        top_pick_rationale: String(parsed.top_pick_rationale).slice(0, 500),
-        rankings: parsed.rankings,
+        ranked_indices: uniqueIndices,
+        top_pick_rationale: String(rationale).slice(0, 500),
+        rankings: rankings,
+        ai_generated: true,
         provider: aiResult.provider
       }));
     } catch (error) {
-      console.error(`[${requestId}] AI bid ranking error:`, error.message);
+      console.error(`[${requestId}] AI bid ranking unexpected error:`, error.message);
+      try {
+        const body2 = typeof error._parsedBody === 'object' ? error._parsedBody : {};
+        const bids2 = body2.bids || [];
+        if (Array.isArray(bids2) && bids2.length >= 2) {
+          const fallback = computeDeterministicRanking(bids2);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(fallback));
+          return;
+        }
+      } catch (e) {}
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'AI analysis unavailable' }));
     }
