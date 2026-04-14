@@ -38301,7 +38301,7 @@ function saveAdminInvites(invites) {
       const scored = bids.map((b, i) => {
         let score = 0;
         const price = parseFloat(b.price) || 0;
-        const rating = (typeof b.rating === 'number') ? b.rating : 0;
+        const rating = Number.isFinite(parseFloat(b.rating)) ? parseFloat(b.rating) : 0;
         const jobsDone = parseInt(b.jobs_completed) || 0;
         const onTime = parseFloat(b.on_time_rate) || 0;
         const overallScore = parseFloat(b.overall_score) || 0;
@@ -38449,8 +38449,6 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         return;
       }
 
-      const rationale = typeof parsed.top_pick_rationale === 'string' ? parsed.top_pick_rationale : `Bid ${(parsed.ranked_indices[0] || 0) + 1} is the top pick based on overall value analysis.`;
-
       const validIndices = parsed.ranked_indices.filter(i => Number.isInteger(i) && i >= 0 && i < bids.length);
       const uniqueIndices = [...new Set(validIndices)];
       if (uniqueIndices.length === 0) {
@@ -38465,6 +38463,8 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
       for (let i = 0; i < bids.length; i++) {
         if (!allIndices.has(i)) uniqueIndices.push(i);
       }
+
+      const rationale = typeof parsed.top_pick_rationale === 'string' ? parsed.top_pick_rationale : `Bid ${uniqueIndices[0] + 1} is the top pick based on overall value analysis.`;
 
       let rankings = [];
       if (Array.isArray(parsed.rankings)) {
