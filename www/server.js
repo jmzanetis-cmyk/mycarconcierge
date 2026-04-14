@@ -38726,6 +38726,49 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         }
       }
 
+      let teamCountMap = {};
+      let teamVerifiedMap = {};
+      if (providerIds.length > 0) {
+        try {
+          const { data: tmData } = await supabase
+            .from('team_members')
+            .select('id, provider_id')
+            .in('provider_id', providerIds);
+          if (tmData && tmData.length > 0) {
+            const tmByProvider = {};
+            tmData.forEach(tm => {
+              if (!tmByProvider[tm.provider_id]) tmByProvider[tm.provider_id] = [];
+              tmByProvider[tm.provider_id].push(tm.id);
+            });
+            for (const [pid, tmIds] of Object.entries(tmByProvider)) {
+              teamCountMap[pid] = tmIds.length;
+            }
+            const { data: empChecks } = await supabase
+              .from('provider_background_checks')
+              .select('provider_id, employee_id, status, created_at')
+              .in('provider_id', providerIds)
+              .not('subject_type', 'eq', 'provider')
+              .order('created_at', { ascending: false });
+            const latestEmpCheck = {};
+            (empChecks || []).forEach(c => {
+              if (c.employee_id) {
+                const key = c.provider_id + ':' + c.employee_id;
+                if (!latestEmpCheck[key]) latestEmpCheck[key] = c;
+              }
+            });
+            for (const [pid, tmIds] of Object.entries(tmByProvider)) {
+              const allCleared = tmIds.every(tmId => {
+                const check = latestEmpCheck[pid + ':' + tmId];
+                return check && ['cleared','clear','eligible'].includes(check.status);
+              });
+              teamVerifiedMap[pid] = allCleared;
+            }
+          }
+        } catch (tmErr) {
+          console.log(`[${requestId}] Team count fetch error:`, tmErr.message);
+        }
+      }
+
       const results = (providers || []).map(p => ({
         business_name: p.business_name,
         city: p.city,
@@ -38740,7 +38783,9 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         avg_rating: ratingsMap[p.id] ? (ratingsMap[p.id].total / ratingsMap[p.id].count).toFixed(1) : null,
         review_count: ratingsMap[p.id] ? ratingsMap[p.id].count : 0,
         background_verified: ['cleared','clear','eligible'].includes(bgCheckMap[p.id]?.status),
-        background_check_status: bgCheckMap[p.id]?.status || null
+        background_check_status: bgCheckMap[p.id]?.status || null,
+        team_count: teamCountMap[p.id] || 0,
+        team_all_verified: !!(teamCountMap[p.id] && teamCountMap[p.id] > 0 && teamVerifiedMap[p.id] && ['cleared','clear','eligible'].includes(bgCheckMap[p.id]?.status))
       }));
 
       res.writeHead(200, { 'Content-Type': 'application/json' });

@@ -1741,6 +1741,40 @@ textarea:focus-visible {
   stroke: currentColor !important;
 }
 
+.bgc-badge-team-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(184, 148, 45, 0.15));
+  color: var(--accent-green, #10b981);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+[data-theme="light"] .bgc-badge-team-verified {
+  border-color: rgba(5, 150, 105, 0.35);
+}
+.bgc-badge-team-verified svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  stroke: currentColor !important;
+}
+
+.provider-team-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text-muted, #94a3b8);
+  margin-top: 2px;
+}
+.provider-team-count svg {
+  flex-shrink: 0;
+}
+
 .bgc-badge-lg {
   padding: 4px 12px;
   font-size: 0.78rem;

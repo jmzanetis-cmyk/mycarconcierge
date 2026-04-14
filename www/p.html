@@ -363,8 +363,9 @@
     }
 
     function injectJsonLd(p) {
-      const location = [p.city, p.state].filter(Boolean).join(', ');
-      const jsonLd = {
+      var roleLabelsLd = { lead_tech: 'Lead Technician', technician: 'Technician', apprentice: 'Apprentice', manager: 'Manager', advisor: 'Service Advisor', detailer: 'Detailer', body_tech: 'Body Technician', painter: 'Painter', custom: 'Team Member' };
+      var location = [p.city, p.state].filter(Boolean).join(', ');
+      var jsonLd = {
         '@context': 'https://schema.org',
         '@type': 'LocalBusiness',
         'name': p.business_name,
@@ -382,6 +383,15 @@
       }
       if (p.avatar_url) {
         jsonLd.image = p.avatar_url;
+      }
+      if (p.team_members && p.team_members.length > 0) {
+        jsonLd.numberOfEmployees = { '@type': 'QuantitativeValue', 'value': p.team_members.length };
+        jsonLd.employee = p.team_members.map(function(tm) {
+          var person = { '@type': 'Person', 'name': tm.name };
+          if (tm.role) person.jobTitle = roleLabelsLd[tm.role] || tm.role;
+          if (tm.bio) person.description = tm.bio;
+          return person;
+        });
       }
       document.getElementById('jsonld-data').textContent = JSON.stringify(jsonLd);
     }
