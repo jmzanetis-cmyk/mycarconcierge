@@ -323,7 +323,34 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
            (SELECT COUNT(*) FROM club_reward_rules WHERE club_id = c.id AND is_active = true) as reward_count
            FROM car_clubs c WHERE c.is_active = true AND c.provider_suspended = false ORDER BY c.created_at DESC`
         );
-        json(res, 200, { clubs: result.rows });
+        let clubs = result.rows;
+        try {
+          const providerIds = clubs.map(c => c.provider_id).filter(Boolean);
+          if (providerIds.length > 0) {
+            const supabase = getSupabaseClient();
+            if (supabase) {
+              const { data: bgData } = await supabase
+                .from('provider_background_checks')
+                .select('provider_id, status')
+                .in('provider_id', providerIds)
+                .eq('subject_type', 'provider')
+                .order('created_at', { ascending: false });
+              if (bgData) {
+                const bgMap = {};
+                bgData.forEach(b => { if (!bgMap[b.provider_id]) bgMap[b.provider_id] = b; });
+                const clearedStatuses = ['cleared','clear','eligible'];
+                clubs = clubs.map(c => ({
+                  ...c,
+                  background_verified: clearedStatuses.includes(bgMap[c.provider_id]?.status),
+                  background_check_status: bgMap[c.provider_id]?.status || null
+                }));
+              }
+            }
+          }
+        } catch (bgErr) {
+          console.warn('Car club browse bgcheck enrichment failed:', bgErr.message);
+        }
+        json(res, 200, { clubs });
         return;
       }
 
@@ -369,7 +396,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
         if (!user) return;
         const result = await db.query(
           `SELECT cm.id as membership_id, cm.joined_at, cm.is_active,
-           c.id as club_id, c.name, c.description, c.logo_url, c.banner_url, c.provider_suspended,
+           c.id as club_id, c.name, c.description, c.logo_url, c.banner_url, c.provider_suspended, c.provider_id,
            COALESCE(json_agg(json_build_object(
              'reward_rule_id', mcb.reward_rule_id,
              'punch_count', mcb.punch_count,
@@ -382,11 +409,38 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
            JOIN car_clubs c ON c.id = cm.club_id
            LEFT JOIN member_club_balances mcb ON mcb.membership_id = cm.id
            WHERE cm.member_id = $1 AND cm.is_active = true
-           GROUP BY cm.id, cm.joined_at, cm.is_active, c.id, c.name, c.description, c.logo_url, c.banner_url, c.provider_suspended
+           GROUP BY cm.id, cm.joined_at, cm.is_active, c.id, c.name, c.description, c.logo_url, c.banner_url, c.provider_suspended, c.provider_id
            ORDER BY cm.joined_at DESC`,
           [user.id]
         );
-        json(res, 200, { clubs: result.rows });
+        let clubs = result.rows;
+        try {
+          const providerIds = clubs.map(c => c.provider_id).filter(Boolean);
+          if (providerIds.length > 0) {
+            const supabase = getSupabaseClient();
+            if (supabase) {
+              const { data: bgData } = await supabase
+                .from('provider_background_checks')
+                .select('provider_id, status')
+                .in('provider_id', providerIds)
+                .eq('subject_type', 'provider')
+                .order('created_at', { ascending: false });
+              if (bgData) {
+                const bgMap = {};
+                bgData.forEach(b => { if (!bgMap[b.provider_id]) bgMap[b.provider_id] = b; });
+                const clearedStatuses = ['cleared','clear','eligible'];
+                clubs = clubs.map(c => ({
+                  ...c,
+                  background_verified: clearedStatuses.includes(bgMap[c.provider_id]?.status),
+                  background_check_status: bgMap[c.provider_id]?.status || null
+                }));
+              }
+            }
+          }
+        } catch (bgErr) {
+          console.warn('Car club bgcheck enrichment failed:', bgErr.message);
+        }
+        json(res, 200, { clubs });
         return;
       }
 
@@ -813,7 +867,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
         const user = await authenticate(req, res, getSupabaseClient);
         if (!user) return;
         const result = await db.query(
-          `SELECT c.id, c.name, c.description, c.logo_url, c.banner_url,
+          `SELECT c.id, c.provider_id, c.name, c.description, c.logo_url, c.banner_url,
            (SELECT COUNT(*) FROM club_memberships WHERE club_id = c.id AND is_active = true) as member_count,
            (SELECT COUNT(*) FROM club_reward_rules WHERE club_id = c.id AND is_active = true) as reward_count
            FROM car_clubs c
@@ -822,7 +876,34 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
            ORDER BY member_count DESC LIMIT 6`,
           [user.id]
         );
-        json(res, 200, { clubs: result.rows });
+        let clubs = result.rows;
+        try {
+          const providerIds = clubs.map(c => c.provider_id).filter(Boolean);
+          if (providerIds.length > 0) {
+            const supabase = getSupabaseClient();
+            if (supabase) {
+              const { data: bgData } = await supabase
+                .from('provider_background_checks')
+                .select('provider_id, status')
+                .in('provider_id', providerIds)
+                .eq('subject_type', 'provider')
+                .order('created_at', { ascending: false });
+              if (bgData) {
+                const bgMap = {};
+                bgData.forEach(b => { if (!bgMap[b.provider_id]) bgMap[b.provider_id] = b; });
+                const clearedStatuses = ['cleared','clear','eligible'];
+                clubs = clubs.map(c => ({
+                  ...c,
+                  background_verified: clearedStatuses.includes(bgMap[c.provider_id]?.status),
+                  background_check_status: bgMap[c.provider_id]?.status || null
+                }));
+              }
+            }
+          }
+        } catch (bgErr) {
+          console.warn('Car club recommended bgcheck enrichment failed:', bgErr.message);
+        }
+        json(res, 200, { clubs });
         return;
       }
 

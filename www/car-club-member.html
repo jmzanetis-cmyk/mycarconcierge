@@ -875,7 +875,7 @@
             return `<div class="club-card">
               ${club.logo_url ? `<img src="${escHtml(club.logo_url)}" alt="" style="width:48px;height:48px;border-radius:var(--radius-md);object-fit:cover;margin-bottom:10px;" />` : ''}
               <div class="club-card-name">${escHtml(club.name)}</div>
-              <div class="club-card-provider">Provider: ${escHtml((club.provider_id || club.club_id || '').substring(0, 8))}...</div>
+              <div class="club-card-provider" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Provider: ${escHtml((club.provider_id || club.club_id || '').substring(0, 8))}...${club.background_verified ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);" title="This provider has completed background verification"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Verified</span>' : ''}${!club.background_verified && club.background_check_status === 'pending' ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:rgba(251,191,36,0.15);color:#f59e0b;border:1px solid rgba(251,191,36,0.3);" title="Background check in progress"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Pending</span>' : ''}</div>
               ${club.welcome_message ? `<div class="club-card-welcome">${escHtml(club.welcome_message)}</div>` : ''}
               ${progressHtml || '<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px;">No reward rules set up yet</div>'}
               <div class="club-card-footer" style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -966,7 +966,7 @@
             return `<div class="club-card">
               <span class="recommended-badge">⭐ Recommended</span>
               ${club.logo_url ? `<img src="${escHtml(club.logo_url)}" alt="" style="width:48px;height:48px;border-radius:var(--radius-md);object-fit:cover;margin-bottom:10px;" />` : ''}
-              <div class="club-card-name">${escHtml(club.name)}</div>
+              <div class="club-card-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${escHtml(club.name)}${club.background_verified ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);" title="This provider has completed background verification"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Verified</span>' : ''}</div>
               <div class="club-card-desc">${escHtml(club.description || 'Join this club to start earning rewards!')}</div>
               <div class="club-card-meta">
                 <span>
@@ -1001,7 +1001,7 @@
             const tSummary = buildTestimonialSummary(testimonialMap[club.id]);
             return `<div class="club-card">
               ${club.logo_url ? `<img src="${escHtml(club.logo_url)}" alt="" style="width:48px;height:48px;border-radius:var(--radius-md);object-fit:cover;margin-bottom:10px;" />` : ''}
-              <div class="club-card-name">${escHtml(club.name)}</div>
+              <div class="club-card-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${escHtml(club.name)}${club.background_verified ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);" title="This provider has completed background verification"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Verified</span>' : ''}</div>
               <div class="club-card-desc">${escHtml(club.description || 'Join this club to start earning rewards!')}</div>
               <div class="club-card-meta">
                 <span>

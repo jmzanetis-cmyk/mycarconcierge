@@ -38478,6 +38478,15 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           .order('created_at', { ascending: false })
           .limit(12);
 
+        const { data: bgCheck } = await supabase
+          .from('provider_background_checks')
+          .select('status, updated_at')
+          .eq('provider_id', provider.id)
+          .eq('subject_type', 'provider')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           business_name: provider.business_name,
@@ -38498,7 +38507,9 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           review_count: reviewList.length,
           completed_jobs: completedJobs || 0,
           reviews: reviewList,
-          gallery: gallery || []
+          gallery: gallery || [],
+          background_verified: ['cleared','clear','eligible'].includes(bgCheck?.status),
+          background_check_status: bgCheck?.status || null
         }));
         return;
       }
@@ -38545,6 +38556,21 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         });
       }
 
+      let bgCheckMap = {};
+      if (providerIds.length > 0) {
+        const { data: bgData } = await supabase
+          .from('provider_background_checks')
+          .select('provider_id, status, updated_at')
+          .in('provider_id', providerIds)
+          .eq('subject_type', 'provider')
+          .order('created_at', { ascending: false });
+        if (bgData) {
+          bgData.forEach(b => {
+            if (!bgCheckMap[b.provider_id]) bgCheckMap[b.provider_id] = b;
+          });
+        }
+      }
+
       const results = (providers || []).map(p => ({
         business_name: p.business_name,
         city: p.city,
@@ -38557,7 +38583,9 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
         years_in_business: p.years_in_business,
         emergency_enabled: p.emergency_enabled,
         avg_rating: ratingsMap[p.id] ? (ratingsMap[p.id].total / ratingsMap[p.id].count).toFixed(1) : null,
-        review_count: ratingsMap[p.id] ? ratingsMap[p.id].count : 0
+        review_count: ratingsMap[p.id] ? ratingsMap[p.id].count : 0,
+        background_verified: ['cleared','clear','eligible'].includes(bgCheckMap[p.id]?.status),
+        background_check_status: bgCheckMap[p.id]?.status || null
       }));
 
       res.writeHead(200, { 'Content-Type': 'application/json' });

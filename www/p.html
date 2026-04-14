@@ -403,6 +403,11 @@
 
       let badgesHtml = '';
       const badges = [];
+      if (p.background_verified) {
+        badges.push('<div class="badge-card" style="background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.3);color:#10b981;" title="This provider has completed background verification"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Background Verified</div>');
+      } else if (p.background_check_status === 'pending') {
+        badges.push('<div class="badge-card" style="background:rgba(251,191,36,0.12);border-color:rgba(251,191,36,0.3);color:#f59e0b;" title="Background check in progress"><svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Check Pending</div>');
+      }
       if (p.years_in_business && p.years_in_business >= 1) {
         const label = p.years_in_business >= 20 ? '20+ years in business' : p.years_in_business + '+ years in business';
         badges.push('<div class="badge-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> ' + label + '</div>');
