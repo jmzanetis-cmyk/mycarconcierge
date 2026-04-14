@@ -19766,6 +19766,7 @@ async function handleGetProviderTeam(req, res, requestId, providerId) {
 
     const team = teamMembers || [];
     const enrichedTeam = [];
+    let currentUserRole = null;
     for (const member of team) {
       const { data: profile } = await supabase
         .from('profiles')
@@ -19777,10 +19778,13 @@ async function handleGetProviderTeam(req, res, requestId, providerId) {
         full_name: profile?.full_name || null,
         email: profile?.email || null
       });
+      if (member.user_id === user.id) {
+        currentUserRole = member.role;
+      }
     }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ team: enrichedTeam }));
+    res.end(JSON.stringify({ members: enrichedTeam, currentUserRole }));
 
   } catch (error) {
     console.error(`[${requestId}] Get provider team error:`, error);

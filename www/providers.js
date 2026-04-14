@@ -11615,12 +11615,8 @@
         
         if (teamResponse.ok) {
           const teamData = await teamResponse.json();
-          managementTeamMembers = teamData.members || teamData.team || [];
+          managementTeamMembers = teamData.members || [];
           currentUserTeamRole = teamData.currentUserRole || null;
-          if (!currentUserTeamRole && managementTeamMembers.length > 0) {
-            const me = managementTeamMembers.find(m => m.user_id === currentUser?.id);
-            if (me) currentUserTeamRole = me.role;
-          }
           
           const navItem = document.querySelector('.team-management-nav');
           if (navItem) {
