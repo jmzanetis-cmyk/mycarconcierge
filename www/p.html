@@ -472,6 +472,38 @@
         reviewsHtml = '<div class="card reviews-section"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Reviews (' + p.review_count + ')</h2>' + reviewCards + '</div>';
       }
 
+      let teamHtml = '';
+      if (p.team_members && p.team_members.length > 0) {
+        const roleLabels = { lead_tech: 'Lead Technician', technician: 'Technician', apprentice: 'Apprentice', manager: 'Manager', advisor: 'Service Advisor', detailer: 'Detailer', body_tech: 'Body Technician', painter: 'Painter', custom: 'Team Member' };
+        const teamCards = p.team_members.map(function(tm) {
+          const photoEl = tm.photo_url
+            ? '<img src="' + escapeHtml(tm.photo_url) + '" alt="' + escapeHtml(tm.name) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'
+            : '<span style="font-size:20px;font-weight:600;color:var(--accent-gold);">' + escapeHtml(tm.name.charAt(0).toUpperCase()) + '</span>';
+          let bgcBadge = '';
+          if (tm.background_verified) {
+            bgcBadge = '<span class="bgc-badge-verified" style="font-size:0.75rem;margin-top:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Verified</span>';
+          } else if (tm.background_check_pending) {
+            bgcBadge = '<span class="bgc-badge-pending" style="font-size:0.75rem;margin-top:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending</span>';
+          }
+          let certsHtml = '';
+          const certs = (tm.certifications || []).concat(tm.specialties || []).slice(0, 3);
+          if (certs.length > 0) {
+            certsHtml = '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;">' + certs.map(function(c) { return '<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-gold-soft);color:var(--accent-gold);">' + escapeHtml(c) + '</span>'; }).join('') + '</div>';
+          }
+          return '<div style="display:flex;align-items:flex-start;gap:12px;padding:16px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">' +
+            '<div style="width:48px;height:48px;min-width:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent-gold-soft),var(--bg-elevated));display:flex;align-items:center;justify-content:center;overflow:hidden;">' + photoEl + '</div>' +
+            '<div style="flex:1;min-width:0;">' +
+              '<div style="font-weight:600;font-size:0.95rem;">' + escapeHtml(tm.name) + '</div>' +
+              '<div style="font-size:0.82rem;color:var(--text-muted);">' + (roleLabels[tm.role] || tm.role || 'Team Member') + (tm.years_experience ? ' &middot; ' + tm.years_experience + ' yrs exp' : '') + '</div>' +
+              bgcBadge +
+              (tm.bio ? '<div style="font-size:0.82rem;color:var(--text-secondary);margin-top:6px;">' + escapeHtml(tm.bio) + '</div>' : '') +
+              certsHtml +
+            '</div>' +
+          '</div>';
+        }).join('');
+        teamHtml = '<div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Meet the Team</h2><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">' + teamCards + '</div></div>';
+      }
+
       let ctaCardHtml = '<div class="card" style="text-align:center;padding:32px;">' +
         '<h2 style="justify-content:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Ready to get started?</h2>' +
         '<p style="color:var(--text-secondary);margin-bottom:20px;">Get a competitive quote from ' + escapeHtml(p.business_name) + ' with escrow payment protection and verified reviews.</p>' +
@@ -492,6 +524,7 @@
         servicesHtml +
         certsHtml +
         galleryHtml +
+        teamHtml +
         reviewsHtml +
         ctaCardHtml;
     }

@@ -5163,6 +5163,7 @@
 
     // ========== TEAM MEMBERS ==========
     let teamMembers = [];
+    let teamMemberBgcMap = {};
     let pendingTeamPhoto = null;
     let editingTeamMemberId = null;
 
@@ -5182,12 +5183,51 @@
         }
 
         teamMembers = data || [];
+        await loadTeamMemberBgcStatus();
         renderTeamMembers();
       } catch (err) {
         console.log('loadTeamMembers error:', err);
         teamMembers = [];
         renderTeamMembers();
       }
+    }
+
+    async function loadTeamMemberBgcStatus() {
+      teamMemberBgcMap = {};
+      if (!teamMembers.length) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const response = await fetch(`/api/bgcheck/status/${currentUser.id}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        for (const check of (data.employeeChecks || [])) {
+          if (check.employee_id) {
+            const existing = teamMemberBgcMap[check.employee_id];
+            if (!existing || new Date(check.created_at) > new Date(existing.created_at)) {
+              teamMemberBgcMap[check.employee_id] = check;
+            }
+          }
+        }
+      } catch (err) {
+        console.log('loadTeamMemberBgcStatus error:', err);
+      }
+    }
+
+    function getTeamMemberBgcBadge(memberId) {
+      const check = teamMemberBgcMap[memberId];
+      if (!check) return '';
+      const cleared = check.status === 'eligible' || check.status === 'clear' || check.status === 'cleared';
+      const pending = check.status === 'pending' || check.status === 'initiated' || check.status === 'processing' || check.status === 'invitation_sent';
+      if (cleared) {
+        return `<span class="bgc-badge-verified"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Background Verified</span>`;
+      }
+      if (pending) {
+        return `<span class="bgc-badge-pending"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Check Pending</span>`;
+      }
+      return '';
     }
 
     function renderTeamMembers() {
@@ -5227,6 +5267,8 @@
           ? `<span class="team-badge">+${member.certifications.length - 3}</span>` 
           : '';
 
+        const bgcBadge = getTeamMemberBgcBadge(member.id);
+
         return `
           <div class="team-card">
             <div class="team-card-header">
@@ -5235,6 +5277,7 @@
                 <div class="team-name">${member.name}</div>
                 <span class="team-role">${roleLabels[member.role] || member.role}</span>
                 ${member.years_experience ? `<div class="team-experience">${mccIcon('wrench', 14)} ${member.years_experience} years experience</div>` : ''}
+                ${bgcBadge ? `<div style="margin-top:4px;">${bgcBadge}</div>` : ''}
               </div>
             </div>
             ${member.bio ? `<div class="team-bio">${member.bio}</div>` : ''}
@@ -11555,6 +11598,7 @@
 
     // ========== TEAM MANAGEMENT ==========
     let managementTeamMembers = [];
+    let managementBgcMap = {};
     let teamInvitations = [];
     let currentUserTeamRole = null;
 
@@ -11565,24 +11609,25 @@
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) return;
 
-        // Fetch team members
         const teamResponse = await fetch(`/api/providers/${providerProfile.id}/team`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         
         if (teamResponse.ok) {
           const teamData = await teamResponse.json();
-          managementTeamMembers = teamData.members || [];
+          managementTeamMembers = teamData.members || teamData.team || [];
           currentUserTeamRole = teamData.currentUserRole || null;
+          if (!currentUserTeamRole && managementTeamMembers.length > 0) {
+            const me = managementTeamMembers.find(m => m.user_id === currentUser?.id);
+            if (me) currentUserTeamRole = me.role;
+          }
           
-          // Show/hide team management nav based on role
           const navItem = document.querySelector('.team-management-nav');
           if (navItem) {
             navItem.style.display = (currentUserTeamRole === 'owner' || currentUserTeamRole === 'admin') ? '' : 'none';
           }
         }
 
-        // Fetch pending invitations
         const inviteResponse = await fetch(`/api/providers/${providerProfile.id}/team/invitations`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
@@ -11590,6 +11635,35 @@
         if (inviteResponse.ok) {
           const inviteData = await inviteResponse.json();
           teamInvitations = inviteData.invitations || [];
+        }
+
+        managementBgcMap = {};
+        try {
+          const bgcResponse = await fetch(`/api/bgcheck/status/${providerProfile.id}`, {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+          });
+          if (bgcResponse.ok) {
+            const bgcData = await bgcResponse.json();
+            const emailMap = {};
+            for (const check of (bgcData.employeeChecks || [])) {
+              if (check.employee_id) {
+                const existing = managementBgcMap[check.employee_id];
+                if (!existing || new Date(check.created_at) > new Date(existing.created_at)) {
+                  managementBgcMap[check.employee_id] = check;
+                }
+              }
+              if (check.subject_email) {
+                const key = check.subject_email.toLowerCase();
+                const existing = emailMap[key];
+                if (!existing || new Date(check.created_at) > new Date(existing.created_at)) {
+                  emailMap[key] = check;
+                }
+              }
+            }
+            managementBgcMap._byEmail = emailMap;
+          }
+        } catch (bgcErr) {
+          console.log('Failed to load management BGC data:', bgcErr);
         }
 
         renderTeamManagement();
@@ -11610,7 +11684,7 @@
       if (!managementTeamMembers.length) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="5" style="padding:48px;text-align:center;color:var(--text-muted);">
+            <td colspan="6" style="padding:48px;text-align:center;color:var(--text-muted);">
               <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">${mccIcon('users', 14)}</div>
               <p>No team members found</p>
             </td>
@@ -11630,6 +11704,20 @@
           staff: 'background:rgba(107,107,122,0.15);color:var(--text-muted);'
         };
 
+        const bgcCheck = managementBgcMap[member.id] || (member.email && managementBgcMap._byEmail ? managementBgcMap._byEmail[member.email.toLowerCase()] : null);
+        let bgcHtml = '<span style="font-size:0.82rem;color:var(--text-muted);">—</span>';
+        if (bgcCheck) {
+          const cleared = bgcCheck.status === 'eligible' || bgcCheck.status === 'clear' || bgcCheck.status === 'cleared';
+          const pending = bgcCheck.status === 'pending' || bgcCheck.status === 'initiated' || bgcCheck.status === 'processing' || bgcCheck.status === 'invitation_sent';
+          if (cleared) {
+            bgcHtml = '<span class="bgc-badge-verified" style="font-size:0.78rem;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Verified</span>';
+          } else if (pending) {
+            bgcHtml = '<span class="bgc-badge-pending" style="font-size:0.78rem;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending</span>';
+          } else {
+            bgcHtml = `<span style="font-size:0.78rem;color:var(--text-muted);">${bgcCheck.status}</span>`;
+          }
+        }
+
         return `
           <tr style="border-bottom:1px solid var(--border-subtle);">
             <td style="padding:16px;">
@@ -11648,6 +11736,7 @@
                 ${member.role.charAt(0).toUpperCase() + member.role.slice(1)}
               </span>
             </td>
+            <td style="padding:16px;">${bgcHtml}</td>
             <td style="padding:16px;">
               <span style="display:inline-flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--accent-green);">
                 <span style="width:8px;height:8px;border-radius:50%;background:var(--accent-green);"></span>

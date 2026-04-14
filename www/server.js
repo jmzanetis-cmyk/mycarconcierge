@@ -19436,6 +19436,20 @@ async function handleBgChecksStatus(req, res, requestId, providerId) {
       return;
     }
 
+    const isOwner = user.id === providerId;
+    const isAdmin = user.user_metadata?.role === 'admin' || user.app_metadata?.role === 'admin';
+    let isTeamMember = false;
+    if (!isOwner && !isAdmin) {
+      try {
+        isTeamMember = await isTeamAdmin(supabase, providerId, user.id);
+      } catch (e) {}
+    }
+    if (!isOwner && !isAdmin && !isTeamMember) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized to view background check status for this provider' }));
+      return;
+    }
+
     const { data: checks, error } = await supabase
       .from('provider_background_checks')
       .select('*')
@@ -38487,6 +38501,46 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           .limit(1)
           .maybeSingle();
 
+        let teamMembersPublic = [];
+        try {
+          const { data: tmData } = await supabase
+            .from('team_members')
+            .select('id, name, role, photo_url, bio, certifications, specialties, years_experience')
+            .eq('provider_id', provider.id)
+            .order('created_at', { ascending: true })
+            .limit(20);
+
+          if (tmData && tmData.length > 0) {
+            const { data: empChecks } = await supabase
+              .from('provider_background_checks')
+              .select('employee_id, status, created_at')
+              .eq('provider_id', provider.id)
+              .neq('subject_type', 'provider')
+              .order('created_at', { ascending: false });
+
+            const empBgcMap = {};
+            for (const c of (empChecks || [])) {
+              if (c.employee_id && !empBgcMap[c.employee_id]) {
+                empBgcMap[c.employee_id] = c.status;
+              }
+            }
+
+            teamMembersPublic = tmData.map(tm => ({
+              name: tm.name,
+              role: tm.role,
+              photo_url: tm.photo_url,
+              bio: tm.bio,
+              certifications: tm.certifications,
+              specialties: tm.specialties,
+              years_experience: tm.years_experience,
+              background_verified: ['cleared','clear','eligible'].includes(empBgcMap[tm.id]),
+              background_check_pending: ['pending','initiated','processing','invitation_sent'].includes(empBgcMap[tm.id])
+            }));
+          }
+        } catch (tmErr) {
+          console.log(`[${requestId}] Team members fetch error:`, tmErr.message);
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           business_name: provider.business_name,
@@ -38508,6 +38562,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           completed_jobs: completedJobs || 0,
           reviews: reviewList,
           gallery: gallery || [],
+          team_members: teamMembersPublic,
           background_verified: ['cleared','clear','eligible'].includes(bgCheck?.status),
           background_check_status: bgCheck?.status || null
         }));
