@@ -30,16 +30,6 @@
     "status": "pending"
   },
   {
-    "id": "c28b5fc6-175c-4a35-a636-4d0997fd6a7b",
-    "token": "c63a9612885c3878561ea1bdc446e9ad67057fc187c9a4a2c0a4ff6b02d488fa",
-    "email": "invite-test-1771472324163@test-mcc.com",
-    "role": "operations",
-    "invited_by": "super_admin",
-    "created_at": "2026-02-19T03:38:59.227Z",
-    "expires_at": "2026-02-21T03:38:59.227Z",
-    "status": "pending"
-  },
-  {
     "id": "8d899b54-f64f-456e-8fe2-25643da257ec",
     "token": "d40e793c7db8b821f8c6dd3da7a1130fb393ac09a0932c6c43b6ee3eb7c5b325",
     "email": "jordan.zanetis@frodobakingco.com",
@@ -47,16 +37,6 @@
     "invited_by": "super_admin",
     "created_at": "2026-02-27T02:37:21.057Z",
     "expires_at": "2026-03-01T02:37:21.057Z",
-    "status": "pending"
-  },
-  {
-    "id": "5b0a43a3-8e56-474c-9c82-d0de9789b32b",
-    "token": "1b6c498311d91136e55b33fbd111b9969a1dc2d6aae354b17dd4551e492401af",
-    "email": "invite-test-1776132747119@test-mcc.com",
-    "role": "operations",
-    "invited_by": "super_admin",
-    "created_at": "2026-04-14T02:12:46.066Z",
-    "expires_at": "2026-04-16T02:12:46.066Z",
     "status": "pending"
   }
 ]
