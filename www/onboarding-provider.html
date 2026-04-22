@@ -1109,7 +1109,71 @@
         </div>
       </div>
 
+      <!-- BGC step 1: intro -->
       <div class="step" data-step="13">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+          </div>
+          <h2 class="step-question" id="bgc-step1-title"><!-- TODO ES -->Get MCC Verified</h2>
+          <p class="step-subtitle" id="bgc-step1-body" style="text-align:left;"><!-- TODO ES -->Loading…</p>
+          <div id="bgc-step1-details" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:12px 0 20px;text-align:left;font-size:0.95rem;color:#334155;white-space:pre-line;"></div>
+          <button class="btn-next" onclick="bgcGoToStep(14)" id="bgc-step1-cta"><!-- TODO ES -->Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn-skip" onclick="skipBgcFlow()" style="margin-top:8px;"><!-- TODO ES -->Skip for now — I'll set this up later</button>
+        </div>
+      </div>
+
+      <!-- BGC step 2: add team -->
+      <div class="step" data-step="14">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h2 class="step-question" id="bgc-step2-title"><!-- TODO ES -->Add your team</h2>
+          <p class="step-subtitle" id="bgc-step2-body" style="text-align:left;"><!-- TODO ES -->Loading…</p>
+          <div id="bgc-employees-list" style="margin:8px 0 12px;"></div>
+          <button type="button" onclick="addBgcEmployeeRow()" style="background:#f1f5f9;color:#1e3a5f;border:1px dashed #94a3b8;border-radius:10px;padding:12px;width:100%;cursor:pointer;font-weight:600;margin-bottom:12px;">
+            <!-- TODO ES -->+ Add another employee
+          </button>
+          <p id="bgc-step2-helper" style="font-size:0.85rem;color:#64748b;text-align:left;margin:0 0 16px;"></p>
+          <div class="input-error" id="error-bgc-employees" style="display:none;text-align:left;"><!-- TODO ES -->Add at least one employee, or skip for now.</div>
+          <button class="btn-next" onclick="bgcAdvanceFromTeam()"><!-- TODO ES -->Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn-skip" onclick="skipBgcFlow()" style="margin-top:8px;"><!-- TODO ES -->Skip for now</button>
+        </div>
+      </div>
+
+      <!-- BGC step 3: consent -->
+      <div class="step" data-step="15">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
+          </div>
+          <h2 class="step-question" id="bgc-step3-title"><!-- TODO ES -->Employee consent</h2>
+          <p class="step-subtitle" id="bgc-step3-body" style="text-align:left;"><!-- TODO ES -->Loading…</p>
+          <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;padding:14px;margin:12px 0 20px;text-align:left;font-size:0.9rem;color:#78350f;display:flex;gap:10px;align-items:flex-start;">
+            <input type="checkbox" id="bgc-consent-confirm" style="margin-top:3px;width:18px;height:18px;flex-shrink:0;">
+            <label for="bgc-consent-confirm" id="bgc-step3-confirm" style="cursor:pointer;line-height:1.5;"></label>
+          </div>
+          <div class="input-error" id="error-bgc-consent" style="display:none;text-align:left;"><!-- TODO ES -->Please confirm authorization to continue.</div>
+          <button class="btn-next" onclick="submitBgcChecks()" id="bgc-step3-cta"><!-- TODO ES -->Send Consent Forms <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn-skip" onclick="skipBgcFlow()" style="margin-top:8px;"><!-- TODO ES -->Skip for now</button>
+        </div>
+      </div>
+
+      <!-- BGC step 4: confirmation -->
+      <div class="step" data-step="16">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <h2 class="step-question" id="bgc-step4-title"><!-- TODO ES -->You're on your way to Verified</h2>
+          <p class="step-subtitle" id="bgc-step4-body" style="text-align:left;"><!-- TODO ES -->Loading…</p>
+          <ul id="bgc-step4-next" style="text-align:left;padding-left:20px;margin:8px 0 20px;color:#334155;line-height:1.7;"></ul>
+          <button class="btn-next" onclick="finishBgcFlow()"><!-- TODO ES -->Go to Dashboard <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="step" data-step="17">
         <div class="step-content success-screen">
           <div class="success-icon">
             <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
@@ -1146,9 +1210,14 @@
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
   <script src="/white-label-client.js"></script>
+  <script src="/bgc-copy.js"></script>
   <script>
     let currentStep = 0;
-    const totalSteps = 13;
+    const totalSteps = 17;
+    const BGC_INTRO_STEP = 13;
+    const BGC_SUCCESS_STEP = 17;
+    let bgcEmployees = [];
+    let bgcInitiatedCount = 0;
     let userId = null;
     let vehicleId = null;
     let selectedCategory = '';
@@ -1214,6 +1283,8 @@
       document.getElementById('progress-fill').style.width = pct + '%';
       if (currentStep < preAccountSteps) {
         document.getElementById('step-counter').textContent = 'Step ' + (currentStep + 1);
+      } else if (currentStep >= BGC_INTRO_STEP && currentStep < BGC_SUCCESS_STEP) {
+        document.getElementById('step-counter').textContent = 'Get Verified \u00b7 ' + (currentStep - BGC_INTRO_STEP + 1) + ' of 4';
       } else if (currentStep < totalSteps) {
         document.getElementById('step-counter').textContent = 'Almost done';
       } else {
@@ -1496,8 +1567,225 @@
       } catch (err) {
         console.error('Request insert error:', err);
       }
+      bgcRenderCopy();
+      addBgcEmployeeRow();
+      showStep(BGC_INTRO_STEP);
+    }
+
+    function bgcRenderCopy() {
+      try {
+        const C = (window.MCC_BGC_COPY && window.MCC_BGC_COPY.onboarding) || null;
+        if (!C) return;
+        document.getElementById('bgc-step1-title').textContent = C.step1.title;
+        document.getElementById('bgc-step1-body').textContent = C.step1.body;
+        document.getElementById('bgc-step1-details').textContent =
+          C.step1.screened + '\n\n' + C.step1.cost + '\n\n' + C.step1.need;
+        document.getElementById('bgc-step1-cta').innerHTML =
+          C.step1.cta + ' <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+        document.getElementById('bgc-step2-title').textContent = C.step2.title;
+        document.getElementById('bgc-step2-body').textContent = C.step2.body;
+        document.getElementById('bgc-step2-helper').textContent = C.step2.helper;
+        document.getElementById('bgc-step3-title').textContent = C.step3.title;
+        document.getElementById('bgc-step3-body').textContent = C.step3.body;
+        document.getElementById('bgc-step3-confirm').textContent = C.step3.confirm;
+        document.getElementById('bgc-step3-cta').innerHTML =
+          C.step3.cta + ' <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+        document.getElementById('bgc-step4-title').textContent = C.step4.title;
+      } catch (e) {
+        console.error('BGC copy render error:', e);
+      }
+    }
+
+    function addBgcEmployeeRow() {
+      const list = document.getElementById('bgc-employees-list');
+      const idx = list.children.length;
+      const row = document.createElement('div');
+      row.className = 'bgc-emp-row';
+      row.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:10px;';
+      row.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <strong style="color:#1e3a5f;font-size:0.95rem;"><!-- TODO ES -->Employee ${idx + 1}</strong>
+          ${idx > 0 ? `<button type="button" onclick="this.closest('.bgc-emp-row').remove()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:0.85rem;"><!-- TODO ES -->Remove</button>` : ''}
+        </div>
+        <div class="input-row" style="margin-bottom:8px;">
+          <div class="input-wrapper" style="margin-bottom:8px;">
+            <input type="text" class="input-field bgc-emp-name" placeholder="Full name" aria-label="Employee full name">
+          </div>
+          <div class="input-wrapper" style="margin-bottom:8px;">
+            <input type="date" class="input-field bgc-emp-dob" placeholder="Date of birth" aria-label="Employee date of birth">
+          </div>
+        </div>
+        <div class="input-wrapper" style="margin-bottom:8px;">
+          <input type="email" class="input-field bgc-emp-email" placeholder="Email" aria-label="Employee email">
+        </div>
+        <div class="input-wrapper" style="margin-bottom:0;">
+          <input type="text" class="input-field bgc-emp-address" placeholder="Current address" aria-label="Employee address">
+        </div>
+      `;
+      list.appendChild(row);
+    }
+
+    function collectBgcEmployees() {
+      const rows = document.querySelectorAll('#bgc-employees-list .bgc-emp-row');
+      const out = [];
+      rows.forEach((r) => {
+        const name = r.querySelector('.bgc-emp-name').value.trim();
+        const dob = r.querySelector('.bgc-emp-dob').value.trim();
+        const email = r.querySelector('.bgc-emp-email').value.trim();
+        const address = r.querySelector('.bgc-emp-address').value.trim();
+        if (name || email) out.push({ name, dob, email, address });
+      });
+      return out;
+    }
+
+    function bgcGoToStep(idx) {
+      showStep(idx);
+    }
+
+    function bgcAdvanceFromTeam() {
+      const errEl = document.getElementById('error-bgc-employees');
+      errEl.style.display = 'none';
+      const emps = collectBgcEmployees();
+      if (emps.length === 0) {
+        errEl.style.display = 'block';
+        return;
+      }
+      const incomplete = emps.find((e) => !e.name || !e.email);
+      if (incomplete) {
+        errEl.textContent = 'Each employee needs at least a name and an email.';
+        errEl.style.display = 'block';
+        return;
+      }
+      bgcEmployees = emps;
+      showStep(15);
+    }
+
+    function splitFullName(full) {
+      const parts = (full || '').trim().split(/\s+/);
+      if (parts.length === 0) return { firstName: '', lastName: '' };
+      if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+      return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+    }
+
+    async function submitBgcChecks() {
+      const consent = document.getElementById('bgc-consent-confirm').checked;
+      const errEl = document.getElementById('error-bgc-consent');
+      errEl.style.display = 'none';
+      if (!consent) {
+        errEl.style.display = 'block';
+        return;
+      }
+
+      if (!userId) {
+        errEl.textContent = 'Your account session was lost — please refresh and log in.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      const cta = document.getElementById('bgc-step3-cta');
+      cta.disabled = true;
+      cta.innerHTML = '<div class="loading-spinner"></div> Sending...';
+
+      let token = null;
+      try {
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        token = sessionData && sessionData.session && sessionData.session.access_token;
+      } catch (e) {
+        console.error('Could not read auth session:', e);
+      }
+
+      if (!token) {
+        cta.disabled = false;
+        cta.innerHTML = 'Send Consent Forms <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+        errEl.textContent = 'We could not verify your session. Please refresh and try again.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      const workState = (formData.state || '').trim() || 'XX';
+
+      const results = await Promise.allSettled(
+        bgcEmployees.map((emp) => {
+          const { firstName, lastName } = splitFullName(emp.name);
+          const payload = {
+            providerId: userId,
+            firstName: firstName,
+            lastName: lastName || firstName,
+            email: emp.email,
+            state: workState,
+            subjectType: 'employee',
+            fcraAcknowledged: true,
+            providerEmail: formData.email || undefined,
+            providerName: formData.businessName || formData.contactName || undefined
+          };
+          return fetch('/api/bgcheck/initiate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer ' + token
+            },
+            body: JSON.stringify(payload)
+          }).then(async (r) => {
+            if (!r.ok) {
+              let msg = 'HTTP ' + r.status;
+              try { const j = await r.json(); if (j && j.error) msg = j.error; } catch(_) {}
+              throw new Error(msg);
+            }
+            return r.json();
+          });
+        })
+      );
+
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.length - succeeded;
+      bgcInitiatedCount = succeeded;
+
+      if (failed > 0) {
+        const reasons = results
+          .map((r, i) => ({ r, name: (bgcEmployees[i] && bgcEmployees[i].name) || 'Employee ' + (i + 1) }))
+          .filter((x) => x.r.status === 'rejected')
+          .map((x) => x.name + ': ' + (x.r.reason && x.r.reason.message || 'unknown error'))
+          .join('\n');
+        console.warn('BGC initiations: ' + succeeded + ' succeeded, ' + failed + ' failed\n' + reasons);
+      }
+
+      cta.disabled = false;
+      cta.innerHTML = 'Send Consent Forms <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+
+      if (succeeded === 0) {
+        const firstFail = results.find((r) => r.status === 'rejected');
+        const firstMsg = (firstFail && firstFail.reason && firstFail.reason.message) || 'unknown error';
+        errEl.textContent = 'We could not initiate any background checks (' + firstMsg + '). Please verify the details and try again, or skip for now.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      const C = (window.MCC_BGC_COPY && window.MCC_BGC_COPY.onboarding) || null;
+      if (C) {
+        const bodyEl = document.getElementById('bgc-step4-body');
+        bodyEl.textContent = C.step4.body(succeeded);
+        if (failed > 0) {
+          bodyEl.textContent += ' (' + failed + ' could not be sent — you can retry from your dashboard.)';
+        }
+        const ul = document.getElementById('bgc-step4-next');
+        ul.innerHTML = '';
+        C.step4.next.forEach((item) => {
+          const li = document.createElement('li');
+          li.textContent = item;
+          ul.appendChild(li);
+        });
+      }
+      showStep(16);
+    }
+
+    function skipBgcFlow() {
       showSuccessScreen();
-      showStep(totalSteps);
+      showStep(BGC_SUCCESS_STEP);
+    }
+
+    function finishBgcFlow() {
+      showSuccessScreen();
+      showStep(BGC_SUCCESS_STEP);
     }
 
     function showSuccessScreen() {
