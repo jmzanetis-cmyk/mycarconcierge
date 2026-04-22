@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <title>Agent Fleet · Admin · My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#12161c" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <style>
+    :root {
+      --slate-bg: #12161c;
+      --slate-surface: #1a1f28;
+      --slate-surface-2: #242a35;
+      --slate-border: #2d343f;
+      --gold: #c9a84c;
+      --gold-2: #b8942d;
+      --teal: #4cc9c1;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad:  #ef4444;
+    }
+    body { font-family:'Outfit',-apple-system,BlinkMacSystemFont,sans-serif; background:var(--slate-bg); color:var(--text); margin:0; min-height:100vh; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 24px; background:linear-gradient(180deg, rgba(201,168,76,0.06), transparent); border-bottom:1px solid var(--slate-border); }
+    .topbar .brand { font-weight:700; letter-spacing:0.5px; }
+    .topbar .brand .pill { display:inline-block; background:linear-gradient(135deg,var(--gold),var(--gold-2)); color:#12161c; padding:3px 10px; border-radius:99px; font-size:11px; margin-left:8px; }
+    .topbar a { color:var(--muted); text-decoration:none; font-size:14px; margin-left:18px; }
+    .topbar a:hover { color:var(--text); }
+    main { max-width:1280px; margin:0 auto; padding:28px 24px 60px; }
+    h1 { font-weight:600; font-size:26px; margin:0 0 6px; }
+    .subtitle { color:var(--muted); margin-bottom:24px; font-size:14px; }
+    .login-card { max-width:420px; margin:120px auto; background:var(--slate-surface); border:1px solid var(--slate-border); border-radius:14px; padding:28px; }
+    .login-card h2 { margin:0 0 16px; }
+    .input { width:100%; padding:12px 14px; background:var(--slate-surface-2); border:1px solid var(--slate-border); border-radius:8px; color:var(--text); font-family:inherit; font-size:14px; box-sizing:border-box; }
+    .btn { background:linear-gradient(135deg,var(--gold),var(--gold-2)); color:#12161c; border:none; padding:10px 18px; border-radius:8px; font-weight:600; cursor:pointer; font-family:inherit; font-size:14px; }
+    .btn:hover { filter:brightness(1.07); }
+    .btn-ghost { background:transparent; color:var(--text); border:1px solid var(--slate-border); }
+    .btn-ghost:hover { border-color:var(--gold); color:var(--gold); }
+    .btn-danger { background:transparent; color:var(--bad); border:1px solid rgba(239,68,68,0.4); }
+    .grid { display:grid; gap:18px; }
+    .grid-3 { grid-template-columns:repeat(3, 1fr); }
+    .grid-2 { grid-template-columns: 2fr 1fr; }
+    @media(max-width:920px) { .grid-3, .grid-2 { grid-template-columns:1fr; } }
+    .card { background:var(--slate-surface); border:1px solid var(--slate-border); border-radius:14px; padding:20px; }
+    .card h3 { margin:0 0 14px; font-weight:600; font-size:15px; color:var(--gold); letter-spacing:0.5px; text-transform:uppercase; }
+    .stat { font-size:28px; font-weight:700; }
+    .stat-label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:1px; margin-top:4px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--slate-border); }
+    th { color:var(--muted); font-weight:500; font-size:12px; text-transform:uppercase; letter-spacing:1px; background:var(--slate-surface-2); }
+    tbody tr:hover { background:var(--slate-surface-2); }
+    .badge { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+    .badge-on  { background:rgba(34,197,94,0.15); color:var(--good); border:1px solid rgba(34,197,94,0.3); }
+    .badge-off { background:rgba(148,163,184,0.1); color:var(--muted); border:1px solid var(--slate-border); }
+    .badge-mode-propose    { background:rgba(76,201,193,0.12); color:var(--teal); border:1px solid rgba(76,201,193,0.3); }
+    .badge-mode-assist     { background:rgba(245,158,11,0.12); color:var(--warn); border:1px solid rgba(245,158,11,0.3); }
+    .badge-mode-autonomous { background:rgba(201,168,76,0.15); color:var(--gold); border:1px solid rgba(201,168,76,0.3); }
+    select.cell { background:var(--slate-surface-2); color:var(--text); border:1px solid var(--slate-border); border-radius:6px; padding:5px 8px; font-family:inherit; font-size:13px; }
+    .switch { position:relative; display:inline-block; width:42px; height:22px; }
+    .switch input { opacity:0; width:0; height:0; }
+    .slider { position:absolute; cursor:pointer; inset:0; background:var(--slate-surface-2); border-radius:99px; transition:.2s; border:1px solid var(--slate-border); }
+    .slider:before { content:""; position:absolute; height:16px; width:16px; left:2px; bottom:2px; background:var(--muted); border-radius:50%; transition:.2s; }
+    input:checked + .slider { background:rgba(34,197,94,0.2); border-color:var(--good); }
+    input:checked + .slider:before { transform:translateX(20px); background:var(--good); }
+    .briefing-body { color:var(--text); line-height:1.6; font-size:15px; white-space:pre-wrap; }
+    .briefing-meta { color:var(--muted); font-size:12px; margin-top:10px; }
+    .actions-list { max-height:520px; overflow-y:auto; }
+    .action-row { padding:12px 0; border-bottom:1px solid var(--slate-border); }
+    .action-row:last-child { border-bottom:none; }
+    .action-head { display:flex; justify-content:space-between; gap:10px; }
+    .action-agent { font-weight:600; color:var(--gold); }
+    .action-time { color:var(--muted); font-size:12px; }
+    .action-reason { font-size:13px; color:var(--text); margin-top:4px; line-height:1.5; }
+    .action-meta { color:var(--muted); font-size:12px; margin-top:4px; }
+    .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+    .status-completed { background:var(--good); }
+    .status-proposed  { background:var(--gold); }
+    .status-skipped   { background:var(--muted); }
+    .status-error     { background:var(--bad); }
+    .status-escalated { background:var(--warn); }
+    .status-executed  { background:var(--teal); }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .toast { position:fixed; right:24px; bottom:24px; background:var(--slate-surface); border:1px solid var(--gold); color:var(--text); padding:12px 16px; border-radius:10px; z-index:50; max-width:340px; box-shadow:0 8px 30px rgba(0,0,0,0.4); }
+    .toast.error { border-color:var(--bad); }
+    code.kbd { background:var(--slate-surface-2); border:1px solid var(--slate-border); padding:1px 6px; border-radius:4px; font-size:12px; }
+    .num { font-variant-numeric:tabular-nums; }
+    .empty { color:var(--muted); padding:18px 0; font-size:14px; }
+    .right { text-align:right; }
+  </style>
+</head>
+<body>
+
+<div id="loginShell" style="display:none;">
+  <div class="login-card">
+    <h2>Agent Fleet · Admin</h2>
+    <p style="color:var(--muted); font-size:14px; margin-top:0;">Enter the admin password to view the agent fleet console.</p>
+    <input id="pwInput" class="input" type="password" placeholder="Admin password" autocomplete="current-password" />
+    <div style="margin-top:14px; display:flex; gap:10px;">
+      <button class="btn" id="pwSubmit">Sign in</button>
+      <a href="/admin.html" class="btn btn-ghost" style="text-decoration:none; line-height:1.6;">← Main admin</a>
+    </div>
+    <div id="pwError" style="color:var(--bad); font-size:13px; margin-top:10px; display:none;"></div>
+  </div>
+</div>
+
+<div id="appShell" style="display:none;">
+  <div class="topbar">
+    <div class="brand">My Car Concierge <span class="pill">Agent Fleet</span></div>
+    <div>
+      <a href="/admin.html">← Main admin</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </div>
+  </div>
+
+  <main>
+    <h1>Agent Fleet Console</h1>
+    <p class="subtitle">Phase 1: orchestrator routes events; analyst writes the nightly briefing. Specialists are seeded but disabled.</p>
+
+    <div class="grid grid-3" style="margin-bottom:20px;">
+      <div class="card"><div class="stat-label">Enabled agents</div><div class="stat" id="kpiEnabled">—</div></div>
+      <div class="card"><div class="stat-label">Today's spend</div><div class="stat num" id="kpiSpend">—</div></div>
+      <div class="card"><div class="stat-label">Items needing review</div><div class="stat num" id="kpiReview">—</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <h3>Registry</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Enabled</th>
+            <th>Autonomy</th>
+            <th>Model</th>
+            <th class="right">Cap (USD/day)</th>
+            <th class="right">Today</th>
+          </tr>
+        </thead>
+        <tbody id="registryBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="grid grid-2" style="margin-bottom:20px;">
+      <div class="card">
+        <h3>Latest briefing (Analyst)</h3>
+        <div id="briefingBody" class="briefing-body">No briefing yet. Run the analyst to generate one.</div>
+        <div id="briefingMeta" class="briefing-meta"></div>
+        <div style="margin-top:14px;" class="row">
+          <button class="btn" id="runAnalyst">Run analyst now</button>
+          <button class="btn btn-ghost" id="refreshAll">Refresh</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Spend (last 7 days)</h3>
+        <canvas id="spendChart" height="180"></canvas>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="margin-bottom:20px;">
+      <div class="card">
+        <h3>Recent activity</h3>
+        <div class="row" style="margin-bottom:12px;">
+          <label style="font-size:13px; color:var(--muted);">
+            <input type="checkbox" id="reviewOnly" /> Show only items needing review
+          </label>
+          <span style="flex:1"></span>
+          <button class="btn btn-ghost" id="reloadActions">Reload</button>
+        </div>
+        <div id="actionsList" class="actions-list"><div class="empty">Loading…</div></div>
+      </div>
+
+      <div class="card">
+        <h3>Operations</h3>
+        <div style="font-size:13px; color:var(--muted); margin-bottom:14px;">
+          Send a synthetic event into the bus (orchestrator picks it up on the next tick, or click <em>Run orchestrator</em>).
+        </div>
+        <div class="row" style="margin-bottom:8px;">
+          <input id="testEventType" class="input" placeholder="event_type (e.g. nightly.tick)" style="flex:2;" value="fleet.test_ping" />
+        </div>
+        <div class="row" style="margin-bottom:14px;">
+          <input id="testEventPayload" class="input" placeholder='payload JSON (optional)' style="flex:2;" />
+          <button class="btn" id="emitTestEvent">Emit</button>
+        </div>
+        <div style="border-top:1px solid var(--slate-border); margin:14px 0;"></div>
+        <div class="row">
+          <button class="btn btn-ghost" id="runOrchestrator">Run orchestrator now</button>
+        </div>
+        <div style="margin-top:18px; font-size:12px; color:var(--muted);">
+          Scheduled cadence: orchestrator <code class="kbd">* * * * *</code> · analyst <code class="kbd">0 5 * * *</code> (UTC).
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast" class="toast" style="display:none;"></div>
+
+<script>
+const STORAGE_KEY = 'mcc_admin_pw';
+const API_BASE = '/api/admin/agent-fleet';
+let spendChart = null;
+
+function getPw() { return sessionStorage.getItem(STORAGE_KEY) || ''; }
+function setPw(v) { sessionStorage.setItem(STORAGE_KEY, v); }
+function clearPw() { sessionStorage.removeItem(STORAGE_KEY); }
+
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (isError ? ' error' : '');
+  el.style.display = 'block';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.style.display = 'none', 3500);
+}
+
+async function api(path, opts = {}) {
+  const headers = Object.assign({ 'Content-Type': 'application/json', 'x-admin-password': getPw() }, opts.headers || {});
+  const r = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
+  const text = await r.text();
+  let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  if (r.status === 401) {
+    clearPw();
+    showLogin('Session expired. Please sign in again.');
+    throw new Error('Unauthorized');
+  }
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+function showLogin(err) {
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('loginShell').style.display = 'block';
+  if (err) {
+    const e = document.getElementById('pwError');
+    e.textContent = err; e.style.display = 'block';
+  }
+  document.getElementById('pwInput').focus();
+}
+
+function showApp() {
+  document.getElementById('loginShell').style.display = 'none';
+  document.getElementById('appShell').style.display = 'block';
+  refreshAll();
+}
+
+async function tryLogin(pw) {
+  setPw(pw);
+  try {
+    await api('/agents');
+    showApp();
+  } catch (e) {
+    if (e.message !== 'Unauthorized') toast(e.message, true);
+  }
+}
+
+function fmt$(n) { return '$' + (Number(n) || 0).toFixed(2); }
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleString();
+}
+
+async function loadRegistry() {
+  const body = document.getElementById('registryBody');
+  try {
+    const { agents } = await api('/agents');
+    let enabledCount = 0, todaySpend = 0;
+    body.innerHTML = '';
+    for (const a of agents) {
+      if (a.enabled) enabledCount++;
+      todaySpend += Number(a.today_spend?.actual_usd || 0) + Number(a.today_spend?.reserved_usd || 0);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <div style="font-weight:600;">${a.display_name}</div>
+          <div style="font-size:12px; color:var(--muted);">${a.slug}${a.description ? ' · ' + a.description : ''}</div>
+        </td>
+        <td>
+          <label class="switch">
+            <input type="checkbox" data-slug="${a.slug}" data-field="enabled" ${a.enabled ? 'checked' : ''}>
+            <span class="slider"></span>
+          </label>
+        </td>
+        <td>
+          <select class="cell" data-slug="${a.slug}" data-field="autonomy">
+            <option value="propose"    ${a.autonomy === 'propose' ? 'selected' : ''}>propose</option>
+            <option value="assist"     ${a.autonomy === 'assist' ? 'selected' : ''}>assist</option>
+            <option value="autonomous" ${a.autonomy === 'autonomous' ? 'selected' : ''}>autonomous</option>
+          </select>
+        </td>
+        <td><span style="font-size:13px; color:var(--muted);">${a.model}</span></td>
+        <td class="right">
+          <input type="number" min="0" step="0.5" value="${a.daily_spend_cap_usd}" class="cell" data-slug="${a.slug}" data-field="daily_spend_cap_usd" style="width:80px; text-align:right;">
+        </td>
+        <td class="right num">
+          <div>${fmt$(a.today_spend?.actual_usd || 0)}</div>
+          <div style="font-size:11px; color:var(--muted);">${a.today_spend?.call_count || 0} calls</div>
+        </td>
+      `;
+      body.appendChild(tr);
+    }
+    document.getElementById('kpiEnabled').textContent = `${enabledCount} / ${agents.length}`;
+    document.getElementById('kpiSpend').textContent = fmt$(todaySpend);
+
+    // wire updates
+    body.querySelectorAll('[data-slug]').forEach(el => {
+      const evt = el.tagName === 'SELECT' ? 'change' : (el.type === 'number' ? 'change' : 'change');
+      el.addEventListener(evt, async () => {
+        const slug = el.getAttribute('data-slug');
+        const field = el.getAttribute('data-field');
+        let val;
+        if (field === 'enabled') val = el.checked;
+        else if (field === 'daily_spend_cap_usd') val = parseFloat(el.value);
+        else val = el.value;
+        try {
+          await api(`/agents/${slug}`, { method: 'PUT', body: JSON.stringify({ [field]: val }) });
+          toast(`${slug}: ${field} updated`);
+        } catch (e) { toast(e.message, true); }
+      });
+    });
+  } catch (e) {
+    if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="6" class="empty">${e.message}</td></tr>`;
+  }
+}
+
+async function loadActions() {
+  const list = document.getElementById('actionsList');
+  const reviewOnly = document.getElementById('reviewOnly').checked;
+  try {
+    const { actions } = await api(`/actions?limit=40${reviewOnly ? '&review_only=1' : ''}`);
+    let needReview = 0;
+    if (!actions || actions.length === 0) {
+      list.innerHTML = '<div class="empty">No activity yet.</div>';
+      document.getElementById('kpiReview').textContent = '0';
+      return;
+    }
+    list.innerHTML = '';
+    for (const a of actions) {
+      if (a.needs_review && !a.reviewed_at) needReview++;
+      const div = document.createElement('div');
+      div.className = 'action-row';
+      const dec = (() => { try { return typeof a.decision === 'string' ? JSON.parse(a.decision) : a.decision; } catch { return a.decision; } })();
+      const decSummary = dec ? Object.entries(dec).slice(0, 3).map(([k, v]) => `<code class="kbd">${k}=${typeof v === 'object' ? JSON.stringify(v).slice(0, 40) : String(v).slice(0, 40)}</code>`).join(' ') : '';
+      div.innerHTML = `
+        <div class="action-head">
+          <div>
+            <span class="status-dot status-${a.status}"></span>
+            <span class="action-agent">${a.agent_slug}</span>
+            <span style="color:var(--muted); font-size:13px;"> · ${a.action_type}</span>
+          </div>
+          <div class="action-time">${fmtTime(a.created_at)}</div>
+        </div>
+        <div class="action-reason">${a.reasoning || a.error_message || '<span style="color:var(--muted);">(no reasoning)</span>'}</div>
+        <div class="action-meta">
+          ${decSummary}
+          ${a.cost_usd ? ` · <span class="num">${fmt$(a.cost_usd)}</span>` : ''}
+          ${a.tokens_in || a.tokens_out ? ` · ${a.tokens_in}+${a.tokens_out} tok` : ''}
+          ${a.duration_ms ? ` · ${a.duration_ms}ms` : ''}
+          ${a.needs_review && !a.reviewed_at ? ` · <button class="btn btn-ghost" data-review="${a.id}" data-decision="approved" style="padding:3px 9px; font-size:12px;">Approve</button> <button class="btn btn-danger" data-review="${a.id}" data-decision="rejected" style="padding:3px 9px; font-size:12px;">Reject</button>` : ''}
+          ${a.review_status ? ` · <span class="badge badge-${a.review_status === 'approved' || a.review_status === 'executed' ? 'on' : 'off'}">${a.review_status}</span>` : ''}
+        </div>
+      `;
+      list.appendChild(div);
+    }
+    document.getElementById('kpiReview').textContent = String(needReview);
+
+    list.querySelectorAll('[data-review]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-review');
+        const decision = btn.getAttribute('data-decision');
+        try {
+          await api(`/actions/${id}/review`, { method: 'POST', body: JSON.stringify({ decision }) });
+          toast(`Action ${id} marked ${decision}`);
+          loadActions();
+        } catch (e) { toast(e.message, true); }
+      });
+    });
+  } catch (e) {
+    if (e.message !== 'Unauthorized') list.innerHTML = `<div class="empty">${e.message}</div>`;
+  }
+}
+
+async function loadBriefing() {
+  try {
+    const { briefing } = await api('/briefing');
+    if (!briefing || !briefing.value) {
+      document.getElementById('briefingBody').textContent = 'No briefing yet. Run the analyst to generate one.';
+      document.getElementById('briefingMeta').textContent = '';
+      return;
+    }
+    const v = briefing.value;
+    document.getElementById('briefingBody').textContent = v.narrative || '(empty)';
+    document.getElementById('briefingMeta').textContent = `${v.date || ''} · ${v.model || ''} · stored ${fmtTime(briefing.created_at)}`;
+  } catch (e) {
+    if (e.message !== 'Unauthorized') document.getElementById('briefingBody').textContent = e.message;
+  }
+}
+
+async function loadSpend() {
+  try {
+    const { agents, days } = await api('/spend');
+    if (!window.Chart) { setTimeout(loadSpend, 300); return; }
+    // Build per-day per-agent matrix
+    const dayKeys = Array.from(new Set(days.map(d => d.day))).sort();
+    const datasets = agents.map((a, i) => {
+      const colors = ['#c9a84c','#4cc9c1','#22c55e','#f59e0b','#818cf8','#ef4444','#94a3b8','#ec4899'];
+      return {
+        label: a.display_name,
+        data: dayKeys.map(dk => {
+          const row = days.find(d => d.day === dk && d.agent_slug === a.slug);
+          return row ? Number(row.actual_usd || 0) : 0;
+        }),
+        backgroundColor: colors[i % colors.length],
+        borderColor: colors[i % colors.length],
+        stack: 'spend'
+      };
+    });
+    if (spendChart) spendChart.destroy();
+    spendChart = new Chart(document.getElementById('spendChart'), {
+      type: 'bar',
+      data: { labels: dayKeys, datasets },
+      options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+        scales: {
+          x: { stacked: true, ticks: { color: '#94a3b8' }, grid: { color: '#2d343f' } },
+          y: { stacked: true, ticks: { color: '#94a3b8', callback: v => '$' + v }, grid: { color: '#2d343f' } }
+        }
+      }
+    });
+  } catch (e) { /* ignore */ }
+}
+
+async function refreshAll() {
+  await Promise.all([loadRegistry(), loadActions(), loadBriefing(), loadSpend()]);
+}
+
+// --- wire-up
+document.getElementById('pwSubmit').addEventListener('click', () => {
+  tryLogin(document.getElementById('pwInput').value);
+});
+document.getElementById('pwInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') tryLogin(document.getElementById('pwInput').value);
+});
+document.getElementById('logoutLink').addEventListener('click', e => {
+  e.preventDefault(); clearPw(); showLogin();
+});
+document.getElementById('refreshAll').addEventListener('click', refreshAll);
+document.getElementById('reloadActions').addEventListener('click', loadActions);
+document.getElementById('reviewOnly').addEventListener('change', loadActions);
+document.getElementById('runAnalyst').addEventListener('click', async () => {
+  try { toast('Running analyst…'); const r = await api('/run/analyst', { method: 'POST' }); toast(r.result?.success ? `Analyst done · ${fmt$(r.result.cost_usd || 0)}` : (r.result?.reason || 'Done')); refreshAll(); }
+  catch (e) { toast(e.message, true); }
+});
+document.getElementById('runOrchestrator').addEventListener('click', async () => {
+  try { toast('Running orchestrator tick…'); const r = await api('/run/orchestrator', { method: 'POST' }); toast(`Processed ${r.result?.processed || 0} event(s)`); refreshAll(); }
+  catch (e) { toast(e.message, true); }
+});
+document.getElementById('emitTestEvent').addEventListener('click', async () => {
+  const eventType = document.getElementById('testEventType').value.trim();
+  if (!eventType) return toast('event_type required', true);
+  let payload = {};
+  const raw = document.getElementById('testEventPayload').value.trim();
+  if (raw) { try { payload = JSON.parse(raw); } catch { return toast('payload must be valid JSON', true); } }
+  try { const r = await api('/test-event', { method: 'POST', body: JSON.stringify({ event_type: eventType, payload }) }); toast(`Emitted event #${r.event_id}`); }
+  catch (e) { toast(e.message, true); }
+});
+
+// boot
+if (getPw()) {
+  api('/agents').then(showApp).catch(() => showLogin());
+} else {
+  showLogin();
+}
+</script>
+
+</body>
+</html>

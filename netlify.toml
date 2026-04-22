@@ -33,6 +33,13 @@
 [functions."wefunder-blast-scheduled"]
   schedule = "0 2 * * 0"
 
+# Agent Fleet — Phase 1
+[functions."agent-orchestrator"]
+  schedule = "* * * * *"
+
+[functions."agent-analyst"]
+  schedule = "0 5 * * *"
+
 [[redirects]]
   from = "/t/o"
   to = "/.netlify/functions/email-tracking?a=open"
@@ -131,6 +138,11 @@
 [[redirects]]
   from = "/api/admin/ai-ops/*"
   to = "/.netlify/functions/ai-ops-admin/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/agent-fleet/*"
+  to = "/.netlify/functions/agent-fleet-admin/:splat"
   status = 200
 
 [[redirects]]
