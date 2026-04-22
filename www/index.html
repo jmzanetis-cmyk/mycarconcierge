@@ -1789,19 +1789,39 @@
 
   <main>
     <!-- Task #114 — MCC Verified customer-facing trust section. Copy verbatim from platform-copy PDF. -->
-    <!-- TODO ES: trust section translation -->
     <section style="padding:60px 20px;text-align:center;background:rgba(46,125,50,0.04);border-top:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle);">
       <div style="max-width:900px;margin:0 auto;">
-        <h2 style="color:#4CAF50;font-size:1.8rem;margin-bottom:16px;">Your car. Your trust. Our verification.</h2>
-        <p style="font-size:1.05rem;color:var(--text-secondary);line-height:1.6;margin-bottom:24px;">
+        <h2 id="mcc-trust-header" style="color:#4CAF50;font-size:1.8rem;margin-bottom:16px;">Your car. Your trust. Our verification.</h2>
+        <p id="mcc-trust-body" style="font-size:1.05rem;color:var(--text-secondary);line-height:1.6;margin-bottom:24px;">
           Every <strong>MCC Verified</strong> provider has passed comprehensive background screening for their team. Look for the ✓ badge when browsing providers — it means their employees are screened, verified, and current.
         </p>
-        <a href="/providers-directory.html" style="display:inline-block;padding:12px 28px;background:#4CAF50;color:#fff;text-decoration:none;border-radius:10px;font-weight:600;">Browse Verified Providers →</a>
-        <div style="margin-top:32px;padding:16px;border-radius:12px;background:rgba(0,0,0,0.04);font-size:0.85rem;color:var(--text-muted);line-height:1.8;">
+        <a id="mcc-trust-cta" href="/providers-directory.html" style="display:inline-block;padding:12px 28px;background:#4CAF50;color:#fff;text-decoration:none;border-radius:10px;font-weight:600;">Browse Verified Providers →</a>
+        <div id="mcc-trust-bar" style="margin-top:32px;padding:16px;border-radius:12px;background:rgba(0,0,0,0.04);font-size:0.85rem;color:var(--text-muted);line-height:1.8;">
           ✓ Background-checked providers · Annual renewal required · ✓ 90% team compliance minimum · Nationally accredited screening
         </div>
       </div>
     </section>
+    <script src="/bgc-copy.js"></script>
+    <script>
+      (function () {
+        var C = window.MCC_BGC_COPY && window.MCC_BGC_COPY.homepage;
+        var brand = (window.MCC_BGC_COPY && window.MCC_BGC_COPY.branding && window.MCC_BGC_COPY.branding.featureName) || 'MCC Verified';
+        if (!C) return;
+        var setText = function (id, val) { var el = document.getElementById(id); if (el && val) el.textContent = val; };
+        var setHtml = function (id, val) { var el = document.getElementById(id); if (el && val) el.innerHTML = val; };
+        setText('mcc-trust-header', C.customerHeader);
+        if (C.customerBody) {
+          // Bold the brand name wherever it appears in the translated body.
+          var safe = C.customerBody
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          var brandSafe = brand.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          var bolded = safe.split(brandSafe).join('<strong>' + brandSafe + '</strong>');
+          setHtml('mcc-trust-body', bolded);
+        }
+        setText('mcc-trust-cta', C.customerCta);
+        setText('mcc-trust-bar', C.trustBar);
+      })();
+    </script>
 
     <section class="hero" id="main-content">
       <div class="container">

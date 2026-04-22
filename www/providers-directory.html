@@ -210,11 +210,21 @@
 
     <div class="filters-bar">
       <input type="text" class="filter-input" id="filter-city" placeholder="City or location..." oninput="debounceFilter()">
-      <label class="filter-input" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;" title="Verified Providers maintain current background checks on their employees, renewed every year.">
+      <label id="filter-verified-only-label" class="filter-input" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;" title="Verified Providers maintain current background checks on their employees, renewed every year.">
         <input type="checkbox" id="filter-verified-only" onchange="loadProviders(1)" style="margin:0;cursor:pointer;">
-        <span>✓ Show only Verified Providers</span>
+        <span id="filter-verified-only-text">✓ Show only Verified Providers</span>
       </label>
-      <!-- TODO ES: filter label translation -->
+      <script>
+        // Defer until bgc-copy.js (loaded at end of body) has run.
+        document.addEventListener('DOMContentLoaded', function () {
+          var C = window.MCC_BGC_COPY && window.MCC_BGC_COPY.customer;
+          if (!C) return;
+          var lbl = document.getElementById('filter-verified-only-label');
+          var txt = document.getElementById('filter-verified-only-text');
+          if (lbl && C.filterDescription) lbl.title = C.filterDescription;
+          if (txt && C.filterLabel) txt.textContent = '\u2713 ' + C.filterLabel.replace(/^\u2713\s*/, '');
+        });
+      </script>
       <select class="filter-input" id="filter-category" onchange="loadProviders(1)">
         <option value="">All Services</option>
         <option value="Oil Change">Oil Change</option>

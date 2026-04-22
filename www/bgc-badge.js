@@ -16,7 +16,9 @@
  *   'card'     → full + neutral copy block when not verified (Car Club profile)
  */
 (function (global) {
-  const COPY = global.MCC_BGC_COPY || {};
+  // Read live each call so a runtime locale change (MCC_BGC_COPY_SET_LANG) takes
+  // effect on the very next render without a page reload.
+  function COPY() { return global.MCC_BGC_COPY || {}; }
   function esc(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -31,43 +33,46 @@
 
   function compact(p) {
     if (!p || !p.bgc_badge_verified) return '';
-    const tip = esc((COPY.customer && COPY.customer.tooltipBadge) || '');
+    const C = COPY();
+    const tip = esc((C.customer && C.customer.tooltipBadge) || '');
     return '<span class="mcc-verified-badge mcc-verified-badge--compact" title="' + tip + '" onclick="event.stopPropagation();window.MCCVerifiedBadge.openDetailModal();">' +
              '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>' +
-             '<span>' + esc((COPY.branding && COPY.branding.compactLabel) || '\u2713 Verified') + '</span>' +
+             '<span>' + esc((C.branding && C.branding.compactLabel) || '\u2713 Verified') + '</span>' +
            '</span>';
   }
 
   function full(p) {
     if (!p || !p.bgc_badge_verified) return '';
-    const detail = (COPY.badge && COPY.badge.fullDetail)
-      ? COPY.badge.fullDetail(p.bgc_compliant_employees, p.bgc_total_employees)
+    const C = COPY();
+    const detail = (C.badge && C.badge.fullDetail)
+      ? C.badge.fullDetail(p.bgc_compliant_employees, p.bgc_total_employees)
       : '';
     return '<div class="mcc-verified-badge mcc-verified-badge--full" onclick="window.MCCVerifiedBadge.openDetailModal();">' +
              '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
              '<div class="mcc-verified-badge__text">' +
-               '<div class="mcc-verified-badge__label">' + esc((COPY.branding && COPY.branding.badgeLabel) || '\u2713 Background Verified') + '</div>' +
+               '<div class="mcc-verified-badge__label">' + esc((C.branding && C.branding.badgeLabel) || '\u2713 Background Verified') + '</div>' +
                '<div class="mcc-verified-badge__detail">' + esc(detail) + '</div>' +
              '</div>' +
            '</div>';
   }
 
   function card(p) {
+    const C = COPY();
     if (p && p.bgc_badge_verified) {
-      const body = (COPY.customer && COPY.customer.ccBody)
-        ? COPY.customer.ccBody(p.bgc_compliant_employees, p.bgc_total_employees, fmtMonth(p.bgc_last_verified_at))
+      const body = (C.customer && C.customer.ccBody)
+        ? C.customer.ccBody(p.bgc_compliant_employees, p.bgc_total_employees, fmtMonth(p.bgc_last_verified_at))
         : '';
       return '<div class="mcc-verified-card mcc-verified-card--active">' +
                '<div class="mcc-verified-card__head">' +
                  '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>' +
-                 '<strong>' + esc((COPY.customer && COPY.customer.ccHeader) || 'MCC Verified Provider') + '</strong>' +
+                 '<strong>' + esc((C.customer && C.customer.ccHeader) || 'MCC Verified Provider') + '</strong>' +
                '</div>' +
                '<div class="mcc-verified-card__body">' + esc(body).replace(/\n/g, '<br>') + '</div>' +
              '</div>';
     }
     // Neutral copy when not verified
     return '<div class="mcc-verified-card mcc-verified-card--neutral">' +
-             '<div class="mcc-verified-card__body">' + esc((COPY.customer && COPY.customer.ccNotVerified) || '') + '</div>' +
+             '<div class="mcc-verified-card__body">' + esc((C.customer && C.customer.ccNotVerified) || '') + '</div>' +
            '</div>';
   }
 
@@ -75,7 +80,7 @@
     const p = provider || {};
     const name = p.business_name || p.full_name || 'This provider';
     if (!p.bgc_badge_verified) return '';
-    const c = COPY.customer || {};
+    const c = COPY().customer || {};
     return '<section class="mcc-verified-section">' +
              '<h3>' + esc(c.detailHeader || 'About MCC Verified') + '</h3>' +
              '<p>' + esc(c.detailBody ? c.detailBody(name) : '') + '</p>' +
@@ -96,10 +101,13 @@
   }
 
   function openDetailModal() {
-    const m = COPY.badge && COPY.badge.modal;
+    const C = COPY();
+    const m = C.badge && C.badge.modal;
     if (!m) return;
+    // Always rebuild so a runtime locale switch is reflected on next open.
     let modal = document.getElementById('mcc-verified-modal');
-    if (!modal) {
+    if (modal) modal.remove();
+    {
       modal = document.createElement('div');
       modal.id = 'mcc-verified-modal';
       modal.className = 'mcc-verified-modal';

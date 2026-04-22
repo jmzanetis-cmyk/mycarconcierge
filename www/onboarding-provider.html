@@ -1115,11 +1115,11 @@
           <div class="step-icon">
             <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
           </div>
-          <h2 class="step-question" id="bgc-step1-title"><!-- TODO ES -->Get MCC Verified</h2>
-          <p class="step-subtitle" id="bgc-step1-body" style="text-align:left;"><!-- TODO ES -->Loading…</p>
+          <h2 class="step-question" id="bgc-step1-title">Get MCC Verified</h2>
+          <p class="step-subtitle" id="bgc-step1-body" style="text-align:left;">Loading…</p>
           <div id="bgc-step1-details" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:12px 0 20px;text-align:left;font-size:0.95rem;color:#334155;white-space:pre-line;"></div>
-          <button class="btn-next" onclick="bgcGoToStep(14)" id="bgc-step1-cta"><!-- TODO ES -->Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <button class="btn-skip" onclick="skipBgcFlow()" style="margin-top:8px;"><!-- TODO ES -->Skip for now — I'll set this up later</button>
+          <button class="btn-next" onclick="bgcGoToStep(14)" id="bgc-step1-cta">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn-skip" onclick="skipBgcFlow()" id="bgc-step1-skip" style="margin-top:8px;">Skip for now — I'll set this up later</button>
         </div>
       </div>
 
@@ -1129,16 +1129,16 @@
           <div class="step-icon">
             <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
-          <h2 class="step-question" id="bgc-step2-title"><!-- TODO ES -->Add your team</h2>
-          <p class="step-subtitle" id="bgc-step2-body" style="text-align:left;"><!-- TODO ES -->Loading…</p>
+          <h2 class="step-question" id="bgc-step2-title">Add your team</h2>
+          <p class="step-subtitle" id="bgc-step2-body" style="text-align:left;">Loading…</p>
           <div id="bgc-employees-list" style="margin:8px 0 12px;"></div>
-          <button type="button" onclick="addBgcEmployeeRow()" style="background:#f1f5f9;color:#1e3a5f;border:1px dashed #94a3b8;border-radius:10px;padding:12px;width:100%;cursor:pointer;font-weight:600;margin-bottom:12px;">
-            <!-- TODO ES -->+ Add another employee
+          <button type="button" id="bgc-step2-add" onclick="addBgcEmployeeRow()" style="background:#f1f5f9;color:#1e3a5f;border:1px dashed #94a3b8;border-radius:10px;padding:12px;width:100%;cursor:pointer;font-weight:600;margin-bottom:12px;">
+            + Add another employee
           </button>
           <p id="bgc-step2-helper" style="font-size:0.85rem;color:#64748b;text-align:left;margin:0 0 16px;"></p>
-          <div class="input-error" id="error-bgc-employees" style="display:none;text-align:left;"><!-- TODO ES -->Add at least one employee, or skip for now.</div>
-          <button class="btn-next" onclick="bgcAdvanceFromTeam()"><!-- TODO ES -->Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <button class="btn-skip" onclick="skipBgcFlow()" style="margin-top:8px;"><!-- TODO ES -->Skip for now</button>
+          <div class="input-error" id="error-bgc-employees" style="display:none;text-align:left;">Add at least one employee, or skip for now.</div>
+          <button class="btn-next" id="bgc-step2-cta" onclick="bgcAdvanceFromTeam()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn-skip" onclick="skipBgcFlow()" id="bgc-step2-skip" style="margin-top:8px;">Skip for now</button>
         </div>
       </div>
 
@@ -1148,15 +1148,15 @@
           <div class="step-icon">
             <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
           </div>
-          <h2 class="step-question" id="bgc-step3-title"><!-- TODO ES -->Employee consent</h2>
-          <p class="step-subtitle" id="bgc-step3-body" style="text-align:left;"><!-- TODO ES -->Loading…</p>
+          <h2 class="step-question" id="bgc-step3-title">Employee consent</h2>
+          <p class="step-subtitle" id="bgc-step3-body" style="text-align:left;">Loading…</p>
           <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;padding:14px;margin:12px 0 20px;text-align:left;font-size:0.9rem;color:#78350f;display:flex;gap:10px;align-items:flex-start;">
             <input type="checkbox" id="bgc-consent-confirm" style="margin-top:3px;width:18px;height:18px;flex-shrink:0;">
             <label for="bgc-consent-confirm" id="bgc-step3-confirm" style="cursor:pointer;line-height:1.5;"></label>
           </div>
-          <div class="input-error" id="error-bgc-consent" style="display:none;text-align:left;"><!-- TODO ES -->Please confirm authorization to continue.</div>
-          <button class="btn-next" onclick="submitBgcChecks()" id="bgc-step3-cta"><!-- TODO ES -->Send Consent Forms <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <button class="btn-skip" onclick="skipBgcFlow()" style="margin-top:8px;"><!-- TODO ES -->Skip for now</button>
+          <div class="input-error" id="error-bgc-consent" style="display:none;text-align:left;">Please confirm authorization to continue.</div>
+          <button class="btn-next" onclick="submitBgcChecks()" id="bgc-step3-cta">Send Consent Forms <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn-skip" onclick="skipBgcFlow()" id="bgc-step3-skip" style="margin-top:8px;">Skip for now</button>
         </div>
       </div>
 
@@ -1166,10 +1166,10 @@
           <div class="step-icon">
             <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           </div>
-          <h2 class="step-question" id="bgc-step4-title"><!-- TODO ES -->You're on your way to Verified</h2>
-          <p class="step-subtitle" id="bgc-step4-body" style="text-align:left;"><!-- TODO ES -->Loading…</p>
+          <h2 class="step-question" id="bgc-step4-title">You're on your way to Verified</h2>
+          <p class="step-subtitle" id="bgc-step4-body" style="text-align:left;">Loading…</p>
           <ul id="bgc-step4-next" style="text-align:left;padding-left:20px;margin:8px 0 20px;color:#334155;line-height:1.7;"></ul>
-          <button class="btn-next" onclick="finishBgcFlow()"><!-- TODO ES -->Go to Dashboard <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn-next" onclick="finishBgcFlow()" id="bgc-step4-cta">Go to Dashboard <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
       </div>
 
@@ -1576,21 +1576,37 @@
       try {
         const C = (window.MCC_BGC_COPY && window.MCC_BGC_COPY.onboarding) || null;
         if (!C) return;
-        document.getElementById('bgc-step1-title').textContent = C.step1.title;
-        document.getElementById('bgc-step1-body').textContent = C.step1.body;
-        document.getElementById('bgc-step1-details').textContent =
-          C.step1.screened + '\n\n' + C.step1.cost + '\n\n' + C.step1.need;
-        document.getElementById('bgc-step1-cta').innerHTML =
-          C.step1.cta + ' <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
-        document.getElementById('bgc-step2-title').textContent = C.step2.title;
-        document.getElementById('bgc-step2-body').textContent = C.step2.body;
-        document.getElementById('bgc-step2-helper').textContent = C.step2.helper;
-        document.getElementById('bgc-step3-title').textContent = C.step3.title;
-        document.getElementById('bgc-step3-body').textContent = C.step3.body;
-        document.getElementById('bgc-step3-confirm').textContent = C.step3.confirm;
-        document.getElementById('bgc-step3-cta').innerHTML =
-          C.step3.cta + ' <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
-        document.getElementById('bgc-step4-title').textContent = C.step4.title;
+        const arrowSvg = ' <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+        const setText = function (id, val) {
+          const el = document.getElementById(id);
+          if (el && val != null) el.textContent = val;
+        };
+        const setHtmlCta = function (id, label) {
+          const el = document.getElementById(id);
+          if (el && label) el.innerHTML = label + arrowSvg;
+        };
+        setText('bgc-step1-title', C.step1.title);
+        setText('bgc-step1-body', C.step1.body);
+        setText('bgc-step1-details',
+          C.step1.screened + '\n\n' + C.step1.cost + '\n\n' + C.step1.need);
+        setHtmlCta('bgc-step1-cta', C.step1.cta);
+        setText('bgc-step1-skip', C.skipLong);
+        setText('bgc-step2-title', C.step2.title);
+        setText('bgc-step2-body', C.step2.body);
+        setText('bgc-step2-helper', C.step2.helper);
+        setText('bgc-step2-add', C.addEmployee);
+        setText('error-bgc-employees', C.errorNoEmployees);
+        setHtmlCta('bgc-step2-cta', C.step1.cta); // reuse "Continue"
+        setText('bgc-step2-skip', C.skipShort);
+        setText('bgc-step3-title', C.step3.title);
+        setText('bgc-step3-body', C.step3.body);
+        setText('bgc-step3-confirm', C.step3.confirm);
+        setText('error-bgc-consent', C.errorConsent);
+        setHtmlCta('bgc-step3-cta', C.step3.cta);
+        setText('bgc-step3-skip', C.skipShort);
+        setText('bgc-step4-title', C.step4.title);
+        // step4 "Go to Dashboard" — translate label, keep arrow
+        setHtmlCta('bgc-step4-cta', C.step4.cta.replace(/\s*\u2192\s*$/, ''));
       } catch (e) {
         console.error('BGC copy render error:', e);
       }
@@ -1604,8 +1620,8 @@
       row.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:10px;';
       row.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <strong style="color:#1e3a5f;font-size:0.95rem;"><!-- TODO ES -->Employee ${idx + 1}</strong>
-          ${idx > 0 ? `<button type="button" onclick="this.closest('.bgc-emp-row').remove()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:0.85rem;"><!-- TODO ES -->Remove</button>` : ''}
+          <strong style="color:#1e3a5f;font-size:0.95rem;">${(window.MCC_BGC_COPY && window.MCC_BGC_COPY.onboarding && window.MCC_BGC_COPY.onboarding.employeeN) ? window.MCC_BGC_COPY.onboarding.employeeN(idx + 1) : ('Employee ' + (idx + 1))}</strong>
+          ${idx > 0 ? `<button type="button" onclick="this.closest('.bgc-emp-row').remove()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:0.85rem;">${(window.MCC_BGC_COPY && window.MCC_BGC_COPY.onboarding && window.MCC_BGC_COPY.onboarding.remove) || 'Remove'}</button>` : ''}
         </div>
         <div class="input-row" style="margin-bottom:8px;">
           <div class="input-wrapper" style="margin-bottom:8px;">
@@ -1652,7 +1668,8 @@
       }
       const incomplete = emps.find((e) => !e.name || !e.email);
       if (incomplete) {
-        errEl.textContent = 'Each employee needs at least a name and an email.';
+        const C = (window.MCC_BGC_COPY && window.MCC_BGC_COPY.onboarding) || null;
+        errEl.textContent = (C && C.errorIncomplete) || 'Each employee needs at least a name and an email.';
         errEl.style.display = 'block';
         return;
       }
@@ -1749,23 +1766,29 @@
         console.warn('BGC initiations: ' + succeeded + ' succeeded, ' + failed + ' failed\n' + reasons);
       }
 
+      const C = (window.MCC_BGC_COPY && window.MCC_BGC_COPY.onboarding) || null;
       cta.disabled = false;
-      cta.innerHTML = 'Send Consent Forms <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+      cta.innerHTML = ((C && C.step3 && C.step3.cta) || 'Send Consent Forms \u2192')
+        .replace(/\s*\u2192\s*$/, '') +
+        ' <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
 
       if (succeeded === 0) {
         const firstFail = results.find((r) => r.status === 'rejected');
         const firstMsg = (firstFail && firstFail.reason && firstFail.reason.message) || 'unknown error';
-        errEl.textContent = 'We could not initiate any background checks (' + firstMsg + '). Please verify the details and try again, or skip for now.';
+        errEl.textContent = (C && C.errorInitiateAll)
+          ? C.errorInitiateAll(firstMsg)
+          : ('We could not initiate any background checks (' + firstMsg + '). Please verify the details and try again, or skip for now.');
         errEl.style.display = 'block';
         return;
       }
 
-      const C = (window.MCC_BGC_COPY && window.MCC_BGC_COPY.onboarding) || null;
       if (C) {
         const bodyEl = document.getElementById('bgc-step4-body');
         bodyEl.textContent = C.step4.body(succeeded);
         if (failed > 0) {
-          bodyEl.textContent += ' (' + failed + ' could not be sent — you can retry from your dashboard.)';
+          bodyEl.textContent += (C.errorPartial)
+            ? C.errorPartial(failed)
+            : (' (' + failed + ' could not be sent — you can retry from your dashboard.)');
         }
         const ul = document.getElementById('bgc-step4-next');
         ul.innerHTML = '';
