@@ -38681,7 +38681,13 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
           gallery: gallery || [],
           team_members: teamMembersPublic,
           background_verified: ['cleared','clear','eligible'].includes(bgCheck?.status),
-          background_check_status: bgCheck?.status || null
+          background_check_status: bgCheck?.status || null,
+          bgc_badge_verified: provider.bgc_badge_verified === true,
+          bgc_compliance_pct: provider.bgc_compliance_pct || null,
+          bgc_compliance_status: provider.bgc_compliance_status || null,
+          bgc_total_employees: provider.bgc_total_employees || 0,
+          bgc_compliant_employees: provider.bgc_compliant_employees || 0,
+          bgc_last_verified_at: provider.bgc_last_verified_at || null
         }));
         return;
       }
