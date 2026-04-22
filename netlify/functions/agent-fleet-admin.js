@@ -12,6 +12,9 @@
 //   POST /test-event                     — { event_type, payload? } emits a synthetic event
 //   POST /run/orchestrator               — fire orchestrator tick now
 //   POST /run/analyst                    — run analyst now
+//   GET  /dead-letter?limit=50&offset=0&open=1   — list DLQ entries
+//   POST /dead-letter/:id/replay         — re-emit the event (attempts=0)
+//   GET  /spend-alerts?days=7            — recent spend-cap breach alerts
 // ============================================================================
 
 const {
@@ -230,6 +233,51 @@ exports.handler = async function(event) {
       const text = await r.text();
       let parsed; try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
       return jsonResponse(200, { ok: r.ok, status: r.status, result: parsed });
+    }
+
+    // -------- dead-letter queue
+    if (route === 'dead-letter' && method === 'GET') {
+      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 50, 1), 200);
+      const off = Math.max(parseInt(qs.offset, 10) || 0, 0);
+      const openOnly = qs.open === '1' || qs.open === 'true';
+      let q = supabase.from('agent_dead_letter')
+        .select('*', { count: 'exact' })
+        .order('failed_at', { ascending: false })
+        .range(off, off + lim - 1);
+      if (openOnly) q = q.is('replayed_at', null);
+      const { data, count, error } = await q;
+      if (error) throw new Error(error.message);
+      return jsonResponse(200, { entries: data || [], total: count || 0, limit: lim, offset: off });
+    }
+    const dlqReplayMatch = route.match(/^dead-letter\/(\d+)\/replay$/);
+    if (dlqReplayMatch && method === 'POST') {
+      const dlqId = parseInt(dlqReplayMatch[1], 10);
+      const { data: entry, error: fetchErr } = await supabase
+        .from('agent_dead_letter').select('*').eq('id', dlqId).maybeSingle();
+      if (fetchErr) return jsonResponse(500, { error: fetchErr.message });
+      if (!entry) return jsonResponse(404, { error: 'DLQ entry not found' });
+      if (entry.replayed_at) return jsonResponse(400, { error: 'Already replayed', replay_event_id: entry.replay_event_id });
+      const newId = await emitEvent(supabase, entry.event_type,
+        entry.payload || {}, `dlq-replay:${dlqId}`);
+      const { error: updErr } = await supabase.from('agent_dead_letter')
+        .update({ replayed_at: new Date().toISOString(), replayed_by: 'admin', replay_event_id: newId })
+        .eq('id', dlqId);
+      if (updErr) return jsonResponse(500, { error: updErr.message });
+      return jsonResponse(200, { ok: true, dlq_id: dlqId, replay_event_id: newId });
+    }
+
+    // -------- spend-cap alerts
+    if (route === 'spend-alerts' && method === 'GET') {
+      const days = Math.min(Math.max(parseInt(qs.days, 10) || 7, 1), 90);
+      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+        .toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('agent_spend_alerts')
+        .select('*')
+        .gte('day', startDate)
+        .order('notified_at', { ascending: false });
+      if (error) throw new Error(error.message);
+      return jsonResponse(200, { alerts: data || [], since: startDate });
     }
 
     return jsonResponse(404, { error: 'Not found', route });

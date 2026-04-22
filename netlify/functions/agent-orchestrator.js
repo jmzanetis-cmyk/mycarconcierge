@@ -12,6 +12,12 @@ const {
 
 const ORCHESTRATOR_SLUG = 'orchestrator';
 const MAX_EVENTS_PER_TICK = 50;
+// DLQ: how many dispatch attempts before an event is dead-lettered.
+// Counts the FIRST attempt as 1, so MAX_DISPATCH_ATTEMPTS=3 means 1 initial
+// + 2 retries before DLQ.
+const MAX_DISPATCH_ATTEMPTS = 3;
+// Exponential backoff base in seconds. Schedule: 30s, 120s, 480s ...
+const RETRY_BACKOFF_BASE_S = 30;
 
 function siteBaseUrl(event) {
   // Prefer explicit env, then Netlify-provided URL, then the request itself.
@@ -63,11 +69,13 @@ async function runTick(event, triggeredBy) {
     return { skipped: true, reason: 'orchestrator_disabled' };
   }
 
-  // Pull unprocessed events.
+  // Pull unprocessed events. Skip rows whose retry backoff hasn't elapsed.
+  const nowIso = new Date().toISOString();
   const { data: events, error } = await supabase
     .from('agent_events')
-    .select('id, event_type, payload, source, created_at')
+    .select('id, event_type, payload, source, created_at, attempts')
     .is('processed_at', null)
+    .or(`next_retry_at.is.null,next_retry_at.lte.${nowIso}`)
     .order('created_at', { ascending: true })
     .limit(MAX_EVENTS_PER_TICK);
   if (error) throw new Error(`fetch events failed: ${error.message}`);
@@ -82,46 +90,107 @@ async function runTick(event, triggeredBy) {
   );
 
   let processed = 0;
+  let retried = 0;
+  let deadLettered = 0;
   for (const evt of events) {
     const matched = enabledHandlers.filter(a =>
       a.handles_events.some(p => eventMatches(p, evt.event_type))
     );
     const routedTo = [];
-    let dispatchError = null;
+    const failures = [];
 
     for (const agent of matched) {
       const r = await dispatchEvent(baseUrl, agent, evt);
       if (r.ok) routedTo.push(agent.slug);
-      else dispatchError = `${agent.slug}: ${r.reason || 'http_' + r.status}`;
+      else failures.push(`${agent.slug}: ${r.reason || 'http_' + r.status}`);
     }
 
-    await supabase
-      .from('agent_events')
-      .update({
-        processed_at: new Date().toISOString(),
-        routed_to: routedTo,
-        error: dispatchError
-      })
-      .eq('id', evt.id);
+    const dispatchError = failures.length ? failures.join('; ') : null;
+    // Retry decision: if at least one handler matched AND none succeeded, the
+    // event is a delivery failure — apply backoff and retry until
+    // MAX_DISPATCH_ATTEMPTS, then dead-letter. Partial success (some handlers
+    // routed, others failed) is still treated as processed: re-dispatching
+    // would double-fire the successful handlers.
+    const isDeliveryFailure = matched.length > 0 && routedTo.length === 0;
+    const newAttempts = (evt.attempts || 0) + 1;
+    const exhausted = newAttempts >= MAX_DISPATCH_ATTEMPTS;
+    const nowTs = new Date();
+
+    if (isDeliveryFailure && !exhausted) {
+      // Schedule retry via exponential backoff. Do NOT set processed_at.
+      const backoffSec = RETRY_BACKOFF_BASE_S * Math.pow(4, newAttempts - 1);
+      const nextRetry = new Date(nowTs.getTime() + backoffSec * 1000);
+      await supabase
+        .from('agent_events')
+        .update({
+          attempts: newAttempts,
+          last_attempt_at: nowTs.toISOString(),
+          last_error: dispatchError,
+          next_retry_at: nextRetry.toISOString()
+        })
+        .eq('id', evt.id);
+      retried++;
+    } else {
+      // Either success/partial-success/no-handlers, OR retries exhausted.
+      // Mark processed; on exhaustion also append to the DLQ.
+      await supabase
+        .from('agent_events')
+        .update({
+          processed_at: nowTs.toISOString(),
+          routed_to: routedTo,
+          error: dispatchError,
+          attempts: newAttempts,
+          last_attempt_at: nowTs.toISOString(),
+          last_error: dispatchError
+        })
+        .eq('id', evt.id);
+
+      if (isDeliveryFailure && exhausted) {
+        const { error: dlqErr } = await supabase.from('agent_dead_letter').insert({
+          original_event_id: evt.id,
+          event_type: evt.event_type,
+          payload: evt.payload || {},
+          source: evt.source || null,
+          attempts: newAttempts,
+          final_error: dispatchError
+        });
+        if (dlqErr) console.error('[Orchestrator] DLQ insert failed:', dlqErr.message);
+        else deadLettered++;
+      }
+      processed++;
+    }
 
     await logAction(supabase, {
       agentSlug: ORCHESTRATOR_SLUG,
       eventId: evt.id,
       actionType: 'route_event',
-      status: matched.length === 0 ? 'skipped' : (dispatchError ? 'error' : 'completed'),
+      status: matched.length === 0
+        ? 'skipped'
+        : (isDeliveryFailure
+            ? (exhausted ? 'error' : 'error')
+            : (dispatchError ? 'completed' : 'completed')),
       autonomyUsed: 'autonomous',
-      decision: { event_type: evt.event_type, matched: matched.map(a => a.slug), routed_to: routedTo },
+      decision: {
+        event_type: evt.event_type,
+        matched: matched.map(a => a.slug),
+        routed_to: routedTo,
+        attempts: newAttempts,
+        retry_scheduled: isDeliveryFailure && !exhausted,
+        dead_lettered: isDeliveryFailure && exhausted
+      },
       reasoning: matched.length === 0
         ? `No enabled handler for "${evt.event_type}".`
-        : `Routed to ${routedTo.length} handler(s).`,
+        : (isDeliveryFailure
+            ? (exhausted
+                ? `All ${matched.length} handler(s) failed; attempts=${newAttempts} → dead-letter.`
+                : `All ${matched.length} handler(s) failed; attempts=${newAttempts} → retry scheduled.`)
+            : `Routed to ${routedTo.length}/${matched.length} handler(s).`),
       durationMs: 0,
       errorMessage: dispatchError
     });
-
-    processed++;
   }
 
-  return { processed, events: events.length, ms: Date.now() - t0 };
+  return { processed, retried, dead_lettered: deadLettered, events: events.length, ms: Date.now() - t0 };
 }
 
 exports.handler = async function(event, context) {

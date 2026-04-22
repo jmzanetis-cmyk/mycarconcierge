@@ -236,6 +236,103 @@ class SpendCapError extends Error {
   }
 }
 
+// ---------------------------------------------------------------------------
+// notifySpendCapBreach — record + email exactly once per agent per UTC day.
+//   - Idempotent via (agent_slug, day) PK on agent_spend_alerts.
+//   - Emails ADMIN_EMAIL via Resend if RESEND_API_KEY is configured;
+//     swallows email errors (the row is the source of truth for "alerted").
+//   - Never throws — caller's failure path must remain the SpendCapError.
+// ---------------------------------------------------------------------------
+async function notifySpendCapBreach(supabase, { slug, capUsd, estimateUsd }) {
+  if (!supabase) return { sent: false, reason: 'no_supabase' };
+  const today = new Date().toISOString().split('T')[0];
+
+  // Read current spend so the alert row has useful debugging context.
+  let reservedUsd = null, actualUsd = null;
+  try {
+    const { data } = await supabase
+      .from('agent_daily_spend')
+      .select('reserved_usd, actual_usd')
+      .eq('agent_slug', slug).eq('day', today)
+      .maybeSingle();
+    if (data) { reservedUsd = data.reserved_usd; actualUsd = data.actual_usd; }
+  } catch (_) { /* non-fatal */ }
+
+  // Insert dedupe row. ON CONFLICT DO NOTHING means "already alerted today".
+  const { data: inserted, error: insertErr } = await supabase
+    .from('agent_spend_alerts')
+    .upsert(
+      {
+        agent_slug: slug,
+        day: today,
+        cap_usd: capUsd,
+        estimate_usd: estimateUsd,
+        reserved_usd: reservedUsd,
+        actual_usd: actualUsd,
+        notified_at: new Date().toISOString(),
+        email_sent: false
+      },
+      { onConflict: 'agent_slug,day', ignoreDuplicates: true }
+    )
+    .select('agent_slug')
+    .maybeSingle();
+
+  if (insertErr) {
+    console.error('[runtime] spend-alert upsert failed:', insertErr.message);
+    return { sent: false, reason: 'db_error' };
+  }
+  if (!inserted) {
+    // Row already existed → already alerted today, nothing more to do.
+    return { sent: false, reason: 'already_alerted' };
+  }
+
+  // First breach today — send the admin email if Resend is wired up.
+  const apiKey = process.env.RESEND_API_KEY;
+  const toEmail = process.env.ADMIN_EMAIL || process.env.MCC_FROM_EMAIL;
+  const fromEmail = process.env.MCC_FROM_EMAIL || 'no-reply@mycarconcierge.com';
+  if (!apiKey || !toEmail) {
+    return { sent: false, reason: 'email_not_configured' };
+  }
+
+  try {
+    const subject = `[MCC Agent Fleet] Spend cap reached — ${slug}`;
+    const html = `
+      <h2>Agent spend cap breached</h2>
+      <p><strong>Agent:</strong> ${slug}</p>
+      <p><strong>Day (UTC):</strong> ${today}</p>
+      <p><strong>Daily cap:</strong> $${Number(capUsd).toFixed(4)}</p>
+      <p><strong>Reserved so far:</strong> $${reservedUsd != null ? Number(reservedUsd).toFixed(6) : '—'}</p>
+      <p><strong>Actual so far:</strong> $${actualUsd != null ? Number(actualUsd).toFixed(6) : '—'}</p>
+      <p><strong>Last call estimate (rejected):</strong> $${Number(estimateUsd).toFixed(6)}</p>
+      <p>The agent will continue rejecting LLM calls until 00:00 UTC. To raise the cap, edit the registry at <code>/admin/agent-fleet.html</code>.</p>
+    `;
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ from: fromEmail, to: toEmail, subject, html })
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      await supabase.from('agent_spend_alerts').update({ email_error: `Resend ${r.status}: ${txt.slice(0,200)}` })
+        .eq('agent_slug', slug).eq('day', today);
+      return { sent: false, reason: 'resend_error' };
+    }
+    await supabase.from('agent_spend_alerts').update({ email_sent: true })
+      .eq('agent_slug', slug).eq('day', today);
+    return { sent: true };
+  } catch (e) {
+    console.error('[runtime] spend-alert email crashed:', e.message);
+    try {
+      await supabase.from('agent_spend_alerts').update({ email_error: e.message.slice(0, 200) })
+        .eq('agent_slug', slug).eq('day', today);
+    } catch (_) { /* swallow */ }
+    return { sent: false, reason: 'exception' };
+  }
+}
+
 async function callLLM(supabase, agent, { prompt, system = null, maxTokens = 1024, temperature = 0.7, expectedInputTokens = null }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
@@ -252,7 +349,15 @@ async function callLLM(supabase, agent, { prompt, system = null, maxTokens = 102
     p_estimate_usd: estimate
   });
   if (reserveErr) throw new Error(`agent_try_spend failed: ${reserveErr.message}`);
-  if (reserved === false) throw new SpendCapError(agent.slug, estimate);
+  if (reserved === false) {
+    // Fire-and-forget alert (idempotent per agent per UTC day). Never throws.
+    notifySpendCapBreach(supabase, {
+      slug: agent.slug,
+      capUsd: agent.daily_spend_cap_usd,
+      estimateUsd: estimate
+    }).catch(e => console.error('[runtime] notifySpendCapBreach crash:', e.message));
+    throw new SpendCapError(agent.slug, estimate);
+  }
 
   // 2) call Anthropic
   let text = '', tokensIn = 0, tokensOut = 0, anthropicErr = null;
@@ -355,6 +460,7 @@ module.exports = {
   latestMemory,
   callLLM,
   SpendCapError,
+  notifySpendCapBreach,
   resolveAutonomy,
   eventMatches,
   findHandlers,
