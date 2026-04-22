@@ -1,0 +1,173 @@
+# MCC Agent Fleet — Phase 2 Audit & Enablement Roadmap
+
+_Status as of 2026-04-22. Author: planning pass for follow-on work to Phase 1._
+
+---
+
+## 1. Phase 1 baseline (what is actually live)
+
+**Live & wired:**
+- `agents`, `agent_events`, `agent_actions`, `agent_memory`, `agent_daily_spend` tables (RLS, service-role only).
+- RPCs `agent_try_spend` / `agent_reconcile_spend` (locked down to `service_role`).
+- Shared runtime `netlify/functions/agent-fleet-runtime.js` — single funnel for Anthropic calls; enforces the spend cap via reserve→call→reconcile.
+- **Orchestrator** (`agent-orchestrator.js`) — Scheduled Function `* * * * *`, drains `agent_events`, fires fire-and-forget HTTP at handler endpoints with `x-fleet-source: orchestrator`.
+- **Analyst** (`agent-analyst.js`) — Scheduled Function nightly UTC; rolls up 24h marketplace metrics, stores Claude briefing under `agent_memory(kind='briefing', key='latest')`.
+- Admin UI `/admin/agent-fleet.html` + API `/api/admin/agent-fleet/*` (registry control, review queue, spend chart, briefing card, test-event emitter, manual run buttons).
+- DB trigger `agent_emit_auction_closed` on `care_plans.status` — currently the **only** real producer on the bus.
+- All 8 agents seeded with `enabled=false`, `autonomy='propose'`.
+
+**Deliberately out of scope in Phase 1:** specialist handler implementations, retry/DLQ, cross-agent spend alerts, additional event producers, workflow/`nightly.tick` cron, per-agent admin pages.
+
+---
+
+## 2. Per-agent gap analysis (the six stub agents)
+
+Each row below answers: handler file? subscribed events? real producers? data dependencies? recommended autonomy at launch?
+
+### 2.1 Matchmaker
+- **Subscribes:** `care_plan.auction_closed` ($5/day cap)
+- **Handler file:** ❌ none. `endpoint=/.netlify/functions/agent-matchmaker` is a 404.
+- **Producer:** ✅ already emitted by `agent_emit_auction_closed` trigger when `care_plans.status` transitions to `auction_closed`.
+- **Data needed:** `care_plans` row; child `bids` (provider_id, amount, eta, notes); provider profile fields used by ranking (rating, completion rate, distance, BGC compliance, capacity).
+- **Decision shape:** `{ care_plan_id, ranked_bids:[{bid_id, score, reasoning}], recommended_winner_bid_id, confidence }` → `agent_actions.action_type='matchmaker.rank'`.
+- **Autonomy at launch:** `propose`. Promote to `assist@0.85` only after 50+ approved proposals show ≥80% admin agreement.
+- **Risk:** wrong winner = lost trust + Stripe Connect headaches. Always require admin click-through before notifying losers in Phase 2.
+- **Open question:** does our `bids` table store competitor count + bid timestamp? Confirm before prompt design.
+
+### 2.2 Treasurer
+- **Subscribes:** `payment.captured`, `payment.refund_requested`, `payout.failed` ($5/day cap)
+- **Handler file:** ❌ none.
+- **Producers:** ❌ none — no code calls `emitEvent` from `split-pay.js`, `split-guest-pay.js`, `split-guest-confirm.js`, or `stripe-connect-*.js`. Phase 2 must add `emitEvent` calls inside the existing Stripe webhook flows (probably alongside the current `payment-tracker-scheduled.js` ledger writes).
+- **Data needed:** `payments` row, related `care_plan` / `job`, Stripe `payment_intent.id`, escrow state.
+- **Decision shape:** `{ payment_id, recommended_action: 'capture'|'partial_refund'|'full_refund'|'escalate', amount_cents, justification }`.
+- **Autonomy at launch:** `propose` only. Treasurer touches money — never let it auto-execute Stripe API calls until we have insurance-level audit trails.
+- **Open question:** today's `ai-ops-admin.js` already writes payment-tracker rows; we must avoid double-acting. Treasurer should explicitly *consume* the same signal and create a *recommendation*, not a parallel action.
+
+### 2.3 Gatekeeper
+- **Subscribes:** `provider.applied`, `provider.bgc_completed`, `provider.flagged` ($3/day cap)
+- **Handler file:** ❌ none.
+- **Producers:** ❌ none.
+  - `provider.applied` — emit from the conversational-onboarding completion endpoint when `profiles.role` is set to `pending_provider`.
+  - `provider.bgc_completed` — emit from `netlify/functions/api-webhooks-background-check.js` (the existing HMAC-validated inbound webhook) right after `calculate_provider_compliance` runs.
+  - `provider.flagged` — emit from the admin "Flag" button + the BGC alert path that crosses the 90% MCC Verified threshold downward.
+- **Data needed:** profile + cached `bgc_*` columns + license uploads + employee count.
+- **Decision shape:** `{ provider_id, recommendation:'approve'|'reject'|'request_more_info', reasoning, flags[] }`.
+- **Autonomy at launch:** `propose`. Compliance/legal sensitivity is too high for `assist`.
+
+### 2.4 Concierge
+- **Subscribes:** `support.ticket_created`, `member.message_received` ($5/day cap)
+- **Handler file:** ❌ none.
+- **Producers:** ❌ none. We do not yet have a `support_tickets` table — only the existing AI Helpdesk one-shot. Phase 2 needs either (a) a new `support_tickets` table fed by the in-app help form, or (b) treat the existing AI Helpdesk transcripts as ticket source. Option (a) is cleaner.
+- **Data needed:** ticket text, member profile, recent jobs, related care plan if any.
+- **Decision shape:** `{ ticket_id, draft_reply, classification, escalate:true|false, suggested_macros[] }`.
+- **Autonomy at launch:** `assist@0.90` for *drafts only* (admin sends), `propose` for any escalation/refund recommendation.
+
+### 2.5 Advocate
+- **Subscribes:** `dispute.opened`, `provider.suspended`, `provider.low_rating` ($4/day cap)
+- **Handler file:** ❌ none.
+- **Producers:**
+  - `dispute.opened` — already produced indirectly by `dispute-resolver-background.js`; just add an `emitEvent` line.
+  - `provider.suspended` — add to the admin suspension endpoint + the automated-suspension job.
+  - `provider.low_rating` — emit from the rating insert trigger when avg drops below threshold.
+- **Decision shape:** `{ provider_id, dispute_id?, outreach_plan, draft_message, urgency }`.
+- **Autonomy at launch:** `propose` for disputes; `assist` for nudges (low-stakes encouragement DMs).
+
+### 2.6 Hunter
+- **Subscribes:** `lead.discovered`, `campaign.requested` ($4/day cap)
+- **Handler file:** ❌ none.
+- **Producers:** ❌ none — but the outreach engine (`outreach-engine-core.js`, `apollo-discovery-scheduled.js`, `outreach-cycle.js`) writes new leads constantly. Phase 2 just needs `emitEvent('lead.discovered', { lead_id })` inserted at the end of the Apollo discovery scheduled function and at the manual-add admin endpoint.
+- **Decision shape:** `{ lead_id, score 0–100, recommended_template, send_now:true|false, reasoning }`.
+- **Autonomy at launch:** `assist@0.90` — but DO NOT let Hunter send mail directly even when assist'd; it should drop into the existing Instantly.ai send queue with `status='ai_recommended'`. Admin still clicks send.
+
+---
+
+## 3. Cross-cutting Phase 2 work
+
+These are not per-agent — they unblock the whole fleet.
+
+### 3.1 `nightly.tick` cron emitter (P0, trivial)
+Analyst is subscribed to `nightly.tick` but nothing emits it. Today the analyst is invoked directly by its own Scheduled Function. Either:
+- **(A)** Add a tiny `agent-cron-emitter.js` Scheduled Function (`0 5 * * *` UTC) that just calls `emitEvent('nightly.tick', ...)` and lets the orchestrator route it. **Preferred** — this is the canonical pattern other Phase 2 agents will rely on.
+- **(B)** Keep direct invocation. Easier short-term but inconsistent with the "everything goes through the bus" model.
+
+Recommend (A). Same emitter can publish `weekly.tick`, `hourly.tick` for future agents.
+
+### 3.2 Dead-letter queue + retry (P0)
+Today the orchestrator dispatches handler HTTP fire-and-forget. If the handler 500s, the event is marked processed and lost. Phase 2 needs:
+- New columns on `agent_events`: `attempt_count int default 0`, `last_error text`, `dead_lettered_at timestamptz`.
+- Orchestrator change: only mark `processed_at` when the dispatched handler returns 2xx (or after `max_attempts=3`, set `dead_lettered_at`).
+- New admin tab: "Dead-lettered events" with manual replay button.
+
+### 3.3 Spend alerting (P1)
+We meter spend; we don't yet alarm on it. Add:
+- A Resend email to admins when any agent crosses 80% of its daily cap.
+- A red banner in `/admin/agent-fleet.html` when ≥1 agent is at 100%.
+- Weekly digest line in the analyst briefing showing top spender.
+
+### 3.4 Per-agent action pages (P1)
+The shared "Recent activity" feed gets noisy fast. Phase 2 should add `/admin/agent-fleet/<slug>.html` per specialist with its own action history, prompt-template editor, and review queue.
+
+### 3.5 Prompt template versioning (P1)
+Right now prompts live inline in handler `.js` files. Move to `agents.config.prompt_template` (jsonb) with `template_version` so we can A/B and roll back without redeploys.
+
+### 3.6 Schema migration: `agent_events.event_id` UUID + idempotency key (P2)
+For at-least-once delivery semantics handler functions need an idempotency key. Add `agent_actions.idempotency_key text unique` so duplicate dispatches collapse cleanly.
+
+### 3.7 Observability (P2)
+Add a `/api/admin/agent-fleet/health` endpoint that returns: orchestrator last-tick age, oldest unprocessed event, error rate per agent over last hour. Hook to PagerDuty later.
+
+---
+
+## 4. Recommended rollout order
+
+Time estimates assume one engineer.
+
+| # | Work item | Why first | Est |
+|---|---|---|---|
+| 1 | `nightly.tick` cron emitter (3.1) | Unblocks the canonical event-driven pattern; tiny | 0.5d |
+| 2 | DLQ + retry (3.2) | Required before any specialist takes real load | 1.5d |
+| 3 | Spend alerting (3.3) | Before enabling more agents, we need to *see* runaway cost | 0.5d |
+| 4 | **Matchmaker** (2.1) | Only agent whose producer already exists → fastest end-to-end demo | 2d |
+| 5 | **Gatekeeper** (2.3) | High product value; producers slot into existing BGC + onboarding paths | 2.5d |
+| 6 | **Hunter** (2.6) | Outreach already runs daily; emitting `lead.discovered` is a one-liner | 2d |
+| 7 | **Treasurer** (2.2) | Money-touching → wait until DLQ + alerting + Matchmaker are battle-tested | 3d |
+| 8 | **Advocate** (2.5) | Depends on dispute trigger work and rating watcher | 2.5d |
+| 9 | **Concierge** (2.4) | Needs new `support_tickets` table → most schema work; defer | 4d |
+| 10 | Per-agent admin pages (3.4) | Once 4+ agents are live, the shared feed is unusable | 2d |
+| 11 | Prompt versioning (3.5), idempotency (3.6), health (3.7) | Polish | 3d combined |
+
+**Total Phase 2:** ~24 engineer-days end-to-end. MVP slice (items 1–4) = ~4.5d and produces a fully working second agent.
+
+---
+
+## 5. Risk register
+
+| Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|
+| Orchestrator dispatch storm exhausts daily caps in minutes if a producer misfires (e.g. trigger loop) | Medium | High | Add per-event-type rate limit in orchestrator; spend alerting (3.3); cap remains the hard backstop. |
+| Fire-and-forget HTTP loses events on transient 502 | High pre-DLQ | Medium | DLQ + retry (3.2) — block all specialist enablement on this. |
+| Treasurer or Matchmaker recommendations adopted without admin sanity check after admin fatigue | Medium | High | Lock at `propose` for 60 days post-launch; auto-promote requires explicit admin opt-in per agent. |
+| Prompt drift: handlers updated independently produce inconsistent reasoning quality | Medium | Medium | Move prompts to `agents.config` (3.5) so review is centralized. |
+| Anthropic rate limit (org-level) hit when multiple agents enabled simultaneously | Low | Medium | Stagger enablement; shared runtime can add a global concurrency semaphore later. |
+| Webhook spoofing emits fake `payment.captured` | Low (we HMAC-verify Stripe + BGC) | High | Phase 2 producers must only emit from inside already-verified webhook paths; document this rule in `agent-fleet-runtime.js` header. |
+| Orchestrator + cron-emitter both running every minute leaves stale `agent_memory.rate_limit` rows | Low | Low | Add a sweeper in the analyst's nightly metrics job. |
+
+---
+
+## 6. Out of scope for Phase 2 (deferred to Phase 3)
+
+- Multi-step agent workflows (Matchmaker → Concierge handoffs).
+- Tool use / function calling — every Phase 2 agent stays read-only LLM + structured output → admin executes.
+- Agent-to-agent direct messaging (use the bus).
+- Self-improvement / fine-tuning loops.
+- Replacing `propose` with `autonomous` for any agent.
+
+---
+
+## 7. Definition of done for Phase 2
+
+1. Items 1–9 in §4 shipped to `replit-updates-production-parity` and live on production.
+2. All 6 specialist agents have a real handler, real producer, at least one real action logged in `agent_actions`, and an admin review screen.
+3. DLQ has zero entries older than 24h on average over a rolling week.
+4. Total daily fleet spend stays under $20 in steady state.
+5. `replit.md` Agent Fleet section updated to "Phase 2".
