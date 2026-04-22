@@ -204,8 +204,22 @@ GRANT EXECUTE ON FUNCTION public.agent_try_spend(text, numeric)            TO se
 GRANT EXECUTE ON FUNCTION public.agent_reconcile_spend(text, numeric, numeric) TO service_role;
 
 -- ----------------------------------------------------------------------------
--- 9. Seed the 8 agents (all DISABLED by default; orchestrator + analyst flip on
---    via admin UI when ready).
+-- 9. Seed the 8 agents.
+--    DEFAULT STATE (intentional, do not change without product sign-off):
+--      * enabled  = false for ALL agents, including orchestrator & analyst.
+--        The admin flips them on individually from /admin/agent-fleet.html
+--        once the migration is live and the spend caps are reviewed. This
+--        protects against accidental cost the moment the deploy lands.
+--      * autonomy = 'propose' for ALL agents. Even the orchestrator and
+--        analyst start in propose mode; the orchestrator's routing isn't
+--        gated by autonomy in code (it's an internal mechanism), but the
+--        seed value matches the spec's "all 8 disabled with propose
+--        autonomy" rule for defense-in-depth.
+--    AGENT-TO-AGENT AUTH: orchestrator dispatches to handler endpoints with
+--    `x-fleet-source: orchestrator`. Phase 2+ handler functions (matchmaker,
+--    treasurer, etc.) accept that header in lieu of admin auth. The analyst
+--    is intentionally NOT subscribed to wildcard events — it stays
+--    schedule/manual-only — so no orchestrator dispatch ever targets it.
 -- ----------------------------------------------------------------------------
 INSERT INTO public.agents (slug, display_name, description, enabled, autonomy, model, daily_spend_cap_usd, handles_events, endpoint)
 VALUES
