@@ -636,6 +636,10 @@
           </div>
         </div>
       </div>
+      <!-- Task #114 — MCC Verified card on the provider's Car Club profile. -->
+      <!-- TODO ES: verified card translation -->
+      <div id="cc-verified-area" style="margin-bottom:16px;"></div>
+
       <div id="setup-edit" class="card" style="display:none;">
         <div class="card-header">
           <h2 class="card-title">Club Settings</h2>
@@ -2449,6 +2453,26 @@
     } else {
       initAuthListener();
     }
+  </script>
+  <script src="bgc-copy.js?v=20260422"></script>
+  <script src="bgc-badge.js?v=20260422"></script>
+  <script>
+    // Task #114 — render the MCC Verified card on the provider's Car Club page.
+    (async function () {
+      try {
+        const sb = window.supabase || window.sb;
+        const area = document.getElementById('cc-verified-area');
+        if (!sb || !area || !window.MCCVerifiedBadge) return;
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) return;
+        const { data: prof } = await sb
+          .from('profiles')
+          .select('bgc_badge_verified, bgc_compliant_employees, bgc_total_employees, bgc_last_verified_at, business_name, full_name')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (prof) area.innerHTML = window.MCCVerifiedBadge.render(prof, { variant: 'card' });
+      } catch (e) { /* non-fatal */ }
+    })();
   </script>
 </body>
 </html>

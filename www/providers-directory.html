@@ -210,6 +210,11 @@
 
     <div class="filters-bar">
       <input type="text" class="filter-input" id="filter-city" placeholder="City or location..." oninput="debounceFilter()">
+      <label class="filter-input" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;" title="Verified Providers maintain current background checks on their employees, renewed every year.">
+        <input type="checkbox" id="filter-verified-only" onchange="loadProviders(1)" style="margin:0;cursor:pointer;">
+        <span>✓ Show only Verified Providers</span>
+      </label>
+      <!-- TODO ES: filter label translation -->
       <select class="filter-input" id="filter-category" onchange="loadProviders(1)">
         <option value="">All Services</option>
         <option value="Oil Change">Oil Change</option>
@@ -316,7 +321,7 @@
       let badgesHtml = '';
       const badges = [];
       if (p.team_all_verified && p.team_count > 0) badges.push('<span class="badge-item bgc-badge-team-verified" title="Provider and all ' + p.team_count + ' team members have passed background checks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Team Verified</span>');
-      else if (p.background_verified) badges.push('<span class="badge-item bgc-badge-verified" title="This provider has completed background verification"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Background Verified</span>');
+      else if (p.bgc_badge_verified || p.background_verified) badges.push(window.MCCVerifiedBadge ? window.MCCVerifiedBadge.render({ ...p, bgc_badge_verified: true }, { variant: 'compact' }) : '<span class="badge-item bgc-badge-verified" title="This provider has completed background verification"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Background Verified</span>');
       if (!p.background_verified && p.background_check_status === 'pending') badges.push('<span class="badge-item bgc-badge-pending" title="Background check in progress"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Check Pending</span>');
       if (p.years_in_business && p.years_in_business >= 5) badges.push('<span class="badge-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> ' + p.years_in_business + '+ years</span>');
       if (p.emergency_enabled) badges.push('<span class="badge-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Emergency</span>');
@@ -345,6 +350,7 @@
       const container = document.getElementById('providers-container');
       const city = document.getElementById('filter-city').value.trim();
       const category = document.getElementById('filter-category').value;
+      const verifiedOnly = document.getElementById('filter-verified-only')?.checked;
 
       if (currentPage === 1) {
         container.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
@@ -354,6 +360,7 @@
         const params = new URLSearchParams();
         if (city) params.set('city', city);
         if (category) params.set('category', category);
+        if (verifiedOnly) params.set('verified', '1');
         params.set('page', currentPage);
         params.set('limit', '24');
 
@@ -417,6 +424,21 @@
     }
 
     loadProviders(1);
+
+    // Client-side fallback when the API doesn't yet support verified= filter.
+    // We re-apply the filter locally on the rendered card list.
+    document.getElementById('filter-verified-only')?.addEventListener('change', function (ev) {
+      if (!ev.target.checked) return;
+      setTimeout(function () {
+        document.querySelectorAll('.provider-card').forEach(function (card) {
+          if (!card.querySelector('.mcc-verified-badge') && !card.querySelector('.bgc-badge-verified') && !card.querySelector('.bgc-badge-team-verified')) {
+            card.style.display = 'none';
+          }
+        });
+      }, 600);
+    });
   </script>
+  <script src="/bgc-copy.js?v=20260422"></script>
+  <script src="/bgc-badge.js?v=20260422"></script>
 </body>
 </html>

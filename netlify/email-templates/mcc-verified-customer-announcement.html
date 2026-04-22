@@ -1,0 +1,50 @@
+<!--
+  Task #114 — Customer-facing announcement email for the MCC Verified launch.
+  Body copy is verbatim from MCC-BGC-Platform-Copy-and-Advertising_1776863828142.pdf.
+  Resend-ready HTML (no template variables required besides {{first_name}}).
+  TODO ES: Spanish translation needed.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Introducing MCC Verified</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2937;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <tr><td style="background:#4CAF50;padding:32px 24px;text-align:center;color:#fff;">
+          <div style="font-size:14px;letter-spacing:0.1em;text-transform:uppercase;opacity:0.85;">Introducing</div>
+          <div style="font-size:30px;font-weight:700;margin-top:8px;">✓ MCC Verified</div>
+          <div style="font-size:15px;margin-top:8px;opacity:0.95;">Vetted Providers. Verified Trust.</div>
+        </td></tr>
+        <tr><td style="padding:32px 28px;line-height:1.6;font-size:15px;">
+          <p>Hi {{first_name}},</p>
+          <p>We're excited to introduce <strong>MCC Verified</strong> — a new way to find providers you can trust on My Car Concierge.</p>
+          <p>Look for the <strong style="color:#4CAF50;">✓ Background Verified</strong> badge when browsing providers. It means at least 90% of that provider's customer-facing employees have passed a comprehensive background check through our nationally accredited screening partner — and those checks are renewed every year.</p>
+          <p style="background:#f0f9f1;border-left:3px solid #4CAF50;padding:14px 18px;border-radius:6px;font-size:14px;">
+            <strong>What's screened:</strong><br>
+            • National criminal history search<br>
+            • County-level criminal records<br>
+            • National sex offender registry<br>
+            • Identity verification
+          </p>
+          <p>You can now filter for Verified Providers in the directory using the new <em>"Show only Verified Providers"</em> toggle.</p>
+          <p style="text-align:center;margin:32px 0;">
+            <a href="https://mycarconcierge.com/providers-directory.html" style="display:inline-block;padding:14px 30px;background:#4CAF50;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Browse Verified Providers →</a>
+          </p>
+          <p style="font-size:13px;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:18px;margin-top:24px;">
+            The MCC Verified badge indicates a provider has met the program's compliance requirements at the time of verification. It is not a guarantee, warranty, or endorsement of any provider's character, qualifications, or future conduct. Background check information is provided by a third-party consumer reporting agency.
+          </p>
+          <p style="margin-top:24px;">— The My Car Concierge Team</p>
+        </td></tr>
+        <tr><td style="background:#f9fafb;padding:18px;text-align:center;font-size:12px;color:#6b7280;">
+          My Car Concierge · Your complete auto ownership platform<br>
+          <a href="{{unsubscribe_url}}" style="color:#6b7280;">Unsubscribe</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
