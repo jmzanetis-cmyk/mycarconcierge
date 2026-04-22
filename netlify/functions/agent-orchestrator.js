@@ -7,7 +7,7 @@
 
 const {
   getSupabase, listAgents, eventMatches, logAction, jsonResponse,
-  authorizeAgentInvocation
+  authorizeAgentInvocation, assertRateLimit
 } = require('./agent-fleet-runtime');
 
 const ORCHESTRATOR_SLUG = 'orchestrator';
@@ -41,10 +41,17 @@ async function dispatchEvent(baseUrl, agent, evt) {
   }
 }
 
-async function runTick(event) {
+async function runTick(event, triggeredBy) {
   const t0 = Date.now();
   const supabase = getSupabase();
   if (!supabase) return { skipped: true, reason: 'no_database' };
+
+  // DB-backed cooldown — caps cost of any spoofed-scheduled spam to one
+  // tick per 30s. Admin invocations bypass the limit.
+  if (triggeredBy !== 'admin') {
+    const rl = await assertRateLimit(supabase, ORCHESTRATOR_SLUG, 30);
+    if (!rl.allowed) return { skipped: true, reason: 'rate_limited', retry_in_s: rl.retry_in_s };
+  }
 
   const agents = await listAgents(supabase);
   const orchestrator = agents.find(a => a.slug === ORCHESTRATOR_SLUG);
@@ -123,7 +130,7 @@ exports.handler = async function(event, context) {
   if (!auth) return jsonResponse(401, { error: 'Unauthorized' });
 
   try {
-    const result = await runTick(event);
+    const result = await runTick(event, auth);
     result.triggered_by = auth;
     console.log('[Orchestrator]', JSON.stringify(result));
     return jsonResponse(200, result);

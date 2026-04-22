@@ -29,10 +29,10 @@ function authenticateAdmin(event) {
 }
 
 // Netlify Scheduled Functions invoke handlers with a body containing a `next_run`
-// field. They never present a real request from the public internet — the
-// function URL is invoked internally by the platform. We accept an invocation as
-// "scheduled" only when both signals are present (no admin header, parseable
-// next_run body). All other unauthenticated calls are rejected.
+// field. The body shape is by itself spoofable, so we treat it as a *signal*,
+// not as proof. Real defense lives in `authorizeAgentInvocation` (combination
+// of signals) and in `assertRateLimit` (DB-backed cooldown that makes spam
+// useless even if a caller spoofs the body).
 function isScheduledInvocation(event) {
   if (!event || !event.body) return false;
   try {
@@ -43,15 +43,51 @@ function isScheduledInvocation(event) {
   }
 }
 
-// Returns one of: 'admin', 'scheduled', null. Used by orchestrator/analyst to
-// decide whether to allow the request and how to label the audit row.
+// Returns one of: 'admin', 'scheduled', null.
+//   - 'admin'     : valid x-admin-password header.
+//   - 'scheduled' : best-effort detection of a Netlify-internal cron invocation.
+//                   Required signals: scheduled body shape + missing typical
+//                   browser/client headers (no cookie, no referer, no origin)
+//                   + no x-admin-password header at all. This rejects casual
+//                   public POSTs from a browser/curl. Definitive defense
+//                   against a determined spoofer is `assertRateLimit` below.
 function authorizeAgentInvocation(event) {
   if (authenticateAdmin(event)) return 'admin';
-  // No admin header at all and a scheduled body shape → trust the platform.
   const headers = event.headers || {};
   const hasAnyAdminHeader = !!(headers['x-admin-password'] || headers['X-Admin-Password']);
-  if (!hasAnyAdminHeader && isScheduledInvocation(event)) return 'scheduled';
-  return null;
+  if (hasAnyAdminHeader) return null; // bad password -> reject
+  if (!isScheduledInvocation(event)) return null;
+  // Real Netlify scheduled invocations don't ride a browser request — no
+  // cookie/referer/origin and no end-user IP forwarding chain.
+  const looksLikePublicHttp =
+    headers.cookie || headers.Cookie ||
+    headers.referer || headers.Referer ||
+    headers.origin || headers.Origin;
+  if (looksLikePublicHttp) return null;
+  return 'scheduled';
+}
+
+// DB-backed cooldown. Records the last successful invocation per agent slug
+// in agent_memory; returns false (and logs nothing) if the previous tick was
+// too recent. This caps runaway cost to at most one Claude call per cooldown
+// window even if an attacker bypasses authorizeAgentInvocation.
+async function assertRateLimit(supabase, slug, minSeconds) {
+  const key = `last_run_at`;
+  const { data } = await supabase.from('agent_memory')
+    .select('value, created_at')
+    .eq('agent_slug', slug).eq('kind', 'rate_limit').eq('key', key)
+    .maybeSingle();
+  const last = data?.value?.ts ? new Date(data.value.ts).getTime() : 0;
+  const now = Date.now();
+  if (last && (now - last) < minSeconds * 1000) {
+    return { allowed: false, retry_in_s: Math.ceil(minSeconds - (now - last) / 1000) };
+  }
+  // Upsert immediately so concurrent calls in the same window are blocked.
+  await supabase.from('agent_memory').upsert({
+    agent_slug: slug, kind: 'rate_limit', key,
+    value: { ts: new Date(now).toISOString() }
+  }, { onConflict: 'agent_slug,kind,key' });
+  return { allowed: true };
 }
 
 function jsonResponse(statusCode, data) {
@@ -311,6 +347,7 @@ module.exports = {
   authenticateAdmin,
   isScheduledInvocation,
   authorizeAgentInvocation,
+  assertRateLimit,
   jsonResponse,
   getAgent,
   listAgents,

@@ -193,6 +193,13 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Lock down spend RPCs: revoke from PUBLIC + the default Supabase roles, then
+-- grant only to service_role. Without the explicit revokes the functions would
+-- be callable by anon/authenticated, letting any user mutate the spend ledger.
+REVOKE ALL ON FUNCTION public.agent_try_spend(text, numeric)            FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.agent_try_spend(text, numeric)            FROM anon, authenticated;
+REVOKE ALL ON FUNCTION public.agent_reconcile_spend(text, numeric, numeric) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.agent_reconcile_spend(text, numeric, numeric) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.agent_try_spend(text, numeric)            TO service_role;
 GRANT EXECUTE ON FUNCTION public.agent_reconcile_spend(text, numeric, numeric) TO service_role;
 

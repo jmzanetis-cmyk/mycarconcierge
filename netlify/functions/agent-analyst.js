@@ -7,7 +7,7 @@
 
 const {
   getSupabase, getAgent, callLLM, logAction, saveMemory,
-  authorizeAgentInvocation, jsonResponse, SpendCapError
+  authorizeAgentInvocation, assertRateLimit, jsonResponse, SpendCapError
 } = require('./agent-fleet-runtime');
 
 const SLUG = 'analyst';
@@ -130,6 +130,13 @@ async function runOnce(triggeredBy = 'scheduled') {
   const supabase = getSupabase();
   if (!supabase) return { skipped: true, reason: 'no_database' };
 
+  // Cooldown: at most one Claude briefing per 6h for non-admin invocations.
+  // Admin manual triggers bypass the limit.
+  if (triggeredBy !== 'admin') {
+    const rl = await assertRateLimit(supabase, SLUG, 6 * 60 * 60);
+    if (!rl.allowed) return { skipped: true, reason: 'rate_limited', retry_in_s: rl.retry_in_s };
+  }
+
   const agent = await getAgent(supabase, SLUG);
   if (!agent) return { skipped: true, reason: 'agent_not_seeded' };
   if (!agent.enabled) {
@@ -163,9 +170,12 @@ async function runOnce(triggeredBy = 'scheduled') {
   const briefing = llmResult.text.trim();
   const today = new Date().toISOString().split('T')[0];
 
-  await saveMemory(supabase, SLUG, 'briefing', {
-    date: today, narrative: briefing, metrics, model: llmResult.model
-  }, { key: today });
+  const briefingPayload = { date: today, narrative: briefing, metrics, model: llmResult.model };
+  // Date-keyed entry for history.
+  await saveMemory(supabase, SLUG, 'briefing', briefingPayload, { key: today });
+  // Stable canonical key — admin UI / other agents read this without needing to
+  // know the date. Overwrites on each run (upsert via unique index).
+  await saveMemory(supabase, SLUG, 'briefing', briefingPayload, { key: 'latest' });
 
   await logAction(supabase, {
     agentSlug: SLUG, actionType: 'briefing', status: 'completed',

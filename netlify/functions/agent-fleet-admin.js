@@ -109,7 +109,18 @@ async function spendRollup(supabase) {
 }
 
 async function latestBriefing(supabase) {
-  const { data, error } = await supabase
+  // Prefer the canonical 'latest' key written by the analyst on every run.
+  let { data, error } = await supabase
+    .from('agent_memory')
+    .select('*')
+    .eq('agent_slug', 'analyst')
+    .eq('kind', 'briefing')
+    .eq('key', 'latest')
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (data) return data;
+  // Fallback for legacy rows written before the 'latest' key existed.
+  const fallback = await supabase
     .from('agent_memory')
     .select('*')
     .eq('agent_slug', 'analyst')
@@ -117,8 +128,8 @@ async function latestBriefing(supabase) {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data;
+  if (fallback.error) throw new Error(fallback.error.message);
+  return fallback.data;
 }
 
 exports.handler = async function(event) {
