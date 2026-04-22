@@ -29,9 +29,11 @@ Each row below answers: handler file? subscribed events? real producers? data de
 - **Handler file:** ❌ none. `endpoint=/.netlify/functions/agent-matchmaker` is a 404.
 - **Producer:** ✅ already emitted by `agent_emit_auction_closed` trigger when `care_plans.status` transitions to `auction_closed`.
 - **Data needed:** `care_plans` row; child `bids` (provider_id, amount, eta, notes); provider profile fields used by ranking (rating, completion rate, distance, BGC compliance, capacity).
-- **Decision shape:** `{ care_plan_id, ranked_bids:[{bid_id, score, reasoning}], recommended_winner_bid_id, confidence }` → `agent_actions.action_type='matchmaker.rank'`.
+- **Decision shape:** `{ care_plan_id, ranked_bids:[{bid_id, score, reasoning}], recommended_winner_bid_id, confidence }` → written as `agent_actions.action_type='matchmaker.rank'`.
+- **Handler flow:** event consumed → fetch care_plan + bids → Claude ranks → `agent_actions` row written via `logAction()`. Under `propose`: `needs_review=true`, admin must approve before any downstream action. Under `assist`: auto-execute only if `confidence ≥ 0.85`, else `needs_review=true`. Under `autonomous`: never enable in Phase 2.
 - **Autonomy at launch:** `propose`. Promote to `assist@0.85` only after 50+ approved proposals show ≥80% admin agreement.
 - **Risk:** wrong winner = lost trust + Stripe Connect headaches. Always require admin click-through before notifying losers in Phase 2.
+- **Effort:** **M** (~2d) — handler is greenfield but producer + data model already exist.
 - **Open question:** does our `bids` table store competitor count + bid timestamp? Confirm before prompt design.
 
 ### 2.2 Treasurer
@@ -39,8 +41,11 @@ Each row below answers: handler file? subscribed events? real producers? data de
 - **Handler file:** ❌ none.
 - **Producers:** ❌ none — no code calls `emitEvent` from `split-pay.js`, `split-guest-pay.js`, `split-guest-confirm.js`, or `stripe-connect-*.js`. Phase 2 must add `emitEvent` calls inside the existing Stripe webhook flows (probably alongside the current `payment-tracker-scheduled.js` ledger writes).
 - **Data needed:** `payments` row, related `care_plan` / `job`, Stripe `payment_intent.id`, escrow state.
-- **Decision shape:** `{ payment_id, recommended_action: 'capture'|'partial_refund'|'full_refund'|'escalate', amount_cents, justification }`.
+- **Decision shape:** `{ payment_id, recommended_action: 'capture'|'partial_refund'|'full_refund'|'escalate', amount_cents, justification }` → `agent_actions.action_type='treasurer.recommend'`.
+- **Handler flow:** event consumed → fetch payment + linked job → Claude classifies → `agent_actions` row written. Phase 2 hardcodes `needs_review=true` regardless of autonomy mode (money path); auto-apply is **disallowed** until Phase 3.
 - **Autonomy at launch:** `propose` only. Treasurer touches money — never let it auto-execute Stripe API calls until we have insurance-level audit trails.
+- **Risk:** ⚠️ highest blast radius in the fleet — wrong refund = real-money loss + chargeback exposure.
+- **Effort:** **L** (~3d) — handler + 3 producer wire-in points across `split-pay.js`, `split-guest-pay.js`, `stripe-connect-callback.js`; needs careful coexistence with `ai-ops-admin.js` and `payment-tracker-scheduled.js`.
 - **Open question:** today's `ai-ops-admin.js` already writes payment-tracker rows; we must avoid double-acting. Treasurer should explicitly *consume* the same signal and create a *recommendation*, not a parallel action.
 
 ### 2.3 Gatekeeper
@@ -51,16 +56,22 @@ Each row below answers: handler file? subscribed events? real producers? data de
   - `provider.bgc_completed` — emit from `netlify/functions/api-webhooks-background-check.js` (the existing HMAC-validated inbound webhook) right after `calculate_provider_compliance` runs.
   - `provider.flagged` — emit from the admin "Flag" button + the BGC alert path that crosses the 90% MCC Verified threshold downward.
 - **Data needed:** profile + cached `bgc_*` columns + license uploads + employee count.
-- **Decision shape:** `{ provider_id, recommendation:'approve'|'reject'|'request_more_info', reasoning, flags[] }`.
+- **Decision shape:** `{ provider_id, recommendation:'approve'|'reject'|'request_more_info', reasoning, flags[] }` → `agent_actions.action_type='gatekeeper.review'`.
+- **Handler flow:** event consumed → fetch profile + cached BGC + uploads → Claude reasons → `agent_actions` row written. `propose`/`assist`: `needs_review=true` always (legal-sensitive). `autonomous`: disallowed in Phase 2.
 - **Autonomy at launch:** `propose`. Compliance/legal sensitivity is too high for `assist`.
+- **Risk:** false approval = liability; false rejection = unfair denial of livelihood. Always human-in-loop.
+- **Effort:** **M** (~2.5d) — handler + 3 producer wire-ins (onboarding-completion endpoint, BGC webhook, admin flag button).
 
 ### 2.4 Concierge
 - **Subscribes:** `support.ticket_created`, `member.message_received` ($5/day cap)
 - **Handler file:** ❌ none.
 - **Producers:** ❌ none. We do not yet have a `support_tickets` table — only the existing AI Helpdesk one-shot. Phase 2 needs either (a) a new `support_tickets` table fed by the in-app help form, or (b) treat the existing AI Helpdesk transcripts as ticket source. Option (a) is cleaner.
 - **Data needed:** ticket text, member profile, recent jobs, related care plan if any.
-- **Decision shape:** `{ ticket_id, draft_reply, classification, escalate:true|false, suggested_macros[] }`.
+- **Decision shape:** `{ ticket_id, draft_reply, classification, escalate:true|false, suggested_macros[] }` → `agent_actions.action_type='concierge.draft'`.
+- **Handler flow:** event consumed → fetch ticket + member context → Claude drafts → `agent_actions` row written. Under `propose`/`assist`: `needs_review=true`. Even at `assist@0.90`, the draft is *staged* (admin still clicks Send) — there is no auto-send path in Phase 2.
 - **Autonomy at launch:** `assist@0.90` for *drafts only* (admin sends), `propose` for any escalation/refund recommendation.
+- **Risk:** medium — wrong draft is recoverable (admin reviews), but tone matters for member trust.
+- **Effort:** **L** (~4d) — biggest schema lift in the fleet (new `support_tickets` table + form + admin viewer + producer).
 
 ### 2.5 Advocate
 - **Subscribes:** `dispute.opened`, `provider.suspended`, `provider.low_rating` ($4/day cap)
@@ -69,15 +80,21 @@ Each row below answers: handler file? subscribed events? real producers? data de
   - `dispute.opened` — already produced indirectly by `dispute-resolver-background.js`; just add an `emitEvent` line.
   - `provider.suspended` — add to the admin suspension endpoint + the automated-suspension job.
   - `provider.low_rating` — emit from the rating insert trigger when avg drops below threshold.
-- **Decision shape:** `{ provider_id, dispute_id?, outreach_plan, draft_message, urgency }`.
+- **Decision shape:** `{ provider_id, dispute_id?, outreach_plan, draft_message, urgency }` → `agent_actions.action_type='advocate.outreach'`.
+- **Handler flow:** event consumed → fetch provider + dispute/rating context → Claude drafts → `agent_actions` row written. Disputes always `needs_review=true`. Low-rating nudges under `assist@0.85`: auto-stage in outbound queue (`status='ai_recommended'`), admin still clicks Send.
 - **Autonomy at launch:** `propose` for disputes; `assist` for nudges (low-stakes encouragement DMs).
+- **Risk:** medium — bad dispute message can escalate; bad nudge is annoying but recoverable.
+- **Effort:** **M** (~2.5d) — handler + 3 producer wire-ins.
 
 ### 2.6 Hunter
 - **Subscribes:** `lead.discovered`, `campaign.requested` ($4/day cap)
 - **Handler file:** ❌ none.
 - **Producers:** ❌ none — but the outreach engine (`outreach-engine-core.js`, `apollo-discovery-scheduled.js`, `outreach-cycle.js`) writes new leads constantly. Phase 2 just needs `emitEvent('lead.discovered', { lead_id })` inserted at the end of the Apollo discovery scheduled function and at the manual-add admin endpoint.
-- **Decision shape:** `{ lead_id, score 0–100, recommended_template, send_now:true|false, reasoning }`.
+- **Decision shape:** `{ lead_id, score 0–100, recommended_template, send_now:true|false, reasoning }` → `agent_actions.action_type='hunter.score'`.
+- **Handler flow:** event consumed → fetch lead + Apollo enrichment → Claude scores → `agent_actions` row written. `propose`: `needs_review=true`. `assist@0.90`: auto-stage in Instantly.ai queue with `status='ai_recommended'` (admin must click Send before any external email leaves). `autonomous`: disallowed in Phase 2.
 - **Autonomy at launch:** `assist@0.90` — but DO NOT let Hunter send mail directly even when assist'd; it should drop into the existing Instantly.ai send queue with `status='ai_recommended'`. Admin still clicks send.
+- **Risk:** low — drafts only; no external send without admin click.
+- **Effort:** **M** (~2d) — handler + 1-line producer wire-in inside `apollo-discovery-scheduled.js`.
 
 ---
 
@@ -106,6 +123,12 @@ We meter spend; we don't yet alarm on it. Add:
 
 ### 3.4 Per-agent action pages (P1)
 The shared "Recent activity" feed gets noisy fast. Phase 2 should add `/admin/agent-fleet/<slug>.html` per specialist with its own action history, prompt-template editor, and review queue.
+
+### 3.4a Admin UI: event-volume chart (P1)
+Today the admin UI shows spend over 7 days but no view of *event throughput*. Add a stacked-bar Chart.js panel on `/admin/agent-fleet.html` showing `agent_events` count per day, segmented by `event_type`. This is critical for spotting producer misfires (e.g. trigger loop emitting 10k events) before they burn cap.
+
+### 3.4b Admin UI: autonomy-promotion guardrail (P1)
+The current registry lets an admin flip any agent from `propose` → `autonomous` with a single dropdown change. Phase 2 must gate this: the autonomy `<select>` should disable the `autonomous` option unless the agent has ≥50 reviewed actions with ≥80% approval rate over the last 14 days, AND require a typed confirmation ("ENABLE AUTONOMOUS MODE FOR <slug>") in a modal. Backend `PUT /agents/:slug` enforces the same rule server-side. Treasurer + Gatekeeper + Matchmaker are *hardcoded* to reject `autonomous` regardless of stats in Phase 2.
 
 ### 3.5 Prompt template versioning (P1)
 Right now prompts live inline in handler `.js` files. Move to `agents.config.prompt_template` (jsonb) with `template_version` so we can A/B and roll back without redeploys.
