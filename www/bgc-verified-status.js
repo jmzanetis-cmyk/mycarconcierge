@@ -51,10 +51,21 @@
       '<a href="#compliance" onclick="if(window.showSection)showSection(\'compliance\');return true;" style="display:inline-block;padding:8px 14px;border-radius:8px;background:' + palette.bd + ';color:#fff;text-decoration:none;font-weight:600;font-size:0.85rem;">' + esc(state.cta) + '</a>';
   }
 
+  // Retry until Supabase + the copy module + the DOM target are all ready,
+  // up to ~10s total (15 attempts × 700ms). Avoids the race where a slow
+  // mobile connection initialises supabaseclient.js after our first tick.
+  function loadWhenReady(attempt) {
+    attempt = attempt || 0;
+    const sb = getSupabase();
+    const target = document.getElementById('mcc-verified-status-card');
+    if (sb && target && window.MCC_BGC_COPY) { return load(); }
+    if (attempt >= 15) return; // give up silently
+    setTimeout(function () { loadWhenReady(attempt + 1); }, 700);
+  }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', load);
+    document.addEventListener('DOMContentLoaded', function () { loadWhenReady(0); });
   } else {
-    setTimeout(load, 800); // wait for supabase init
+    loadWhenReady(0);
   }
   window.MCCVerifiedStatusCard = { load };
 })();
