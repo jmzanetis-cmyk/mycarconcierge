@@ -27,7 +27,11 @@
   function fmtMonth(iso) {
     if (!iso) return '—';
     try {
-      return new Date(iso).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const tag = (typeof window !== 'undefined' &&
+                   typeof window.MCC_BGC_COPY_GET_LANGUAGE_TAG === 'function')
+        ? window.MCC_BGC_COPY_GET_LANGUAGE_TAG()
+        : 'en-US';
+      return new Date(iso).toLocaleDateString(tag, { month: 'long', year: 'numeric' });
     } catch (e) { return '—'; }
   }
 
