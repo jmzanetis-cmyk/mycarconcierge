@@ -85,7 +85,7 @@
       .order('last_name', { ascending: true });
 
     if (error) {
-      tbody.innerHTML = '<tr><td colspan="5" style="padding:32px;text-align:center;color:#dc5050;">Failed to load employees: ' + error.message + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="padding:32px;text-align:center;color:#dc5050;">Failed to load employees: ' + escapeHtml(error.message || 'unknown error') + '</td></tr>';
       return;
     }
     if (!emps || emps.length === 0) {

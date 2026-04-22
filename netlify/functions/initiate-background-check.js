@@ -86,14 +86,10 @@ exports.handler = async function(event) {
     return { statusCode: 403, headers: corsHeaders, body: JSON.stringify({ error: 'forbidden' }) };
   }
 
-  // Mark prior current check as superseded so we never have two "is_current" rows.
-  await supabase
-    .from('employee_background_checks')
-    .update({ is_current: false })
-    .eq('employee_id', employeeId)
-    .eq('is_current', true);
-
   // ── Call BGC, or mock when no token configured ───────────────────────────
+  // We deliberately call BGC and INSERT the new row BEFORE superseding the old
+  // current row, so that any failure leaves the prior check intact and the
+  // provider's compliance does not silently drop.
   const apiToken = process.env.BGC_API_TOKEN;
   let reportId;
   let mocked = false;
@@ -140,7 +136,7 @@ exports.handler = async function(event) {
     }
   }
 
-  const { error: insErr } = await supabase
+  const { data: inserted, error: insErr } = await supabase
     .from('employee_background_checks')
     .insert({
       employee_id: employeeId,
@@ -148,10 +144,24 @@ exports.handler = async function(event) {
       bgc_report_id: reportId,
       status: 'pending',
       is_current: true
-    });
-  if (insErr) {
-    console.error('[BGC initiate] insert failed', insErr.message);
+    })
+    .select('id')
+    .single();
+  if (insErr || !inserted) {
+    console.error('[BGC initiate] insert failed', insErr && insErr.message);
     return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'db_insert_failed' }) };
+  }
+
+  // Now (and only now) supersede any prior current rows for this employee.
+  // Excluding the just-inserted id makes this safe even if it briefly raced.
+  const { error: supErr } = await supabase
+    .from('employee_background_checks')
+    .update({ is_current: false })
+    .eq('employee_id', employeeId)
+    .eq('is_current', true)
+    .neq('id', inserted.id);
+  if (supErr) {
+    console.warn('[BGC initiate] supersede prior failed (non-fatal)', supErr.message);
   }
 
   await supabase.rpc('calculate_provider_compliance', { p_provider_id: employee.provider_id });

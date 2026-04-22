@@ -79,8 +79,10 @@ exports.handler = async function(event) {
 
   const supabase = createSupabaseClient();
   if (!supabase) {
-    console.error('[BGC webhook] Supabase client unavailable');
-    return { statusCode: 200, body: JSON.stringify({ received: true, error: 'no_db' }) };
+    // Return 5xx so BGC keeps retrying — DO NOT swallow webhooks during
+    // transient infra/config issues.
+    console.error('[BGC webhook] Supabase client unavailable; asking sender to retry');
+    return { statusCode: 503, body: JSON.stringify({ error: 'db_unavailable' }) };
   }
 
   const status = normaliseStatus(payload.status || payload.result);
