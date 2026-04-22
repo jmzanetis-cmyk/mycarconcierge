@@ -18,6 +18,23 @@ _Status as of 2026-04-22. Author: planning pass for follow-on work to Phase 1._
 
 **Deliberately out of scope in Phase 1:** specialist handler implementations, retry/DLQ, cross-agent spend alerts, additional event producers, workflow/`nightly.tick` cron, per-agent admin pages.
 
+### 1.1 Baseline snapshot — function × schedule × reads × writes × cap
+
+| Agent | Function file | Schedule | Reads (tables) | Writes (tables) | Cap (USD/day) | Model |
+|---|---|---|---|---|---|---|
+| Orchestrator | `netlify/functions/agent-orchestrator.js` | `* * * * *` | `agents`, `agent_events` (unprocessed) | `agent_events` (sets `processed_at`, `routed_to`), `agent_actions` (route log) | $1.00 | `claude-haiku-4-5-20251001` |
+| Analyst | `netlify/functions/agent-analyst.js` | nightly UTC | `packages`, `care_plans`, `bids`, `profiles`, `disputes`, `payments`, `survey_leads`, `outreach_leads`, `outreach_messages`, `ai_escalations`, `agent_actions`, `agent_daily_spend` | `agent_memory` (briefing, key=`latest` and date), `agent_actions` | $2.00 | `claude-sonnet-4-5` |
+| Matchmaker | ❌ stub | event-driven | — | — | $5.00 | `claude-sonnet-4-5` |
+| Treasurer | ❌ stub | event-driven | — | — | $5.00 | `claude-sonnet-4-5` |
+| Gatekeeper | ❌ stub | event-driven | — | — | $3.00 | `claude-sonnet-4-5` |
+| Concierge | ❌ stub | event-driven | — | — | $5.00 | `claude-sonnet-4-5` |
+| Advocate | ❌ stub | event-driven | — | — | $4.00 | `claude-sonnet-4-5` |
+| Hunter | ❌ stub | event-driven | — | — | $4.00 | `claude-sonnet-4-5` |
+
+**Total seeded daily cap:** $29.00 across all 8 agents (Phase 1 actual burn is just orchestrator + analyst, ≤$3/day).
+
+All caps are enforced by the shared runtime (`agent-fleet-runtime.js`) via the reserve→call→reconcile pattern using the `agent_try_spend` / `agent_reconcile_spend` RPCs. When an agent would exceed its cap the runtime throws `SpendCapError` and the handler logs a `status='skipped'` row to `agent_actions` — **silently, with no admin notification today**. §3.3 below addresses this gap.
+
 ---
 
 ## 2. Per-agent gap analysis (the six stub agents)
@@ -33,6 +50,7 @@ Each row below answers: handler file? subscribed events? real producers? data de
 - **Handler flow:** event consumed → fetch care_plan + bids → Claude ranks → `agent_actions` row written via `logAction()`. Under `propose`: `needs_review=true`, admin must approve before any downstream action. Under `assist`: auto-execute only if `confidence ≥ 0.85`, else `needs_review=true`. Under `autonomous`: never enable in Phase 2.
 - **Autonomy at launch:** `propose`. Promote to `assist@0.85` only after 50+ approved proposals show ≥80% admin agreement.
 - **Risk:** wrong winner = lost trust + Stripe Connect headaches. Always require admin click-through before notifying losers in Phase 2.
+- **Starting model:** `claude-sonnet-4-5` (seeded). Sonnet is the right call here — bid ranking needs reliable structured-output reasoning over 5–20 bids; Haiku has shown weaker JSON adherence in our internal tests.
 - **Effort:** **M** (~2d) — handler is greenfield but producer + data model already exist.
 - **Open question:** does our `bids` table store competitor count + bid timestamp? Confirm before prompt design.
 
@@ -48,6 +66,7 @@ Each row below answers: handler file? subscribed events? real producers? data de
 - **Handler flow:** event consumed → fetch payment + linked job → Claude classifies → `agent_actions` row written. Phase 2 hardcodes `needs_review=true` regardless of autonomy mode (money path); auto-apply is **disallowed** until Phase 3.
 - **Autonomy at launch:** `propose` only. Treasurer touches money — never let it auto-execute Stripe API calls until we have insurance-level audit trails.
 - **Risk:** ⚠️ highest blast radius in the fleet — wrong refund = real-money loss + chargeback exposure.
+- **Starting model:** `claude-sonnet-4-5` (seeded). Money-classification quality > cost. Do not downgrade to Haiku.
 - **Effort:** **L** (~3d) — handler + 3 producer wire-in points across `split-pay.js`, `split-guest-pay.js`, `stripe-connect-callback.js`; needs careful coexistence with `ai-ops-admin.js` and `payment-tracker-scheduled.js`.
 - **Open question:** today's `ai-ops-admin.js` already writes payment-tracker rows; we must avoid double-acting. Treasurer should explicitly *consume* the same signal and create a *recommendation*, not a parallel action.
 
@@ -63,6 +82,7 @@ Each row below answers: handler file? subscribed events? real producers? data de
 - **Handler flow:** event consumed → fetch profile + cached BGC + uploads → Claude reasons → `agent_actions` row written. `propose`/`assist`: `needs_review=true` always (legal-sensitive). `autonomous`: disallowed in Phase 2.
 - **Autonomy at launch:** `propose`. Compliance/legal sensitivity is too high for `assist`.
 - **Risk:** false approval = liability; false rejection = unfair denial of livelihood. Always human-in-loop.
+- **Starting model:** `claude-sonnet-4-5` (seeded). Compliance reasoning over multi-factor profile data warrants Sonnet.
 - **Effort:** **M** (~2.5d) — handler + 3 producer wire-ins (onboarding-completion endpoint, BGC webhook, admin flag button).
 
 ### 2.4 Concierge
@@ -76,6 +96,7 @@ Each row below answers: handler file? subscribed events? real producers? data de
 - **Handler flow:** event consumed → fetch ticket + member context → Claude drafts → `agent_actions` row written. Under `propose`/`assist`: `needs_review=true`. Even at `assist@0.90`, the draft is *staged* (admin still clicks Send) — there is no auto-send path in Phase 2.
 - **Autonomy at launch:** `assist@0.90` for *drafts only* (admin sends), `propose` for any escalation/refund recommendation.
 - **Risk:** medium — wrong draft is recoverable (admin reviews), but tone matters for member trust.
+- **Starting model:** `claude-sonnet-4-5` (seeded). Tone-sensitive customer drafts need Sonnet's prose quality; revisit Haiku once we have a tone-consistency eval.
 - **Effort:** **L** (~4d) — biggest schema lift in the fleet (new `support_tickets` table + form + admin viewer + producer).
 
 ### 2.5 Advocate
@@ -89,6 +110,7 @@ Each row below answers: handler file? subscribed events? real producers? data de
 - **Handler flow:** event consumed → fetch provider + dispute/rating context → Claude drafts → `agent_actions` row written. Disputes always `needs_review=true`. Low-rating nudges under `assist@0.85`: auto-stage in outbound queue (`status='ai_recommended'`), admin still clicks Send.
 - **Autonomy at launch:** `propose` for disputes; `assist` for nudges (low-stakes encouragement DMs).
 - **Risk:** medium — bad dispute message can escalate; bad nudge is annoying but recoverable.
+- **Starting model:** `claude-sonnet-4-5` (seeded). Provider-facing copy needs warmth + accuracy on dispute facts; Sonnet appropriate.
 - **Effort:** **M** (~2.5d) — handler + 3 producer wire-ins.
 
 ### 2.6 Hunter
@@ -101,6 +123,7 @@ Each row below answers: handler file? subscribed events? real producers? data de
 - **Handler flow:** event consumed → fetch lead + Apollo enrichment → Claude scores → `agent_actions` row written. `propose`: `needs_review=true`. `assist@0.90`: auto-stage in Instantly.ai queue with `status='ai_recommended'` (admin must click Send before any external email leaves). `autonomous`: disallowed in Phase 2.
 - **Autonomy at launch:** `assist@0.90` — but DO NOT let Hunter send mail directly even when assist'd; it should drop into the existing Instantly.ai send queue with `status='ai_recommended'`. Admin still clicks send.
 - **Risk:** low — drafts only; no external send without admin click.
+- **Starting model:** `claude-sonnet-4-5` (seeded). **Strong candidate to downgrade to `claude-haiku-4-5-20251001`** once Phase 2 ships — lead scoring is high-volume, low-stakes, and structurally simple. Re-evaluate after the first 1k scored leads.
 - **Effort:** **M** (~2d) — handler + 1-line producer wire-in inside `apollo-discovery-scheduled.js`.
 
 ---
