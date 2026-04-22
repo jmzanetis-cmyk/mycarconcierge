@@ -186,15 +186,23 @@ exports.handler = async function() {
     return { emp, prof };
   }
 
+  // Returns true ONLY when the email is confirmed sent (so the caller knows
+  // it is safe to write the dedupe row). In dry-run mode (no Resend key) we
+  // also return true so alerts still get created during local testing —
+  // duplicate emails are impossible because no email was sent.
   async function sendEmail(to, subject, html) {
-    if (!resend) return null;
+    if (!resend) return true;
     try {
       const r = await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+      if (r && r.error) {
+        console.error('[BGC reminders] Resend returned error:', r.error.message || r.error);
+        return false;
+      }
       emailsSent++;
-      return r;
+      return true;
     } catch (e) {
-      console.error('[BGC reminders] Resend send failed:', e.message);
-      return null;
+      console.error('[BGC reminders] Resend send threw:', e.message);
+      return false;
     }
   }
 
@@ -224,8 +232,13 @@ exports.handler = async function() {
         providerName, employeeName, days: t.days, expiresAt: c.expires_at, renewUrl
       });
 
-      await sendEmail(ctx.prof.email, subject, html);
-      await logSent(supabase, c.employee_id, t.type, c.id, ctx.prof.email);
+      const ok = await sendEmail(ctx.prof.email, subject, html);
+      if (!ok) {
+        // Email failed — skip the dedupe write so we retry tomorrow.
+        // Still surface the alert so the provider sees urgency in the dashboard.
+      } else {
+        await logSent(supabase, c.employee_id, t.type, c.id, ctx.prof.email);
+      }
 
       await upsertAlert(supabase, {
         provider_id:  ctx.prof.id,
@@ -261,8 +274,10 @@ exports.handler = async function() {
       providerName, employeeName, expiresAt: c.expires_at, renewUrl, badgeLost
     });
 
-    await sendEmail(ctx.prof.email, subject, html);
-    await logSent(supabase, c.employee_id, 'expired', c.id, ctx.prof.email);
+    const okExp = await sendEmail(ctx.prof.email, subject, html);
+    if (okExp) {
+      await logSent(supabase, c.employee_id, 'expired', c.id, ctx.prof.email);
+    }
 
     await upsertAlert(supabase, {
       provider_id:  ctx.prof.id,

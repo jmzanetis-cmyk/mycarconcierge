@@ -128,19 +128,23 @@ exports.handler = async function(event) {
       .in('alert_type', ['bgc_expiring', 'bgc_expired'])
       .is('resolved_at', null);
 
-    // If the badge came back, resolve the compliance_lost alert (if any).
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('bgc_badge_verified')
-      .eq('id', rec.provider_id)
-      .maybeSingle();
-    if (prof?.bgc_badge_verified) {
-      await supabase
-        .from('provider_alerts')
-        .update({ resolved_at: new Date().toISOString() })
-        .eq('provider_id', rec.provider_id)
-        .eq('alert_type', 'compliance_lost')
-        .is('resolved_at', null);
+    // If the compliance recompute succeeded AND the badge came back, resolve
+    // the compliance_lost alert. Skip when rpcErr — we'd be acting on stale
+    // badge state.
+    if (!rpcErr) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('bgc_badge_verified')
+        .eq('id', rec.provider_id)
+        .maybeSingle();
+      if (prof?.bgc_badge_verified) {
+        await supabase
+          .from('provider_alerts')
+          .update({ resolved_at: new Date().toISOString() })
+          .eq('provider_id', rec.provider_id)
+          .eq('alert_type', 'compliance_lost')
+          .is('resolved_at', null);
+      }
     }
   }
 

@@ -94,3 +94,34 @@ CREATE POLICY "providers_dismiss_own_alerts"
 DROP POLICY IF EXISTS "service_role_provider_alerts" ON provider_alerts;
 CREATE POLICY "service_role_provider_alerts"
   ON provider_alerts FOR ALL TO service_role USING (true);
+
+-- Restrict provider UPDATE scope: only `is_dismissed` may change. All other
+-- columns are coerced back to OLD values for non-service-role callers, so a
+-- malicious provider cannot escalate severity, retitle alerts, reassign
+-- ownership, or pre-emptively mark something resolved.
+CREATE OR REPLACE FUNCTION restrict_provider_alerts_dismiss_only()
+RETURNS trigger AS $$
+BEGIN
+  IF auth.role() = 'service_role' THEN
+    RETURN NEW;
+  END IF;
+  NEW.alert_type      := OLD.alert_type;
+  NEW.severity        := OLD.severity;
+  NEW.title           := OLD.title;
+  NEW.body            := OLD.body;
+  NEW.action_url      := OLD.action_url;
+  NEW.provider_id     := OLD.provider_id;
+  NEW.employee_id     := OLD.employee_id;
+  NEW.bgc_check_id    := OLD.bgc_check_id;
+  NEW.created_at      := OLD.created_at;
+  NEW.resolved_at     := OLD.resolved_at;
+  NEW.auto_resolve_on := OLD.auto_resolve_on;
+  NEW.updated_at      := NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_restrict_provider_alerts ON provider_alerts;
+CREATE TRIGGER trg_restrict_provider_alerts
+  BEFORE UPDATE ON provider_alerts
+  FOR EACH ROW EXECUTE FUNCTION restrict_provider_alerts_dismiss_only();
