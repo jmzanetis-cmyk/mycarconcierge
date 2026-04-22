@@ -40,6 +40,10 @@
 [functions."agent-analyst"]
   schedule = "0 5 * * *"
 
+# BGC employee-level compliance — daily expiration sweep at 06:00 UTC
+[functions."bgc-expiration-sweep"]
+  schedule = "0 6 * * *"
+
 
 [[headers]]
   for = "/sw.js"

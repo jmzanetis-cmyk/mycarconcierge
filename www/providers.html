@@ -916,6 +916,7 @@
     <div class="nav-item" data-section="profile"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> Business Profile</div>
     <div class="nav-item" data-section="availability"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg></span> Availability</div>
     <div class="nav-item" data-section="team"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Team Members</div>
+    <div class="nav-item" data-section="compliance"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> Compliance <span class="nav-badge" id="bgc-badge-pill" style="display:none;background:var(--accent-teal);color:#0c1a1f;font-size:0.62rem;">VERIFIED</span></div>
     <div class="nav-item team-management-nav" data-section="team-section" style="display:none;"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Team</div>
     <div class="nav-item" data-section="background-checks"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span> Background Checks</div>
     <div class="nav-item" data-section="auto-bid"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Auto-Bid</div>
@@ -3314,6 +3315,53 @@
             <div class="empty-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></div>
             <p>No pending invitations</p>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Compliance Section (Task #112: employee-level BGC) -->
+    <section id="compliance" class="section">
+      <div class="page-header">
+        <h1 class="page-title"><span class="section-icon" style="color:var(--accent-gold);margin-right:8px;"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> Team &amp; Compliance</h1>
+        <p class="page-subtitle">Background-check coverage for every customer-facing employee. 90%+ unlocks the MCC Verified badge.</p>
+      </div>
+
+      <div class="card" id="bgc-summary-card">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:24px;justify-content:space-between;">
+          <div>
+            <div style="font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Compliance</div>
+            <div style="display:flex;align-items:baseline;gap:12px;margin-top:6px;">
+              <div id="bgc-pct" style="font-size:2.4rem;font-weight:700;color:var(--accent-gold);">—</div>
+              <div id="bgc-counts" style="color:var(--text-secondary);">0 of 0 employees cleared</div>
+            </div>
+          </div>
+          <div id="bgc-badge-state" style="padding:10px 18px;border-radius:999px;font-weight:600;font-size:0.85rem;background:rgba(255,255,255,0.05);color:var(--text-muted);">Not yet verified</div>
+        </div>
+        <div style="margin-top:18px;height:8px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden;">
+          <div id="bgc-pct-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent-gold),var(--accent-teal));transition:width 0.4s ease;"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Customer-Facing Employees</h2>
+          <button class="btn btn-primary" onclick="window.bgcCompliance && window.bgcCompliance.openAddEmployee()">+ Add Employee</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border-subtle);">
+                <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Name</th>
+                <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Role</th>
+                <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">BGC Status</th>
+                <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Expires</th>
+                <th style="text-align:right;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="bgc-employees-tbody">
+              <tr><td colspan="5" style="padding:48px;text-align:center;color:var(--text-muted);">Loading…</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -6603,6 +6651,7 @@
   <script src="mcc-icons.js?v=20260211"></script>
   <script src="providers-core.js?v=20260202"></script>
   <script src="providers-settings.js?v=20260315"></script>
+  <script src="bgc-compliance.js?v=20260422"></script>
   <script src="members-push.js?v=20260319"></script>
   <script src="/pwa-init.js?v=20260202"></script>
   <script src="/chat-widget-base.js?v=20260122"></script>
