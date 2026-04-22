@@ -19172,6 +19172,30 @@ async function handleBgChecksInitiate(req, res, requestId) {
         return;
       }
 
+      if (!isValidUUID(providerId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid providerId format' }));
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not configured' }));
+        return;
+      }
+
+      // Authorization: only the provider owner or an active team owner/admin
+      // may initiate a background check for that provider. The client-supplied
+      // providerId is otherwise untrusted.
+      const authorizedForProvider = await isTeamAdmin(supabase, providerId, user.id);
+      if (!authorizedForProvider) {
+        console.warn(`[${requestId}] BGC initiate denied: user=${user.id} attempted to initiate for provider=${providerId}`);
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Forbidden: You can only initiate background checks for your own team.' }));
+        return;
+      }
+
       const fcraAckTimestamp = new Date().toISOString();
       const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
       console.log(`[${requestId}] FCRA acknowledgment recorded: user=${user.id} provider=${providerId} subject=${email} type=${subjectType||'provider'} ip=${clientIp} at=${fcraAckTimestamp}`);
@@ -19183,13 +19207,6 @@ async function handleBgChecksInitiate(req, res, requestId) {
         );
       } catch (logErr) {
         console.error(`[${requestId}] Failed to write FCRA audit log:`, logErr.message);
-      }
-
-      const supabase = getSupabaseClient();
-      if (!supabase) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Database not configured' }));
-        return;
       }
 
       const apiToken = getBgChecksToken();
