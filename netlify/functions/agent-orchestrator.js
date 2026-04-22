@@ -35,7 +35,11 @@ async function dispatchEvent(baseUrl, agent, evt) {
       },
       body: JSON.stringify({ event_id: evt.id, event_type: evt.event_type, payload: evt.payload })
     });
-    return { ok: r.status < 500, status: r.status };
+    // Treat only true success codes as routed. Background functions reply 202;
+    // anything else (404 missing endpoint, 401 auth, 4xx/5xx) is a delivery
+    // failure that must be surfaced — not silently masked.
+    const ok = r.status === 200 || r.status === 201 || r.status === 202 || r.status === 204;
+    return { ok, status: r.status };
   } catch (e) {
     return { ok: false, reason: e.message };
   }

@@ -45,26 +45,24 @@ function isScheduledInvocation(event) {
 
 // Returns one of: 'admin', 'scheduled', null.
 //   - 'admin'     : valid x-admin-password header.
-//   - 'scheduled' : best-effort detection of a Netlify-internal cron invocation.
-//                   Required signals: scheduled body shape + missing typical
-//                   browser/client headers (no cookie, no referer, no origin)
-//                   + no x-admin-password header at all. This rejects casual
-//                   public POSTs from a browser/curl. Definitive defense
-//                   against a determined spoofer is `assertRateLimit` below.
+//   - 'scheduled' : a real Netlify Scheduled Function invocation. These are
+//                   NOT HTTP requests — Netlify's runtime invokes the handler
+//                   directly with a synthetic event that has no `httpMethod`.
+//                   Public callers always go through the HTTPS edge, which
+//                   sets `httpMethod`. The presence/absence of `httpMethod`
+//                   is therefore an unspoofable signal: an external caller
+//                   cannot strip it once the request reaches our handler.
+//                   We additionally require the scheduled body shape to
+//                   reject any future runtime quirks.
+//   - null        : reject (HTTP without admin auth, or scheduled-shape spam).
 function authorizeAgentInvocation(event) {
   if (authenticateAdmin(event)) return 'admin';
   const headers = event.headers || {};
   const hasAnyAdminHeader = !!(headers['x-admin-password'] || headers['X-Admin-Password']);
   if (hasAnyAdminHeader) return null; // bad password -> reject
-  if (!isScheduledInvocation(event)) return null;
-  // Real Netlify scheduled invocations don't ride a browser request — no
-  // cookie/referer/origin and no end-user IP forwarding chain.
-  const looksLikePublicHttp =
-    headers.cookie || headers.Cookie ||
-    headers.referer || headers.Referer ||
-    headers.origin || headers.Origin;
-  if (looksLikePublicHttp) return null;
-  return 'scheduled';
+  // Unspoofable: a real Netlify scheduled invocation has no httpMethod.
+  if (!event.httpMethod && isScheduledInvocation(event)) return 'scheduled';
+  return null;
 }
 
 // DB-backed cooldown. Records the last successful invocation per agent slug

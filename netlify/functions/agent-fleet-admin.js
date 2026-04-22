@@ -29,11 +29,16 @@ function siteBaseUrl(event) {
 }
 
 function parsePath(event) {
-  // The redirect rewrites /api/admin/agent-fleet/* → /.netlify/functions/agent-fleet-admin/:splat
-  // event.path looks like "/.netlify/functions/agent-fleet-admin/agents"
-  const p = event.path || '';
-  const m = p.match(/agent-fleet-admin\/?(.*)$/);
-  return (m ? m[1] : '').replace(/^\/+|\/+$/g, '');
+  // Netlify may pass either the rewritten internal path
+  //   /.netlify/functions/agent-fleet-admin/<route>
+  // or the original public path
+  //   /api/admin/agent-fleet/<route>
+  // depending on how the request was routed. Strip both prefixes.
+  const raw = event.path || '';
+  return raw
+    .replace(/^\/?\.netlify\/functions\/agent-fleet-admin\/?/, '')
+    .replace(/^\/api\/admin\/agent-fleet\/?/, '')
+    .replace(/^\/+|\/+$/g, '');
 }
 
 async function listAgentsWithSpend(supabase) {
