@@ -27,7 +27,7 @@ Each row below answers: handler file? subscribed events? real producers? data de
 ### 2.1 Matchmaker
 - **Subscribes:** `care_plan.auction_closed` ($5/day cap)
 - **Handler file:** ❌ none. `endpoint=/.netlify/functions/agent-matchmaker` is a 404.
-- **Producer:** ✅ already emitted by `agent_emit_auction_closed` trigger when `care_plans.status` transitions to `auction_closed`.
+- **Producer (verified):** ✅ DB trigger `agent_emit_auction_closed` defined in `supabase/migrations/20260422_agent_fleet.sql` lines 269–301 fires on `care_plans` UPDATE when `status` transitions to `auction_closed`. No additional emit point needed; this is the **only** producer in the entire fleet that already exists.
 - **Data needed:** `care_plans` row; child `bids` (provider_id, amount, eta, notes); provider profile fields used by ranking (rating, completion rate, distance, BGC compliance, capacity).
 - **Decision shape:** `{ care_plan_id, ranked_bids:[{bid_id, score, reasoning}], recommended_winner_bid_id, confidence }` → written as `agent_actions.action_type='matchmaker.rank'`.
 - **Handler flow:** event consumed → fetch care_plan + bids → Claude ranks → `agent_actions` row written via `logAction()`. Under `propose`: `needs_review=true`, admin must approve before any downstream action. Under `assist`: auto-execute only if `confidence ≥ 0.85`, else `needs_review=true`. Under `autonomous`: never enable in Phase 2.
@@ -39,7 +39,10 @@ Each row below answers: handler file? subscribed events? real producers? data de
 ### 2.2 Treasurer
 - **Subscribes:** `payment.captured`, `payment.refund_requested`, `payout.failed` ($5/day cap)
 - **Handler file:** ❌ none.
-- **Producers:** ❌ none — no code calls `emitEvent` from `split-pay.js`, `split-guest-pay.js`, `split-guest-confirm.js`, or `stripe-connect-*.js`. Phase 2 must add `emitEvent` calls inside the existing Stripe webhook flows (probably alongside the current `payment-tracker-scheduled.js` ledger writes).
+- **Producers (verified absent):** ❌ no `emitEvent` calls exist in the codebase. Concrete wire-in points (verified to exist):
+  - `payment.captured` → add inside `netlify/functions/split-pay.js` (member-side Stripe charge), `netlify/functions/split-guest-pay.js` (guest-side), and `netlify/functions/split-guest-confirm.js` (post-confirm finalization).
+  - `payment.refund_requested` → add inside `netlify/functions/ai-ops-admin.js` (the existing admin refund initiation path) and `netlify/functions/dispute-resolver-background.js` (auto-refund branch).
+  - `payout.failed` → add inside `netlify/functions/stripe-connect-callback.js` (Stripe Connect webhook handler) on the `payout.failed` event branch. Also add to `netlify/functions/payment-tracker-scheduled.js` if it detects stuck payouts.
 - **Data needed:** `payments` row, related `care_plan` / `job`, Stripe `payment_intent.id`, escrow state.
 - **Decision shape:** `{ payment_id, recommended_action: 'capture'|'partial_refund'|'full_refund'|'escalate', amount_cents, justification }` → `agent_actions.action_type='treasurer.recommend'`.
 - **Handler flow:** event consumed → fetch payment + linked job → Claude classifies → `agent_actions` row written. Phase 2 hardcodes `needs_review=true` regardless of autonomy mode (money path); auto-apply is **disallowed** until Phase 3.
@@ -51,10 +54,10 @@ Each row below answers: handler file? subscribed events? real producers? data de
 ### 2.3 Gatekeeper
 - **Subscribes:** `provider.applied`, `provider.bgc_completed`, `provider.flagged` ($3/day cap)
 - **Handler file:** ❌ none.
-- **Producers:** ❌ none.
-  - `provider.applied` — emit from the conversational-onboarding completion endpoint when `profiles.role` is set to `pending_provider`.
-  - `provider.bgc_completed` — emit from `netlify/functions/api-webhooks-background-check.js` (the existing HMAC-validated inbound webhook) right after `calculate_provider_compliance` runs.
-  - `provider.flagged` — emit from the admin "Flag" button + the BGC alert path that crosses the 90% MCC Verified threshold downward.
+- **Producers (verified absent):** ❌ no `emitEvent` calls exist. Concrete wire-in points:
+  - `provider.applied` → no dedicated provider-application function exists in `netlify/functions/`; the conversational onboarding completion path is currently in `www/onboarding-provider.html` + the express route in `www/server.js`. Phase 2 must locate the exact `profiles` insert/update where `role='pending_provider'` is set (likely in `www/server.js` — confirm by reading before wire-in) and emit there.
+  - `provider.bgc_completed` → the BGC inbound webhook referenced in `replit.md` as `/api/webhooks/background-check` is **not** a netlify function in this repo (no file matched `*background*` or `*bgc*` in `netlify/functions/`). It is presumably routed through `www/server.js` or has not yet been split out. Phase 2 step 1 for Gatekeeper is **locate this handler** (read `www/server.js` for the route registration), then emit immediately after `calculate_provider_compliance` runs.
+  - `provider.flagged` → emit from `netlify/functions/admin-team.js` admin-action path (verified to exist; admin team management) when a flag is applied, AND from the BGC alerts auto-flag path inside the daily `bgc-send-reminders` function (reuse the existing `provider_alerts` insert site).
 - **Data needed:** profile + cached `bgc_*` columns + license uploads + employee count.
 - **Decision shape:** `{ provider_id, recommendation:'approve'|'reject'|'request_more_info', reasoning, flags[] }` → `agent_actions.action_type='gatekeeper.review'`.
 - **Handler flow:** event consumed → fetch profile + cached BGC + uploads → Claude reasons → `agent_actions` row written. `propose`/`assist`: `needs_review=true` always (legal-sensitive). `autonomous`: disallowed in Phase 2.
@@ -65,7 +68,9 @@ Each row below answers: handler file? subscribed events? real producers? data de
 ### 2.4 Concierge
 - **Subscribes:** `support.ticket_created`, `member.message_received` ($5/day cap)
 - **Handler file:** ❌ none.
-- **Producers:** ❌ none. We do not yet have a `support_tickets` table — only the existing AI Helpdesk one-shot. Phase 2 needs either (a) a new `support_tickets` table fed by the in-app help form, or (b) treat the existing AI Helpdesk transcripts as ticket source. Option (a) is cleaner.
+- **Producers (verified absent):** ❌ no `emitEvent` calls exist. Concrete wire-in points:
+  - `support.ticket_created` → emit from `netlify/functions/helpdesk.js` (the existing AI Helpdesk chat function — verified to exist) at the moment a session is escalated to human, AND from `netlify/functions/helpdesk-email.js` (inbound support-email handler — verified to exist) when a new email arrives. Phase 2 also needs a new `support_tickets` table (no such table today; helpdesk currently runs one-shot without persistence) — this schema work is the bulk of the effort.
+  - `member.message_received` → emit from `netlify/functions/helpdesk.js` per inbound member message turn (only after the support_tickets table exists so we have a ticket_id to attach).
 - **Data needed:** ticket text, member profile, recent jobs, related care plan if any.
 - **Decision shape:** `{ ticket_id, draft_reply, classification, escalate:true|false, suggested_macros[] }` → `agent_actions.action_type='concierge.draft'`.
 - **Handler flow:** event consumed → fetch ticket + member context → Claude drafts → `agent_actions` row written. Under `propose`/`assist`: `needs_review=true`. Even at `assist@0.90`, the draft is *staged* (admin still clicks Send) — there is no auto-send path in Phase 2.
@@ -76,10 +81,10 @@ Each row below answers: handler file? subscribed events? real producers? data de
 ### 2.5 Advocate
 - **Subscribes:** `dispute.opened`, `provider.suspended`, `provider.low_rating` ($4/day cap)
 - **Handler file:** ❌ none.
-- **Producers:**
-  - `dispute.opened` — already produced indirectly by `dispute-resolver-background.js`; just add an `emitEvent` line.
-  - `provider.suspended` — add to the admin suspension endpoint + the automated-suspension job.
-  - `provider.low_rating` — emit from the rating insert trigger when avg drops below threshold.
+- **Producers (verified absent):** ❌ no `emitEvent` calls exist. Concrete wire-in points:
+  - `dispute.opened` → emit from `netlify/functions/dispute-resolver-background.js` (verified to exist) at the top of the handler before the AI-Ops resolution branch runs. No call site found in the rest of `netlify/functions/` for raw dispute creation — confirm whether the express route in `www/server.js` also creates disputes; if so, emit there too.
+  - `provider.suspended` → no dedicated suspension function in `netlify/functions/`; suspension is currently performed by `netlify/functions/ai-ops-admin.js` (admin-action surface — verified) and likely also by an express route in `www/server.js`. Phase 2 must read both before wire-in to avoid double-emit.
+  - `provider.low_rating` → no current call site found in `netlify/functions/` (no rating-* function exists). Two options: (a) add a Postgres trigger on the `ratings` table that emits on average-rating drop (mirrors the `agent_emit_auction_closed` pattern in the migration file), or (b) emit from the express rating-insert route in `www/server.js`. Option (a) is preferred — it cannot be bypassed by alternate insert paths.
 - **Decision shape:** `{ provider_id, dispute_id?, outreach_plan, draft_message, urgency }` → `agent_actions.action_type='advocate.outreach'`.
 - **Handler flow:** event consumed → fetch provider + dispute/rating context → Claude drafts → `agent_actions` row written. Disputes always `needs_review=true`. Low-rating nudges under `assist@0.85`: auto-stage in outbound queue (`status='ai_recommended'`), admin still clicks Send.
 - **Autonomy at launch:** `propose` for disputes; `assist` for nudges (low-stakes encouragement DMs).
@@ -89,7 +94,9 @@ Each row below answers: handler file? subscribed events? real producers? data de
 ### 2.6 Hunter
 - **Subscribes:** `lead.discovered`, `campaign.requested` ($4/day cap)
 - **Handler file:** ❌ none.
-- **Producers:** ❌ none — but the outreach engine (`outreach-engine-core.js`, `apollo-discovery-scheduled.js`, `outreach-cycle.js`) writes new leads constantly. Phase 2 just needs `emitEvent('lead.discovered', { lead_id })` inserted at the end of the Apollo discovery scheduled function and at the manual-add admin endpoint.
+- **Producers (verified absent):** ❌ no `emitEvent` calls exist. Concrete wire-in points (all verified to exist in `netlify/functions/`):
+  - `lead.discovered` → emit at the end of `netlify/functions/apollo-discovery-scheduled.js` (after each lead is inserted), and inside `netlify/functions/outreach-admin.js` on the manual-add admin path. `netlify/functions/outreach-engine-core.js` and `netlify/functions/outreach-cycle.js` are downstream processors and should NOT emit (would double-fire).
+  - `campaign.requested` → emit from `netlify/functions/outreach-admin.js` when an admin clicks "Start campaign" in the outreach console.
 - **Decision shape:** `{ lead_id, score 0–100, recommended_template, send_now:true|false, reasoning }` → `agent_actions.action_type='hunter.score'`.
 - **Handler flow:** event consumed → fetch lead + Apollo enrichment → Claude scores → `agent_actions` row written. `propose`: `needs_review=true`. `assist@0.90`: auto-stage in Instantly.ai queue with `status='ai_recommended'` (admin must click Send before any external email leaves). `autonomous`: disallowed in Phase 2.
 - **Autonomy at launch:** `assist@0.90` — but DO NOT let Hunter send mail directly even when assist'd; it should drop into the existing Instantly.ai send queue with `status='ai_recommended'`. Admin still clicks send.
@@ -194,3 +201,9 @@ Time estimates assume one engineer.
 3. DLQ has zero entries older than 24h on average over a rolling week.
 4. Total daily fleet spend stays under $20 in steady state.
 5. `replit.md` Agent Fleet section updated to "Phase 2".
+
+---
+
+## 8. Enablement guardrail checklist (mandatory before any `enabled=true` flip)
+
+Before any future task may flip an agent's `enabled` flag from `false` to `true` in production, **every** condition below must hold. This checklist is the canonical pre-flight: if any item is unmet, the flip is blocked and the task must be re-scoped. (1) The agent's handler endpoint exists at the path declared in `agents.endpoint` and returns 2xx for a synthetic test event emitted via the admin "Emit" button; (2) at least one real producer for each subscribed event type is wired in at a verified file path from §2 above and confirmed by emitting a live event end-to-end during a staging dry-run; (3) the DLQ + retry work in §3.2 is shipped and orchestrator no longer marks events `processed_at` on handler failure; (4) the spend-alerting work in §3.3 is shipped so an admin gets paged when the agent crosses 80% of its daily cap; (5) the agent's daily spend cap is set at or below the seeded value in `supabase/migrations/20260422_agent_fleet.sql` lines 224–257 and has been sanity-checked against the worst-case event volume from §3.4a; (6) `autonomy` remains `propose` for the first 14 days post-enable regardless of agent (Treasurer / Gatekeeper / Matchmaker stay `propose` indefinitely in Phase 2); (7) the autonomy-promotion guardrail from §3.4b is enforced both server-side and in the admin UI; (8) the admin review queue at `/admin/agent-fleet.html` has been smoke-tested for the new agent's `action_type`; and (9) a rollback plan is documented (single-toggle `enabled=false` flip + explanation of which downstream workflows are paused). Skipping any item is a P0 production risk — the spend-cap is the hard backstop, not the only line of defense.
