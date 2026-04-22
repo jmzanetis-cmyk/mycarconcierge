@@ -7,7 +7,7 @@
 
 const {
   getSupabase, listAgents, eventMatches, logAction, jsonResponse,
-  authenticateAdmin
+  authorizeAgentInvocation
 } = require('./agent-fleet-runtime');
 
 const ORCHESTRATOR_SLUG = 'orchestrator';
@@ -114,24 +114,17 @@ async function runTick(event) {
 }
 
 exports.handler = async function(event, context) {
-  // OPTIONS preflight (in case admin manually triggers via browser fetch)
   if (event.httpMethod === 'OPTIONS') return jsonResponse(200, { ok: true });
 
-  // Manual trigger requires admin auth; scheduled invocations have no auth header.
-  const isScheduled = !event.httpMethod || event.httpMethod === 'POST' && !event.headers?.['x-admin-password'] && !event.headers?.['X-Admin-Password'] && (event.headers?.['user-agent'] || '').includes('Netlify');
-  const isManualAdmin = (event.httpMethod === 'POST' || event.httpMethod === 'GET') && authenticateAdmin(event);
-
-  // Allow scheduled (no auth header at all) OR admin-authenticated manual triggers.
-  // For safety, also allow if there's no httpMethod (Netlify scheduled invoke).
-  if (event.httpMethod && !isManualAdmin && !isScheduled) {
-    // Plain HTTP without admin password and not scheduled — refuse.
-    if (event.headers?.['x-admin-password'] || event.headers?.['X-Admin-Password']) {
-      return jsonResponse(401, { error: 'Unauthorized' });
-    }
-  }
+  // Reject every unauthenticated public HTTP call. Only two callers are valid:
+  //   1) Netlify Scheduled Function invocation (body has `next_run`)
+  //   2) Manual admin trigger with valid x-admin-password header
+  const auth = authorizeAgentInvocation(event);
+  if (!auth) return jsonResponse(401, { error: 'Unauthorized' });
 
   try {
     const result = await runTick(event);
+    result.triggered_by = auth;
     console.log('[Orchestrator]', JSON.stringify(result));
     return jsonResponse(200, result);
   } catch (e) {

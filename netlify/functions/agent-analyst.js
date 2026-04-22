@@ -7,7 +7,7 @@
 
 const {
   getSupabase, getAgent, callLLM, logAction, saveMemory,
-  authenticateAdmin, jsonResponse, SpendCapError
+  authorizeAgentInvocation, jsonResponse, SpendCapError
 } = require('./agent-fleet-runtime');
 
 const SLUG = 'analyst';
@@ -29,39 +29,100 @@ async function safeCount(supabase, table, since, dateColumn = 'created_at', filt
 
 async function gatherMetrics(supabase) {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const today = new Date().toISOString().split('T')[0];
+
+  // Best-effort counts; null if table/column missing.
   const [
-    newPackages, newBids, newDisputes, newProviders, newMembers,
-    newSurveyLeads, newOutreachLeads, sentEmails, escalations
+    newPackages, newCarePlans, newBids, acceptedBids,
+    newProviders, newMembers,
+    openDisputes, newDisputes,
+    failedPayments,
+    newSurveyLeads, newOutreachLeads, sentEmails,
+    aiOpsEscalations
   ] = await Promise.all([
     safeCount(supabase, 'packages', since),
+    safeCount(supabase, 'care_plans', since),
     safeCount(supabase, 'bids', since),
-    safeCount(supabase, 'disputes', since),
+    safeCount(supabase, 'bids', since, 'updated_at', { status: 'accepted' }),
     safeCount(supabase, 'profiles', since, 'created_at', { role: ['provider','pending_provider'] }),
     safeCount(supabase, 'profiles', since, 'created_at', { role: 'member' }),
+    safeCount(supabase, 'disputes', '1970-01-01', 'created_at', { status: 'open' }),
+    safeCount(supabase, 'disputes', since),
+    safeCount(supabase, 'payments',  since, 'created_at', { status: 'failed' }),
     safeCount(supabase, 'survey_leads', since),
     safeCount(supabase, 'outreach_leads', since),
-    safeCount(supabase, 'outreach_messages', since, 'updated_at'),
+    safeCount(supabase, 'outreach_messages', since, 'updated_at', { status: 'sent' }),
     safeCount(supabase, 'ai_escalations', since)
   ]);
+
+  // Pending review queue across the agent fleet
+  let pendingReview = 0;
+  try {
+    const { count } = await supabase
+      .from('agent_actions')
+      .select('id', { count: 'exact', head: true })
+      .eq('needs_review', true)
+      .is('reviewed_at', null);
+    pendingReview = count || 0;
+  } catch {}
+
+  // Today's agent fleet spend (USD across all agents, current UTC day)
+  let agentSpendUsd = 0;
+  try {
+    const { data } = await supabase
+      .from('agent_daily_spend')
+      .select('actual_usd, reserved_usd')
+      .eq('day', today);
+    if (Array.isArray(data)) {
+      for (const r of data) {
+        agentSpendUsd += Number(r.actual_usd || 0) + Number(r.reserved_usd || 0);
+      }
+    }
+  } catch {}
+
+  // Marketplace match rate: accepted ÷ created bids (last 24h). Null if no bids.
+  let matchRate = null;
+  if (newBids != null && newBids > 0 && acceptedBids != null) {
+    matchRate = Math.round((acceptedBids / newBids) * 1000) / 1000;
+  }
+
   return {
     since,
-    new_packages: newPackages,
-    new_bids: newBids,
-    new_disputes: newDisputes,
-    new_provider_signups: newProviders,
-    new_member_signups: newMembers,
-    new_survey_leads: newSurveyLeads,
-    new_outreach_leads: newOutreachLeads,
-    outreach_emails_sent: sentEmails,
-    ai_ops_escalations: escalations
+    marketplace: {
+      new_packages: newPackages,
+      new_care_plans: newCarePlans,
+      new_bids: newBids,
+      accepted_bids: acceptedBids,
+      match_rate: matchRate,
+      new_member_signups: newMembers,
+      new_provider_signups: newProviders
+    },
+    payments: {
+      failed_payments: failedPayments
+    },
+    disputes: {
+      new_disputes: newDisputes,
+      open_disputes: openDisputes
+    },
+    growth: {
+      new_survey_leads: newSurveyLeads,
+      new_outreach_leads: newOutreachLeads,
+      outreach_emails_sent: sentEmails
+    },
+    fleet: {
+      pending_review_queue: pendingReview,
+      agent_spend_usd_today: Math.round(agentSpendUsd * 1000) / 1000,
+      ai_ops_escalations: aiOpsEscalations
+    }
   };
 }
 
 function buildPrompt(metrics) {
   return `You are the Analyst agent for My Car Concierge, an automotive service marketplace. ` +
-    `Write a 3-4 sentence briefing for the admin Jordan based on the last 24 hours of metrics. ` +
-    `Highlight what stands out (good or concerning), call out anything that looks like a trend, and end with one specific recommendation. ` +
-    `Be concrete. No fluff.\n\nMETRICS (last 24h):\n${JSON.stringify(metrics, null, 2)}`;
+    `Write a 3-4 sentence briefing for the admin Jordan based on the last 24 hours. ` +
+    `Specifically call out: marketplace match rate, failed payments, open disputes, the agent fleet's pending review queue, and today's agent spend. ` +
+    `Highlight anything anomalous and end with one specific recommendation. Be concrete; no fluff.\n\n` +
+    `METRICS (last 24h):\n${JSON.stringify(metrics, null, 2)}`;
 }
 
 async function runOnce(triggeredBy = 'scheduled') {
@@ -121,15 +182,12 @@ async function runOnce(triggeredBy = 'scheduled') {
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(200, { ok: true });
 
-  // Manual triggers via HTTP must be admin-authed; scheduled invocations have no x-admin-password header.
-  const hasAdminHeader = !!(event.headers?.['x-admin-password'] || event.headers?.['X-Admin-Password']);
-  if (hasAdminHeader && !authenticateAdmin(event)) {
-    return jsonResponse(401, { error: 'Unauthorized' });
-  }
-  const triggeredBy = hasAdminHeader ? 'manual' : 'scheduled';
+  // Strict gate: only valid admin call OR a real Netlify scheduled invocation.
+  const auth = authorizeAgentInvocation(event);
+  if (!auth) return jsonResponse(401, { error: 'Unauthorized' });
 
   try {
-    const result = await runOnce(triggeredBy);
+    const result = await runOnce(auth);
     console.log('[Analyst]', JSON.stringify(result).slice(0, 600));
     return jsonResponse(200, result);
   } catch (e) {

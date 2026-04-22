@@ -5,7 +5,7 @@
 // Routes (mounted via netlify.toml redirect /api/admin/agent-fleet/* → here):
 //   GET  /agents                         — list registry rows + today's spend
 //   PUT  /agents/:slug                   — { enabled?, autonomy?, daily_spend_cap_usd?, model? }
-//   GET  /actions?limit=50&agent=&review_only=1
+//   GET  /actions?limit=50&offset=0&agent=&status=&review_only=1
 //   POST /actions/:id/review             — { decision: 'approved'|'rejected'|'executed'|'dismissed', notes? }
 //   GET  /spend                          — today + last 7 days per agent
 //   GET  /briefing                       — latest analyst briefing
@@ -66,16 +66,19 @@ async function updateAgent(supabase, slug, body) {
   return { agent: data };
 }
 
-async function listActions(supabase, { limit = 50, agent = null, reviewOnly = false }) {
+async function listActions(supabase, { limit = 50, offset = 0, agent = null, status = null, reviewOnly = false }) {
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+  const off = Math.max(parseInt(offset, 10) || 0, 0);
   let q = supabase.from('agent_actions')
-    .select('*')
+    .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200));
-  if (agent) q = q.eq('agent_slug', agent);
+    .range(off, off + lim - 1);
+  if (agent)  q = q.eq('agent_slug', agent);
+  if (status) q = q.eq('status', status);
   if (reviewOnly) q = q.eq('needs_review', true).is('reviewed_at', null);
-  const { data, error } = await q;
+  const { data, count, error } = await q;
   if (error) throw new Error(error.message);
-  return data || [];
+  return { actions: data || [], total: count || 0, limit: lim, offset: off };
 }
 
 async function reviewAction(supabase, id, body) {
@@ -147,10 +150,14 @@ exports.handler = async function(event) {
 
     // -------- actions
     if (route === 'actions' && method === 'GET') {
-      const actions = await listActions(supabase, {
-        limit: qs.limit, agent: qs.agent || null, reviewOnly: qs.review_only === '1' || qs.review_only === 'true'
+      const result = await listActions(supabase, {
+        limit: qs.limit,
+        offset: qs.offset,
+        agent: qs.agent || null,
+        status: qs.status || null,
+        reviewOnly: qs.review_only === '1' || qs.review_only === 'true'
       });
-      return jsonResponse(200, { actions });
+      return jsonResponse(200, result);
     }
     const reviewMatch = route.match(/^actions\/(\d+)\/review$/);
     if (reviewMatch && method === 'POST') {

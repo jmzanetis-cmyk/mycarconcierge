@@ -28,6 +28,32 @@ function authenticateAdmin(event) {
   return pw === adminPassword;
 }
 
+// Netlify Scheduled Functions invoke handlers with a body containing a `next_run`
+// field. They never present a real request from the public internet — the
+// function URL is invoked internally by the platform. We accept an invocation as
+// "scheduled" only when both signals are present (no admin header, parseable
+// next_run body). All other unauthenticated calls are rejected.
+function isScheduledInvocation(event) {
+  if (!event || !event.body) return false;
+  try {
+    const b = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+    return !!(b && typeof b === 'object' && b.next_run);
+  } catch {
+    return false;
+  }
+}
+
+// Returns one of: 'admin', 'scheduled', null. Used by orchestrator/analyst to
+// decide whether to allow the request and how to label the audit row.
+function authorizeAgentInvocation(event) {
+  if (authenticateAdmin(event)) return 'admin';
+  // No admin header at all and a scheduled body shape → trust the platform.
+  const headers = event.headers || {};
+  const hasAnyAdminHeader = !!(headers['x-admin-password'] || headers['X-Admin-Password']);
+  if (!hasAnyAdminHeader && isScheduledInvocation(event)) return 'scheduled';
+  return null;
+}
+
 function jsonResponse(statusCode, data) {
   return {
     statusCode,
@@ -283,6 +309,8 @@ async function findHandlers(supabase, eventType) {
 module.exports = {
   getSupabase,
   authenticateAdmin,
+  isScheduledInvocation,
+  authorizeAgentInvocation,
   jsonResponse,
   getAgent,
   listAgents,

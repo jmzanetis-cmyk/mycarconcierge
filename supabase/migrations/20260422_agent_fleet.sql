@@ -204,11 +204,11 @@ INSERT INTO public.agents (slug, display_name, description, enabled, autonomy, m
 VALUES
   ('orchestrator', 'Orchestrator',
     'Drains the agent_events bus every minute and routes each event to handler agents.',
-    false, 'autonomous', 'claude-haiku-4-5-20251001', 1.00,
+    false, 'propose', 'claude-haiku-4-5-20251001', 1.00,
     ARRAY['*'], '/.netlify/functions/agent-orchestrator'),
   ('analyst', 'Analyst',
     'Nightly: rolls up 24h marketplace metrics and writes a Claude-generated briefing.',
-    false, 'autonomous', 'claude-sonnet-4-5', 2.00,
+    false, 'propose', 'claude-sonnet-4-5', 2.00,
     ARRAY['nightly.tick'], '/.netlify/functions/agent-analyst'),
   ('matchmaker', 'Matchmaker',
     'When a care plan auction closes, ranks bids and proposes a winner.',
