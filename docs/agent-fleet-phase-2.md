@@ -57,7 +57,7 @@ Each row below answers: handler file? subscribed events? real producers? data de
 ### 2.2 Treasurer
 - **Subscribes:** `payment.captured`, `payment.refund_requested`, `payout.failed` ($5/day cap)
 - **Handler file:** ❌ none.
-- **Producers (verified absent):** ❌ no `emitEvent` calls exist in the codebase. Concrete wire-in points (verified to exist):
+- **Producers:** no producer emits `payment.captured`, `payment.refund_requested`, or `payout.failed` today (only the admin "Emit" button in `agent-fleet-admin.js` and the `care_plans` DB trigger produce events). Concrete wire-in points (all files verified to exist in `netlify/functions/`):
   - `payment.captured` → add inside `netlify/functions/split-pay.js` (member-side Stripe charge), `netlify/functions/split-guest-pay.js` (guest-side), and `netlify/functions/split-guest-confirm.js` (post-confirm finalization).
   - `payment.refund_requested` → add inside `netlify/functions/ai-ops-admin.js` (the existing admin refund initiation path) and `netlify/functions/dispute-resolver-background.js` (auto-refund branch).
   - `payout.failed` → add inside `netlify/functions/stripe-connect-callback.js` (Stripe Connect webhook handler) on the `payout.failed` event branch. Also add to `netlify/functions/payment-tracker-scheduled.js` if it detects stuck payouts.
@@ -73,10 +73,10 @@ Each row below answers: handler file? subscribed events? real producers? data de
 ### 2.3 Gatekeeper
 - **Subscribes:** `provider.applied`, `provider.bgc_completed`, `provider.flagged` ($3/day cap)
 - **Handler file:** ❌ none.
-- **Producers (verified absent):** ❌ no `emitEvent` calls exist. Concrete wire-in points:
-  - `provider.applied` → no dedicated provider-application function exists in `netlify/functions/`; the conversational onboarding completion path is currently in `www/onboarding-provider.html` + the express route in `www/server.js`. Phase 2 must locate the exact `profiles` insert/update where `role='pending_provider'` is set (likely in `www/server.js` — confirm by reading before wire-in) and emit there.
-  - `provider.bgc_completed` → the BGC inbound webhook referenced in `replit.md` as `/api/webhooks/background-check` is **not** a netlify function in this repo (no file matched `*background*` or `*bgc*` in `netlify/functions/`). It is presumably routed through `www/server.js` or has not yet been split out. Phase 2 step 1 for Gatekeeper is **locate this handler** (read `www/server.js` for the route registration), then emit immediately after `calculate_provider_compliance` runs.
-  - `provider.flagged` → emit from `netlify/functions/admin-team.js` admin-action path (verified to exist; admin team management) when a flag is applied, AND from the BGC alerts auto-flag path inside the daily `bgc-send-reminders` function (reuse the existing `provider_alerts` insert site).
+- **Producers:** no producer emits `provider.applied`, `provider.bgc_completed`, or `provider.flagged` today. Concrete wire-in points (verified file existence noted; route discovery is still required for some paths):
+  - `provider.applied` → no dedicated provider-application file exists in `netlify/functions/` (confirmed by `ls netlify/functions/`). The conversational onboarding completion lives client-side in `www/onboarding-provider.html` (verified to exist); the server-side commit point is an express route in `www/server.js` (verified file). Phase 2 step 1 is to read `www/server.js` and locate the exact handler that sets `profiles.role='pending_provider'`, then emit there.
+  - `provider.bgc_completed` → no `*bgc*` or `*background*` file exists in `netlify/functions/` (confirmed by `ls netlify/functions/`). The BGC webhook described in `replit.md` as `/api/webhooks/background-check` is therefore implemented elsewhere — most likely as an express route in `www/server.js`. Phase 2 step 1 for Gatekeeper is **locate this handler** by grepping `www/server.js` for `background-check` / `bgcheck` / `calculate_provider_compliance`, then emit immediately after the compliance recompute.
+  - `provider.flagged` → emit from `netlify/functions/admin-team.js` (verified to exist) when an admin applies a flag. The replit.md "BGC reminder ladder" references a `bgc-send-reminders` Scheduled Function — that file is **not present** in `netlify/functions/` on this branch (verified absent via `ls`); Phase 2 must either locate it (it may live in `www/server.js` or be pending) or, more likely, add the auto-flag emit at whatever code path inserts into `provider_alerts` with `severity='critical'`. **Do not assume the file exists** — confirm before wire-in.
 - **Data needed:** profile + cached `bgc_*` columns + license uploads + employee count.
 - **Decision shape:** `{ provider_id, recommendation:'approve'|'reject'|'request_more_info', reasoning, flags[] }` → `agent_actions.action_type='gatekeeper.review'`.
 - **Handler flow:** event consumed → fetch profile + cached BGC + uploads → Claude reasons → `agent_actions` row written. `propose`/`assist`: `needs_review=true` always (legal-sensitive). `autonomous`: disallowed in Phase 2.
@@ -88,8 +88,8 @@ Each row below answers: handler file? subscribed events? real producers? data de
 ### 2.4 Concierge
 - **Subscribes:** `support.ticket_created`, `member.message_received` ($5/day cap)
 - **Handler file:** ❌ none.
-- **Producers (verified absent):** ❌ no `emitEvent` calls exist. Concrete wire-in points:
-  - `support.ticket_created` → emit from `netlify/functions/helpdesk.js` (the existing AI Helpdesk chat function — verified to exist) at the moment a session is escalated to human, AND from `netlify/functions/helpdesk-email.js` (inbound support-email handler — verified to exist) when a new email arrives. Phase 2 also needs a new `support_tickets` table (no such table today; helpdesk currently runs one-shot without persistence) — this schema work is the bulk of the effort.
+- **Producers:** no producer emits `support.ticket_created` or `member.message_received` today. Concrete wire-in points (files verified to exist in `netlify/functions/`):
+  - `support.ticket_created` → emit from `netlify/functions/helpdesk.js` (AI Helpdesk chat function — verified) at the moment a session is escalated to human, AND from `netlify/functions/helpdesk-email.js` (inbound support-email handler — verified) when a new email arrives. Phase 2 also needs a new `support_tickets` table (no such table today; helpdesk currently runs one-shot without persistence) — this schema work is the bulk of the effort.
   - `member.message_received` → emit from `netlify/functions/helpdesk.js` per inbound member message turn (only after the support_tickets table exists so we have a ticket_id to attach).
 - **Data needed:** ticket text, member profile, recent jobs, related care plan if any.
 - **Decision shape:** `{ ticket_id, draft_reply, classification, escalate:true|false, suggested_macros[] }` → `agent_actions.action_type='concierge.draft'`.
@@ -102,10 +102,10 @@ Each row below answers: handler file? subscribed events? real producers? data de
 ### 2.5 Advocate
 - **Subscribes:** `dispute.opened`, `provider.suspended`, `provider.low_rating` ($4/day cap)
 - **Handler file:** ❌ none.
-- **Producers (verified absent):** ❌ no `emitEvent` calls exist. Concrete wire-in points:
-  - `dispute.opened` → emit from `netlify/functions/dispute-resolver-background.js` (verified to exist) at the top of the handler before the AI-Ops resolution branch runs. No call site found in the rest of `netlify/functions/` for raw dispute creation — confirm whether the express route in `www/server.js` also creates disputes; if so, emit there too.
-  - `provider.suspended` → no dedicated suspension function in `netlify/functions/`; suspension is currently performed by `netlify/functions/ai-ops-admin.js` (admin-action surface — verified) and likely also by an express route in `www/server.js`. Phase 2 must read both before wire-in to avoid double-emit.
-  - `provider.low_rating` → no current call site found in `netlify/functions/` (no rating-* function exists). Two options: (a) add a Postgres trigger on the `ratings` table that emits on average-rating drop (mirrors the `agent_emit_auction_closed` pattern in the migration file), or (b) emit from the express rating-insert route in `www/server.js`. Option (a) is preferred — it cannot be bypassed by alternate insert paths.
+- **Producers:** no producer emits `dispute.opened`, `provider.suspended`, or `provider.low_rating` today. Concrete wire-in points:
+  - `dispute.opened` → emit from `netlify/functions/dispute-resolver-background.js` (verified to exist) at the top of the handler before the AI-Ops resolution branch runs. No raw-dispute-creation function was found in `netlify/functions/` (verified by `ls netlify/functions/ | grep dispute`) — confirm whether the express route in `www/server.js` also creates disputes; if so, emit there too.
+  - `provider.suspended` → no dedicated suspension file in `netlify/functions/` (verified absent). Suspension is currently performed by `netlify/functions/ai-ops-admin.js` (admin-action surface — verified to exist) and likely also by an express route in `www/server.js`. Phase 2 must read both before wire-in to avoid double-emit.
+  - `provider.low_rating` → no rating-related file in `netlify/functions/` (verified absent via `ls`). Two options: (a) add a Postgres trigger on the `ratings` table that emits on average-rating drop (mirrors the `agent_emit_auction_closed` pattern in `supabase/migrations/20260422_agent_fleet.sql` lines 269–301), or (b) emit from the express rating-insert route in `www/server.js`. Option (a) is preferred — it cannot be bypassed by alternate insert paths.
 - **Decision shape:** `{ provider_id, dispute_id?, outreach_plan, draft_message, urgency }` → `agent_actions.action_type='advocate.outreach'`.
 - **Handler flow:** event consumed → fetch provider + dispute/rating context → Claude drafts → `agent_actions` row written. Disputes always `needs_review=true`. Low-rating nudges under `assist@0.85`: auto-stage in outbound queue (`status='ai_recommended'`), admin still clicks Send.
 - **Autonomy at launch:** `propose` for disputes; `assist` for nudges (low-stakes encouragement DMs).
@@ -116,7 +116,7 @@ Each row below answers: handler file? subscribed events? real producers? data de
 ### 2.6 Hunter
 - **Subscribes:** `lead.discovered`, `campaign.requested` ($4/day cap)
 - **Handler file:** ❌ none.
-- **Producers (verified absent):** ❌ no `emitEvent` calls exist. Concrete wire-in points (all verified to exist in `netlify/functions/`):
+- **Producers:** no producer emits `lead.discovered` or `campaign.requested` today. Concrete wire-in points (all files verified to exist in `netlify/functions/`):
   - `lead.discovered` → emit at the end of `netlify/functions/apollo-discovery-scheduled.js` (after each lead is inserted), and inside `netlify/functions/outreach-admin.js` on the manual-add admin path. `netlify/functions/outreach-engine-core.js` and `netlify/functions/outreach-cycle.js` are downstream processors and should NOT emit (would double-fire).
   - `campaign.requested` → emit from `netlify/functions/outreach-admin.js` when an admin clicks "Start campaign" in the outreach console.
 - **Decision shape:** `{ lead_id, score 0–100, recommended_template, send_now:true|false, reasoning }` → `agent_actions.action_type='hunter.score'`.
