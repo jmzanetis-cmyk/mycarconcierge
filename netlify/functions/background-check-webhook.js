@@ -118,6 +118,32 @@ exports.handler = async function(event) {
     console.error('[BGC webhook] Compliance RPC failed:', rpcErr.message);
   }
 
+  // ── Task #113 — auto-resolve alerts when a new clear arrives ───────────
+  if (status === 'clear') {
+    // Resolve any open expiring/expired alerts for this employee.
+    await supabase
+      .from('provider_alerts')
+      .update({ resolved_at: new Date().toISOString() })
+      .eq('employee_id', rec.employee_id)
+      .in('alert_type', ['bgc_expiring', 'bgc_expired'])
+      .is('resolved_at', null);
+
+    // If the badge came back, resolve the compliance_lost alert (if any).
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('bgc_badge_verified')
+      .eq('id', rec.provider_id)
+      .maybeSingle();
+    if (prof?.bgc_badge_verified) {
+      await supabase
+        .from('provider_alerts')
+        .update({ resolved_at: new Date().toISOString() })
+        .eq('provider_id', rec.provider_id)
+        .eq('alert_type', 'compliance_lost')
+        .is('resolved_at', null);
+    }
+  }
+
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },

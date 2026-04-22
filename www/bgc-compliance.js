@@ -72,6 +72,61 @@
     if (pillEl) pillEl.style.display = badge ? '' : 'none';
   }
 
+  // ── Task #113: alerts panel ───────────────────────────────────────────
+  const SEV = {
+    info:     { bg: 'rgba(70, 140, 220, 0.10)', border: '#468cdc', fg: '#9bc3f0' },
+    warning:  { bg: 'rgba(212, 168, 85, 0.10)', border: '#d4a855', fg: '#e6c787' },
+    critical: { bg: 'rgba(220, 80, 80, 0.10)',  border: '#dc5050', fg: '#f0a0a0' }
+  };
+
+  async function loadAlerts(providerId) {
+    const sb = getSupabase();
+    const panel = document.getElementById('bgc-alerts-panel');
+    if (!panel) return;
+    const { data: alerts, error } = await sb
+      .from('provider_alerts')
+      .select('id, alert_type, severity, title, body, action_url, created_at')
+      .eq('provider_id', providerId)
+      .is('resolved_at', null)
+      .eq('is_dismissed', false)
+      .order('severity', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error || !alerts || alerts.length === 0) {
+      panel.style.display = 'none';
+      panel.innerHTML = '';
+      return;
+    }
+    panel.style.display = '';
+    panel.innerHTML = alerts.map(a => {
+      const palette = SEV[a.severity] || SEV.info;
+      const cta = a.action_url
+        ? '<a href="' + escapeHtml(a.action_url) + '" style="display:inline-block;margin-top:8px;padding:8px 14px;border-radius:8px;background:' + palette.border + ';color:#fff;text-decoration:none;font-weight:600;font-size:0.85rem;">Renew now →</a>'
+        : '';
+      return '<div style="display:flex;gap:14px;align-items:flex-start;padding:14px 18px;margin-bottom:10px;border-radius:10px;background:' + palette.bg + ';border-left:4px solid ' + palette.border + ';">' +
+        '<div style="flex:1;">' +
+          '<div style="font-weight:600;color:' + palette.fg + ';">' + escapeHtml(a.title) + '</div>' +
+          (a.body ? '<div style="margin-top:4px;color:var(--text-secondary);font-size:0.9rem;">' + escapeHtml(a.body) + '</div>' : '') +
+          cta +
+        '</div>' +
+        '<button onclick="window.bgcCompliance.dismissAlert(\'' + a.id + '\')" title="Dismiss" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;line-height:1;">×</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  async function dismissAlert(alertId) {
+    const sb = getSupabase();
+    if (!sb) return;
+    await sb.from('provider_alerts').update({ is_dismissed: true }).eq('id', alertId);
+    const providerId = await getProviderId();
+    if (providerId) await loadAlerts(providerId);
+  }
+
+  function daysUntil(iso) {
+    if (!iso) return null;
+    const d = new Date(iso).getTime() - Date.now();
+    return Math.round(d / 86400000);
+  }
+
   async function loadEmployees(providerId) {
     const sb = getSupabase();
     const tbody = document.getElementById('bgc-employees-tbody');
@@ -108,6 +163,14 @@
       const statusKey = chk ? chk.status : 'none';
       const palette = STATUS_COLOR[statusKey] || STATUS_COLOR.none;
       const expires = chk ? fmtDate(chk.expires_at) : '—';
+      let expiringPill = '';
+      if (chk && chk.status === 'clear' && chk.expires_at) {
+        const d = daysUntil(chk.expires_at);
+        if (d != null && d <= 30 && d >= 0) {
+          const sev = d <= 7 ? SEV.critical : SEV.warning;
+          expiringPill = ' <span style="margin-left:6px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:600;background:' + sev.bg + ';color:' + sev.fg + ';">in ' + d + 'd</span>';
+        }
+      }
       const actionLabel = (!chk || chk.status === 'expired' || chk.status === 'failed')
         ? 'Initiate check'
         : (chk.status === 'pending' || chk.status === 'consider' ? 'In progress' : 'Renew');
@@ -120,7 +183,7 @@
         '<td style="padding:14px 16px;">' + escapeHtml(e.first_name + ' ' + e.last_name) + cfTag + '</td>' +
         '<td style="padding:14px 16px;color:var(--text-secondary);">' + escapeHtml(e.role || '—') + '</td>' +
         '<td style="padding:14px 16px;"><span style="padding:4px 10px;border-radius:999px;font-size:0.78rem;font-weight:600;background:' + palette.bg + ';color:' + palette.fg + ';">' + palette.label + '</span></td>' +
-        '<td style="padding:14px 16px;color:var(--text-secondary);">' + expires + '</td>' +
+        '<td style="padding:14px 16px;color:var(--text-secondary);">' + expires + expiringPill + '</td>' +
         '<td style="padding:14px 16px;text-align:right;">' +
           '<button class="btn btn-secondary" ' + disabled + ' onclick="window.bgcCompliance.initiate(\'' + e.id + '\')">' + actionLabel + '</button>' +
         '</td>' +
@@ -137,7 +200,11 @@
   async function refresh() {
     const providerId = await getProviderId();
     if (!providerId) return;
-    await Promise.all([loadSummary(providerId), loadEmployees(providerId)]);
+    await Promise.all([
+      loadSummary(providerId),
+      loadEmployees(providerId),
+      loadAlerts(providerId)
+    ]);
   }
 
   async function openAddEmployee() {
@@ -192,7 +259,7 @@
     }
   }
 
-  window.bgcCompliance = { refresh, openAddEmployee, initiate };
+  window.bgcCompliance = { refresh, openAddEmployee, initiate, dismissAlert };
 
   // Auto-refresh whenever the user opens the Compliance section.
   document.addEventListener('click', function (ev) {
