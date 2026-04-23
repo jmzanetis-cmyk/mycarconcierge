@@ -118,7 +118,7 @@ async function checkSchemaExists(supabase) {
 async function initEngineState(supabase) {
   const exists = await checkSchemaExists(supabase);
   if (!exists) {
-    console.log('[OutreachEngine] Schema not found. Run outreach-schema.sql in Supabase SQL Editor.');
+    console.log('[OutreachEngine] Schema not found. Run supabase/migrations/20260420_outreach_engine_initial.sql AND 20260425_outreach_crm_bridge.sql in Supabase SQL Editor.');
     return;
   }
 
@@ -1390,7 +1390,7 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
 
         if (req.method === 'GET' && pathname === '/schema-status') {
           const ready = await checkSchemaExists(supabase);
-          json(res, 200, { schema_ready: ready, message: ready ? 'Schema is set up' : 'Run outreach-schema.sql in your Supabase SQL Editor' });
+          json(res, 200, { schema_ready: ready, message: ready ? 'Schema is set up' : 'Run supabase/migrations/20260420_outreach_engine_initial.sql AND 20260425_outreach_crm_bridge.sql in your Supabase SQL Editor' });
           resolve(true);
           return;
         }

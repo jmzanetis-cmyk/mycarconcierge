@@ -95,7 +95,7 @@ async function checkSchemaExists(supabase) {
 async function initEngineState(supabase) {
   const exists = await checkSchemaExists(supabase);
   if (!exists) {
-    console.log('[OutreachEngine] Schema not found. Run outreach-schema.sql in Supabase SQL Editor.');
+    console.log('[OutreachEngine] Schema not found. Run supabase/migrations/20260420_outreach_engine_initial.sql AND 20260425_outreach_crm_bridge.sql in Supabase SQL Editor.');
     return;
   }
 

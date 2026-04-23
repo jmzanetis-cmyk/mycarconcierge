@@ -3048,7 +3048,14 @@
             <option value="closed" ${t.status === 'closed' ? 'selected' : ''}>Closed</option>
           </select>
         </div>
+
+        ${t.user_id ? `<div id="ticket-outreach-panel-${t.id}"></div>` : ''}
       `;
+
+      if (t.user_id && typeof window.renderOutreachHistoryPanel === 'function') {
+        try { window.renderOutreachHistoryPanel(`ticket-outreach-panel-${t.id}`, t.user_id); }
+        catch (e) { console.warn('[admin] outreach history panel failed:', e); }
+      }
 
       document.getElementById('ticket-modal').classList.add('active');
     }

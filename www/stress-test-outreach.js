@@ -606,7 +606,7 @@ async function main() {
   const missingTables = await verifySchemaExists();
   if (missingTables.length > 0) {
     console.error(`  FATAL: Missing tables: ${missingTables.join(', ')}`);
-    console.error('  Run outreach-schema.sql in Supabase SQL Editor first.');
+    console.error('  Run supabase/migrations/20260420_outreach_engine_initial.sql AND 20260425_outreach_crm_bridge.sql in Supabase SQL Editor first.');
     process.exit(1);
   }
   console.log('  All required tables exist.\n');

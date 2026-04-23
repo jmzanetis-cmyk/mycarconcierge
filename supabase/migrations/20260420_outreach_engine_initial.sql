@@ -1,3 +1,19 @@
+-- ============================================================================
+-- 20260420_outreach_engine_initial.sql
+-- ----------------------------------------------------------------------------
+-- Canonical schema for the AI Outreach Engine (renamed from www/outreach-schema.sql
+-- by Task #137 to consolidate around a single source of truth).
+--
+-- IMPORTANT:
+--   - This file IS the schema. www/outreach-schema.sql is now a SYMLINK to
+--     this file so the admin "Copy Schema SQL" button (which fetches that URL)
+--     still works without code changes.
+--   - All bridge fixes layered on top live in 20260425_outreach_crm_bridge.sql
+--     and any later 20260*_outreach_*.sql migrations.
+--   - Apply manually via the Supabase SQL Editor (this codebase does not run
+--     migrations automatically). Idempotent — every CREATE uses IF NOT EXISTS.
+-- ============================================================================
+
 CREATE TABLE IF NOT EXISTS engine_state (
     id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
     is_running BOOLEAN DEFAULT TRUE,
