@@ -34,6 +34,11 @@
     .topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 24px; background:linear-gradient(180deg, rgba(201,168,76,0.06), transparent); border-bottom:1px solid var(--slate-border); }
     .topbar .brand { font-weight:700; letter-spacing:0.5px; }
     .topbar .brand .pill { display:inline-block; background:linear-gradient(135deg,var(--gold),var(--gold-2)); color:#12161c; padding:3px 10px; border-radius:99px; font-size:11px; margin-left:8px; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.3px; }
+    .pill-draft, .pill-pending     { background:#3a3a4a; color:#cfd0d8; }
+    .pill-scored, .pill-approved   { background:rgba(184,148,45,0.18); color:var(--gold); }
+    .pill-published, .pill-contacted { background:rgba(0,170,140,0.18); color:#3ad6b0; }
+    .pill-rejected                 { background:rgba(220,80,80,0.18); color:#ff8b8b; }
     .topbar a { color:var(--muted); text-decoration:none; font-size:14px; margin-left:18px; }
     .topbar a:hover { color:var(--text); }
     main { max-width:1280px; margin:0 auto; padding:28px 24px 60px; }
@@ -253,6 +258,98 @@
             </thead>
             <tbody id="alertsBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <h3>Social acquisition <span style="font-size:12px; color:var(--muted); font-weight:400;">— Hunter inbound · Promoter outbound</span></h3>
+      <div style="font-size:13px; color:var(--muted); margin-bottom:14px;">
+        Channels feed the 15-min monitor cron. Hunter scores inbound mentions into <strong>Leads</strong>; Promoter drafts outbound content into <strong>Posts</strong>. Both ship in <code class="kbd">propose</code> mode — nothing reaches a real platform until you click <em>Publish</em> (and the adapter is connected).
+      </div>
+
+      <div class="grid grid-2" style="margin-bottom:18px;">
+        <div>
+          <h4 style="margin:0 0 10px 0; font-size:14px;">Channels</h4>
+          <div class="row" style="margin-bottom:10px; flex-wrap:wrap;">
+            <select id="newChanPlatform" class="input" style="max-width:140px;">
+              <option value="reddit">Reddit</option><option value="x">X</option>
+              <option value="facebook">Facebook</option><option value="instagram">Instagram</option>
+              <option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option>
+            </select>
+            <input id="newChanHandle" class="input" placeholder="handle (optional)" style="flex:1; min-width:120px; max-width:160px;" />
+            <input id="newChanKeywords" class="input" placeholder="keywords (comma-sep)" style="flex:2; min-width:160px;" />
+            <select id="newChanAudience" class="input" style="max-width:120px;">
+              <option value="both">both</option><option value="member">member</option><option value="provider">provider</option>
+            </select>
+            <button class="btn" id="newChanAdd">Add</button>
+          </div>
+          <div style="max-height:280px; overflow-y:auto;">
+            <table>
+              <thead><tr><th>Platform</th><th>Handle</th><th>Audience</th><th>Keywords</th><th class="right">Enabled</th></tr></thead>
+              <tbody id="chanBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h4 style="margin:0 0 10px 0; font-size:14px;">Request a draft</h4>
+          <div style="font-size:12px; color:var(--muted); margin-bottom:10px;">Emits <code class="kbd">social.post_requested</code> for Promoter on the next orchestrator tick.</div>
+          <div class="row" style="margin-bottom:8px;">
+            <select id="reqDraftPlatform" class="input" style="max-width:140px;">
+              <option value="reddit">Reddit</option><option value="x">X</option>
+              <option value="facebook">Facebook</option><option value="instagram">Instagram</option>
+              <option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option>
+            </select>
+            <select id="reqDraftAudience" class="input" style="max-width:120px;">
+              <option value="mixed">mixed</option><option value="member">member</option><option value="provider">provider</option>
+            </select>
+          </div>
+          <textarea id="reqDraftBrief" class="input" rows="3" placeholder="brief (optional) — e.g. 'announce snow-removal launch in NJ'" style="width:100%; margin-bottom:8px; resize:vertical;"></textarea>
+          <button class="btn" id="reqDraftSubmit">Request draft</button>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div>
+          <h4 style="margin:0 0 10px 0; font-size:14px;">Posts (outbound) <span id="postsTotal" style="font-size:11px; color:var(--muted); font-weight:400;"></span></h4>
+          <div class="row" style="margin-bottom:10px;">
+            <select id="postsStatus" class="input" style="max-width:160px;">
+              <option value="">All statuses</option>
+              <option value="draft" selected>Draft</option>
+              <option value="approved">Approved</option>
+              <option value="published">Published</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <button class="btn btn-ghost" id="postsReload" style="margin-left:auto;">Reload</button>
+          </div>
+          <div style="max-height:380px; overflow-y:auto;">
+            <table>
+              <thead><tr><th>Platform</th><th>Audience</th><th>Body</th><th>Status</th><th class="right">Actions</th></tr></thead>
+              <tbody id="postsBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h4 style="margin:0 0 10px 0; font-size:14px;">Leads (inbound) <span id="leadsTotal" style="font-size:11px; color:var(--muted); font-weight:400;"></span></h4>
+          <div class="row" style="margin-bottom:10px;">
+            <select id="leadsStatus" class="input" style="max-width:160px;">
+              <option value="">All statuses</option>
+              <option value="scored" selected>Scored</option>
+              <option value="approved">Approved</option>
+              <option value="contacted">Contacted</option>
+              <option value="rejected">Rejected</option>
+              <option value="pending">Pending</option>
+            </select>
+            <button class="btn btn-ghost" id="leadsReload" style="margin-left:auto;">Reload</button>
+          </div>
+          <div style="max-height:380px; overflow-y:auto;">
+            <table>
+              <thead><tr><th>Platform</th><th>Author</th><th>Type</th><th class="right">Score</th><th>Status</th><th class="right">Actions</th></tr></thead>
+              <tbody id="leadsBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -569,7 +666,131 @@ function populateTestAlertAgentPicker() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadRegistry(), loadEventsChart(), loadDLQ(), loadSpendAlerts(), loadReviewKpi()]);
+  await Promise.all([
+    loadRegistry(), loadEventsChart(), loadDLQ(), loadSpendAlerts(), loadReviewKpi(),
+    loadChannels(), loadPosts(), loadLeads()
+  ]);
+}
+
+// ---------- social acquisition
+
+async function loadChannels() {
+  const body = document.getElementById('chanBody');
+  try {
+    const { rows } = await api('/social/channels');
+    if (!rows.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No channels yet — add one above to start monitoring.</td></tr>'; return; }
+    body.innerHTML = '';
+    for (const c of rows) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(c.platform)}</strong></td>
+        <td>${escapeHtml(c.handle || '—')}</td>
+        <td><span style="font-size:12px; color:var(--muted);">${escapeHtml(c.monitor_audience)}</span></td>
+        <td><span style="font-size:12px; color:var(--muted);">${escapeHtml((c.monitor_keywords || []).join(', ') || '—')}</span></td>
+        <td class="right">
+          <label class="switch">
+            <input type="checkbox" data-chan-id="${c.id}" ${c.enabled ? 'checked' : ''}>
+            <span class="slider"></span>
+          </label>
+        </td>`;
+      body.appendChild(tr);
+    }
+    body.querySelectorAll('input[data-chan-id]').forEach(inp => {
+      inp.addEventListener('change', async () => {
+        const id = inp.getAttribute('data-chan-id');
+        try { await api(`/social/channels/${id}/toggle`, { method: 'POST' }); toast('Channel updated'); }
+        catch (e) { toast(e.message, true); inp.checked = !inp.checked; }
+      });
+    });
+  } catch (e) {
+    if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="5" class="empty">${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function loadPosts() {
+  const body = document.getElementById('postsBody');
+  const status = document.getElementById('postsStatus').value;
+  try {
+    const q = status ? `?status=${encodeURIComponent(status)}&limit=50` : '?limit=50';
+    const { rows, total } = await api('/social/posts' + q);
+    document.getElementById('postsTotal').textContent = total ? `(${total})` : '';
+    if (!rows.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No posts.</td></tr>'; return; }
+    body.innerHTML = '';
+    for (const p of rows) {
+      const preview = (p.body || '').slice(0, 120) + ((p.body || '').length > 120 ? '…' : '');
+      const canApprove = p.status === 'draft';
+      const canPublish = p.status === 'draft' || p.status === 'approved';
+      const canReject  = p.status !== 'rejected' && p.status !== 'published';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(p.platform)}</strong></td>
+        <td><span style="font-size:12px; color:var(--muted);">${escapeHtml(p.audience)}</span></td>
+        <td style="max-width:280px;"><div style="font-size:12px; line-height:1.4;" title="${escapeHtml(p.body || '')}">${escapeHtml(preview)}</div></td>
+        <td><span class="pill pill-${escapeHtml(p.status)}">${escapeHtml(p.status)}</span></td>
+        <td class="right">
+          ${canApprove ? `<button class="btn btn-ghost" data-post-id="${p.id}" data-act="approve" style="font-size:11px; padding:4px 8px;">Approve</button>` : ''}
+          ${canPublish ? `<button class="btn"        data-post-id="${p.id}" data-act="publish" style="font-size:11px; padding:4px 8px;">Publish</button>` : ''}
+          ${canReject  ? `<button class="btn btn-ghost" data-post-id="${p.id}" data-act="reject"  style="font-size:11px; padding:4px 8px;">Reject</button>` : ''}
+        </td>`;
+      body.appendChild(tr);
+    }
+    body.querySelectorAll('button[data-post-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-post-id');
+        const act = btn.getAttribute('data-act');
+        if (act === 'publish' && !confirm('Publish to platform via adapter? (Mock mode unless adapter is wired.)')) return;
+        btn.disabled = true; const orig = btn.textContent; btn.textContent = '…';
+        try { const r = await api(`/social/posts/${id}/${act}`, { method: 'POST' }); toast(`Post #${id} ${r.post?.status || act}`); loadPosts(); }
+        catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = orig; }
+      });
+    });
+  } catch (e) {
+    if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="5" class="empty">${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function loadLeads() {
+  const body = document.getElementById('leadsBody');
+  const status = document.getElementById('leadsStatus').value;
+  try {
+    const q = status ? `?status=${encodeURIComponent(status)}&limit=50` : '?limit=50';
+    const { rows, total } = await api('/social/leads' + q);
+    document.getElementById('leadsTotal').textContent = total ? `(${total})` : '';
+    if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="empty">No leads.</td></tr>'; return; }
+    body.innerHTML = '';
+    for (const l of rows) {
+      const canApprove   = l.status === 'scored' || l.status === 'pending';
+      const canContacted = l.status === 'approved';
+      const canReject    = l.status !== 'rejected';
+      const handle = l.profile_url
+        ? `<a href="${escapeHtml(l.profile_url)}" target="_blank" rel="noopener">${escapeHtml(l.author_handle || '—')}</a>`
+        : escapeHtml(l.author_handle || '—');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(l.platform)}</strong></td>
+        <td style="font-size:12px;">${handle}</td>
+        <td><span style="font-size:12px; color:var(--muted);">${escapeHtml(l.lead_type || '—')}</span></td>
+        <td class="right num">${l.score == null ? '—' : Number(l.score).toFixed(2)}</td>
+        <td><span class="pill pill-${escapeHtml(l.status)}">${escapeHtml(l.status)}</span></td>
+        <td class="right">
+          ${canApprove   ? `<button class="btn"        data-lead-id="${l.id}" data-act="approve"   style="font-size:11px; padding:4px 8px;">Approve</button>` : ''}
+          ${canContacted ? `<button class="btn btn-ghost" data-lead-id="${l.id}" data-act="contacted" style="font-size:11px; padding:4px 8px;">Mark contacted</button>` : ''}
+          ${canReject    ? `<button class="btn btn-ghost" data-lead-id="${l.id}" data-act="reject"    style="font-size:11px; padding:4px 8px;">Reject</button>` : ''}
+        </td>`;
+      body.appendChild(tr);
+    }
+    body.querySelectorAll('button[data-lead-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-lead-id');
+        const act = btn.getAttribute('data-act');
+        btn.disabled = true; const orig = btn.textContent; btn.textContent = '…';
+        try { const r = await api(`/social/leads/${id}/${act}`, { method: 'POST' }); toast(`Lead #${id} ${r.lead?.status || act}`); loadLeads(); }
+        catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = orig; }
+      });
+    });
+  } catch (e) {
+    if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(e.message)}</td></tr>`;
+  }
 }
 
 // --- wire-up
@@ -619,6 +840,39 @@ document.getElementById('emitTestEvent').addEventListener('click', async () => {
   if (raw) { try { payload = JSON.parse(raw); } catch { return toast('payload must be valid JSON', true); } }
   try { const r = await api('/test-event', { method: 'POST', body: JSON.stringify({ event_type: eventType, payload }) }); toast(`Emitted event #${r.event_id}`); }
   catch (e) { toast(e.message, true); }
+});
+
+document.getElementById('postsReload').addEventListener('click', loadPosts);
+document.getElementById('postsStatus').addEventListener('change', loadPosts);
+document.getElementById('leadsReload').addEventListener('click', loadLeads);
+document.getElementById('leadsStatus').addEventListener('change', loadLeads);
+
+document.getElementById('newChanAdd').addEventListener('click', async () => {
+  const platform = document.getElementById('newChanPlatform').value;
+  const handle   = document.getElementById('newChanHandle').value.trim();
+  const audience = document.getElementById('newChanAudience').value;
+  const kwRaw    = document.getElementById('newChanKeywords').value.trim();
+  const keywords = kwRaw ? kwRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  try {
+    await api('/social/channels', { method: 'POST', body: JSON.stringify({
+      platform, handle: handle || null, monitor_keywords: keywords, monitor_audience: audience, enabled: false
+    })});
+    document.getElementById('newChanHandle').value = '';
+    document.getElementById('newChanKeywords').value = '';
+    toast('Channel added (disabled — toggle on when ready)');
+    loadChannels();
+  } catch (e) { toast(e.message, true); }
+});
+
+document.getElementById('reqDraftSubmit').addEventListener('click', async () => {
+  const platform = document.getElementById('reqDraftPlatform').value;
+  const audience = document.getElementById('reqDraftAudience').value;
+  const brief    = document.getElementById('reqDraftBrief').value.trim();
+  try {
+    const r = await api('/social/request-draft', { method: 'POST', body: JSON.stringify({ platform, audience, brief }) });
+    document.getElementById('reqDraftBrief').value = '';
+    toast(`Draft requested (event #${r.event_id}) — Promoter picks up on next orchestrator tick`);
+  } catch (e) { toast(e.message, true); }
 });
 
 // boot
