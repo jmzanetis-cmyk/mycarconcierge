@@ -40,6 +40,12 @@
 [functions."agent-analyst"]
   schedule = "0 5 * * *"
 
+# Cron emitter: publishes nightly.tick onto the agent_events bus so the
+# orchestrator can route to any agent that subscribes to nightly.tick
+# (today: analyst). See netlify/functions/agent-cron-emitter.js header.
+[functions."agent-cron-emitter"]
+  schedule = "0 5 * * *"
+
 # BGC employee-level compliance — daily expiration sweep at 06:00 UTC
 [functions."bgc-expiration-sweep"]
   schedule = "0 6 * * *"
