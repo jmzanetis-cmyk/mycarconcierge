@@ -24,8 +24,7 @@
 
 const {
   getSupabase, getAgent, callLLM, logAction,
-  authorizeAgentInvocation, jsonResponse, SpendCapError
-} = require('./agent-fleet-runtime');
+  authorizeAgentInvocation, jsonResponse, SpendCapError, loadActivePrompt} = require('./agent-fleet-runtime');
 
 const SLUG = 'gatekeeper';
 
@@ -171,8 +170,9 @@ async function handleEvent(triggeredBy, eventEnvelope) {
 
   let llmResult;
   try {
+    const activeSystem = await loadActivePrompt(supabase, SLUG, SYSTEM_PROMPT);
     llmResult = await callLLM(supabase, agent, {
-      prompt, system: SYSTEM_PROMPT, maxTokens: 500, temperature: 0.2
+      prompt, system: activeSystem, maxTokens: 500, temperature: 0.2
     });
   } catch (e) {
     const isCap = e instanceof SpendCapError;

@@ -167,6 +167,24 @@
       </div>
     </div>
 
+    <div class="card" style="margin-bottom:20px;">
+      <h3>System prompt <span id="promptVersionPill" style="font-size:11px; color:var(--muted); font-weight:400;"></span></h3>
+      <div style="font-size:13px; color:var(--muted); margin-bottom:10px;">
+        Override the file-based default prompt. Saving creates a new version and immediately activates it.
+        Leaving it empty and saving keeps the default. Use the version list below to roll back.
+      </div>
+      <textarea id="promptBody" class="input" rows="10" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; min-height:200px; resize:vertical;" placeholder="Loading…"></textarea>
+      <div class="row" style="margin-top:10px;">
+        <input id="promptNotes" class="input" placeholder="Changelog note (optional, max 500 chars)" style="flex:2;">
+        <button class="btn" id="promptSave">Save new version</button>
+        <button class="btn btn-ghost" id="promptReload">Reload</button>
+      </div>
+      <div style="margin-top:14px;">
+        <div style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">Recent versions</div>
+        <div id="promptHistory" style="max-height:240px; overflow-y:auto;"><div class="empty">Loading…</div></div>
+      </div>
+    </div>
+
     <!-- Analyst-only briefing card -->
     <div class="card" id="briefingCard" style="margin-bottom:20px; display:none;">
       <h3>Latest briefing</h3>
@@ -549,10 +567,70 @@ async function loadReviewQueue() {
   }
 }
 
+async function loadPrompt() {
+  try {
+    const { active } = await api(`/agents/${encodeURIComponent(agentSlug)}/prompt`);
+    const ta = document.getElementById('promptBody');
+    const pill = document.getElementById('promptVersionPill');
+    if (active) {
+      ta.value = active.body || '';
+      pill.textContent = `· active: v${active.version} (saved ${fmtTime(active.created_at)})`;
+    } else {
+      ta.value = '';
+      ta.placeholder = 'No override — running with the file-based default. Type here and save to override.';
+      pill.textContent = '· using file-based default';
+    }
+  } catch (e) {
+    if (e.message !== 'Unauthorized') toast(e.message, true);
+  }
+  loadPromptHistory();
+}
+
+async function loadPromptHistory() {
+  const list = document.getElementById('promptHistory');
+  try {
+    const { versions } = await api(`/agents/${encodeURIComponent(agentSlug)}/prompt-history`);
+    if (!versions.length) {
+      list.innerHTML = '<div class="empty">No saved versions yet.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    for (const v of versions) {
+      const div = document.createElement('div');
+      div.className = 'memory-row';
+      const activeBadge = v.is_active ? '<span class="badge badge-on">active</span>' : '';
+      const rollbackBtn = v.is_active ? '' : `<button class="btn btn-ghost" data-activate="${v.version}" style="padding:3px 9px; font-size:12px;">Roll back</button>`;
+      div.innerHTML = `
+        <div class="memory-head">
+          <div><span class="memory-kind">v${v.version}</span> ${activeBadge} ${v.notes ? `· <span style="color:var(--text); font-size:13px;">${escapeHtml(v.notes)}</span>` : ''}</div>
+          <div class="row">
+            <span style="color:var(--muted); font-size:12px;">${fmtTime(v.created_at)}${v.created_by ? ' · ' + escapeHtml(v.created_by) : ''}</span>
+            ${rollbackBtn}
+          </div>
+        </div>
+      `;
+      list.appendChild(div);
+    }
+    list.querySelectorAll('[data-activate]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const version = btn.getAttribute('data-activate');
+        if (!confirm(`Roll back to version ${version}? The current active version will be deactivated.`)) return;
+        try {
+          await api(`/agents/${encodeURIComponent(agentSlug)}/prompt/${version}/activate`, { method: 'POST' });
+          toast(`Activated v${version}`);
+          loadPrompt();
+        } catch (e) { toast(e.message, true); }
+      });
+    });
+  } catch (e) {
+    if (e.message !== 'Unauthorized') list.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
 async function refreshAll() {
   const ok = await loadAgent();
   if (!ok) return;
-  await Promise.all([loadSpend(), loadActions(), loadMemory(), loadBriefing(), loadReviewQueue()]);
+  await Promise.all([loadSpend(), loadActions(), loadMemory(), loadBriefing(), loadReviewQueue(), loadPrompt()]);
 }
 
 // wire-up
@@ -567,6 +645,21 @@ document.getElementById('actionsNext').addEventListener('click', () => { actions
 document.getElementById('runAnalyst').addEventListener('click', async () => {
   try { toast('Running analyst…'); const r = await api('/run/analyst', { method: 'POST' }); toast(r.result?.success ? `Analyst done · ${fmt$(r.result.cost_usd || 0)}` : (r.result?.reason || 'Done')); refreshAll(); }
   catch (e) { toast(e.message, true); }
+});
+document.getElementById('promptReload').addEventListener('click', loadPrompt);
+document.getElementById('promptSave').addEventListener('click', async () => {
+  const body = document.getElementById('promptBody').value;
+  if (!body.trim()) { toast('Prompt body cannot be empty', true); return; }
+  const notes = document.getElementById('promptNotes').value.trim();
+  const btn = document.getElementById('promptSave');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Saving…';
+  try {
+    const r = await api(`/agents/${encodeURIComponent(agentSlug)}/prompt`, { method: 'POST', body: JSON.stringify({ body, notes }) });
+    toast(`Saved v${r.version.version} · active`);
+    document.getElementById('promptNotes').value = '';
+    loadPrompt();
+  } catch (e) { toast(e.message, true); }
+  finally { btn.disabled = false; btn.textContent = orig; }
 });
 wireConfigEdits();
 

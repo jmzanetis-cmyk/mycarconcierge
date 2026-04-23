@@ -17,11 +17,15 @@
 //   GET  /spend-alerts?days=7            — recent spend-cap breach alerts
 //   GET  /events/timeseries?days=7&group_by=event_type|status — events per hour
 //   GET  /memory?agent=slug&limit=20     — recent memory rows for one agent
+//   GET  /agents/:slug/prompt            — active prompt override (or null)
+//   GET  /agents/:slug/prompt-history    — list past prompt versions
+//   POST /agents/:slug/prompt            — { body, notes? } new active version
+//   POST /agents/:slug/prompt/:version/activate — rollback to that version
 // ============================================================================
 
 const {
   getSupabase, authenticateAdmin, jsonResponse, listAgents, emitEvent,
-  sendSpendAlertEmail
+  sendSpendAlertEmail, clearPromptCache
 } = require('./agent-fleet-runtime');
 
 const ALLOWED_AUTONOMY = new Set(['propose','assist','autonomous']);
@@ -418,6 +422,103 @@ exports.handler = async function(event) {
         .range(off, off + lim - 1);
       if (error) throw new Error(error.message);
       return jsonResponse(200, { rows: data || [], total: count || 0, limit: lim, offset: off });
+    }
+
+    // -------- prompt versioning
+    const promptGetMatch = route.match(/^agents\/([a-z0-9_-]+)\/prompt$/i);
+    if (promptGetMatch && method === 'GET') {
+      const slug = promptGetMatch[1];
+      const { data, error } = await supabase
+        .from('agent_prompt_versions')
+        .select('*')
+        .eq('agent_slug', slug)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return jsonResponse(200, { active: data || null });
+    }
+
+    const promptHistoryMatch = route.match(/^agents\/([a-z0-9_-]+)\/prompt-history$/i);
+    if (promptHistoryMatch && method === 'GET') {
+      const slug = promptHistoryMatch[1];
+      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 20, 1), 100);
+      const { data, error } = await supabase
+        .from('agent_prompt_versions')
+        .select('id, version, notes, is_active, created_at, created_by')
+        .eq('agent_slug', slug)
+        .order('version', { ascending: false })
+        .limit(lim);
+      if (error) throw new Error(error.message);
+      return jsonResponse(200, { versions: data || [] });
+    }
+
+    if (promptGetMatch && method === 'POST') {
+      const slug = promptGetMatch[1];
+      const body_ = (body.body || '').toString();
+      if (!body_.trim()) return jsonResponse(400, { error: 'body is required' });
+      if (body_.length > 50000) return jsonResponse(400, { error: 'body exceeds 50,000 char limit' });
+      const { data: agentRow, error: agentErr } = await supabase
+        .from('agents').select('slug').eq('slug', slug).maybeSingle();
+      if (agentErr) return jsonResponse(500, { error: agentErr.message });
+      if (!agentRow) return jsonResponse(404, { error: 'Unknown agent: ' + slug });
+
+      const { data: maxRow } = await supabase
+        .from('agent_prompt_versions')
+        .select('version')
+        .eq('agent_slug', slug)
+        .order('version', { ascending: false })
+        .limit(1).maybeSingle();
+      const nextVersion = (maxRow?.version || 0) + 1;
+
+      // Deactivate the existing active row first (partial-unique index forbids two actives).
+      const { error: deactErr } = await supabase
+        .from('agent_prompt_versions')
+        .update({ is_active: false })
+        .eq('agent_slug', slug)
+        .eq('is_active', true);
+      if (deactErr) return jsonResponse(500, { error: deactErr.message });
+
+      const { data: inserted, error: insErr } = await supabase
+        .from('agent_prompt_versions')
+        .insert({
+          agent_slug: slug,
+          version: nextVersion,
+          body: body_,
+          notes: (body.notes || '').toString().slice(0, 500) || null,
+          is_active: true,
+          created_by: 'admin'
+        })
+        .select('*').single();
+      if (insErr) return jsonResponse(500, { error: insErr.message });
+      try { clearPromptCache(slug); } catch (e) { /* warm cache only — ignore */ }
+      return jsonResponse(200, { version: inserted });
+    }
+
+    const activateMatch = route.match(/^agents\/([a-z0-9_-]+)\/prompt\/(\d+)\/activate$/i);
+    if (activateMatch && method === 'POST') {
+      const slug = activateMatch[1];
+      const version = parseInt(activateMatch[2], 10);
+      const { data: target, error: tErr } = await supabase
+        .from('agent_prompt_versions')
+        .select('id').eq('agent_slug', slug).eq('version', version).maybeSingle();
+      if (tErr) return jsonResponse(500, { error: tErr.message });
+      if (!target) return jsonResponse(404, { error: 'Version not found' });
+
+      const { error: deactErr } = await supabase
+        .from('agent_prompt_versions')
+        .update({ is_active: false })
+        .eq('agent_slug', slug)
+        .eq('is_active', true);
+      if (deactErr) return jsonResponse(500, { error: deactErr.message });
+
+      const { data: activated, error: actErr } = await supabase
+        .from('agent_prompt_versions')
+        .update({ is_active: true })
+        .eq('id', target.id)
+        .select('*').single();
+      if (actErr) return jsonResponse(500, { error: actErr.message });
+      try { clearPromptCache(slug); } catch (e) { /* ignore */ }
+      return jsonResponse(200, { version: activated });
     }
 
     return jsonResponse(404, { error: 'Not found', route });

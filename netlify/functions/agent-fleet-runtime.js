@@ -207,6 +207,37 @@ async function saveMemory(supabase, agentSlug, kind, value, { key = null, expire
   }
 }
 
+// ---------------------------------------------------------------------------
+// Prompt versioning — loadActivePrompt returns the active overridden system
+// prompt for an agent, or `fallback` if no version is marked active. Cached
+// per-process so repeated calls in one tick don't hammer Supabase.
+// ---------------------------------------------------------------------------
+// Per-process cache with a short TTL so prompt edits propagate across warm
+// Netlify function containers within ~30s without a cross-instance bus.
+const PROMPT_CACHE_TTL_MS = 30 * 1000;
+const __promptCache = new Map();
+function clearPromptCache(slug) {
+  if (slug) __promptCache.delete(slug); else __promptCache.clear();
+}
+async function loadActivePrompt(supabase, agentSlug, fallback) {
+  const hit = __promptCache.get(agentSlug);
+  if (hit && hit.expiresAt > Date.now()) return hit.body;
+  let body = fallback;
+  try {
+    const { data } = await supabase
+      .from('agent_prompt_versions')
+      .select('body')
+      .eq('agent_slug', agentSlug)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (data && typeof data.body === 'string' && data.body.trim()) body = data.body;
+  } catch (e) {
+    console.warn('[runtime] loadActivePrompt(' + agentSlug + ') fallback to default:', e.message);
+  }
+  __promptCache.set(agentSlug, { body, expiresAt: Date.now() + PROMPT_CACHE_TTL_MS });
+  return body;
+}
+
 async function latestMemory(supabase, agentSlug, kind) {
   const { data, error } = await supabase
     .from('agent_memory')
@@ -510,5 +541,7 @@ module.exports = {
   findHandlers,
   estimateUsd,
   actualUsd,
-  PRICING
+  PRICING,
+  loadActivePrompt,
+  clearPromptCache
 };
