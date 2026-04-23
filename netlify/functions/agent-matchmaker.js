@@ -1,0 +1,255 @@
+// ============================================================================
+// MCC Agent Fleet — Matchmaker
+//
+// Event-driven handler invoked by the orchestrator when:
+//
+//   care_plan.auction_closed   → rank the bids and recommend a winner
+//
+// Producer: DB trigger `agent_emit_auction_closed` on care_plans.status
+// (migration 20260422_agent_fleet.sql lines 269–301). Payload: { care_plan_id }.
+//
+// For each event Matchmaker fetches the care_plan, all of its bids, and a
+// per-bid provider snapshot (rating, completion stats, BGC compliance), asks
+// Claude to rank the bids, and writes a `matchmaker.rank` row to agent_actions
+// with needs_review=true. Matchmaker NEVER mutates care_plans, bids, or
+// provider state — Phase 2 is recommendation-only. Operator promotes a winner
+// from the existing review surface (or future Matchmaker-specific UI).
+//
+// Idempotency note: the orchestrator marks events processed after dispatch.
+// On the rare retry path a duplicate rank row is acceptable; event_id is
+// stamped on agent_actions for audit so dupes are obvious.
+// ============================================================================
+
+const {
+  getSupabase, getAgent, callLLM, logAction,
+  authorizeAgentInvocation, jsonResponse, SpendCapError, loadActivePrompt
+} = require('./agent-fleet-runtime');
+
+const SLUG = 'matchmaker';
+
+const SYSTEM_PROMPT =
+  'You are the Matchmaker agent for My Car Concierge, an automotive service marketplace. ' +
+  'Your job: rank the bids submitted on a care plan and recommend a winner. ' +
+  'You weigh price, provider rating, completion rate, BGC verification status, ' +
+  'and any explicit notes from the bid. You NEVER take action directly — you only ' +
+  'recommend; the operator must approve before notifying any provider. ' +
+  'Be transparent about trade-offs. Always reply with valid JSON in this exact shape:\n' +
+  '{"recommended_winner_bid_id": <bid_id_string|null>, "confidence": 0.0-1.0, ' +
+  '"reasoning": "2-4 sentence rationale citing concrete fields", ' +
+  '"ranked_bids":[{"bid_id":<bid_id_string>,"score":0.0-1.0,"why":"short rationale"}], ' +
+  '"concerns":["short bullet","..."]}';
+
+// ---------------------------------------------------------------------------
+// Context loaders. Each is best-effort: a missing referenced row should not
+// crash the handler — we still want to log SOMETHING so the operator sees it.
+// ---------------------------------------------------------------------------
+async function loadCarePlan(supabase, carePlanId) {
+  const { data } = await supabase
+    .from('care_plans')
+    .select('id, status, member_id, bid_closes_at, created_at, vehicle_year, vehicle_make, vehicle_model, zip_code, service_type, description, urgency')
+    .eq('id', carePlanId).maybeSingle();
+  return data || { id: carePlanId, missing: true };
+}
+
+async function loadBids(supabase, carePlanId) {
+  // Auctions on the job board live in plan_bids (defined in
+  // supabase/migrations/20260328_job_board.sql) — NOT the legacy bids table,
+  // which belongs to maintenance_packages. Joined via care_plan_id.
+  const { data } = await supabase
+    .from('plan_bids')
+    .select('id, provider_id, amount, note, is_auto_bid, status, created_at')
+    .eq('care_plan_id', carePlanId)
+    .order('created_at', { ascending: true });
+  return data || [];
+}
+
+async function loadProviders(supabase, providerIds) {
+  if (!providerIds.length) return {};
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, business_name, full_name, city, state, zip_code, ' +
+            'avg_rating, review_count, completed_jobs, ' +
+            'bgc_badge_verified, bgc_compliance_pct, bgc_employees_total, bgc_employees_compliant, ' +
+            'verification_status, created_at')
+    .in('id', providerIds);
+  const map = {};
+  for (const p of data || []) map[p.id] = p;
+  return map;
+}
+
+async function buildPrompt(supabase, payload) {
+  const carePlanId = payload.care_plan_id;
+  const carePlan = await loadCarePlan(supabase, carePlanId);
+  const bids = await loadBids(supabase, carePlanId);
+  const providers = await loadProviders(supabase, [...new Set(bids.map(b => b.provider_id).filter(Boolean))]);
+
+  const enriched = bids.map(b => ({
+    bid_id: b.id,
+    provider_id: b.provider_id,
+    amount: b.amount,
+    is_auto_bid: b.is_auto_bid,
+    notes: b.note,
+    status: b.status,
+    submitted_at: b.created_at,
+    provider: providers[b.provider_id] || { id: b.provider_id, missing: true }
+  }));
+
+  return {
+    bidCount: bids.length,
+    text: [
+      `EVENT: care_plan.auction_closed (bidding has closed; pick a winner).`,
+      `Rank the bids and recommend ONE winner_bid_id (or null if every bid should be rejected).`,
+      `Always set needs_review on the operator side — never assume your pick is final.`,
+      `Heuristics: lowest reasonable price wins ties on quality; verified BGC providers ` +
+      `outrank non-verified at the same price; rating below 3.5 with >= 5 reviews is a yellow flag; ` +
+      `missing/incomplete provider profile = manual review.`,
+      ``,
+      `CARE PLAN:\n${JSON.stringify(carePlan, null, 2)}`,
+      ``,
+      `BIDS (${bids.length} total):\n${JSON.stringify(enriched, null, 2)}`
+    ].join('\n')
+  };
+}
+
+function parseRanking(text) {
+  if (!text) return null;
+  try {
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    return JSON.parse(m[0]);
+  } catch {
+    return null;
+  }
+}
+
+async function handleEvent(supabase, agent, eventEnvelope) {
+  const t0 = Date.now();
+  const { event, triggered_by: triggeredBy } = eventEnvelope || {};
+  const evt = event || eventEnvelope; // tolerate flat shape
+  const eventType = evt?.event_type;
+  const payload = evt?.payload || {};
+
+  if (eventType !== 'care_plan.auction_closed') {
+    await logAction(supabase, {
+      agentSlug: SLUG, eventId: evt?.event_id,
+      actionType: 'rank', status: 'skipped',
+      autonomyUsed: agent.autonomy,
+      decision: { event_type: eventType, triggered_by: triggeredBy },
+      reasoning: `Unknown event type "${eventType}".`,
+      durationMs: Date.now() - t0
+    });
+    return { skipped: true, reason: 'unknown_event_type' };
+  }
+
+  if (!payload.care_plan_id) {
+    await logAction(supabase, {
+      agentSlug: SLUG, eventId: evt?.event_id,
+      actionType: 'rank', status: 'error',
+      autonomyUsed: agent.autonomy,
+      decision: { event_type: eventType, payload },
+      reasoning: 'Payload missing care_plan_id.',
+      errorMessage: 'missing_care_plan_id',
+      durationMs: Date.now() - t0
+    });
+    return { error: 'missing_care_plan_id' };
+  }
+
+  const built = await buildPrompt(supabase, payload);
+
+  // Skip the LLM call entirely on a 0-bid auction — there is nothing to rank.
+  if (built.bidCount === 0) {
+    await logAction(supabase, {
+      agentSlug: SLUG, eventId: evt?.event_id,
+      actionType: 'rank', status: 'proposed',
+      autonomyUsed: agent.autonomy,
+      needsReview: true,
+      decision: { event_type: eventType, payload, recommended_winner_bid_id: null, ranked_bids: [], concerns: ['no bids submitted'] },
+      reasoning: 'Auction closed with zero bids — nothing to rank. Operator should re-list or contact providers directly.',
+      durationMs: Date.now() - t0
+    });
+    return { success: true, bidCount: 0, ms: Date.now() - t0 };
+  }
+
+  let llmResult;
+  try {
+    const activeSystem = await loadActivePrompt(supabase, SLUG, SYSTEM_PROMPT);
+    llmResult = await callLLM(supabase, agent, {
+      prompt: built.text, system: activeSystem, maxTokens: 800, temperature: 0.2
+    });
+  } catch (e) {
+    const isCap = e instanceof SpendCapError;
+    await logAction(supabase, {
+      agentSlug: SLUG, eventId: evt?.event_id,
+      actionType: 'rank',
+      status: isCap ? 'skipped' : 'error',
+      autonomyUsed: agent.autonomy,
+      decision: { event_type: eventType, payload },
+      reasoning: isCap ? 'Daily spend cap reached.' : null,
+      errorMessage: e.message, durationMs: Date.now() - t0
+    });
+    return { error: e.message, spend_cap: isCap };
+  }
+
+  const parsed = parseRanking(llmResult.text);
+  const winner = (typeof parsed?.recommended_winner_bid_id === 'string' && parsed.recommended_winner_bid_id.length >= 8) ? parsed.recommended_winner_bid_id : null;
+  const confidence = (typeof parsed?.confidence === 'number' && parsed.confidence >= 0 && parsed.confidence <= 1)
+    ? parsed.confidence : null;
+  const reasoning = parsed?.reasoning || llmResult.text.trim().slice(0, 600);
+  const ranked = Array.isArray(parsed?.ranked_bids) ? parsed.ranked_bids : [];
+  const concerns = Array.isArray(parsed?.concerns) ? parsed.concerns : [];
+
+  await logAction(supabase, {
+    agentSlug: SLUG, eventId: evt?.event_id,
+    actionType: 'rank',
+    status: 'proposed',
+    autonomyUsed: agent.autonomy,
+    confidence,
+    needsReview: true,
+    decision: {
+      event_type: eventType,
+      payload,
+      recommended_winner_bid_id: winner,
+      ranked_bids: ranked,
+      concerns,
+      raw_response: parsed ? null : llmResult.text.slice(0, 1500)
+    },
+    reasoning,
+    tokensIn: llmResult.tokensIn, tokensOut: llmResult.tokensOut,
+    costUsd: llmResult.costUsd, durationMs: Date.now() - t0
+  });
+
+  return {
+    success: true,
+    care_plan_id: payload.care_plan_id,
+    bid_count: built.bidCount,
+    recommended_winner_bid_id: winner,
+    confidence,
+    cost_usd: llmResult.costUsd,
+    ms: Date.now() - t0
+  };
+}
+
+exports.handler = async function(event) {
+  if (event.httpMethod === 'OPTIONS') return jsonResponse(200, { ok: true });
+
+  const auth = authorizeAgentInvocation(event);
+  if (!auth) return jsonResponse(401, { error: 'Unauthorized' });
+
+  let envelope = {};
+  try { envelope = event.body ? JSON.parse(event.body) : {}; } catch { return jsonResponse(400, { error: 'Invalid JSON' }); }
+
+  const supabase = getSupabase();
+  const agent = await getAgent(supabase, SLUG);
+  if (!agent) return jsonResponse(404, { error: `Unknown agent: ${SLUG}` });
+  if (!agent.enabled) {
+    return jsonResponse(202, { skipped: true, reason: 'agent_disabled' });
+  }
+
+  try {
+    const r = await handleEvent(supabase, agent, envelope);
+    return jsonResponse(200, r);
+  } catch (e) {
+    console.error(`[${SLUG}] handler error:`, e);
+    return jsonResponse(500, { error: e.message });
+  }
+};

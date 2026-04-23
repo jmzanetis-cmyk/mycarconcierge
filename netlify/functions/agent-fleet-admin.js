@@ -21,6 +21,9 @@
 //   GET  /agents/:slug/prompt-history    — list past prompt versions
 //   POST /agents/:slug/prompt            — { body, notes? } new active version
 //   POST /agents/:slug/prompt/:version/activate — rollback to that version
+//   POST /actions/:id/apply              — execute the recommendation (Gatekeeper)
+//   POST /providers/:id/suspend          — { reason } admin suspension; the
+//                                          DB trigger emits provider.flagged
 // ============================================================================
 
 const {
@@ -31,8 +34,7 @@ const {
 const ALLOWED_AUTONOMY = new Set(['propose','assist','autonomous']);
 
 function siteBaseUrl(event) {
-  return process.env.MCC_INTERNAL_FN_BASE
-    || process.env.URL
+  return process.env.URL
     || process.env.DEPLOY_PRIME_URL
     || (event && event.headers && event.headers.host
           ? `https://${event.headers.host}`
@@ -109,6 +111,82 @@ async function reviewAction(supabase, id, body) {
   }).eq('id', id).select('*').single();
   if (error) return { error: error.message };
   return { action: data };
+}
+
+// Apply a Gatekeeper review recommendation. Mutates profile.role based on
+// the embedded decision and stamps the original action as 'executed'. Logs a
+// follow-up agent_actions row for the audit trail.
+async function applyAction(supabase, id) {
+  const { data: action, error: aErr } = await supabase
+    .from('agent_actions').select('*').eq('id', id).maybeSingle();
+  if (aErr) return { error: aErr.message, status: 500 };
+  if (!action) return { error: 'Action not found', status: 404 };
+  if (action.agent_slug !== 'gatekeeper' || action.action_type !== 'review') {
+    return { error: 'Apply only supported for Gatekeeper review actions in Phase 2', status: 400 };
+  }
+  if (action.review_status === 'executed') {
+    return { error: 'Already executed', status: 409 };
+  }
+  let decision = action.decision;
+  if (typeof decision === 'string') { try { decision = JSON.parse(decision); } catch { decision = {}; } }
+  const rec = decision?.recommendation;
+  const payload = decision?.payload || {};
+  const providerId = payload.provider_id;
+  if (!providerId) return { error: 'Action decision missing provider_id', status: 400 };
+  if (!['approve','reject'].includes(rec)) {
+    return { error: `Cannot apply recommendation "${rec}" — manual_review requires admin to suspend or unsuspend manually`, status: 400 };
+  }
+  const newRole = rec === 'approve' ? 'provider' : 'member';
+  const { data: prof, error: pErr } = await supabase
+    .from('profiles').select('id, role').eq('id', providerId).maybeSingle();
+  if (pErr) return { error: pErr.message, status: 500 };
+  if (!prof) return { error: 'Provider profile not found', status: 404 };
+
+  const { error: upErr } = await supabase
+    .from('profiles').update({ role: newRole }).eq('id', providerId);
+  if (upErr) return { error: upErr.message, status: 500 };
+
+  await supabase.from('agent_actions').update({
+    review_status: 'executed',
+    reviewed_at: new Date().toISOString(),
+    reviewed_by: 'admin',
+    needs_review: false
+  }).eq('id', id);
+
+  await supabase.from('agent_actions').insert({
+    agent_slug: 'gatekeeper',
+    action_type: 'apply',
+    status: 'executed',
+    autonomy_used: 'admin',
+    decision: { applied_action_id: id, provider_id: providerId, prior_role: prof.role, new_role: newRole, recommendation: rec },
+    reasoning: `Admin applied Gatekeeper recommendation "${rec}" — role ${prof.role} -> ${newRole}.`
+  });
+
+  return { ok: true, provider_id: providerId, prior_role: prof.role, new_role: newRole };
+}
+
+async function suspendProvider(supabase, providerId, body) {
+  const reason = (body.reason || '').toString().slice(0, 500);
+  const { data: prof, error: pErr } = await supabase
+    .from('profiles').select('id, role').eq('id', providerId).maybeSingle();
+  if (pErr) return { error: pErr.message, status: 500 };
+  if (!prof) return { error: 'Provider profile not found', status: 404 };
+  if (prof.role === 'suspended') return { error: 'Provider already suspended', status: 409 };
+
+  const { error: upErr } = await supabase
+    .from('profiles').update({ role: 'suspended' }).eq('id', providerId);
+  if (upErr) return { error: upErr.message, status: 500 };
+
+  await supabase.from('agent_actions').insert({
+    agent_slug: 'gatekeeper',
+    action_type: 'suspend',
+    status: 'executed',
+    autonomy_used: 'admin',
+    decision: { provider_id: providerId, prior_role: prof.role, new_role: 'suspended', reason },
+    reasoning: reason ? `Admin suspended provider: ${reason}` : 'Admin suspended provider (no reason given).'
+  });
+
+  return { ok: true, provider_id: providerId, prior_role: prof.role, new_role: 'suspended' };
 }
 
 async function spendRollup(supabase) {
@@ -422,6 +500,20 @@ exports.handler = async function(event) {
         .range(off, off + lim - 1);
       if (error) throw new Error(error.message);
       return jsonResponse(200, { rows: data || [], total: count || 0, limit: lim, offset: off });
+    }
+
+    const applyMatch = route.match(/^actions\/(\d+)\/apply$/);
+    if (applyMatch && method === 'POST') {
+      const r = await applyAction(supabase, parseInt(applyMatch[1], 10));
+      if (r.error) return jsonResponse(r.status || 500, { error: r.error });
+      return jsonResponse(200, r);
+    }
+
+    const suspendMatch = route.match(/^providers\/([0-9a-f-]+)\/suspend$/i);
+    if (suspendMatch && method === 'POST') {
+      const r = await suspendProvider(supabase, suspendMatch[1], body);
+      if (r.error) return jsonResponse(r.status || 500, { error: r.error });
+      return jsonResponse(200, r);
     }
 
     // -------- prompt versioning

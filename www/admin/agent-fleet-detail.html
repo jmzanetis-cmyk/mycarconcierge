@@ -537,12 +537,24 @@ async function loadReviewQueue() {
       div.className = 'action-row';
       const dec = (() => { try { return typeof a.decision === 'string' ? JSON.parse(a.decision) : a.decision; } catch { return a.decision; } })();
       const decSummary = dec ? Object.entries(dec).slice(0, 6).map(([k, v]) => `<code class="kbd">${escapeHtml(k)}=${escapeHtml(typeof v === 'object' ? JSON.stringify(v).slice(0, 80) : String(v).slice(0, 80))}</code>`).join(' ') : '';
+      const rec = dec && dec.recommendation;
+      const providerId = dec && dec.payload && dec.payload.provider_id;
+      const canApply = rec === 'approve' || rec === 'reject';
+      const recPill = rec ? `<span class="kbd" style="margin-left:6px;">rec: ${escapeHtml(rec)}</span>` : '';
+      const applyBtn = canApply
+        ? `<button class="btn" data-q-apply="${a.id}" style="padding:4px 10px; font-size:12px;" title="Execute the recommendation (sets provider role to ${rec === 'approve' ? 'provider' : 'member'})">Apply (${escapeHtml(rec)})</button>`
+        : '';
+      const suspendBtn = providerId
+        ? `<button class="btn btn-danger" data-q-suspend="${escapeHtml(providerId)}" style="padding:4px 10px; font-size:12px;" title="Suspend this provider">Suspend</button>`
+        : '';
       div.innerHTML = `
         <div class="action-head">
-          <div><span class="action-agent">${escapeHtml(a.action_type)}</span> <span class="action-time">· ${fmtTime(a.created_at)}</span></div>
+          <div><span class="action-agent">${escapeHtml(a.action_type)}</span>${recPill} <span class="action-time">· ${fmtTime(a.created_at)}</span></div>
           <div class="row">
-            <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="approved" style="padding:4px 10px; font-size:12px;">Approve</button>
-            <button class="btn btn-danger" data-q-review="${a.id}" data-decision="rejected" style="padding:4px 10px; font-size:12px;">Reject</button>
+            ${applyBtn}
+            <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="approved" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without changing provider state">Approve</button>
+            <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="rejected" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without changing provider state">Reject</button>
+            ${suspendBtn}
           </div>
         </div>
         <div class="action-reason">${escapeHtml(a.reasoning || '') || '<span style="color:var(--muted);">(no reasoning)</span>'}</div>
@@ -560,6 +572,34 @@ async function loadReviewQueue() {
           loadReviewQueue();
           loadActions();
         } catch (e) { toast(e.message, true); }
+      });
+    });
+    body.querySelectorAll('[data-q-apply]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-q-apply');
+        if (!confirm('Execute this recommendation against the provider profile? This will change the provider\u2019s role.')) return;
+        btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Applying\u2026';
+        try {
+          const r = await api(`/actions/${id}/apply`, { method: 'POST' });
+          toast(`Applied: ${r.prior_role} \u2192 ${r.new_role}`);
+          loadReviewQueue();
+          loadActions();
+        } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = orig; }
+      });
+    });
+    body.querySelectorAll('[data-q-suspend]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const providerId = btn.getAttribute('data-q-suspend');
+        const reason = prompt('Reason for suspension (shown in the audit log, optional):', '');
+        if (reason === null) return;
+        btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Suspending\u2026';
+        try {
+          await api(`/providers/${providerId}/suspend`, { method: 'POST', body: JSON.stringify({ reason }) });
+          toast(`Provider suspended`);
+          loadReviewQueue();
+          loadActions();
+        } catch (e) { toast(e.message, true); }
+        finally { btn.disabled = false; btn.textContent = orig; }
       });
     });
   } catch (e) {
