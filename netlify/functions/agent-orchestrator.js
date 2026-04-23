@@ -20,8 +20,11 @@ const MAX_DISPATCH_ATTEMPTS = 3;
 const RETRY_BACKOFF_BASE_S = 30;
 
 function siteBaseUrl(event) {
-  // Prefer explicit env, then Netlify-provided URL, then the request itself.
-  return process.env.URL
+  // MCC_INTERNAL_FN_BASE takes precedence so we can route function-to-function
+  // calls over the *.netlify.app subdomain when the primary domain has TLS
+  // issues (mismatched cert, custom-domain provisioning lag, etc).
+  return process.env.MCC_INTERNAL_FN_BASE
+    || process.env.URL
     || process.env.DEPLOY_PRIME_URL
     || (event && event.headers && event.headers.host
           ? `https://${event.headers.host}`

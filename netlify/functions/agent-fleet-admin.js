@@ -24,7 +24,8 @@ const {
 const ALLOWED_AUTONOMY = new Set(['propose','assist','autonomous']);
 
 function siteBaseUrl(event) {
-  return process.env.URL
+  return process.env.MCC_INTERNAL_FN_BASE
+    || process.env.URL
     || process.env.DEPLOY_PRIME_URL
     || (event && event.headers && event.headers.host
           ? `https://${event.headers.host}`
