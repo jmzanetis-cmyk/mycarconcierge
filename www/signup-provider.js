@@ -539,9 +539,15 @@
         // Pickup/delivery data
         const pickupDeliveryOptions = Array.from(document.querySelectorAll('#pickup-delivery-options input:checked')).map(c => c.value);
 
-        // Create application record
-        const { data: app, error: appError } = await supabaseClient.from('provider_applications').insert({
-          user_id: userId,
+        // Create application record via the server-side endpoint. The endpoint
+        // takes user_id from the JWT (so client cannot spoof it), captures the
+        // real client IP, validates payload server-side, and rate-limits to one
+        // application per user per 24h.
+        const sessionRes = await supabaseClient.auth.getSession();
+        const accessToken = sessionRes?.data?.session?.access_token;
+        if (!accessToken) throw new Error('Your session has expired. Please sign in again.');
+
+        const applicationPayload = {
           provider_alias: providerAlias,
           business_name: document.getElementById('business-name').value.trim(),
           business_type: document.getElementById('business-type').value,
@@ -550,8 +556,7 @@
           email: document.getElementById('email').value.trim(),
           legal_signatory_name: legalName,
           agreement_signed_at: new Date().toISOString(),
-          agreement_signature: signatureData, // Store the signature image
-          agreement_ip_address: null, // Would be captured server-side in production
+          agreement_signature: signatureData,
           website: document.getElementById('website').value.trim() || null,
           street_address: document.getElementById('street-address').value.trim() || null,
           city: document.getElementById('city').value.trim(),
@@ -565,7 +570,6 @@
           employees_count: document.getElementById('employees').value ? parseInt(document.getElementById('employees').value) : null,
           bays_count: document.getElementById('bays').value ? parseInt(document.getElementById('bays').value) : null,
           vehicles_per_week: document.getElementById('capacity').value ? parseInt(document.getElementById('capacity').value) : null,
-          // Loaner vehicle info
           has_loaner_vehicles: hasLoaner,
           loaner_vehicle_count: hasLoaner && document.getElementById('loaner-count').value ? parseInt(document.getElementById('loaner-count').value) : null,
           loaner_vehicle_types: hasLoaner ? document.getElementById('loaner-types').value.trim() || null : null,
@@ -573,18 +577,26 @@
           loaner_requirements: hasLoaner ? document.getElementById('loaner-requirements').value.trim() || null : null,
           loaner_fee_type: hasLoaner ? document.getElementById('loaner-fee-type').value : null,
           loaner_fee_amount: hasLoaner && document.getElementById('loaner-fee-amount').value ? parseFloat(document.getElementById('loaner-fee-amount').value) : null,
-          // Pickup/delivery info
           pickup_delivery_options: pickupDeliveryOptions.length ? pickupDeliveryOptions : null,
           pickup_radius_miles: document.getElementById('pickup-radius').value ? parseInt(document.getElementById('pickup-radius').value) : null,
           pickup_fee_type: document.getElementById('pickup-fee').value,
           pickup_fee_amount: document.getElementById('pickup-fee-amount').value ? parseFloat(document.getElementById('pickup-fee-amount').value) : null,
           is_founding_provider: isFoundingProvider || false,
-          founding_agreement_id: foundingAgreementId || null,
-          status: 'approved' // Auto-approve providers who complete all requirements
-        }).select().single();
+          founding_agreement_id: foundingAgreementId || null
+        };
 
-        if (appError) throw appError;
-
+        const appResp = await fetch('/api/provider-application', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(applicationPayload)
+        });
+        const appJson = await appResp.json().catch(() => ({}));
+        if (!appResp.ok) {
+          const msg = appJson?.error || `Application submit failed (${appResp.status})`;
+          const details = Array.isArray(appJson?.details) ? `\n• ${appJson.details.join('\n• ')}` : '';
+          throw new Error(`${msg}${details}`);
+        }
+        const app = { id: appJson.application_id };
         const appId = app.id;
 
         // Upload documents

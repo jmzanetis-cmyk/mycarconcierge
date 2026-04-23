@@ -1379,19 +1379,44 @@
 
           if (profileError) console.error('Profile upsert error:', profileError);
 
-          const { data: appData, error: appError } = await supabaseClient.from('provider_applications').insert({
-            user_id: userId,
-            business_name: formData.businessName,
-            phone: formData.phone,
-            business_type: formData.businessType,
-            city: formData.city,
-            state: formData.state,
-            services_offered: formData.services,
-            years_in_business: parseInt(formData.yearsInBusiness),
-            status: 'approved'
-          }).select();
-
-          if (appError) console.error('Application insert error:', appError);
+          // Submit application via server-side endpoint (validates JWT-derived
+          // user_id, captures real client IP, rate-limits, and emits an event).
+          // The legal_signatory_name + agreement_signed_at are synthesized
+          // here from the consent-terms checkbox the user just ticked.
+          const sessionRes = await supabaseClient.auth.getSession();
+          const accessToken = sessionRes?.data?.session?.access_token;
+          let appData = null;
+          if (!accessToken) {
+            console.error('Application insert skipped: no session token (email confirmation required?)');
+          } else {
+            try {
+              const appResp = await fetch('/api/provider-application', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  business_name: formData.businessName,
+                  contact_name: formData.contactName || formData.businessName,
+                  phone: formData.phone,
+                  email: formData.email,
+                  business_type: formData.businessType,
+                  city: formData.city,
+                  state: formData.state,
+                  services_offered: formData.services,
+                  years_in_business: parseInt(formData.yearsInBusiness) || 0,
+                  legal_signatory_name: formData.contactName || formData.businessName,
+                  agreement_signed_at: new Date().toISOString()
+                })
+              });
+              const appJson = await appResp.json().catch(() => ({}));
+              if (!appResp.ok) {
+                console.error('Application insert error:', appJson?.error || appResp.status, appJson?.details);
+              } else {
+                appData = { id: appJson.application_id };
+              }
+            } catch (e) {
+              console.error('Application insert threw:', e.message);
+            }
+          }
 
           await supabaseClient.from('profiles').update({
             role: 'provider',

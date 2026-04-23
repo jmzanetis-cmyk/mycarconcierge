@@ -2211,42 +2211,55 @@
     async function bulkSuspend() {
       const count = selectedProviders.size;
       const reason = prompt(`Suspend ${count} provider(s):\n\nEnter suspension reason:`);
-      if (!reason) return;
-
-      let success = 0;
-
-      for (const providerId of selectedProviders) {
-        const { error } = await supabaseClient.from('profiles').update({
-          suspension_reason: reason,
-          suspended_at: new Date().toISOString()
-        }).eq('id', providerId);
-
-        if (!error) success++;
+      if (!reason || reason.trim().length < 5) {
+        showToast('Suspension reason must be at least 5 characters.', 'error');
+        return;
       }
 
-      showToast(`Suspended ${success} provider(s)`, 'success');
-      clearSelection();
-      await loadProviders();
+      try {
+        const res = await fetch('/api/admin/provider-actions/suspend', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider_ids: Array.from(selectedProviders), reason: reason.trim() })
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          showToast(json.error || `Suspend failed (${res.status})`, 'error');
+          return;
+        }
+        const ok = (json.updated || []).length;
+        const failed = (json.failed || []).length;
+        showToast(`Suspended ${ok} provider(s)${failed ? ` · ${failed} failed` : ''}`, failed ? 'warning' : 'success');
+        clearSelection();
+        await loadProviders();
+      } catch (e) {
+        showToast(`Suspend failed: ${e.message}`, 'error');
+      }
     }
 
     async function bulkActivate() {
       const count = selectedProviders.size;
       if (!confirm(`Activate ${count} suspended provider(s)?`)) return;
 
-      let success = 0;
-
-      for (const providerId of selectedProviders) {
-        const { error } = await supabaseClient.from('profiles').update({
-          suspension_reason: null,
-          suspended_at: null
-        }).eq('id', providerId);
-
-        if (!error) success++;
+      try {
+        const res = await fetch('/api/admin/provider-actions/activate', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider_ids: Array.from(selectedProviders) })
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          showToast(json.error || `Activate failed (${res.status})`, 'error');
+          return;
+        }
+        const ok = (json.updated || []).length;
+        const failed = (json.failed || []).length;
+        showToast(`Activated ${ok} provider(s)${failed ? ` · ${failed} failed` : ''}`, failed ? 'warning' : 'success');
+        clearSelection();
+        await loadProviders();
+      } catch (e) {
+        showToast(`Activate failed: ${e.message}`, 'error');
       }
-
-      showToast(`Activated ${success} provider(s)`, 'success');
-      clearSelection();
-      await loadProviders();
     }
 
     async function bulkSendMessage() {
@@ -2296,33 +2309,25 @@
         return;
       }
 
-      // Suspend low-rated providers
-      let suspended = 0;
-      for (const provider of lowRated) {
-        const { error } = await supabaseClient
-          .from('profiles')
-          .update({ 
-            suspension_reason: 'Rating below 4 stars - automatic suspension',
-            suspended_at: new Date().toISOString()
-          })
-          .eq('id', provider.id);
-        
-        if (!error) {
-          suspended++;
-          
-          // Send notification
-          await supabaseClient.from('notifications').insert({
-            user_id: provider.id,
-            type: 'account_suspended',
-            title: mccIcon('alert-triangle', 16) + ' Account Suspended',
-            message: 'Your provider account has been suspended due to ratings falling below 4 stars. Please contact support to discuss reinstatement.'
-          });
+      // Suspend low-rated providers via the server-side endpoint, which also
+      // emails each provider and writes an admin_audit_log row.
+      try {
+        const res = await fetch('/api/admin/provider-actions/check-low-rated', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rating_threshold: 4, autosuspend: true, reason: 'Rating below 4 stars - automatic suspension' })
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          showToast(json.error || `Auto-suspend failed (${res.status})`, 'error');
+          return;
         }
+        showToast(`Suspended ${json.suspended || 0} provider(s) with low ratings`, 'success');
+        await loadData();
+        renderProviders();
+      } catch (e) {
+        showToast(`Auto-suspend failed: ${e.message}`, 'error');
       }
-
-      showToast(`Suspended ${suspended} provider(s) with low ratings`, 'success');
-      await loadData();
-      renderProviders();
     }
 
     function bulkExport() {

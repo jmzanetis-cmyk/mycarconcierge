@@ -1,7 +1,37 @@
 // Direct handler invocation — bypasses HTTP, simulates Netlify Lambda event.
 const adminHandler = require('./netlify/functions/agent-fleet-admin').handler;
 const promoterHandler = require('./netlify/functions/agent-promoter').handler;
+const providerAdminHandler = require('./netlify/functions/provider-admin').handler;
+const providerApplicationHandler = require('./netlify/functions/provider-application').handler;
 const PW = process.env.ADMIN_PASSWORD;
+
+async function callProviderAdmin(method, route, body, opts = {}) {
+  const headers = { 'content-type': 'application/json' };
+  if (opts.withAuth !== false) headers['x-admin-password'] = PW;
+  const event = {
+    httpMethod: method,
+    path: '/.netlify/functions/provider-admin/' + route,
+    headers, queryStringParameters: {},
+    body: body ? JSON.stringify(body) : null
+  };
+  const r = await providerAdminHandler(event);
+  let body_; try { body_ = JSON.parse(r.body); } catch { body_ = r.body; }
+  return { status: r.statusCode, body: body_ };
+}
+
+async function callProviderApplication(body, opts = {}) {
+  const headers = { 'content-type': 'application/json' };
+  if (opts.token) headers['authorization'] = `Bearer ${opts.token}`;
+  const event = {
+    httpMethod: 'POST',
+    path: '/.netlify/functions/provider-application',
+    headers, queryStringParameters: {},
+    body: body ? JSON.stringify(body) : null
+  };
+  const r = await providerApplicationHandler(event);
+  let body_; try { body_ = JSON.parse(r.body); } catch { body_ = r.body; }
+  return { status: r.statusCode, body: body_ };
+}
 
 async function call(method, path, body) {
   const event = {
@@ -220,6 +250,67 @@ async function callPromoterDirect(eventRow) {
     await call('PUT', 'agents/' + slug, { enabled: false });
   }
   console.log('  ✓ both back to enabled=false');
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Task #131 — provider-admin & provider-application smoke tests
+  // Verifies that privileged provider mutations are gated server-side.
+  // ──────────────────────────────────────────────────────────────────────
+  console.log('\n━━━ STEP 16: provider-admin auth — no password rejected ━━━');
+  const ra1 = await callProviderAdmin('POST', 'suspend', { provider_ids: [], reason: '' }, { withAuth: false });
+  console.log(`  status=${ra1.status} ${ra1.status === 401 ? '✓ unauthorized blocked' : '✗ expected 401, got ' + ra1.status}`);
+
+  console.log('\n━━━ STEP 17: provider-admin /suspend — bad input rejected ━━━');
+  const ra2 = await callProviderAdmin('POST', 'suspend', { provider_ids: [], reason: 'too short' });
+  console.log(`  status=${ra2.status} ${ra2.status === 400 ? '✓ validation rejected empty ids' : '✗ expected 400, got ' + ra2.status}`);
+  const ra2b = await callProviderAdmin('POST', 'suspend', { provider_ids: ['00000000-0000-0000-0000-000000000001'], reason: 'no' });
+  console.log(`  status=${ra2b.status} ${ra2b.status === 400 ? '✓ validation rejected short reason' : '✗ expected 400, got ' + ra2b.status}`);
+
+  console.log('\n━━━ STEP 18: provider-admin /check-low-rated preview ━━━');
+  const ra3 = await callProviderAdmin('POST', 'check-low-rated', { rating_threshold: 4, autosuspend: false });
+  if (ra3.status === 200 && Array.isArray(ra3.body?.providers)) {
+    console.log(`  ✓ preview returned (found=${ra3.body.found}, threshold=${ra3.body.threshold}, autosuspend=${ra3.body.autosuspend})`);
+  } else {
+    console.log(`  ✗ unexpected: status=${ra3.status} body=${JSON.stringify(ra3.body).slice(0,200)}`);
+  }
+
+  console.log('\n━━━ STEP 19: admin_audit_log captures the check ━━━');
+  // Inline supabase query (re-uses pattern from agent-fleet-runtime's getSupabase).
+  try {
+    const { createClient } = require('@supabase/supabase-js');
+    const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { persistSession: false } });
+    const { data: rows, error } = await sb
+      .from('admin_audit_log')
+      .select('id, action, performed_at')
+      .eq('action', 'check_low_rated')
+      .order('performed_at', { ascending: false })
+      .limit(1);
+    if (error) {
+      console.log(`  ✗ audit_log query failed: ${error.message} (apply supabase/migrations/20260424_admin_audit_log.sql?)`);
+    } else if (rows && rows.length > 0) {
+      console.log(`  ✓ audit_log row id=${rows[0].id} action=${rows[0].action} at=${rows[0].performed_at}`);
+    } else {
+      console.log('  ✗ no audit_log row found for check_low_rated');
+    }
+  } catch (e) {
+    console.log(`  ✗ audit_log lookup threw: ${e.message}`);
+  }
+
+  console.log('\n━━━ STEP 20: provider-application — missing JWT rejected ━━━');
+  const pa1 = await callProviderApplication({
+    business_name: 'Test Garage', contact_name: 'Test', phone: '5551234567',
+    email: 'test@example.com', services_offered: ['oil_change'],
+    legal_signatory_name: 'Test', agreement_signed_at: new Date().toISOString()
+  });
+  console.log(`  status=${pa1.status} ${pa1.status === 401 ? '✓ unauthorized blocked' : '✗ expected 401, got ' + pa1.status}`);
+
+  console.log('\n━━━ STEP 21: provider-application — invalid JWT rejected ━━━');
+  const pa2 = await callProviderApplication({
+    business_name: 'Test', contact_name: 'Test', phone: '5551234567',
+    email: 'test@example.com', services_offered: ['oil_change'],
+    legal_signatory_name: 'Test', agreement_signed_at: new Date().toISOString()
+  }, { token: 'eyJ.bogus.token' });
+  console.log(`  status=${pa2.status} ${pa2.status === 401 ? '✓ bogus token blocked' : '✗ expected 401, got ' + pa2.status}`);
 
   console.log('\n━━━ DONE ━━━\n');
 })().catch(e => { console.error('FATAL:', e.message); console.error(e.stack); process.exit(1); });

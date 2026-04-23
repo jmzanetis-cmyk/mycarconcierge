@@ -20,6 +20,8 @@
 /api/helpdesk-email /.netlify/functions/helpdesk-email 200
 /api/admin/ai-ops/* /.netlify/functions/ai-ops-admin/:splat 200
 /api/admin/agent-fleet/* /.netlify/functions/agent-fleet-admin/:splat 200
+/api/admin/provider-actions/* /.netlify/functions/provider-admin/:splat 200
+/api/provider-application /.netlify/functions/provider-application 200
 /api/admin/outreach/* /.netlify/functions/outreach-admin/:splat 200
 /api/outreach/ref /.netlify/functions/outreach-ref 200
 /unsubscribe /.netlify/functions/outreach-unsubscribe 200
