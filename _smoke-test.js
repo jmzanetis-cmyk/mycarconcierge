@@ -336,19 +336,29 @@ async function callPromoterDirect(eventRow) {
     });
     if (cuErr) throw cuErr;
     testUserId = cu.user.id;
+    // Ensure a profile row exists so suspend/activate selects return it.
+    await adminSb.from('profiles').upsert({ id: testUserId, email: testEmail, role: 'member' }, { onConflict: 'id' });
+    // signInWithPassword needs a valid SUPABASE_ANON_KEY (a JWT). If the secret
+    // is misconfigured (e.g. holds a truncated non-JWT token) we still keep the
+    // user around so the admin-only suspend/activate/audit checks below run;
+    // only the JWT-dependent steps 23-24 will be skipped with a clear reason.
     const { data: si, error: siErr } = await anonSb.auth.signInWithPassword({
       email: testEmail, password: testPassword
     });
-    if (siErr) throw siErr;
-    testJwt = si.session.access_token;
-    // Ensure a profile row exists so suspend/activate selects return it.
-    await adminSb.from('profiles').upsert({ id: testUserId, email: testEmail, role: 'member' }, { onConflict: 'id' });
-    console.log(`  ✓ user provisioned id=${testUserId}`);
+    if (siErr) {
+      console.log(`  ⚠ user created but signIn failed (${siErr.message}) — steps 23-24 will skip`);
+    } else {
+      testJwt = si.session.access_token;
+    }
+    console.log(`  ✓ user provisioned id=${testUserId}${testJwt ? ' + JWT minted' : ' (no JWT)'}`);
   } catch (e) {
     console.log(`  ✗ provisioning failed: ${e.message} — skipping steps 23-26`);
   }
 
-  if (testJwt && testUserId) {
+  // Steps 23-24 require a real user JWT (depend on signInWithPassword + a valid
+  // SUPABASE_ANON_KEY). Steps 25-26 only need a profile row + the admin
+  // password, so they run whenever the test user was provisioned.
+  if (testUserId && testJwt) {
     console.log('\n━━━ STEP 23: provider-application happy path + user_id spoof override ━━━');
     const happyPayload = {
       // Try to spoof user_id — server MUST ignore this and use the JWT user.
@@ -362,7 +372,6 @@ async function callPromoterDirect(eventRow) {
     const pa3 = await callProviderApplication(happyPayload, { token: testJwt });
     if (pa3.status === 200 && pa3.body.application_id) {
       console.log(`  ✓ created application_id=${pa3.body.application_id}`);
-      // Verify the inserted row's user_id is the JWT user, NOT the spoof.
       const { data: row } = await adminSb.from('provider_applications')
         .select('id, user_id, agreement_ip_address, status').eq('id', pa3.body.application_id).single();
       if (row?.user_id === testUserId) {
@@ -375,38 +384,43 @@ async function callPromoterDirect(eventRow) {
       const pa4 = await callProviderApplication(happyPayload, { token: testJwt });
       if (pa4.status === 429) console.log(`  ✓ duplicate within 24h blocked (existing_id=${pa4.body.existing_application_id})`);
       else console.log(`  ✗ expected 429, got ${pa4.status} body=${JSON.stringify(pa4.body).slice(0,200)}`);
-
-      console.log('\n━━━ STEP 25: provider-admin /suspend + /activate happy path ━━━');
-      const sus = await callProviderAdmin('POST', 'suspend', { provider_ids: [testUserId], reason: 'smoke test suspension' });
-      if (sus.status === 200 && sus.body.updated === 1) {
-        console.log(`  ✓ suspend updated=1 failed=${(sus.body.failed||[]).length}`);
-      } else {
-        console.log(`  ✗ suspend unexpected: status=${sus.status} body=${JSON.stringify(sus.body).slice(0,200)}`);
-      }
-      const { data: prof1 } = await adminSb.from('profiles').select('suspension_reason, suspended_at').eq('id', testUserId).single();
-      if (prof1?.suspension_reason === 'smoke test suspension') console.log('  ✓ profile.suspension_reason set');
-      else console.log(`  ✗ profile not updated: ${JSON.stringify(prof1)}`);
-
-      const act = await callProviderAdmin('POST', 'activate', { provider_ids: [testUserId] });
-      if (act.status === 200 && act.body.updated === 1) console.log(`  ✓ activate updated=1`);
-      else console.log(`  ✗ activate unexpected: status=${act.status} body=${JSON.stringify(act.body).slice(0,200)}`);
-      const { data: prof2 } = await adminSb.from('profiles').select('suspension_reason').eq('id', testUserId).single();
-      if (prof2?.suspension_reason === null) console.log('  ✓ profile.suspension_reason cleared');
-      else console.log(`  ✗ profile not cleared: ${JSON.stringify(prof2)}`);
-
-      console.log('\n━━━ STEP 26: admin_audit_log captured suspend + activate + create ━━━');
-      const { data: rows } = await adminSb.from('admin_audit_log')
-        .select('action, target_id').eq('target_id', testUserId).order('performed_at', { ascending: false });
-      const actions = new Set((rows || []).map(r => r.action));
-      const need = ['suspend_provider', 'activate_provider', 'create_provider_application'];
-      const missing = need.filter(a => !actions.has(a));
-      if (missing.length === 0) console.log(`  ✓ audit rows present: ${[...actions].join(', ')}`);
-      else console.log(`  ✗ missing audit actions: ${missing.join(', ')} (have: ${[...actions].join(', ')})`);
     } else {
       console.log(`  ✗ application create failed status=${pa3.status} body=${JSON.stringify(pa3.body).slice(0,300)}`);
     }
+  } else if (testUserId) {
+    console.log('\n━━━ STEP 23-24: SKIPPED — no JWT (SUPABASE_ANON_KEY misconfigured in workspace) ━━━');
+  }
 
-    // Cleanup: delete app rows, audit rows, profile, then user.
+  if (testUserId) {
+    console.log('\n━━━ STEP 25: provider-admin /suspend + /activate happy path ━━━');
+    const sus = await callProviderAdmin('POST', 'suspend', { provider_ids: [testUserId], reason: 'smoke test suspension' });
+    if (sus.status === 200 && sus.body.updated === 1) {
+      console.log(`  ✓ suspend updated=1 failed=${(sus.body.failed||[]).length}`);
+    } else {
+      console.log(`  ✗ suspend unexpected: status=${sus.status} body=${JSON.stringify(sus.body).slice(0,200)}`);
+    }
+    const { data: prof1 } = await adminSb.from('profiles').select('suspension_reason, suspended_at').eq('id', testUserId).single();
+    if (prof1?.suspension_reason === 'smoke test suspension') console.log('  ✓ profile.suspension_reason set');
+    else console.log(`  ✗ profile not updated: ${JSON.stringify(prof1)}`);
+
+    const act = await callProviderAdmin('POST', 'activate', { provider_ids: [testUserId] });
+    if (act.status === 200 && act.body.updated === 1) console.log(`  ✓ activate updated=1`);
+    else console.log(`  ✗ activate unexpected: status=${act.status} body=${JSON.stringify(act.body).slice(0,200)}`);
+    const { data: prof2 } = await adminSb.from('profiles').select('suspension_reason').eq('id', testUserId).single();
+    if (prof2?.suspension_reason === null) console.log('  ✓ profile.suspension_reason cleared');
+    else console.log(`  ✗ profile not cleared: ${JSON.stringify(prof2)}`);
+
+    console.log('\n━━━ STEP 26: admin_audit_log captured suspend + activate ━━━');
+    const { data: rows } = await adminSb.from('admin_audit_log')
+      .select('action, target_id').eq('target_id', testUserId).order('performed_at', { ascending: false });
+    const actions = new Set((rows || []).map(r => r.action));
+    const need = ['suspend_provider', 'activate_provider'];
+    if (testJwt) need.push('create_provider_application');
+    const missing = need.filter(a => !actions.has(a));
+    if (missing.length === 0) console.log(`  ✓ audit rows present: ${[...actions].join(', ')}`);
+    else console.log(`  ✗ missing audit actions: ${missing.join(', ')} (have: ${[...actions].join(', ')})`);
+
+    // Cleanup
     try {
       await adminSb.from('admin_audit_log').delete().eq('target_id', testUserId);
       await adminSb.from('provider_applications').delete().eq('user_id', testUserId);
