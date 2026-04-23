@@ -516,6 +516,152 @@ exports.handler = async function(event) {
       return jsonResponse(200, r);
     }
 
+    // -------- social acquisition (Hunter inbound + Promoter outbound)
+    if (route === 'social/leads' && method === 'GET') {
+      const status = (qs.status || '').trim();
+      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 50, 1), 200);
+      const off = Math.max(parseInt(qs.offset, 10) || 0, 0);
+      let q = supabase.from('social_leads')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(off, off + lim - 1);
+      if (status) q = q.eq('status', status);
+      const { data, count, error } = await q;
+      if (error) throw new Error(error.message);
+      return jsonResponse(200, { rows: data || [], total: count || 0, limit: lim, offset: off });
+    }
+
+    const leadActionMatch = route.match(/^social\/leads\/(\d+)\/(approve|reject|contacted)$/);
+    if (leadActionMatch && method === 'POST') {
+      const id = parseInt(leadActionMatch[1], 10);
+      const status = leadActionMatch[2] === 'approve' ? 'approved'
+                   : leadActionMatch[2] === 'reject'  ? 'rejected'
+                   : 'contacted';
+      const { data, error } = await supabase.from('social_leads')
+        .update({ status })
+        .eq('id', id).select('*').single();
+      if (error) return jsonResponse(404, { error: error.message });
+      return jsonResponse(200, { lead: data });
+    }
+
+    if (route === 'social/posts' && method === 'GET') {
+      const status = (qs.status || '').trim();
+      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 50, 1), 200);
+      const off = Math.max(parseInt(qs.offset, 10) || 0, 0);
+      let q = supabase.from('social_posts')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(off, off + lim - 1);
+      if (status) q = q.eq('status', status);
+      const { data, count, error } = await q;
+      if (error) throw new Error(error.message);
+      return jsonResponse(200, { rows: data || [], total: count || 0, limit: lim, offset: off });
+    }
+
+    const postActionMatch = route.match(/^social\/posts\/(\d+)\/(approve|reject|publish)$/);
+    if (postActionMatch && method === 'POST') {
+      const id = parseInt(postActionMatch[1], 10);
+      const action = postActionMatch[2];
+
+      const { data: post, error: loadErr } = await supabase
+        .from('social_posts').select('*').eq('id', id).maybeSingle();
+      if (loadErr) return jsonResponse(500, { error: loadErr.message });
+      if (!post) return jsonResponse(404, { error: 'post not found' });
+
+      if (action === 'reject') {
+        const { data, error } = await supabase.from('social_posts')
+          .update({ status: 'rejected', reviewed_by: 'admin', reviewed_at: new Date().toISOString() })
+          .eq('id', id).select('*').single();
+        if (error) return jsonResponse(500, { error: error.message });
+        return jsonResponse(200, { post: data });
+      }
+
+      if (action === 'approve') {
+        if (post.status === 'published') return jsonResponse(409, { error: 'already published' });
+        const { data, error } = await supabase.from('social_posts')
+          .update({ status: 'approved', reviewed_by: 'admin', reviewed_at: new Date().toISOString() })
+          .eq('id', id).select('*').single();
+        if (error) return jsonResponse(500, { error: error.message });
+        return jsonResponse(200, { post: data });
+      }
+
+      // publish — adapter dispatch.
+      if (post.status === 'published') return jsonResponse(409, { error: 'already published' });
+      if (post.status === 'rejected')  return jsonResponse(409, { error: 'cannot publish a rejected draft' });
+      let publishResult;
+      try {
+        const { getAdapter } = require('./social-adapters');
+        const adapter = getAdapter(post.platform);
+        publishResult = await adapter.publish({
+          body: post.body,
+          media_urls: post.media_urls || [],
+          channel: post.channel_id ? { id: post.channel_id } : null
+        });
+      } catch (e) {
+        return jsonResponse(502, { error: 'adapter_publish_failed: ' + e.message });
+      }
+      const { data, error } = await supabase.from('social_posts')
+        .update({
+          status: 'published',
+          published_at: new Date().toISOString(),
+          external_post_id: publishResult?.external_post_id || null,
+          reviewed_by: 'admin',
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', id).select('*').single();
+      if (error) return jsonResponse(500, { error: error.message });
+      return jsonResponse(200, { post: data, publish: publishResult });
+    }
+
+    // Manual draft request — emits social.post_requested for Promoter.
+    if (route === 'social/request-draft' && method === 'POST') {
+      const platform = (body.platform || '').toString();
+      const audience = (body.audience || 'mixed').toString();
+      const brief    = (body.brief || '').toString();
+      if (!platform) return jsonResponse(400, { error: 'platform required' });
+      const { data, error } = await supabase
+        .from('agent_events')
+        .insert({
+          event_type: 'social.post_requested',
+          payload: { platform, audience, brief, channel_id: body.channel_id || null },
+          source: 'admin-console'
+        })
+        .select('id').single();
+      if (error) return jsonResponse(500, { error: error.message });
+      return jsonResponse(200, { event_id: data.id });
+    }
+
+    // Channel CRUD (minimal — list + insert + toggle).
+    if (route === 'social/channels' && method === 'GET') {
+      const { data, error } = await supabase
+        .from('social_channels').select('*').order('platform', { ascending: true });
+      if (error) throw new Error(error.message);
+      return jsonResponse(200, { rows: data || [] });
+    }
+    if (route === 'social/channels' && method === 'POST') {
+      const platform = (body.platform || '').toString();
+      const handle   = (body.handle || '').toString() || null;
+      const keywords = Array.isArray(body.monitor_keywords) ? body.monitor_keywords : [];
+      const audience = ['member','provider','both'].includes(body.monitor_audience) ? body.monitor_audience : 'both';
+      if (!platform) return jsonResponse(400, { error: 'platform required' });
+      const { data, error } = await supabase
+        .from('social_channels')
+        .insert({ platform, handle, monitor_keywords: keywords, monitor_audience: audience, enabled: !!body.enabled })
+        .select('*').single();
+      if (error) return jsonResponse(400, { error: error.message });
+      return jsonResponse(200, { channel: data });
+    }
+    const channelToggleMatch = route.match(/^social\/channels\/(\d+)\/toggle$/);
+    if (channelToggleMatch && method === 'POST') {
+      const id = parseInt(channelToggleMatch[1], 10);
+      const { data: cur } = await supabase.from('social_channels').select('enabled').eq('id', id).maybeSingle();
+      if (!cur) return jsonResponse(404, { error: 'channel not found' });
+      const { data, error } = await supabase.from('social_channels')
+        .update({ enabled: !cur.enabled }).eq('id', id).select('*').single();
+      if (error) return jsonResponse(500, { error: error.message });
+      return jsonResponse(200, { channel: data });
+    }
+
     // -------- prompt versioning
     const promptGetMatch = route.match(/^agents\/([a-z0-9_-]+)\/prompt$/i);
     if (promptGetMatch && method === 'GET') {
