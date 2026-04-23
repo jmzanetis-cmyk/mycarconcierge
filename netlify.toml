@@ -54,6 +54,11 @@
 [functions."bgc-send-reminders"]
   schedule = "0 13 * * *"
 
+# Social acquisition monitor — polls enabled social_channels every 15 minutes,
+# inserts new social_leads, and emits social.lead_discovered events for Hunter.
+[functions."social-monitor-scheduled"]
+  schedule = "*/15 * * * *"
+
 
 [[headers]]
   for = "/sw.js"
