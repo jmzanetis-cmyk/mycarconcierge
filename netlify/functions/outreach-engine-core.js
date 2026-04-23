@@ -6,8 +6,9 @@ let resendClient = null;
 let aiCircuitBreaker = { failures: 0, pausedUntil: null };
 
 function getAnthropic() {
-  if (!anthropicClient && process.env.ANTHROPIC_API_KEY) {
-    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const apiKey = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
+  if (!anthropicClient && apiKey) {
+    anthropicClient = new Anthropic({ apiKey });
   }
   return anthropicClient;
 }

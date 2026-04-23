@@ -52,7 +52,7 @@ async function sendSMS(toPhone, body) {
 }
 
 async function callAI(prompt, maxTokens = 300) {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
   if (anthropicKey) {
     try {
       const r = await fetch('https://api.anthropic.com/v1/messages', {

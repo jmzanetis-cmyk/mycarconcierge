@@ -40,7 +40,7 @@ exports.handler = async function(event) {
     };
   }
 
-  var apiKey = process.env.ANTHROPIC_API_KEY;
+  var apiKey = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return utils.errorResponse(500, 'AI service not configured');
   }

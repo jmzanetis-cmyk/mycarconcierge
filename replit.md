@@ -58,7 +58,7 @@ Key architectural patterns and features include:
 - **Twilio**: SMS services.
 - **Netlify**: Deployment and hosting.
 - **OpenAI**: AI integration.
-- **Anthropic**: AI (fallback for Dream Car Finder, primary for AI Helpdesk & Marketing Hub, agent fleet).
+- **Anthropic**: AI (fallback for Dream Car Finder, primary for AI Helpdesk & Marketing Hub, agent fleet). All call sites (helpdesk, dispute-resolver, payment-tracker, daily-digest, ai-ops-admin, outreach-engine, agent-fleet-runtime) read the key as `ANTHROPIC_API_KEY_MCC_FLEET1 || ANTHROPIC_API_KEY` to allow a workspace-billing override when the canonical key's billing is broken upstream. Reddit publishing uses `scripts/reddit-oauth-dance.js` to mint a permanent refresh token; the social Hunter monitor scheduled function (`netlify/functions/social-monitor-scheduled.js`, every 15 min) polls enabled `social_channels` and emits `social.lead_discovered` events.
 - **Google Gemini**: Primary AI (Dream Car Finder & Research & Outreach Agent).
 - **Resend**: Email delivery.
 - **Google Cloud Vision**: OCR for document verification.
