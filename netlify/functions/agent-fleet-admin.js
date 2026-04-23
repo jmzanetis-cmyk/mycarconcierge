@@ -517,8 +517,14 @@ exports.handler = async function(event) {
     }
 
     // -------- social acquisition (Hunter inbound + Promoter outbound)
+    const SOCIAL_LEAD_STATUSES = ['pending','scored','approved','rejected','contacted'];
+    const SOCIAL_POST_STATUSES = ['draft','approved','published','rejected'];
+
     if (route === 'social/leads' && method === 'GET') {
       const status = (qs.status || '').trim();
+      if (status && !SOCIAL_LEAD_STATUSES.includes(status)) {
+        return jsonResponse(400, { error: 'invalid status', allowed: SOCIAL_LEAD_STATUSES });
+      }
       const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 50, 1), 200);
       const off = Math.max(parseInt(qs.offset, 10) || 0, 0);
       let q = supabase.from('social_leads')
@@ -546,6 +552,9 @@ exports.handler = async function(event) {
 
     if (route === 'social/posts' && method === 'GET') {
       const status = (qs.status || '').trim();
+      if (status && !SOCIAL_POST_STATUSES.includes(status)) {
+        return jsonResponse(400, { error: 'invalid status', allowed: SOCIAL_POST_STATUSES });
+      }
       const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 50, 1), 200);
       const off = Math.max(parseInt(qs.offset, 10) || 0, 0);
       let q = supabase.from('social_posts')
@@ -586,8 +595,43 @@ exports.handler = async function(event) {
       }
 
       // publish — adapter dispatch.
+      // Race-safe: we first flip status draft|approved -> publishing atomically via a
+      // conditional UPDATE. If zero rows match, another request won the race (or the
+      // post is in a terminal state). Only one caller ever reaches the adapter.
       if (post.status === 'published') return jsonResponse(409, { error: 'already published' });
       if (post.status === 'rejected')  return jsonResponse(409, { error: 'cannot publish a rejected draft' });
+      if (post.status === 'publishing') return jsonResponse(409, { error: 'publish already in flight' });
+
+      // Require a channel for platforms that address posts by account/subreddit.
+      // Only Reddit truly needs a target subreddit today, but the same constraint
+      // is safe for the other real adapters once they land.
+      const PLATFORMS_REQUIRING_CHANNEL = ['reddit'];
+      if (PLATFORMS_REQUIRING_CHANNEL.includes(post.platform) && !post.channel_id) {
+        return jsonResponse(400, {
+          error: `platform "${post.platform}" requires a channel — re-request the draft with a channel_id, or attach one before publishing`
+        });
+      }
+
+      // Load the channel row (adapter needs the handle for Reddit).
+      let channelRow = null;
+      if (post.channel_id) {
+        const { data: ch, error: chErr } = await supabase
+          .from('social_channels').select('*').eq('id', post.channel_id).maybeSingle();
+        if (chErr) return jsonResponse(500, { error: 'channel lookup failed: ' + chErr.message });
+        channelRow = ch;
+      }
+
+      // Atomic claim: only the first caller sees >0 rows returned.
+      const priorStatus = post.status; // 'draft' or 'approved'
+      const { data: claimed, error: claimErr } = await supabase.from('social_posts')
+        .update({ status: 'publishing' })
+        .eq('id', id).eq('status', priorStatus)
+        .select('id');
+      if (claimErr) return jsonResponse(500, { error: 'claim failed: ' + claimErr.message });
+      if (!claimed || claimed.length === 0) {
+        return jsonResponse(409, { error: 'status changed under us — refresh and retry' });
+      }
+
       let publishResult;
       try {
         const { getAdapter } = require('./social-adapters');
@@ -595,9 +639,13 @@ exports.handler = async function(event) {
         publishResult = await adapter.publish({
           body: post.body,
           media_urls: post.media_urls || [],
-          channel: post.channel_id ? { id: post.channel_id } : null
+          channel: channelRow
         });
       } catch (e) {
+        // Roll the claim back so the post can be retried (or rejected).
+        await supabase.from('social_posts')
+          .update({ status: priorStatus })
+          .eq('id', id).eq('status', 'publishing');
         return jsonResponse(502, { error: 'adapter_publish_failed: ' + e.message });
       }
       const { data, error } = await supabase.from('social_posts')
@@ -608,7 +656,7 @@ exports.handler = async function(event) {
           reviewed_by: 'admin',
           reviewed_at: new Date().toISOString()
         })
-        .eq('id', id).select('*').single();
+        .eq('id', id).eq('status', 'publishing').select('*').single();
       if (error) return jsonResponse(500, { error: error.message });
       return jsonResponse(200, { post: data, publish: publishResult });
     }
