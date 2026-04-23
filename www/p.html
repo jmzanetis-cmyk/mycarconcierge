@@ -414,7 +414,7 @@
       let badgesHtml = '';
       const badges = [];
       if (p.background_verified) {
-        badges.push('<div class="badge-card bgc-badge-verified bgc-badge-lg" title="MCC Verified — at least 90% of this provider's team have completed an active background check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> MCC Verified</div>');
+        badges.push('<div class="badge-card bgc-badge-verified bgc-badge-lg" title="MCC Verified — at least 90% of this team have completed an active background check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> MCC Verified</div>');
       } else if (p.background_check_status === 'pending') {
         badges.push('<div class="badge-card bgc-badge-pending bgc-badge-lg" title="Background check in progress"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Verification Pending</div>');
       }
