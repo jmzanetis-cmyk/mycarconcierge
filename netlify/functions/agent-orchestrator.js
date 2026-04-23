@@ -36,12 +36,18 @@ async function dispatchEvent(baseUrl, agent, evt) {
   try {
     const url = `${baseUrl}${agent.endpoint}`;
     // Background functions return 202 immediately; we await but never block on the agent's work.
+    // Forward the admin password so the handler's authorizeAgentInvocation accepts the call —
+    // the orchestrator runs server-side and is the only function-to-function caller here, so
+    // reusing ADMIN_PASSWORD as a shared internal secret is acceptable. The handler still gets
+    // the orchestrator-source signal via x-fleet-source for logging/observability.
+    const headers = {
+      'content-type': 'application/json',
+      'x-fleet-source': 'orchestrator'
+    };
+    if (process.env.ADMIN_PASSWORD) headers['x-admin-password'] = process.env.ADMIN_PASSWORD;
     const r = await fetch(url, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-fleet-source': 'orchestrator'
-      },
+      headers,
       body: JSON.stringify({ event_id: evt.id, event_type: evt.event_type, payload: evt.payload })
     });
     // Treat only true success codes as routed. Background functions reply 202;
