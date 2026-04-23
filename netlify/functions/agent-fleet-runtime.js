@@ -408,7 +408,10 @@ async function notifySpendCapBreach(supabase, { slug, capUsd, estimateUsd }) {
 }
 
 async function callLLM(supabase, agent, { prompt, system = null, maxTokens = 1024, temperature = 0.7, expectedInputTokens = null }) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Prefer the mcc-fleet workspace key (the Default workspace's billing is
+  // currently broken — Anthropic support ticket open). Falls back to the
+  // canonical ANTHROPIC_API_KEY when the override is unset.
+  const apiKey = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
 
   const model = agent.model || 'claude-sonnet-4-5';
