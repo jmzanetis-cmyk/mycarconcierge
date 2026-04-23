@@ -224,20 +224,29 @@ exports.handler = async function(event) {
       const autosuspend = !!body.autosuspend;
       const reason = (body.reason || `Rating below ${threshold} stars - automatic suspension`).toString().trim();
 
-      // Server-side query — joins profiles to provider_stats, filters to
-      // not-yet-suspended providers with low avg ratings.
-      const { data: candidates, error: queryErr } = await supabase
-        .from('profiles')
-        .select('id, full_name, business_name, email, suspension_reason, provider_stats(average_rating, suspended)')
-        .is('suspension_reason', null);
-      if (queryErr) return jsonResponse(500, { error: queryErr.message });
+      // Server-side query — fetch low-rated stats first, then join to profiles
+      // by id. Avoids a PostgREST embed ambiguity ("more than one relationship
+      // was found for 'profiles' and 'provider_stats'") on this schema.
+      const { data: stats, error: statsErr } = await supabase
+        .from('provider_stats')
+        .select('user_id, average_rating, suspended')
+        .lt('average_rating', threshold)
+        .not('average_rating', 'is', null);
+      if (statsErr) return jsonResponse(500, { error: statsErr.message });
 
-      const lowRated = (candidates || [])
-        .map(p => {
-          const stats = Array.isArray(p.provider_stats) ? p.provider_stats[0] : p.provider_stats;
-          return { ...p, avg_rating: stats?.average_rating, stats_suspended: stats?.suspended };
-        })
-        .filter(p => p.avg_rating != null && p.avg_rating < threshold && !p.stats_suspended);
+      const candidateIds = (stats || []).filter(s => !s.suspended).map(s => s.user_id);
+      let profiles = [];
+      if (candidateIds.length > 0) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, full_name, business_name, email, suspension_reason')
+          .in('id', candidateIds)
+          .is('suspension_reason', null);
+        if (error) return jsonResponse(500, { error: error.message });
+        profiles = data || [];
+      }
+      const ratingByUserId = new Map((stats || []).map(s => [s.user_id, s.average_rating]));
+      const lowRated = profiles.map(p => ({ ...p, avg_rating: ratingByUserId.get(p.id) }));
 
       await audit(supabase, {
         action: 'check_low_rated',
