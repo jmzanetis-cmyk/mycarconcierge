@@ -88,8 +88,24 @@ function makeAdapter(platform, opts) {
   };
 }
 
+// Real Reddit adapter — falls back to mock when creds aren't all set.
+const reddit = require('./social-adapter-reddit');
+const redditAdapter = {
+  platform: 'reddit',
+  isLive() { return reddit.isLive(); },
+  async monitor(args) {
+    if (!reddit.isLive()) return mockMonitor('reddit', args);
+    try { return await reddit.monitor(args); }
+    catch (e) { console.warn('[reddit-adapter] monitor failed, mock fallback:', e.message); return mockMonitor('reddit', args); }
+  },
+  async publish(args) {
+    if (!reddit.isLive()) return mockPublish('reddit', args);
+    return reddit.publish(args); // throw on real-mode failure — operator sees it
+  }
+};
+
 const ADAPTERS = {
-  reddit:    makeAdapter('reddit',    { credEnv: 'REDDIT_REFRESH_TOKEN' }),
+  reddit:    redditAdapter,
   x:         makeAdapter('x',         { credEnv: 'X_BEARER_TOKEN' }),
   facebook:  makeAdapter('facebook',  { credEnv: 'FACEBOOK_PAGE_TOKEN' }),
   instagram: makeAdapter('instagram', { credEnv: 'INSTAGRAM_ACCESS_TOKEN' }),
