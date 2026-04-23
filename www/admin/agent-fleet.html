@@ -284,17 +284,17 @@
             </select>
             <button class="btn" id="newChanAdd">Add</button>
           </div>
-          <div style="max-height:280px; overflow-y:auto;">
+          <div style="max-height:320px; overflow-y:auto;">
             <table>
-              <thead><tr><th>Platform</th><th>Handle</th><th>Audience</th><th>Keywords</th><th class="right">Enabled</th></tr></thead>
-              <tbody id="chanBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+              <thead><tr><th>Platform</th><th>Handle</th><th>Audience</th><th>Keywords</th><th>Health</th><th class="right">Actions</th></tr></thead>
+              <tbody id="chanBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
             </table>
           </div>
         </div>
 
         <div>
           <h4 style="margin:0 0 10px 0; font-size:14px;">Request a draft</h4>
-          <div style="font-size:12px; color:var(--muted); margin-bottom:10px;">Emits <code class="kbd">social.post_requested</code> for Promoter on the next orchestrator tick.</div>
+          <div style="font-size:12px; color:var(--muted); margin-bottom:10px;">Emits <code class="kbd">social.post_requested</code> for Promoter on the next orchestrator tick. Set variants &gt; 1 to draft multiple alternatives sharing a <code class="kbd">variant_group</code> id.</div>
           <div class="row" style="margin-bottom:8px;">
             <select id="reqDraftPlatform" class="input" style="max-width:140px;">
               <option value="reddit">Reddit</option><option value="x">X</option>
@@ -303,6 +303,13 @@
             </select>
             <select id="reqDraftAudience" class="input" style="max-width:120px;">
               <option value="mixed">mixed</option><option value="member">member</option><option value="provider">provider</option>
+            </select>
+            <select id="reqDraftVariants" class="input" style="max-width:110px;" title="Number of draft variants Promoter will produce">
+              <option value="1" selected>1 variant</option>
+              <option value="2">2 variants</option>
+              <option value="3">3 variants</option>
+              <option value="5">5 variants</option>
+              <option value="10">10 variants</option>
             </select>
           </div>
           <textarea id="reqDraftBrief" class="input" rows="3" placeholder="brief (optional) — e.g. 'announce snow-removal launch in NJ'" style="width:100%; margin-bottom:8px; resize:vertical;"></textarea>
@@ -323,12 +330,13 @@
             </select>
             <button class="btn btn-ghost" id="postsReload" style="margin-left:auto;">Reload</button>
           </div>
-          <div style="max-height:380px; overflow-y:auto;">
+          <div style="max-height:420px; overflow-y:auto;">
             <table>
-              <thead><tr><th>Platform</th><th>Audience</th><th>Body</th><th>Status</th><th class="right">Actions</th></tr></thead>
+              <thead><tr><th></th><th>Platform</th><th>Audience</th><th>Body</th><th>Status</th></tr></thead>
               <tbody id="postsBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
             </table>
           </div>
+          <div style="font-size:11px; color:var(--muted); margin-top:6px;">Click a row to expand · edit body · approve · publish.</div>
         </div>
 
         <div>
@@ -344,12 +352,13 @@
             </select>
             <button class="btn btn-ghost" id="leadsReload" style="margin-left:auto;">Reload</button>
           </div>
-          <div style="max-height:380px; overflow-y:auto;">
+          <div style="max-height:420px; overflow-y:auto;">
             <table>
-              <thead><tr><th>Platform</th><th>Author</th><th>Type</th><th class="right">Score</th><th>Status</th><th class="right">Actions</th></tr></thead>
+              <thead><tr><th></th><th>Platform</th><th>Author</th><th>Type</th><th class="right">Score</th><th>Status</th></tr></thead>
               <tbody id="leadsBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
             </table>
           </div>
+          <div style="font-size:11px; color:var(--muted); margin-top:6px;">Click a row to expand · see raw text + Hunter reasoning · approve / mark contacted / reject.</div>
         </div>
       </div>
     </div>
@@ -674,27 +683,84 @@ async function refreshAll() {
 
 // ---------- social acquisition
 
+const __postsExpanded = new Set();
+const __leadsExpanded = new Set();
+const __postsCache = new Map();
+const __leadsCache = new Map();
+const __chanEditing = new Set();
+
+function relTime(iso) {
+  if (!iso) return 'never';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return 'just now';
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return s + 's ago';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60);
+  if (h < 48) return h + 'h ago';
+  return Math.floor(h / 24) + 'd ago';
+}
+
 async function loadChannels() {
   const body = document.getElementById('chanBody');
   try {
     const { rows } = await api('/social/channels');
-    if (!rows.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No channels yet — add one above to start monitoring.</td></tr>'; return; }
+    if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="empty">No channels yet — add one above to start monitoring.</td></tr>'; return; }
     body.innerHTML = '';
     for (const c of rows) {
+      const cfg = c.config || {};
+      const lastErr = cfg.last_error_message;
+      const lastErrAt = cfg.last_error_at;
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><strong>${escapeHtml(c.platform)}</strong></td>
-        <td>${escapeHtml(c.handle || '—')}</td>
-        <td><span style="font-size:12px; color:var(--muted);">${escapeHtml(c.monitor_audience)}</span></td>
-        <td><span style="font-size:12px; color:var(--muted);">${escapeHtml((c.monitor_keywords || []).join(', ') || '—')}</span></td>
-        <td class="right">
-          <label class="switch">
-            <input type="checkbox" data-chan-id="${c.id}" ${c.enabled ? 'checked' : ''}>
-            <span class="slider"></span>
-          </label>
-        </td>`;
+      tr.dataset.chanRow = c.id;
+      if (__chanEditing.has(c.id)) {
+        const kw = (c.monitor_keywords || []).join(', ');
+        tr.innerHTML = `
+          <td><strong>${escapeHtml(c.platform)}</strong></td>
+          <td><input class="input" data-edit-handle="${c.id}" value="${escapeHtml(c.handle || '')}" placeholder="handle" style="font-size:12px; padding:5px 8px;"></td>
+          <td>
+            <select class="input" data-edit-audience="${c.id}" style="font-size:12px; padding:5px 8px;">
+              <option value="both"     ${c.monitor_audience==='both'?'selected':''}>both</option>
+              <option value="member"   ${c.monitor_audience==='member'?'selected':''}>member</option>
+              <option value="provider" ${c.monitor_audience==='provider'?'selected':''}>provider</option>
+            </select>
+          </td>
+          <td><input class="input" data-edit-keywords="${c.id}" value="${escapeHtml(kw)}" placeholder="comma-sep" style="font-size:12px; padding:5px 8px;"></td>
+          <td colspan="2" class="right">
+            <button class="btn"        data-chan-save="${c.id}" style="font-size:11px; padding:4px 10px;">Save</button>
+            <button class="btn btn-ghost" data-chan-cancel="${c.id}" style="font-size:11px; padding:4px 10px;">Cancel</button>
+          </td>`;
+      } else {
+        const recentErrs = Array.isArray(cfg.recent_errors) ? cfg.recent_errors : [];
+        const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
+        const errCount24h = recentErrs.filter(e => new Date(e.at).getTime() >= cutoff24h).length;
+        const errCountBadge = errCount24h > 0
+          ? `<div style="font-size:10px; color:var(--bad); margin-top:2px;">${errCount24h} error${errCount24h===1?'':'s'} in 24h</div>`
+          : '';
+        const healthHtml = lastErr
+          ? `<div style="font-size:11px; color:var(--bad);" title="${escapeHtml(lastErr)} (${escapeHtml(lastErrAt||'')})">⚠ ${escapeHtml(lastErr.slice(0,40))}${lastErr.length>40?'…':''}</div>
+             <div style="font-size:10px; color:var(--muted);">polled ${escapeHtml(relTime(c.last_polled_at))}</div>${errCountBadge}`
+          : `<div style="font-size:11px; color:${c.last_polled_at?'var(--good)':'var(--muted)'};">${c.last_polled_at?'✓':'·'} polled ${escapeHtml(relTime(c.last_polled_at))}</div>${errCountBadge}`;
+        tr.innerHTML = `
+          <td><strong>${escapeHtml(c.platform)}</strong></td>
+          <td>${escapeHtml(c.handle || '—')}</td>
+          <td><span style="font-size:12px; color:var(--muted);">${escapeHtml(c.monitor_audience)}</span></td>
+          <td><span style="font-size:12px; color:var(--muted);">${escapeHtml((c.monitor_keywords || []).join(', ') || '—')}</span></td>
+          <td>${healthHtml}</td>
+          <td class="right" style="white-space:nowrap;">
+            <label class="switch" title="Enable / disable polling">
+              <input type="checkbox" data-chan-id="${c.id}" ${c.enabled ? 'checked' : ''}>
+              <span class="slider"></span>
+            </label>
+            <button class="btn btn-ghost" data-chan-run="${c.id}"    title="Run monitor now (single channel)" style="font-size:11px; padding:4px 8px; margin-left:6px;">Run</button>
+            <button class="btn btn-ghost" data-chan-edit="${c.id}"   title="Edit keywords / audience / handle" style="font-size:11px; padding:4px 8px;">Edit</button>
+            <button class="btn btn-danger" data-chan-delete="${c.id}" title="Delete channel" style="font-size:11px; padding:4px 8px;">×</button>
+          </td>`;
+      }
       body.appendChild(tr);
     }
+
     body.querySelectorAll('input[data-chan-id]').forEach(inp => {
       inp.addEventListener('change', async () => {
         const id = inp.getAttribute('data-chan-id');
@@ -702,9 +768,83 @@ async function loadChannels() {
         catch (e) { toast(e.message, true); inp.checked = !inp.checked; }
       });
     });
+    body.querySelectorAll('button[data-chan-edit]').forEach(btn => {
+      btn.addEventListener('click', () => { __chanEditing.add(parseInt(btn.getAttribute('data-chan-edit'),10)); loadChannels(); });
+    });
+    body.querySelectorAll('button[data-chan-cancel]').forEach(btn => {
+      btn.addEventListener('click', () => { __chanEditing.delete(parseInt(btn.getAttribute('data-chan-cancel'),10)); loadChannels(); });
+    });
+    body.querySelectorAll('button[data-chan-save]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = parseInt(btn.getAttribute('data-chan-save'),10);
+        const handle   = (document.querySelector(`[data-edit-handle="${id}"]`)?.value || '').trim();
+        const audience = document.querySelector(`[data-edit-audience="${id}"]`)?.value || 'both';
+        const kwRaw    = (document.querySelector(`[data-edit-keywords="${id}"]`)?.value || '').trim();
+        const keywords = kwRaw ? kwRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+        try {
+          await api(`/social/channels/${id}`, { method: 'PATCH', body: JSON.stringify({
+            handle, monitor_audience: audience, monitor_keywords: keywords
+          })});
+          __chanEditing.delete(id);
+          toast('Channel saved');
+          loadChannels();
+        } catch (e) { toast(e.message, true); }
+      });
+    });
+    body.querySelectorAll('button[data-chan-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-chan-delete');
+        if (!confirm(`Delete channel #${id}? Historical leads/posts survive but lose their channel link.`)) return;
+        try { await api(`/social/channels/${id}`, { method: 'DELETE' }); toast(`Channel #${id} deleted`); loadChannels(); }
+        catch (e) { toast(e.message, true); }
+      });
+    });
+    body.querySelectorAll('button[data-chan-run]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-chan-run');
+        const orig = btn.textContent;
+        btn.disabled = true; btn.textContent = '…';
+        try {
+          const r = await api(`/social/channels/${id}/run-monitor`, { method: 'POST' });
+          const s = r.summary || {};
+          toast(`Channel #${id}: fetched ${s.fetched||0} · inserted ${s.inserted||0} · errors ${s.errors?.length||0}`);
+          loadChannels(); loadLeads();
+        } catch (e) { toast(e.message, true); }
+        finally { btn.disabled = false; btn.textContent = orig; }
+      });
+    });
   } catch (e) {
-    if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="5" class="empty">${escapeHtml(e.message)}</td></tr>`;
+    if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(e.message)}</td></tr>`;
   }
+}
+
+function renderPostDrawer(p) {
+  const variant = p.agent_action_id ? `<a href="/admin/agent-fleet-detail.html?slug=promoter#action-${p.agent_action_id}" target="_blank" rel="noopener" style="font-size:11px; color:var(--gold);">action #${p.agent_action_id} ↗</a>` : '';
+  const editable = p.status === 'draft' || p.status === 'approved' || p.status === 'rejected';
+  const canApprove = p.status === 'draft';
+  const canPublish = p.status === 'draft' || p.status === 'approved';
+  const canReject  = p.status !== 'rejected' && p.status !== 'published';
+  return `
+    <td colspan="5" style="background:var(--slate-surface-2); padding:14px 18px;">
+      <div style="display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start;">
+        <div style="flex:2; min-width:280px;">
+          <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Body ${editable ? '· editable' : '· read-only ('+escapeHtml(p.status)+')'}</div>
+          <textarea data-post-body="${p.id}" class="input" rows="6" ${editable?'':'disabled'} style="width:100%; resize:vertical; font-size:13px; line-height:1.5;">${escapeHtml(p.body || '')}</textarea>
+          <div style="font-size:11px; color:var(--muted); margin-top:6px;">
+            channel #${p.channel_id || '—'} · created ${escapeHtml(relTime(p.created_at))} ${variant}
+            ${p.published_at ? ' · published ' + escapeHtml(relTime(p.published_at)) : ''}
+            ${p.external_post_id ? ' · ext_id <code class="kbd">'+escapeHtml(p.external_post_id)+'</code>' : ''}
+          </div>
+        </div>
+        <div style="flex:1; min-width:180px; display:flex; flex-direction:column; gap:6px;">
+          ${editable ? `<button class="btn" data-post-act="save" data-post-id="${p.id}">Save edits</button>` : ''}
+          ${canApprove ? `<button class="btn btn-ghost" data-post-act="approve" data-post-id="${p.id}">Approve</button>` : ''}
+          ${canApprove ? `<button class="btn"        data-post-act="save-approve" data-post-id="${p.id}">Save &amp; approve</button>` : ''}
+          ${canPublish ? `<button class="btn"        data-post-act="publish" data-post-id="${p.id}">Publish</button>` : ''}
+          ${canReject  ? `<button class="btn btn-ghost" data-post-act="reject"  data-post-id="${p.id}">Reject</button>` : ''}
+        </div>
+      </div>
+    </td>`;
 }
 
 async function loadPosts() {
@@ -715,38 +855,124 @@ async function loadPosts() {
     const { rows, total } = await api('/social/posts' + q);
     document.getElementById('postsTotal').textContent = total ? `(${total})` : '';
     if (!rows.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No posts.</td></tr>'; return; }
+    __postsCache.clear();
     body.innerHTML = '';
     for (const p of rows) {
-      const preview = (p.body || '').slice(0, 120) + ((p.body || '').length > 120 ? '…' : '');
-      const canApprove = p.status === 'draft';
-      const canPublish = p.status === 'draft' || p.status === 'approved';
-      const canReject  = p.status !== 'rejected' && p.status !== 'published';
+      __postsCache.set(p.id, p);
+      const preview = (p.body || '').slice(0, 100) + ((p.body || '').length > 100 ? '…' : '');
+      const expanded = __postsExpanded.has(p.id);
       const tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      tr.dataset.postRow = p.id;
       tr.innerHTML = `
+        <td style="width:18px; color:var(--muted);">${expanded ? '▾' : '▸'}</td>
         <td><strong>${escapeHtml(p.platform)}</strong></td>
         <td><span style="font-size:12px; color:var(--muted);">${escapeHtml(p.audience)}</span></td>
-        <td style="max-width:280px;"><div style="font-size:12px; line-height:1.4;" title="${escapeHtml(p.body || '')}">${escapeHtml(preview)}</div></td>
-        <td><span class="pill pill-${escapeHtml(p.status)}">${escapeHtml(p.status)}</span></td>
-        <td class="right">
-          ${canApprove ? `<button class="btn btn-ghost" data-post-id="${p.id}" data-act="approve" style="font-size:11px; padding:4px 8px;">Approve</button>` : ''}
-          ${canPublish ? `<button class="btn"        data-post-id="${p.id}" data-act="publish" style="font-size:11px; padding:4px 8px;">Publish</button>` : ''}
-          ${canReject  ? `<button class="btn btn-ghost" data-post-id="${p.id}" data-act="reject"  style="font-size:11px; padding:4px 8px;">Reject</button>` : ''}
-        </td>`;
+        <td style="max-width:280px;"><div style="font-size:12px; line-height:1.4;">${escapeHtml(preview)}</div></td>
+        <td><span class="pill pill-${escapeHtml(p.status)}">${escapeHtml(p.status)}</span></td>`;
       body.appendChild(tr);
+      if (expanded) {
+        const drawer = document.createElement('tr');
+        drawer.dataset.postDrawer = p.id;
+        drawer.innerHTML = renderPostDrawer(p);
+        body.appendChild(drawer);
+      }
     }
-    body.querySelectorAll('button[data-post-id]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-post-id');
-        const act = btn.getAttribute('data-act');
-        if (act === 'publish' && !confirm('Publish to platform via adapter? (Mock mode unless adapter is wired.)')) return;
-        btn.disabled = true; const orig = btn.textContent; btn.textContent = '…';
-        try { const r = await api(`/social/posts/${id}/${act}`, { method: 'POST' }); toast(`Post #${id} ${r.post?.status || act}`); loadPosts(); }
-        catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = orig; }
+
+    body.querySelectorAll('tr[data-post-row]').forEach(tr => {
+      tr.addEventListener('click', (ev) => {
+        if (ev.target.closest('button,textarea,input,a')) return;
+        const id = parseInt(tr.dataset.postRow, 10);
+        if (__postsExpanded.has(id)) __postsExpanded.delete(id); else __postsExpanded.add(id);
+        loadPosts();
+      });
+    });
+    body.querySelectorAll('button[data-post-act]').forEach(btn => {
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const id = parseInt(btn.getAttribute('data-post-id'), 10);
+        const act = btn.getAttribute('data-post-act');
+        const ta = document.querySelector(`textarea[data-post-body="${id}"]`);
+        const newBody = ta ? ta.value : null;
+        const orig = btn.textContent;
+        btn.disabled = true; btn.textContent = '…';
+        try {
+          if (act === 'save' || act === 'save-approve') {
+            const cached = __postsCache.get(id);
+            if (newBody != null && newBody !== cached?.body) {
+              await api(`/social/posts/${id}`, { method: 'PATCH', body: JSON.stringify({ body: newBody }) });
+            }
+            if (act === 'save-approve') {
+              await api(`/social/posts/${id}/approve`, { method: 'POST' });
+            }
+            toast(`Post #${id} ${act === 'save-approve' ? 'saved & approved' : 'saved'}`);
+          } else if (act === 'publish') {
+            if (!confirm('Publish to platform via adapter? (Mock mode unless adapter is wired.)')) {
+              btn.disabled = false; btn.textContent = orig; return;
+            }
+            const r = await api(`/social/posts/${id}/${act}`, { method: 'POST' });
+            toast(`Post #${id} ${r.post?.status || act}`);
+          } else {
+            const r = await api(`/social/posts/${id}/${act}`, { method: 'POST' });
+            toast(`Post #${id} ${r.post?.status || act}`);
+          }
+          loadPosts();
+        } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = orig; }
       });
     });
   } catch (e) {
     if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="5" class="empty">${escapeHtml(e.message)}</td></tr>`;
   }
+}
+
+async function fetchHunterReasoning(eventPayloadLeadId) {
+  // Best-effort: list recent Hunter actions and pick the one whose decision references this lead.
+  try {
+    const { rows } = await api('/actions?agent=hunter&limit=50');
+    if (!rows) return null;
+    return rows.find(a => {
+      try {
+        const d = a.decision || {};
+        return d.social_lead_id === eventPayloadLeadId
+            || d.lead_id === eventPayloadLeadId
+            || (d.payload && d.payload.social_lead_id === eventPayloadLeadId);
+      } catch { return false; }
+    }) || null;
+  } catch { return null; }
+}
+
+function renderLeadDrawer(l, hunterAction) {
+  const ctxJson = l.context ? JSON.stringify(l.context, null, 2) : '{}';
+  const reasoning = hunterAction?.reasoning
+    ? `<div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin:10px 0 4px;">Hunter reasoning</div>
+       <div style="font-size:13px; line-height:1.5; background:var(--slate-bg); padding:10px; border-radius:6px; border-left:3px solid var(--gold);">${escapeHtml(hunterAction.reasoning)}</div>`
+    : `<div style="font-size:11px; color:var(--muted); margin-top:10px; font-style:italic;">No Hunter reasoning yet — lead may still be queued for scoring.</div>`;
+  const canApprove   = l.status === 'scored' || l.status === 'pending';
+  const canContacted = l.status === 'approved';
+  const canReject    = l.status !== 'rejected';
+  return `
+    <td colspan="6" style="background:var(--slate-surface-2); padding:14px 18px;">
+      <div style="display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start;">
+        <div style="flex:2; min-width:280px;">
+          <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Raw text</div>
+          <div style="font-size:13px; line-height:1.5; background:var(--slate-bg); padding:10px; border-radius:6px; max-height:160px; overflow-y:auto; white-space:pre-wrap;">${escapeHtml(l.raw_text || '(empty)')}</div>
+          ${reasoning}
+          <details style="margin-top:10px;">
+            <summary style="cursor:pointer; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Context JSON</summary>
+            <pre style="font-size:11px; background:var(--slate-bg); padding:8px; border-radius:6px; margin-top:6px; max-height:160px; overflow:auto;">${escapeHtml(ctxJson)}</pre>
+          </details>
+          <div style="font-size:11px; color:var(--muted); margin-top:8px;">
+            ext_id <code class="kbd">${escapeHtml(l.external_id || '—')}</code> · channel #${l.channel_id || '—'} · created ${escapeHtml(relTime(l.created_at))}
+            ${l.profile_url ? ' · <a href="'+escapeHtml(l.profile_url)+'" target="_blank" rel="noopener" style="color:var(--gold);">profile ↗</a>' : ''}
+          </div>
+        </div>
+        <div style="flex:1; min-width:160px; display:flex; flex-direction:column; gap:6px;">
+          ${canApprove   ? `<button class="btn"        data-lead-act="approve"   data-lead-id="${l.id}">Approve</button>` : ''}
+          ${canContacted ? `<button class="btn btn-ghost" data-lead-act="contacted" data-lead-id="${l.id}">Mark contacted</button>` : ''}
+          ${canReject    ? `<button class="btn btn-ghost" data-lead-act="reject"    data-lead-id="${l.id}">Reject</button>` : ''}
+        </div>
+      </div>
+    </td>`;
 }
 
 async function loadLeads() {
@@ -757,33 +983,52 @@ async function loadLeads() {
     const { rows, total } = await api('/social/leads' + q);
     document.getElementById('leadsTotal').textContent = total ? `(${total})` : '';
     if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="empty">No leads.</td></tr>'; return; }
+    __leadsCache.clear();
     body.innerHTML = '';
     for (const l of rows) {
-      const canApprove   = l.status === 'scored' || l.status === 'pending';
-      const canContacted = l.status === 'approved';
-      const canReject    = l.status !== 'rejected';
+      __leadsCache.set(l.id, l);
+      const expanded = __leadsExpanded.has(l.id);
       const handle = l.profile_url
         ? `<a href="${escapeHtml(l.profile_url)}" target="_blank" rel="noopener">${escapeHtml(l.author_handle || '—')}</a>`
         : escapeHtml(l.author_handle || '—');
       const tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      tr.dataset.leadRow = l.id;
       tr.innerHTML = `
+        <td style="width:18px; color:var(--muted);">${expanded ? '▾' : '▸'}</td>
         <td><strong>${escapeHtml(l.platform)}</strong></td>
         <td style="font-size:12px;">${handle}</td>
         <td><span style="font-size:12px; color:var(--muted);">${escapeHtml(l.lead_type || '—')}</span></td>
         <td class="right num">${l.score == null ? '—' : Number(l.score).toFixed(2)}</td>
-        <td><span class="pill pill-${escapeHtml(l.status)}">${escapeHtml(l.status)}</span></td>
-        <td class="right">
-          ${canApprove   ? `<button class="btn"        data-lead-id="${l.id}" data-act="approve"   style="font-size:11px; padding:4px 8px;">Approve</button>` : ''}
-          ${canContacted ? `<button class="btn btn-ghost" data-lead-id="${l.id}" data-act="contacted" style="font-size:11px; padding:4px 8px;">Mark contacted</button>` : ''}
-          ${canReject    ? `<button class="btn btn-ghost" data-lead-id="${l.id}" data-act="reject"    style="font-size:11px; padding:4px 8px;">Reject</button>` : ''}
-        </td>`;
+        <td><span class="pill pill-${escapeHtml(l.status)}">${escapeHtml(l.status)}</span></td>`;
       body.appendChild(tr);
+      if (expanded) {
+        const drawer = document.createElement('tr');
+        drawer.dataset.leadDrawer = l.id;
+        drawer.innerHTML = renderLeadDrawer(l, null);
+        body.appendChild(drawer);
+        // Async fetch Hunter reasoning and re-render this drawer in place.
+        fetchHunterReasoning(l.id).then(action => {
+          if (action) drawer.innerHTML = renderLeadDrawer(l, action);
+        });
+      }
     }
-    body.querySelectorAll('button[data-lead-id]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-lead-id');
-        const act = btn.getAttribute('data-act');
-        btn.disabled = true; const orig = btn.textContent; btn.textContent = '…';
+
+    body.querySelectorAll('tr[data-lead-row]').forEach(tr => {
+      tr.addEventListener('click', (ev) => {
+        if (ev.target.closest('button,textarea,input,a,details,summary')) return;
+        const id = parseInt(tr.dataset.leadRow, 10);
+        if (__leadsExpanded.has(id)) __leadsExpanded.delete(id); else __leadsExpanded.add(id);
+        loadLeads();
+      });
+    });
+    body.querySelectorAll('button[data-lead-act]').forEach(btn => {
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const id  = btn.getAttribute('data-lead-id');
+        const act = btn.getAttribute('data-lead-act');
+        const orig = btn.textContent;
+        btn.disabled = true; btn.textContent = '…';
         try { const r = await api(`/social/leads/${id}/${act}`, { method: 'POST' }); toast(`Lead #${id} ${r.lead?.status || act}`); loadLeads(); }
         catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = orig; }
       });
@@ -867,13 +1112,19 @@ document.getElementById('newChanAdd').addEventListener('click', async () => {
 document.getElementById('reqDraftSubmit').addEventListener('click', async () => {
   const platform = document.getElementById('reqDraftPlatform').value;
   const audience = document.getElementById('reqDraftAudience').value;
+  const variants = parseInt(document.getElementById('reqDraftVariants').value, 10) || 1;
   const brief    = document.getElementById('reqDraftBrief').value.trim();
   try {
-    const r = await api('/social/request-draft', { method: 'POST', body: JSON.stringify({ platform, audience, brief }) });
+    const r = await api('/social/request-draft', { method: 'POST', body: JSON.stringify({ platform, audience, brief, variants }) });
     document.getElementById('reqDraftBrief').value = '';
-    toast(`Draft requested (event #${r.event_id}) — Promoter picks up on next orchestrator tick`);
+    if (r.variant_group) {
+      toast(`${r.variants} draft variants requested · group ${r.variant_group} (events ${r.event_ids.join(', ')})`);
+    } else {
+      toast(`Draft requested (event #${r.event_id}) — Promoter picks up on next orchestrator tick`);
+    }
   } catch (e) { toast(e.message, true); }
 });
+
 
 // boot
 if (getPw()) {

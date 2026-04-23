@@ -578,19 +578,24 @@ exports.handler = async function(event) {
       if (!post) return jsonResponse(404, { error: 'post not found' });
 
       if (action === 'reject') {
+        // Race-safe: only reject from non-terminal, non-in-flight states.
         const { data, error } = await supabase.from('social_posts')
           .update({ status: 'rejected', reviewed_by: 'admin', reviewed_at: new Date().toISOString() })
-          .eq('id', id).select('*').single();
+          .eq('id', id).in('status', ['draft','approved'])
+          .select('*').maybeSingle();
         if (error) return jsonResponse(500, { error: error.message });
+        if (!data) return jsonResponse(409, { error: `cannot reject from current state (${post.status})` });
         return jsonResponse(200, { post: data });
       }
 
       if (action === 'approve') {
-        if (post.status === 'published') return jsonResponse(409, { error: 'already published' });
+        // Race-safe: only approve from draft.
         const { data, error } = await supabase.from('social_posts')
           .update({ status: 'approved', reviewed_by: 'admin', reviewed_at: new Date().toISOString() })
-          .eq('id', id).select('*').single();
+          .eq('id', id).eq('status', 'draft')
+          .select('*').maybeSingle();
         if (error) return jsonResponse(500, { error: error.message });
+        if (!data) return jsonResponse(409, { error: `cannot approve from current state (${post.status})` });
         return jsonResponse(200, { post: data });
       }
 
@@ -662,21 +667,85 @@ exports.handler = async function(event) {
     }
 
     // Manual draft request — emits social.post_requested for Promoter.
+    // When `variants` > 1, emits N events sharing a `variant_group` correlation
+    // id so the operator can compare multiple drafts of the same brief side-by-side.
     if (route === 'social/request-draft' && method === 'POST') {
       const platform = (body.platform || '').toString();
       const audience = (body.audience || 'mixed').toString();
       const brief    = (body.brief || '').toString();
+      let variants = parseInt(body.variants, 10);
+      if (!Number.isFinite(variants) || variants < 1) variants = 1;
+      if (variants > 10) variants = 10;
       if (!platform) return jsonResponse(400, { error: 'platform required' });
-      const { data, error } = await supabase
-        .from('agent_events')
-        .insert({
+
+      const variantGroup = variants > 1
+        ? `vg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+        : null;
+
+      const rows = [];
+      for (let i = 0; i < variants; i++) {
+        rows.push({
           event_type: 'social.post_requested',
-          payload: { platform, audience, brief, channel_id: body.channel_id || null },
+          payload: {
+            platform, audience, brief,
+            channel_id: body.channel_id || null,
+            variant_group: variantGroup,
+            variant_index: variants > 1 ? i + 1 : null,
+            variant_total: variants > 1 ? variants : null
+          },
           source: 'admin-console'
-        })
-        .select('id').single();
+        });
+      }
+      const { data, error } = await supabase
+        .from('agent_events').insert(rows).select('id');
       if (error) return jsonResponse(500, { error: error.message });
-      return jsonResponse(200, { event_id: data.id });
+      const ids = (data || []).map(r => r.id);
+      return jsonResponse(200, {
+        event_id: ids[0] || null,
+        event_ids: ids,
+        variants,
+        variant_group: variantGroup
+      });
+    }
+
+    // Inline-edit a draft. Race-safe: rejects if status is publishing/published.
+    const postPatchMatch = route.match(/^social\/posts\/(\d+)$/);
+    if (postPatchMatch && method === 'PATCH') {
+      const id = parseInt(postPatchMatch[1], 10);
+      const { data: cur, error: loadErr } = await supabase
+        .from('social_posts').select('*').eq('id', id).maybeSingle();
+      if (loadErr) return jsonResponse(500, { error: loadErr.message });
+      if (!cur) return jsonResponse(404, { error: 'post not found' });
+      if (cur.status === 'publishing' || cur.status === 'published') {
+        return jsonResponse(409, { error: `cannot edit a ${cur.status} post` });
+      }
+      const patch = {};
+      if (typeof body.body === 'string') {
+        const trimmed = body.body.trim();
+        if (!trimmed) return jsonResponse(400, { error: 'body cannot be empty' });
+        if (trimmed.length > 4000) return jsonResponse(400, { error: 'body exceeds 4000 chars' });
+        patch.body = trimmed;
+      }
+      if (['member','provider','mixed'].includes(body.audience)) patch.audience = body.audience;
+      if (Array.isArray(body.media_urls)) patch.media_urls = body.media_urls.slice(0, 10);
+      if (body.channel_id === null || Number.isInteger(body.channel_id)) patch.channel_id = body.channel_id;
+      if (Object.keys(patch).length === 0) return jsonResponse(400, { error: 'no valid fields to update' });
+
+      // Stamp the operator's review on every accepted edit — an edit is an
+      // implicit review touch even if status doesn't change.
+      patch.reviewed_by = 'admin';
+      patch.reviewed_at = new Date().toISOString();
+
+      // Atomic guard: only update rows still in draft|approved|rejected.
+      const { data, error } = await supabase.from('social_posts')
+        .update(patch).eq('id', id).in('status', ['draft','approved','rejected'])
+        .select('*').single();
+      if (error) {
+        // PGRST116 = no rows returned by .single() — likely status raced.
+        if (error.code === 'PGRST116') return jsonResponse(409, { error: 'status changed under us — refresh and retry' });
+        return jsonResponse(500, { error: error.message });
+      }
+      return jsonResponse(200, { post: data });
     }
 
     // Channel CRUD (minimal — list + insert + toggle).
@@ -708,6 +777,48 @@ exports.handler = async function(event) {
         .update({ enabled: !cur.enabled }).eq('id', id).select('*').single();
       if (error) return jsonResponse(500, { error: error.message });
       return jsonResponse(200, { channel: data });
+    }
+
+    const channelByIdMatch = route.match(/^social\/channels\/(\d+)$/);
+    if (channelByIdMatch && method === 'PATCH') {
+      const id = parseInt(channelByIdMatch[1], 10);
+      const patch = {};
+      if (typeof body.handle === 'string') patch.handle = body.handle.trim() || null;
+      if (Array.isArray(body.monitor_keywords)) {
+        patch.monitor_keywords = body.monitor_keywords
+          .map(s => String(s).trim()).filter(Boolean).slice(0, 50);
+      }
+      if (['member','provider','both'].includes(body.monitor_audience)) {
+        patch.monitor_audience = body.monitor_audience;
+      }
+      if (typeof body.enabled === 'boolean') patch.enabled = body.enabled;
+      if (Object.keys(patch).length === 0) return jsonResponse(400, { error: 'no valid fields to update' });
+      const { data, error } = await supabase.from('social_channels')
+        .update(patch).eq('id', id).select('*').single();
+      if (error) return jsonResponse(error.code === 'PGRST116' ? 404 : 400, { error: error.message });
+      return jsonResponse(200, { channel: data });
+    }
+
+    if (channelByIdMatch && method === 'DELETE') {
+      const id = parseInt(channelByIdMatch[1], 10);
+      // FK on social_leads/social_posts is ON DELETE SET NULL — historical
+      // rows survive but lose their channel pointer. That's intentional.
+      const { error } = await supabase.from('social_channels').delete().eq('id', id);
+      if (error) return jsonResponse(500, { error: error.message });
+      return jsonResponse(200, { ok: true, id });
+    }
+
+    const channelRunMatch = route.match(/^social\/channels\/(\d+)\/run-monitor$/);
+    if (channelRunMatch && method === 'POST') {
+      const id = parseInt(channelRunMatch[1], 10);
+      const { runOnce } = require('./social-monitor-scheduled');
+      try {
+        const summary = await runOnce(supabase, { channelId: id });
+        if (!summary.channels) return jsonResponse(404, { error: 'channel not found' });
+        return jsonResponse(200, { ok: true, summary });
+      } catch (e) {
+        return jsonResponse(500, { error: e.message });
+      }
     }
 
     // -------- prompt versioning

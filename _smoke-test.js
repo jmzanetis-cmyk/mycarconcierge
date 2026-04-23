@@ -125,7 +125,56 @@ async function callPromoterDirect(eventRow) {
     }
   }
 
-  console.log('\n━━━ STEP 8: cleanup — disable Hunter & Promoter again ━━━');
+  // ───────────── T#129 review-workflow UX additions ─────────────
+  if (posts.length) {
+    const editId = posts[0].id;
+    console.log(`\n━━━ STEP 9: PATCH post #${editId} — inline edit body ━━━`);
+    // Re-load to confirm not in publishing/published state.
+    let r9a = await call('GET', `social/posts?status=draft&limit=50`);
+    const stillDraft = (r9a.body?.rows || []).find(x => x.id === editId);
+    if (stillDraft) {
+      r9a = await call('PATCH', `social/posts/${editId}`, { body: '[smoke-test edit] ' + (stillDraft.body || '').slice(0, 200) });
+      console.log(`  status=${r9a.status} ${r9a.status === 200 ? '✓ body now starts with: ' + (r9a.body.post?.body || '').slice(0, 60) + '…' : '✗ ' + JSON.stringify(r9a.body).slice(0, 200)}`);
+    } else {
+      console.log('  ⚠ post no longer in draft state (likely published in step 7) — skipping edit');
+    }
+
+    console.log(`\n━━━ STEP 10: PATCH a published post → expect 409 ━━━`);
+    // Try to edit the post we just published in step 7.
+    const r10 = await call('PATCH', `social/posts/${editId}`, { body: 'should-fail' });
+    if (r10.status === 409) console.log(`  ✓ blocked with 409: ${r10.body?.error}`);
+    else if (r10.status === 200) console.log(`  ⚠ edit succeeded — post wasn't actually published in step 7 (race-safety still verifiable in next run)`);
+    else console.log(`  ✗ unexpected status=${r10.status}: ${JSON.stringify(r10.body).slice(0,200)}`);
+  }
+
+  console.log('\n━━━ STEP 11: PATCH channel — edit keywords/audience ━━━');
+  let r11 = await call('PATCH', `social/channels/${channelId}`, {
+    monitor_keywords: ['mechanic', 'snow removal', 'tow'],
+    monitor_audience: 'both'
+  });
+  console.log(`  status=${r11.status} ${r11.status === 200 ? '✓ keywords=' + JSON.stringify(r11.body.channel?.monitor_keywords) + ' audience=' + r11.body.channel?.monitor_audience : '✗ ' + JSON.stringify(r11.body).slice(0,200)}`);
+
+  console.log('\n━━━ STEP 12: POST channel run-monitor (single channel) ━━━');
+  const r12 = await call('POST', `social/channels/${channelId}/run-monitor`);
+  if (r12.status === 200) {
+    const s = r12.body.summary || {};
+    console.log(`  ✓ ran · channels=${s.channels} fetched=${s.fetched} inserted=${s.inserted} errors=${(s.errors||[]).length}`);
+  } else console.log(`  ✗ status=${r12.status}: ${JSON.stringify(r12.body).slice(0,200)}`);
+
+  console.log('\n━━━ STEP 13: request 3 draft variants — expect variant_group ━━━');
+  const r13 = await call('POST', 'social/request-draft', {
+    platform: 'reddit', audience: 'member', channel_id: channelId, variants: 3,
+    brief: 'A/B/C test — different angles on quotes'
+  });
+  if (r13.status === 200 && r13.body.variants === 3 && r13.body.variant_group && r13.body.event_ids?.length === 3) {
+    console.log(`  ✓ ${r13.body.variants} variants emitted · group=${r13.body.variant_group} · event_ids=${r13.body.event_ids.join(',')}`);
+  } else console.log(`  ✗ status=${r13.status}: ${JSON.stringify(r13.body).slice(0,200)}`);
+
+  console.log('\n━━━ STEP 14: DELETE channel ━━━');
+  const r14 = await call('DELETE', `social/channels/${channelId}`);
+  console.log(`  status=${r14.status} ${r14.status === 200 ? '✓ deleted id=' + r14.body.id : '✗ ' + JSON.stringify(r14.body).slice(0,200)}`);
+
+  console.log('\n━━━ STEP 15: cleanup — disable Hunter & Promoter again ━━━');
   for (const slug of ['hunter','promoter']) {
     await call('PUT', 'agents/' + slug, { enabled: false });
   }

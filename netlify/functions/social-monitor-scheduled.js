@@ -10,6 +10,10 @@
 // (see netlify/functions/social-adapters.js header) — that's intentional so
 // the cron can ship dark and the operator can watch the pipeline before
 // wiring real platform credentials per channel.
+//
+// Also exports `runOnce(supabase, { channelId })` so the admin "Run now"
+// button can re-use the same logic for a single channel — bypassing the
+// enabled flag (operator explicitly asked for it).
 // ============================================================================
 
 const { getSupabase, emitEvent, isScheduledInvocation } = require('./agent-fleet-runtime');
@@ -17,21 +21,26 @@ const { getAdapter } = require('./social-adapters');
 
 const PER_CHANNEL_LIMIT = 10;
 
-async function runOnce(supabase) {
-  const { data: channels, error } = await supabase
-    .from('social_channels')
-    .select('*')
-    .eq('enabled', true);
+async function runOnce(supabase, opts = {}) {
+  const { channelId = null } = opts;
+
+  let q = supabase.from('social_channels').select('*');
+  if (channelId) q = q.eq('id', channelId);
+  else q = q.eq('enabled', true);
+
+  const { data: channels, error } = await q;
   if (error) throw new Error('social_channels read failed: ' + error.message);
 
   const summary = { channels: 0, fetched: 0, inserted: 0, emitted: 0, errors: [] };
   if (!channels || !channels.length) return summary;
 
   const sinceFloor = new Date(Date.now() - 60 * 60 * 1000); // 1h lookback safety net
+  const nowIso = new Date().toISOString();
 
   for (const ch of channels) {
     summary.channels++;
     let mentions = [];
+    let runError = null;
     try {
       const adapter = getAdapter(ch.platform);
       mentions = await adapter.monitor({
@@ -40,8 +49,8 @@ async function runOnce(supabase) {
         limit: PER_CHANNEL_LIMIT
       });
     } catch (e) {
+      runError = e.message;
       summary.errors.push({ channel_id: ch.id, platform: ch.platform, message: e.message });
-      continue;
     }
     summary.fetched += mentions.length;
 
@@ -83,10 +92,29 @@ async function runOnce(supabase) {
       if (evt?.event_id) summary.emitted++;
     }
 
-    // Stamp last_polled_at regardless of inserts so we don't re-fetch the
-    // same window forever even when everything dedupes.
+    // Stamp last_polled_at + run health into the channel row's config blob so
+    // the admin UI can surface "last polled X ago / last error: Y / N errors in 24h".
+    // We keep a small ring buffer of recent errors (cap 20) so the UI can
+    // compute a 24h error count without needing a separate metrics table.
+    const config = { ...(ch.config || {}) };
+    config.last_run_at = nowIso;
+    config.last_run_fetched = mentions.length;
+    const errors = Array.isArray(config.recent_errors) ? config.recent_errors.slice() : [];
+    if (runError) {
+      config.last_error_at = nowIso;
+      config.last_error_message = runError.slice(0, 500);
+      errors.push({ at: nowIso, message: runError.slice(0, 500) });
+    } else {
+      delete config.last_error_at;
+      delete config.last_error_message;
+    }
+    // Drop entries older than 48h and cap to last 20.
+    const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+    config.recent_errors = errors
+      .filter(e => new Date(e.at).getTime() >= cutoff)
+      .slice(-20);
     await supabase.from('social_channels')
-      .update({ last_polled_at: new Date().toISOString() })
+      .update({ last_polled_at: nowIso, config })
       .eq('id', ch.id);
   }
 
@@ -110,3 +138,5 @@ exports.handler = async function(event) {
     return { statusCode: 500, body: JSON.stringify({ error: e.message }) };
   }
 };
+
+exports.runOnce = runOnce;
