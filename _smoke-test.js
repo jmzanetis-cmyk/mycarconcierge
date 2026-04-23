@@ -170,6 +170,47 @@ async function callPromoterDirect(eventRow) {
     console.log(`  ✓ ${r13.body.variants} variants emitted · group=${r13.body.variant_group} · event_ids=${r13.body.event_ids.join(',')}`);
   } else console.log(`  ✗ status=${r13.status}: ${JSON.stringify(r13.body).slice(0,200)}`);
 
+  // Step 13b: verify variant_group/index/total are persisted end-to-end by
+  // running Promoter on the first emitted variant event and querying the post.
+  if (r13.status === 200 && r13.body.event_ids?.length === 3) {
+    console.log('\n━━━ STEP 13b: invoke Promoter on variant #1 — verify persistence ━━━');
+    const evtId = r13.body.event_ids[0];
+    // Reconstruct the event payload as orchestrator would dispatch it.
+    const variantEvent = {
+      id: evtId,
+      event_type: 'social.post_requested',
+      payload: {
+        platform: 'reddit', audience: 'member', channel_id: channelId,
+        brief: 'A/B/C test — different angles on quotes',
+        variant_group: r13.body.variant_group,
+        variant_index: 1,
+        variant_total: 3
+      }
+    };
+    console.log('  calling Promoter handler (Anthropic — 5-15s)…');
+    const r13b = await callPromoterDirect(variantEvent);
+    if (r13b.status === 200 && r13b.body.success && r13b.body.social_post_id) {
+      const newPostId = r13b.body.social_post_id;
+      // Query the post and assert variant fields were persisted.
+      const r13c = await call('GET', `social/posts?status=draft&limit=50`);
+      const variantPost = (r13c.body?.rows || []).find(p => p.id === newPostId);
+      if (!variantPost) {
+        console.log(`  ✗ post #${newPostId} not found in list`);
+      } else if (
+        variantPost.variant_group === r13.body.variant_group &&
+        variantPost.variant_index === 1 &&
+        variantPost.variant_total === 3
+      ) {
+        console.log(`  ✓ post #${newPostId} persisted with variant_group=${variantPost.variant_group} index=1 total=3`);
+      } else {
+        console.log(`  ✗ variant fields NOT persisted on post #${newPostId}: group=${variantPost.variant_group} index=${variantPost.variant_index} total=${variantPost.variant_total}`);
+        console.log('    (likely the variant_group/variant_index/variant_total columns are not yet on social_posts — apply supabase/migrations/20260424_social_posts_variant_group.sql)');
+      }
+    } else {
+      console.log(`  ✗ Promoter call failed status=${r13b.status}: ${JSON.stringify(r13b.body).slice(0,300)}`);
+    }
+  }
+
   console.log('\n━━━ STEP 14: DELETE channel ━━━');
   const r14 = await call('DELETE', `social/channels/${channelId}`);
   console.log(`  status=${r14.status} ${r14.status === 200 ? '✓ deleted id=' + r14.body.id : '✗ ' + JSON.stringify(r14.body).slice(0,200)}`);
