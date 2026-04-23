@@ -18,7 +18,8 @@
 // ============================================================================
 
 const {
-  getSupabase, authenticateAdmin, jsonResponse, listAgents, emitEvent
+  getSupabase, authenticateAdmin, jsonResponse, listAgents, emitEvent,
+  sendSpendAlertEmail
 } = require('./agent-fleet-runtime');
 
 const ALLOWED_AUTONOMY = new Set(['propose','assist','autonomous']);
@@ -279,6 +280,66 @@ exports.handler = async function(event) {
         .order('notified_at', { ascending: false });
       if (error) throw new Error(error.message);
       return jsonResponse(200, { alerts: data || [], since: startDate });
+    }
+
+    // Force a synthetic alert (testing). Body: { agent_slug }.
+    // Wipes today's row for that agent first so the email actually fires.
+    if (route === 'spend-alerts/test' && method === 'POST') {
+      const slug = (body.agent_slug || '').trim();
+      if (!slug) return jsonResponse(400, { error: 'agent_slug required' });
+      const { data: agent, error: agentErr } = await supabase
+        .from('agents').select('slug, daily_spend_cap_usd').eq('slug', slug).maybeSingle();
+      if (agentErr) return jsonResponse(500, { error: agentErr.message });
+      if (!agent)   return jsonResponse(404, { error: `Unknown agent: ${slug}` });
+
+      const today = new Date().toISOString().split('T')[0];
+
+      // Best-effort delete so the email path actually runs (vs. dedupe skip).
+      await supabase.from('agent_spend_alerts')
+        .delete().eq('agent_slug', slug).eq('day', today);
+
+      const capUsd = Number(agent.daily_spend_cap_usd) || 0;
+      const estimateUsd = capUsd > 0 ? capUsd * 0.01 : 0.001;
+
+      // Pull today's spend if any so the test email has realistic numbers.
+      let reservedUsd = null, actualUsd = null;
+      const { data: spend } = await supabase
+        .from('agent_daily_spend')
+        .select('reserved_usd, actual_usd')
+        .eq('agent_slug', slug).eq('day', today).maybeSingle();
+      if (spend) { reservedUsd = spend.reserved_usd; actualUsd = spend.actual_usd; }
+
+      const alertRow = {
+        agent_slug: slug,
+        day: today,
+        cap_usd: capUsd,
+        estimate_usd: estimateUsd,
+        reserved_usd: reservedUsd,
+        actual_usd: actualUsd,
+        notified_at: new Date().toISOString(),
+        email_sent: false
+      };
+      const { error: insErr } = await supabase
+        .from('agent_spend_alerts').insert(alertRow);
+      if (insErr) return jsonResponse(500, { error: insErr.message });
+
+      const result = await sendSpendAlertEmail(supabase, alertRow);
+      return jsonResponse(200, { ok: true, agent_slug: slug, day: today, email: result });
+    }
+
+    // Resend the email for a specific existing alert. Path: /spend-alerts/:slug/:day/resend
+    const resendMatch = route.match(/^spend-alerts\/([a-z0-9_-]+)\/(\d{4}-\d{2}-\d{2})\/resend$/i);
+    if (resendMatch && method === 'POST') {
+      const [, slug, day] = resendMatch;
+      const { data: alert, error: alertErr } = await supabase
+        .from('agent_spend_alerts')
+        .select('*').eq('agent_slug', slug).eq('day', day).maybeSingle();
+      if (alertErr) return jsonResponse(500, { error: alertErr.message });
+      if (!alert)   return jsonResponse(404, { error: 'Alert not found' });
+      const result = await sendSpendAlertEmail(supabase, alert);
+      return jsonResponse(result.sent ? 200 : 500, {
+        ok: result.sent, agent_slug: slug, day, email: result
+      });
     }
 
     return jsonResponse(404, { error: 'Not found', route });

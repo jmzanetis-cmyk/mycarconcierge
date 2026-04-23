@@ -258,6 +258,13 @@
           </select>
           <button class="btn btn-ghost" id="alertsReload" style="margin-left:auto;">Reload</button>
         </div>
+        <div class="row" style="margin-bottom:12px; padding:10px; background:var(--slate-surface-2); border-radius:8px;">
+          <span style="font-size:12px; color:var(--muted);">Force test alert:</span>
+          <select id="testAlertAgent" class="input" style="flex:1; min-width:120px; max-width:200px;">
+            <option value="">Pick agent…</option>
+          </select>
+          <button class="btn btn-ghost" id="testAlertBtn" style="font-size:12px; padding:6px 12px;">Send test email</button>
+        </div>
         <div style="max-height:340px; overflow-y:auto;">
           <table>
             <thead>
@@ -267,9 +274,10 @@
                 <th class="right">Cap</th>
                 <th class="right">Estimate</th>
                 <th>Email</th>
+                <th class="right">Action</th>
               </tr>
             </thead>
-            <tbody id="alertsBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+            <tbody id="alertsBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -622,29 +630,67 @@ async function loadSpendAlerts() {
     const { alerts } = await api(`/spend-alerts?days=${encodeURIComponent(days)}`);
     totalEl.textContent = alerts && alerts.length ? `(${alerts.length})` : '';
     if (!alerts || alerts.length === 0) {
-      body.innerHTML = `<tr><td colspan="5" class="empty">No spend-cap breaches in this window.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="6" class="empty">No spend-cap breaches in this window.</td></tr>`;
       return;
     }
     body.innerHTML = '';
     for (const a of alerts) {
       const tr = document.createElement('tr');
+      const sentAt = a.email_sent_at || (a.email_sent ? a.notified_at : null);
       const emailCell = a.email_sent
-        ? `<span class="badge badge-on" title="Sent ${fmtTime(a.notified_at)}">sent</span>`
+        ? `<span class="badge badge-on" title="Emailed ${fmtTime(sentAt)}">sent</span><div style="font-size:11px;color:var(--muted);margin-top:3px;">${fmtTime(sentAt)}</div>`
         : a.email_error
-          ? `<span class="badge" style="background:rgba(239,68,68,0.12); color:var(--bad); border:1px solid rgba(239,68,68,0.3);" title="${escapeHtml(a.email_error)}">failed</span>`
-          : `<span class="badge badge-off">skipped</span>`;
+          ? `<span class="badge" style="background:rgba(239,68,68,0.12); color:var(--bad); border:1px solid rgba(239,68,68,0.3);" title="${escapeHtml(a.email_error)}">failed</span><div style="font-size:11px;color:var(--bad);margin-top:3px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(a.email_error)}</div>`
+          : `<span class="badge badge-off" title="Resend not configured or skipped">skipped</span>`;
       tr.innerHTML = `
         <td><span style="font-weight:600;">${escapeHtml(a.agent_slug)}</span></td>
         <td><span style="font-size:13px; color:var(--muted);">${escapeHtml(a.day)}</span></td>
         <td class="right num">${fmt$(a.cap_usd)}</td>
         <td class="right num">${fmt$(a.estimate_usd)}</td>
         <td>${emailCell}</td>
+        <td class="right">
+          <button class="btn btn-ghost" data-resend-slug="${escapeHtml(a.agent_slug)}" data-resend-day="${escapeHtml(a.day)}" style="padding:4px 10px; font-size:12px;">${a.email_sent ? 'Resend' : 'Send'}</button>
+        </td>
       `;
       body.appendChild(tr);
     }
+    body.querySelectorAll('[data-resend-slug]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const slug = btn.getAttribute('data-resend-slug');
+        const day = btn.getAttribute('data-resend-day');
+        const orig = btn.textContent;
+        btn.disabled = true; btn.textContent = '…';
+        try {
+          const r = await api(`/spend-alerts/${encodeURIComponent(slug)}/${encodeURIComponent(day)}/resend`, { method: 'POST' });
+          if (r.ok) toast(`Email sent for ${slug} (${day})`);
+          else toast(`Send failed: ${r.email?.reason || 'unknown'}${r.email?.error ? ' — ' + r.email.error : ''}`, true);
+          loadSpendAlerts();
+        } catch (e) {
+          toast(e.message, true);
+          btn.disabled = false; btn.textContent = orig;
+        }
+      });
+    });
+    populateTestAlertAgentPicker();
   } catch (e) {
-    if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="5" class="empty">${escapeHtml(e.message)}</td></tr>`;
+    if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(e.message)}</td></tr>`;
   }
+}
+
+function populateTestAlertAgentPicker() {
+  const sel = document.getElementById('testAlertAgent');
+  if (!sel || sel.dataset.populated === '1') return;
+  // Mirror options from the registry filter (already populated by loadRegistry).
+  const src = document.getElementById('filterAgent');
+  if (!src || src.dataset.populated !== '1') return;
+  sel.innerHTML = '<option value="">Pick agent…</option>';
+  for (const opt of src.querySelectorAll('option')) {
+    if (!opt.value) continue;
+    const o = document.createElement('option');
+    o.value = opt.value; o.textContent = opt.textContent;
+    sel.appendChild(o);
+  }
+  sel.dataset.populated = '1';
 }
 
 async function refreshAll() {
@@ -686,6 +732,19 @@ document.getElementById('dlqReload').addEventListener('click', loadDLQ);
 document.getElementById('dlqOpenOnly').addEventListener('change', loadDLQ);
 document.getElementById('alertsReload').addEventListener('click', loadSpendAlerts);
 document.getElementById('alertsRange').addEventListener('change', loadSpendAlerts);
+document.getElementById('testAlertBtn').addEventListener('click', async () => {
+  const slug = document.getElementById('testAlertAgent').value;
+  if (!slug) return toast('Pick an agent first', true);
+  const btn = document.getElementById('testAlertBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Sending…';
+  try {
+    const r = await api('/spend-alerts/test', { method: 'POST', body: JSON.stringify({ agent_slug: slug }) });
+    if (r.email?.sent) toast(`Test alert email sent for ${slug}`);
+    else toast(`Test alert recorded but email ${r.email?.reason || 'failed'}`, true);
+    loadSpendAlerts();
+  } catch (e) { toast(e.message, true); }
+  finally { btn.disabled = false; btn.textContent = orig; }
+});
 document.getElementById('emitTestEvent').addEventListener('click', async () => {
   const eventType = document.getElementById('testEventType').value.trim();
   if (!eventType) return toast('event_type required', true);

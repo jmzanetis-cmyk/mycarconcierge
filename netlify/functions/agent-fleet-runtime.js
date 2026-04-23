@@ -237,6 +237,92 @@ class SpendCapError extends Error {
 }
 
 // ---------------------------------------------------------------------------
+// sendSpendAlertEmail — best-effort Resend call for one alert row. Records
+// success on the row (email_sent + email_sent_at) or the error on failure.
+// Returns { sent, reason } and never throws. Shared by both notifySpendCapBreach
+// (auto-fire on dedupe insert) and the admin /resend endpoint.
+// ---------------------------------------------------------------------------
+async function sendSpendAlertEmail(supabase, alert) {
+  if (!alert) return { sent: false, reason: 'no_alert' };
+
+  const apiKey = process.env.RESEND_API_KEY;
+  const toEmail = process.env.ADMIN_EMAIL || process.env.MCC_FROM_EMAIL;
+  const fromEmail = process.env.MCC_FROM_EMAIL || 'no-reply@mycarconcierge.com';
+  if (!apiKey || !toEmail) return { sent: false, reason: 'email_not_configured' };
+
+  const appUrl = process.env.MCC_APP_URL || 'https://mycarconcierge.com';
+  const adminUrl = `${appUrl}/admin/agent-fleet.html`;
+
+  const slug = alert.agent_slug;
+  const day = alert.day;
+  const capUsd = Number(alert.cap_usd) || 0;
+  const estimateUsd = Number(alert.estimate_usd) || 0;
+  const reservedUsd = alert.reserved_usd != null ? Number(alert.reserved_usd) : null;
+  const actualUsd = alert.actual_usd != null ? Number(alert.actual_usd) : null;
+
+  const subject = `[MCC Agent Fleet] ${slug} hit $${capUsd.toFixed(2)} daily cap`;
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;color:#222;">
+      <h2 style="color:#c0392b;margin:0 0 12px;">Agent spend cap breached</h2>
+      <p style="margin:0 0 16px;">The <strong>${slug}</strong> agent hit its daily USD cap on <strong>${day}</strong> (UTC) and will reject any further LLM calls until 00:00 UTC.</p>
+      <table style="border-collapse:collapse;margin:16px 0;font-size:14px;">
+        <tr><td style="padding:6px 16px 6px 0;color:#666;">Agent</td><td style="padding:6px 0;"><strong>${slug}</strong></td></tr>
+        <tr><td style="padding:6px 16px 6px 0;color:#666;">Day (UTC)</td><td style="padding:6px 0;"><strong>${day}</strong></td></tr>
+        <tr><td style="padding:6px 16px 6px 0;color:#666;">Daily cap</td><td style="padding:6px 0;"><strong>$${capUsd.toFixed(4)}</strong></td></tr>
+        <tr><td style="padding:6px 16px 6px 0;color:#666;">Reserved so far</td><td style="padding:6px 0;"><strong>${reservedUsd != null ? '$' + reservedUsd.toFixed(6) : '—'}</strong></td></tr>
+        <tr><td style="padding:6px 16px 6px 0;color:#666;">Actual so far</td><td style="padding:6px 0;"><strong>${actualUsd != null ? '$' + actualUsd.toFixed(6) : '—'}</strong></td></tr>
+        <tr><td style="padding:6px 16px 6px 0;color:#666;">Rejected call estimate</td><td style="padding:6px 0;"><strong>$${estimateUsd.toFixed(6)}</strong></td></tr>
+      </table>
+      <p style="margin:24px 0;">
+        <a href="${adminUrl}" style="display:inline-block;background:#b8942d;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;">Open Agent Fleet console →</a>
+      </p>
+      <p style="font-size:12px;color:#888;margin-top:24px;">To raise the cap, edit the agent in the registry table on the admin console.</p>
+    </div>`;
+  const textBody = [
+    `Agent spend cap breached`,
+    ``,
+    `Agent: ${slug}`,
+    `Day (UTC): ${day}`,
+    `Daily cap: $${capUsd.toFixed(4)}`,
+    `Reserved so far: ${reservedUsd != null ? '$' + reservedUsd.toFixed(6) : '—'}`,
+    `Actual so far: ${actualUsd != null ? '$' + actualUsd.toFixed(6) : '—'}`,
+    `Rejected call estimate: $${estimateUsd.toFixed(6)}`,
+    ``,
+    `Open the console: ${adminUrl}`
+  ].join('\n');
+
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: fromEmail, to: toEmail, subject, html, text: textBody })
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      const errMsg = `Resend ${r.status}: ${txt.slice(0, 200)}`;
+      // IMPORTANT: only record the error — do NOT flip email_sent back to false.
+      // A failed manual resend must not erase a prior successful send's audit
+      // trail. email_sent / email_sent_at are sticky once true.
+      await supabase.from('agent_spend_alerts')
+        .update({ email_error: errMsg })
+        .eq('agent_slug', slug).eq('day', day);
+      return { sent: false, reason: 'resend_error', error: errMsg };
+    }
+    await supabase.from('agent_spend_alerts')
+      .update({ email_sent: true, email_sent_at: new Date().toISOString(), email_error: null })
+      .eq('agent_slug', slug).eq('day', day);
+    return { sent: true };
+  } catch (e) {
+    console.error('[runtime] spend-alert email crashed:', e.message);
+    try {
+      await supabase.from('agent_spend_alerts')
+        .update({ email_error: e.message.slice(0, 200) })
+        .eq('agent_slug', slug).eq('day', day);
+    } catch (_) { /* swallow */ }
+    return { sent: false, reason: 'exception', error: e.message };
+  }
+}
+
 // notifySpendCapBreach — record + email exactly once per agent per UTC day.
 //   - Idempotent via (agent_slug, day) PK on agent_spend_alerts.
 //   - Emails ADMIN_EMAIL via Resend if RESEND_API_KEY is configured;
@@ -274,7 +360,7 @@ async function notifySpendCapBreach(supabase, { slug, capUsd, estimateUsd }) {
       },
       { onConflict: 'agent_slug,day', ignoreDuplicates: true }
     )
-    .select('agent_slug')
+    .select('agent_slug, day, cap_usd, estimate_usd, reserved_usd, actual_usd')
     .maybeSingle();
 
   if (insertErr) {
@@ -286,51 +372,8 @@ async function notifySpendCapBreach(supabase, { slug, capUsd, estimateUsd }) {
     return { sent: false, reason: 'already_alerted' };
   }
 
-  // First breach today — send the admin email if Resend is wired up.
-  const apiKey = process.env.RESEND_API_KEY;
-  const toEmail = process.env.ADMIN_EMAIL || process.env.MCC_FROM_EMAIL;
-  const fromEmail = process.env.MCC_FROM_EMAIL || 'no-reply@mycarconcierge.com';
-  if (!apiKey || !toEmail) {
-    return { sent: false, reason: 'email_not_configured' };
-  }
-
-  try {
-    const subject = `[MCC Agent Fleet] Spend cap reached — ${slug}`;
-    const html = `
-      <h2>Agent spend cap breached</h2>
-      <p><strong>Agent:</strong> ${slug}</p>
-      <p><strong>Day (UTC):</strong> ${today}</p>
-      <p><strong>Daily cap:</strong> $${Number(capUsd).toFixed(4)}</p>
-      <p><strong>Reserved so far:</strong> $${reservedUsd != null ? Number(reservedUsd).toFixed(6) : '—'}</p>
-      <p><strong>Actual so far:</strong> $${actualUsd != null ? Number(actualUsd).toFixed(6) : '—'}</p>
-      <p><strong>Last call estimate (rejected):</strong> $${Number(estimateUsd).toFixed(6)}</p>
-      <p>The agent will continue rejecting LLM calls until 00:00 UTC. To raise the cap, edit the registry at <code>/admin/agent-fleet.html</code>.</p>
-    `;
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ from: fromEmail, to: toEmail, subject, html })
-    });
-    if (!r.ok) {
-      const txt = await r.text();
-      await supabase.from('agent_spend_alerts').update({ email_error: `Resend ${r.status}: ${txt.slice(0,200)}` })
-        .eq('agent_slug', slug).eq('day', today);
-      return { sent: false, reason: 'resend_error' };
-    }
-    await supabase.from('agent_spend_alerts').update({ email_sent: true })
-      .eq('agent_slug', slug).eq('day', today);
-    return { sent: true };
-  } catch (e) {
-    console.error('[runtime] spend-alert email crashed:', e.message);
-    try {
-      await supabase.from('agent_spend_alerts').update({ email_error: e.message.slice(0, 200) })
-        .eq('agent_slug', slug).eq('day', today);
-    } catch (_) { /* swallow */ }
-    return { sent: false, reason: 'exception' };
-  }
+  // First breach today — send the admin email via the shared helper.
+  return await sendSpendAlertEmail(supabase, inserted);
 }
 
 async function callLLM(supabase, agent, { prompt, system = null, maxTokens = 1024, temperature = 0.7, expectedInputTokens = null }) {
@@ -461,6 +504,7 @@ module.exports = {
   callLLM,
   SpendCapError,
   notifySpendCapBreach,
+  sendSpendAlertEmail,
   resolveAutonomy,
   eventMatches,
   findHandlers,
