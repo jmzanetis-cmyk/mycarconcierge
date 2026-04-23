@@ -2227,7 +2227,7 @@
           showToast(json.error || `Suspend failed (${res.status})`, 'error');
           return;
         }
-        const ok = (json.updated || []).length;
+        const ok = json.updated || 0;
         const failed = (json.failed || []).length;
         showToast(`Suspended ${ok} provider(s)${failed ? ` · ${failed} failed` : ''}`, failed ? 'warning' : 'success');
         clearSelection();
@@ -2252,7 +2252,7 @@
           showToast(json.error || `Activate failed (${res.status})`, 'error');
           return;
         }
-        const ok = (json.updated || []).length;
+        const ok = json.updated || 0;
         const failed = (json.failed || []).length;
         showToast(`Activated ${ok} provider(s)${failed ? ` · ${failed} failed` : ''}`, failed ? 'warning' : 'success');
         clearSelection();
@@ -2284,23 +2284,34 @@
     }
 
     async function checkLowRatedProviders() {
-      // Find providers with ratings below 4 stars who are not already suspended
-      const lowRated = providers.filter(p => {
-        const stats = p.provider_stats?.[0] || {};
-        const avgRating = stats.average_rating;
-        const isSuspended = p.suspension_reason || stats.suspended;
-        return avgRating !== null && avgRating !== undefined && avgRating < 4 && !isSuspended;
-      });
+      // Server-side preview: ask the endpoint for the canonical list (audited
+      // there) instead of trusting the local in-memory copy.
+      let preview;
+      try {
+        const res = await fetch('/api/admin/provider-actions/check-low-rated', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rating_threshold: 4, autosuspend: false })
+        });
+        preview = await res.json();
+        if (!res.ok) {
+          showToast(preview.error || `Preview failed (${res.status})`, 'error');
+          return;
+        }
+      } catch (e) {
+        showToast(`Preview failed: ${e.message}`, 'error');
+        return;
+      }
 
+      const lowRated = preview.providers || [];
       if (lowRated.length === 0) {
         showToast('No providers with ratings below 4 stars found!', 'success');
         return;
       }
 
-      const names = lowRated.map(p => `• ${p.business_name || p.full_name} (${p.provider_stats?.[0]?.average_rating?.toFixed(1)} ${mccIcon('star', 16)})`).join('\n');
-      
+      const names = lowRated.map(p => `• ${p.name} (${(p.avg_rating || 0).toFixed(1)} ${mccIcon('star', 16)})`).join('\n');
       const action = confirm(`${mccIcon('alert-triangle', 16)} Found ${lowRated.length} provider(s) with ratings below 4 stars:\n\n${names}\n\nDo you want to suspend these providers?`);
-      
+
       if (!action) {
         // Just filter to show them
         document.getElementById('provider-rating-filter').value = 'low';
@@ -2309,8 +2320,7 @@
         return;
       }
 
-      // Suspend low-rated providers via the server-side endpoint, which also
-      // emails each provider and writes an admin_audit_log row.
+      // Confirm step → server autosuspend (emails + audit row per provider).
       try {
         const res = await fetch('/api/admin/provider-actions/check-low-rated', {
           method: 'POST',

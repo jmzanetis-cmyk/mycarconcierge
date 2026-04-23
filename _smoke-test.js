@@ -312,5 +312,111 @@ async function callPromoterDirect(eventRow) {
   }, { token: 'eyJ.bogus.token' });
   console.log(`  status=${pa2.status} ${pa2.status === 401 ? '✓ bogus token blocked' : '✗ expected 401, got ' + pa2.status}`);
 
+  // ──────────────────────────────────────────────────────────────────────
+  // Steps 22–26: end-to-end happy paths with a real test user.
+  // Provisions a temp Supabase auth user, signs in to get a JWT, then exercises
+  // application create / spoof / rate-limit / suspend / activate, and cleans up.
+  // ──────────────────────────────────────────────────────────────────────
+  const { createClient: cc } = require('@supabase/supabase-js');
+  const adminSb = cc(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
+    { auth: { persistSession: false } });
+  const anonSb = cc(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY,
+    { auth: { persistSession: false } });
+
+  const testEmail = `smoke-${Date.now()}@mcc-smoke.test`;
+  const testPassword = 'SmokeTest!' + Date.now();
+  let testUserId = null;
+  let testJwt = null;
+  let spoofUserId = '00000000-0000-0000-0000-deadbeefdead';
+
+  console.log('\n━━━ STEP 22: provision temp Supabase user for happy-path tests ━━━');
+  try {
+    const { data: cu, error: cuErr } = await adminSb.auth.admin.createUser({
+      email: testEmail, password: testPassword, email_confirm: true
+    });
+    if (cuErr) throw cuErr;
+    testUserId = cu.user.id;
+    const { data: si, error: siErr } = await anonSb.auth.signInWithPassword({
+      email: testEmail, password: testPassword
+    });
+    if (siErr) throw siErr;
+    testJwt = si.session.access_token;
+    // Ensure a profile row exists so suspend/activate selects return it.
+    await adminSb.from('profiles').upsert({ id: testUserId, email: testEmail, role: 'member' }, { onConflict: 'id' });
+    console.log(`  ✓ user provisioned id=${testUserId}`);
+  } catch (e) {
+    console.log(`  ✗ provisioning failed: ${e.message} — skipping steps 23-26`);
+  }
+
+  if (testJwt && testUserId) {
+    console.log('\n━━━ STEP 23: provider-application happy path + user_id spoof override ━━━');
+    const happyPayload = {
+      // Try to spoof user_id — server MUST ignore this and use the JWT user.
+      user_id: spoofUserId,
+      business_name: 'Smoke Test Garage', contact_name: 'Smoke Tester',
+      phone: '5551234567', email: testEmail,
+      services_offered: ['oil_change', 'brakes'],
+      legal_signatory_name: 'Smoke Tester',
+      agreement_signed_at: new Date().toISOString()
+    };
+    const pa3 = await callProviderApplication(happyPayload, { token: testJwt });
+    if (pa3.status === 200 && pa3.body.application_id) {
+      console.log(`  ✓ created application_id=${pa3.body.application_id}`);
+      // Verify the inserted row's user_id is the JWT user, NOT the spoof.
+      const { data: row } = await adminSb.from('provider_applications')
+        .select('id, user_id, agreement_ip_address, status').eq('id', pa3.body.application_id).single();
+      if (row?.user_id === testUserId) {
+        console.log(`  ✓ user_id correctly bound to JWT (${row.user_id}), spoof ignored`);
+      } else {
+        console.log(`  ✗ user_id mismatch: row.user_id=${row?.user_id} expected=${testUserId} (spoof attempt: ${spoofUserId})`);
+      }
+
+      console.log('\n━━━ STEP 24: provider-application 24h rate-limit returns 429 ━━━');
+      const pa4 = await callProviderApplication(happyPayload, { token: testJwt });
+      if (pa4.status === 429) console.log(`  ✓ duplicate within 24h blocked (existing_id=${pa4.body.existing_application_id})`);
+      else console.log(`  ✗ expected 429, got ${pa4.status} body=${JSON.stringify(pa4.body).slice(0,200)}`);
+
+      console.log('\n━━━ STEP 25: provider-admin /suspend + /activate happy path ━━━');
+      const sus = await callProviderAdmin('POST', 'suspend', { provider_ids: [testUserId], reason: 'smoke test suspension' });
+      if (sus.status === 200 && sus.body.updated === 1) {
+        console.log(`  ✓ suspend updated=1 failed=${(sus.body.failed||[]).length}`);
+      } else {
+        console.log(`  ✗ suspend unexpected: status=${sus.status} body=${JSON.stringify(sus.body).slice(0,200)}`);
+      }
+      const { data: prof1 } = await adminSb.from('profiles').select('suspension_reason, suspended_at').eq('id', testUserId).single();
+      if (prof1?.suspension_reason === 'smoke test suspension') console.log('  ✓ profile.suspension_reason set');
+      else console.log(`  ✗ profile not updated: ${JSON.stringify(prof1)}`);
+
+      const act = await callProviderAdmin('POST', 'activate', { provider_ids: [testUserId] });
+      if (act.status === 200 && act.body.updated === 1) console.log(`  ✓ activate updated=1`);
+      else console.log(`  ✗ activate unexpected: status=${act.status} body=${JSON.stringify(act.body).slice(0,200)}`);
+      const { data: prof2 } = await adminSb.from('profiles').select('suspension_reason').eq('id', testUserId).single();
+      if (prof2?.suspension_reason === null) console.log('  ✓ profile.suspension_reason cleared');
+      else console.log(`  ✗ profile not cleared: ${JSON.stringify(prof2)}`);
+
+      console.log('\n━━━ STEP 26: admin_audit_log captured suspend + activate + create ━━━');
+      const { data: rows } = await adminSb.from('admin_audit_log')
+        .select('action, target_id').eq('target_id', testUserId).order('performed_at', { ascending: false });
+      const actions = new Set((rows || []).map(r => r.action));
+      const need = ['suspend_provider', 'activate_provider', 'create_provider_application'];
+      const missing = need.filter(a => !actions.has(a));
+      if (missing.length === 0) console.log(`  ✓ audit rows present: ${[...actions].join(', ')}`);
+      else console.log(`  ✗ missing audit actions: ${missing.join(', ')} (have: ${[...actions].join(', ')})`);
+    } else {
+      console.log(`  ✗ application create failed status=${pa3.status} body=${JSON.stringify(pa3.body).slice(0,300)}`);
+    }
+
+    // Cleanup: delete app rows, audit rows, profile, then user.
+    try {
+      await adminSb.from('admin_audit_log').delete().eq('target_id', testUserId);
+      await adminSb.from('provider_applications').delete().eq('user_id', testUserId);
+      await adminSb.from('profiles').delete().eq('id', testUserId);
+      await adminSb.auth.admin.deleteUser(testUserId);
+      console.log('  ✓ cleanup complete');
+    } catch (e) {
+      console.log(`  ⚠ cleanup partial: ${e.message}`);
+    }
+  }
+
   console.log('\n━━━ DONE ━━━\n');
 })().catch(e => { console.error('FATAL:', e.message); console.error(e.stack); process.exit(1); });

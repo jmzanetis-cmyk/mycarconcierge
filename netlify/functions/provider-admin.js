@@ -83,7 +83,10 @@ async function sendEmail(to, subject, html) {
 }
 
 async function suspendProviders(supabase, providerIds, reason, source = 'manual') {
-  const updated = [];
+  // Returns { updated: N, failed: [{id,error}], updated_ids: [...] } per the
+  // task spec contract. updated_ids is included for the admin UI's audit trail
+  // but the canonical "did it work" signal is the numeric `updated` count.
+  const updatedIdsArr = [];
   const failed = [];
   const suspendedAt = new Date().toISOString();
 
@@ -95,12 +98,12 @@ async function suspendProviders(supabase, providerIds, reason, source = 'manual'
     .select('id, email, full_name, business_name');
 
   if (error) {
-    return { updated: [], failed: providerIds.map(id => ({ id, error: error.message })) };
+    return { updated: 0, failed: providerIds.map(id => ({ id, error: error.message })), updated_ids: [] };
   }
 
-  const updatedIds = new Set((data || []).map(r => r.id));
+  const returnedIds = new Set((data || []).map(r => r.id));
   for (const id of providerIds) {
-    if (updatedIds.has(id)) updated.push(id);
+    if (returnedIds.has(id)) updatedIdsArr.push(id);
     else failed.push({ id, error: 'profile not found' });
   }
 
@@ -132,11 +135,11 @@ async function suspendProviders(supabase, providerIds, reason, source = 'manual'
     } catch (e) { /* non-critical */ }
   }));
 
-  return { updated, failed };
+  return { updated: updatedIdsArr.length, failed, updated_ids: updatedIdsArr };
 }
 
 async function activateProviders(supabase, providerIds) {
-  const updated = [];
+  const updatedIdsArr = [];
   const failed = [];
 
   const { data, error } = await supabase
@@ -146,12 +149,12 @@ async function activateProviders(supabase, providerIds) {
     .select('id, email, full_name, business_name');
 
   if (error) {
-    return { updated: [], failed: providerIds.map(id => ({ id, error: error.message })) };
+    return { updated: 0, failed: providerIds.map(id => ({ id, error: error.message })), updated_ids: [] };
   }
 
-  const updatedIds = new Set((data || []).map(r => r.id));
+  const returnedIds = new Set((data || []).map(r => r.id));
   for (const id of providerIds) {
-    if (updatedIds.has(id)) updated.push(id);
+    if (returnedIds.has(id)) updatedIdsArr.push(id);
     else failed.push({ id, error: 'profile not found' });
   }
 
@@ -177,7 +180,7 @@ async function activateProviders(supabase, providerIds) {
     } catch (e) { /* non-critical */ }
   }));
 
-  return { updated, failed };
+  return { updated: updatedIdsArr.length, failed, updated_ids: updatedIdsArr };
 }
 
 exports.handler = async function(event) {
@@ -262,7 +265,7 @@ exports.handler = async function(event) {
           found: lowRated.length, threshold,
           providers: lowRated.map(p => ({ id: p.id, name: p.business_name || p.full_name, avg_rating: p.avg_rating })),
           autosuspend: true,
-          suspended: result.updated.length, failed: result.failed
+          suspended: result.updated, failed: result.failed
         });
       }
 

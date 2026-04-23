@@ -84,6 +84,34 @@ function strLen(v, min, max) {
   return typeof v === 'string' && v.trim().length >= min && v.trim().length <= max;
 }
 
+// Server-side allowlist of permitted services_offered values. The expected
+// `service_categories` reference table doesn't exist in this Supabase project,
+// so we maintain the allowlist here. Both the canonical snake_case keys (used
+// by the new signup form) and the legacy display strings (preserved in older
+// provider_applications rows) are accepted, normalized to lowercase for the
+// comparison so casing differences don't reject legitimate values.
+const ALLOWED_SERVICES = new Set([
+  // canonical keys from www/signup-provider.html
+  'oil_change','brakes','tires','engine','transmission','electrical',
+  'diagnostics','paint','detailing','car_wash','glass','exhaust',
+  'suspension','inspection','mobile_service','other',
+  // legacy display strings still present in production data
+  'oil change','brake service','tire rotation','tires / alignment',
+  'engine repair','engine diagnostics','battery replacement','air filter',
+  'a/c service','alignment','multi-point inspection','suspension repair',
+  'windshield replacement','state inspection','glass repair'
+].map(s => s.toLowerCase()));
+
+function validateServices(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return 'services_offered must be a non-empty array';
+  if (arr.length > 30)                          return 'services_offered too long (>30)';
+  for (const s of arr) {
+    if (typeof s !== 'string' || s.length > 100) return 'services_offered entries must be strings under 100 chars';
+    if (!ALLOWED_SERVICES.has(s.toLowerCase()))  return `services_offered contains unknown value: ${s}`;
+  }
+  return null;
+}
+
 // Validate the request body shape and return either { errors: [...] } or
 // { clean: { ... } } with whitelisted fields ready to insert. The list of
 // permitted columns lives here (defense-in-depth): nothing the client sends
@@ -95,11 +123,8 @@ function validateAndClean(body) {
   if (!strLen(body.contact_name,  2, 100))   errors.push('contact_name (2-100 chars) required');
   if (!isPhone(body.phone))                   errors.push('phone required');
   if (!isEmail(body.email))                   errors.push('email required');
-  if (!Array.isArray(body.services_offered) || body.services_offered.length === 0) {
-    errors.push('services_offered must be a non-empty array');
-  } else if (body.services_offered.some(s => typeof s !== 'string' || s.length > 100)) {
-    errors.push('services_offered entries must be strings under 100 chars');
-  }
+  const svcErr = validateServices(body.services_offered);
+  if (svcErr) errors.push(svcErr);
   if (!body.agreement_signed_at)              errors.push('agreement_signed_at required');
   if (!strLen(body.legal_signatory_name, 2, 200)) errors.push('legal_signatory_name required');
 
