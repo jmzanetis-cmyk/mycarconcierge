@@ -10,6 +10,7 @@ const {
   scoreLeadsWithAI,
   importProviderLeadsFromPlaces,
   syncReengagementLeads,
+  checkCrmDuplicate,
   getWarmupLimit,
   pushLeadsToInstantly,
   generateSocialCalendar,
@@ -176,14 +177,16 @@ exports.handler = async function(event, context) {
       const { type, name, email, phone, company, location, notes } = body;
       if (!type || !name) return jsonResponse(400, { error: 'type and name are required' });
 
-      if (email) {
-        const { data: existingProfile } = await supabase
-          .from('profiles').select('id, role').eq('email', email).maybeSingle();
-        if (existingProfile) return jsonResponse(409, { error: 'This contact already exists in the CRM', profile_id: existingProfile.id, role: existingProfile.role });
-
-        const { data: existingLead } = await supabase
-          .from('outreach_leads').select('id').eq('email', email).maybeSingle();
-        if (existingLead) return jsonResponse(409, { error: 'A lead with this email already exists', lead_id: existingLead.id });
+      if (email || phone) {
+        const dup = await checkCrmDuplicate(supabase, email, phone);
+        if (dup.exists_in_crm) {
+          if (dup.profile_id) {
+            return jsonResponse(409, { error: 'This contact already exists in the CRM', profile_id: dup.profile_id, role: dup.profile_role });
+          }
+          if (dup.lead_id) {
+            return jsonResponse(409, { error: 'A lead with this email or phone already exists', lead_id: dup.lead_id });
+          }
+        }
       }
 
       const { data, error } = await supabase.from('outreach_leads').insert({
@@ -228,13 +231,9 @@ exports.handler = async function(event, context) {
       for (const lead of csvLeads) {
         if (!lead.name || !lead.type) continue;
         let isDuplicate = false;
-        if (lead.email) {
-          const { data: existingProfile } = await supabase.from('profiles').select('id').eq('email', lead.email).maybeSingle();
-          if (existingProfile) { duplicates++; isDuplicate = true; }
-          if (!isDuplicate) {
-            const { data: existingLead } = await supabase.from('outreach_leads').select('id').eq('email', lead.email).maybeSingle();
-            if (existingLead) { duplicates++; isDuplicate = true; }
-          }
+        if (lead.email || lead.phone) {
+          const dup = await checkCrmDuplicate(supabase, lead.email, lead.phone);
+          if (dup.exists_in_crm) { duplicates++; isDuplicate = true; }
         }
         if (!isDuplicate) {
           await supabase.from('outreach_leads').insert({

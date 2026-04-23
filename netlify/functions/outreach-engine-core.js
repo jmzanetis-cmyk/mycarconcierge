@@ -140,6 +140,52 @@ function isChainShop(name) {
   return CHAIN_BLOCKLIST.some(chain => lower.includes(chain));
 }
 
+// checkCrmDuplicate(supabase, email, phone) → { exists_in_crm, profile_id, profile_role, lead_id }
+//
+// Wraps the public.check_crm_duplicate RPC (see migration
+// supabase/migrations/20260425_outreach_crm_bridge.sql). If the RPC isn't
+// deployed yet, falls back to inline email/phone checks against profiles +
+// outreach_leads so import paths keep working during a partial rollout.
+async function checkCrmDuplicate(supabase, email, phone) {
+  const e = (email || '').trim() || null;
+  const p = (phone || '').trim() || null;
+  if (!e && !p) return { exists_in_crm: false, profile_id: null, profile_role: null, lead_id: null };
+
+  try {
+    const { data, error } = await supabase.rpc('check_crm_duplicate', { p_email: e, p_phone: p });
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const row = data[0];
+      return {
+        exists_in_crm: !!row.exists_in_crm,
+        profile_id: row.profile_id || null,
+        profile_role: row.profile_role || null,
+        lead_id: row.lead_id || null
+      };
+    }
+    if (!error) return { exists_in_crm: false, profile_id: null, profile_role: null, lead_id: null };
+  } catch (_) { /* fall through to inline */ }
+
+  // Fallback (RPC missing) — inline OR lookup against both tables.
+  let profile_id = null, profile_role = null, lead_id = null;
+  if (e) {
+    const { data: pr } = await supabase.from('profiles').select('id, role').ilike('email', e).maybeSingle();
+    if (pr) { profile_id = pr.id; profile_role = pr.role; }
+    if (!profile_id) {
+      const { data: ld } = await supabase.from('outreach_leads').select('id').ilike('email', e).maybeSingle();
+      if (ld) lead_id = ld.id;
+    }
+  }
+  if (!profile_id && !lead_id && p) {
+    const { data: pr2 } = await supabase.from('profiles').select('id, role').eq('phone', p).maybeSingle();
+    if (pr2) { profile_id = pr2.id; profile_role = pr2.role; }
+    if (!profile_id) {
+      const { data: ld2 } = await supabase.from('outreach_leads').select('id').eq('phone', p).maybeSingle();
+      if (ld2) lead_id = ld2.id;
+    }
+  }
+  return { exists_in_crm: !!(profile_id || lead_id), profile_id, profile_role, lead_id };
+}
+
 async function importProviderLeadsFromPlaces(supabase, location, radiusMeters) {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) return 0;
@@ -186,6 +232,8 @@ async function importProviderLeadsFromPlaces(supabase, location, radiusMeters) {
         continue;
       }
 
+      // Stage 1: name+location collision (cheap, place-specific) — keeps repeat
+      // Places imports for the same area idempotent.
       const { data: existingLead } = await supabase
         .from('outreach_leads')
         .select('id')
@@ -194,11 +242,30 @@ async function importProviderLeadsFromPlaces(supabase, location, radiusMeters) {
         .maybeSingle();
       if (existingLead) continue;
 
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id, role')
-        .eq('business_name', p.name)
-        .maybeSingle();
+      // Stage 2: enrich via Place Details first to grab phone/website BEFORE we
+      // dedup against the CRM. importProviderLeadsFromPlaces only had business_name
+      // matching before — phone-based dedup catches shops that registered under a
+      // different display name.
+      let placePhone = null;
+      try {
+        const det = await fetch(
+          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${p.place_id}&fields=formatted_phone_number,international_phone_number&key=${apiKey}`
+        ).then(r => r.json()).catch(() => null);
+        placePhone = det?.result?.international_phone_number || det?.result?.formatted_phone_number || null;
+      } catch (_) { /* non-fatal */ }
+
+      const dup = await checkCrmDuplicate(supabase, null, placePhone);
+      let existingProfile = null;
+      if (dup.exists_in_crm && dup.profile_id) {
+        existingProfile = { id: dup.profile_id, role: dup.profile_role };
+      } else {
+        const { data: bn } = await supabase
+          .from('profiles')
+          .select('id, role')
+          .eq('business_name', p.name)
+          .maybeSingle();
+        existingProfile = bn || null;
+      }
 
       const leadData = {
         type: 'provider',
@@ -2179,6 +2246,7 @@ module.exports = {
   draftMessageWithAI,
   scoreLeadsWithAI,
   syncReengagementLeads,
+  checkCrmDuplicate,
   importProviderLeadsFromPlaces,
   importMemberLeadsFromPlaces,
   discoverCarOwnerCommunities,

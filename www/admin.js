@@ -2814,9 +2814,17 @@
           <label class="form-label">Admin Notes</label>
           <textarea class="form-textarea" id="admin-notes" placeholder="Internal notes about this application...">${app.admin_notes || ''}</textarea>
         </div>
+
+        <div class="form-section" style="border-bottom:none;">
+          <div class="form-section-title">${mccIcon('mail', 24)} Outreach History</div>
+          <div id="application-outreach-history-body" style="font-size:0.9rem;color:var(--text-muted);">Loading…</div>
+        </div>
       `;
 
       document.getElementById('application-modal').classList.add('active');
+      if (app.user_id && typeof window.renderOutreachHistoryPanel === 'function') {
+        window.renderOutreachHistoryPanel('application-outreach-history-body', app.user_id);
+      }
     }
 
     async function approveApplication() {
@@ -5986,10 +5994,14 @@
         </div>
       `;
 
-      document.getElementById('user-edit-modal-body').innerHTML = modalContent;
+      document.getElementById('user-edit-modal-body').innerHTML = modalContent
+        + `<div class="form-section" id="user-edit-outreach-history" style="border-bottom:none;"><div class="form-section-title">${mccIcon('mail', 24)} Outreach History</div><div id="user-edit-outreach-history-body" style="font-size:0.9rem;color:var(--text-muted);">Loading…</div></div>`;
       const userEditModal = document.getElementById('user-edit-modal');
       userEditModal.style.display = '';
       userEditModal.classList.add('active');
+      if (typeof window.renderOutreachHistoryPanel === 'function') {
+        window.renderOutreachHistoryPanel('user-edit-outreach-history-body', user.id);
+      }
     }
 
     async function updateUserRole(userId, newRole) {

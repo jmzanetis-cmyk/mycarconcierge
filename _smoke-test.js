@@ -432,5 +432,135 @@ async function callPromoterDirect(eventRow) {
     }
   }
 
+  // ============================================================================
+  // Task #134 — Outreach Engine ↔ CRM bridge gap-closing smoke tests.
+  // Validates the four pieces re-applied by supabase/migrations/20260425_outreach_crm_bridge.sql:
+  //   STEP 27: check_crm_duplicate RPC (matches by email and by phone)
+  //   STEP 28: increment_engine_stat RPC (atomic counter bump)
+  //   STEP 29: trg_auto_link_outreach_lead trigger (lead → profile auto-link on signup)
+  //   STEP 30: provider_applications.outreach_lead_id column exists & accepts FK
+  // Each step creates + cleans up its own fixture and degrades gracefully (logs ⚠
+  // "MIGRATION NOT APPLIED") if the migration hasn't run yet in Supabase SQL Editor.
+  // ============================================================================
+  console.log('\n━━━ STEP 27: check_crm_duplicate RPC ━━━');
+  try {
+    const probeEmail = 'crmdup_probe_' + Date.now() + '@mcc-test.local';
+    const probePhone = '+1555' + String(Date.now()).slice(-7);
+    const { data: probeLead } = await adminSb.from('outreach_leads').insert({
+      type: 'member', name: 'Dup Probe', email: probeEmail, phone: probePhone,
+      source: 'smoke_test', status: 'new', crm_sync_status: 'unlinked'
+    }).select().single();
+
+    const r1 = await adminSb.rpc('check_crm_duplicate', { p_email: probeEmail, p_phone: null });
+    if (r1.error) {
+      console.log(`  ⚠ MIGRATION NOT APPLIED — ${r1.error.message.slice(0, 100)}`);
+      console.log('     Apply supabase/migrations/20260425_outreach_crm_bridge.sql in Supabase SQL Editor.');
+    } else if (Array.isArray(r1.data) && r1.data[0]?.exists_in_crm && r1.data[0]?.lead_id === probeLead.id) {
+      console.log(`  ✓ email match returned lead_id=${r1.data[0].lead_id.slice(0, 8)}…`);
+      const r2 = await adminSb.rpc('check_crm_duplicate', { p_email: null, p_phone: probePhone });
+      if (r2.data?.[0]?.exists_in_crm && r2.data[0].lead_id === probeLead.id) console.log('  ✓ phone match returned same lead');
+      else console.log(`  ✗ phone match unexpected: ${JSON.stringify(r2.data || r2.error)}`);
+      const r3 = await adminSb.rpc('check_crm_duplicate', { p_email: 'no-such-' + Date.now() + '@nowhere', p_phone: null });
+      if (r3.data?.[0]?.exists_in_crm === false) console.log('  ✓ unknown email returns exists_in_crm=false');
+      else console.log(`  ✗ unknown-email expected false, got: ${JSON.stringify(r3.data)}`);
+    } else {
+      console.log(`  ✗ unexpected response: ${JSON.stringify(r1.data)}`);
+    }
+    if (probeLead?.id) await adminSb.from('outreach_leads').delete().eq('id', probeLead.id);
+  } catch (e) {
+    console.log(`  ✗ STEP 27 threw: ${e.message}`);
+  }
+
+  console.log('\n━━━ STEP 27b: check_crm_duplicate is locked to service_role (no enumeration) ━━━');
+  // Anonymous + authenticated callers MUST NOT be able to invoke this RPC, otherwise
+  // any logged-in user could enumerate which emails/phones exist in the CRM.
+  try {
+    if (!process.env.SUPABASE_ANON_KEY) {
+      console.log('  ⚠ SUPABASE_ANON_KEY not set in workspace — skipping anon-grant assertion.');
+    } else {
+      const anonSb = require('@supabase/supabase-js').createClient(
+        process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY,
+        { auth: { persistSession: false } }
+      );
+      const r = await anonSb.rpc('check_crm_duplicate', { p_email: 'anyone@example.com', p_phone: null });
+      if (r.error && /permission denied|not found|insufficient/i.test(r.error.message)) {
+        console.log(`  ✓ anon caller blocked: ${r.error.message.slice(0, 80)}`);
+      } else if (r.error) {
+        console.log(`  ⚠ anon caller errored (likely OK): ${r.error.message.slice(0, 80)}`);
+      } else {
+        console.log(`  ✗ SECURITY: anon caller succeeded — RPC must be REVOKEd from anon/authenticated. Re-apply migration.`);
+      }
+    }
+  } catch (e) {
+    console.log(`  ✗ STEP 27b threw: ${e.message}`);
+  }
+
+  console.log('\n━━━ STEP 28: increment_engine_stat RPC ━━━');
+  try {
+    const { data: before } = await adminSb.from('engine_state').select('total_leads_discovered').eq('id', 1).maybeSingle();
+    const startVal = before?.total_leads_discovered ?? 0;
+    const r = await adminSb.rpc('increment_engine_stat', { p_field: 'total_leads_discovered', p_amount: 0 });
+    if (r.error) {
+      console.log(`  ⚠ MIGRATION NOT APPLIED — ${r.error.message.slice(0, 100)}`);
+      console.log('     Apply supabase/migrations/20260425_outreach_crm_bridge.sql in Supabase SQL Editor.');
+    } else {
+      // +0 is a no-op so we don't pollute production counters; just verify the RPC accepted the call.
+      const { data: after } = await adminSb.from('engine_state').select('total_leads_discovered').eq('id', 1).maybeSingle();
+      if ((after?.total_leads_discovered ?? 0) === startVal) console.log(`  ✓ RPC reachable + +0 no-op preserved counter (${startVal})`);
+      else console.log(`  ✗ counter drifted: was ${startVal} now ${after?.total_leads_discovered}`);
+      const rBad = await adminSb.rpc('increment_engine_stat', { p_field: 'NOT_A_REAL_COLUMN', p_amount: 1 });
+      if (!rBad.error) console.log('  ✓ non-whitelisted field silently ignored (expected behavior)');
+      else console.log(`  ✗ non-whitelisted field should be no-op, got: ${rBad.error.message.slice(0,80)}`);
+    }
+  } catch (e) {
+    console.log(`  ✗ STEP 28 threw: ${e.message}`);
+  }
+
+  console.log('\n━━━ STEP 29: trg_auto_link_outreach_lead trigger ━━━');
+  try {
+    const tEmail = 'autolink_smoke_' + Date.now() + '@mcc-test.local';
+    const { data: lead, error: leadErr } = await adminSb.from('outreach_leads').insert({
+      type: 'member', name: 'Autolink Smoke', email: tEmail,
+      source: 'smoke_test_autolink', status: 'new', crm_sync_status: 'unlinked'
+    }).select().single();
+    if (leadErr) throw leadErr;
+    const { data: au, error: auErr } = await adminSb.auth.admin.createUser({
+      email: tEmail, email_confirm: true, password: 'Autolink' + Date.now() + '!'
+    });
+    if (auErr) throw auErr;
+    await new Promise(r => setTimeout(r, 1500));
+    const { data: lead2 } = await adminSb.from('outreach_leads').select('crm_profile_id, crm_sync_status, status').eq('id', lead.id).single();
+    if (lead2?.crm_profile_id === au.user.id && lead2?.status === 'converted') {
+      console.log(`  ✓ trigger linked lead → profile and stamped status='converted'`);
+      const { data: prof } = await adminSb.from('profiles').select('outreach_lead_id, outreach_source').eq('id', au.user.id).maybeSingle();
+      if (prof?.outreach_lead_id === lead.id) console.log(`  ✓ profile.outreach_lead_id stamped`);
+      else console.log(`  ⚠ profile bridge cols not stamped (cols may be missing): ${JSON.stringify(prof)}`);
+    } else {
+      console.log(`  ⚠ MIGRATION NOT APPLIED — lead stayed unlinked (${JSON.stringify(lead2)})`);
+      console.log('     Apply supabase/migrations/20260425_outreach_crm_bridge.sql in Supabase SQL Editor.');
+    }
+    await adminSb.from('outreach_leads').delete().eq('id', lead.id);
+    await adminSb.auth.admin.deleteUser(au.user.id);
+  } catch (e) {
+    console.log(`  ✗ STEP 29 threw: ${e.message}`);
+  }
+
+  console.log('\n━━━ STEP 30: provider_applications.outreach_lead_id column ━━━');
+  try {
+    const { data: row } = await adminSb.from('provider_applications').select('*').limit(1).maybeSingle();
+    const hasCol = row && Object.prototype.hasOwnProperty.call(row, 'outreach_lead_id');
+    if (row === null) {
+      // table empty — probe via insert-attempt-then-rollback won't work without auth user; just note.
+      console.log('  ⚠ provider_applications empty in this env; cannot verify column existence non-destructively.');
+    } else if (hasCol) {
+      console.log('  ✓ provider_applications.outreach_lead_id column present');
+    } else {
+      console.log('  ⚠ MIGRATION NOT APPLIED — outreach_lead_id column missing on provider_applications.');
+      console.log('     Apply supabase/migrations/20260425_outreach_crm_bridge.sql in Supabase SQL Editor.');
+    }
+  } catch (e) {
+    console.log(`  ✗ STEP 30 threw: ${e.message}`);
+  }
+
   console.log('\n━━━ DONE ━━━\n');
 })().catch(e => { console.error('FATAL:', e.message); console.error(e.stack); process.exit(1); });
