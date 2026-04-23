@@ -26,7 +26,7 @@ _Status as of 2026-04-22. Author: planning pass for follow-on work to Phase 1._
 | Analyst | `netlify/functions/agent-analyst.js` | nightly UTC | `packages`, `care_plans`, `bids`, `profiles`, `disputes`, `payments`, `survey_leads`, `outreach_leads`, `outreach_messages`, `ai_escalations`, `agent_actions`, `agent_daily_spend` | `agent_memory` (briefing, key=`latest` and date), `agent_actions` | $2.00 | `claude-sonnet-4-5` |
 | Matchmaker | ❌ stub | event-driven | — | — | $5.00 | `claude-sonnet-4-5` |
 | Treasurer | ❌ stub | event-driven | — | — | $5.00 | `claude-sonnet-4-5` |
-| Gatekeeper | ❌ stub | event-driven | — | — | $3.00 | `claude-sonnet-4-5` |
+| Gatekeeper | ✅ shipped (Task #123) | event-driven | `profiles`, `provider_employees`, `employee_background_checks` | `agent_actions` (review proposals, `needs_review=true`) | $3.00 | `claude-sonnet-4-5` |
 | Concierge | ❌ stub | event-driven | — | — | $5.00 | `claude-sonnet-4-5` |
 | Advocate | ❌ stub | event-driven | — | — | $4.00 | `claude-sonnet-4-5` |
 | Hunter | ❌ stub | event-driven | — | — | $4.00 | `claude-sonnet-4-5` |
@@ -70,20 +70,20 @@ Each row below answers: handler file? subscribed events? real producers? data de
 - **Effort:** **L** (~3d) — handler + 3 producer wire-in points across `split-pay.js`, `split-guest-pay.js`, `stripe-connect-callback.js`; needs careful coexistence with `ai-ops-admin.js` and `payment-tracker-scheduled.js`.
 - **Open question:** today's `ai-ops-admin.js` already writes payment-tracker rows; we must avoid double-acting. Treasurer should explicitly *consume* the same signal and create a *recommendation*, not a parallel action.
 
-### 2.3 Gatekeeper
+### 2.3 Gatekeeper — ✅ SHIPPED (Task #123)
 - **Subscribes:** `provider.applied`, `provider.bgc_completed`, `provider.flagged` ($3/day cap)
-- **Handler file:** ❌ none.
-- **Producers:** no producer emits `provider.applied`, `provider.bgc_completed`, or `provider.flagged` today. Concrete wire-in points (verified file existence noted; route discovery is still required for some paths):
-  - `provider.applied` → no INSERT into `provider_applications` was located in `www/server.js` or `netlify/functions/` (verified via `rg "provider_applications.*insert"`). Reads/updates exist (`www/server.js:18991, 19040, 19219`), but the row creation appears to happen client-side via the direct Supabase client from `www/onboarding-provider.html`. Phase 2 step 1: confirm the creation path (likely `www/onboarding-provider.html` Supabase RPC), then move that insert behind a new express route `POST /api/provider/apply` in `www/server.js` and emit `provider.applied` from the new route. Do **not** attempt to emit from a client — events must be server-side.
-  - `provider.bgc_completed` → BGC webhook handler is `handleBgChecksWebhook` at **`www/server.js:19327`**, route registered at `www/server.js:36756` (`POST /webhook/bgcheck`). The completion branch is the `order.complete`/`order.completed` case at lines **19370–19384**; the cleared/eligible profile-update follows at **19412–19422**. Emit `provider.bgc_completed` immediately after the profile update (line ~19422), passing `{ provider_id: updated.provider_id, employee_id: updated.employee_id, status: updated.status, check_id: updated.id }`.
-  - `provider.flagged` → no admin "flag" mutation found in `www/server.js` or `netlify/functions/admin-team.js` (no write to `is_suspended` or any flag column was located via `rg "is_suspended"` — only read filters at `www/server.js:43989, 44867`). Suspension is currently performed client-side from `www/admin.js` against Supabase directly. Phase 2 step 1: add a `POST /api/admin/provider/flag` express route in `www/server.js` (admin-password gated like `agent-fleet-admin.js`), move the flag/suspend mutation server-side, and emit from there. The BGC-driven auto-flag path will need a parallel emit wherever `provider_alerts` rows with `severity='critical'` are inserted (search needed once that ingestion path exists — `replit.md` references a `bgc-send-reminders` Scheduled Function but that file is **not present** in `netlify/functions/` on this branch, verified via `ls`).
-- **Data needed:** profile + cached `bgc_*` columns + license uploads + employee count.
-- **Decision shape:** `{ provider_id, recommendation:'approve'|'reject'|'request_more_info', reasoning, flags[] }` → `agent_actions.action_type='gatekeeper.review'`.
-- **Handler flow:** event consumed → fetch profile + cached BGC + uploads → Claude reasons → `agent_actions` row written. `propose`/`assist`: `needs_review=true` always (legal-sensitive). `autonomous`: disallowed in Phase 2.
-- **Autonomy at launch:** `propose`. Compliance/legal sensitivity is too high for `assist`.
-- **Risk:** false approval = liability; false rejection = unfair denial of livelihood. Always human-in-loop.
+- **Handler file:** ✅ `netlify/functions/agent-gatekeeper.js` — switches on event_type, gathers context from `profiles` / `provider_employees` / `employee_background_checks`, calls Claude with a JSON-shaped prompt, writes a `status='proposed'` row with `needs_review=true` via `logAction()`. Never mutates provider state.
+- **Producers — shipped:**
+  - `provider.applied` → **DB trigger** `profile_provider_applied_emit` on `public.profiles` (migration `supabase/migrations/20260424_gatekeeper_provider_event_triggers.sql`). Fires on INSERT or UPDATE OF role when the new role is `pending_provider`. **Delta from original plan:** the doc had originally proposed a new express route `POST /api/provider/apply`. The trigger approach is strictly better — it cannot be bypassed by alternate insert paths (frontend supabase client, future onboarding flows, admin-side ports) and adds zero new HTTP surface to maintain.
+  - `provider.bgc_completed` → emitted from `netlify/functions/background-check-webhook.js` after the BGC webhook persists the result and recomputes compliance. Failure to emit is logged but never blocks the webhook 200 response (BGC would otherwise retry and corrupt our update).
+  - `provider.flagged` → **DB trigger** `profile_provider_flagged_emit` on `public.profiles`. Fires on UPDATE OF role when the role transitions into `suspended`. Same rationale as `provider.applied`: trigger > new route. The `POST /api/admin/provider/suspend` route called for in the original plan is now optional follow-up work; today the existing `www/admin.js` Supabase-client suspend path already triggers Gatekeeper review correctly.
+- **Producers — deferred (acceptable in Phase 2):** the BGC-driven auto-flag path described in the original plan (`provider_alerts` rows of `severity='critical'`) is **not** wired in this task. When that ingestion path lands it can either insert into `agent_events` directly or rely on the existing `provider.bgc_completed` event already firing from the webhook.
+- **Data gathered at runtime:** profile + cached `bgc_*` columns; for BGC events also `provider_employees` + most-recent `employee_background_checks` row.
+- **Decision shape:** `{ event_type, payload, recommendation:'approve'|'reject'|'manual_review', concerns[] }` plus top-level `confidence` and `reasoning` → `agent_actions.action_type='review'`, `status='proposed'`, `needs_review=true`.
+- **Autonomy at launch:** `propose` (and the seed migration ships `enabled=false` — must be flipped on by an admin before any review fires).
+- **Risk:** false approval = liability; false rejection = unfair denial of livelihood. Phase 2 keeps human-in-loop hard-coded — handler never mutates provider state.
 - **Starting model:** `claude-sonnet-4-5` (seeded). Compliance reasoning over multi-factor profile data warrants Sonnet.
-- **Effort:** **M** (~2.5d) — handler + 3 producer wire-ins (onboarding-completion endpoint, BGC webhook, admin flag button).
+- **Pre-enable checklist (per §4.2 below):** (1) handler 200s on the admin "Emit" test event for each of the three event types; (2) all three producers verified end-to-end (insert a profile with `role='pending_provider'`; flip a profile to `role='suspended'`; replay a BGC webhook); (3) confirm DLQ/retry from §3.2 is shipped; (4) confirm spend-cap alerting from §3.3 is shipped (it is — Task #122).
 
 ### 2.4 Concierge
 - **Subscribes:** `support.ticket_created`, `member.message_received` ($5/day cap)

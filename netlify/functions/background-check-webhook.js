@@ -148,6 +148,32 @@ exports.handler = async function(event) {
     }
   }
 
+  // ── Task #123 — emit Gatekeeper input event ────────────────────────────
+  // Best-effort. Failure here must NEVER block the webhook response —
+  // BackgroundChecks.com would then retry and we'd corrupt our update.
+  try {
+    const { error: emitDbErr } = await supabase.from('agent_events').insert({
+      event_type: 'provider.bgc_completed',
+      payload: {
+        provider_id: rec.provider_id,
+        employee_id: rec.employee_id,
+        bgc_report_id: reportId,
+        status,
+        completed_at: completedAt,
+        expires_at: expires.toISOString()
+      },
+      source: 'webhook:background-check'
+    });
+    // supabase-js returns { error } instead of throwing on DB failures, so we
+    // must surface that path explicitly — otherwise a silent insert failure
+    // (RLS, missing column, FK) would never be logged.
+    if (emitDbErr) {
+      console.error('[BGC webhook] agent_events emit failed (non-fatal):', emitDbErr.message);
+    }
+  } catch (emitErr) {
+    console.error('[BGC webhook] agent_events emit threw (non-fatal):', emitErr.message);
+  }
+
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
