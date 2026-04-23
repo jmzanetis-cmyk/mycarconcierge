@@ -129,13 +129,18 @@ async function handlePostRequest(supabase, agent, evt, t0) {
     return { success: true, refused: true };
   }
 
-  // Persist the draft, then write the audit action linking back.
+  // Persist the draft, then write the audit action linking back. We carry
+  // variant_group / variant_index / variant_total straight off the event
+  // payload so the admin posts table can cluster sibling variants side-by-side.
   const { data: post, error: postErr } = await supabase
     .from('social_posts')
     .insert({
       platform, audience, body,
       status: 'draft',
-      channel_id: payload.channel_id || null
+      channel_id: payload.channel_id || null,
+      variant_group: payload.variant_group || null,
+      variant_index: Number.isInteger(payload.variant_index) ? payload.variant_index : null,
+      variant_total: Number.isInteger(payload.variant_total) ? payload.variant_total : null
     })
     .select('id').single();
   if (postErr) {

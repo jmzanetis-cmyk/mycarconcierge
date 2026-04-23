@@ -857,18 +857,53 @@ async function loadPosts() {
     if (!rows.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No posts.</td></tr>'; return; }
     __postsCache.clear();
     body.innerHTML = '';
+
+    // Cluster sibling variants together: re-order so all rows sharing a
+    // variant_group are adjacent, then render a coloured left border + pill so
+    // reviewers can compare alternatives side-by-side at a glance.
+    const groupSeen = new Map(); // variant_group -> first-seen index
+    const ordered = [];
     for (const p of rows) {
+      if (p.variant_group && groupSeen.has(p.variant_group)) {
+        // Insert right after last sibling of the same group.
+        const insertAfter = groupSeen.get(p.variant_group);
+        ordered.splice(insertAfter + 1, 0, p);
+        // Shift all subsequent group anchors that are >= insertAfter+1.
+        for (const [g, idx] of groupSeen) {
+          if (idx > insertAfter) groupSeen.set(g, idx + 1);
+        }
+        groupSeen.set(p.variant_group, insertAfter + 1);
+      } else {
+        ordered.push(p);
+        if (p.variant_group) groupSeen.set(p.variant_group, ordered.length - 1);
+      }
+    }
+    // Stable colour per group (cycle a small palette).
+    const groupPalette = ['#d4a017','#5fb3b3','#c97064','#8a82d8','#6db26d','#d28cc7'];
+    const groupColors = new Map();
+    [...new Set(ordered.filter(p => p.variant_group).map(p => p.variant_group))]
+      .forEach((g, i) => groupColors.set(g, groupPalette[i % groupPalette.length]));
+
+    for (const p of ordered) {
       __postsCache.set(p.id, p);
       const preview = (p.body || '').slice(0, 100) + ((p.body || '').length > 100 ? '…' : '');
       const expanded = __postsExpanded.has(p.id);
       const tr = document.createElement('tr');
       tr.style.cursor = 'pointer';
       tr.dataset.postRow = p.id;
+      const groupColor = p.variant_group ? groupColors.get(p.variant_group) : null;
+      if (groupColor) {
+        tr.style.borderLeft = `3px solid ${groupColor}`;
+        tr.title = `Variant ${p.variant_index || '?'} of ${p.variant_total || '?'} · group ${p.variant_group}`;
+      }
+      const variantBadge = p.variant_group
+        ? `<span style="display:inline-block; font-size:10px; padding:1px 6px; border-radius:8px; background:${groupColor}22; color:${groupColor}; border:1px solid ${groupColor}55; margin-right:6px; vertical-align:middle;" title="group ${escapeHtml(p.variant_group)}">V${p.variant_index || '?'}/${p.variant_total || '?'}</span>`
+        : '';
       tr.innerHTML = `
         <td style="width:18px; color:var(--muted);">${expanded ? '▾' : '▸'}</td>
         <td><strong>${escapeHtml(p.platform)}</strong></td>
         <td><span style="font-size:12px; color:var(--muted);">${escapeHtml(p.audience)}</span></td>
-        <td style="max-width:280px;"><div style="font-size:12px; line-height:1.4;">${escapeHtml(preview)}</div></td>
+        <td style="max-width:280px;"><div style="font-size:12px; line-height:1.4;">${variantBadge}${escapeHtml(preview)}</div></td>
         <td><span class="pill pill-${escapeHtml(p.status)}">${escapeHtml(p.status)}</span></td>`;
       body.appendChild(tr);
       if (expanded) {
