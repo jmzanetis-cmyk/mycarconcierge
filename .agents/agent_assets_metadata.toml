@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "gO4B7nvc_aC55SYCgm989"
+uri = "file://attached_assets/outreach-migrations-combined.txt"
+type = "text"
+title = "Outreach migrations — paste into Supabase SQL Editor"
