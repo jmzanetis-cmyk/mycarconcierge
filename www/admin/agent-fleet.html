@@ -215,6 +215,65 @@
         </div>
       </div>
     </div>
+
+    <div class="grid grid-2" style="margin-bottom:20px;">
+      <div class="card">
+        <h3>Dead-letter queue <span id="dlqTotal" style="font-size:12px; color:var(--muted); font-weight:400;"></span></h3>
+        <div style="font-size:13px; color:var(--muted); margin-bottom:10px;">
+          Events that failed dispatch 3 times. Replay re-emits with a fresh attempt counter.
+        </div>
+        <div class="row" style="margin-bottom:10px;">
+          <label style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" id="dlqOpenOnly" checked /> Open only
+          </label>
+          <button class="btn btn-ghost" id="dlqReload" style="margin-left:auto;">Reload</button>
+        </div>
+        <div style="max-height:340px; overflow-y:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Event</th>
+                <th>Source</th>
+                <th class="right">Attempts</th>
+                <th>Failed</th>
+                <th class="right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="dlqBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Spend-cap breaches <span id="alertsTotal" style="font-size:12px; color:var(--muted); font-weight:400;"></span></h3>
+        <div style="font-size:13px; color:var(--muted); margin-bottom:10px;">
+          Days an agent hit its daily USD cap. One alert email per agent per UTC day.
+        </div>
+        <div class="row" style="margin-bottom:10px;">
+          <select id="alertsRange" class="input" style="max-width:160px;">
+            <option value="7">Last 7 days</option>
+            <option value="14" selected>Last 14 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+          <button class="btn btn-ghost" id="alertsReload" style="margin-left:auto;">Reload</button>
+        </div>
+        <div style="max-height:340px; overflow-y:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>Day</th>
+                <th class="right">Cap</th>
+                <th class="right">Estimate</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody id="alertsBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -498,8 +557,98 @@ async function loadSpend() {
   } catch (e) { /* ignore */ }
 }
 
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+async function loadDLQ() {
+  const body = document.getElementById('dlqBody');
+  const totalEl = document.getElementById('dlqTotal');
+  try {
+    const openOnly = document.getElementById('dlqOpenOnly').checked;
+    const params = new URLSearchParams({ limit: '50' });
+    if (openOnly) params.set('open', '1');
+    const { entries, total } = await api(`/dead-letter?${params.toString()}`);
+    totalEl.textContent = total ? `(${total}${openOnly ? ' open' : ''})` : '';
+    if (!entries || entries.length === 0) {
+      body.innerHTML = `<tr><td colspan="5" class="empty">${openOnly ? 'No open dead-letter entries.' : 'No dead-letter entries.'}</td></tr>`;
+      return;
+    }
+    body.innerHTML = '';
+    for (const e of entries) {
+      const tr = document.createElement('tr');
+      const errPreview = e.final_error ? `<div style="font-size:11px; color:var(--bad); margin-top:3px; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(e.final_error)}">${escapeHtml(e.final_error)}</div>` : '';
+      const replayedBadge = e.replayed_at
+        ? `<span class="badge badge-on" title="Replayed as event #${e.replay_event_id || ''} at ${fmtTime(e.replayed_at)}">replayed</span>`
+        : `<button class="btn btn-ghost" data-dlq-replay="${e.id}" style="padding:4px 10px; font-size:12px;">Replay</button>`;
+      tr.innerHTML = `
+        <td>
+          <div style="font-weight:600;">${escapeHtml(e.event_type)}</div>
+          ${errPreview}
+        </td>
+        <td><span style="font-size:12px; color:var(--muted);">${escapeHtml(e.source || '—')}</span></td>
+        <td class="right num">${e.attempts}</td>
+        <td><span style="font-size:12px; color:var(--muted);">${fmtTime(e.failed_at)}</span></td>
+        <td class="right">${replayedBadge}</td>
+      `;
+      body.appendChild(tr);
+    }
+    body.querySelectorAll('[data-dlq-replay]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-dlq-replay');
+        btn.disabled = true; btn.textContent = '…';
+        try {
+          const r = await api(`/dead-letter/${id}/replay`, { method: 'POST' });
+          toast(`Replayed DLQ #${id} → event #${r.replay_event_id}`);
+          loadDLQ();
+        } catch (err) {
+          toast(err.message, true);
+          btn.disabled = false; btn.textContent = 'Replay';
+        }
+      });
+    });
+  } catch (e) {
+    if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="5" class="empty">${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function loadSpendAlerts() {
+  const body = document.getElementById('alertsBody');
+  const totalEl = document.getElementById('alertsTotal');
+  try {
+    const days = document.getElementById('alertsRange').value || '14';
+    const { alerts } = await api(`/spend-alerts?days=${encodeURIComponent(days)}`);
+    totalEl.textContent = alerts && alerts.length ? `(${alerts.length})` : '';
+    if (!alerts || alerts.length === 0) {
+      body.innerHTML = `<tr><td colspan="5" class="empty">No spend-cap breaches in this window.</td></tr>`;
+      return;
+    }
+    body.innerHTML = '';
+    for (const a of alerts) {
+      const tr = document.createElement('tr');
+      const emailCell = a.email_sent
+        ? `<span class="badge badge-on" title="Sent ${fmtTime(a.notified_at)}">sent</span>`
+        : a.email_error
+          ? `<span class="badge" style="background:rgba(239,68,68,0.12); color:var(--bad); border:1px solid rgba(239,68,68,0.3);" title="${escapeHtml(a.email_error)}">failed</span>`
+          : `<span class="badge badge-off">skipped</span>`;
+      tr.innerHTML = `
+        <td><span style="font-weight:600;">${escapeHtml(a.agent_slug)}</span></td>
+        <td><span style="font-size:13px; color:var(--muted);">${escapeHtml(a.day)}</span></td>
+        <td class="right num">${fmt$(a.cap_usd)}</td>
+        <td class="right num">${fmt$(a.estimate_usd)}</td>
+        <td>${emailCell}</td>
+      `;
+      body.appendChild(tr);
+    }
+  } catch (e) {
+    if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="5" class="empty">${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
 async function refreshAll() {
-  await Promise.all([loadRegistry(), loadActions(), loadBriefing(), loadSpend()]);
+  await Promise.all([loadRegistry(), loadActions(), loadBriefing(), loadSpend(), loadDLQ(), loadSpendAlerts()]);
 }
 
 // --- wire-up
@@ -533,6 +682,10 @@ document.getElementById('runOrchestrator').addEventListener('click', async () =>
   try { toast('Running orchestrator tick…'); const r = await api('/run/orchestrator', { method: 'POST' }); toast(`Processed ${r.result?.processed || 0} event(s)`); refreshAll(); }
   catch (e) { toast(e.message, true); }
 });
+document.getElementById('dlqReload').addEventListener('click', loadDLQ);
+document.getElementById('dlqOpenOnly').addEventListener('change', loadDLQ);
+document.getElementById('alertsReload').addEventListener('click', loadSpendAlerts);
+document.getElementById('alertsRange').addEventListener('change', loadSpendAlerts);
 document.getElementById('emitTestEvent').addEventListener('click', async () => {
   const eventType = document.getElementById('testEventType').value.trim();
   if (!eventType) return toast('event_type required', true);
