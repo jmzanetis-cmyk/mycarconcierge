@@ -143,76 +143,50 @@
             <th>Model</th>
             <th class="right">Cap (USD/day)</th>
             <th class="right">Today</th>
+            <th class="right">Open</th>
           </tr>
         </thead>
-        <tbody id="registryBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+        <tbody id="registryBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
 
-    <div class="grid grid-2" style="margin-bottom:20px;">
-      <div class="card">
-        <h3>Latest briefing (Analyst)</h3>
-        <div id="briefingBody" class="briefing-body">No briefing yet. Run the analyst to generate one.</div>
-        <div id="briefingMeta" class="briefing-meta"></div>
-        <div style="margin-top:14px;" class="row">
-          <button class="btn" id="runAnalyst">Run analyst now</button>
-          <button class="btn btn-ghost" id="refreshAll">Refresh</button>
-        </div>
+    <div class="card" style="margin-bottom:20px;">
+      <h3>Events / hour <span style="font-size:12px; color:var(--muted); font-weight:400;" id="eventsTotal"></span></h3>
+      <div class="row" style="margin-bottom:10px;">
+        <select id="eventsRange" class="input" style="max-width:160px;">
+          <option value="1">Last 24 hours</option>
+          <option value="3">Last 3 days</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+        <select id="eventsGroupBy" class="input" style="max-width:200px;">
+          <option value="event_type" selected>Group by event type</option>
+          <option value="status">Group by routing status</option>
+        </select>
+        <button class="btn btn-ghost" id="eventsReload" style="margin-left:auto;">Reload</button>
+        <button class="btn btn-ghost" id="refreshAll">Refresh all</button>
       </div>
-      <div class="card">
-        <h3>Spend (last 7 days)</h3>
-        <canvas id="spendChart" height="180"></canvas>
-      </div>
+      <canvas id="eventsChart" height="80"></canvas>
     </div>
 
-    <div class="grid grid-2" style="margin-bottom:20px;">
-      <div class="card">
-        <h3>Recent activity <span id="actionsTotal" style="font-size:12px; color:var(--muted); font-weight:400;"></span></h3>
-        <div class="row" style="margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-          <select id="filterAgent" class="input" style="flex:1; min-width:120px;">
-            <option value="">All agents</option>
-          </select>
-          <select id="filterStatus" class="input" style="flex:1; min-width:120px;">
-            <option value="">All statuses</option>
-            <option value="completed">completed</option>
-            <option value="proposed">proposed</option>
-            <option value="executed">executed</option>
-            <option value="escalated">escalated</option>
-            <option value="skipped">skipped</option>
-            <option value="error">error</option>
-          </select>
-          <label style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:4px;">
-            <input type="checkbox" id="reviewOnly" /> Needs review only
-          </label>
-          <button class="btn btn-ghost" id="reloadActions">Reload</button>
-        </div>
-        <div id="actionsList" class="actions-list"><div class="empty">Loading…</div></div>
-        <div class="row" style="margin-top:10px; justify-content:space-between; align-items:center;">
-          <button class="btn btn-ghost" id="actionsPrev" disabled>← Prev</button>
-          <span id="actionsPageInfo" style="font-size:12px; color:var(--muted);"></span>
-          <button class="btn btn-ghost" id="actionsNext" disabled>Next →</button>
-        </div>
+    <div class="card" style="margin-bottom:20px;">
+      <h3>Operations</h3>
+      <div style="font-size:13px; color:var(--muted); margin-bottom:14px;">
+        Send a synthetic event into the bus (orchestrator picks it up on the next tick, or click <em>Run orchestrator</em>). Per-agent action history, memory and briefings live on each agent's detail page — click <em>Open</em> in the registry above.
       </div>
-
-      <div class="card">
-        <h3>Operations</h3>
-        <div style="font-size:13px; color:var(--muted); margin-bottom:14px;">
-          Send a synthetic event into the bus (orchestrator picks it up on the next tick, or click <em>Run orchestrator</em>).
-        </div>
-        <div class="row" style="margin-bottom:8px;">
-          <input id="testEventType" class="input" placeholder="event_type (e.g. nightly.tick)" style="flex:2;" value="fleet.test_ping" />
-        </div>
-        <div class="row" style="margin-bottom:14px;">
-          <input id="testEventPayload" class="input" placeholder='payload JSON (optional)' style="flex:2;" />
-          <button class="btn" id="emitTestEvent">Emit</button>
-        </div>
-        <div style="border-top:1px solid var(--slate-border); margin:14px 0;"></div>
-        <div class="row">
-          <button class="btn btn-ghost" id="runOrchestrator">Run orchestrator now</button>
-        </div>
-        <div style="margin-top:18px; font-size:12px; color:var(--muted);">
-          Scheduled cadence: orchestrator <code class="kbd">* * * * *</code> · analyst <code class="kbd">0 5 * * *</code> (UTC).
-        </div>
+      <div class="row" style="margin-bottom:8px;">
+        <input id="testEventType" class="input" placeholder="event_type (e.g. nightly.tick)" style="flex:2; max-width:360px;" value="fleet.test_ping" />
+        <input id="testEventPayload" class="input" placeholder='payload JSON (optional)' style="flex:3; max-width:480px;" />
+        <button class="btn" id="emitTestEvent">Emit</button>
+      </div>
+      <div style="border-top:1px solid var(--slate-border); margin:14px 0;"></div>
+      <div class="row">
+        <button class="btn btn-ghost" id="runOrchestrator">Run orchestrator now</button>
+        <button class="btn btn-ghost" id="runAnalyst">Run analyst now</button>
+      </div>
+      <div style="margin-top:18px; font-size:12px; color:var(--muted);">
+        Scheduled cadence: orchestrator <code class="kbd">* * * * *</code> · analyst <code class="kbd">0 5 * * *</code> (UTC).
       </div>
     </div>
 
@@ -352,11 +326,18 @@ function fmtTime(iso) {
   return d.toLocaleString();
 }
 
+async function loadReviewKpi() {
+  try {
+    const r = await api('/actions?review_only=1&limit=1');
+    document.getElementById('kpiReview').textContent = String(r.total || 0);
+  } catch { /* ignore */ }
+}
+
 async function loadRegistry() {
   const body = document.getElementById('registryBody');
   try {
     const { agents } = await api('/agents');
-    populateAgentFilter(agents);
+    window.__mccFleetAgents = agents;
     let enabledCount = 0, todaySpend = 0;
     body.innerHTML = '';
     for (const a of agents) {
@@ -389,6 +370,9 @@ async function loadRegistry() {
           <div>${fmt$(a.today_spend?.actual_usd || 0)}</div>
           <div style="font-size:11px; color:var(--muted);">${a.today_spend?.call_count || 0} calls</div>
         </td>
+        <td class="right">
+          <a class="btn btn-ghost" href="/admin/agent-fleet-detail.html?slug=${encodeURIComponent(a.slug)}" style="text-decoration:none; padding:5px 12px; font-size:12px;">Open →</a>
+        </td>
       `;
       body.appendChild(tr);
     }
@@ -412,153 +396,46 @@ async function loadRegistry() {
       });
     });
   } catch (e) {
-    if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="6" class="empty">${e.message}</td></tr>`;
+    if (e.message !== 'Unauthorized') body.innerHTML = `<tr><td colspan="7" class="empty">${e.message}</td></tr>`;
   }
 }
 
-const ACTIONS_PAGE_SIZE = 50;
-let actionsOffset = 0;
-
-function buildActionsQuery() {
-  const reviewOnly = document.getElementById('reviewOnly').checked;
-  const agent = document.getElementById('filterAgent').value;
-  const status = document.getElementById('filterStatus').value;
-  const params = new URLSearchParams();
-  params.set('limit', String(ACTIONS_PAGE_SIZE));
-  params.set('offset', String(actionsOffset));
-  if (reviewOnly) params.set('review_only', '1');
-  if (agent)  params.set('agent', agent);
-  if (status) params.set('status', status);
-  return params.toString();
-}
-
-function populateAgentFilter(agents) {
-  const sel = document.getElementById('filterAgent');
-  if (!sel || sel.dataset.populated === '1') return;
-  for (const a of agents) {
-    const opt = document.createElement('option');
-    opt.value = a.slug; opt.textContent = a.display_name || a.slug;
-    sel.appendChild(opt);
-  }
-  sel.dataset.populated = '1';
-}
-
-async function loadActions() {
-  const list = document.getElementById('actionsList');
+let eventsChart = null;
+async function loadEventsChart() {
   try {
-    const resp = await api(`/actions?${buildActionsQuery()}`);
-    const actions = resp.actions || [];
-    const total = resp.total || 0;
-    const limit = resp.limit || ACTIONS_PAGE_SIZE;
-    const offset = resp.offset || 0;
-
-    document.getElementById('actionsTotal').textContent = total ? `(${total} total)` : '';
-    const pageInfo = document.getElementById('actionsPageInfo');
-    const prevBtn = document.getElementById('actionsPrev');
-    const nextBtn = document.getElementById('actionsNext');
-    const start = total === 0 ? 0 : offset + 1;
-    const end   = Math.min(offset + actions.length, total);
-    pageInfo.textContent = total ? `${start}–${end} of ${total}` : '';
-    prevBtn.disabled = offset <= 0;
-    nextBtn.disabled = offset + limit >= total;
-
-    let needReview = 0;
-    if (!actions || actions.length === 0) {
-      list.innerHTML = '<div class="empty">No activity matches the current filters.</div>';
-      document.getElementById('kpiReview').textContent = '0';
-      return;
-    }
-    list.innerHTML = '';
-    for (const a of actions) {
-      if (a.needs_review && !a.reviewed_at) needReview++;
-      const div = document.createElement('div');
-      div.className = 'action-row';
-      const dec = (() => { try { return typeof a.decision === 'string' ? JSON.parse(a.decision) : a.decision; } catch { return a.decision; } })();
-      const decSummary = dec ? Object.entries(dec).slice(0, 3).map(([k, v]) => `<code class="kbd">${k}=${typeof v === 'object' ? JSON.stringify(v).slice(0, 40) : String(v).slice(0, 40)}</code>`).join(' ') : '';
-      div.innerHTML = `
-        <div class="action-head">
-          <div>
-            <span class="status-dot status-${a.status}"></span>
-            <span class="action-agent">${a.agent_slug}</span>
-            <span style="color:var(--muted); font-size:13px;"> · ${a.action_type}</span>
-          </div>
-          <div class="action-time">${fmtTime(a.created_at)}</div>
-        </div>
-        <div class="action-reason">${a.reasoning || a.error_message || '<span style="color:var(--muted);">(no reasoning)</span>'}</div>
-        <div class="action-meta">
-          ${decSummary}
-          ${a.cost_usd ? ` · <span class="num">${fmt$(a.cost_usd)}</span>` : ''}
-          ${a.tokens_in || a.tokens_out ? ` · ${a.tokens_in}+${a.tokens_out} tok` : ''}
-          ${a.duration_ms ? ` · ${a.duration_ms}ms` : ''}
-          ${a.needs_review && !a.reviewed_at ? ` · <button class="btn btn-ghost" data-review="${a.id}" data-decision="approved" style="padding:3px 9px; font-size:12px;">Approve</button> <button class="btn btn-danger" data-review="${a.id}" data-decision="rejected" style="padding:3px 9px; font-size:12px;">Reject</button>` : ''}
-          ${a.review_status ? ` · <span class="badge badge-${a.review_status === 'approved' || a.review_status === 'executed' ? 'on' : 'off'}">${a.review_status}</span>` : ''}
-        </div>
-      `;
-      list.appendChild(div);
-    }
-    document.getElementById('kpiReview').textContent = String(needReview);
-
-    list.querySelectorAll('[data-review]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-review');
-        const decision = btn.getAttribute('data-decision');
-        try {
-          await api(`/actions/${id}/review`, { method: 'POST', body: JSON.stringify({ decision }) });
-          toast(`Action ${id} marked ${decision}`);
-          loadActions();
-        } catch (e) { toast(e.message, true); }
-      });
+    const days = document.getElementById('eventsRange').value || '7';
+    const groupBy = document.getElementById('eventsGroupBy').value || 'event_type';
+    const params = new URLSearchParams({ days, group_by: groupBy });
+    const resp = await api(`/events/timeseries?${params.toString()}`);
+    if (!window.Chart) { setTimeout(loadEventsChart, 300); return; }
+    const buckets = resp.buckets || [];
+    const series = resp.series || [];
+    document.getElementById('eventsTotal').textContent = resp.total ? `· ${resp.total} events in last ${resp.days}d` : '';
+    const palette = ['#c9a84c','#4cc9c1','#22c55e','#f59e0b','#818cf8','#ef4444','#ec4899','#94a3b8','#fb923c'];
+    const datasets = series.map((s, i) => ({
+      label: s.name,
+      data: s.data,
+      backgroundColor: palette[i % palette.length],
+      borderColor: palette[i % palette.length],
+      stack: 'events',
+      borderWidth: 0
+    }));
+    // Compress hour labels to readable form (e.g. "Apr 22 14:00")
+    const labels = buckets.map(b => {
+      const d = new Date(b);
+      return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     });
-  } catch (e) {
-    if (e.message !== 'Unauthorized') list.innerHTML = `<div class="empty">${e.message}</div>`;
-  }
-}
-
-async function loadBriefing() {
-  try {
-    const { briefing } = await api('/briefing');
-    if (!briefing || !briefing.value) {
-      document.getElementById('briefingBody').textContent = 'No briefing yet. Run the analyst to generate one.';
-      document.getElementById('briefingMeta').textContent = '';
-      return;
-    }
-    const v = briefing.value;
-    document.getElementById('briefingBody').textContent = v.narrative || '(empty)';
-    document.getElementById('briefingMeta').textContent = `${v.date || ''} · ${v.model || ''} · stored ${fmtTime(briefing.created_at)}`;
-  } catch (e) {
-    if (e.message !== 'Unauthorized') document.getElementById('briefingBody').textContent = e.message;
-  }
-}
-
-async function loadSpend() {
-  try {
-    const { agents, days } = await api('/spend');
-    if (!window.Chart) { setTimeout(loadSpend, 300); return; }
-    // Build per-day per-agent matrix
-    const dayKeys = Array.from(new Set(days.map(d => d.day))).sort();
-    const datasets = agents.map((a, i) => {
-      const colors = ['#c9a84c','#4cc9c1','#22c55e','#f59e0b','#818cf8','#ef4444','#94a3b8','#ec4899'];
-      return {
-        label: a.display_name,
-        data: dayKeys.map(dk => {
-          const row = days.find(d => d.day === dk && d.agent_slug === a.slug);
-          return row ? Number(row.actual_usd || 0) : 0;
-        }),
-        backgroundColor: colors[i % colors.length],
-        borderColor: colors[i % colors.length],
-        stack: 'spend'
-      };
-    });
-    if (spendChart) spendChart.destroy();
-    spendChart = new Chart(document.getElementById('spendChart'), {
+    if (eventsChart) eventsChart.destroy();
+    eventsChart = new Chart(document.getElementById('eventsChart'), {
       type: 'bar',
-      data: { labels: dayKeys, datasets },
+      data: { labels, datasets },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
         scales: {
-          x: { stacked: true, ticks: { color: '#94a3b8' }, grid: { color: '#2d343f' } },
-          y: { stacked: true, ticks: { color: '#94a3b8', callback: v => '$' + v }, grid: { color: '#2d343f' } }
+          x: { stacked: true, ticks: { color: '#94a3b8', maxTicksLimit: 12, autoSkip: true }, grid: { color: '#2d343f' } },
+          y: { stacked: true, ticks: { color: '#94a3b8', precision: 0 }, grid: { color: '#2d343f' } }
         }
       }
     });
@@ -680,21 +557,19 @@ async function loadSpendAlerts() {
 function populateTestAlertAgentPicker() {
   const sel = document.getElementById('testAlertAgent');
   if (!sel || sel.dataset.populated === '1') return;
-  // Mirror options from the registry filter (already populated by loadRegistry).
-  const src = document.getElementById('filterAgent');
-  if (!src || src.dataset.populated !== '1') return;
+  const agents = window.__mccFleetAgents || [];
+  if (!agents.length) return;
   sel.innerHTML = '<option value="">Pick agent…</option>';
-  for (const opt of src.querySelectorAll('option')) {
-    if (!opt.value) continue;
+  for (const a of agents) {
     const o = document.createElement('option');
-    o.value = opt.value; o.textContent = opt.textContent;
+    o.value = a.slug; o.textContent = a.display_name || a.slug;
     sel.appendChild(o);
   }
   sel.dataset.populated = '1';
 }
 
 async function refreshAll() {
-  await Promise.all([loadRegistry(), loadActions(), loadBriefing(), loadSpend(), loadDLQ(), loadSpendAlerts()]);
+  await Promise.all([loadRegistry(), loadEventsChart(), loadDLQ(), loadSpendAlerts(), loadReviewKpi()]);
 }
 
 // --- wire-up
@@ -708,18 +583,9 @@ document.getElementById('logoutLink').addEventListener('click', e => {
   e.preventDefault(); clearPw(); showLogin();
 });
 document.getElementById('refreshAll').addEventListener('click', refreshAll);
-document.getElementById('reloadActions').addEventListener('click', loadActions);
-document.getElementById('reviewOnly').addEventListener('change', () => { actionsOffset = 0; loadActions(); });
-document.getElementById('filterAgent').addEventListener('change', () => { actionsOffset = 0; loadActions(); });
-document.getElementById('filterStatus').addEventListener('change', () => { actionsOffset = 0; loadActions(); });
-document.getElementById('actionsPrev').addEventListener('click', () => {
-  actionsOffset = Math.max(0, actionsOffset - ACTIONS_PAGE_SIZE);
-  loadActions();
-});
-document.getElementById('actionsNext').addEventListener('click', () => {
-  actionsOffset += ACTIONS_PAGE_SIZE;
-  loadActions();
-});
+document.getElementById('eventsReload').addEventListener('click', loadEventsChart);
+document.getElementById('eventsRange').addEventListener('change', loadEventsChart);
+document.getElementById('eventsGroupBy').addEventListener('change', loadEventsChart);
 document.getElementById('runAnalyst').addEventListener('click', async () => {
   try { toast('Running analyst…'); const r = await api('/run/analyst', { method: 'POST' }); toast(r.result?.success ? `Analyst done · ${fmt$(r.result.cost_usd || 0)}` : (r.result?.reason || 'Done')); refreshAll(); }
   catch (e) { toast(e.message, true); }

@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <title>Agent Detail · Admin · My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#12161c" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <style>
+    :root {
+      --slate-bg: #12161c; --slate-surface: #1a1f28; --slate-surface-2: #242a35;
+      --slate-border: #2d343f; --gold: #c9a84c; --gold-2: #b8942d; --teal: #4cc9c1;
+      --text: #f1f5f9; --muted: #94a3b8; --good: #22c55e; --warn: #f59e0b; --bad: #ef4444;
+    }
+    body { font-family:'Outfit',-apple-system,BlinkMacSystemFont,sans-serif; background:var(--slate-bg); color:var(--text); margin:0; min-height:100vh; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 24px; background:linear-gradient(180deg, rgba(201,168,76,0.06), transparent); border-bottom:1px solid var(--slate-border); }
+    .topbar .brand { font-weight:700; letter-spacing:0.5px; }
+    .topbar .brand .pill { display:inline-block; background:linear-gradient(135deg,var(--gold),var(--gold-2)); color:#12161c; padding:3px 10px; border-radius:99px; font-size:11px; margin-left:8px; }
+    .topbar a { color:var(--muted); text-decoration:none; font-size:14px; margin-left:18px; }
+    .topbar a:hover { color:var(--text); }
+    main { max-width:1280px; margin:0 auto; padding:28px 24px 60px; }
+    h1 { font-weight:600; font-size:26px; margin:0 0 6px; }
+    .subtitle { color:var(--muted); margin-bottom:24px; font-size:14px; }
+    .login-card { max-width:420px; margin:120px auto; background:var(--slate-surface); border:1px solid var(--slate-border); border-radius:14px; padding:28px; }
+    .login-card h2 { margin:0 0 16px; }
+    .input { width:100%; padding:12px 14px; background:var(--slate-surface-2); border:1px solid var(--slate-border); border-radius:8px; color:var(--text); font-family:inherit; font-size:14px; box-sizing:border-box; }
+    .btn { background:linear-gradient(135deg,var(--gold),var(--gold-2)); color:#12161c; border:none; padding:10px 18px; border-radius:8px; font-weight:600; cursor:pointer; font-family:inherit; font-size:14px; }
+    .btn:hover { filter:brightness(1.07); }
+    .btn-ghost { background:transparent; color:var(--text); border:1px solid var(--slate-border); }
+    .btn-ghost:hover { border-color:var(--gold); color:var(--gold); }
+    .btn-danger { background:transparent; color:var(--bad); border:1px solid rgba(239,68,68,0.4); }
+    .grid { display:grid; gap:18px; }
+    .grid-3 { grid-template-columns:repeat(3, 1fr); }
+    .grid-2 { grid-template-columns: 2fr 1fr; }
+    @media(max-width:920px) { .grid-3, .grid-2 { grid-template-columns:1fr; } }
+    .card { background:var(--slate-surface); border:1px solid var(--slate-border); border-radius:14px; padding:20px; }
+    .card h3 { margin:0 0 14px; font-weight:600; font-size:15px; color:var(--gold); letter-spacing:0.5px; text-transform:uppercase; }
+    .stat { font-size:28px; font-weight:700; }
+    .stat-label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:1px; margin-top:4px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--slate-border); }
+    th { color:var(--muted); font-weight:500; font-size:12px; text-transform:uppercase; letter-spacing:1px; background:var(--slate-surface-2); }
+    tbody tr:hover { background:var(--slate-surface-2); }
+    .badge { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+    .badge-on  { background:rgba(34,197,94,0.15); color:var(--good); border:1px solid rgba(34,197,94,0.3); }
+    .badge-off { background:rgba(148,163,184,0.1); color:var(--muted); border:1px solid var(--slate-border); }
+    .badge-mode-propose    { background:rgba(76,201,193,0.12); color:var(--teal); border:1px solid rgba(76,201,193,0.3); }
+    .badge-mode-assist     { background:rgba(245,158,11,0.12); color:var(--warn); border:1px solid rgba(245,158,11,0.3); }
+    .badge-mode-autonomous { background:rgba(201,168,76,0.15); color:var(--gold); border:1px solid rgba(201,168,76,0.3); }
+    select.cell { background:var(--slate-surface-2); color:var(--text); border:1px solid var(--slate-border); border-radius:6px; padding:5px 8px; font-family:inherit; font-size:13px; }
+    .switch { position:relative; display:inline-block; width:42px; height:22px; }
+    .switch input { opacity:0; width:0; height:0; }
+    .slider { position:absolute; cursor:pointer; inset:0; background:var(--slate-surface-2); border-radius:99px; transition:.2s; border:1px solid var(--slate-border); }
+    .slider:before { content:""; position:absolute; height:16px; width:16px; left:2px; bottom:2px; background:var(--muted); border-radius:50%; transition:.2s; }
+    input:checked + .slider { background:rgba(34,197,94,0.2); border-color:var(--good); }
+    input:checked + .slider:before { transform:translateX(20px); background:var(--good); }
+    .briefing-body { color:var(--text); line-height:1.6; font-size:15px; white-space:pre-wrap; }
+    .briefing-meta { color:var(--muted); font-size:12px; margin-top:10px; }
+    .actions-list { max-height:560px; overflow-y:auto; }
+    .action-row { padding:12px 0; border-bottom:1px solid var(--slate-border); }
+    .action-row:last-child { border-bottom:none; }
+    .action-head { display:flex; justify-content:space-between; gap:10px; }
+    .action-agent { font-weight:600; color:var(--gold); }
+    .action-time { color:var(--muted); font-size:12px; }
+    .action-reason { font-size:13px; color:var(--text); margin-top:4px; line-height:1.5; }
+    .action-meta { color:var(--muted); font-size:12px; margin-top:4px; }
+    .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+    .status-completed { background:var(--good); }
+    .status-proposed  { background:var(--gold); }
+    .status-skipped   { background:var(--muted); }
+    .status-error     { background:var(--bad); }
+    .status-escalated { background:var(--warn); }
+    .status-executed  { background:var(--teal); }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .toast { position:fixed; right:24px; bottom:24px; background:var(--slate-surface); border:1px solid var(--gold); color:var(--text); padding:12px 16px; border-radius:10px; z-index:50; max-width:340px; box-shadow:0 8px 30px rgba(0,0,0,0.4); }
+    .toast.error { border-color:var(--bad); }
+    code.kbd { background:var(--slate-surface-2); border:1px solid var(--slate-border); padding:1px 6px; border-radius:4px; font-size:12px; }
+    .num { font-variant-numeric:tabular-nums; }
+    .empty { color:var(--muted); padding:18px 0; font-size:14px; }
+    .right { text-align:right; }
+    .config-grid { display:grid; grid-template-columns:160px 1fr; gap:14px 16px; align-items:center; }
+    .config-grid label { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:0.5px; }
+    pre.memory-json { background:var(--slate-surface-2); border:1px solid var(--slate-border); border-radius:8px; padding:10px 12px; font-size:12px; color:var(--text); max-height:240px; overflow:auto; margin:0; white-space:pre-wrap; word-break:break-word; }
+    .memory-row { padding:12px 0; border-bottom:1px solid var(--slate-border); }
+    .memory-row:last-child { border-bottom:none; }
+    .memory-head { display:flex; justify-content:space-between; gap:10px; font-size:13px; }
+    .memory-kind { color:var(--gold); font-weight:600; }
+    .memory-key { color:var(--muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
+  </style>
+</head>
+<body>
+
+<div id="loginShell" style="display:none;">
+  <div class="login-card">
+    <h2>Agent Fleet · Admin</h2>
+    <p style="color:var(--muted); font-size:14px; margin-top:0;">Enter the admin password to view this agent.</p>
+    <input id="pwInput" class="input" type="password" placeholder="Admin password" autocomplete="current-password" />
+    <div style="margin-top:14px; display:flex; gap:10px;">
+      <button class="btn" id="pwSubmit">Sign in</button>
+      <a href="/admin/agent-fleet.html" class="btn btn-ghost" style="text-decoration:none; line-height:1.6;">← Fleet console</a>
+    </div>
+    <div id="pwError" style="color:var(--bad); font-size:13px; margin-top:10px; display:none;"></div>
+  </div>
+</div>
+
+<div id="appShell" style="display:none;">
+  <div class="topbar">
+    <div class="brand">My Car Concierge <span class="pill">Agent Detail</span></div>
+    <div>
+      <a href="/admin/agent-fleet.html">← Fleet console</a>
+      <a href="/admin.html">Main admin</a>
+      <a href="#" id="logoutLink">Sign out</a>
+    </div>
+  </div>
+
+  <main>
+    <h1 id="agentTitle">Loading…</h1>
+    <p class="subtitle" id="agentSubtitle"></p>
+
+    <div class="grid grid-3" style="margin-bottom:20px;">
+      <div class="card"><div class="stat-label">Today's spend</div><div class="stat num" id="kpiSpend">—</div><div style="color:var(--muted); font-size:12px; margin-top:4px;" id="kpiSpendCalls">—</div></div>
+      <div class="card"><div class="stat-label">Cap (USD/day)</div><div class="stat num" id="kpiCap">—</div></div>
+      <div class="card"><div class="stat-label">Items needing review</div><div class="stat num" id="kpiReview">—</div></div>
+    </div>
+
+    <div class="grid grid-2" style="margin-bottom:20px;">
+      <div class="card">
+        <h3>Status &amp; config</h3>
+        <div class="config-grid">
+          <label>Enabled</label>
+          <div>
+            <label class="switch">
+              <input type="checkbox" id="cfgEnabled">
+              <span class="slider"></span>
+            </label>
+            <span id="cfgEnabledText" style="margin-left:10px; font-size:13px; color:var(--muted);">—</span>
+          </div>
+          <label>Autonomy</label>
+          <select id="cfgAutonomy" class="cell" style="max-width:180px;">
+            <option value="propose">propose</option>
+            <option value="assist">assist</option>
+            <option value="autonomous">autonomous</option>
+          </select>
+          <label>Daily cap (USD)</label>
+          <input id="cfgCap" type="number" min="0" step="0.5" class="cell" style="width:140px;">
+          <label>Model</label>
+          <input id="cfgModel" type="text" class="cell" style="min-width:280px;">
+          <label>Description</label>
+          <div id="cfgDescription" style="font-size:13px; color:var(--muted);">—</div>
+          <label>Triggers</label>
+          <div id="cfgTriggers" style="font-size:12px; color:var(--muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">—</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Spend (last 7 days)</h3>
+        <canvas id="spendChart" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- Analyst-only briefing card -->
+    <div class="card" id="briefingCard" style="margin-bottom:20px; display:none;">
+      <h3>Latest briefing</h3>
+      <div id="briefingBody" class="briefing-body">No briefing yet.</div>
+      <div id="briefingMeta" class="briefing-meta"></div>
+      <div style="margin-top:14px;" class="row">
+        <button class="btn" id="runAnalyst">Run analyst now</button>
+      </div>
+    </div>
+
+    <!-- Gatekeeper-only review queue card -->
+    <div class="card" id="reviewQueueCard" style="margin-bottom:20px; display:none;">
+      <h3>Review queue (proposals from this agent)</h3>
+      <div style="font-size:13px; color:var(--muted); margin-bottom:10px;">
+        Items the agent flagged for human review. Approve or reject inline; full proposal context is in the action row below.
+      </div>
+      <div id="reviewQueueBody"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div class="grid grid-2" style="margin-bottom:20px;">
+      <div class="card">
+        <h3>Recent actions <span id="actionsTotal" style="font-size:12px; color:var(--muted); font-weight:400;"></span></h3>
+        <div class="row" style="margin-bottom:10px;">
+          <select id="filterStatus" class="input" style="flex:1; min-width:120px;">
+            <option value="">All statuses</option>
+            <option value="completed">completed</option>
+            <option value="proposed">proposed</option>
+            <option value="executed">executed</option>
+            <option value="escalated">escalated</option>
+            <option value="skipped">skipped</option>
+            <option value="error">error</option>
+          </select>
+          <label style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:4px;">
+            <input type="checkbox" id="reviewOnly" /> Needs review only
+          </label>
+          <button class="btn btn-ghost" id="reloadActions">Reload</button>
+        </div>
+        <div id="actionsList" class="actions-list"><div class="empty">Loading…</div></div>
+        <div class="row" style="margin-top:10px; justify-content:space-between; align-items:center;">
+          <button class="btn btn-ghost" id="actionsPrev" disabled>← Prev</button>
+          <span id="actionsPageInfo" style="font-size:12px; color:var(--muted);"></span>
+          <button class="btn btn-ghost" id="actionsNext" disabled>Next →</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Memory <span id="memoryTotal" style="font-size:12px; color:var(--muted); font-weight:400;"></span></h3>
+        <div style="font-size:13px; color:var(--muted); margin-bottom:10px;">
+          Most recent rows from <code class="kbd">agent_memory</code>. Read-only.
+        </div>
+        <div id="memoryList" style="max-height:520px; overflow-y:auto;"><div class="empty">Loading…</div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast" class="toast" style="display:none;"></div>
+
+<script>
+const STORAGE_KEY = 'mcc_admin_pw';
+const API_BASE = '/api/admin/agent-fleet';
+let spendChart = null;
+let agent = null;
+let agentSlug = (new URLSearchParams(location.search).get('slug') || '').toLowerCase().trim();
+
+function getPw() { return sessionStorage.getItem(STORAGE_KEY) || ''; }
+function setPw(v) { sessionStorage.setItem(STORAGE_KEY, v); }
+function clearPw() { sessionStorage.removeItem(STORAGE_KEY); }
+
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (isError ? ' error' : '');
+  el.style.display = 'block';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.style.display = 'none', 3500);
+}
+
+async function api(path, opts = {}) {
+  const headers = Object.assign({ 'Content-Type': 'application/json', 'x-admin-password': getPw() }, opts.headers || {});
+  const r = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
+  const text = await r.text();
+  let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  if (r.status === 401) {
+    clearPw();
+    showLogin('Session expired. Please sign in again.');
+    throw new Error('Unauthorized');
+  }
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+function showLogin(err) {
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('loginShell').style.display = 'block';
+  if (err) {
+    const e = document.getElementById('pwError');
+    e.textContent = err; e.style.display = 'block';
+  }
+  document.getElementById('pwInput').focus();
+}
+
+function showApp() {
+  document.getElementById('loginShell').style.display = 'none';
+  document.getElementById('appShell').style.display = 'block';
+  refreshAll();
+}
+
+async function tryLogin(pw) {
+  setPw(pw);
+  try { await api('/agents'); showApp(); }
+  catch (e) { if (e.message !== 'Unauthorized') toast(e.message, true); }
+}
+
+function fmt$(n) { return '$' + (Number(n) || 0).toFixed(2); }
+function fmtTime(iso) { if (!iso) return ''; return new Date(iso).toLocaleString(); }
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+async function loadAgent() {
+  if (!agentSlug) {
+    document.getElementById('agentTitle').textContent = 'No agent specified';
+    document.getElementById('agentSubtitle').innerHTML = 'Add <code class="kbd">?slug=&lt;agent&gt;</code> to the URL, or pick one from the <a href="/admin/agent-fleet.html" style="color:var(--gold);">fleet console</a>.';
+    return false;
+  }
+  const { agents } = await api('/agents');
+  agent = agents.find(a => a.slug === agentSlug);
+  if (!agent) {
+    document.getElementById('agentTitle').textContent = `Unknown agent: ${agentSlug}`;
+    document.getElementById('agentSubtitle').innerHTML = 'Return to the <a href="/admin/agent-fleet.html" style="color:var(--gold);">fleet console</a>.';
+    return false;
+  }
+  document.title = `${agent.display_name} · Agent Detail · MCC`;
+  document.getElementById('agentTitle').textContent = agent.display_name;
+  const enabledBadge = agent.enabled ? '<span class="badge badge-on">enabled</span>' : '<span class="badge badge-off">disabled</span>';
+  const modeBadge = `<span class="badge badge-mode-${agent.autonomy}">${agent.autonomy}</span>`;
+  document.getElementById('agentSubtitle').innerHTML = `${enabledBadge} ${modeBadge} · <code class="kbd">${agent.slug}</code>`;
+
+  // KPIs
+  const spendActual = Number(agent.today_spend?.actual_usd || 0);
+  document.getElementById('kpiSpend').textContent = fmt$(spendActual);
+  document.getElementById('kpiSpendCalls').textContent = `${agent.today_spend?.call_count || 0} calls · ${fmt$(agent.today_spend?.reserved_usd || 0)} reserved`;
+  document.getElementById('kpiCap').textContent = fmt$(agent.daily_spend_cap_usd);
+
+  // Config
+  document.getElementById('cfgEnabled').checked = !!agent.enabled;
+  document.getElementById('cfgEnabledText').textContent = agent.enabled ? 'Active' : 'Disabled';
+  document.getElementById('cfgAutonomy').value = agent.autonomy;
+  document.getElementById('cfgCap').value = agent.daily_spend_cap_usd;
+  document.getElementById('cfgModel').value = agent.model || '';
+  document.getElementById('cfgDescription').textContent = agent.description || '—';
+  const triggers = Array.isArray(agent.triggers) ? agent.triggers : [];
+  document.getElementById('cfgTriggers').textContent = triggers.length ? triggers.join(', ') : '(none)';
+
+  // Conditional cards
+  if (agent.slug === 'analyst') document.getElementById('briefingCard').style.display = '';
+  if (agent.slug === 'gatekeeper') document.getElementById('reviewQueueCard').style.display = '';
+  return true;
+}
+
+function wireConfigEdits() {
+  async function patch(field, val) {
+    try {
+      await api(`/agents/${agentSlug}`, { method: 'PUT', body: JSON.stringify({ [field]: val }) });
+      toast(`${field} updated`);
+    } catch (e) { toast(e.message, true); }
+  }
+  document.getElementById('cfgEnabled').addEventListener('change', e => {
+    document.getElementById('cfgEnabledText').textContent = e.target.checked ? 'Active' : 'Disabled';
+    patch('enabled', e.target.checked);
+  });
+  document.getElementById('cfgAutonomy').addEventListener('change', e => patch('autonomy', e.target.value));
+  document.getElementById('cfgCap').addEventListener('change', e => {
+    const v = parseFloat(e.target.value);
+    if (!isNaN(v) && v >= 0) patch('daily_spend_cap_usd', v);
+  });
+  document.getElementById('cfgModel').addEventListener('change', e => {
+    if (e.target.value.trim()) patch('model', e.target.value.trim());
+  });
+}
+
+async function loadSpend() {
+  try {
+    const { days } = await api('/spend');
+    if (!window.Chart) { setTimeout(loadSpend, 300); return; }
+    const mine = days.filter(d => d.agent_slug === agentSlug);
+    const dayKeys = Array.from(new Set(mine.map(d => d.day))).sort();
+    const data = dayKeys.map(dk => {
+      const r = mine.find(d => d.day === dk);
+      return r ? Number(r.actual_usd || 0) : 0;
+    });
+    if (spendChart) spendChart.destroy();
+    spendChart = new Chart(document.getElementById('spendChart'), {
+      type: 'bar',
+      data: { labels: dayKeys, datasets: [{ label: 'USD', data, backgroundColor: '#c9a84c', borderColor: '#c9a84c' }] },
+      options: {
+        responsive: true,
+        plugins: { legend: { display:false } },
+        scales: {
+          x: { ticks: { color: '#94a3b8' }, grid: { color: '#2d343f' } },
+          y: { ticks: { color: '#94a3b8', callback: v => '$' + v }, grid: { color: '#2d343f' } }
+        }
+      }
+    });
+  } catch (e) { /* ignore */ }
+}
+
+const ACTIONS_PAGE_SIZE = 50;
+let actionsOffset = 0;
+
+async function loadActions() {
+  const list = document.getElementById('actionsList');
+  try {
+    const reviewOnly = document.getElementById('reviewOnly').checked;
+    const status = document.getElementById('filterStatus').value;
+    const params = new URLSearchParams();
+    params.set('limit', String(ACTIONS_PAGE_SIZE));
+    params.set('offset', String(actionsOffset));
+    params.set('agent', agentSlug);
+    if (reviewOnly) params.set('review_only', '1');
+    if (status) params.set('status', status);
+    const resp = await api(`/actions?${params.toString()}`);
+    const actions = resp.actions || [];
+    const total = resp.total || 0;
+    const limit = resp.limit || ACTIONS_PAGE_SIZE;
+    const offset = resp.offset || 0;
+    document.getElementById('actionsTotal').textContent = total ? `(${total} total)` : '';
+    const start = total === 0 ? 0 : offset + 1;
+    const end = Math.min(offset + actions.length, total);
+    document.getElementById('actionsPageInfo').textContent = total ? `${start}–${end} of ${total}` : '';
+    document.getElementById('actionsPrev').disabled = offset <= 0;
+    document.getElementById('actionsNext').disabled = offset + limit >= total;
+
+    if (!actions.length) {
+      list.innerHTML = '<div class="empty">No activity matches the current filters.</div>';
+      document.getElementById('kpiReview').textContent = '0';
+      return;
+    }
+    let needReview = 0;
+    list.innerHTML = '';
+    for (const a of actions) {
+      if (a.needs_review && !a.reviewed_at) needReview++;
+      const div = document.createElement('div');
+      div.className = 'action-row';
+      const dec = (() => { try { return typeof a.decision === 'string' ? JSON.parse(a.decision) : a.decision; } catch { return a.decision; } })();
+      const decSummary = dec ? Object.entries(dec).slice(0, 4).map(([k, v]) => `<code class="kbd">${escapeHtml(k)}=${escapeHtml(typeof v === 'object' ? JSON.stringify(v).slice(0, 60) : String(v).slice(0, 60))}</code>`).join(' ') : '';
+      div.innerHTML = `
+        <div class="action-head">
+          <div>
+            <span class="status-dot status-${a.status}"></span>
+            <span class="action-agent">${escapeHtml(a.action_type)}</span>
+          </div>
+          <div class="action-time">${fmtTime(a.created_at)}</div>
+        </div>
+        <div class="action-reason">${escapeHtml(a.reasoning || a.error_message || '') || '<span style="color:var(--muted);">(no reasoning)</span>'}</div>
+        <div class="action-meta">
+          ${decSummary}
+          ${a.cost_usd ? ` · <span class="num">${fmt$(a.cost_usd)}</span>` : ''}
+          ${a.tokens_in || a.tokens_out ? ` · ${a.tokens_in}+${a.tokens_out} tok` : ''}
+          ${a.duration_ms ? ` · ${a.duration_ms}ms` : ''}
+          ${a.needs_review && !a.reviewed_at ? ` · <button class="btn btn-ghost" data-review="${a.id}" data-decision="approved" style="padding:3px 9px; font-size:12px;">Approve</button> <button class="btn btn-danger" data-review="${a.id}" data-decision="rejected" style="padding:3px 9px; font-size:12px;">Reject</button>` : ''}
+          ${a.review_status ? ` · <span class="badge badge-${a.review_status === 'approved' || a.review_status === 'executed' ? 'on' : 'off'}">${escapeHtml(a.review_status)}</span>` : ''}
+        </div>
+      `;
+      list.appendChild(div);
+    }
+    document.getElementById('kpiReview').textContent = String(needReview);
+    list.querySelectorAll('[data-review]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-review');
+        const decision = btn.getAttribute('data-decision');
+        try {
+          await api(`/actions/${id}/review`, { method: 'POST', body: JSON.stringify({ decision }) });
+          toast(`Action ${id} marked ${decision}`);
+          loadActions();
+          if (agentSlug === 'gatekeeper') loadReviewQueue();
+        } catch (e) { toast(e.message, true); }
+      });
+    });
+  } catch (e) {
+    if (e.message !== 'Unauthorized') list.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function loadMemory() {
+  const list = document.getElementById('memoryList');
+  try {
+    const { rows, total } = await api(`/memory?agent=${encodeURIComponent(agentSlug)}&limit=20`);
+    document.getElementById('memoryTotal').textContent = total ? `(${total} total)` : '';
+    if (!rows.length) {
+      list.innerHTML = '<div class="empty">No memory rows yet.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    for (const m of rows) {
+      const div = document.createElement('div');
+      div.className = 'memory-row';
+      const expires = m.expires_at ? ` · expires ${fmtTime(m.expires_at)}` : '';
+      let body;
+      try { body = JSON.stringify(typeof m.value === 'string' ? JSON.parse(m.value) : m.value, null, 2); }
+      catch { body = String(m.value); }
+      div.innerHTML = `
+        <div class="memory-head">
+          <div><span class="memory-kind">${escapeHtml(m.kind)}</span> ${m.key ? `· <span class="memory-key">${escapeHtml(m.key)}</span>` : ''}</div>
+          <div style="color:var(--muted); font-size:12px;">${fmtTime(m.created_at)}${expires}</div>
+        </div>
+        <pre class="memory-json" style="margin-top:8px;">${escapeHtml(body)}</pre>
+      `;
+      list.appendChild(div);
+    }
+  } catch (e) {
+    if (e.message !== 'Unauthorized') list.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function loadBriefing() {
+  if (agentSlug !== 'analyst') return;
+  try {
+    const { briefing } = await api('/briefing');
+    if (!briefing || !briefing.value) {
+      document.getElementById('briefingBody').textContent = 'No briefing yet. Run the analyst to generate one.';
+      document.getElementById('briefingMeta').textContent = '';
+      return;
+    }
+    const v = briefing.value;
+    document.getElementById('briefingBody').textContent = v.narrative || '(empty)';
+    document.getElementById('briefingMeta').textContent = `${v.date || ''} · ${v.model || ''} · stored ${fmtTime(briefing.created_at)}`;
+  } catch (e) {
+    if (e.message !== 'Unauthorized') document.getElementById('briefingBody').textContent = e.message;
+  }
+}
+
+async function loadReviewQueue() {
+  if (agentSlug !== 'gatekeeper') return;
+  const body = document.getElementById('reviewQueueBody');
+  try {
+    const params = new URLSearchParams({ limit: '20', agent: agentSlug, review_only: '1' });
+    const resp = await api(`/actions?${params.toString()}`);
+    const items = resp.actions || [];
+    if (!items.length) {
+      body.innerHTML = '<div class="empty">No items waiting on human review.</div>';
+      return;
+    }
+    body.innerHTML = '';
+    for (const a of items) {
+      const div = document.createElement('div');
+      div.className = 'action-row';
+      const dec = (() => { try { return typeof a.decision === 'string' ? JSON.parse(a.decision) : a.decision; } catch { return a.decision; } })();
+      const decSummary = dec ? Object.entries(dec).slice(0, 6).map(([k, v]) => `<code class="kbd">${escapeHtml(k)}=${escapeHtml(typeof v === 'object' ? JSON.stringify(v).slice(0, 80) : String(v).slice(0, 80))}</code>`).join(' ') : '';
+      div.innerHTML = `
+        <div class="action-head">
+          <div><span class="action-agent">${escapeHtml(a.action_type)}</span> <span class="action-time">· ${fmtTime(a.created_at)}</span></div>
+          <div class="row">
+            <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="approved" style="padding:4px 10px; font-size:12px;">Approve</button>
+            <button class="btn btn-danger" data-q-review="${a.id}" data-decision="rejected" style="padding:4px 10px; font-size:12px;">Reject</button>
+          </div>
+        </div>
+        <div class="action-reason">${escapeHtml(a.reasoning || '') || '<span style="color:var(--muted);">(no reasoning)</span>'}</div>
+        <div class="action-meta">${decSummary}</div>
+      `;
+      body.appendChild(div);
+    }
+    body.querySelectorAll('[data-q-review]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-q-review');
+        const decision = btn.getAttribute('data-decision');
+        try {
+          await api(`/actions/${id}/review`, { method: 'POST', body: JSON.stringify({ decision }) });
+          toast(`Action ${id} marked ${decision}`);
+          loadReviewQueue();
+          loadActions();
+        } catch (e) { toast(e.message, true); }
+      });
+    });
+  } catch (e) {
+    if (e.message !== 'Unauthorized') body.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function refreshAll() {
+  const ok = await loadAgent();
+  if (!ok) return;
+  await Promise.all([loadSpend(), loadActions(), loadMemory(), loadBriefing(), loadReviewQueue()]);
+}
+
+// wire-up
+document.getElementById('pwSubmit').addEventListener('click', () => tryLogin(document.getElementById('pwInput').value));
+document.getElementById('pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(document.getElementById('pwInput').value); });
+document.getElementById('logoutLink').addEventListener('click', e => { e.preventDefault(); clearPw(); showLogin(); });
+document.getElementById('reloadActions').addEventListener('click', () => { actionsOffset = 0; loadActions(); });
+document.getElementById('reviewOnly').addEventListener('change', () => { actionsOffset = 0; loadActions(); });
+document.getElementById('filterStatus').addEventListener('change', () => { actionsOffset = 0; loadActions(); });
+document.getElementById('actionsPrev').addEventListener('click', () => { actionsOffset = Math.max(0, actionsOffset - ACTIONS_PAGE_SIZE); loadActions(); });
+document.getElementById('actionsNext').addEventListener('click', () => { actionsOffset += ACTIONS_PAGE_SIZE; loadActions(); });
+document.getElementById('runAnalyst').addEventListener('click', async () => {
+  try { toast('Running analyst…'); const r = await api('/run/analyst', { method: 'POST' }); toast(r.result?.success ? `Analyst done · ${fmt$(r.result.cost_usd || 0)}` : (r.result?.reason || 'Done')); refreshAll(); }
+  catch (e) { toast(e.message, true); }
+});
+wireConfigEdits();
+
+// boot
+if (getPw()) { api('/agents').then(showApp).catch(() => showLogin()); }
+else { showLogin(); }
+</script>
+
+</body>
+</html>

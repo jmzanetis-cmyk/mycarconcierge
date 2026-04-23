@@ -15,6 +15,8 @@
 //   GET  /dead-letter?limit=50&offset=0&open=1   — list DLQ entries
 //   POST /dead-letter/:id/replay         — re-emit the event (attempts=0)
 //   GET  /spend-alerts?days=7            — recent spend-cap breach alerts
+//   GET  /events/timeseries?days=7&group_by=event_type|status — events per hour
+//   GET  /memory?agent=slug&limit=20     — recent memory rows for one agent
 // ============================================================================
 
 const {
@@ -340,6 +342,82 @@ exports.handler = async function(event) {
       return jsonResponse(result.sent ? 200 : 500, {
         ok: result.sent, agent_slug: slug, day, email: result
       });
+    }
+
+    // -------- events timeseries (per-hour bucketing for the events chart)
+    if (route === 'events/timeseries' && method === 'GET') {
+      const days = Math.min(Math.max(parseInt(qs.days, 10) || 7, 1), 30);
+      const groupBy = qs.group_by === 'status' ? 'status' : 'event_type';
+      const sinceMs = Date.now() - days * 24 * 60 * 60 * 1000;
+      const sinceIso = new Date(sinceMs).toISOString();
+      const { data, error } = await supabase
+        .from('agent_events')
+        .select('created_at, event_type, processed_at, error, routed_to')
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: true })
+        .limit(20000);
+      if (error) throw new Error(error.message);
+      const bucketMs = 60 * 60 * 1000;
+      const startBucket = Math.floor(sinceMs / bucketMs) * bucketMs;
+      const endBucket   = Math.floor(Date.now() / bucketMs) * bucketMs;
+      const buckets = [];
+      for (let t = startBucket; t <= endBucket; t += bucketMs) buckets.push(new Date(t).toISOString());
+      const seriesMap = {};
+      const eventTypeCounts = {};
+      function statusOf(row) {
+        if (row.error) return 'errored';
+        if (Array.isArray(row.routed_to) && row.routed_to.length === 0) return 'skipped';
+        if (row.processed_at) return 'routed';
+        return 'pending';
+      }
+      for (const row of (data || [])) {
+        const t = new Date(row.created_at).getTime();
+        const bucket = new Date(Math.floor(t / bucketMs) * bucketMs).toISOString();
+        const key = groupBy === 'status' ? statusOf(row) : (row.event_type || 'unknown');
+        if (groupBy === 'event_type') eventTypeCounts[key] = (eventTypeCounts[key] || 0) + 1;
+        if (!seriesMap[key]) seriesMap[key] = {};
+        seriesMap[key][bucket] = (seriesMap[key][bucket] || 0) + 1;
+      }
+      let seriesNames = Object.keys(seriesMap);
+      if (groupBy === 'event_type' && seriesNames.length > 8) {
+        const top = Object.entries(eventTypeCounts)
+          .sort((a, b) => b[1] - a[1]).slice(0, 8).map(e => e[0]);
+        const topSet = new Set(top);
+        const collapsed = {};
+        for (const k of seriesNames) {
+          const dest = topSet.has(k) ? k : 'other';
+          collapsed[dest] = collapsed[dest] || {};
+          for (const [bucket, n] of Object.entries(seriesMap[k])) {
+            collapsed[dest][bucket] = (collapsed[dest][bucket] || 0) + n;
+          }
+        }
+        for (const k of Object.keys(seriesMap)) delete seriesMap[k];
+        Object.assign(seriesMap, collapsed);
+        seriesNames = Object.keys(seriesMap);
+      }
+      const series = seriesNames.sort().map(name => ({
+        name,
+        data: buckets.map(b => seriesMap[name][b] || 0)
+      }));
+      return jsonResponse(200, {
+        days, group_by: groupBy, buckets, series, total: (data || []).length
+      });
+    }
+
+    // -------- per-agent memory viewer
+    if (route === 'memory' && method === 'GET') {
+      const slug = (qs.agent || '').trim();
+      if (!slug) return jsonResponse(400, { error: 'agent query param required' });
+      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 20, 1), 100);
+      const off = Math.max(parseInt(qs.offset, 10) || 0, 0);
+      const { data, count, error } = await supabase
+        .from('agent_memory')
+        .select('*', { count: 'exact' })
+        .eq('agent_slug', slug)
+        .order('created_at', { ascending: false })
+        .range(off, off + lim - 1);
+      if (error) throw new Error(error.message);
+      return jsonResponse(200, { rows: data || [], total: count || 0, limit: lim, offset: off });
     }
 
     return jsonResponse(404, { error: 'Not found', route });
