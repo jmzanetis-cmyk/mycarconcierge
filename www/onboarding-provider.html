@@ -1381,42 +1381,39 @@
 
           // Submit application via server-side endpoint (validates JWT-derived
           // user_id, captures real client IP, rate-limits, and emits an event).
-          // The legal_signatory_name + agreement_signed_at are synthesized
-          // here from the consent-terms checkbox the user just ticked.
+          // FAIL-CLOSED: if we can't write the provider_applications row, do NOT
+          // promote the user to provider role — that would create an orphan
+          // provider account with no application audit trail.
           const sessionRes = await supabaseClient.auth.getSession();
           const accessToken = sessionRes?.data?.session?.access_token;
-          let appData = null;
           if (!accessToken) {
-            console.error('Application insert skipped: no session token (email confirmation required?)');
-          } else {
-            try {
-              const appResp = await fetch('/api/provider-application', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  business_name: formData.businessName,
-                  contact_name: formData.contactName || formData.businessName,
-                  phone: formData.phone,
-                  email: formData.email,
-                  business_type: formData.businessType,
-                  city: formData.city,
-                  state: formData.state,
-                  services_offered: formData.services,
-                  years_in_business: parseInt(formData.yearsInBusiness) || 0,
-                  legal_signatory_name: formData.contactName || formData.businessName,
-                  agreement_signed_at: new Date().toISOString()
-                })
-              });
-              const appJson = await appResp.json().catch(() => ({}));
-              if (!appResp.ok) {
-                console.error('Application insert error:', appJson?.error || appResp.status, appJson?.details);
-              } else {
-                appData = { id: appJson.application_id };
-              }
-            } catch (e) {
-              console.error('Application insert threw:', e.message);
-            }
+            throw new Error('Could not establish a session. Please check your email to confirm your account, then sign in and try again.');
           }
+          let appData = null;
+          const appResp = await fetch('/api/provider-application', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              business_name: formData.businessName,
+              contact_name: formData.contactName || formData.businessName,
+              phone: formData.phone,
+              email: formData.email,
+              business_type: formData.businessType,
+              city: formData.city,
+              state: formData.state,
+              services_offered: formData.services,
+              years_in_business: parseInt(formData.yearsInBusiness) || 0,
+              legal_signatory_name: formData.contactName || formData.businessName,
+              agreement_signed_at: new Date().toISOString()
+            })
+          });
+          const appJson = await appResp.json().catch(() => ({}));
+          if (!appResp.ok) {
+            const msg = appJson?.error || `Application submit failed (${appResp.status})`;
+            const details = Array.isArray(appJson?.details) ? `\n• ${appJson.details.join('\n• ')}` : '';
+            throw new Error(`${msg}${details}`);
+          }
+          appData = { id: appJson.application_id };
 
           await supabaseClient.from('profiles').update({
             role: 'provider',

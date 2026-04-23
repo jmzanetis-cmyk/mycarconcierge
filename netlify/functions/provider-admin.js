@@ -229,12 +229,12 @@ exports.handler = async function(event) {
       // was found for 'profiles' and 'provider_stats'") on this schema.
       const { data: stats, error: statsErr } = await supabase
         .from('provider_stats')
-        .select('user_id, average_rating, suspended')
+        .select('provider_id, average_rating, suspended')
         .lt('average_rating', threshold)
         .not('average_rating', 'is', null);
       if (statsErr) return jsonResponse(500, { error: statsErr.message });
 
-      const candidateIds = (stats || []).filter(s => !s.suspended).map(s => s.user_id);
+      const candidateIds = (stats || []).filter(s => !s.suspended).map(s => s.provider_id);
       let profiles = [];
       if (candidateIds.length > 0) {
         const { data, error } = await supabase
@@ -245,8 +245,8 @@ exports.handler = async function(event) {
         if (error) return jsonResponse(500, { error: error.message });
         profiles = data || [];
       }
-      const ratingByUserId = new Map((stats || []).map(s => [s.user_id, s.average_rating]));
-      const lowRated = profiles.map(p => ({ ...p, avg_rating: ratingByUserId.get(p.id) }));
+      const ratingByProviderId = new Map((stats || []).map(s => [s.provider_id, s.average_rating]));
+      const lowRated = profiles.map(p => ({ ...p, avg_rating: ratingByProviderId.get(p.id) }));
 
       await audit(supabase, {
         action: 'check_low_rated',
