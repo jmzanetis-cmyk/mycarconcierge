@@ -132,42 +132,87 @@ exports.handler = async function(event, context) {
           }).then(() => {}).catch(() => {});
         }
       }
-    } else if (eventType === 'email.delivered') {
-      const toEmail = data.to?.[0];
-      if (toEmail) {
-        const { data: leads } = await supabase
-          .from('outreach_leads')
-          .select('id')
-          .eq('email', toEmail)
-          .eq('status', 'contacted');
+    } else if (eventType === 'email.opened') {
+      // Resend fires this when the 1x1 tracking pixel loads. Stamp opened_at
+      // on the originating outreach_messages row (only if not already set, so
+      // we record the FIRST open). Lead status is left at 'contacted' — opens
+      // alone aren't strong enough signal to advance the pipeline.
+      const emailId = data.email_id;
+      if (emailId) {
+        const { data: msg } = await supabase
+          .from('outreach_messages')
+          .select('id, lead_id, opened_at')
+          .eq('resend_message_id', emailId)
+          .maybeSingle();
 
-        if (leads && leads.length > 0) {
-          const replyHeaders = data.headers || {};
-          const inReplyTo = replyHeaders['in-reply-to'] || replyHeaders['In-Reply-To'];
-          const references = replyHeaders['references'] || replyHeaders['References'];
+        if (msg && !msg.opened_at) {
+          await supabase.from('outreach_messages')
+            .update({ opened_at: new Date().toISOString() })
+            .eq('id', msg.id);
+          await supabase.from('outreach_activity_log').insert({
+            lead_id: msg.lead_id,
+            message_id: msg.id,
+            event_type: 'opened',
+            metadata: {}
+          });
+          supabase.from('outreach_email_events').insert({
+            message_id: msg.id,
+            lead_id: msg.lead_id,
+            event_type: 'opened',
+            occurred_at: new Date().toISOString()
+          }).then(() => {}).catch(() => {});
+        }
+      }
+    } else if (eventType === 'email.clicked') {
+      // Resend fires this when a recipient clicks any tracked link. Stamp
+      // clicked_at and advance lead status to 'clicked' (a much stronger
+      // engagement signal than open). Pipeline stage moves to 'engaged'.
+      const emailId = data.email_id;
+      if (emailId) {
+        const { data: msg } = await supabase
+          .from('outreach_messages')
+          .select('id, lead_id, clicked_at')
+          .eq('resend_message_id', emailId)
+          .maybeSingle();
 
-          if (inReplyTo || references) {
-            for (const lead of leads) {
-              await supabase.from('outreach_leads').update({ status: 'responded' }).eq('id', lead.id);
-              await supabase.from('opportunity_pipeline')
-                .update({ stage: 'responded', last_action_at: new Date().toISOString() })
-                .eq('lead_id', lead.id);
-              await supabase.from('outreach_activity_log').insert({
-                lead_id: lead.id,
-                event_type: 'response_detected',
-                metadata: { from: toEmail }
-              });
-              supabase.from('outreach_email_events').insert({
-                lead_id: lead.id,
-                event_type: 'response_detected',
-                occurred_at: new Date().toISOString(),
-                metadata: { from: toEmail }
-              }).then(() => {}).catch(() => {});
-            }
+        if (msg) {
+          if (!msg.clicked_at) {
+            await supabase.from('outreach_messages')
+              .update({ clicked_at: new Date().toISOString() })
+              .eq('id', msg.id);
           }
+          // Advance the lead — but never downgrade if already responded/converted.
+          await supabase.from('outreach_leads')
+            .update({ status: 'clicked', updated_at: new Date().toISOString() })
+            .eq('id', msg.lead_id)
+            .in('status', ['new', 'queued', 'contacted']);
+          await supabase.from('opportunity_pipeline')
+            .update({ stage: 'engaged', last_action_at: new Date().toISOString() })
+            .eq('lead_id', msg.lead_id)
+            .in('stage', ['new', 'draft_ready', 'message_queued', 'contacted']);
+          await supabase.from('outreach_activity_log').insert({
+            lead_id: msg.lead_id,
+            message_id: msg.id,
+            event_type: 'clicked',
+            metadata: { url: data.click?.link || data.link }
+          });
+          supabase.from('outreach_email_events').insert({
+            message_id: msg.id,
+            lead_id: msg.lead_id,
+            event_type: 'clicked',
+            occurred_at: new Date().toISOString(),
+            metadata: { url: data.click?.link || data.link }
+          }).then(() => {}).catch(() => {});
         }
       }
     }
+    // NOTE: We previously had an `email.delivered` branch that tried to detect
+    // replies by sniffing `in-reply-to` headers. That logic was wrong — Resend's
+    // delivered event fires when the receiving SMTP server accepts the message,
+    // it has nothing to do with replies, and the headers it carries are the
+    // OUTBOUND ones we set, not anything from the recipient. Removed to stop
+    // false-positive 'responded' status flips. Real reply detection would need
+    // Resend's inbound email feature or an IMAP poll on the From: address.
 
     return {
       statusCode: 200,
