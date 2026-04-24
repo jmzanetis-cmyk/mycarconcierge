@@ -22,10 +22,15 @@ function getSupabase() {
 
 function authenticateAdmin(event) {
   const headers = event.headers || {};
-  const pw = headers['x-admin-password'] || headers['X-Admin-Password'];
+  // Accept either x-admin-password (single owner session) or x-admin-token
+  // (team-admin session). Mirrors admin-team.js — both headers are validated
+  // against ADMIN_PASSWORD because the team-admin login flow currently mints
+  // a token equal to the admin password.
+  const pw    = (headers['x-admin-password'] || headers['X-Admin-Password'] || '').trim();
+  const token = (headers['x-admin-token']    || headers['X-Admin-Token']    || '').trim();
   const adminPassword = process.env.ADMIN_PASSWORD;
   if (!adminPassword) return false;
-  return pw === adminPassword;
+  return pw === adminPassword || token === adminPassword;
 }
 
 // Netlify Scheduled Functions invoke handlers with a body containing a `next_run`
@@ -58,8 +63,9 @@ function isScheduledInvocation(event) {
 function authorizeAgentInvocation(event) {
   if (authenticateAdmin(event)) return 'admin';
   const headers = event.headers || {};
-  const hasAnyAdminHeader = !!(headers['x-admin-password'] || headers['X-Admin-Password']);
-  if (hasAnyAdminHeader) return null; // bad password -> reject
+  const hasAnyAdminHeader = !!(headers['x-admin-password'] || headers['X-Admin-Password']
+                            || headers['x-admin-token']    || headers['X-Admin-Token']);
+  if (hasAnyAdminHeader) return null; // bad credential -> reject
   // Unspoofable: a real Netlify scheduled invocation has no httpMethod.
   if (!event.httpMethod && isScheduledInvocation(event)) return 'scheduled';
   return null;

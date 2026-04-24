@@ -14,7 +14,7 @@ function jsonResponse(statusCode, data) {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-password, X-Admin-Password',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-password, X-Admin-Password, x-admin-token, X-Admin-Token',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
     },
     body: JSON.stringify(data)
@@ -22,10 +22,15 @@ function jsonResponse(statusCode, data) {
 }
 
 function authenticateAdmin(event) {
-  const pw = event.headers['x-admin-password'] || event.headers['X-Admin-Password'];
+  // Accept either x-admin-password (single owner session) or x-admin-token
+  // (team-admin session). Mirrors admin-team.js — both headers are validated
+  // against ADMIN_PASSWORD because the team-admin login flow currently mints
+  // a token equal to the admin password.
+  const pw    = (event.headers['x-admin-password'] || event.headers['X-Admin-Password'] || '').trim();
+  const token = (event.headers['x-admin-token']    || event.headers['X-Admin-Token']    || '').trim();
   const adminPassword = process.env.ADMIN_PASSWORD;
   if (!adminPassword) return false;
-  return pw === adminPassword;
+  return pw === adminPassword || token === adminPassword;
 }
 
 async function getAiOpsSettings(supabase) {

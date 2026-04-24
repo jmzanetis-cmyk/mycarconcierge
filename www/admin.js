@@ -8118,6 +8118,13 @@
         adminTeamUser = data.user;
         adminPermissions = data.permissions;
         adminPasswordVerified = false;
+        // Expose to window + localStorage so external helper scripts (e.g.
+        // www/admin-agent-activity.js) can read the same credential when
+        // assembling auth headers. Mirrors how mcc_admin_pass is persisted.
+        try {
+          window.adminTeamToken = data.token;
+          if (data.token) localStorage.setItem('adminTeamToken', data.token);
+        } catch (e) {}
         
         document.getElementById('admin-password-modal').style.display = 'none';
         applyRolePermissions(data.permissions);
@@ -10142,11 +10149,11 @@
     let aiOpsDigests = [];
 
     function getAiOpsHeaders() {
-      // Send BOTH headers when available. The agent-fleet/ai-ops backends
-      // currently only validate x-admin-password, so omitting the password
-      // (when only the team token is present) would silently 401 every new
-      // call. The team-admin login flow stamps mcc_admin_pass after server-
-      // side token validation, so both headers are normally available together.
+      // Send whichever credentials are present. agent-fleet-runtime.js and
+      // ai-ops-admin.js authenticateAdmin both accept x-admin-token OR
+      // x-admin-password (validated server-side against ADMIN_PASSWORD, same
+      // pattern as admin-team.js), so a team-admin session with only the
+      // token still authenticates correctly.
       const headers = {};
       if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
       const pw = adminPasswordVerified || localStorage.getItem('mcc_admin_pass') || localStorage.getItem('adminPassword');

@@ -20,13 +20,12 @@
 // }
 // ============================================================================
 (function () {
-  // Mirrors getAiOpsHeaders() in admin.js — team-admin sessions authenticate with
-  // x-admin-token (rotating short-lived team token), and the long-lived admin
-  // password covers the single owner session. The agent-fleet/ai-ops backends
-  // currently only validate x-admin-password, so we send BOTH headers when
-  // available — that lets the team-admin token-only sessions still authenticate
-  // (the team-admin login flow stamps mcc_admin_pass after server-side token
-  // validation), and keeps owner-password-only sessions working unchanged.
+  // Mirrors getAiOpsHeaders() in admin.js. Both x-admin-token (team-admin
+  // session) and x-admin-password (single owner session) are validated
+  // server-side against ADMIN_PASSWORD by agent-fleet-runtime.js and
+  // ai-ops-admin.js authenticateAdmin (same pattern as admin-team.js).
+  // We send whichever credentials are present — the helper does NOT assume
+  // one stamps the other.
   function authHeaders() {
     const h = { 'Accept': 'application/json' };
     const token = window.adminTeamToken
