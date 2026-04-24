@@ -327,13 +327,14 @@ exports.handler = async function(event) {
     if (route === 'stats/24h' && method === 'GET') {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       // Required dashboard semantics: "actions taken / escalated / failed" over
-      // the last 24h, drawn from BOTH agent_actions and agent_events.
+      // the last 24h, drawn from BOTH agent_actions and agent_events. We dedupe
+      // event rows whose payload.action_id is non-null (the agent_action that
+      // emitted the event already counts toward the per-table tally).
       //   actions_taken — agent_actions rows that ran end-to-end (status='executed')
-      //   escalated     — needs_review queue OR agent_events of type 'agent.escalated'
-      //   failed        — agent_actions status='errored' OR agent_events 'agent.failed'
-      // We dedupe escalated/failed by counting events that don't already correspond
-      // to an agent_action row (agent_events.payload.action_id check). Cheap to call —
-      // every probe is a head/count select.
+      //   escalated     — needs_review queue + standalone agent.escalated events
+      //   failed        — agent_actions status='errored' + standalone agent.failed events
+      // Cheap to call: 3 head/count probes + 2 small SELECTs that pull only the
+      // payload column for the same window.
       const [
         takenRes, escActionRes, failActionRes,
         escEventRes, failEventRes
@@ -344,20 +345,30 @@ exports.handler = async function(event) {
           .gte('created_at', since).eq('needs_review', true).is('reviewed_at', null),
         supabase.from('agent_actions').select('*', { count: 'exact', head: true })
           .gte('created_at', since).eq('status', 'errored'),
-        supabase.from('agent_events').select('*', { count: 'exact', head: true })
+        supabase.from('agent_events').select('payload')
           .gte('created_at', since).eq('event_type', 'agent.escalated'),
-        supabase.from('agent_events').select('*', { count: 'exact', head: true })
+        supabase.from('agent_events').select('payload')
           .gte('created_at', since).eq('event_type', 'agent.failed')
       ]);
-      const sumCount = (a, b) =>
-        (a.error ? 0 : (a.count || 0)) + (b.error ? 0 : (b.count || 0));
+      // Standalone events = those NOT tied back to an agent_action row.
+      const standaloneCount = (res) => {
+        if (res.error || !Array.isArray(res.data)) return 0;
+        return res.data.reduce((n, row) => {
+          const aid = row && row.payload && row.payload.action_id;
+          return aid ? n : n + 1;
+        }, 0);
+      };
+      const escEventCount  = (escEventRes.error  || !Array.isArray(escEventRes.data))  ? 0 : escEventRes.data.length;
+      const failEventCount = (failEventRes.error || !Array.isArray(failEventRes.data)) ? 0 : failEventRes.data.length;
+      const escStandalone  = standaloneCount(escEventRes);
+      const failStandalone = standaloneCount(failEventRes);
       return jsonResponse(200, {
         actions_taken: takenRes.error ? 0 : (takenRes.count || 0),
-        escalated:     sumCount(escActionRes,  escEventRes),
-        failed:        sumCount(failActionRes, failEventRes),
+        escalated:     (escActionRes.error  ? 0 : (escActionRes.count  || 0)) + escStandalone,
+        failed:        (failActionRes.error ? 0 : (failActionRes.count || 0)) + failStandalone,
         sources: {
           agent_actions: { taken: takenRes.count || 0, escalated: escActionRes.count || 0, failed: failActionRes.count || 0 },
-          agent_events:  { escalated: escEventRes.count || 0, failed: failEventRes.count || 0 }
+          agent_events:  { escalated: escEventCount, failed: failEventCount, escalated_standalone: escStandalone, failed_standalone: failStandalone }
         },
         errors: {
           taken:        takenRes.error?.message      || null,

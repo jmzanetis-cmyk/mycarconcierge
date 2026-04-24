@@ -10287,12 +10287,17 @@
         ? new Date(Date.now() - sinceMap[timeRange] * 60 * 60 * 1000).toISOString()
         : '';
       // Outcome filter is rendered post-fetch (legacy and fleet use different
-      // status field names: outcome vs status). Map "escalated" to either path.
+      // status field names — outcome vs status — and slightly different value
+      // vocabularies: legacy uses 'error' where fleet uses 'errored').
       const matchesOutcome = (row, src) => {
         if (!outcome) return true;
         const v = (src === 'fleet' ? row.status : row.outcome) || '';
         if (outcome === 'escalated') {
           return v === 'escalated' || (src === 'fleet' && row.needs_review && !row.reviewed_at);
+        }
+        if (outcome === 'errored') {
+          // Legacy ai_action_log emits 'error', fleet agent_actions emits 'errored'.
+          return v === 'errored' || v === 'error';
         }
         return v === outcome;
       };
@@ -10352,6 +10357,9 @@
         }
 
         // Unified ("all") branch — fetch both legacy and fleet, merge by created_at.
+        // When a legacy module is selected, fleet rows are suppressed because
+        // the module concept does not map to fleet agent_slug (fleet is filtered
+        // via the `agent:` prefix instead, which routes to the fleet-only branch).
         if (effSource === 'all') {
           const fleetParams = new URLSearchParams({ limit: 50 });
           if (sinceISO) fleetParams.set('since', sinceISO);
@@ -10359,9 +10367,12 @@
           if (mod) legacyParams.set('module', mod);
           if (sinceISO) legacyParams.set('since', sinceISO);
           const [fleetRes, legacyRes] = await Promise.all([
-            fetch(`${apiBase}/api/admin/agent-fleet/actions?${fleetParams}`, { headers: getAiOpsHeaders() })
-              .then(r => r.ok ? r.json() : { actions: [] })
-              .catch(() => ({ actions: [] })),
+            // Skip the fleet round-trip entirely when a legacy-only module filter is set.
+            mod
+              ? Promise.resolve({ actions: [] })
+              : fetch(`${apiBase}/api/admin/agent-fleet/actions?${fleetParams}`, { headers: getAiOpsHeaders() })
+                  .then(r => r.ok ? r.json() : { actions: [] })
+                  .catch(() => ({ actions: [] })),
             safeFetch(`${apiBase}/api/admin/ai-ops/actions?${legacyParams}`, { headers: getAiOpsHeaders() })
               .catch(() => ({ actions: [] }))
           ]);
