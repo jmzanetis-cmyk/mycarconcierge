@@ -432,7 +432,17 @@ exports.handler = async function(event, context) {
       try {
         const html = buildEmailHtml(today, outreach, aiOps, narrative, apollo);
         const subjectParts = [];
-        if (apollo.stalled) subjectParts.push(`⚠️ Apollo stalled (${apollo.consecutive_failures}× zero)`);
+        if (apollo.stalled) {
+          // Differentiate the two stall triggers so the subject doesn't read
+          // as "0× zero" when staleness fires without a recent failure streak.
+          if (apollo.consecutive_failures >= 3) {
+            subjectParts.push(`⚠️ Apollo stalled (${apollo.consecutive_failures}× zero)`);
+          } else if (apollo.hours_since_success !== null) {
+            subjectParts.push(`⚠️ Apollo stale (${Math.round(apollo.hours_since_success)}h since last pull)`);
+          } else {
+            subjectParts.push(`⚠️ Apollo stalled (no successful pulls)`);
+          }
+        }
         if (outreach.sentToday > 0) subjectParts.push(`${outreach.sentToday} emails sent`);
         if (outreach.approvedQueue > 0) subjectParts.push(`${outreach.approvedQueue} queued`);
         if (aiOps.escalated > 0) subjectParts.push(`⚠️ ${aiOps.escalated} escalated`);
