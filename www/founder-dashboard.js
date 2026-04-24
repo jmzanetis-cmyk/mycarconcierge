@@ -844,7 +844,48 @@
     if (payoutForm) {
       payoutForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        // Form submission is now handled by individual modal save functions
+        
+        const method = document.getElementById('payout-method').value;
+        const email = document.getElementById('payout-email').value;
+        const instantPayoutEnabled = document.getElementById('instant-payout-toggle').checked;
+        
+        const updateData = {
+          payout_method: method,
+          payout_email: email,
+          updated_at: new Date().toISOString()
+        };
+        
+        // Only save instant payout settings if using Stripe Connect
+        if (method === 'stripe_connect') {
+          updateData.instant_payout_enabled = instantPayoutEnabled;
+          updateData.payout_preference = instantPayoutEnabled ? 'instant' : 'standard';
+        } else {
+          // Disable instant payout if not using Stripe Connect
+          updateData.instant_payout_enabled = false;
+          updateData.payout_preference = 'standard';
+        }
+        
+        const { error } = await supabaseClient
+          .from('member_founder_profiles')
+          .update(updateData)
+          .eq('id', founderProfile.id);
+        
+        if (error) {
+          showToast('Error saving settings');
+          console.error(error);
+        } else {
+          founderProfile.payout_method = method;
+          founderProfile.payout_email = email;
+          founderProfile.instant_payout_enabled = updateData.instant_payout_enabled;
+          founderProfile.payout_preference = updateData.payout_preference;
+          showToast(instantPayoutEnabled && method === 'stripe_connect' ? 
+            '⚡ Instant payouts enabled!' : 'Payout settings saved!');
+          
+          // Refresh UI if initPayTaxInfo is available
+          if (typeof initPayTaxInfo === 'function') {
+            initPayTaxInfo(founderProfile);
+          }
+        }
       });
     }
     

@@ -471,7 +471,6 @@
     }
   
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
-
     .login-tabs {
       display: flex;
       gap: 8px;
@@ -658,6 +657,25 @@
           <div class="trust-item"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg> Secure &amp; encrypted</div>
           <div class="trust-item"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Join our founding community</div>
           <div class="trust-item"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> No credit card required</div>
+        </div>
+      </div>
+
+      <div id="magic-link-sent" style="display:none;">
+        <div class="magic-link-sent">
+          <div class="magic-link-sent-icon"><span class="icon-inline" data-icon="email"></span></div>
+          <h2 class="magic-link-sent-title">Check Your Email!</h2>
+          <p class="magic-link-sent-text">
+            We sent a sign-in link to<br>
+            <span class="magic-link-sent-email" id="magic-link-email-display"></span>
+          </p>
+          <p class="magic-link-sent-text">Click the link in your email to sign in. It may take a moment to arrive.</p>
+          <div class="magic-link-resend">
+            <a id="magic-resend-link" onclick="resendMagicLink()">Resend magic link</a>
+          </div>
+          <div class="magic-link-countdown" id="magic-resend-countdown"></div>
+          <div class="magic-link-sent-actions">
+            <button class="btn-secondary" onclick="showMagicLinkForm()">← Back to sign in</button>
+          </div>
         </div>
       </div>
 

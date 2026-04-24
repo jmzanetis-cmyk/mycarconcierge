@@ -17,12 +17,6 @@ const stripeTreasury = require('./stripe-treasury');
 const { getHubSpotClient } = require('./hubspot-client');
 const handleCarClubRequest = require('./car-club-api');
 const { handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook, startEngineSchedulers, initEngineState } = require('./outreach-engine-api');
-const { Pool: PgPool } = require('pg');
-let _localPgPool = null;
-function getLocalPool() {
-  if (!_localPgPool) _localPgPool = new PgPool({ connectionString: process.env.DATABASE_URL });
-  return _localPgPool;
-}
 
 async function syncContactToHubSpot(email, firstname, lastname, role, phone, extra = {}) {
   try {
@@ -459,7 +453,6 @@ const analyticsRateLimit = new Map();
 
 const marketingCampaigns = new Map();
 let campaignIdCounter = 1;
-let wefunderStatsCache = null;
 
 const outreachQueue = new Map();
 let outreachIdCounter = 1;
@@ -1234,38 +1227,31 @@ async function handleAdminGetAllAgreements(req, res, requestId) {
       return;
     }
 
-    const adminPassHeader = req.headers['x-admin-password'];
-    const adminTokenHeader = req.headers['x-admin-token'];
     const authHeader = req.headers.authorization;
-    const expectedPass = process.env.ADMIN_PASSWORD;
-
-    if (adminPassHeader && expectedPass && adminPassHeader === expectedPass) {
-      // x-admin-password auth — allow through
-    } else if (adminTokenHeader) {
-      // x-admin-token (team session) — delegate to shared session validator
-      const session = getAdminSessionFromReq(req);
-      if (!session) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid or expired admin session' }));
-        return;
-      }
-    } else if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-      if (authError || !user) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid or expired token' }));
-        return;
-      }
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-      if (!profile || profile.role !== 'admin') {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Admin access required' }));
-        return;
-      }
-    } else {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Authentication required' }));
+      return;
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+      return;
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile || profile.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Admin access required' }));
       return;
     }
     
@@ -1312,61 +1298,6 @@ async function handleAdminGetAllAgreements(req, res, requestId) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Something went wrong. Please try again later.' }));
   }
-}
-
-async function handleAdminCreateAgreement(req, res, requestId) {
-  setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-  let body = '';
-  req.on('data', chunk => { body += chunk.toString(); });
-  req.on('end', async () => {
-    try {
-      const supabase = getSupabaseClient();
-      if (!supabase) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Service unavailable' }));
-        return;
-      }
-      const data = JSON.parse(body || '{}');
-      const { full_name, business_name, agreement_type, signed_at, pdf_url, notes } = data;
-      if (!full_name || !agreement_type) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'full_name and agreement_type are required' }));
-        return;
-      }
-      const insertPayload = {
-        full_name,
-        business_name: business_name || null,
-        agreement_type,
-        signed_at: signed_at || new Date().toISOString(),
-        signature_data: 'manually_added',
-        pdf_url: pdf_url || null,
-        notes: notes || null,
-        email_sent: false
-      };
-      const safeSelect = 'id, full_name, business_name, agreement_type, signed_at, signature_data, email_sent, created_at';
-      let inserted, error;
-      ({ data: inserted, error } = await supabase.from('signed_agreements').insert(insertPayload).select(safeSelect).single());
-      if (error && error.message && (error.message.includes("'notes'") || error.message.includes("'pdf_url'"))) {
-        const corePayload = { full_name, business_name: business_name || null, agreement_type, signed_at: insertPayload.signed_at, signature_data: 'manually_added', email_sent: false };
-        const retry = await supabase.from('signed_agreements').insert(corePayload).select(safeSelect).single();
-        inserted = retry.data;
-        error = retry.error;
-      }
-      if (error) {
-        console.error(`[${requestId}] Create agreement error:`, error);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: error.message }));
-        return;
-      }
-      res.writeHead(201, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, agreement: inserted }));
-    } catch (err) {
-      console.error(`[${requestId}] Admin create agreement error:`, err);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Something went wrong' }));
-    }
-  });
 }
 
 async function handleAdminGetAgreementPDF(req, res, requestId) {
@@ -2583,20 +2514,6 @@ async function syncSquareTransactions(providerId, locationId, accessToken, envir
 
 const PRINTFUL_API_URL = 'https://api.printful.com';
 
-function getPrintfulHeaders(apiKey) {
-  const headers = {
-    'Authorization': `Bearer ${apiKey}`,
-    'Content-Type': 'application/json'
-  };
-  const storeId = process.env.PRINTFUL_STORE_ID;
-  if (storeId) {
-    headers['X-PF-Store-Id'] = storeId;
-  } else {
-    console.warn('[Printful] PRINTFUL_STORE_ID not set — some endpoints may return errors.');
-  }
-  return headers;
-}
-
 // Product cache for Printful products (5 minute TTL)
 const productCache = {
   data: null,
@@ -2717,7 +2634,10 @@ async function fetchPrintfulProducts() {
   try {
     const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
       method: 'GET',
-      headers: getPrintfulHeaders(apiKey)
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
     });
     
     if (!response.ok) {
@@ -2730,7 +2650,10 @@ async function fetchPrintfulProducts() {
     
     for (const item of (data.result || [])) {
       const productResponse = await fetch(`${PRINTFUL_API_URL}/store/products/${item.id}`, {
-        headers: getPrintfulHeaders(apiKey)
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
       });
       
       if (productResponse.ok) {
@@ -2811,7 +2734,10 @@ async function createPrintfulOrder(orderData) {
   try {
     const response = await fetch(`${PRINTFUL_API_URL}/orders`, {
       method: 'POST',
-      headers: getPrintfulHeaders(apiKey),
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(printfulOrderData)
     });
     
@@ -2843,7 +2769,10 @@ async function getPrintfulOrderStatus(orderId) {
   try {
     const response = await fetch(`${PRINTFUL_API_URL}/orders/${orderId}`, {
       method: 'GET',
-      headers: getPrintfulHeaders(apiKey)
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
     });
     
     if (!response.ok) {
@@ -2927,7 +2856,10 @@ async function handlePrintfulCatalog(req, res, requestId) {
     
     for (const category of PRINTFUL_POPULAR_CATEGORIES) {
       const response = await fetch(`${PRINTFUL_API_URL}/products?category_id=${category.id}`, {
-        headers: getPrintfulHeaders(apiKey)
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
       });
       
       if (!response.ok) {
@@ -2977,7 +2909,10 @@ async function handlePrintfulCatalogProduct(req, res, requestId, productId) {
   try {
     console.log(`[Printful] Fetching catalog product ${productId}...`);
     const response = await fetch(`${PRINTFUL_API_URL}/products/${productId}`, {
-      headers: getPrintfulHeaders(apiKey)
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
     });
     
     if (!response.ok) {
@@ -3077,7 +3012,10 @@ async function handleCreatePrintfulProduct(req, res, requestId) {
     
     const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
       method: 'POST',
-      headers: getPrintfulHeaders(apiKey),
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(payload)
     });
     
@@ -3168,7 +3106,10 @@ async function handleBulkCreatePrintfulProducts(req, res, requestId) {
         
         const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
           method: 'POST',
-          headers: getPrintfulHeaders(apiKey),
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(payload)
         });
         
@@ -3233,7 +3174,9 @@ async function handleDeletePrintfulProduct(req, res, requestId, productId) {
   try {
     const response = await fetch(`${PRINTFUL_API_URL}/store/products/${productId}`, {
       method: 'DELETE',
-      headers: getPrintfulHeaders(apiKey)
+      headers: {
+        'Authorization': `Bearer ${apiKey}`
+      }
     });
     
     if (!response.ok && response.status !== 404) {
@@ -3267,7 +3210,10 @@ async function handleGetPrintfulStoreProducts(req, res, requestId) {
   try {
     console.log(`[Printful] Fetching store products...`);
     const response = await fetch(`${PRINTFUL_API_URL}/store/products`, {
-      headers: getPrintfulHeaders(apiKey)
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
     });
     
     if (!response.ok) {
@@ -3342,7 +3288,10 @@ async function handlePrintfulMockup(req, res, requestId) {
     
     const createResponse = await fetch(`${PRINTFUL_API_URL}/mockup-generator/create-task/${productId}`, {
       method: 'POST',
-      headers: getPrintfulHeaders(apiKey),
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(mockupPayload)
     });
     
@@ -3366,7 +3315,10 @@ async function handlePrintfulMockup(req, res, requestId) {
       attempts++;
       
       const resultResponse = await fetch(`${PRINTFUL_API_URL}/mockup-generator/task?task_key=${taskKey}`, {
-        headers: getPrintfulHeaders(apiKey)
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
       });
       
       const resultData = await resultResponse.json();
@@ -4731,9 +4683,7 @@ async function handleOBDScanSubmit(req, res, requestId) {
     }
     
     console.log(`[${requestId}] Diagnostic scan created: ${scan.id} with ${validCodes.length} codes for vehicle ${vehicleId}`);
-
-    recomputeVehicleHealthBackground(vehicleId, requestId);
-
+    
     res.writeHead(201, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       success: true,
@@ -6248,57 +6198,6 @@ async function handleSendWelcomeEmail(req, res, requestId) {
   }
 }
 
-async function sendFCMPushNotification(memberIds, title, body, data = {}) {
-  const fcmKey = process.env.FCM_SERVER_KEY;
-  if (!fcmKey) {
-    console.log('[FCM] FCM_SERVER_KEY not set — push skipped');
-    return { sent: false, reason: 'not_configured' };
-  }
-  if (!memberIds || memberIds.length === 0) return { sent: false, reason: 'no_recipients' };
-  const supabase = getSupabaseClient();
-  if (!supabase) return { sent: false, reason: 'no_db' };
-  try {
-    const { data: tokenRows } = await supabase
-      .from('device_push_tokens')
-      .select('token, member_id, platform')
-      .in('member_id', memberIds)
-      .eq('active', true);
-    if (!tokenRows || tokenRows.length === 0) {
-      console.log(`[FCM] No device tokens for ${memberIds.length} member(s)`);
-      return { sent: false, reason: 'no_tokens' };
-    }
-    const tokens = tokenRows.map(r => r.token);
-    const payload = {
-      registration_ids: tokens,
-      notification: { title, body },
-      data: { ...data, title, body },
-      priority: 'high',
-      content_available: true
-    };
-    const response = await fetch('https://fcm.googleapis.com/fcm/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `key=${fcmKey}` },
-      body: JSON.stringify(payload)
-    });
-    const result = await response.json();
-    console.log(`[FCM] Sent to ${tokens.length} device(s): success=${result.success} failure=${result.failure}`);
-    if (result.results) {
-      const stale = [];
-      result.results.forEach((r, i) => {
-        if (r.error === 'InvalidRegistration' || r.error === 'NotRegistered') stale.push(tokens[i]);
-      });
-      if (stale.length > 0) {
-        await supabase.from('device_push_tokens').update({ active: false }).in('token', stale);
-        console.log(`[FCM] Deactivated ${stale.length} stale token(s)`);
-      }
-    }
-    return { sent: true, success: result.success, failure: result.failure };
-  } catch (err) {
-    console.error('[FCM] Send error:', err.message);
-    return { sent: false, reason: 'error' };
-  }
-}
-
 async function sendDreamCarSMSNotification(userId, matches) {
   const supabase = getSupabaseClient();
   if (!supabase) {
@@ -6331,102 +6230,65 @@ async function sendDreamCarSMSNotification(userId, matches) {
   }
 }
 
-async function sendDreamCarEmailNotification(userId, searchName, listings, criteriaDescription, marketIntel) {
+async function sendDreamCarEmailNotification(userId, searchName, matches) {
   const supabase = getSupabaseClient();
   if (!supabase) {
     console.log('Dream Car Email: Database not available');
     return { sent: false, reason: 'db_unavailable' };
   }
-
+  
   try {
     const { data: profile } = await supabase
       .from('profiles')
       .select('email, full_name')
       .eq('id', userId)
       .single();
-
+    
     if (!profile?.email) {
       console.log(`Dream Car Email: No email for user ${userId}`);
       return { sent: false, reason: 'no_email' };
     }
-
-    const appUrl = process.env.REPLIT_DEV_DOMAIN
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+    
+    const matchCount = matches?.length || 0;
+    const appUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
       : 'https://mycarconcierge.com';
-
-    const intel = marketIntel || {};
-    const pr = intel.priceRange || {};
-    const fmtPrice = (v) => v != null ? '$' + Number(v).toLocaleString() : 'N/A';
-    const trendLabels = { hot: 'Hot Market \u2191', fair: 'Fair Market \u2194', soft: "Buyer's Market \u2193" };
-    const trendColors = { hot: '#ef5f5f', fair: '#b8942d', soft: '#28a745' };
-    const trendLabel = trendLabels[intel.trend] || trendLabels.fair;
-    const trendColor = trendColors[intel.trend] || trendColors.fair;
-
-    let priceHtml = '';
-    if (pr.low != null) {
-      priceHtml = `
-        <div style="background:#f8f9fa;border-radius:12px;padding:20px;margin:16px 0;border:1px solid #e9ecef;">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;">
-            <span style="font-size:14px;color:#6c757d;">Price Range (${intel.listingCount || listings.length} listings)</span>
-            <span style="padding:4px 12px;border-radius:100px;font-size:13px;font-weight:600;background:${trendColor}22;color:${trendColor};">${trendLabel}</span>
-          </div>
-          <table style="width:100%;border-collapse:collapse;">
-            <tr>
-              <td style="text-align:left;padding:8px 0;"><div style="font-size:12px;color:#6c757d;text-transform:uppercase;">Low</div><div style="font-size:20px;font-weight:700;color:#28a745;">${fmtPrice(pr.low)}</div></td>
-              <td style="text-align:center;padding:8px 0;"><div style="font-size:12px;color:#6c757d;text-transform:uppercase;">Median</div><div style="font-size:24px;font-weight:700;color:#b8942d;">${fmtPrice(pr.median)}</div></td>
-              <td style="text-align:right;padding:8px 0;"><div style="font-size:12px;color:#6c757d;text-transform:uppercase;">High</div><div style="font-size:20px;font-weight:700;color:#ef5f5f;">${fmtPrice(pr.high)}</div></td>
-            </tr>
-          </table>
-          <div style="height:8px;background:linear-gradient(90deg,#28a745,#b8942d,#ef5f5f);border-radius:4px;margin-top:8px;"></div>
-        </div>
-      `;
-    }
-
-    let checklistHtml = '';
-    if (intel.buyingChecklist && intel.buyingChecklist.length > 0) {
-      checklistHtml = `<h3 style="color:#1e3a5f;margin:20px 0 12px;">Buying Checklist</h3>` +
-        intel.buyingChecklist.map((tip, i) => {
-          const escapedTip = String(tip).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          return `<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 14px;background:${i % 2 === 0 ? '#f8f9fa' : '#fff'};border-radius:8px;margin-bottom:6px;border:1px solid #e9ecef;">
-            <span style="flex-shrink:0;width:22px;height:22px;border-radius:50%;background:#b8942d;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">${i + 1}</span>
-            <span style="font-size:14px;color:#495057;line-height:1.5;">${escapedTip}</span>
+    
+    let matchSummaryHtml = '';
+    if (matches && matches.length > 0) {
+      const topMatches = matches.slice(0, 5);
+      matchSummaryHtml = '<div style="margin: 20px 0;">';
+      for (const match of topMatches) {
+        matchSummaryHtml += `
+          <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+            <strong>${match.year || ''} ${match.make || ''} ${match.model || ''}</strong>
+            ${match.trim ? ` - ${match.trim}` : ''}
+            <div style="color: #666; font-size: 14px; margin-top: 4px;">
+              ${match.price ? `$${Number(match.price).toLocaleString()}` : 'Price TBD'}
+              ${match.mileage ? ` • ${Number(match.mileage).toLocaleString()} miles` : ''}
+              ${match.location ? ` • ${match.location}` : ''}
+            </div>
+            ${match.match_score ? `<div style="color: #28a745; font-size: 13px; margin-top: 4px;">Match Score: ${match.match_score}%</div>` : ''}
           </div>`;
-        }).join('');
+      }
+      matchSummaryHtml += '</div>';
+      if (matches.length > 5) {
+        matchSummaryHtml += `<p style="color: #666; font-size: 14px;">...and ${matches.length - 5} more matches</p>`;
+      }
     }
-
-    let inventoryHtml = '';
-    const searchUrls = intel.searchUrls;
-    if (searchUrls) {
-      inventoryHtml = `
-        <h3 style="color:#1e3a5f;margin:20px 0 12px;">Search Live Inventory</h3>
-        <table style="width:100%;border-collapse:separate;border-spacing:8px;">
-          <tr>
-            <td style="text-align:center;"><a href="${searchUrls.autotrader}" style="display:block;padding:12px 16px;background:#1e3a5f;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Autotrader</a></td>
-            <td style="text-align:center;"><a href="${searchUrls.cargurus}" style="display:block;padding:12px 16px;background:#1e3a5f;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">CarGurus</a></td>
-            <td style="text-align:center;"><a href="${searchUrls.cars_com}" style="display:block;padding:12px 16px;background:#1e3a5f;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Cars.com</a></td>
-          </tr>
-        </table>
-      `;
-    }
-
+    
     const htmlContent = `
       <p>Hi ${profile.full_name || 'there'},</p>
-      <p>Here's your market intelligence report for <strong>${searchName || 'your Dream Car search'}</strong>:</p>
-
-      ${criteriaDescription ? `<div style="background:#f5f5f5;border-radius:8px;padding:12px 16px;margin:16px 0;font-size:13px;color:#555;white-space:pre-line;">${criteriaDescription}</div>` : ''}
-
-      ${priceHtml}
-      ${checklistHtml}
-      ${inventoryHtml}
-
-      <p style="margin-top:24px;"><a href="${appUrl}/members.html" style="display:inline-block;padding:12px 24px;background:#b8860b;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">View Full Report in Dashboard</a></p>
-      <p style="color:#888;font-size:13px;">Happy car hunting from My Car Concierge!</p>
+      <p>Great news! We found <strong>${matchCount} new car${matchCount !== 1 ? 's' : ''}</strong> matching your "${searchName || 'Dream Car'}" search!</p>
+      ${matchSummaryHtml}
+      <p><a href="${appUrl}/members.html#dream-car" class="button">View Your Matches</a></p>
+      <p>Happy car hunting!</p>
     `;
-
+    
     return await sendEmailNotification(
       profile.email,
       profile.full_name,
-      `Dream Car Finder: Market Intelligence for "${searchName || 'Your Search'}"`,
+      `${matchCount} New Dream Car Match${matchCount !== 1 ? 'es' : ''} Found!`,
       htmlContent
     );
   } catch (error) {
@@ -9010,30 +8872,18 @@ async function handleCompleteReferral(req, res, requestId) {
         return;
       }
       
-      const { data: updatedRows, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from('referrals')
         .update({
           status: 'credited',
           credited_at: new Date().toISOString()
         })
-        .eq('id', pendingReferral.id)
-        .eq('status', 'pending')
-        .select('id');
+        .eq('id', pendingReferral.id);
       
       if (updateError) {
         console.error(`[${requestId}] Error updating referral status:`, updateError);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: 'Failed to complete referral' }));
-        return;
-      }
-
-      if (!updatedRows || updatedRows.length === 0) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          success: true,
-          message: 'Referral already completed',
-          credited: false
-        }));
         return;
       }
       
@@ -9391,142 +9241,6 @@ async function handleAcknowledgeRecall(req, res, requestId, recallId) {
       res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
     }
   });
-}
-
-async function handleEnrichRecall(req, res, requestId, recallId) {
-  setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-
-  const user = await authenticateRequest(req);
-  if (!user) {
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
-    return;
-  }
-
-  try {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Database not configured' }));
-      return;
-    }
-
-    const { data: recall, error: fetchError } = await supabase
-      .from('vehicle_recalls')
-      .select('id, vehicle_id, component, summary, consequence, remedy, manufacturer, nhtsa_campaign_number, ai_summary, severity')
-      .eq('id', recallId)
-      .single();
-
-    if (fetchError || !recall) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Recall not found' }));
-      return;
-    }
-
-    const { data: vehicle } = await supabase
-      .from('vehicles')
-      .select('id, owner_id')
-      .eq('id', recall.vehicle_id)
-      .single();
-
-    if (!vehicle || vehicle.owner_id !== user.id) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-      if (profile?.role !== 'admin') {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Access denied' }));
-        return;
-      }
-    }
-
-    if (recall.ai_summary && recall.severity) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, ai_summary: recall.ai_summary, severity: recall.severity, cached: true }));
-      return;
-    }
-
-    if (!anthropicClient) {
-      res.writeHead(503, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'AI service not available' }));
-      return;
-    }
-
-    const prompt = `You are an automotive safety expert. A vehicle owner needs to understand an NHTSA recall. Rewrite it in plain English and rate its severity.
-
-Recall details:
-- Component: ${recall.component || 'Unknown'}
-- Campaign: ${recall.nhtsa_campaign_number || 'N/A'}
-- Manufacturer: ${recall.manufacturer || 'Unknown'}
-- Summary: ${recall.summary || 'No summary available'}
-- Consequence: ${recall.consequence || 'None stated'}
-- Remedy: ${recall.remedy || 'None stated'}
-
-Return ONLY valid JSON (no markdown, no code blocks):
-{
-  "plain_summary": "2-3 sentences: what is wrong, what could happen, what the owner should do",
-  "severity": "critical|important|monitor",
-  "severity_reason": "one short sentence explaining the severity rating"
-}
-
-Severity guide: critical = risk of injury/accident/fire; important = significant safety or functionality issue; monitor = minor issue, watch but not urgent.`;
-
-    const aiResponse = await anthropicClient.messages.create({
-      model: 'claude-3-5-haiku-20241022',
-      max_tokens: 400,
-      messages: [{ role: 'user', content: prompt }]
-    });
-
-    let aiSummary = null;
-    let severity = 'monitor';
-
-    try {
-      const rawText = aiResponse.content[0]?.text?.trim() || '';
-      const cleaned = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
-      const parsed = JSON.parse(cleaned);
-      if (parsed.plain_summary && typeof parsed.plain_summary === 'string') {
-        aiSummary = parsed.plain_summary;
-      }
-      if (['critical', 'important', 'monitor'].includes(parsed.severity)) {
-        severity = parsed.severity;
-      }
-    } catch {
-      aiSummary = aiResponse.content[0]?.text?.trim() || null;
-      severity = 'monitor';
-    }
-
-    if (aiSummary) {
-      try {
-        await supabase
-          .from('vehicle_recalls')
-          .update({ ai_summary: aiSummary, severity })
-          .eq('id', recallId);
-      } catch (dbErr) {
-        console.error(`[${requestId}] Failed to save recall enrichment:`, dbErr.message);
-      }
-    }
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, ai_summary: aiSummary, severity, cached: false }));
-
-  } catch (error) {
-    console.error(`[${requestId}] Enrich recall error:`, error);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: false, error: 'Something went wrong. Please try again later.' }));
-  }
-}
-
-async function runRecallsAiMigration() {
-  const supabase = getSupabaseClient();
-  if (!supabase) return;
-  try {
-    await supabase.from('vehicle_recalls').select('ai_summary, severity').limit(1);
-  } catch {
-    console.warn('[Migration] vehicle_recalls ai_summary/severity columns not yet added. Run vehicle_recalls_ai_columns_migration.sql in Supabase SQL Editor.');
-  }
 }
 
 function startWeeklyRecallCheckScheduler() {
@@ -10197,98 +9911,6 @@ async function handleDreamCarUpdateMatch(req, res, requestId, matchId) {
   });
 }
 
-async function searchDreamCarListings(search, requestId) {
-  const criteriaDescription = buildSearchCriteriaDescription(search);
-  const locationContext = search.zip_code
-    ? `near zip code ${search.zip_code} within ${search.max_distance_miles || 50} miles`
-    : 'any location';
-
-  const prompt = `Search the web right now for real, currently available used car listings for sale matching these buyer requirements:
-
-${criteriaDescription}
-Location: ${locationContext}
-
-Search Autotrader, CarGurus, Cars.com, Facebook Marketplace, dealer websites, and Craigslist. Find up to 6 actual listings currently for sale with real prices and real listing URLs.
-
-Return ONLY valid JSON — no markdown, no explanation:
-{
-  "listings": [
-    {
-      "title": "Full listing title as shown on the site",
-      "year": 2020,
-      "make": "Toyota",
-      "model": "Camry",
-      "trim": "SE",
-      "price": 21500,
-      "mileage": 32000,
-      "location": "Los Angeles, CA",
-      "url": "https://actual-listing-url",
-      "source_site": "Autotrader",
-      "description": "Key details about condition, features, and seller"
-    }
-  ]
-}
-
-Rules:
-- Only include real listings found on the web — no made-up data
-- Set price and mileage as integers (no symbols or commas)
-- If a value is unknown, use null
-- The url must be the direct link to the listing page`;
-
-  let listings = [];
-  try {
-    const { text, sources } = await searchWithGrounding(prompt, { maxTokens: 2000 });
-    console.log(`[${requestId}] Dream Car Gemini search: ${sources.length} grounding sources`);
-    let parsed = null;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      const jsonMatch = text.match(/\{[\s\S]*"listings"[\s\S]*\}/);
-      if (jsonMatch) {
-        try { parsed = JSON.parse(jsonMatch[0]); } catch {}
-      }
-    }
-    if (parsed?.listings && Array.isArray(parsed.listings)) {
-      listings = parsed.listings.slice(0, 6).map((l, i) => {
-        if (!l.url && sources[i]) l.url = sources[i].url;
-        return l;
-      });
-    } else if (sources.length > 0) {
-      listings = sources.slice(0, 6).map(s => {
-        let hostname = s.url;
-        try { hostname = new URL(s.url).hostname.replace('www.', ''); } catch {}
-        return {
-          title: s.title || 'Car Listing',
-          url: s.url,
-          source_site: hostname,
-          price: null,
-          mileage: null,
-          make: search.preferred_makes?.[0] || null,
-          model: search.preferred_models?.[0] || null,
-          year: null,
-          location: null,
-          description: null
-        };
-      });
-    }
-  } catch (err) {
-    console.error(`[${requestId}] Dream Car Gemini search error:`, err.message);
-  }
-  return listings;
-}
-
-function computeListingMatchScore(listing, search) {
-  let score = 70;
-  if (search.max_price && listing.price && listing.price <= Number(search.max_price)) score += 10;
-  if (search.min_year && listing.year && Number(listing.year) >= Number(search.min_year)) score += 5;
-  if (search.max_year && listing.year && Number(listing.year) <= Number(search.max_year)) score += 5;
-  if (search.max_mileage && listing.mileage && listing.mileage <= search.max_mileage) score += 10;
-  if (search.preferred_makes?.length && listing.make) {
-    if (search.preferred_makes.some(m => m.toLowerCase() === (listing.make || '').toLowerCase())) score += 5;
-  }
-  return Math.min(100, score);
-}
-
 async function handleDreamCarRunSearch(req, res, requestId, searchId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
@@ -10333,81 +9955,115 @@ async function handleDreamCarRunSearch(req, res, requestId, searchId) {
       return;
     }
     
+    // Build search criteria description for AI
     const criteriaDescription = buildSearchCriteriaDescription(search);
+    
+    // Use AI (Gemini preferred, Anthropic fallback) to generate intelligent search queries
+    let aiResponse = null;
+    const searchPrompt = `Based on the following car search criteria, generate 3 mock car listings that would match these preferences. Return a JSON array of car listings.
 
-    const listings = await searchDreamCarListings(search, requestId);
-    console.log(`[${requestId}] Dream Car Gemini found ${listings.length} listings for search ${searchId}`);
+Search Criteria:
+${criteriaDescription}
 
-    if (listings.length === 0) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        success: true,
-        message: 'No listings found for your criteria. Try broadening your search.',
-        data: [],
-        matchCount: 0
-      }));
-      return;
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+[
+  {
+    "year": "2022",
+    "make": "Toyota",
+    "model": "Camry",
+    "trim": "XLE",
+    "price": 28500,
+    "mileage": 25000,
+    "exterior_color": "Silver",
+    "location": "San Francisco, CA",
+    "seller_type": "dealer",
+    "match_score": 95,
+    "match_reasons": ["Low mileage", "Great condition", "Matches preferred make"],
+    "listing_url": "https://example.com/listing/123",
+    "photos": ["https://example.com/photo1.jpg"]
+  }
+]`;
+    try {
+      const aiResult = await generateAIContent(searchPrompt, { maxTokens: 1024, preferredProvider: 'gemini' });
+      const responseText = aiResult.text || '[]';
+      console.log(`[${requestId}] Dream Car search using ${aiResult.provider}`);
+      // Try to parse the JSON response
+      try {
+        aiResponse = JSON.parse(responseText);
+      } catch (parseErr) {
+        // If parsing fails, try to extract JSON from the response
+        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          aiResponse = JSON.parse(jsonMatch[0]);
+        }
+      }
+    } catch (aiError) {
+      console.error(`[${requestId}] AI API error:`, aiError.message);
+      // Continue with fallback mock data
     }
-
-    const records = listings.map(listing => ({
+    
+    // Use AI response or fallback to mock data
+    const mockMatches = aiResponse || generateMockMatches(search);
+    
+    // Insert mock matches into database
+    const matchesToInsert = mockMatches.map(match => ({
       search_id: searchId,
       user_id: auth.user.id,
-      source: 'gemini_search',
+      source: 'mock_search',
+      listing_url: match.listing_url || `https://example.com/listing/${crypto.randomBytes(8).toString('hex')}`,
       listing_id: crypto.randomBytes(8).toString('hex'),
-      listing_url: listing.url || null,
-      make: listing.make || search.preferred_makes?.[0] || null,
-      model: listing.model || search.preferred_models?.[0] || null,
-      year: listing.year ? String(listing.year) : String(search.min_year || ''),
-      price: listing.price || null,
-      match_score: computeListingMatchScore(listing, search),
-      match_reasons: [],
-      listing_data: listing,
-      photos: [],
+      year: match.year || String(search.min_year || 2020),
+      make: match.make || (search.preferred_makes?.[0] || 'Toyota'),
+      model: match.model || (search.preferred_models?.[0] || 'Camry'),
+      trim: match.trim || 'Base',
+      price: match.price || (search.max_price ? Number(search.max_price) * 0.9 : 25000),
+      mileage: match.mileage || (search.max_mileage ? search.max_mileage * 0.7 : 30000),
+      exterior_color: match.exterior_color || (search.exterior_colors?.[0] || 'Black'),
+      location: match.location || `Near ${search.zip_code || '90210'}`,
+      seller_type: match.seller_type || 'dealer',
+      match_score: match.match_score || 85,
+      match_reasons: match.match_reasons || ['Matches search criteria'],
+      listing_data: {},
+      photos: match.photos || [],
       found_at: new Date().toISOString()
     }));
-
+    
     const { data: insertedMatches, error: insertError } = await supabase
       .from('dream_car_matches')
-      .insert(records)
+      .insert(matchesToInsert)
       .select();
-
+    
     if (insertError) {
-      console.error(`[${requestId}] Dream car insert error:`, insertError);
+      console.error(`[${requestId}] Dream car insert matches error:`, insertError);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to save listings' }));
+      res.end(JSON.stringify({ error: 'Failed to save matches' }));
       return;
     }
-
+    
+    // Update last_searched_at
     await supabase
       .from('dream_car_searches')
       .update({ last_searched_at: new Date().toISOString() })
       .eq('id', searchId);
-
-    const marketIntel = await buildMarketIntelligence(listings, search, requestId);
-
-    try {
-      await supabase
-        .from('dream_car_searches')
-        .update({ market_intel: marketIntel })
-        .eq('id', searchId);
-    } catch (e) {
-      console.log(`[${requestId}] market_intel column not available, skipping persist`);
-    }
-
+    
+    // Send notifications if enabled
     const notificationResults = { sms: null, email: null };
-    if (search.notify_email) {
-      notificationResults.email = await sendDreamCarEmailNotification(auth.user.id, search.search_name, listings, criteriaDescription, marketIntel);
+    if (insertedMatches.length > 0) {
+      if (search.notify_sms) {
+        notificationResults.sms = await sendDreamCarSMSNotification(auth.user.id, insertedMatches);
+      }
+      if (search.notify_email) {
+        notificationResults.email = await sendDreamCarEmailNotification(auth.user.id, search.search_name, insertedMatches);
+      }
     }
-
-    console.log(`[${requestId}] Dream Car search complete: ${listings.length} listings saved for search ${searchId}`);
+    
+    console.log(`[${requestId}] Ran dream car search ${searchId}, found ${insertedMatches.length} matches`);
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      success: true,
-      message: `Found ${listings.length} listing${listings.length !== 1 ? 's' : ''} matching your criteria.`,
+    res.end(JSON.stringify({ 
+      success: true, 
+      message: `Search completed. Found ${insertedMatches.length} matches.`,
       data: insertedMatches,
-      matchCount: listings.length,
-      notifications: notificationResults,
-      marketIntel
+      notifications: notificationResults
     }));
     
   } catch (error) {
@@ -10415,75 +10071,6 @@ async function handleDreamCarRunSearch(req, res, requestId, searchId) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: safeMsg }));
   }
-}
-
-async function buildMarketIntelligence(listings, search, requestId) {
-  const prices = listings
-    .map(l => parseFloat(l.price))
-    .filter(p => !isNaN(p) && p > 0)
-    .sort((a, b) => a - b);
-
-  let priceRange = { low: null, median: null, high: null };
-  if (prices.length > 0) {
-    priceRange.low = prices[0];
-    priceRange.high = prices[prices.length - 1];
-    const mid = Math.floor(prices.length / 2);
-    priceRange.median = prices.length % 2 === 0
-      ? Math.round((prices[mid - 1] + prices[mid]) / 2)
-      : prices[mid];
-  }
-
-  let trend = 'fair';
-  if (prices.length >= 3) {
-    const spread = priceRange.high - priceRange.low;
-    const medianRatio = priceRange.median / priceRange.high;
-    if (medianRatio > 0.8) trend = 'hot';
-    else if (medianRatio < 0.6 || spread > priceRange.median * 0.5) trend = 'soft';
-  }
-
-  const searchUrls = buildDreamCarSearchUrls(search);
-
-  let buyingChecklist = [];
-  try {
-    const make = search.preferred_makes?.[0] || 'this vehicle';
-    const model = search.preferred_models?.[0] || '';
-    const yearRange = search.min_year && search.max_year
-      ? `${search.min_year}-${search.max_year}`
-      : search.min_year ? `${search.min_year}+` : search.max_year ? `up to ${search.max_year}` : 'recent';
-
-    const prompt = `You are an expert used car buying advisor. Give exactly 5 short, specific buying tips for a ${yearRange} ${make} ${model}. Each tip should be 1 sentence, practical, and specific to this make/model. Cover: common mechanical issues to inspect, known recalls or weak points, fair pricing negotiation advice, what to check on a test drive, and maintenance cost expectations. Return ONLY a JSON array of 5 strings, no other text.`;
-
-    const aiResult = await generateAIContent(prompt, { maxTokens: 512 });
-    const jsonMatch = aiResult.text.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      buyingChecklist = JSON.parse(jsonMatch[0]);
-    }
-  } catch (err) {
-    console.error(`[${requestId}] Market intel AI checklist error:`, err.message);
-    buyingChecklist = [
-      'Get a pre-purchase inspection from an independent mechanic before buying.',
-      'Check the vehicle history report for accidents, title issues, and service records.',
-      'Compare prices across multiple dealerships and private sellers in your area.',
-      'Test drive on both highway and local roads, listening for unusual noises.',
-      'Factor in insurance, fuel costs, and expected maintenance when budgeting.'
-    ];
-  }
-
-  return {
-    priceRange,
-    trend,
-    listingCount: listings.length,
-    searchUrls,
-    buyingChecklist,
-    searchCriteria: {
-      make: search.preferred_makes?.[0] || null,
-      model: search.preferred_models?.[0] || null,
-      minYear: search.min_year,
-      maxYear: search.max_year,
-      maxPrice: search.max_price,
-      minPrice: search.min_price
-    }
-  };
 }
 
 function buildSearchCriteriaDescription(search) {
@@ -10535,24 +10122,55 @@ function buildSearchCriteriaDescription(search) {
   return parts.length > 0 ? parts.join('\n') : 'No specific criteria set';
 }
 
-function buildDreamCarSearchUrls(search) {
-  const make = (search.preferred_makes?.[0] || '').toLowerCase().replace(/\s+/g, '-');
-  const model = (search.preferred_models?.[0] || '').toLowerCase().replace(/\s+/g, '-');
-  const zip = search.zip_code || '';
-  const radius = search.max_distance_miles || 50;
-  const maxPrice = search.max_price || '';
-  const maxMileage = search.max_mileage || '';
-  const minYear = search.min_year || (new Date().getFullYear() - 6);
-  const maxYear = search.max_year || new Date().getFullYear();
-
-  const atMake = make ? `/${make}` : '';
-  const atModel = model ? `/${model}` : '';
-
-  return {
-    autotrader: `https://www.autotrader.com/cars-for-sale/used-cars${atMake}${atModel}?zip=${zip}&searchRadius=${radius}${maxPrice ? '&maxPrice=' + maxPrice : ''}${maxMileage ? '&maxMileage=' + maxMileage : ''}&startYear=${minYear}&endYear=${maxYear}&utm_source=mycarconcierge&utm_medium=referral`,
-    cargurus: `https://www.cargurus.com/Cars/inventoryListing/viewDetailsFilterViewInventoryListing.action?zip=${zip}&localSearchRadius=${radius}${maxPrice ? '&maxPrice=' + maxPrice : ''}${maxMileage ? '&maxMileage=' + maxMileage : ''}&minYear=${minYear}&maxYear=${maxYear}&utm_source=mycarconcierge&utm_medium=referral`,
-    cars_com: `https://www.cars.com/shopping/results/?zip=${zip}&maximum_distance=${radius}${maxPrice ? '&maximum_price=' + maxPrice : ''}${maxMileage ? '&maximum_mileage=' + maxMileage : ''}&year_min=${minYear}&year_max=${maxYear}${make ? '&makes[]=' + make : ''}&sort=best_match_desc&utm_source=mycarconcierge&utm_medium=referral`
-  };
+function generateMockMatches(search) {
+  const makes = search.preferred_makes?.length > 0 ? search.preferred_makes : ['Toyota', 'Honda', 'Ford'];
+  const models = search.preferred_models?.length > 0 ? search.preferred_models : ['Camry', 'Accord', 'F-150'];
+  const colors = search.exterior_colors?.length > 0 ? search.exterior_colors : ['Black', 'White', 'Silver'];
+  
+  return [
+    {
+      year: String(search.min_year || 2021),
+      make: makes[0],
+      model: models[0] || 'Sedan',
+      trim: 'SE',
+      price: search.max_price ? Math.floor(Number(search.max_price) * 0.85) : 28000,
+      mileage: search.max_mileage ? Math.floor(search.max_mileage * 0.6) : 25000,
+      exterior_color: colors[0],
+      location: search.zip_code ? `${search.max_distance_miles || 25} miles from ${search.zip_code}` : 'Los Angeles, CA',
+      seller_type: 'dealer',
+      match_score: 92,
+      match_reasons: ['Excellent condition', 'Low mileage', 'Full service history'],
+      photos: []
+    },
+    {
+      year: String((search.min_year || 2020) + 1),
+      make: makes[Math.min(1, makes.length - 1)],
+      model: models[Math.min(1, models.length - 1)] || 'SUV',
+      trim: 'XLE',
+      price: search.max_price ? Math.floor(Number(search.max_price) * 0.75) : 24000,
+      mileage: search.max_mileage ? Math.floor(search.max_mileage * 0.8) : 35000,
+      exterior_color: colors[Math.min(1, colors.length - 1)],
+      location: search.zip_code ? `${Math.floor((search.max_distance_miles || 50) * 0.5)} miles from ${search.zip_code}` : 'San Diego, CA',
+      seller_type: 'private',
+      match_score: 87,
+      match_reasons: ['Great price', 'One owner', 'Clean title'],
+      photos: []
+    },
+    {
+      year: String((search.min_year || 2019) + 2),
+      make: makes[Math.min(2, makes.length - 1)],
+      model: models[Math.min(2, models.length - 1)] || 'Truck',
+      trim: 'Limited',
+      price: search.max_price ? Math.floor(Number(search.max_price) * 0.95) : 32000,
+      mileage: search.max_mileage ? Math.floor(search.max_mileage * 0.4) : 18000,
+      exterior_color: colors[Math.min(2, colors.length - 1)],
+      location: search.zip_code ? `${search.max_distance_miles || 30} miles from ${search.zip_code}` : 'Phoenix, AZ',
+      seller_type: 'dealer',
+      match_score: 95,
+      match_reasons: ['Premium trim', 'Certified pre-owned', 'Extended warranty available'],
+      photos: []
+    }
+  ];
 }
 
 async function handleDreamCarScheduledSearch(req, res, requestId) {
@@ -10615,77 +10233,114 @@ async function handleDreamCarScheduledSearch(req, res, requestId) {
     
     for (const search of dueSearches) {
       try {
+        // Build search criteria description for AI
         const criteriaDescription = buildSearchCriteriaDescription(search);
+        
+        // Use AI (Gemini preferred, Anthropic fallback) to generate intelligent search queries
+        let aiResponse = null;
+        const scheduledSearchPrompt = `Based on the following car search criteria, generate 3 mock car listings that would match these preferences. Return a JSON array of car listings.
 
-        const listings = await searchDreamCarListings(search, requestId);
-        console.log(`[${requestId}] Scheduled Dream Car: ${listings.length} listings found for search ${search.id}`);
+Search Criteria:
+${criteriaDescription}
 
-        if (listings.length > 0) {
-          const records = listings.map(listing => ({
-            search_id: search.id,
-            user_id: search.user_id,
-            source: 'gemini_search',
-            listing_id: crypto.randomBytes(8).toString('hex'),
-            listing_url: listing.url || null,
-            make: listing.make || search.preferred_makes?.[0] || null,
-            model: listing.model || search.preferred_models?.[0] || null,
-            year: listing.year ? String(listing.year) : String(search.min_year || ''),
-            price: listing.price || null,
-            match_score: computeListingMatchScore(listing, search),
-            match_reasons: [],
-            listing_data: listing,
-            photos: [],
-            found_at: new Date().toISOString()
-          }));
-
-          const { error: insertError } = await supabase
-            .from('dream_car_matches')
-            .insert(records);
-
-          if (insertError) {
-            console.error(`[${requestId}] Scheduled dream car insert error for ${search.id}:`, insertError);
-            results.push({ searchId: search.id, success: false, error: 'Insert failed' });
-            continue;
-          }
-        }
-
-        let scheduledMarketIntel = null;
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+[
+  {
+    "year": "2022",
+    "make": "Toyota",
+    "model": "Camry",
+    "trim": "XLE",
+    "price": 28500,
+    "mileage": 25000,
+    "exterior_color": "Silver",
+    "location": "San Francisco, CA",
+    "seller_type": "dealer",
+    "match_score": 95,
+    "match_reasons": ["Low mileage", "Great condition", "Matches preferred make"],
+    "listing_url": "https://example.com/listing/123",
+    "photos": ["https://example.com/photo1.jpg"]
+  }
+]`;
         try {
-          scheduledMarketIntel = await buildMarketIntelligence(listings, search, requestId);
-        } catch (e) {
-          console.log(`[${requestId}] Scheduled: market intel build failed for ${search.id}`);
+          const aiResult = await generateAIContent(scheduledSearchPrompt, { maxTokens: 1024, preferredProvider: 'gemini' });
+          const responseText = aiResult.text || '[]';
+          console.log(`[${requestId}] Scheduled search ${search.id} using ${aiResult.provider}`);
+          try {
+            aiResponse = JSON.parse(responseText);
+          } catch (parseErr) {
+            const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+              aiResponse = JSON.parse(jsonMatch[0]);
+            }
+          }
+        } catch (aiError) {
+          console.error(`[${requestId}] Scheduled search AI error for ${search.id}:`, aiError.message);
         }
-
+        
+        const mockMatches = aiResponse || generateMockMatches(search);
+        
+        // Insert matches into database
+        const matchesToInsert = mockMatches.map(match => ({
+          search_id: search.id,
+          user_id: search.user_id,
+          source: 'scheduled_search',
+          listing_url: match.listing_url || `https://example.com/listing/${crypto.randomBytes(8).toString('hex')}`,
+          listing_id: crypto.randomBytes(8).toString('hex'),
+          year: match.year || String(search.min_year || 2020),
+          make: match.make || (search.preferred_makes?.[0] || 'Toyota'),
+          model: match.model || (search.preferred_models?.[0] || 'Camry'),
+          trim: match.trim || 'Base',
+          price: match.price || (search.max_price ? Number(search.max_price) * 0.9 : 25000),
+          mileage: match.mileage || (search.max_mileage ? search.max_mileage * 0.7 : 30000),
+          exterior_color: match.exterior_color || (search.exterior_colors?.[0] || 'Black'),
+          location: match.location || `Near ${search.zip_code || '90210'}`,
+          seller_type: match.seller_type || 'dealer',
+          match_score: match.match_score || 85,
+          match_reasons: match.match_reasons || ['Matches search criteria'],
+          listing_data: {},
+          photos: match.photos || [],
+          found_at: new Date().toISOString()
+        }));
+        
+        const { data: insertedMatches, error: insertError } = await supabase
+          .from('dream_car_matches')
+          .insert(matchesToInsert)
+          .select();
+        
+        if (insertError) {
+          console.error(`[${requestId}] Scheduled search insert error for ${search.id}:`, insertError);
+          results.push({ searchId: search.id, success: false, error: 'Insert failed' });
+          continue;
+        }
+        
+        // Update last_searched_at
         await supabase
           .from('dream_car_searches')
           .update({ last_searched_at: new Date().toISOString() })
           .eq('id', search.id);
-
-        if (scheduledMarketIntel) {
-          try {
-            await supabase
-              .from('dream_car_searches')
-              .update({ market_intel: scheduledMarketIntel })
-              .eq('id', search.id);
-          } catch (e) {}
-        }
-
+        
+        // Send notifications if matches found and notifications enabled
         const notificationResults = { sms: null, email: null };
-        if (search.notify_email && listings.length > 0) {
-          notificationResults.email = await sendDreamCarEmailNotification(search.user_id, search.search_name, listings, criteriaDescription, scheduledMarketIntel);
+        if (insertedMatches && insertedMatches.length > 0) {
+          if (search.notify_sms) {
+            notificationResults.sms = await sendDreamCarSMSNotification(search.user_id, insertedMatches);
+          }
+          if (search.notify_email) {
+            notificationResults.email = await sendDreamCarEmailNotification(search.user_id, search.search_name, insertedMatches);
+          }
         }
-
+        
         results.push({
           searchId: search.id,
           userId: search.user_id,
           searchName: search.search_name,
           success: true,
-          matchesFound: listings.length,
+          matchesFound: insertedMatches?.length || 0,
           notifications: notificationResults
         });
-
-        console.log(`[${requestId}] Scheduled dream car search complete: ${listings.length} listings for search ${search.id}`);
-
+        
+        console.log(`[${requestId}] Processed scheduled search ${search.id}: ${insertedMatches?.length || 0} matches`);
+        
       } catch (searchError) {
         console.error(`[${requestId}] Scheduled search error for ${search.id}:`, searchError.message);
         results.push({ searchId: search.id, success: false, error: searchError.message });
@@ -10772,13 +10427,6 @@ async function sendBidNotifications(supabase, packageId, newBidId, bidPrice, req
       await sendEmailNotification(memberProfile.email, memberProfile.full_name || 'Member', `New Bid on "${pkg.title}"`, html, null, null);
       console.log(`[${requestId}] Bid email sent to member ${pkg.member_id}`);
     }
-
-    sendFCMPushNotification(
-      [pkg.member_id],
-      'New Bid Received',
-      `$${bidPrice.toFixed(2)} bid on "${pkg.title}" — tap to review.`,
-      { section: 'packages', package_id: packageId }
-    ).catch(err => console.error(`[${requestId}] FCM bid push error:`, err.message));
   }
 
   const { data: competingBids } = await supabase
@@ -10820,13 +10468,6 @@ async function sendBidNotifications(supabase, packageId, newBidId, bidPrice, req
       await sendEmailNotification(pProfile.email, pProfile.full_name || 'Provider', `Competing Bid Alert: ${pkg.title}`, html, null, null);
       console.log(`[${requestId}] Competing bid email sent to provider ${cb.provider_id}`);
     }
-
-    sendFCMPushNotification(
-      [cb.provider_id],
-      'Competing Bid Alert',
-      `Another provider just bid on "${pkg.title}" — review and update your bid.`,
-      { section: 'bids' }
-    ).catch(() => {});
   }
 }
 
@@ -10886,17 +10527,6 @@ async function handleSubmitBid(req, res, requestId) {
       return;
     }
 
-    const { data: pkgCheck } = await supabase
-      .from('maintenance_packages')
-      .select('status, bidding_deadline')
-      .eq('id', package_id)
-      .single();
-    if (pkgCheck && (pkgCheck.status === 'bidding_closed' || (pkgCheck.bidding_deadline && new Date(pkgCheck.bidding_deadline) < new Date()))) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Bidding on this package has closed' }));
-      return;
-    }
-
     let bidInsertData = {
       package_id,
       provider_id: user.id,
@@ -10925,11 +10555,6 @@ async function handleSubmitBid(req, res, requestId) {
     }
 
     if (bidError) {
-      if (bidError.code === '23505') {
-        res.writeHead(409, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'You have already submitted a bid for this package' }));
-        return;
-      }
       console.error(`[${requestId}] Bid insert error:`, bidError);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: bidError.message }));
@@ -11138,12 +10763,16 @@ async function handleStripeWebhook(req, res, requestId) {
             console.error(`[${requestId}] Supabase not configured, skipping commission recording`);
           } else {
             try {
-              const commissionResult = await recordBidPackCommission(supabase, providerId, purchaseAmount, transactionId, requestId);
+              const { error } = await supabase.rpc('record_bid_pack_commission', {
+                p_provider_id: providerId,
+                p_purchase_amount: purchaseAmount,
+                p_transaction_id: transactionId
+              });
               
-              if (!commissionResult.success) {
-                console.error(`[${requestId}] Failed to record commission:`, commissionResult.error);
+              if (error) {
+                console.error(`[${requestId}] Failed to record commission:`, error);
               } else {
-                console.log(`[${requestId}] Commission recorded for provider ${providerId}, amount: $${purchaseAmount} (${commissionResult.message})`);
+                console.log(`[${requestId}] Commission recorded for provider ${providerId}, amount: $${purchaseAmount}`);
                 
                 // Process instant commission payout if referrer has it enabled
                 try {
@@ -11181,7 +10810,7 @@ async function handleStripeWebhook(req, res, requestId) {
                 })();
               }
             } catch (err) {
-              console.error(`[${requestId}] Error recording bid pack commission:`, err);
+              console.error(`[${requestId}] Error calling record_bid_pack_commission:`, err);
             }
             
             // Add bid credits to provider's account
@@ -11226,83 +10855,8 @@ async function handleStripeWebhook(req, res, requestId) {
 }
 
 // Instant Commission Payout Processing
-async function recordBidPackCommission(supabase, providerId, purchaseAmount, transactionId, requestId) {
-  try {
-    const { data: existing } = await supabase
-      .from('founder_commissions')
-      .select('id')
-      .eq('transaction_id', transactionId)
-      .maybeSingle();
-
-    if (existing) {
-      return { success: true, message: 'commission_already_recorded' };
-    }
-
-    const { data: referral } = await supabase
-      .from('founder_referrals')
-      .select('id, founder_id')
-      .eq('referred_user_id', providerId)
-      .eq('referred_type', 'provider')
-      .in('status', ['pending', 'active'])
-      .maybeSingle();
-
-    if (!referral) {
-      return { success: true, message: 'no_referrer' };
-    }
-
-    const { data: founderProfile } = await supabase
-      .from('member_founder_profiles')
-      .select('email')
-      .eq('id', referral.founder_id)
-      .maybeSingle();
-
-    const founderEmail = founderProfile?.email || '';
-    const isSpecialRate = founderEmail.toLowerCase().includes('agrapidis');
-    const commissionRate = isSpecialRate ? 0.90 : 0.50;
-    const commissionAmount = parseFloat((purchaseAmount * commissionRate).toFixed(2));
-
-    const description = commissionRate === 0.90
-      ? 'Bid pack purchase commission (90% - Founding Provider Partner)'
-      : 'Bid pack purchase commission (50%)';
-
-    const { error: insertError } = await supabase
-      .from('founder_commissions')
-      .insert({
-        founder_id: referral.founder_id,
-        referral_id: referral.id,
-        commission_type: 'bid_pack',
-        transaction_id: transactionId,
-        source_transaction_id: transactionId,
-        original_amount: purchaseAmount,
-        purchase_amount: purchaseAmount,
-        commission_rate: commissionRate,
-        commission_amount: commissionAmount,
-        description,
-        status: 'pending'
-      });
-
-    if (insertError) {
-      if (insertError.code === '23505') {
-        return { success: true, message: 'commission_already_recorded' };
-      }
-      console.error(`[${requestId}] Commission insert error:`, insertError);
-      return { success: false, error: insertError.message };
-    }
-
-    await supabase
-      .from('founder_referrals')
-      .update({ status: 'active' })
-      .eq('id', referral.id)
-      .eq('status', 'pending');
-
-    console.log(`[${requestId}] Commission recorded: $${commissionAmount} (${commissionRate * 100}%) for founder ${referral.founder_id}`);
-    return { success: true, message: 'commission_recorded', commissionAmount, commissionRate, founderId: referral.founder_id };
-  } catch (err) {
-    console.error(`[${requestId}] recordBidPackCommission error:`, err);
-    return { success: false, error: err.message };
-  }
-}
-
+// This function UPDATES an existing commission record (created by record_bid_pack_commission RPC)
+// with instant payout details rather than creating a duplicate record
 async function processInstantCommissionPayout(supabase, providerId, purchaseAmount, transactionId, requestId) {
   try {
     // IDEMPOTENCY CHECK: Skip if this transaction was already processed for instant payout
@@ -11409,20 +10963,18 @@ async function processInstantCommissionPayout(supabase, providerId, purchaseAmou
     }
     
     if (!commissionRecord) {
+      // Create new record if not found (with pending_payout status first for atomicity)
       const { data: newRecord, error: insertError } = await supabase
         .from('founder_commissions')
         .insert({
           founder_id: founder.id,
           referred_provider_id: providerId,
           purchase_amount: purchaseAmount,
-          original_amount: purchaseAmount,
           commission_rate: commissionRate,
           commission_amount: commissionAmount,
           transaction_id: transactionId,
-          source_transaction_id: transactionId,
-          status: 'pending',
-          commission_type: 'bid_pack',
-          description: `Bid pack purchase commission (${commissionRate * 100}%)`
+          status: 'pending_payout',
+          commission_type: 'bid_pack_instant'
         })
         .select('id')
         .single();
@@ -11472,6 +11024,7 @@ async function processInstantCommissionPayout(supabase, providerId, purchaseAmou
     }
     
     {
+      // Update existing record to pending_payout
       await supabase
         .from('founder_commissions')
         .update({
@@ -11479,6 +11032,8 @@ async function processInstantCommissionPayout(supabase, providerId, purchaseAmou
           purchase_amount: purchaseAmount,
           commission_rate: commissionRate,
           commission_amount: commissionAmount,
+          status: 'pending_payout',
+          commission_type: 'bid_pack_instant',
           updated_at: new Date().toISOString()
         })
         .eq('id', commissionRecord.id);
@@ -11517,10 +11072,11 @@ async function processInstantCommissionPayout(supabase, providerId, purchaseAmou
         idempotencyKey: `instant_payout_${transactionId}_${founder.id}`
       });
     } catch (transferError) {
+      // Mark commission as failed and return
       await supabase
         .from('founder_commissions')
         .update({
-          status: 'cancelled',
+          status: 'payout_failed',
           updated_at: new Date().toISOString()
         })
         .eq('id', commissionRecord.id);
@@ -11543,45 +11099,22 @@ async function processInstantCommissionPayout(supabase, providerId, purchaseAmou
       .eq('id', commissionRecord.id);
     
     // STEP 4: Update founder's total commissions (use atomic increment - no fallback)
-    const { data: currentFounder, error: fetchFounderError } = await supabase
-      .from('member_founder_profiles')
-      .select('total_commissions_earned, total_commissions_paid')
-      .eq('id', founder.id)
-      .single();
-
-    if (fetchFounderError || !currentFounder) {
-      console.error(`[${requestId}] Error fetching founder totals:`, fetchFounderError);
+    const { error: updateError } = await supabase.rpc('increment_founder_commissions', {
+      p_founder_id: founder.id,
+      p_amount: commissionAmount
+    });
+    
+    if (updateError) {
+      // Enqueue for reconciliation
       await supabase
         .from('commission_reconciliation_queue')
         .insert({
           commission_id: commissionRecord.id,
           founder_id: founder.id,
           amount: commissionAmount,
-          status: 'pending',
-          error_message: fetchFounderError?.message || 'Founder profile not found'
+          error_message: updateError.message
         });
-    } else {
-      const newTotal = parseFloat(((currentFounder.total_commissions_earned || 0) + commissionAmount).toFixed(2));
-      const { error: updateError } = await supabase
-        .from('member_founder_profiles')
-        .update({
-          total_commissions_earned: newTotal,
-          total_commissions_paid: parseFloat(((currentFounder.total_commissions_paid || 0) + commissionAmount).toFixed(2))
-        })
-        .eq('id', founder.id);
-
-      if (updateError) {
-        console.error(`[${requestId}] Error updating founder totals - enqueued for reconciliation:`, updateError);
-        await supabase
-          .from('commission_reconciliation_queue')
-          .insert({
-            commission_id: commissionRecord.id,
-            founder_id: founder.id,
-            amount: commissionAmount,
-            status: 'pending',
-            error_message: updateError.message
-          });
-      }
+      console.error(`[${requestId}] Error updating founder totals - enqueued for reconciliation:`, updateError);
     }
     
     return {
@@ -11806,7 +11339,7 @@ async function handleHelpdeskRequest(req, res, requestId) {
 }
 
 const ADMIN_ROLE_PERMISSIONS = {
-  super_admin: ['dashboard', 'analytics', 'applications', 'pilot-applications', 'member-founders', 'commission-payouts', 'providers', 'violations', 'car-reviews', 'packages', 'payments', 'disputes', 'refunds', 'registration-verifications', 'tickets', 'ai-chat-insights', 'members', 'user-roles', 'user-management', 'agreements', 'merch-manager', 'crm', 'documents', 'settings', 'team-management', 'marketing-outreach', 'ai-ops'],
+  super_admin: ['dashboard', 'analytics', 'applications', 'pilot-applications', 'member-founders', 'commission-payouts', 'providers', 'violations', 'car-reviews', 'packages', 'payments', 'disputes', 'refunds', 'registration-verifications', 'tickets', 'ai-chat-insights', 'members', 'user-roles', 'user-management', 'agreements', 'merch-manager', 'crm', 'documents', 'settings', 'team-management', 'marketing-outreach'],
   crm_manager: ['dashboard', 'crm'],
   marketing: ['dashboard', 'crm', 'ai-chat-insights', 'analytics', 'merch-manager', 'marketing-outreach'],
   operations: ['dashboard', 'analytics', 'applications', 'providers', 'violations', 'car-reviews', 'packages', 'members', 'user-roles', 'user-management', 'registration-verifications'],
@@ -11848,7 +11381,7 @@ function handleAdminAuth(req, res, requestId, callback, requiredSection) {
     if (requiredSection && session.role !== 'super_admin') {
       const perms = ADMIN_ROLE_PERMISSIONS[session.role] || [];
       if (!perms.includes(requiredSection)) {
-        setCorsHeaders(res, req);
+        setCorsHeaders(res);
         res.writeHead(403, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Insufficient permissions for this section' }));
         return;
@@ -11863,7 +11396,7 @@ function handleAdminAuth(req, res, requestId, callback, requiredSection) {
     callback();
     return;
   }
-  setCorsHeaders(res, req);
+  setCorsHeaders(res);
   res.writeHead(401, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Unauthorized' }));
 }
@@ -13902,13 +13435,6 @@ async function handleEscrowCreate(req, res, requestId) {
         .from('bids')
         .update({ status: 'accepted', accepted_at: new Date().toISOString() })
         .eq('id', bid_id);
-
-      sendFCMPushNotification(
-        [bid.provider_id],
-        'Your Bid Was Accepted!',
-        `$${parseFloat(bid.price).toFixed(2)} bid on "${pkg.title}" accepted — get in touch with the member to schedule work.`,
-        { section: 'bids', package_id: package_id }
-      ).catch(err => console.error(`[${requestId}] FCM bid accepted push error:`, err.message));
       
       console.log(`[${requestId}] Created escrow PaymentIntent ${paymentIntent.id} for package ${package_id}, amount: $${bid.price}`);
       
@@ -14241,8 +13767,6 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
           total_cost: finalTotal,
           provider_name: providerName
         });
-
-        recomputeVehicleHealthBackground(fullPkg.vehicle_id, requestId);
       }
 
       if (bid?.provider_id) {
@@ -14446,8 +13970,6 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
         total_cost: finalTotal,
         provider_name: providerName
       });
-
-      recomputeVehicleHealthBackground(fullPkg.vehicle_id, requestId);
     }
     
     // Notify provider
@@ -14468,45 +13990,8 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
         entity_type: 'package',
         entity_id: packageId
       });
-
-      sendFCMPushNotification(
-        [bid.provider_id],
-        'Payment Released!',
-        paymentMsg,
-        { section: 'jobs', package_id: packageId }
-      ).catch(err => console.error(`[${requestId}] FCM payment release push error:`, err.message));
     }
     
-    if (fullPkg?.crowd_funded) {
-      try {
-        const { data: contribs } = await supabase
-          .from('crowd_fund_contributions')
-          .select('contributor_id')
-          .eq('package_id', packageId)
-          .eq('status', 'completed');
-        if (contribs?.length) {
-          const uniqueIds = [...new Set(contribs.map(c => c.contributor_id))];
-          const notifs = uniqueIds.map(uid => ({
-            user_id: uid,
-            type: 'crowd_fund_complete',
-            title: 'Job Completed!',
-            message: `The crowd-funded service "${fullPkg.title}" you contributed to has been completed. Thank you for helping a fellow member!`,
-            entity_type: 'package',
-            entity_id: packageId
-          }));
-          await supabase.from('notifications').insert(notifs);
-          sendFCMPushNotification(
-            uniqueIds,
-            'Crowd-Funded Job Completed!',
-            `"${fullPkg.title}" is done — your contribution helped make it happen!`,
-            { section: 'packages', package_id: packageId }
-          ).catch(() => {});
-        }
-      } catch (cfErr) {
-        console.error(`[${requestId}] Contributor notification error:`, cfErr.message);
-      }
-    }
-
     console.log(`[${requestId}] Escrow released for package ${packageId}, captured ${capturedPayment.id}, total: $${finalTotal.toFixed(2)}, discount: $${discountApplied.toFixed(2)}, additional: $${additionalWorkTotal.toFixed(2)}`);
     
     // Track completed job as HubSpot deal (async, non-blocking)
@@ -17977,85 +17462,47 @@ async function recalculateBackgroundVerified(supabase, providerId) {
   }
 }
 
-// ========== BACKGROUNDCHECKS.COM API ==========
-// Platform Integration: MCC is the platform, providers are customers,
-// their employees are the background check subjects.
-// Auth: BACKGROUNDCHECKS_TOKEN env var (api_token query param)
-// Set BACKGROUNDCHECKS_ENV=production for live checks (default: sandbox)
+// ========== CHECKR BACKGROUND CHECK API ==========
 
-function getBgChecksBaseUrl() {
-  const env = process.env.BACKGROUNDCHECKS_ENV || 'sandbox';
-  return env === 'production'
-    ? 'https://www.backgroundchecks.com'
-    : 'https://sandbox.backgroundchecks.com';
+const CHECKR_API_URL = process.env.CHECKR_ENVIRONMENT === 'production' 
+  ? 'https://api.checkr.com/v1/' 
+  : 'https://api.checkr-staging.com/v1/';
+
+function getCheckrAuthHeader() {
+  const apiKey = process.env.CHECKR_API_KEY;
+  if (!apiKey) return null;
+  return 'Basic ' + Buffer.from(apiKey + ':').toString('base64');
 }
 
-function getBgChecksToken() {
-  return process.env.BACKGROUNDCHECKS_TOKEN || null;
-}
-
-async function bgChecksRequest(endpoint, method = 'GET', body = null) {
-  const token = getBgChecksToken();
-  if (!token) {
-    throw new Error('BACKGROUNDCHECKS_TOKEN not configured');
+async function checkrApiRequest(endpoint, method = 'GET', body = null) {
+  const authHeader = getCheckrAuthHeader();
+  if (!authHeader) {
+    throw new Error('CHECKR_API_KEY not configured');
   }
-
-  const baseUrl = getBgChecksBaseUrl();
-  const sep = endpoint.includes('?') ? '&' : '?';
-  const url = `${baseUrl}/api/fact_token/${token}/${endpoint}${sep}app_token=${token}`;
 
   const options = {
     method,
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+    headers: {
+      'Authorization': authHeader,
+      'Content-Type': 'application/json'
+    }
   };
 
   if (body && method !== 'GET') {
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetch(url, options);
-  let data;
-  try {
-    data = await response.json();
-  } catch {
-    data = {};
-  }
+  const response = await fetch(CHECKR_API_URL + endpoint, options);
+  const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.message || data.error || `BackgroundChecks.com API error: ${response.status}`);
+    throw new Error(data.error || `Checkr API error: ${response.status}`);
   }
 
   return data;
 }
 
-async function ensureBgChecksAccount(supabase, providerId, providerEmail, providerName) {
-  const { data: existing } = await supabase
-    .from('provider_background_check_accounts')
-    .select('bgchecks_account_id')
-    .eq('provider_id', providerId)
-    .single();
-
-  if (existing?.bgchecks_account_id) return existing.bgchecks_account_id;
-
-  const accountData = await bgChecksRequest('platform/accounts', 'POST', {
-    email: providerEmail,
-    name: providerName,
-    external_id: `mcc_provider_${providerId}`
-  });
-
-  const accountId = accountData.id || accountData.account_id;
-  if (!accountId) throw new Error('BackgroundChecks.com did not return an account ID');
-
-  await supabase.from('provider_background_check_accounts').upsert({
-    provider_id: providerId,
-    bgchecks_account_id: accountId,
-    created_at: new Date().toISOString()
-  }, { onConflict: 'provider_id' });
-
-  return accountId;
-}
-
-async function handleBgChecksInitiate(req, res, requestId) {
+async function handleCheckrInitiate(req, res, requestId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
   
@@ -18083,10 +17530,9 @@ async function handleBgChecksInitiate(req, res, requestId) {
         return;
       }
 
-      const apiToken = getBgChecksToken();
-      const { providerId, firstName, lastName, email, phone, city, state, zipcode, subjectType, employeeId, providerEmail, providerName } = parsed;
-
-      if (!apiToken) {
+      // Check if Checkr API key is configured
+      if (!process.env.CHECKR_API_KEY) {
+        // Store the request but don't send to Checkr yet
         const { data: bgCheck, error: insertError } = await supabase
           .from('provider_background_checks')
           .insert({
@@ -18095,12 +17541,11 @@ async function handleBgChecksInitiate(req, res, requestId) {
             subject_first_name: firstName,
             subject_last_name: lastName,
             subject_email: email,
-            subject_type: subjectType || 'employee',
+            subject_type: subjectType || 'provider',
             work_location_state: state,
             work_location_city: city || null,
             status: 'initiated',
-            package_slug: 'standard_criminal_mvr',
-            api_provider: 'backgroundchecks'
+            package_slug: 'standard_package_with_mvr'
           })
           .select()
           .single();
@@ -18108,97 +17553,99 @@ async function handleBgChecksInitiate(req, res, requestId) {
         if (insertError) {
           console.error(`[${requestId}] Failed to store background check:`, insertError);
           res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Failed to save background check request' }));
+          res.end(JSON.stringify({ error: 'Failed to initiate background check' }));
           return;
         }
 
-        console.log(`[${requestId}] Background check queued (BACKGROUNDCHECKS_TOKEN not set): ${bgCheck.id}`);
+        console.log(`[${requestId}] Background check initiated (pending API key): ${bgCheck.id}`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          success: true,
+        res.end(JSON.stringify({ 
+          success: true, 
           checkId: bgCheck.id,
           status: 'initiated',
-          message: 'Background check request saved. BackgroundChecks.com API key pending configuration.',
-          apiConfigured: false
+          message: 'Background check request saved. Checkr API integration pending configuration.'
         }));
         return;
       }
 
-      let bgchecksAccountId = null;
-      try {
-        bgchecksAccountId = await ensureBgChecksAccount(
-          supabase, providerId,
-          providerEmail || `provider_${providerId}@mcc.internal`,
-          providerName || `Provider ${providerId}`
-        );
-      } catch (accErr) {
-        console.error(`[${requestId}] Failed to get/create BgChecks account:`, accErr);
-      }
-
-      const orderPayload = {
+      // Create candidate in Checkr
+      const candidateData = {
         first_name: firstName,
         last_name: lastName,
-        email,
+        email: email,
         phone: phone || undefined,
-        zip: zipcode || undefined,
-        state,
-        city: city || undefined,
-        package: 'standard_criminal_mvr',
-        external_id: `mcc_${subjectType || 'employee'}_${providerId}${employeeId ? '_' + employeeId : ''}`,
-        copy_requested: true
+        zipcode: zipcode || undefined,
+        custom_id: `${subjectType || 'provider'}_${providerId}${employeeId ? '_' + employeeId : ''}`,
+        copy_requested: true,
+        work_locations: [{
+          country: 'US',
+          state: state,
+          city: city || undefined
+        }]
       };
 
-      const orderEndpoint = bgchecksAccountId
-        ? `platform/accounts/${bgchecksAccountId}/orders`
-        : 'orders';
+      const candidate = await checkrApiRequest('candidates', 'POST', candidateData);
+      console.log(`[${requestId}] Created Checkr candidate: ${candidate.id}`);
 
-      const order = await bgChecksRequest(orderEndpoint, 'POST', orderPayload);
-      console.log(`[${requestId}] BackgroundChecks.com order created: ${order.id}`);
+      // Create invitation
+      const invitationData = {
+        candidate_id: candidate.id,
+        package: 'standard_package_with_mvr',
+        work_locations: [{
+          country: 'US',
+          state: state,
+          city: city || undefined
+        }]
+      };
 
+      const invitation = await checkrApiRequest('invitations', 'POST', invitationData);
+      console.log(`[${requestId}] Created Checkr invitation: ${invitation.id}`);
+
+      // Store in database
       const { data: bgCheck, error: insertError } = await supabase
         .from('provider_background_checks')
         .insert({
           provider_id: providerId,
           employee_id: employeeId || null,
+          checkr_candidate_id: candidate.id,
+          checkr_invitation_id: invitation.id,
+          invitation_url: invitation.invitation_url,
           subject_first_name: firstName,
           subject_last_name: lastName,
           subject_email: email,
-          subject_type: subjectType || 'employee',
+          subject_type: subjectType || 'provider',
           work_location_state: state,
           work_location_city: city || null,
-          status: order.status || 'pending',
-          package_slug: 'standard_criminal_mvr',
-          api_provider: 'backgroundchecks',
-          external_order_id: order.id,
-          invitation_url: order.applicant_url || order.invitation_url || null,
-          invitation_sent_at: new Date().toISOString()
+          status: 'invitation_sent',
+          invitation_sent_at: new Date().toISOString(),
+          package_slug: 'standard_package_with_mvr'
         })
         .select()
         .single();
 
       if (insertError) {
-        console.error(`[${requestId}] Failed to store background check record:`, insertError);
+        console.error(`[${requestId}] Failed to store background check:`, insertError);
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        success: true,
+      res.end(JSON.stringify({ 
+        success: true, 
         checkId: bgCheck?.id,
-        orderId: order.id,
-        status: order.status || 'pending',
-        applicantUrl: order.applicant_url || order.invitation_url || null,
-        apiConfigured: true
+        candidateId: candidate.id,
+        invitationId: invitation.id,
+        invitationUrl: invitation.invitation_url,
+        status: 'invitation_sent'
       }));
 
     } catch (error) {
-      console.error(`[${requestId}] BackgroundChecks initiate error:`, error);
+      console.error(`[${requestId}] Checkr initiate error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Failed to initiate background check. Please try again later.' }));
     }
   });
 }
 
-async function handleBgChecksWebhook(req, res, requestId) {
+async function handleCheckrWebhook(req, res, requestId) {
   setSecurityHeaders(res, true);
 
   const chunks = [];
@@ -18210,18 +17657,19 @@ async function handleBgChecksWebhook(req, res, requestId) {
     try {
       const event = JSON.parse(rawBody);
       
-      if (!event || !event.event) {
-        console.warn(`[${requestId}] Invalid BackgroundChecks webhook: missing event`);
+      // Basic validation - ensure required fields exist
+      if (!event || !event.type) {
+        console.warn(`[${requestId}] Invalid Checkr webhook: missing type`);
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid webhook payload' }));
         return;
       }
+      
+      const eventId = event.id;
+      const eventType = event.type;
+      const eventData = event.data?.object || {};
 
-      const eventType = event.event;
-      const eventData = event.data || {};
-      const orderId = eventData.id || eventData.order_id;
-
-      console.log(`[${requestId}] BackgroundChecks.com webhook: ${eventType}, order: ${orderId}`);
+      console.log(`[${requestId}] Received Checkr webhook: ${eventType}`);
 
       const supabase = getSupabaseClient();
       if (!supabase) {
@@ -18230,59 +17678,138 @@ async function handleBgChecksWebhook(req, res, requestId) {
         return;
       }
 
+      // Store webhook event
+      await supabase.from('checkr_webhook_events').insert({
+        event_id: eventId,
+        event_type: eventType,
+        object_id: eventData.id,
+        object_type: eventData.object,
+        payload: event
+      });
+
       // Process event based on type
       let updateData = {};
+      let lookupField = null;
+      let lookupValue = null;
 
       switch (eventType) {
-        case 'order.created':
-        case 'order.pending':
-          updateData = { status: 'pending' };
+        case 'invitation.created':
+          lookupField = 'checkr_invitation_id';
+          lookupValue = eventData.id;
+          updateData = { status: 'invitation_sent', invitation_sent_at: new Date().toISOString() };
           break;
-        case 'order.processing':
-          updateData = { status: 'processing' };
+
+        case 'invitation.completed':
+          lookupField = 'checkr_invitation_id';
+          lookupValue = eventData.id;
+          updateData = { status: 'pending', invitation_completed_at: new Date().toISOString() };
           break;
-        case 'order.complete':
-        case 'order.completed': {
-          const bgResult = eventData.result || eventData.status_detail;
-          let finalStatus = 'complete';
-          if (bgResult === 'clear' || bgResult === 'eligible') finalStatus = 'eligible';
-          else if (bgResult === 'consider' || bgResult === 'needs_review') finalStatus = 'needs_review';
-          else if (bgResult === 'suspended') finalStatus = 'suspended';
-          updateData = {
-            status: finalStatus,
-            result: bgResult || null,
-            completed_at: new Date().toISOString(),
-            report_url: eventData.report_url || eventData.report_widget_url || null
-          };
+
+        case 'invitation.expired':
+          lookupField = 'checkr_invitation_id';
+          lookupValue = eventData.id;
+          updateData = { status: 'invitation_expired' };
           break;
-        }
-        case 'order.cancelled':
-        case 'order.canceled':
+
+        case 'invitation.deleted':
+          lookupField = 'checkr_invitation_id';
+          lookupValue = eventData.id;
           updateData = { status: 'canceled' };
           break;
-        case 'order.disputed':
-          updateData = { status: 'disputed' };
+
+        case 'report.created':
+          lookupField = 'checkr_candidate_id';
+          lookupValue = eventData.candidate_id;
+          updateData = { 
+            checkr_report_id: eventData.id,
+            status: 'processing',
+            report_created_at: new Date().toISOString(),
+            eta: eventData.eta || null
+          };
           break;
-        case 'order.adverse_action':
-          updateData = { status: 'not_eligible', adjudication_status: 'adverse_action' };
+
+        case 'report.completed':
+          lookupField = 'checkr_report_id';
+          lookupValue = eventData.id;
+          const result = eventData.result;
+          const assessment = eventData.assessment;
+          let finalStatus = 'complete';
+          
+          if (assessment === 'eligible' || result === 'clear') {
+            finalStatus = eventData.includes_canceled ? 'clear' : 'eligible';
+          } else if (result === 'consider') {
+            finalStatus = 'needs_review';
+          }
+          
+          updateData = { 
+            status: finalStatus,
+            result: result,
+            assessment: assessment,
+            includes_canceled: eventData.includes_canceled || false,
+            completed_at: new Date().toISOString()
+          };
+          break;
+
+        case 'report.suspended':
+          lookupField = 'checkr_report_id';
+          lookupValue = eventData.id;
+          updateData = { status: 'suspended' };
+          break;
+
+        case 'report.resumed':
+          lookupField = 'checkr_report_id';
+          lookupValue = eventData.id;
+          updateData = { status: 'processing' };
+          break;
+
+        case 'report.canceled':
+          lookupField = 'checkr_report_id';
+          lookupValue = eventData.id;
+          updateData = { status: 'canceled' };
+          break;
+
+        case 'report.engaged':
+          lookupField = 'checkr_report_id';
+          lookupValue = eventData.id;
+          updateData = { status: 'eligible', adjudication_status: 'engaged' };
+          break;
+
+        case 'report.pre_adverse_action':
+          lookupField = 'checkr_report_id';
+          lookupValue = eventData.id;
+          updateData = { adjudication_status: 'pre_adverse_action' };
+          break;
+
+        case 'report.post_adverse_action':
+          lookupField = 'checkr_report_id';
+          lookupValue = eventData.id;
+          updateData = { status: 'not_eligible', adjudication_status: 'post_adverse_action' };
+          break;
+
+        case 'report.disputed':
+          lookupField = 'checkr_report_id';
+          lookupValue = eventData.id;
+          updateData = { status: 'disputed' };
           break;
       }
 
-      if (orderId && Object.keys(updateData).length > 0) {
+      // Update background check record
+      if (lookupField && lookupValue && Object.keys(updateData).length > 0) {
         updateData.updated_at = new Date().toISOString();
-
+        
         const { data: updated, error: updateError } = await supabase
           .from('provider_background_checks')
           .update(updateData)
-          .eq('external_order_id', orderId)
+          .eq(lookupField, lookupValue)
           .select()
           .single();
 
         if (updateError) {
           console.error(`[${requestId}] Failed to update background check:`, updateError);
-        } else if (updated) {
-          console.log(`[${requestId}] Updated background check ${updated.id} → ${updateData.status || 'unchanged'}`);
-
+        } else {
+          console.log(`[${requestId}] Updated background check ${updated.id} to status: ${updateData.status || 'unchanged'}`);
+          
+          // If cleared, update provider profile
           if (updateData.status === 'eligible' || updateData.status === 'clear') {
             if (updated.subject_type === 'provider') {
               await supabase
@@ -18295,11 +17822,18 @@ async function handleBgChecksWebhook(req, res, requestId) {
                 .eq('id', updated.provider_id);
             }
           }
-
+          
+          // Recalculate background verification badge status
           if (updated.provider_id) {
             await recalculateBackgroundVerified(supabase, updated.provider_id);
           }
         }
+
+        // Mark webhook as processed
+        await supabase
+          .from('checkr_webhook_events')
+          .update({ processed: true, processed_at: new Date().toISOString() })
+          .eq('event_id', eventId);
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -18313,7 +17847,7 @@ async function handleBgChecksWebhook(req, res, requestId) {
   });
 }
 
-async function handleBgChecksStatus(req, res, requestId, providerId) {
+async function handleCheckrStatus(req, res, requestId, providerId) {
   setSecurityHeaders(res, true);
   setCorsHeaders(res);
   
@@ -18339,89 +17873,21 @@ async function handleBgChecksStatus(req, res, requestId, providerId) {
       throw error;
     }
 
-    const apiToken = getBgChecksToken();
-    const baseUrl = getBgChecksBaseUrl();
-
-    const enriched = (checks || []).map(c => ({
-      ...c,
-      report_widget_url: c.external_order_id && apiToken
-        ? `${baseUrl}/connect/report/${c.external_order_id}?app_token=${apiToken}`
-        : c.report_url || null,
-      api_configured: !!apiToken
-    }));
-
-    const providerCheck = enriched.find(c => c.subject_type === 'provider');
-    const employeeChecks = enriched.filter(c => c.subject_type !== 'provider');
+    const providerCheck = checks.find(c => c.subject_type === 'provider');
+    const employeeChecks = checks.filter(c => c.subject_type === 'employee');
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       providerCheck: providerCheck || null,
-      employeeChecks,
-      totalChecks: enriched.length,
-      clearedCount: enriched.filter(c => c.status === 'eligible' || c.status === 'clear').length,
-      apiConfigured: !!apiToken
+      employeeChecks: employeeChecks,
+      totalChecks: checks.length,
+      clearedCount: checks.filter(c => c.status === 'eligible' || c.status === 'clear').length
     }));
 
   } catch (error) {
-    console.error(`[${requestId}] BgChecks status error:`, error);
+    console.error(`[${requestId}] Checkr status error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Failed to fetch background check status' }));
-  }
-}
-
-async function handleBgChecksReportUrl(req, res, requestId, checkId) {
-  setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-
-  const user = await enforce2fa(req, res, requestId);
-  if (!user) return;
-
-  try {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Database not configured' }));
-      return;
-    }
-
-    const { data: check, error } = await supabase
-      .from('provider_background_checks')
-      .select('id, external_order_id, provider_id, report_url, status')
-      .eq('id', checkId)
-      .single();
-
-    if (error || !check) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Background check not found' }));
-      return;
-    }
-
-    if (check.provider_id !== user.id) {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Not authorized' }));
-      return;
-    }
-
-    const apiToken = getBgChecksToken();
-    const baseUrl = getBgChecksBaseUrl();
-    let reportUrl = check.report_url;
-    if (!reportUrl && check.external_order_id && apiToken) {
-      reportUrl = `${baseUrl}/connect/report/${check.external_order_id}?app_token=${apiToken}`;
-    }
-
-    if (!reportUrl) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Report not yet available.' }));
-      return;
-    }
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ reportUrl, checkId, status: check.status }));
-
-  } catch (error) {
-    console.error(`[${requestId}] BgChecks report URL error:`, error);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Failed to get report URL' }));
   }
 }
 
@@ -18631,36 +18097,19 @@ async function handleGetProviderTeam(req, res, requestId, providerId) {
         }, { onConflict: 'provider_id,user_id' });
     }
 
-    const { data: teamMembers, error: teamError } = await supabase
-      .from('provider_team_members')
-      .select('id, provider_id, user_id, role, status, created_at, updated_at, invited_by')
-      .eq('provider_id', providerId)
-      .eq('status', 'active');
+    const { data: team, error } = await supabase.rpc('get_provider_team', {
+      p_provider_id: providerId
+    });
 
-    if (teamError) {
-      console.error(`[${requestId}] Get provider team error:`, teamError);
+    if (error) {
+      console.error(`[${requestId}] Get provider team error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Failed to fetch team members' }));
       return;
     }
 
-    const team = teamMembers || [];
-    const enrichedTeam = [];
-    for (const member of team) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name, email')
-        .eq('id', member.user_id)
-        .single();
-      enrichedTeam.push({
-        ...member,
-        full_name: profile?.full_name || null,
-        email: profile?.email || null
-      });
-    }
-
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ team: enrichedTeam }));
+    res.end(JSON.stringify({ team: team || [] }));
 
   } catch (error) {
     console.error(`[${requestId}] Get provider team error:`, error);
@@ -18877,15 +18326,12 @@ async function handleGetPendingInvitations(req, res, requestId, providerId) {
       return;
     }
 
-    const { data: invitations, error: invError } = await supabase
-      .from('provider_invitations')
-      .select('id, provider_id, email, role, token, created_at, expires_at, invited_by')
-      .eq('provider_id', providerId)
-      .is('accepted_at', null)
-      .gt('expires_at', new Date().toISOString());
+    const { data: invitations, error } = await supabase.rpc('get_pending_invitations', {
+      p_provider_id: providerId
+    });
 
-    if (invError) {
-      console.error(`[${requestId}] Get pending invitations error:`, invError);
+    if (error) {
+      console.error(`[${requestId}] Get pending invitations error:`, error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Failed to fetch pending invitations' }));
       return;
@@ -19284,75 +18730,58 @@ async function handleAcceptInvitation(req, res, requestId, token) {
       return;
     }
 
-    const acceptedAt = new Date().toISOString();
-    const { data: inv, error: invError } = await supabase
+    // Verify email matching for invitation acceptance
+    const { data: invitation } = await supabase
       .from('provider_invitations')
-      .update({ accepted_at: acceptedAt })
+      .select('email')
       .eq('token', token)
       .is('accepted_at', null)
-      .gt('expires_at', acceptedAt)
-      .select('id, provider_id, email, role, invited_by')
-      .maybeSingle();
+      .gt('expires_at', new Date().toISOString())
+      .single();
 
-    if (invError || !inv) {
-      console.error(`[${requestId}] Invitation atomic accept failed:`, invError?.message || 'not found, already used, or expired');
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Invitation not found, already used, or expired' }));
-      return;
-    }
-
-    if (user.email && inv.email) {
-      const invitationEmail = inv.email.toLowerCase().trim();
+    if (invitation && user.email) {
+      const invitationEmail = invitation.email.toLowerCase().trim();
       const userEmail = user.email.toLowerCase().trim();
+      
       if (invitationEmail !== userEmail) {
+        // Log warning but still allow - token is primary security
         console.warn(`[${requestId}] Email mismatch for invitation acceptance: invitation was for ${invitationEmail}, but accepted by ${userEmail}`);
       }
     }
 
-    const { data: existingMember } = await supabase
-      .from('provider_team_members')
-      .select('id')
-      .eq('provider_id', inv.provider_id)
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const { data: result, error: rpcError } = await supabase.rpc('accept_team_invitation', {
+      p_token: token,
+      p_user_id: user.id
+    });
 
-    if (existingMember) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'You are already a member of this team' }));
+    if (rpcError) {
+      console.error(`[${requestId}] Accept invitation RPC error:`, rpcError);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to accept invitation' }));
       return;
     }
 
-    const { error: insertError } = await supabase
-      .from('provider_team_members')
-      .insert({
-        provider_id: inv.provider_id,
-        user_id: user.id,
-        role: inv.role || 'employee',
-        status: 'active',
-        invited_by: inv.invited_by || null
-      });
-
-    if (insertError) {
-      console.error(`[${requestId}] Team member insert error:`, insertError);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to add team member' }));
+    if (!result?.success) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: result?.error || 'Failed to accept invitation' }));
       return;
     }
 
     await supabase
       .from('profiles')
-      .update({ team_provider_id: inv.provider_id })
+      .update({ team_provider_id: result.provider_id })
       .eq('id', user.id);
 
-    console.log(`[${requestId}] User ${user.id} accepted invitation and joined provider ${inv.provider_id} as ${inv.role}`);
+    console.log(`[${requestId}] User ${user.id} accepted invitation and joined provider ${result.provider_id} as ${result.role}`);
 
-    await recalculateBackgroundVerified(supabase, inv.provider_id);
+    // Recalculate background verification badge status (new employee added)
+    await recalculateBackgroundVerified(supabase, result.provider_id);
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       success: true,
-      provider_id: inv.provider_id,
-      role: inv.role || 'employee'
+      provider_id: result.provider_id,
+      role: result.role
     }));
 
   } catch (error) {
@@ -21217,381 +20646,6 @@ async function handleUnifiedPosTransactions(req, res, requestId, providerId) {
   }
 }
 
-// ==================== PROVIDER BID INSIGHTS API ====================
-
-async function handleProviderBidInsights(req, res, requestId) {
-  setCorsHeaders(res, req);
-  
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200);
-    res.end();
-    return;
-  }
-  
-  const user = await authenticateRequest(req);
-  if (!user) {
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unauthorized' }));
-    return;
-  }
-  
-  try {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Database not configured' }));
-      return;
-    }
-    
-    const providerId = user.id;
-    
-    const profileCheck = await supabase
-      .from('profiles')
-      .select('role, is_also_provider, business_name, full_name')
-      .eq('id', providerId)
-      .single();
-    
-    if (profileCheck.error || !profileCheck.data) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to verify provider status' }));
-      return;
-    }
-    
-    const profile = profileCheck.data;
-    if (profile.role !== 'provider' && !profile.is_also_provider) {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Forbidden: provider access required' }));
-      return;
-    }
-    
-    const [bidsResult, marketResult] = await Promise.all([
-      supabase
-        .from('bids')
-        .select('id, price, status, created_at, package_id, maintenance_packages!bids_package_id_fkey(title, category, status)')
-        .eq('provider_id', providerId)
-        .order('created_at', { ascending: false })
-        .limit(200),
-      supabase
-        .from('bids')
-        .select('price, status, maintenance_packages!bids_package_id_fkey(category)')
-        .limit(2000)
-    ]);
-    
-    if (bidsResult.error) {
-      console.error(`[${requestId}] Supabase bids query error:`, bidsResult.error);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to fetch bid data' }));
-      return;
-    }
-    if (marketResult.error) {
-      console.error(`[${requestId}] Supabase market query error:`, marketResult.error);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to fetch market data' }));
-      return;
-    }
-    
-    const providerBids = bidsResult.data || [];
-    const allMarketBids = marketResult.data || [];
-    const providerName = profile.business_name || profile.full_name || 'Provider';
-    
-    if (providerBids.length === 0) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        insights: null,
-        message: 'No bid history available yet. Submit bids to receive AI-powered insights.',
-        stats: { totalBids: 0, wonBids: 0, lostBids: 0, pendingBids: 0, winRate: 0 }
-      }));
-      return;
-    }
-    
-    const wonBids = providerBids.filter(b => b.status === 'accepted');
-    const lostBids = providerBids.filter(b => b.status === 'rejected' || b.status === 'outbid');
-    const pendingBids = providerBids.filter(b => b.status === 'pending');
-    const decidedBids = wonBids.length + lostBids.length;
-    const winRate = decidedBids > 0 ? Math.round((wonBids.length / decidedBids) * 100) : 0;
-    
-    const categoryStats = {};
-    providerBids.forEach(b => {
-      const cat = b.maintenance_packages?.category || 'other';
-      if (!categoryStats[cat]) {
-        categoryStats[cat] = { won: 0, lost: 0, pending: 0, totalPrice: 0, count: 0, prices: [] };
-      }
-      categoryStats[cat].count++;
-      categoryStats[cat].totalPrice += b.price || 0;
-      categoryStats[cat].prices.push(b.price || 0);
-      if (b.status === 'accepted') categoryStats[cat].won++;
-      else if (b.status === 'rejected' || b.status === 'outbid') categoryStats[cat].lost++;
-      else if (b.status === 'pending') categoryStats[cat].pending++;
-    });
-    
-    const marketAverages = {};
-    allMarketBids.forEach(b => {
-      const cat = b.maintenance_packages?.category || 'other';
-      if (!marketAverages[cat]) {
-        marketAverages[cat] = { prices: [], acceptedPrices: [] };
-      }
-      marketAverages[cat].prices.push(b.price || 0);
-      if (b.status === 'accepted') {
-        marketAverages[cat].acceptedPrices.push(b.price || 0);
-      }
-    });
-    
-    const marketSummary = {};
-    for (const [cat, data] of Object.entries(marketAverages)) {
-      const prices = data.prices.filter(p => p > 0);
-      const acceptedPrices = data.acceptedPrices.filter(p => p > 0);
-      if (prices.length > 0) {
-        marketSummary[cat] = {
-          avgPrice: Math.round(prices.reduce((a, b) => a + b, 0) / prices.length),
-          minPrice: Math.min(...prices),
-          maxPrice: Math.max(...prices),
-          acceptedAvg: acceptedPrices.length > 0 ? Math.round(acceptedPrices.reduce((a, b) => a + b, 0) / acceptedPrices.length) : null,
-          acceptedMin: acceptedPrices.length > 0 ? Math.min(...acceptedPrices) : null,
-          acceptedMax: acceptedPrices.length > 0 ? Math.max(...acceptedPrices) : null,
-          totalBids: prices.length
-        };
-      }
-    }
-    
-    const bidTimingData = {};
-    providerBids.forEach(b => {
-      const day = new Date(b.created_at).toLocaleDateString('en-US', { weekday: 'long' });
-      if (!bidTimingData[day]) bidTimingData[day] = { total: 0, won: 0 };
-      bidTimingData[day].total++;
-      if (b.status === 'accepted') bidTimingData[day].won++;
-    });
-    
-    const categoryBreakdown = Object.entries(categoryStats).map(([cat, stats]) => {
-      const decided = stats.won + stats.lost;
-      const catWinRate = decided > 0 ? Math.round((stats.won / decided) * 100) : 0;
-      const avgBid = stats.count > 0 ? Math.round(stats.totalPrice / stats.count) : 0;
-      const market = marketSummary[cat];
-      return {
-        category: cat,
-        winRate: catWinRate,
-        totalBids: stats.count,
-        won: stats.won,
-        lost: stats.lost,
-        pending: stats.pending,
-        avgBidPrice: avgBid,
-        marketAvg: market?.avgPrice || null,
-        acceptedRange: market?.acceptedMin && market?.acceptedMax ? { min: market.acceptedMin, max: market.acceptedMax } : null,
-        priceDiff: market?.acceptedAvg ? Math.round(((avgBid - market.acceptedAvg) / market.acceptedAvg) * 100) : null
-      };
-    });
-    
-    const prompt = `You are an AI bid strategy assistant for an automotive service marketplace. Analyze this provider's bidding data and give concise, actionable recommendations.
-
-Provider: ${providerName}
-Overall Stats: ${providerBids.length} total bids, ${wonBids.length} won, ${lostBids.length} lost, ${pendingBids.length} pending, ${winRate}% win rate
-
-Category Breakdown:
-${categoryBreakdown.map(c => `- ${c.category}: ${c.winRate}% win rate (${c.won}/${c.won + c.lost} decided), avg bid $${c.avgBidPrice}${c.marketAvg ? `, market avg $${c.marketAvg}` : ''}${c.priceDiff !== null ? `, ${c.priceDiff > 0 ? '+' : ''}${c.priceDiff}% vs accepted avg` : ''}`).join('\n')}
-
-Bid Timing:
-${Object.entries(bidTimingData).map(([day, d]) => `- ${day}: ${d.total} bids, ${d.won} won`).join('\n')}
-
-Respond in valid JSON only with this structure:
-{
-  "summary": "A 2-3 sentence overall performance summary",
-  "strengths": ["strength1", "strength2"],
-  "improvements": ["improvement1", "improvement2"],
-  "categoryRecommendations": [
-    {
-      "category": "category_name",
-      "recommendation": "specific advice",
-      "suggestedPriceRange": {"min": number, "max": number} or null,
-      "competitiveness": "strong" | "moderate" | "weak"
-    }
-  ],
-  "timingAdvice": "When they tend to win most bids",
-  "topTip": "Single most impactful piece of advice"
-}`;
-
-    let insights;
-    try {
-      const aiResult = await generateAIContent(prompt, { maxTokens: 1500, preferredProvider: 'gemini' });
-      const jsonText = aiResult.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      insights = JSON.parse(jsonText);
-      if (insights.categoryRecommendations && Array.isArray(insights.categoryRecommendations)) {
-        insights.categoryRecommendations = insights.categoryRecommendations.map(rec => ({
-          ...rec,
-          category: typeof rec.category === 'string' ? rec.category : '',
-          recommendation: typeof rec.recommendation === 'string' ? rec.recommendation : '',
-          suggestedPriceRange: rec.suggestedPriceRange && typeof rec.suggestedPriceRange.min === 'number' && typeof rec.suggestedPriceRange.max === 'number' ? { min: Math.round(rec.suggestedPriceRange.min), max: Math.round(rec.suggestedPriceRange.max) } : null,
-          competitiveness: ['strong', 'moderate', 'weak'].includes(rec.competitiveness) ? rec.competitiveness : 'moderate'
-        }));
-      }
-      if (typeof insights.summary !== 'string') insights.summary = '';
-      if (typeof insights.topTip !== 'string') insights.topTip = '';
-      if (typeof insights.timingAdvice !== 'string') insights.timingAdvice = '';
-    } catch (aiError) {
-      console.error(`[${requestId}] AI generation error for bid insights:`, aiError.message);
-      insights = {
-        summary: `You have submitted ${providerBids.length} bids with a ${winRate}% win rate. ${winRate >= 50 ? 'Your bidding strategy is performing well.' : 'There may be room to improve your bidding strategy.'}`,
-        strengths: winRate >= 30 ? ['Active bidder with consistent submissions'] : ['Getting started with platform bidding'],
-        improvements: winRate < 50 ? ['Consider adjusting prices closer to market averages for categories with low win rates'] : ['Keep maintaining competitive prices'],
-        categoryRecommendations: categoryBreakdown.map(c => ({
-          category: c.category,
-          recommendation: c.priceDiff && c.priceDiff > 15 ? `Your bids are ${c.priceDiff}% above market average. Consider lowering prices.` : c.priceDiff && c.priceDiff < -15 ? `You're pricing competitively below market. Good positioning.` : 'Your pricing is aligned with market rates.',
-          suggestedPriceRange: c.acceptedRange,
-          competitiveness: c.winRate >= 50 ? 'strong' : c.winRate >= 25 ? 'moderate' : 'weak'
-        })),
-        timingAdvice: 'Bid early when packages are posted for best results.',
-        topTip: 'Focus on categories where you have the highest win rate to maximize your bid credits.'
-      };
-    }
-    
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      insights,
-      stats: {
-        totalBids: providerBids.length,
-        wonBids: wonBids.length,
-        lostBids: lostBids.length,
-        pendingBids: pendingBids.length,
-        winRate
-      },
-      categoryBreakdown,
-      marketSummary,
-      generatedAt: new Date().toISOString()
-    }));
-    
-  } catch (err) {
-    console.error(`[${requestId}] Bid insights error:`, err);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Failed to generate bid insights' }));
-  }
-}
-
-async function handleProviderCategoryPriceAdvice(req, res, requestId) {
-  setCorsHeaders(res, req);
-  
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200);
-    res.end();
-    return;
-  }
-  
-  const user = await authenticateRequest(req);
-  if (!user) {
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unauthorized' }));
-    return;
-  }
-  
-  try {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Database not configured' }));
-      return;
-    }
-    
-    const providerId = user.id;
-    
-    const profileCheck = await supabase
-      .from('profiles')
-      .select('role, is_also_provider')
-      .eq('id', providerId)
-      .single();
-    
-    if (profileCheck.error || !profileCheck.data) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to verify provider status' }));
-      return;
-    }
-    if (profileCheck.data.role !== 'provider' && !profileCheck.data.is_also_provider) {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Forbidden: provider access required' }));
-      return;
-    }
-    
-    const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
-    const category = urlParams.get('category') || '';
-    const packageId = urlParams.get('packageId') || '';
-    
-    if (!category) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Category parameter required' }));
-      return;
-    }
-    
-    const [marketBids, providerBids] = await Promise.all([
-      supabase
-        .from('bids')
-        .select('price, status, maintenance_packages!bids_package_id_fkey(category)')
-        .limit(500),
-      supabase
-        .from('bids')
-        .select('price, status, maintenance_packages!bids_package_id_fkey(category)')
-        .eq('provider_id', providerId)
-        .limit(200)
-    ]);
-    
-    if (marketBids.error) {
-      console.error(`[${requestId}] Supabase market bids query error:`, marketBids.error);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to fetch market data' }));
-      return;
-    }
-    if (providerBids.error) {
-      console.error(`[${requestId}] Supabase provider bids query error:`, providerBids.error);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to fetch provider data' }));
-      return;
-    }
-    
-    const categoryMarketBids = (marketBids.data || []).filter(b => b.maintenance_packages?.category === category);
-    const categoryProviderBids = (providerBids.data || []).filter(b => b.maintenance_packages?.category === category);
-    
-    const allPrices = categoryMarketBids.map(b => b.price).filter(p => p > 0);
-    const acceptedPrices = categoryMarketBids.filter(b => b.status === 'accepted').map(b => b.price).filter(p => p > 0);
-    const providerWins = categoryProviderBids.filter(b => b.status === 'accepted');
-    const providerLosses = categoryProviderBids.filter(b => b.status === 'rejected' || b.status === 'outbid');
-    
-    let suggestedMin = null, suggestedMax = null;
-    if (acceptedPrices.length >= 2) {
-      acceptedPrices.sort((a, b) => a - b);
-      const q1Idx = Math.floor(acceptedPrices.length * 0.25);
-      const q3Idx = Math.floor(acceptedPrices.length * 0.75);
-      suggestedMin = acceptedPrices[q1Idx];
-      suggestedMax = acceptedPrices[q3Idx];
-    } else if (allPrices.length >= 2) {
-      const avg = allPrices.reduce((a, b) => a + b, 0) / allPrices.length;
-      suggestedMin = Math.round(avg * 0.85);
-      suggestedMax = Math.round(avg * 1.05);
-    }
-    
-    const decided = providerWins.length + providerLosses.length;
-    const providerWinRate = decided > 0 ? Math.round((providerWins.length / decided) * 100) : null;
-    
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      category,
-      aiSuggestedRange: suggestedMin && suggestedMax ? { min: suggestedMin, max: suggestedMax } : null,
-      marketStats: {
-        avgPrice: allPrices.length > 0 ? Math.round(allPrices.reduce((a, b) => a + b, 0) / allPrices.length) : null,
-        minPrice: allPrices.length > 0 ? Math.min(...allPrices) : null,
-        maxPrice: allPrices.length > 0 ? Math.max(...allPrices) : null,
-        acceptedAvg: acceptedPrices.length > 0 ? Math.round(acceptedPrices.reduce((a, b) => a + b, 0) / acceptedPrices.length) : null,
-        totalBids: allPrices.length
-      },
-      providerPerformance: {
-        winRate: providerWinRate,
-        totalBids: categoryProviderBids.length,
-        won: providerWins.length,
-        lost: providerLosses.length
-      }
-    }));
-    
-  } catch (err) {
-    console.error(`[${requestId}] Category price advice error:`, err);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Failed to get price advice' }));
-  }
-}
-
 // ==================== PROVIDER AVAILABLE PACKAGES API ====================
 
 async function handleProviderAvailablePackages(req, res, requestId) {
@@ -21720,6 +20774,23 @@ async function handleProviderAvailablePackages(req, res, requestId) {
       }
     }
     
+    // Fetch provider's AI matches (provider-specific, can't cache)
+    let providerMatches = {};
+    try {
+      const { data: matches } = await supabase
+        .from('provider_package_matches')
+        .select('package_id, match_score, match_reason')
+        .eq('provider_id', providerId);
+      if (matches) {
+        for (const m of matches) {
+          providerMatches[m.package_id] = { score: m.match_score, reason: m.match_reason };
+        }
+      }
+    } catch (matchErr) {
+      // Table may not exist yet - gracefully continue
+      console.log(`[${requestId}] Provider matches query skipped:`, matchErr.message);
+    }
+    
     // Filter packages based on privacy/exclusivity (provider-specific, can't cache)
     // Create fresh objects for each provider to avoid data leakage
     const filteredPackages = packages
@@ -21757,6 +20828,14 @@ async function handleProviderAvailablePackages(req, res, requestId) {
           pkgCopy.pickup_preference === 'destination_service';
         if (isDestService && destServices) {
           pkgCopy._destinationService = destServices.find(ds => ds.package_id === pkgCopy.id);
+        }
+        
+        // Attach AI match data
+        const matchData = providerMatches[pkgCopy.id];
+        if (matchData) {
+          pkgCopy._isMatched = true;
+          pkgCopy._matchReason = matchData.reason;
+          pkgCopy._matchScore = matchData.score;
         }
         
         return pkgCopy;
@@ -25065,13 +24144,6 @@ async function checkAndSendMaintenanceReminders() {
           const smsMessage = `My Car Concierge: Your ${vehicleName} is ${urgency === 'overdue' ? 'overdue' : 'due soon'} for ${serviceLabel}. Schedule service at ${appUrl}/members.html`;
           await sendSmsNotification(profile.phone, smsMessage, profile.id, 'maintenance_reminders');
         }
-
-        sendFCMPushNotification(
-          [profile.id],
-          urgency === 'overdue' ? `${serviceLabel} Overdue` : `${serviceLabel} Due Soon`,
-          `Your ${vehicleName} needs ${serviceLabel}. Tap to schedule service.`,
-          { section: 'vehicles' }
-        ).catch(e => console.error('[MaintenanceReminders] FCM push error:', e.message));
         
         await supabase
           .from('maintenance_schedules')
@@ -25304,13 +24376,6 @@ async function sendAppointmentReminders() {
         const message = `My Car Concierge: Reminder - Your ${serviceType} for ${vehicleName} is scheduled tomorrow at ${appointmentTime} with ${providerName}. Reply HELP for assistance.`;
         
         const smsResult = await sendSmsNotification(member.phone, message, member.id, 'maintenance_reminders');
-
-        sendFCMPushNotification(
-          [member.id],
-          'Appointment Reminder',
-          `Your ${serviceType} for ${vehicleName} is scheduled tomorrow at ${appointmentTime} with ${providerName}.`,
-          { section: 'appointments' }
-        ).catch(e => console.error('[AppointmentReminders] FCM push error:', e.message));
         
         if (smsResult.sent) {
           const { error: updateError } = await supabase
@@ -25887,16 +24952,7 @@ async function sendDreamCarDigestEmails() {
         user_id, 
         search_name,
         email_report_frequency,
-        last_email_report_at,
-        market_intel,
-        preferred_makes,
-        preferred_models,
-        min_year,
-        max_year,
-        min_price,
-        max_price,
-        zip_code,
-        max_distance_miles
+        last_email_report_at
       `)
       .eq('is_active', true)
       .eq('notify_email', true)
@@ -25941,7 +24997,7 @@ async function sendDreamCarDigestEmails() {
         if (!profile?.email) continue;
         
         const emailHtml = generateDreamCarDigestHtml(search, matches, sinceDate, now);
-        const emailSubject = `Dream Car Finder: Market Intelligence for "${search.search_name || 'Your Search'}"`;
+        const emailSubject = `Dream Car Finder: ${matches.length} New Match${matches.length === 1 ? '' : 'es'} for "${search.search_name || 'Your Search'}"`;
         
         const result = await sendEmailNotification(
           profile.email,
@@ -25999,110 +25055,43 @@ function generateDreamCarDigestHtml(search, matches, sinceDate, now) {
   }[search.email_report_frequency] || 'Periodic';
   
   const dateRange = `${sinceDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-
-  const prices = matches
-    .map(m => parseFloat(m.price))
-    .filter(p => !isNaN(p) && p > 0)
-    .sort((a, b) => a - b);
-
-  let priceRange = { low: null, median: null, high: null };
-  if (prices.length > 0) {
-    priceRange.low = prices[0];
-    priceRange.high = prices[prices.length - 1];
-    const mid = Math.floor(prices.length / 2);
-    priceRange.median = prices.length % 2 === 0
-      ? Math.round((prices[mid - 1] + prices[mid]) / 2)
-      : prices[mid];
-  }
-
-  let trend = 'fair';
-  if (prices.length >= 3) {
-    const medianRatio = priceRange.median / priceRange.high;
-    if (medianRatio > 0.8) trend = 'hot';
-    else if (medianRatio < 0.6) trend = 'soft';
-  }
-
-  const trendLabels = { hot: 'Hot Market \u2191', fair: 'Fair Market \u2194', soft: "Buyer's Market \u2193" };
-  const trendColors = { hot: '#ef5f5f', fair: '#b8942d', soft: '#28a745' };
-  const trendLabel = trendLabels[trend] || trendLabels.fair;
-  const trendColor = trendColors[trend] || trendColors.fair;
-
-  const fmtPrice = (v) => v != null ? '$' + Number(v).toLocaleString() : 'N/A';
-
-  const intel = search.market_intel || {};
-  const searchUrls = intel.searchUrls || buildDreamCarSearchUrls(search);
-  const checklist = intel.buyingChecklist || [];
-
-  let priceHtml = '';
-  if (priceRange.low != null) {
-    priceHtml = `
-      <div style="background: #f8f9fa; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #e9ecef;">
-        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
-          <span style="font-size: 0.9em; color: #6c757d;">Price Range (${matches.length} listing${matches.length !== 1 ? 's' : ''} analyzed)</span>
-          <span style="padding: 4px 14px; border-radius: 100px; font-size: 0.85em; font-weight: 600; background: ${trendColor}22; color: ${trendColor};">${trendLabel}</span>
-        </div>
-        <table style="width: 100%; border-collapse: collapse;">
-          <tr>
-            <td style="text-align: left; padding: 8px 0;">
-              <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Low</div>
-              <div style="font-size: 1.3em; font-weight: 700; color: #28a745;">${fmtPrice(priceRange.low)}</div>
-            </td>
-            <td style="text-align: center; padding: 8px 0;">
-              <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Median</div>
-              <div style="font-size: 1.5em; font-weight: 700; color: #b8942d;">${fmtPrice(priceRange.median)}</div>
-            </td>
-            <td style="text-align: right; padding: 8px 0;">
-              <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">High</div>
-              <div style="font-size: 1.3em; font-weight: 700; color: #ef5f5f;">${fmtPrice(priceRange.high)}</div>
-            </td>
-          </tr>
-        </table>
-        <div style="height: 8px; background: linear-gradient(90deg, #28a745, #b8942d, #ef5f5f); border-radius: 4px; margin-top: 12px;"></div>
+  
+  let matchListHtml = matches.slice(0, 10).map((match, i) => `
+    <div style="background: ${i % 2 === 0 ? '#f8f9fa' : '#fff'}; padding: 16px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e9ecef;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <strong style="color: #1e3a5f; font-size: 1.1em;">${match.year} ${match.make} ${match.model}${match.trim ? ` ${match.trim}` : ''}</strong>
+        <span style="background: ${match.match_score >= 90 ? '#28a745' : match.match_score >= 70 ? '#b8942d' : '#6c757d'}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: 600;">${match.match_score}% Match</span>
       </div>
-    `;
-  }
-
-  let checklistHtml = '';
-  if (checklist.length > 0) {
-    checklistHtml = `
-      <h3 style="color: #1e3a5f; margin: 24px 0 16px;">Buying Checklist</h3>
-      ${checklist.map((tip, i) => {
-        const escapedTip = String(tip).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        return `
-        <div style="display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; background: ${i % 2 === 0 ? '#f8f9fa' : '#fff'}; border-radius: 8px; margin-bottom: 8px; border: 1px solid #e9ecef;">
-          <span style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #b8942d; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: 700;">${i + 1}</span>
-          <span style="font-size: 0.95em; color: #495057; line-height: 1.5;">${escapedTip}</span>
-        </div>
-      `;}).join('')}
-    `;
-  }
-
-  let inventoryHtml = '';
-  if (searchUrls) {
-    inventoryHtml = `
-      <h3 style="color: #1e3a5f; margin: 24px 0 16px;">Search Live Inventory</h3>
-      <table style="width: 100%; border-collapse: separate; border-spacing: 8px;">
-        <tr>
-          <td style="text-align: center;"><a href="${searchUrls.autotrader}" style="display: block; padding: 14px 20px; background: #1e3a5f; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600;">Autotrader</a></td>
-          <td style="text-align: center;"><a href="${searchUrls.cargurus}" style="display: block; padding: 14px 20px; background: #1e3a5f; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600;">CarGurus</a></td>
-          <td style="text-align: center;"><a href="${searchUrls.cars_com}" style="display: block; padding: 14px 20px; background: #1e3a5f; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600;">Cars.com</a></td>
-        </tr>
-      </table>
-    `;
+      <div style="color: #495057; font-size: 0.95em;">
+        <span style="margin-right: 16px;"><strong>$${match.price ? Number(match.price).toLocaleString() : 'N/A'}</strong></span>
+        <span style="margin-right: 16px;">${match.mileage ? Number(match.mileage).toLocaleString() + ' mi' : 'N/A'}</span>
+        ${match.exterior_color ? `<span>${match.exterior_color}</span>` : ''}
+      </div>
+      ${match.location ? `<div style="color: #6c757d; font-size: 0.85em; margin-top: 6px;">${match.location}</div>` : ''}
+    </div>
+  `).join('');
+  
+  if (matches.length > 10) {
+    matchListHtml += `<p style="color: #6c757d; text-align: center; font-style: italic;">...and ${matches.length - 10} more matches. View all in your dashboard.</p>`;
   }
   
   return `
     <div style="text-align: center; margin-bottom: 24px;">
-      <h2 style="color: #1e3a5f; margin: 0 0 8px 0;">${frequencyLabel} Market Intelligence Report</h2>
+      <h2 style="color: #1e3a5f; margin: 0 0 8px 0;">${frequencyLabel} Dream Car Report</h2>
       <p style="color: #6c757d; margin: 0; font-size: 0.9em;">Search: "${search.search_name || 'Your Search'}" | ${dateRange}</p>
     </div>
     
-    ${priceHtml}
-    ${checklistHtml}
-    ${inventoryHtml}
+    <div class="alert-box" style="text-align: center;">
+      <div style="font-size: 2em; margin-bottom: 8px;">&bull;</div>
+      <div style="font-size: 1.5em; font-weight: bold; color: #1e3a5f;">${matches.length} New Match${matches.length === 1 ? '' : 'es'} Found!</div>
+      <p style="color: #495057; margin: 8px 0 0 0;">We found vehicles matching your dream car criteria.</p>
+    </div>
     
-    <div style="text-align: center; margin: 32px 0;">
-      <a href="https://mycarconcierge.io" class="button" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #b8942d 0%, #a68428 100%); color: #ffffff !important; border-radius: 100px; text-decoration: none; font-weight: 600;">View Full Report in Dashboard</a>
+    <h3 style="color: #1e3a5f; margin: 24px 0 16px;">Top Matches</h3>
+    ${matchListHtml}
+    
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="https://mycarconcierge.io" class="button" style="background: linear-gradient(135deg, #b8942d 0%, #a68428 100%); color: #ffffff !important;">View All Matches in Dashboard</a>
     </div>
     
     <p style="color: #6c757d; font-size: 0.85em; text-align: center;">
@@ -26139,6 +25128,53 @@ function startDreamCarDigestScheduler() {
   }, ONE_HOUR);
   
   console.log('[Scheduler] Scheduled: initial Dream Car digest check in 10min, then every hour');
+
+  const FIVE_MINUTES = 5 * 60 * 1000;
+  setTimeout(async () => {
+    await runBackgroundProviderMatching();
+  }, 2 * 60 * 1000);
+  setInterval(async () => {
+    await runBackgroundProviderMatching();
+  }, FIVE_MINUTES);
+  console.log('[Scheduler] Provider matching background sweep scheduled (every 5 min)');
+
+  try {
+    const rtSupabase = getSupabaseClient();
+    if (rtSupabase) {
+      const matchChannel = rtSupabase
+        .channel('package-inserts-for-matching')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'maintenance_packages' }, async (payload) => {
+          const newPkg = payload.new;
+          if (!newPkg || !newPkg.id) return;
+          if (newPkg.is_private_job) {
+            console.log(`[RealtimeMatch] Skipping private job ${newPkg.id}`);
+            return;
+          }
+          console.log(`[RealtimeMatch] New package detected: ${newPkg.id}, triggering matching...`);
+          try {
+            const internalReq = { method: 'POST', headers: { 'content-type': 'application/json' } };
+            let responseBody = '';
+            const internalRes = {
+              writeHead: () => {},
+              end: (body) => { responseBody = body; },
+              setHeader: () => {},
+              getHeader: () => null
+            };
+            Object.defineProperty(internalReq, '_internalBackgroundCall', { value: true });
+            await handleMatchProvidersForPackage(internalReq, internalRes, `realtime-${newPkg.id}`, newPkg.id);
+            console.log(`[RealtimeMatch] Matching result for ${newPkg.id}: ${responseBody}`);
+          } catch (err) {
+            console.error(`[RealtimeMatch] Error matching package ${newPkg.id}:`, err.message);
+          }
+        })
+        .subscribe((status) => {
+          console.log(`[RealtimeMatch] Subscription status: ${status}`);
+        });
+      console.log('[Scheduler] Realtime provider matching subscription active');
+    }
+  } catch (rtErr) {
+    console.error('[Scheduler] Failed to set up realtime matching (will rely on sweep):', rtErr.message);
+  }
 
   startEngineSchedulers(getSupabaseClient);
   console.log('[Scheduler] Outreach Engine scheduler is ENABLED');
@@ -26308,38 +25344,23 @@ async function handleProcessCommissionReconciliation(req, res, requestId) {
     let failed = 0;
     
     for (const item of (pending || [])) {
-      const { data: founderData, error: fetchErr } = await supabaseAdmin
-        .from('member_founder_profiles')
-        .select('total_commissions_earned')
-        .eq('id', item.founder_id)
-        .single();
-
-      if (fetchErr || !founderData) {
+      const { error } = await supabaseAdmin.rpc('increment_founder_commissions', {
+        p_founder_id: item.founder_id,
+        p_amount: item.amount
+      });
+      
+      if (error) {
         failed++;
         await supabaseAdmin
           .from('commission_reconciliation_queue')
-          .update({ error_message: fetchErr?.message || 'Founder profile not found' })
+          .update({ error_message: error.message })
           .eq('id', item.id);
       } else {
-        const newTotal = parseFloat(((founderData.total_commissions_earned || 0) + item.amount).toFixed(2));
-        const { error: updateErr } = await supabaseAdmin
-          .from('member_founder_profiles')
-          .update({ total_commissions_earned: newTotal })
-          .eq('id', item.founder_id);
-
-        if (updateErr) {
-          failed++;
-          await supabaseAdmin
-            .from('commission_reconciliation_queue')
-            .update({ error_message: updateErr.message })
-            .eq('id', item.id);
-        } else {
-          processed++;
-          await supabaseAdmin
-            .from('commission_reconciliation_queue')
-            .update({ status: 'processed', processed_at: new Date().toISOString() })
-            .eq('id', item.id);
-        }
+        processed++;
+        await supabaseAdmin
+          .from('commission_reconciliation_queue')
+          .update({ status: 'processed', processed_at: new Date().toISOString() })
+          .eq('id', item.id);
       }
     }
     
@@ -28118,190 +27139,6 @@ async function handleNotifyUrgentUpdate(req, res, requestId) {
   });
 }
 
-async function handlePriceEstimate(req, res, requestId) {
-  const auth = await verifyAuthToken(req);
-  if (!auth.authenticated) {
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unauthorized' }));
-    return;
-  }
-
-  try {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const category = url.searchParams.get('category');
-    const memberZip = url.searchParams.get('zip');
-    const packageId = url.searchParams.get('package_id');
-
-    if (!category) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Category is required' }));
-      return;
-    }
-
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Service unavailable' }));
-      return;
-    }
-
-    const { data: categoryPackageIds, error: pkgError } = await supabase
-      .from('maintenance_packages')
-      .select('id')
-      .eq('category', category);
-
-    if (pkgError || !categoryPackageIds?.length) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        has_estimate: false,
-        message: 'Not enough local data yet',
-        sample_size: 0
-      }));
-      return;
-    }
-
-    const pkgIds = categoryPackageIds.map(p => p.id);
-    const { data: allBids, error: bidsError } = await supabase
-      .from('bids')
-      .select('price, package_id')
-      .eq('status', 'accepted')
-      .not('price', 'is', null)
-      .in('package_id', pkgIds);
-
-    if (bidsError) {
-      console.error(`[${requestId}] Price estimate query error:`, bidsError);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to fetch bid data' }));
-      return;
-    }
-
-    const filteredBids = allBids || [];
-
-    let regionBids = filteredBids;
-    const regionZipPrefix = memberZip ? memberZip.substring(0, 3) : null;
-    if (regionZipPrefix) {
-      const { data: regionPkgs } = await supabase
-        .from('maintenance_packages')
-        .select('id')
-        .eq('category', category)
-        .like('member_zip', `${regionZipPrefix}%`);
-      const regionPkgIds = new Set((regionPkgs || []).map(p => p.id));
-      regionBids = filteredBids.filter(b => regionPkgIds.has(b.package_id));
-    }
-
-    const usedBids = regionBids.length >= 3 ? regionBids : filteredBids;
-    const isLocalData = regionBids.length >= 3;
-
-    if (usedBids.length < 3) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        has_estimate: false,
-        message: 'Not enough local data yet',
-        sample_size: usedBids.length
-      }));
-      return;
-    }
-
-    const prices = usedBids.map(b => Number(b.price)).filter(Number.isFinite).sort((a, b) => a - b);
-    const count = prices.length;
-
-    if (count < 3) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        has_estimate: false,
-        message: 'Not enough valid price data yet',
-        sample_size: count
-      }));
-      return;
-    }
-
-    const sum = prices.reduce((a, b) => a + b, 0);
-    const mean = sum / count;
-    const median = count % 2 === 0
-      ? (prices[count / 2 - 1] + prices[count / 2]) / 2
-      : prices[Math.floor(count / 2)];
-
-    const q1Index = Math.floor(count * 0.25);
-    const q3Index = Math.floor(count * 0.75);
-    const lowEstimate = Math.round(prices[q1Index]);
-    const highEstimate = Math.round(prices[q3Index]);
-    const minPrice = Math.round(prices[0]);
-    const maxPrice = Math.round(prices[count - 1]);
-
-    const locationNote = isLocalData ? 'in your area' : 'across the platform';
-    const fallbackContextNote = highEstimate > lowEstimate * 1.5
-      ? 'Prices vary widely — this may depend on parts quality, vehicle type, or job complexity.'
-      : '';
-    const fallbackMessage = `$${lowEstimate}–$${highEstimate} is typical for this service ${locationNote}`;
-
-    let aiMessage = fallbackMessage;
-    let aiContextNote = fallbackContextNote;
-    try {
-      const spread = ((highEstimate - lowEstimate) / lowEstimate * 100).toFixed(0);
-      const aiPrompt = `You are a friendly automotive pricing advisor for My Car Concierge. Given the following market stats for "${category}" services ${isLocalData ? "in the member's local area" : "across the platform"}, write two short pieces of text.
-
-Stats: typical range $${lowEstimate}–$${highEstimate}, median $${Math.round(median)}, mean $${Math.round(mean)}, lowest seen $${minPrice}, highest seen $${maxPrice}, based on ${count} accepted bids, price spread ${spread}%.
-
-1. MESSAGE (1 sentence, <=120 chars): A concise summary like "$X–$Y is typical for [category] [location context]." Be specific to the category.
-2. CONTEXT (1 sentence, <=150 chars, or empty if spread < 30%): If prices vary a lot, explain possible reasons (parts quality, vehicle type, job complexity). If prices are consistent, leave empty.
-
-Respond in exactly this format:
-MESSAGE: <your message>
-CONTEXT: <your context or empty>`;
-      const aiResult = await generateAIContent(aiPrompt, { maxTokens: 200, preferredProvider: 'gemini' });
-      if (aiResult?.text) {
-        const messageMatch = aiResult.text.match(/MESSAGE:\s*(.+)/i);
-        const contextMatch = aiResult.text.match(/CONTEXT:\s*(.+)/i);
-        if (messageMatch?.[1]?.trim()) {
-          aiMessage = messageMatch[1].trim();
-        }
-        if (contextMatch?.[1]?.trim() && contextMatch[1].trim().toLowerCase() !== 'empty') {
-          aiContextNote = contextMatch[1].trim();
-        } else if (contextMatch) {
-          aiContextNote = '';
-        }
-      }
-    } catch (aiErr) {
-      console.log(`[${requestId}] AI narrative generation failed, using fallback:`, aiErr.message);
-    }
-
-    if (packageId) {
-      try {
-        const { error: updateErr } = await supabase.from('maintenance_packages').update({
-          price_estimate_low: lowEstimate,
-          price_estimate_high: highEstimate
-        }).eq('id', packageId).eq('member_id', auth.user.id);
-        if (updateErr) {
-          console.log(`[${requestId}] Could not save estimate to package:`, updateErr.message);
-        }
-      } catch (e) {
-        console.log(`[${requestId}] Could not save estimate to package:`, e.message);
-      }
-    }
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      has_estimate: true,
-      low: lowEstimate,
-      high: highEstimate,
-      median: Math.round(median),
-      mean: Math.round(mean),
-      min: minPrice,
-      max: maxPrice,
-      sample_size: count,
-      is_local: isLocalData,
-      location_note: locationNote,
-      context_note: aiContextNote,
-      message: aiMessage
-    }));
-
-  } catch (error) {
-    console.error(`[${requestId}] Price estimate error:`, error);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Internal server error' }));
-  }
-}
-
 async function handleMemberServiceHistory(req, res, requestId, memberId) {
   // SECURITY NOTE: In production, memberId should be validated against the authenticated 
   // user's session/token to ensure users can only access their own service history.
@@ -29748,6 +28585,427 @@ async function handleAdminStatsOrders(req, res, requestId) {
     console.error(`[${requestId}] Admin stats orders error:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: false, error: 'Failed to fetch order stats' }));
+  }
+}
+
+// ========== AI PROVIDER MATCHING ==========
+
+async function runBackgroundProviderMatching() {
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data: recentPackages, error: pkgErr } = await supabase
+      .from('maintenance_packages')
+      .select('id')
+      .gte('created_at', tenMinutesAgo)
+      .eq('status', 'open')
+      .or('is_private_job.is.null,is_private_job.eq.false');
+
+    if (pkgErr) {
+      if (pkgErr.code === '42P01') return;
+      console.error('[ProviderMatchSweep] Error fetching recent packages:', pkgErr.message);
+      return;
+    }
+    if (!recentPackages || recentPackages.length === 0) return;
+
+    const { data: existingMatches, error: matchErr } = await supabase
+      .from('provider_package_matches')
+      .select('package_id')
+      .in('package_id', recentPackages.map(p => p.id));
+
+    if (matchErr) {
+      if (matchErr.code === '42P01') {
+        console.log('[ProviderMatchSweep] provider_package_matches table not found. Run provider_matching_migration.sql.');
+        return;
+      }
+      console.error('[ProviderMatchSweep] Error checking existing matches:', matchErr.message);
+      return;
+    }
+
+    const matchedIds = new Set((existingMatches || []).map(m => m.package_id));
+    const unmatchedPackages = recentPackages.filter(p => !matchedIds.has(p.id));
+
+    if (unmatchedPackages.length === 0) return;
+
+    console.log(`[ProviderMatchSweep] Found ${unmatchedPackages.length} unmatched package(s), triggering matching...`);
+
+    for (const pkg of unmatchedPackages) {
+      try {
+        const internalReq = { method: 'POST', headers: { 'content-type': 'application/json' } };
+        let responseBody = '';
+        const internalRes = {
+          writeHead: () => {},
+          end: (body) => { responseBody = body; },
+          setHeader: () => {},
+          getHeader: () => null
+        };
+        Object.defineProperty(internalReq, '_internalBackgroundCall', { value: true });
+        await handleMatchProvidersForPackage(internalReq, internalRes, `bg-sweep-${pkg.id}`, pkg.id);
+        console.log(`[ProviderMatchSweep] Matched package ${pkg.id}: ${responseBody}`);
+      } catch (err) {
+        console.error(`[ProviderMatchSweep] Error matching package ${pkg.id}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error('[ProviderMatchSweep] Background matching error:', err.message);
+  }
+}
+
+async function handleMatchProvidersForPackage(req, res, requestId, packageId) {
+  const isInternalCall = req._internalBackgroundCall === true;
+  
+  if (!isInternalCall) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
+    
+    const user = await enforce2fa(req, res, requestId);
+    if (!user) return;
+    req._authenticatedUserId = user.id;
+    
+    if (!isValidUUID(packageId)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid package ID' }));
+      return;
+    }
+  }
+  
+  try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Database not configured' }));
+      return;
+    }
+    
+    const { data: pkg, error: pkgError } = await supabase
+      .from('maintenance_packages')
+      .select('*, vehicles(year, make, model)')
+      .eq('id', packageId)
+      .single();
+    
+    if (pkgError || !pkg) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Package not found' }));
+      return;
+    }
+    
+    if (!isInternalCall && pkg.member_id !== req._authenticatedUserId) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not authorized' }));
+      return;
+    }
+    
+    if (pkg.is_private_job) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, matched: 0, reason: 'Private job - skipping matching' }));
+      return;
+    }
+    
+    const { data: existingMatches, error: existingMatchError } = await supabase
+      .from('provider_package_matches')
+      .select('id')
+      .eq('package_id', packageId)
+      .limit(1);
+    
+    if (!existingMatchError && existingMatches && existingMatches.length > 0) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, matched: 0, reason: 'Already matched' }));
+      return;
+    }
+    
+    const providerQuery = supabase
+      .from('profiles')
+      .select('id, business_name, full_name, zip_code, service_areas, services_offered, certifications, years_in_business, provider_tier, avg_rating, total_reviews, email, business_phone, sms_notifications')
+      .or('role.eq.provider,is_also_provider.eq.true');
+    
+    const { data: providers, error: provError } = await providerQuery;
+    
+    if (provError || !providers || providers.length === 0) {
+      console.log(`[${requestId}] No providers found for matching`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, matched: 0, reason: 'No providers available' }));
+      return;
+    }
+    
+    const packageZip = pkg.member_zip || '';
+    
+    if (pkg.exclusive_provider_id && pkg.exclusive_until && new Date(pkg.exclusive_until) > new Date()) {
+      console.log(`[${requestId}] Package ${packageId} is in exclusive window - skipping public matching`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, matched: 0, reason: 'Package is in exclusive provider window' }));
+      return;
+    }
+    
+    const candidateProviders = providers.filter(p => {
+      if (p.id === pkg.member_id) return false;
+      
+      const serviceAreas = p.service_areas || [];
+      const providerZip = p.zip_code || '';
+      
+      if (serviceAreas.length > 0 && packageZip) {
+        const zipPrefix = packageZip.substring(0, 3);
+        const matchesArea = serviceAreas.some(area => {
+          if (area === packageZip) return true;
+          if (area.substring(0, 3) === zipPrefix) return true;
+          return false;
+        });
+        if (matchesArea) return true;
+      }
+      
+      if (providerZip && packageZip) {
+        const diff = Math.abs(parseInt(providerZip.substring(0, 3)) - parseInt(packageZip.substring(0, 3)));
+        if (diff <= 5) return true;
+      }
+      
+      if (!providerZip && serviceAreas.length === 0) return false;
+      
+      return false;
+    });
+    
+    if (candidateProviders.length === 0) {
+      console.log(`[${requestId}] No geographically eligible providers for package ${packageId}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, matched: 0, reason: 'No nearby providers' }));
+      return;
+    }
+    
+    const packageBidsQuery = await supabase
+      .from('bids')
+      .select('provider_id, status')
+      .in('provider_id', candidateProviders.map(p => p.id));
+    
+    const allBids = packageBidsQuery.data || [];
+    const providerBidStats = {};
+    for (const bid of allBids) {
+      if (!providerBidStats[bid.provider_id]) {
+        providerBidStats[bid.provider_id] = { total: 0, accepted: 0 };
+      }
+      providerBidStats[bid.provider_id].total++;
+      if (bid.status === 'accepted') {
+        providerBidStats[bid.provider_id].accepted++;
+      }
+    }
+    
+    const categoryToServiceMap = {
+      'maintenance': ['Oil Change', 'Brake Service', 'Tune Up', 'General Maintenance', 'Fluid Service'],
+      'manufacturer_service': ['Manufacturer Service', 'Warranty Service', 'Scheduled Maintenance'],
+      'accident_repair': ['Body Work', 'Collision Repair', 'Paint', 'Dent Repair'],
+      'performance': ['Performance Upgrades', 'Exhaust', 'Suspension', 'Engine Tuning'],
+      'cosmetic': ['Detailing', 'Paint Protection', 'Wrap', 'Tinting'],
+      'offroad': ['Lift Kit', 'Off-Road Accessories', 'Suspension'],
+      'snow_removal': ['Snow Removal', 'Snow Plowing', 'Property Maintenance'],
+      'other': []
+    };
+    
+    const relevantServices = categoryToServiceMap[pkg.category] || [];
+    
+    const scoredProviders = candidateProviders.map(provider => {
+      let score = 0;
+      let reasons = [];
+      
+      const providerServices = (provider.services_offered || []).map(s => s.toLowerCase());
+      const matchedServices = relevantServices.filter(rs => 
+        providerServices.some(ps => ps.toLowerCase().includes(rs.toLowerCase()) || rs.toLowerCase().includes(ps.toLowerCase()))
+      );
+      if (matchedServices.length > 0) {
+        score += 30 + (matchedServices.length * 5);
+        reasons.push(`Specializes in ${matchedServices[0]}`);
+      }
+      
+      if (provider.zip_code && packageZip) {
+        if (provider.zip_code === packageZip) {
+          score += 25;
+          reasons.push('In your area');
+        } else if (provider.zip_code.substring(0, 3) === packageZip.substring(0, 3)) {
+          score += 20;
+          reasons.push('Nearby provider');
+        } else {
+          const diff = Math.abs(parseInt(provider.zip_code.substring(0, 3)) - parseInt(packageZip.substring(0, 3)));
+          score += Math.max(0, 15 - diff * 3);
+        }
+      }
+      
+      const serviceAreas = provider.service_areas || [];
+      if (serviceAreas.includes(packageZip)) {
+        score += 10;
+        if (!reasons.some(r => r.includes('area'))) reasons.push('Services your area');
+      }
+      
+      if (provider.avg_rating) {
+        score += Math.min(15, provider.avg_rating * 3);
+        if (provider.avg_rating >= 4.5) reasons.push(`${provider.avg_rating}★ rated`);
+      }
+      
+      if (provider.years_in_business) {
+        score += Math.min(10, provider.years_in_business);
+        if (provider.years_in_business >= 5 && !reasons.some(r => r.includes('experience'))) {
+          reasons.push(`${provider.years_in_business}+ years experience`);
+        }
+      }
+      
+      const bidStats = providerBidStats[provider.id];
+      if (bidStats && bidStats.total > 0) {
+        const winRate = bidStats.accepted / bidStats.total;
+        score += Math.round(winRate * 15);
+        if (winRate >= 0.3 && bidStats.accepted >= 2) {
+          reasons.push(`Strong bid win record`);
+        }
+      }
+      
+      const certs = provider.certifications || [];
+      if (certs.length > 0) {
+        score += Math.min(10, certs.length * 3);
+        if (certs.includes('ASE Certified') || certs.includes('ASE Master Technician')) {
+          reasons.push('ASE certified');
+        }
+      }
+      
+      const tier = (provider.provider_tier || '').toLowerCase();
+      if (tier === 'platinum' || tier === 'founding') {
+        score += 15;
+        if (!reasons.some(r => r.includes('tier'))) reasons.push('Platinum provider');
+      } else if (tier === 'gold') {
+        score += 10;
+        if (!reasons.some(r => r.includes('tier'))) reasons.push('Gold provider');
+      } else if (tier === 'silver') {
+        score += 5;
+      }
+      
+      return {
+        provider,
+        score,
+        reasons: reasons.slice(0, 2)
+      };
+    });
+    
+    scoredProviders.sort((a, b) => b.score - a.score);
+    const topMatches = scoredProviders.filter(s => s.score > 15).slice(0, 5);
+    
+    if (topMatches.length === 0) {
+      console.log(`[${requestId}] No providers scored high enough for package ${packageId}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, matched: 0, reason: 'No strong matches found' }));
+      return;
+    }
+    
+    let aiReasons = {};
+    try {
+      const vehicle = pkg.vehicles;
+      const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() : 'vehicle';
+      
+      const matchSummaries = topMatches.map((m, i) => 
+        `${i+1}. "${m.provider.business_name || m.provider.full_name}" - services: ${(m.provider.services_offered || []).join(', ') || 'general'}, rating: ${m.provider.avg_rating || 'N/A'}, experience: ${m.provider.years_in_business || 'N/A'} years, certs: ${(m.provider.certifications || []).join(', ') || 'none'}, base reasons: ${m.reasons.join(', ')}`
+      ).join('\n');
+      
+      const aiPrompt = `You are matching auto service providers to a customer's service request. Generate a short, personalized match reason for each provider (max 8 words each).
+
+Service request: "${pkg.title}" (${pkg.category}) for ${vehicleName}
+Location: ${pkg.member_city || ''}, ${pkg.member_state || ''} ${packageZip}
+
+Matched providers:
+${matchSummaries}
+
+Return ONLY a JSON object where keys are the provider numbers (1,2,3...) and values are the short reason strings. Example: {"1":"Top-rated brake specialist in your area","2":"Expert mechanic with 15 years experience"}`;
+
+      const aiResult = await generateAIContent(aiPrompt, { maxTokens: 512, preferredProvider: 'gemini' });
+      if (aiResult?.text) {
+        const jsonMatch = aiResult.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          topMatches.forEach((m, i) => {
+            if (parsed[String(i + 1)]) {
+              aiReasons[m.provider.id] = parsed[String(i + 1)];
+            }
+          });
+        }
+      }
+    } catch (aiErr) {
+      console.log(`[${requestId}] AI reason generation failed (using fallback reasons):`, aiErr.message);
+    }
+    
+    const sanitizeReason = (text) => {
+      if (!text) return 'Recommended for this service';
+      return text.replace(/<[^>]*>/g, '').substring(0, 100);
+    };
+    
+    const matchInserts = topMatches.map(m => ({
+      package_id: packageId,
+      provider_id: m.provider.id,
+      match_score: m.score,
+      match_reason: sanitizeReason(aiReasons[m.provider.id] || m.reasons.join(' · ')),
+      notified: true
+    }));
+    
+    const { error: insertError } = await supabase
+      .from('provider_package_matches')
+      .insert(matchInserts);
+    
+    if (insertError) {
+      if (insertError.code === '42P01') {
+        console.log(`[${requestId}] provider_package_matches table does not exist. Run www/provider_matching_migration.sql in Supabase SQL Editor.`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, matched: 0, reason: 'Matching table not set up yet. Run provider_matching_migration.sql.' }));
+        return;
+      } else if (insertError.code === '23505') {
+        console.log(`[${requestId}] Matches already exist for package ${packageId} (race condition)`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, matched: 0, reason: 'Already matched (concurrent request)' }));
+        return;
+      } else {
+        console.error(`[${requestId}] Failed to insert matches:`, insertError);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to save matches' }));
+        return;
+      }
+    }
+    
+    const notificationPromises = topMatches.map(async (m) => {
+      try {
+        const reason = aiReasons[m.provider.id] || m.reasons.join(' · ') || 'Based on your service profile';
+        const vehicleName = pkg.vehicles ? `${pkg.vehicles.year || ''} ${pkg.vehicles.make || ''} ${pkg.vehicles.model || ''}`.trim() : 'a vehicle';
+        
+        await supabase.from('notifications').insert({
+          user_id: m.provider.id,
+          type: 'provider_matched',
+          title: 'Matched for You',
+          message: `New service request "${pkg.title}" for ${vehicleName} matches your profile. ${reason}`,
+          link_type: 'package',
+          link_id: packageId,
+          read: false
+        });
+      } catch (notifErr) {
+        console.error(`[${requestId}] Failed to notify provider ${m.provider.id}:`, notifErr.message);
+      }
+    });
+    
+    await Promise.all(notificationPromises);
+    
+    console.log(`[${requestId}] Matched ${topMatches.length} providers for package ${packageId}: ${topMatches.map(m => m.provider.business_name || m.provider.id).join(', ')}`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      matched: topMatches.length,
+      providers: topMatches.map(m => ({
+        id: m.provider.id,
+        name: m.provider.business_name || m.provider.full_name,
+        score: m.score,
+        reason: aiReasons[m.provider.id] || m.reasons.join(' · ')
+      }))
+    }));
+    
+  } catch (error) {
+    console.error(`[${requestId}] Provider matching error:`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Matching failed' }));
   }
 }
 
@@ -31256,72 +30514,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.url.startsWith('/api/car-club/')) {
-    const handled = await handleCarClubRequest(req, res, { getSupabaseClient, sendFCMPushNotification });
+    const handled = await handleCarClubRequest(req, res, { getSupabaseClient });
     if (handled) return;
-  }
-
-  if (req.method === 'GET' && req.url.match(/^\/api\/appointments\/[^/]+\/ical$/)) {
-    try {
-      const apptId = req.url.split('/')[3];
-      const authHeader = req.headers['authorization'];
-      if (!authHeader) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
-      const token = authHeader.replace('Bearer ', '');
-      const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser(token);
-      if (authErr || !authUser) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
-      const { data: appt, error: apptErr } = await supabase
-        .from('service_appointments')
-        .select('*, provider:profiles!service_appointments_provider_id_fkey(full_name, business_name), member:profiles!service_appointments_member_id_fkey(full_name)')
-        .eq('id', apptId)
-        .single();
-      if (apptErr || !appt) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Appointment not found' })); return; }
-      if (appt.member_id !== authUser.id && appt.provider_id !== authUser.id) {
-        res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Forbidden' })); return;
-      }
-      const provName = (appt.provider?.business_name || appt.provider?.full_name || 'Provider').replace(/[\\;,\n]/g, ' ');
-      const memberName = (appt.member?.full_name || 'Member').replace(/[\\;,\n]/g, ' ');
-      const isConfirmed = appt.status === 'confirmed' || appt.status === 'scheduled';
-      const eventDate = isConfirmed ? (appt.confirmed_date || appt.scheduled_date) : appt.scheduled_date;
-      const eventTimeStart = isConfirmed ? (appt.confirmed_time_start || appt.scheduled_time) : appt.scheduled_time;
-      if (!eventDate) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'No scheduled date for this appointment' })); return; }
-      function fmtDT(dateStr, timeStr) {
-        const d = dateStr.replace(/-/g, '');
-        if (!timeStr) return d + 'T120000';
-        const parts = timeStr.split(':');
-        const h = (parts[0] || '12').padStart(2, '0');
-        const m = (parts[1] || '00').padStart(2, '0');
-        const s = (parts[2] || '00').padStart(2, '0');
-        return d + 'T' + h + m + s;
-      }
-      const dtStart = fmtDT(eventDate, eventTimeStart);
-      const startHour = parseInt(dtStart.substring(9, 11));
-      const endHour = String(Math.min(startHour + 1, 23)).padStart(2, '0');
-      const dtEnd = dtStart.substring(0, 9) + endHour + dtStart.substring(11);
-      const uid = `mcc-appt-${apptId}@mycarconcierge.com`;
-      const notes = (appt.notes || '').replace(/[\\;,\n]/g, ' ');
-      const descText = `Service appointment with ${provName} for ${memberName}${notes ? '. Notes: ' + notes : ''}`;
-      const ics = [
-        'BEGIN:VCALENDAR',
-        'VERSION:2.0',
-        'PRODID:-//My Car Concierge//EN',
-        'CALSCALE:GREGORIAN',
-        'METHOD:PUBLISH',
-        'BEGIN:VEVENT',
-        `UID:${uid}`,
-        `DTSTART:${dtStart}`,
-        `DTEND:${dtEnd}`,
-        `SUMMARY:Auto Service — ${provName}`,
-        `DESCRIPTION:${descText}`,
-        `STATUS:${isConfirmed ? 'CONFIRMED' : 'TENTATIVE'}`,
-        'END:VEVENT',
-        'END:VCALENDAR'
-      ].join('\r\n');
-      res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': `attachment; filename="mcc-appointment-${apptId}.ics"` });
-      res.end(ics);
-      return;
-    } catch (err) {
-      console.error('[iCal] Error:', err);
-      res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Server error' })); return;
-    }
   }
 
   if (req.method === 'GET' && req.url === '/api/config') {
@@ -31346,41 +30540,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   
-  if (req.method === 'GET' && req.url.startsWith('/api/price-estimate')) {
-    await handlePriceEstimate(req, res, requestId);
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/ai/package-suggest') {
-    await handlePackageSuggest(req, res, requestId);
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/ai/bid-strategy') {
-    await handleBidStrategy(req, res, requestId);
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/ai/match-providers') {
-    await handleMatchProviders(req, res, requestId);
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/ai/service-recommendations') {
-    await handleServiceRecommendations(req, res, requestId);
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/ai/describe-to-package') {
-    await handleDescribeToPackage(req, res, requestId);
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/ai/photo-diagnose') {
-    await handlePhotoDiagnose(req, res, requestId);
-    return;
-  }
-
   if (req.method === 'GET' && req.url.startsWith('/api/member/service-history/')) {
     const memberId = req.url.split('/api/member/service-history/')[1]?.split('?')[0];
     handleMemberServiceHistory(req, res, requestId, memberId);
@@ -31423,11 +30582,6 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && req.url.startsWith('/api/admin/agreements')) {
     handleAdminGetAllAgreements(req, res, requestId);
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/admin/agreements') {
-    handleAdminAuth(req, res, requestId, () => handleAdminCreateAgreement(req, res, requestId));
     return;
   }
   
@@ -31994,37 +31148,10 @@ Return ONLY the JSON array, no other text.`;
 
   if (req.method === 'GET' && req.url.startsWith('/api/admin/marketing/outreach-queue')) {
     setCorsHeaders(res, req);
-    return handleAdminAuth(req, res, requestId, async () => {
-      const supabase = getSupabaseClient();
-      if (!supabase) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Service unavailable' }));
-        return;
-      }
-      const urlObj = new URL(req.url, `http://localhost`);
-      const status = urlObj.searchParams.get('status') || 'draft';
-      const limit = Math.min(parseInt(urlObj.searchParams.get('limit') || '50'), 200);
-      const { data: messages, error } = await supabase
-        .from('outreach_messages')
-        .select('*')
-        .eq('status', status)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-      if (error) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: error.message }));
-        return;
-      }
-      const msgs = messages || [];
-      const leadIds = [...new Set(msgs.map(m => m.lead_id).filter(Boolean))];
-      let leadsMap = {};
-      if (leadIds.length > 0) {
-        const { data: leads } = await supabase.from('outreach_leads').select('id, name, email, phone, company, type, location').in('id', leadIds);
-        (leads || []).forEach(l => { leadsMap[l.id] = l; });
-      }
-      const items = msgs.map(m => ({ ...m, outreach_leads: leadsMap[m.lead_id] || null }));
+    return handleAdminAuth(req, res, requestId, () => {
+      const items = Array.from(outreachQueue.values()).sort((a, b) => b.id - a.id);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, items, data: items, total: items.length }));
+      res.end(JSON.stringify({ success: true, items }));
     });
   }
 
@@ -32431,290 +31558,6 @@ Return ONLY the JSON array, no other text.`;
       });
     });
   }
-
-  if (req.method === 'GET' && req.url === '/api/admin/marketing/instantly-campaigns') {
-    setCorsHeaders(res, req);
-    return handleAdminAuth(req, res, requestId, async () => {
-      try {
-        const apiKey = process.env.INSTANTLY_API_KEY;
-        if (!apiKey) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Instantly API key not configured' }));
-          return;
-        }
-        const [campaignsResp, analyticsResp] = await Promise.all([
-          fetch('https://api.instantly.ai/api/v2/campaigns?limit=100', {
-            headers: { Authorization: `Bearer ${apiKey}` }
-          }),
-          fetch('https://api.instantly.ai/api/v2/analytics/campaign/summary?limit=100', {
-            headers: { Authorization: `Bearer ${apiKey}` }
-          }).catch(() => null)
-        ]);
-        const campaignsData = await campaignsResp.json();
-        const campaigns = campaignsData.items || campaignsData.campaigns || (Array.isArray(campaignsData) ? campaignsData : []);
-        let analyticsMap = {};
-        if (analyticsResp && analyticsResp.ok) {
-          const analyticsData = await analyticsResp.json();
-          const analyticsItems = analyticsData.items || analyticsData.data || (Array.isArray(analyticsData) ? analyticsData : []);
-          analyticsItems.forEach(a => { if (a.campaign_id || a.id) analyticsMap[a.campaign_id || a.id] = a; });
-        }
-        const enriched = campaigns.map(c => {
-          const stats = analyticsMap[c.id] || {};
-          const emailsSent = stats.emails_sent_count || stats.emails_sent || stats.total_sent || 0;
-          const opens = stats.open_count || stats.unique_opens || Math.round((stats.open_rate || stats.unique_open_rate || 0) * emailsSent / 100);
-          const replies = stats.reply_count || stats.unique_replies || Math.round((stats.reply_rate || stats.unique_reply_rate || 0) * emailsSent / 100);
-          const openRate = stats.open_rate || stats.unique_open_rate || (emailsSent ? (opens / emailsSent * 100) : 0);
-          const replyRate = stats.reply_rate || stats.unique_reply_rate || (emailsSent ? (replies / emailsSent * 100) : 0);
-          return { ...c, emails_sent_count: emailsSent, open_count: opens, reply_count: replies, open_rate: openRate, reply_rate: replyRate, bounce_rate: stats.bounce_rate || 0 };
-        });
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ items: enriched, total: enriched.length }));
-      } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
-      }
-    });
-  }
-
-  if (req.method === 'POST' && req.url === '/api/admin/marketing/outreach-cycle') {
-    setCorsHeaders(res, req);
-    return handleAdminAuth(req, res, requestId, async () => {
-      const t0 = Date.now();
-      try {
-        // Forward all auth headers so the internal engine-cycle endpoint can authenticate
-        const proxyHeaders = { 'Content-Type': 'application/json' };
-        if (req.headers['x-admin-password']) proxyHeaders['x-admin-password'] = req.headers['x-admin-password'];
-        if (req.headers['x-admin-token']) proxyHeaders['x-admin-token'] = req.headers['x-admin-token'];
-        if (req.headers.authorization) proxyHeaders['Authorization'] = req.headers.authorization;
-        const resp = await fetch(`http://localhost:${PORT}/api/admin/outreach/engine-cycle`, {
-          method: 'POST',
-          headers: proxyHeaders
-        });
-        const result = await resp.json();
-        await logAiAction({ module: 'outreach_engine', actionType: 'cycle_run', targetId: 'cycle', decision: { leads_discovered: result.discovered || 0, leads_scored: result.scored || 0, drafts_created: result.drafted || 0, auto_sent: result.auto_sent || 0 }, confidence: 0.9, autoExecuted: true, escalated: false, outcome: resp.ok ? 'executed' : 'error', executionTimeMs: Date.now() - t0 });
-        res.writeHead(resp.status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(result));
-      } catch (err) {
-        await logAiAction({ module: 'outreach_engine', actionType: 'cycle_run', targetId: 'cycle', decision: { error: err.message }, confidence: 0, outcome: 'error', errorDetails: err.message, executionTimeMs: Date.now() - t0 });
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
-      }
-    });
-  }
-
-  if (req.method === 'POST' && req.url === '/api/admin/marketing/instantly-create-campaign') {
-    setCorsHeaders(res, req);
-    return handleAdminAuth(req, res, requestId, () => {
-      let body = '';
-      req.on('data', chunk => { body += chunk.toString(); });
-      req.on('end', async () => {
-        try {
-          const apiKey = process.env.INSTANTLY_API_KEY;
-          if (!apiKey) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Instantly API key not configured' }));
-            return;
-          }
-          const data = JSON.parse(body || '{}');
-          const { name, subject, body: emailBody, from_email, from_name, daily_limit } = data;
-          if (!name || !subject || !emailBody) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'name, subject, and body are required' }));
-            return;
-          }
-          const payload = {
-            name,
-            subject,
-            body: emailBody,
-            from_email: from_email || 'hello@mycarconcierge.com',
-            from_name: from_name || 'My Car Concierge',
-            daily_limit: daily_limit || 50,
-            sequences: [{ steps: [{ type: 'email', delay: 0, subject, body: emailBody }] }]
-          };
-          const resp = await fetch('https://api.instantly.ai/api/v2/campaign/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify(payload)
-          });
-          const result = await resp.json();
-          res.writeHead(resp.status, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(result));
-        } catch (err) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: err.message }));
-        }
-      });
-    });
-  }
-
-  if (req.method === 'POST' && req.url === '/api/admin/marketing/instantly-sync') {
-    setCorsHeaders(res, req);
-    return handleAdminAuth(req, res, requestId, () => {
-      let body = '';
-      req.on('data', chunk => { body += chunk.toString(); });
-      req.on('end', async () => {
-        try {
-          const apiKey = process.env.INSTANTLY_API_KEY;
-          if (!apiKey) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Instantly API key not configured' }));
-            return;
-          }
-          const supabase = getSupabaseClient();
-          if (!supabase) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Database not configured' }));
-            return;
-          }
-          const data = JSON.parse(body || '{}');
-          const { campaign_id, min_score, limit: reqLimit } = data;
-          const syncLimit = Math.min(parseInt(reqLimit || 500), 2000);
-          let query = supabase.from('outreach_leads').select('id, name, email, company, location, status')
-            .not('email', 'is', null).neq('status', 'unsubscribed').neq('crm_sync_status', 'duplicate');
-          if (min_score !== undefined && min_score !== null) {
-            query = query.eq('status', 'scored');
-          }
-          const { data: leads, error: leadsErr } = await query.limit(syncLimit);
-          if (leadsErr) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: leadsErr.message }));
-            return;
-          }
-          if (!leads || leads.length === 0) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, synced: 0, message: 'No eligible leads found' }));
-            return;
-          }
-          const instantlyLeads = leads.map(l => ({
-            email: l.email,
-            first_name: (l.name || '').split(' ')[0] || '',
-            last_name: (l.name || '').split(' ').slice(1).join(' ') || '',
-            company_name: l.company || '',
-            custom_variables: { location: l.location || '', mcc_lead_id: l.id }
-          }));
-          const leadPayload = { leads: instantlyLeads, skip_if_in_workspace: true };
-          if (campaign_id) leadPayload.campaign_id = campaign_id;
-          const resp = await fetch('https://api.instantly.ai/api/v2/lead/add', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify(leadPayload)
-          });
-          const result = await resp.json();
-          res.writeHead(resp.status, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: resp.ok, synced: leads.length, instantly_response: result }));
-        } catch (err) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: err.message }));
-        }
-      });
-    });
-  }
-
-  // ========== AI OPS ENDPOINTS ==========
-  if (req.url.startsWith('/api/admin/ai-ops')) {
-    setCorsHeaders(res, req);
-    if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
-    return handleAdminAuth(req, res, requestId, async () => {
-      const supabase = getSupabaseClient();
-      if (!supabase) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Database not configured' })); return; }
-
-      if (req.method === 'GET' && req.url.startsWith('/api/admin/ai-ops/actions')) {
-        try {
-          const u = new URL(req.url, 'http://localhost'); const page = parseInt(u.searchParams.get('page') || '1'); const limit = Math.min(parseInt(u.searchParams.get('limit') || '25'), 100); const mod = u.searchParams.get('module') || '';
-          let q = supabase.from('ai_action_log').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
-          if (mod) q = q.eq('module', mod);
-          const { data, error, count } = await q; if (error) throw error;
-          res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ actions: data || [], total: count || 0, page, limit, totalPages: Math.ceil((count || 0) / limit) }));
-        } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
-        return;
-      }
-
-      if (req.method === 'GET' && req.url.startsWith('/api/admin/ai-ops/escalations')) {
-        try {
-          const u = new URL(req.url, 'http://localhost'); const status = u.searchParams.get('status') || 'pending';
-          const { data, error } = await supabase.from('ai_escalations').select('*').eq('status', status).order('created_at', { ascending: false }).limit(50);
-          if (error) throw error; res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ escalations: data || [] }));
-        } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
-        return;
-      }
-
-      if (req.method === 'POST' && req.url.match(/\/api\/admin\/ai-ops\/escalations\/([^/]+)\/resolve/)) {
-        const match = req.url.match(/\/api\/admin\/ai-ops\/escalations\/([^/]+)\/resolve/); const escId = match[1];
-        let body = ''; req.on('data', c => { body += c.toString(); }); req.on('end', async () => {
-          try {
-            const { action, notes, admin_decision } = JSON.parse(body || '{}');
-            if (!['approve', 'override'].includes(action)) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'action must be approve or override' })); return; }
-            const { error } = await supabase.from('ai_escalations').update({ status: action === 'approve' ? 'approved' : 'overridden', admin_decision: admin_decision || action, admin_notes: notes || '', resolved_at: new Date().toISOString() }).eq('id', escId);
-            if (error) throw error; res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true }));
-          } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
-        }); return;
-      }
-
-      if (req.method === 'GET' && req.url.startsWith('/api/admin/ai-ops/digests')) {
-        try {
-          const { data, error } = await supabase.from('ai_daily_digests').select('*').order('date', { ascending: false }).limit(30);
-          if (error) throw error; res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ digests: data || [] }));
-        } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
-        return;
-      }
-
-      if (req.method === 'GET' && req.url === '/api/admin/ai-ops/settings') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ confidence_threshold: getAiOpsThreshold(), max_auto_refund: getAiOpsMaxRefund(), shadow_mode: getAiOpsThreshold() >= 1.0, env_note: 'Overrides stored in ai_ops_settings table take precedence over env vars.' }));
-        return;
-      }
-
-      if (req.method === 'POST' && req.url === '/api/admin/ai-ops/settings') {
-        let body = ''; req.on('data', c => { body += c.toString(); }); req.on('end', async () => {
-          try {
-            const { confidence_threshold, max_auto_refund } = JSON.parse(body || '{}');
-            if (confidence_threshold !== undefined) {
-              const t = parseFloat(confidence_threshold);
-              if (isNaN(t) || t < 0 || t > 1) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'confidence_threshold must be 0.0–1.0' })); return; }
-              aiOpsSettingsOverride.confidence_threshold = t;
-              const { error: dbErr1 } = await supabase.from('ai_ops_settings').upsert({ key: 'confidence_threshold', value: String(t), updated_at: new Date().toISOString() }, { onConflict: 'key' });
-              if (dbErr1) { console.error('[AI_OPS] Settings persist error:', dbErr1.message); }
-            }
-            if (max_auto_refund !== undefined) {
-              const m = parseFloat(max_auto_refund);
-              if (isNaN(m) || m < 0) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'max_auto_refund must be a positive number' })); return; }
-              aiOpsSettingsOverride.max_auto_refund = m;
-              const { error: dbErr2 } = await supabase.from('ai_ops_settings').upsert({ key: 'max_auto_refund', value: String(m), updated_at: new Date().toISOString() }, { onConflict: 'key' });
-              if (dbErr2) { console.error('[AI_OPS] Settings persist error:', dbErr2.message); }
-            }
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, confidence_threshold: getAiOpsThreshold(), max_auto_refund: getAiOpsMaxRefund(), shadow_mode: getAiOpsThreshold() >= 1.0 }));
-          } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
-        }); return;
-      }
-
-      if (req.method === 'POST' && req.url === '/api/admin/ai-ops/dispute-resolver/trigger') {
-        let body = ''; req.on('data', c => { body += c.toString(); }); req.on('end', async () => {
-          try {
-            const { dispute_id } = JSON.parse(body || '{}');
-            if (!dispute_id) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'dispute_id required' })); return; }
-            const result = await runDisputeResolver(supabase, dispute_id, requestId);
-            res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(result));
-          } catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
-        }); return;
-      }
-
-      if (req.method === 'POST' && req.url === '/api/admin/ai-ops/payment-tracker/run') {
-        try { const result = await runPaymentTracker(supabase, requestId); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(result)); }
-        catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
-        return;
-      }
-
-      if (req.method === 'POST' && req.url === '/api/admin/ai-ops/daily-digest/run') {
-        try { const result = await runDailyDigest(supabase, requestId); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(result)); }
-        catch (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })); }
-        return;
-      }
-
-      res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Not found' }));
-    }, 'ai-ops');
-  }
-  // ========== END AI OPS ENDPOINTS ==========
 
   if (req.method === 'OPTIONS' && (req.url === '/api/analytics/track' || req.url.startsWith('/api/analytics/data'))) {
     setCorsHeaders(res, req);
@@ -33139,16 +31982,6 @@ Return ONLY the JSON array, no other text.`;
     return;
   }
   
-  if (req.method === 'POST' && req.url.match(/^\/api\/vehicles\/[^/]+\/compute-health$/)) {
-    handleComputeVehicleHealth(req, res, requestId);
-    return;
-  }
-
-  if (req.method === 'GET' && req.url.match(/^\/api\/vehicles\/[^/]+\/maintenance-forecast$/)) {
-    handleMaintenanceForecast(req, res, requestId);
-    return;
-  }
-
   if (req.method === 'POST' && req.url === '/api/bids') {
     const rateLimit = applyRateLimit(req, res, 'apiAuth');
     if (!rateLimit.allowed) return;
@@ -33864,539 +32697,6 @@ function saveAdminInvites(invites) {
     return;
   }
   
-  if (req.method === 'GET' && req.url?.startsWith('/api/founder/campaign-link-stats')) {
-    setSecurityHeaders(res, false);
-    setCorsHeaders(res);
-    const user = await authenticateRequest(req);
-    if (!user) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
-      return;
-    }
-    try {
-      const urlParams = new URL(req.url, 'https://localhost').searchParams;
-      const code = urlParams.get('code') || '';
-      let total = 0;
-      let recent = 0;
-      if (code) {
-        const db = getLocalPool();
-        const totalRes = await db.query('SELECT COUNT(*) AS cnt FROM founder_campaign_clicks WHERE founder_code = $1', [code]);
-        total = parseInt(totalRes.rows[0]?.cnt || 0, 10);
-        const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        const recentRes = await db.query('SELECT COUNT(*) AS cnt FROM founder_campaign_clicks WHERE founder_code = $1 AND clicked_at >= $2', [code, since7d]);
-        recent = parseInt(recentRes.rows[0]?.cnt || 0, 10);
-      }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ total_clicks: total, clicks_last_7d: recent }));
-    } catch (err) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ total_clicks: 0, clicks_last_7d: 0 }));
-    }
-    return;
-  }
-
-  if (req.method === 'GET' && req.url?.startsWith('/api/founder/campaign-link')) {
-    setSecurityHeaders(res, false);
-    setCorsHeaders(res);
-    const user = await authenticateRequest(req);
-    const urlParams = new URL(req.url, 'https://localhost').searchParams;
-    const code = urlParams.get('code') || '';
-    const campaignUrl = code
-      ? `https://wefunder.com/my.car.concierge?utm_source=mcc_founder&utm_medium=referral&utm_campaign=wefunder&utm_content=${encodeURIComponent(code)}`
-      : 'https://wefunder.com/my.car.concierge';
-    if (code) {
-      getLocalPool().query(
-        'INSERT INTO founder_campaign_clicks (founder_code, user_id, clicked_at, ip) VALUES ($1, $2, NOW(), $3)',
-        [code, user?.id || null, req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null]
-      ).catch(() => {});
-    }
-    res.writeHead(302, { Location: campaignUrl });
-    res.end();
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/notifications/bid-accepted-push') {
-    setSecurityHeaders(res, true);
-    setCorsHeaders(res);
-    const user = await enforce2fa(req, res, requestId);
-    if (!user) return;
-    let body = '';
-    req.on('data', c => { body += c.toString(); });
-    req.on('end', async () => {
-      try {
-        const { provider_id, package_title, bid_amount } = JSON.parse(body);
-        if (!provider_id) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'provider_id required' }));
-          return;
-        }
-        const title = 'Your Bid Was Accepted!';
-        const pushBody = bid_amount && package_title
-          ? `$${parseFloat(bid_amount).toFixed(2)} bid on "${package_title}" accepted — get in touch with the member to schedule work.`
-          : 'A member accepted your bid. Log in to view details.';
-        sendFCMPushNotification([provider_id], title, pushBody, { section: 'bids' })
-          .catch(err => console.error(`[BidAcceptedPush] FCM error:`, err.message));
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true }));
-      } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid JSON' }));
-      }
-    });
-    return;
-  }
-
-  // ========== CROWD-FUNDED COMMUNITY BOARD ==========
-  // SQL migration required in Supabase Dashboard:
-  // ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS funding_goal_cents INTEGER;
-  // CREATE TABLE IF NOT EXISTS crowd_fund_contributions (
-  //   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  //   package_id UUID NOT NULL REFERENCES maintenance_packages(id) ON DELETE CASCADE,
-  //   contributor_id UUID NOT NULL REFERENCES profiles(id),
-  //   amount_cents INTEGER NOT NULL CHECK (amount_cents >= 100),
-  //   status TEXT NOT NULL DEFAULT 'completed',
-  //   payment_intent_id TEXT,
-  //   message TEXT,
-  //   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  // );
-  // ALTER TABLE crowd_fund_contributions ADD COLUMN IF NOT EXISTS payment_intent_id TEXT;
-  // ALTER TABLE crowd_fund_contributions ENABLE ROW LEVEL SECURITY;
-  // CREATE POLICY "members can view contributions" ON crowd_fund_contributions FOR SELECT USING (auth.uid() = contributor_id OR auth.uid() = (SELECT member_id FROM maintenance_packages WHERE id = package_id));
-  // CREATE POLICY "members can contribute" ON crowd_fund_contributions FOR INSERT WITH CHECK (auth.uid() = contributor_id);
-
-  if (req.method === 'GET' && req.url === '/api/community-board') {
-    setSecurityHeaders(res, false);
-    setCorsHeaders(res);
-    const user = await authenticateRequest(req);
-    if (!user) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
-      return;
-    }
-    try {
-      const supabase = getSupabaseClient();
-      const { data: pkgs, error } = await supabase
-        .from('maintenance_packages')
-        .select('id, title, description, member_id, created_at, status, funding_goal_cents, profiles!maintenance_packages_member_id_fkey(full_name)')
-        .eq('crowd_funded', true)
-        .eq('status', 'open')
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      const packageIds = (pkgs || []).map(p => p.id);
-      let contributionMap = {};
-      if (packageIds.length > 0) {
-        const { data: contribs } = await supabase
-          .from('crowd_fund_contributions')
-          .select('package_id, amount_cents, contributor_id')
-          .in('package_id', packageIds)
-          .eq('status', 'completed');
-        if (contribs) {
-          for (const c of contribs) {
-            if (!contributionMap[c.package_id]) contributionMap[c.package_id] = { total: 0, contributors: new Set() };
-            contributionMap[c.package_id].total += c.amount_cents;
-            contributionMap[c.package_id].contributors.add(c.contributor_id);
-          }
-        }
-      }
-      const packages = (pkgs || []).map(p => {
-        const cm = contributionMap[p.id] || { total: 0, contributors: new Set() };
-        return {
-          id: p.id,
-          title: p.title,
-          description: p.description,
-          member_id: p.member_id,
-          member_name: p.profiles?.full_name || 'Community Member',
-          created_at: p.created_at,
-          funding_goal_cents: p.funding_goal_cents || null,
-          raised_cents: cm.total,
-          contributor_count: cm.contributors.size
-        };
-      });
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ packages }));
-    } catch (err) {
-      console.error('[CommunityBoard] Error:', err.message);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ packages: [] }));
-    }
-    return;
-  }
-
-  if (req.method === 'GET' && req.url?.match(/^\/api\/packages\/[^/]+\/contributions$/)) {
-    setSecurityHeaders(res, false);
-    setCorsHeaders(res);
-    const user = await authenticateRequest(req);
-    if (!user) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
-      return;
-    }
-    const packageId = req.url.split('/')[3];
-    try {
-      const supabase = getSupabaseClient();
-      const { data, error } = await supabase
-        .from('crowd_fund_contributions')
-        .select('amount_cents, contributor_id')
-        .eq('package_id', packageId)
-        .eq('status', 'completed');
-      if (error) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ total_cents: 0, count: 0 }));
-        return;
-      }
-      const total_cents = (data || []).reduce((sum, c) => sum + (c.amount_cents || 0), 0);
-      const uniqueContributors = new Set((data || []).map(c => c.contributor_id));
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ total_cents, count: uniqueContributors.size }));
-    } catch (err) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ total_cents: 0, count: 0 }));
-    }
-    return;
-  }
-
-  if (req.method === 'POST' && req.url?.match(/^\/api\/packages\/[^/]+\/contribute\/intent$/)) {
-    setSecurityHeaders(res, true);
-    setCorsHeaders(res);
-    const user = await enforce2fa(req, res, requestId);
-    if (!user) return;
-    const packageId = req.url.split('/')[3];
-    let body = '';
-    req.on('data', c => { body += c.toString(); });
-    req.on('end', async () => {
-      try {
-        const supabase = getSupabaseClient();
-        const { amount_cents } = JSON.parse(body);
-        if (!amount_cents || amount_cents < 100) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Minimum contribution is $1.00' }));
-          return;
-        }
-        if (amount_cents > 500000) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Maximum contribution is $5,000' }));
-          return;
-        }
-        const { data: pkg, error: pkgErr } = await supabase
-          .from('maintenance_packages')
-          .select('id, title, member_id, crowd_funded, status')
-          .eq('id', packageId)
-          .single();
-        if (pkgErr || !pkg) {
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Package not found' }));
-          return;
-        }
-        if (!pkg.crowd_funded) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'This package is not accepting community contributions' }));
-          return;
-        }
-        if (pkg.status !== 'open') {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'This request is no longer accepting contributions' }));
-          return;
-        }
-        if (pkg.member_id === user.id) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'You cannot contribute to your own package' }));
-          return;
-        }
-        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-        const paymentIntent = await stripe.paymentIntents.create({
-          amount: amount_cents,
-          currency: 'usd',
-          metadata: {
-            type: 'crowd_fund_contribution',
-            package_id: packageId,
-            contributor_id: user.id,
-            package_title: pkg.title.substring(0, 200)
-          },
-          description: `Community contribution for "${pkg.title}"`
-        });
-        console.log(`[${requestId}] Created contribution PaymentIntent ${paymentIntent.id} for package ${packageId}, amount: $${(amount_cents / 100).toFixed(2)}`);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ client_secret: paymentIntent.client_secret }));
-      } catch (err) {
-        console.error('[ContributeIntent] Error:', err.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to create payment. Please try again.' }));
-      }
-    });
-    return;
-  }
-
-  if (req.method === 'POST' && req.url?.match(/^\/api\/packages\/[^/]+\/contribute$/)) {
-    setSecurityHeaders(res, true);
-    setCorsHeaders(res);
-    const user = await enforce2fa(req, res, requestId);
-    if (!user) return;
-    const packageId = req.url.split('/')[3];
-    let body = '';
-    req.on('data', c => { body += c.toString(); });
-    req.on('end', async () => {
-      try {
-        const supabase = getSupabaseClient();
-        const { payment_intent_id, amount_cents, message } = JSON.parse(body);
-        if (!payment_intent_id) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Payment verification required' }));
-          return;
-        }
-        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-        const paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
-        if (paymentIntent.status !== 'succeeded') {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Payment has not been completed' }));
-          return;
-        }
-        if (paymentIntent.metadata?.package_id !== packageId || paymentIntent.metadata?.contributor_id !== user.id) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Payment verification failed' }));
-          return;
-        }
-        const verifiedAmountCents = paymentIntent.amount;
-        const { data: pkg, error: pkgErr } = await supabase
-          .from('maintenance_packages')
-          .select('id, title, member_id, crowd_funded, status')
-          .eq('id', packageId)
-          .single();
-        if (pkgErr || !pkg) {
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Package not found' }));
-          return;
-        }
-        if (!pkg.crowd_funded) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'This package is not accepting community contributions' }));
-          return;
-        }
-        if (pkg.status !== 'open') {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'This request is no longer accepting contributions' }));
-          return;
-        }
-        const { data: existing } = await supabase
-          .from('crowd_fund_contributions')
-          .select('id')
-          .eq('payment_intent_id', payment_intent_id)
-          .maybeSingle();
-        if (existing) {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: true, id: existing.id, already_recorded: true }));
-          return;
-        }
-        const { data: contrib, error: contribErr } = await supabase
-          .from('crowd_fund_contributions')
-          .insert({
-            package_id: packageId,
-            contributor_id: user.id,
-            amount_cents: verifiedAmountCents,
-            status: 'completed',
-            payment_intent_id,
-            message: message || null
-          })
-          .select()
-          .single();
-        if (contribErr) {
-          console.error('[Contribute] Insert error:', contribErr.message);
-          res.writeHead(503, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Contributions are temporarily unavailable. The database migration may still be pending.' }));
-          return;
-        }
-        try {
-          const { data: contribProfile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
-          const contribName = contribProfile?.full_name || 'A community member';
-          const amountDollars = (verifiedAmountCents / 100).toFixed(2);
-          await sendEmailNotification(pkg.member_id, 'Community Contribution Received', `${contribName} contributed $${amountDollars} toward your service request "${pkg.title}". Check your Community Board for updates.`);
-          sendFCMPushNotification([pkg.member_id], 'Someone Contributed to Your Repair!', `${contribName} chipped in $${amountDollars} toward "${pkg.title}".`, { section: 'packages' })
-            .catch(() => {});
-        } catch {}
-        console.log(`[${requestId}] Contribution recorded: PI ${payment_intent_id}, package ${packageId}, $${(verifiedAmountCents / 100).toFixed(2)}`);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, id: contrib.id }));
-      } catch (err) {
-        console.error('[Contribute] Error:', err.message);
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid request' }));
-      }
-    });
-    return;
-  }
-
-  if (req.method === 'POST' && req.url?.match(/^\/api\/packages\/[^/]+\/share-with-car-club$/)) {
-    setSecurityHeaders(res, true);
-    setCorsHeaders(res);
-    const user = await authenticateRequest(req);
-    if (!user) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
-      return;
-    }
-    const packageId = req.url.split('/')[3];
-    try {
-      const supabase = getSupabaseClient();
-
-      const { data: pkg, error: pkgErr } = await supabase
-        .from('maintenance_packages')
-        .select('id, title, member_id, crowd_funded, status')
-        .eq('id', packageId)
-        .single();
-
-      if (pkgErr || !pkg) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Package not found' }));
-        return;
-      }
-      if (pkg.member_id !== user.id) {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Not authorized' }));
-        return;
-      }
-      if (!pkg.crowd_funded) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Package is not crowd-funded' }));
-        return;
-      }
-      if (pkg.status !== 'open') {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Package is no longer open' }));
-        return;
-      }
-
-      const { data: existing } = await supabase
-        .from('notifications')
-        .select('id', { count: 'exact' })
-        .eq('entity_id', packageId)
-        .eq('type', 'community_board_car_club')
-        .limit(1);
-
-      if (existing && existing.length > 0) {
-        const { count: existingCount } = await supabase
-          .from('notifications')
-          .select('*', { count: 'exact', head: true })
-          .eq('entity_id', packageId)
-          .eq('type', 'community_board_car_club');
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ notified: existingCount || 0, already_shared: true }));
-        return;
-      }
-
-      const { data: memberships } = await supabase
-        .from('club_memberships')
-        .select('club_id')
-        .eq('member_id', user.id)
-        .eq('is_active', true);
-
-      if (!memberships || memberships.length === 0) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ notified: 0, no_clubs: true }));
-        return;
-      }
-
-      const clubIds = memberships.map(m => m.club_id);
-
-      const { data: fellowMembers } = await supabase
-        .from('club_memberships')
-        .select('member_id')
-        .in('club_id', clubIds)
-        .eq('is_active', true)
-        .neq('member_id', user.id);
-
-      if (!fellowMembers || fellowMembers.length === 0) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ notified: 0 }));
-        return;
-      }
-
-      const uniqueIds = [...new Set(fellowMembers.map(m => m.member_id))];
-      const notifications = uniqueIds.map(uid => ({
-        user_id: uid,
-        type: 'community_board_car_club',
-        title: 'Help a Fellow Member',
-        message: `A fellow Car Club member needs community support for: "${pkg.title}". Chip in on the Community Board.`,
-        entity_type: 'package',
-        entity_id: packageId
-      }));
-
-      await supabase.from('notifications').insert(notifications);
-
-      sendFCMPushNotification(
-        uniqueIds,
-        'Help a Fellow Member',
-        `A Car Club member needs support for: "${pkg.title}". Check the Community Board.`,
-        { section: 'packages' }
-      ).catch(() => {});
-
-      console.log(`[${requestId}] Car Club share: notified ${uniqueIds.length} members for package ${packageId}`);
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ notified: uniqueIds.length }));
-    } catch (err) {
-      console.error(`[${requestId}] Share with car club error:`, err.message);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Internal server error' }));
-    }
-    return;
-  }
-
-  if (req.method === 'GET' && req.url === '/api/wefunder/stats') {
-    const now = Date.now();
-    const CACHE_TTL = 60 * 60 * 1000;
-    if (wefunderStatsCache && (now - wefunderStatsCache.ts) < CACHE_TTL) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(wefunderStatsCache.data));
-      return;
-    }
-    try {
-      const wfRes = await fetch('https://wefunder.com/my.car.concierge', {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; MyCar/1.0)',
-          'Accept': 'text/html,application/xhtml+xml'
-        }
-      });
-      const html = await wfRes.text();
-      let stats = { raised: 0, investors: 0, goal: 0, valuation: null, daysLeft: null, campaignUrl: 'https://wefunder.com/my.car.concierge', live: false };
-      const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
-      if (nextDataMatch) {
-        try {
-          const nd = JSON.parse(nextDataMatch[1]);
-          const pp = nd?.props?.pageProps || {};
-          const c = pp.campaign || pp.Company || pp.company || {};
-          stats.raised = parseFloat(c.amount_raised || c.amountRaised || c.total_raised || 0);
-          stats.investors = parseInt(c.num_investors || c.numInvestors || c.investor_count || 0, 10);
-          stats.goal = parseFloat(c.maximum_goal || c.goal_amount || c.minimum_goal || c.goal || 0);
-          stats.valuation = c.valuation || c.pre_money_valuation || null;
-          if (c.deadline_date || c.deadline || c.closes_at) {
-            const deadline = new Date(c.deadline_date || c.deadline || c.closes_at);
-            stats.daysLeft = Math.max(0, Math.ceil((deadline - new Date()) / 86400000));
-          }
-          stats.live = stats.raised > 0 || stats.investors > 0;
-        } catch {}
-      }
-      if (!stats.live) {
-        const raisedMatch = html.match(/\$([0-9,]+(?:\.[0-9]+)?[KkMm]?)\s*(?:raised|committed)/i);
-        if (raisedMatch) {
-          const raw = raisedMatch[1].replace(/,/g, '');
-          stats.raised = raw.endsWith('K') || raw.endsWith('k') ? parseFloat(raw) * 1000 : raw.endsWith('M') || raw.endsWith('m') ? parseFloat(raw) * 1000000 : parseFloat(raw);
-        }
-        const invMatch = html.match(/([0-9,]+)\s+investors?/i);
-        if (invMatch) stats.investors = parseInt(invMatch[1].replace(/,/g, ''), 10);
-        stats.live = stats.raised > 0 || stats.investors > 0;
-      }
-      wefunderStatsCache = { ts: now, data: stats };
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(stats));
-    } catch (err) {
-      console.error('[Wefunder] Stats fetch error:', err.message);
-      const fallback = { raised: 0, investors: 0, goal: 0, valuation: null, daysLeft: null, campaignUrl: 'https://wefunder.com/my.car.concierge', live: false, error: true };
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(fallback));
-    }
-    return;
-  }
-
   if (req.method === 'GET' && req.url.startsWith('/api/founder/payout-receipt/')) {
     const payoutId = req.url.split('/api/founder/payout-receipt/')[1]?.split('?')[0];
     handleFounderPayoutReceipt(req, res, requestId, payoutId);
@@ -34519,26 +32819,20 @@ function saveAdminInvites(invites) {
     return;
   }
   
-  // BackgroundChecks.com API
-  if (req.method === 'POST' && req.url === '/api/bgcheck/initiate') {
-    handleBgChecksInitiate(req, res, requestId);
+  // Checkr Background Check API
+  if (req.method === 'POST' && req.url === '/api/checkr/initiate') {
+    handleCheckrInitiate(req, res, requestId);
     return;
   }
-
-  if (req.method === 'POST' && req.url === '/webhook/bgcheck') {
-    handleBgChecksWebhook(req, res, requestId);
+  
+  if (req.method === 'POST' && req.url === '/webhook/checkr') {
+    handleCheckrWebhook(req, res, requestId);
     return;
   }
-
-  if (req.method === 'GET' && req.url.startsWith('/api/bgcheck/status/')) {
-    const providerId = req.url.split('/api/bgcheck/status/')[1]?.split('?')[0];
-    handleBgChecksStatus(req, res, requestId, providerId);
-    return;
-  }
-
-  if (req.method === 'GET' && req.url.startsWith('/api/bgcheck/report-url/')) {
-    const checkId = req.url.split('/api/bgcheck/report-url/')[1]?.split('?')[0];
-    handleBgChecksReportUrl(req, res, requestId, checkId);
+  
+  if (req.method === 'GET' && req.url.startsWith('/api/checkr/status/')) {
+    const providerId = req.url.split('/api/checkr/status/')[1]?.split('?')[0];
+    handleCheckrStatus(req, res, requestId, providerId);
     return;
   }
   
@@ -34696,33 +32990,6 @@ function saveAdminInvites(invites) {
     return;
   }
   
-  // Provider Bid Insights API
-  if (req.method === 'GET' && req.url.startsWith('/api/provider/bid-price-signal')) {
-    handleBidPriceSignal(req, res, requestId);
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/ai/draft-bid') {
-    handleDraftBid(req, res, requestId);
-    return;
-  }
-
-  const aiMediationMatch = req.url.match(/^\/api\/packages\/([^/]+)\/ai-mediation$/);
-  if (aiMediationMatch && (req.method === 'POST' || req.method === 'GET')) {
-    handleAiMediation(req, res, requestId, aiMediationMatch[1]);
-    return;
-  }
-
-  if (req.method === 'GET' && req.url === '/api/provider/bid-insights') {
-    handleProviderBidInsights(req, res, requestId);
-    return;
-  }
-
-  if (req.method === 'GET' && req.url.startsWith('/api/provider/category-price-advice')) {
-    handleProviderCategoryPriceAdvice(req, res, requestId);
-    return;
-  }
-
   // Provider Available Packages API (server-side filtering for exclusive/private jobs)
   if (req.method === 'GET' && req.url === '/api/provider/packages') {
     handleProviderAvailablePackages(req, res, requestId);
@@ -35023,62 +33290,7 @@ function saveAdminInvites(invites) {
     handlePushUnsubscribe(req, res, requestId);
     return;
   }
-
-  if (req.method === 'POST' && req.url === '/api/push/register-device') {
-    const user = await enforce2fa(req, res, requestId);
-    if (!user) return;
-    try {
-      const body = await parseBody(req);
-      const { token, platform } = body;
-      if (!token || typeof token !== 'string' || token.length < 20) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid token' }));
-        return;
-      }
-      const supabase = getSupabaseClient();
-      const { error } = await supabase.from('device_push_tokens').upsert(
-        { member_id: user.id, token, platform: platform || 'unknown', active: true, updated_at: new Date().toISOString() },
-        { onConflict: 'token' }
-      );
-      if (error && error.code !== '42P01') {
-        console.error(`[${requestId}] FCM token save error:`, error.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to save token' }));
-        return;
-      }
-      console.log(`[${requestId}] FCM device token registered for ${user.id} (${platform || 'unknown'})`);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true }));
-    } catch (err) {
-      console.error(`[${requestId}] register-device error:`, err.message);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Internal error' }));
-    }
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/push/unregister-device') {
-    const user = await enforce2fa(req, res, requestId);
-    if (!user) return;
-    try {
-      const body = await parseBody(req);
-      const { token } = body;
-      const supabase = getSupabaseClient();
-      if (token) {
-        await supabase.from('device_push_tokens').update({ active: false }).eq('token', token).eq('member_id', user.id);
-      } else {
-        await supabase.from('device_push_tokens').update({ active: false }).eq('member_id', user.id);
-      }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true }));
-    } catch (err) {
-      console.error(`[${requestId}] unregister-device error:`, err.message);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Internal error' }));
-    }
-    return;
-  }
-
+  
   // Provider Push Notification API Routes
   if (req.method === 'POST' && req.url === '/api/provider/push/subscribe') {
     handleProviderPushSubscribe(req, res, requestId);
@@ -35087,6 +33299,13 @@ function saveAdminInvites(invites) {
   
   if (req.method === 'POST' && req.url === '/api/provider/push/unsubscribe') {
     handleProviderPushUnsubscribe(req, res, requestId);
+    return;
+  }
+  
+  // AI Provider Matching Route
+  if (req.method === 'POST' && req.url.match(/^\/api\/package\/[^/]+\/match-providers$/)) {
+    const packageId = req.url.split('/api/package/')[1]?.split('/')[0];
+    handleMatchProvidersForPackage(req, res, requestId, packageId);
     return;
   }
   
@@ -35233,63 +33452,6 @@ function saveAdminInvites(invites) {
     handleSplitCreateAdditional(req, res, requestId);
     return;
   }
-  if (req.method === 'GET' && req.url === '/api/split/my-splits') {
-    const user = await enforce2fa(req, res, requestId);
-    if (!user) return;
-    try {
-      const supabase = getSupabaseClient();
-      const [createdRes, participantRes] = await Promise.all([
-        supabase
-          .from('split_payments')
-          .select(`
-            id, status, total_amount_cents, expires_at, created_at,
-            package_id,
-            maintenance_packages!inner (
-              id, title, description, service_type, status, member_zip
-            ),
-            split_participants (
-              id, email, display_name, amount_cents, status, paid_at, member_id
-            )
-          `)
-          .eq('created_by', user.id)
-          .order('created_at', { ascending: false })
-          .limit(25),
-        supabase
-          .from('split_participants')
-          .select(`
-            id, email, display_name, amount_cents, status, paid_at, invited_at, stripe_client_secret,
-            split_payment_id,
-            split_payments!inner (
-              id, status, total_amount_cents, expires_at, created_at, package_id,
-              maintenance_packages (
-                id, title, service_type, status, member_zip
-              )
-            )
-          `)
-          .eq('member_id', user.id)
-          .order('invited_at', { ascending: false })
-          .limit(25)
-      ]);
-      const organized = (createdRes.data || []).map(s => ({
-        ...s,
-        pkg: s.maintenance_packages,
-        participants: s.split_participants || []
-      }));
-      const invited = (participantRes.data || []).map(p => ({
-        ...p,
-        split: p.split_payments,
-        pkg: p.split_payments?.maintenance_packages
-      }));
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ organized, invited }));
-    } catch (err) {
-      console.error('[split/my-splits]', err.message);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to load splits' }));
-    }
-    return;
-  }
-
   if (req.method === 'POST' && req.url === '/api/split/create') {
     handleSplitCreate(req, res, requestId);
     return;
@@ -35595,30 +33757,6 @@ function saveAdminInvites(invites) {
   }
   
   // Config endpoint for Stripe publishable key
-  if (req.method === 'GET' && req.url?.startsWith('/api/vin-proxy')) {
-    setSecurityHeaders(res, true);
-    setCorsHeaders(res);
-    const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
-    const vin = parsedUrl.searchParams.get('vin');
-    if (!vin || vin.length !== 17) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Please provide a valid 17-character VIN' }));
-      return;
-    }
-    try {
-      const nhtsa = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${encodeURIComponent(vin)}?format=json`);
-      if (!nhtsa.ok) throw new Error(`NHTSA API error: ${nhtsa.status}`);
-      const data = await nhtsa.json();
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(data));
-    } catch (err) {
-      console.error(`[${requestId}] VIN proxy error:`, err.message);
-      res.writeHead(502, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unable to reach NHTSA. Please try again.' }));
-    }
-    return;
-  }
-
   if (req.method === 'GET' && req.url === '/api/config/stripe') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ 
@@ -35799,48 +33937,42 @@ function saveAdminInvites(invites) {
     handleAcknowledgeRecall(req, res, requestId, recallId);
     return;
   }
-
-  if (req.method === 'POST' && req.url.match(/^\/api\/recalls\/[^/]+\/enrich$/)) {
-    const recallId = req.url.split('/api/recalls/')[1]?.split('/')[0];
-    handleEnrichRecall(req, res, requestId, recallId);
-    return;
-  }
   
-  // Printful Admin API Endpoints (use admin password auth so x-admin-password works)
+  // Printful Admin API Endpoints (require admin role)
   if (req.method === 'GET' && req.url === '/api/admin/printful/catalog') {
-    handleAdminAuth(req, res, requestId, () => handlePrintfulCatalog(req, res, requestId));
+    requireAuth(handlePrintfulCatalog, 'admin')(req, res, requestId);
     return;
   }
   
   if (req.method === 'GET' && req.url.startsWith('/api/admin/printful/catalog/')) {
     const productId = req.url.split('/api/admin/printful/catalog/')[1]?.split('?')[0];
-    handleAdminAuth(req, res, requestId, () => handlePrintfulCatalogProduct(req, res, requestId, productId));
+    requireAuth((req, res, requestId) => handlePrintfulCatalogProduct(req, res, requestId, productId), 'admin')(req, res, requestId);
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/admin/printful/products') {
-    handleAdminAuth(req, res, requestId, () => handleCreatePrintfulProduct(req, res, requestId));
+    requireAuth(handleCreatePrintfulProduct, 'admin')(req, res, requestId);
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/admin/printful/products/bulk') {
-    handleAdminAuth(req, res, requestId, () => handleBulkCreatePrintfulProducts(req, res, requestId));
+    requireAuth(handleBulkCreatePrintfulProducts, 'admin')(req, res, requestId);
     return;
   }
   
   if (req.method === 'DELETE' && req.url.startsWith('/api/admin/printful/products/')) {
     const productId = req.url.split('/api/admin/printful/products/')[1]?.split('?')[0];
-    handleAdminAuth(req, res, requestId, () => handleDeletePrintfulProduct(req, res, requestId, productId));
+    requireAuth((req, res, requestId) => handleDeletePrintfulProduct(req, res, requestId, productId), 'admin')(req, res, requestId);
     return;
   }
   
   if (req.method === 'GET' && req.url === '/api/admin/printful/store-products') {
-    handleAdminAuth(req, res, requestId, () => handleGetPrintfulStoreProducts(req, res, requestId));
+    requireAuth(handleGetPrintfulStoreProducts, 'admin')(req, res, requestId);
     return;
   }
   
   if (req.method === 'POST' && req.url === '/api/admin/printful/mockup') {
-    handleAdminAuth(req, res, requestId, () => handlePrintfulMockup(req, res, requestId));
+    requireAuth(handlePrintfulMockup, 'admin')(req, res, requestId);
     return;
   }
   
@@ -36065,509 +34197,6 @@ function saveAdminInvites(invites) {
     return;
   }
 
-
-  // AI Smart Bid Analyzer - rank bids for a package
-  if (req.method === 'POST' && req.url === '/api/ai/rank-bids') {
-    setSecurityHeaders(res, true);
-    setCorsHeaders(res);
-
-    const user = await authenticateRequest(req);
-    if (!user) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Authentication required' }));
-      return;
-    }
-
-    try {
-      const body = await getRequestBody(req, MAX_BODY_SIZE);
-      const { bids } = body;
-
-      if (!bids || !Array.isArray(bids) || bids.length < 2) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'At least 2 bids required for analysis' }));
-        return;
-      }
-
-      const bidSummaries = bids.map((b, i) => {
-        const parts = [];
-        parts.push(`Bid ${i + 1}: $${(b.price || 0).toFixed(2)}`);
-        if (b.rating && b.rating !== 'New') parts.push(`Rating: ${b.rating}/5`);
-        if (b.jobs_completed) parts.push(`${b.jobs_completed} jobs completed`);
-        if (b.on_time_rate) parts.push(`${b.on_time_rate}% on-time`);
-        if (b.overall_score) parts.push(`Performance score: ${b.overall_score}`);
-        if (b.tier) parts.push(`Tier: ${b.tier}`);
-        if (b.is_verified) parts.push('Concierge Verified');
-        if (b.is_background_verified) parts.push('Background Verified');
-        if (b.years_in_business) parts.push(`${b.years_in_business} years in business`);
-        if (b.estimated_duration) parts.push(`Est. duration: ${b.estimated_duration}`);
-        if (b.badges && b.badges.length) parts.push(`Badges: ${b.badges.join(', ')}`);
-        if (b.response_time) parts.push(`Response time: ${b.response_time}`);
-        return parts.join(' | ');
-      });
-
-      const prompt = `You are an automotive service advisor helping a car owner choose the best bid for their vehicle maintenance/repair job.
-
-Here are the bids received:
-${bidSummaries.map(s => `- ${s}`).join('\n')}
-
-Analyze these bids and rank them from best to worst. Consider:
-1. Value for money (not just cheapest - balance price with quality)
-2. Provider reputation (rating, jobs completed, on-time rate)
-3. Provider verification status and experience
-4. Performance tier and badges
-
-Return your response as valid JSON with this exact structure (no markdown, no code blocks):
-{
-  "ranked_indices": [0, 2, 1],
-  "top_pick_rationale": "One or two sentences explaining why the top pick is recommended, in plain friendly English. Reference specific stats.",
-  "rankings": [
-    {"index": 0, "score": 95, "brief": "Short one-line reason"},
-    {"index": 2, "score": 82, "brief": "Short one-line reason"},
-    {"index": 1, "score": 70, "brief": "Short one-line reason"}
-  ]
-}
-
-The indices correspond to the bid numbers (0-based). Keep rationale concise and jargon-free.`;
-
-      const aiResult = await generateAIContent(prompt, { maxTokens: 1024, preferredProvider: 'gemini' });
-      
-      let parsed;
-      try {
-        let text = aiResult.text.trim();
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) text = jsonMatch[0];
-        parsed = JSON.parse(text);
-      } catch (parseErr) {
-        console.error(`[${requestId}] AI bid ranking parse error:`, parseErr.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to parse AI response' }));
-        return;
-      }
-
-      if (!Array.isArray(parsed.ranked_indices) || typeof parsed.top_pick_rationale !== 'string') {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid AI response structure' }));
-        return;
-      }
-      const validIndices = parsed.ranked_indices.filter(i => typeof i === 'number' && i >= 0 && i < bids.length);
-      const uniqueIndices = [...new Set(validIndices)];
-      if (uniqueIndices.length === 0) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'AI returned invalid bid indices' }));
-        return;
-      }
-      parsed.ranked_indices = uniqueIndices;
-      if (Array.isArray(parsed.rankings)) {
-        parsed.rankings = parsed.rankings.filter(r => typeof r.index === 'number' && r.index >= 0 && r.index < bids.length);
-      }
-
-      console.log(`[${requestId}] AI bid ranking completed for ${bids.length} bids via ${aiResult.provider}`);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        ranked_indices: parsed.ranked_indices,
-        top_pick_rationale: String(parsed.top_pick_rationale).slice(0, 500),
-        rankings: parsed.rankings,
-        provider: aiResult.provider
-      }));
-    } catch (error) {
-      console.error(`[${requestId}] AI bid ranking error:`, error.message);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'AI analysis unavailable' }));
-    }
-    return;
-  }
-
-  // OPTIONS preflight for AI rank-bids
-  if (req.method === 'OPTIONS' && req.url === '/api/ai/rank-bids') {
-    setSecurityHeaders(res, true);
-    setCorsHeaders(res);
-    res.writeHead(200);
-    res.end();
-    return;
-  }
-
-
-  // ========== PROVIDER PUBLIC DIRECTORY ==========
-  // Migration SQL (run in Supabase):
-  // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS directory_slug TEXT UNIQUE;
-  // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS directory_opt_in BOOLEAN DEFAULT false;
-  // CREATE INDEX IF NOT EXISTS idx_profiles_directory_opt_in ON profiles (directory_opt_in) WHERE directory_opt_in = true;
-  // CREATE INDEX IF NOT EXISTS idx_profiles_directory_slug ON profiles (directory_slug) WHERE directory_slug IS NOT NULL;
-
-  if (req.method === 'GET' && req.url.startsWith('/api/directory/providers')) {
-    setSecurityHeaders(res, true);
-    setCorsHeaders(res);
-    const rateLimit = applyRateLimit(req, res, 'public');
-    if (!rateLimit.allowed) return;
-
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Database not configured' }));
-      return;
-    }
-
-    try {
-      const urlObj = new URL(req.url, `http://${req.headers.host}`);
-      const pathParts = urlObj.pathname.replace('/api/directory/providers', '').split('/').filter(Boolean);
-
-      if (pathParts.length === 1) {
-        const slug = decodeURIComponent(pathParts[0]);
-        const { data: provider, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('directory_slug', slug)
-          .eq('directory_opt_in', true)
-          .eq('role', 'provider')
-          .single();
-
-        if (error || !provider) {
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Provider not found' }));
-          return;
-        }
-
-        const { data: reviews } = await supabase
-          .from('reviews')
-          .select('id, rating, comment, created_at, quality_rating, communication_rating, timeliness_rating, value_rating, member_id')
-          .eq('provider_id', provider.id)
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        const { data: reviewProfiles } = reviews && reviews.length > 0
-          ? await supabase
-              .from('profiles')
-              .select('id, full_name')
-              .in('id', reviews.map(r => r.member_id).filter(Boolean))
-          : { data: [] };
-
-        const profileMap = {};
-        (reviewProfiles || []).forEach(p => { profileMap[p.id] = p.full_name; });
-
-        const reviewList = (reviews || []).map(r => ({
-          rating: r.rating,
-          comment: r.comment,
-          created_at: r.created_at,
-          quality_rating: r.quality_rating,
-          communication_rating: r.communication_rating,
-          timeliness_rating: r.timeliness_rating,
-          value_rating: r.value_rating,
-          reviewer_name: profileMap[r.member_id] ? profileMap[r.member_id].split(' ')[0] + ' ' + (profileMap[r.member_id].split(' ')[1] || '').charAt(0) + '.' : 'Member'
-        }));
-
-        const totalRating = reviewList.reduce((sum, r) => sum + (r.rating || 0), 0);
-        const avgRating = reviewList.length > 0 ? (totalRating / reviewList.length).toFixed(1) : null;
-
-        const { count: completedJobs } = await supabase
-          .from('bids')
-          .select('id', { count: 'exact', head: true })
-          .eq('provider_id', provider.id)
-          .eq('status', 'completed');
-
-        const { data: gallery } = await supabase
-          .from('provider_gallery')
-          .select('id, image_url, caption')
-          .eq('provider_id', provider.id)
-          .order('created_at', { ascending: false })
-          .limit(12);
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          business_name: provider.business_name,
-          city: provider.city,
-          state: provider.state,
-          description: provider.description,
-          services: provider.services || [],
-          certifications: provider.certifications || [],
-          other_certifications: provider.other_certifications,
-          years_in_business: provider.years_in_business,
-          slug: provider.directory_slug,
-          avatar_url: provider.avatar_url,
-          member_since: provider.created_at,
-          emergency_enabled: provider.emergency_enabled,
-          is_24_seven: provider.is_24_seven,
-          can_tow: provider.can_tow,
-          avg_rating: avgRating,
-          review_count: reviewList.length,
-          completed_jobs: completedJobs || 0,
-          reviews: reviewList,
-          gallery: gallery || []
-        }));
-        return;
-      }
-
-      const category = urlObj.searchParams.get('category');
-      const city = urlObj.searchParams.get('city');
-      const page = parseInt(urlObj.searchParams.get('page')) || 1;
-      const limit = Math.min(parseInt(urlObj.searchParams.get('limit')) || 24, 50);
-      const offset = (page - 1) * limit;
-
-      let query = supabase
-        .from('profiles')
-        .select('*', { count: 'exact' })
-        .eq('directory_opt_in', true)
-        .eq('role', 'provider')
-        .not('directory_slug', 'is', null);
-
-      if (city) {
-        query = query.ilike('city', `%${city}%`);
-      }
-      if (category) {
-        query = query.contains('services', [category]);
-      }
-
-      query = query.order('business_name', { ascending: true }).range(offset, offset + limit - 1);
-
-      const { data: providers, error, count } = await query;
-      if (error) throw error;
-
-      const providerIds = (providers || []).map(p => p.id);
-      let ratingsMap = {};
-      if (providerIds.length > 0) {
-        const { data: allReviews } = await supabase
-          .from('reviews')
-          .select('provider_id, rating')
-          .in('provider_id', providerIds);
-
-        (allReviews || []).forEach(r => {
-          if (!ratingsMap[r.provider_id]) ratingsMap[r.provider_id] = { total: 0, count: 0 };
-          ratingsMap[r.provider_id].total += r.rating;
-          ratingsMap[r.provider_id].count++;
-        });
-      }
-
-      const results = (providers || []).map(p => ({
-        business_name: p.business_name,
-        city: p.city,
-        state: p.state,
-        description: p.description ? (p.description.length > 120 ? p.description.substring(0, 120) + '...' : p.description) : null,
-        services: p.services || [],
-        certifications: p.certifications || [],
-        slug: p.directory_slug,
-        avatar_url: p.avatar_url,
-        years_in_business: p.years_in_business,
-        emergency_enabled: p.emergency_enabled,
-        avg_rating: ratingsMap[p.id] ? (ratingsMap[p.id].total / ratingsMap[p.id].count).toFixed(1) : null,
-        review_count: ratingsMap[p.id] ? ratingsMap[p.id].count : 0
-      }));
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ providers: results, total: count || 0, page, limit }));
-    } catch (err) {
-      if (err.message && err.message.includes('does not exist')) {
-        console.log(`[${requestId}] Directory columns not yet migrated, returning empty`);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ providers: [], total: 0, page: 1, limit: 24 }));
-      } else {
-        console.error(`[${requestId}] Directory providers error:`, err.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to load providers' }));
-      }
-    }
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/provider/profile/save') {
-    setSecurityHeaders(res, true);
-    setCorsHeaders(res);
-
-    const user = await authenticateRequest(req);
-    if (!user) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
-      return;
-    }
-
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Database not configured' }));
-      return;
-    }
-
-    try {
-      const body = await getRequestBody(req);
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, role, directory_slug')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile || (profile.role !== 'provider' && profile.role !== 'pending_provider')) {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Only providers can save profiles' }));
-        return;
-      }
-
-      const allowedFields = ['business_name', 'phone', 'address', 'city', 'state', 'zip_code', 'bio', 'hourly_rate',
-        'services', 'certifications', 'description', 'years_in_business', 'service_radius'];
-      const updateData = {};
-      for (const key of allowedFields) {
-        if (body[key] !== undefined) updateData[key] = body[key];
-      }
-      updateData.updated_at = new Date().toISOString();
-
-      if (!profile.directory_slug && (body.business_name || updateData.business_name)) {
-        const name = body.business_name || updateData.business_name;
-        let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-        if (slug.length >= 3) {
-          const { data: existing } = await supabase.from('profiles').select('id').eq('directory_slug', slug).neq('id', user.id);
-          if (existing && existing.length > 0) slug = slug + '-' + Date.now().toString(36);
-          updateData.directory_slug = slug;
-        }
-      }
-
-      const { error } = await supabase.from('profiles').update(updateData).eq('id', user.id);
-      if (error) throw error;
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, slug: updateData.directory_slug || profile.directory_slug }));
-    } catch (err) {
-      if (err.message && err.message.includes('does not exist')) {
-        const basicFields = ['phone', 'bio', 'hourly_rate'];
-        const basicUpdate = {};
-        for (const key of basicFields) {
-          if (body[key] !== undefined) basicUpdate[key] = body[key];
-        }
-        if (Object.keys(basicUpdate).length > 0) {
-          await supabase.from('profiles').update(basicUpdate).eq('id', user.id).catch(() => {});
-        }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, slug: null }));
-      } else {
-        console.error('Provider profile save error:', err.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to save profile' }));
-      }
-    }
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/provider/profile/publish') {
-    setSecurityHeaders(res, true);
-    setCorsHeaders(res);
-
-    const user = await authenticateRequest(req);
-    if (!user) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
-      return;
-    }
-
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Database not configured' }));
-      return;
-    }
-
-    try {
-      const body = await getRequestBody(req);
-      const optIn = body.opt_in === true;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, role, business_name, directory_slug, directory_opt_in')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile || (profile.role !== 'provider' && profile.role !== 'pending_provider')) {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Only providers can publish profiles' }));
-        return;
-      }
-
-      let slug = profile.directory_slug;
-      if (optIn && !slug && profile.business_name) {
-        slug = profile.business_name
-          .toLowerCase()
-          .replace(/[^a-z0-9\s-]/g, '')
-          .replace(/\s+/g, '-')
-          .replace(/-+/g, '-')
-          .substring(0, 60);
-
-        const { data: existing } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('directory_slug', slug)
-          .neq('id', user.id)
-          .limit(1);
-
-        if (existing && existing.length > 0) {
-          slug = slug + '-' + Math.random().toString(36).substring(2, 6);
-        }
-      }
-
-      const updateData = { directory_opt_in: optIn };
-      if (slug && !profile.directory_slug) {
-        updateData.directory_slug = slug;
-      }
-
-      const { error } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', user.id);
-
-      if (error) throw error;
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ 
-        success: true, 
-        directory_opt_in: optIn, 
-        directory_slug: slug || profile.directory_slug,
-        profile_url: slug ? `/p/${slug}` : null
-      }));
-
-    } catch (err) {
-      console.error(`[${requestId}] Publish profile error:`, err.message);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Failed to update profile' }));
-    }
-    return;
-  }
-
-  if (req.method === 'GET' && req.url === '/sitemap-providers.xml') {
-    setSecurityHeaders(res, false);
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500);
-      res.end('Database not configured');
-      return;
-    }
-
-    try {
-      const { data: providers } = await supabase
-        .from('profiles')
-        .select('directory_slug, updated_at')
-        .eq('directory_opt_in', true)
-        .eq('role', 'provider')
-        .not('directory_slug', 'is', null);
-
-      const baseUrl = 'https://mycarconcierge.com';
-      let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-      xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
-      xml += `  <url>\n    <loc>${baseUrl}/providers</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
-
-      (providers || []).forEach(p => {
-        const lastmod = p.updated_at ? new Date(p.updated_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-        xml += `  <url>\n    <loc>${baseUrl}/p/${p.directory_slug}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>\n`;
-      });
-
-      xml += '</urlset>';
-
-      res.writeHead(200, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=3600' });
-      res.end(xml);
-    } catch (err) {
-      console.error(`[${requestId}] Sitemap providers error:`, err.message);
-      res.writeHead(500);
-      res.end('Error generating sitemap');
-    }
-    return;
-  }
-
-  // ========== END PROVIDER PUBLIC DIRECTORY ==========
-
   // Apple Pay domain verification file
   if (req.method === 'GET' && req.url === '/.well-known/apple-developer-merchantid-domain-association') {
     const verificationFile = './.well-known/apple-developer-merchantid-domain-association';
@@ -36593,8 +34222,7 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
     '/founder-provider': '/provider-pilot.html',
     '/founding-member': '/member-founder.html',
     '/founding-provider': '/provider-pilot.html',
-    '/provider-founder.html': '/provider-pilot.html',
-    '/providers': '/providers-directory.html'
+    '/provider-founder.html': '/provider-pilot.html'
   };
   
   const urlPath = req.url.split('?')[0];
@@ -36608,10 +34236,6 @@ The indices correspond to the bid numbers (0-based). Keep rationale concise and 
   
   if (filePath === './') {
     filePath = './index.html';
-  }
-
-  if (urlPath.startsWith('/p/') && urlPath.split('/p/')[1] && !urlPath.split('/p/')[1].includes('.html')) {
-    filePath = './p.html';
   }
   
   // Serve rideshare calculator from www/rideshare folder
@@ -36701,342 +34325,6 @@ server.on('error', (err) => {
   }
 });
 
-async function handlePackageSuggest(req, res, requestId) {
-  setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-
-  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
-
-  const rateLimit = applyRateLimit(req, res, 'helpdesk');
-  if (!rateLimit.allowed) return;
-
-  const user = await authenticateRequest(req);
-  if (!user) {
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unauthorized' }));
-    return;
-  }
-
-  let body = '';
-  req.on('data', chunk => { body += chunk.toString(); });
-  req.on('end', async () => {
-    try {
-      const { description, category, vehicle, vehicle_year, vehicle_make, vehicle_model } = JSON.parse(body || '{}');
-
-      if (!description || description.trim().length < 10) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Description too short' }));
-        return;
-      }
-
-      const vehicleInfo = vehicle || [vehicle_year, vehicle_make, vehicle_model].filter(Boolean).join(' ') || 'unknown vehicle';
-      const categoryList = 'maintenance (Maintenance & Mechanical), manufacturer_service (Manufacturer Service Packages), detailing (Detailing & Cleaning), cosmetic (Cosmetic & Body), accident_repair (Accident / Insurance Repair), performance (Performance & Modifications), audio_electronics (Audio & Electronics), lighting (Lighting & Accessories), interior (Interior & Upholstery), offroad (Off-Road & Specialty), ev_hybrid (EV & Hybrid Services), classic_vintage (Classic & Vintage Cars), fleet_graphics (Fleet & Commercial Graphics), premium_protection (Premium Protection PPF/Coating), convertible_specialty (Convertible & Specialty), motorcycle (Motorcycle Services), rv_camper (RV & Camper Services), boat_marine (Boat & Marine Services), snow_removal (Snow Removal Services), other (Other)';
-
-      const prompt = `You are an automotive service assistant. A customer is creating a service request on My Car Concierge.
-
-Vehicle: ${vehicleInfo}
-Selected category: ${category || 'none'}
-Description: "${description.trim()}"
-
-Analyze the description and return a JSON object with these fields:
-- "suggested_category": the exact key (before the parenthesis) from this list that best matches the request: ${categoryList}. Return null if the current category is already correct. Only return one of these exact keys, nothing else.
-- "suggested_title": a concise 5-8 word service title that captures the core request (e.g. "Brake pad replacement and rotor inspection"). Return null if description is already clear.
-- "missing_fields": array of strings — each a short label for information the customer should add to get better bids. Examples: "current mileage", "which tires (all 4 or specific ones?)", "year of last brake service", "warning light code". Return empty array if nothing is missing.
-- "clarifying_question": a single friendly question to help clarify an ambiguous request. Return null if the description is already clear.
-
-Return ONLY valid JSON, no markdown.`;
-
-      let result;
-      try {
-        result = await generateAIContent(prompt, { maxTokens: 512, preferredProvider: 'gemini' });
-        const text = result.text.replace(/```json\n?|\n?```/g, '').trim();
-        const parsed = JSON.parse(text);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          suggested_category: parsed.suggested_category || null,
-          suggested_title: parsed.suggested_title || null,
-          missing_fields: Array.isArray(parsed.missing_fields) ? parsed.missing_fields.slice(0, 4) : [],
-          clarifying_question: parsed.clarifying_question || null
-        }));
-      } catch (aiErr) {
-        console.error(`[${requestId}] Package suggest AI error:`, aiErr.message);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ suggested_category: null, suggested_title: null, missing_fields: [], clarifying_question: null }));
-      }
-    } catch (err) {
-      console.error(`[${requestId}] Package suggest error:`, err.message);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Internal server error' }));
-    }
-  });
-}
-
-async function handleBidStrategy(req, res, requestId) {
-  setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-
-  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
-
-  const rateLimit = applyRateLimit(req, res, 'helpdesk');
-  if (!rateLimit.allowed) return;
-
-  const user = await authenticateRequest(req);
-  if (!user) {
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unauthorized' }));
-    return;
-  }
-
-  try {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Service unavailable' }));
-      return;
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, is_also_provider, business_name')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || (profile.role !== 'provider' && !profile.is_also_provider)) {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Provider account required' }));
-      return;
-    }
-
-    const { data: myBids } = await supabase
-      .from('bids')
-      .select('price, status, created_at, maintenance_packages!bids_package_id_fkey(category)')
-      .eq('provider_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(200);
-
-    if (!myBids || myBids.length === 0) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        has_data: false,
-        message: 'Submit a few bids first — your personalized insights will appear here.'
-      }));
-      return;
-    }
-
-    const statsByCategory = {};
-    for (const bid of myBids) {
-      const cat = bid.maintenance_packages?.category || 'general';
-      if (!statsByCategory[cat]) statsByCategory[cat] = { total: 0, won: 0, prices: [] };
-      statsByCategory[cat].total++;
-      if (bid.status === 'accepted') statsByCategory[cat].won++;
-      if (bid.price) statsByCategory[cat].prices.push(Number(bid.price));
-    }
-
-    const categoryLines = Object.entries(statsByCategory)
-      .filter(([, s]) => s.total >= 2)
-      .map(([cat, s]) => {
-        const winRate = Math.round((s.won / s.total) * 100);
-        const avgPrice = s.prices.length ? Math.round(s.prices.reduce((a, b) => a + b, 0) / s.prices.length) : null;
-        return `${cat}: ${s.total} bids, ${winRate}% win rate${avgPrice ? `, avg bid $${avgPrice}` : ''}`;
-      }).join('\n');
-
-    if (!categoryLines) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        has_data: false,
-        message: 'Keep bidding — you\'ll need a few more bids per category for meaningful insights.'
-      }));
-      return;
-    }
-
-    const prompt = `You are an automotive marketplace bid strategy advisor. Analyze this provider's bidding performance and give actionable advice.
-
-Provider: ${profile.business_name || 'Provider'}
-Bid performance by category:
-${categoryLines}
-
-Return a JSON object with:
-- "summary": 2-3 sentence overall assessment of their bidding performance
-- "insights": array of up to 4 objects, each with:
-  - "category": the service category name (human-readable, e.g. "Oil Change" not "oil_change")
-  - "win_rate": integer percentage
-  - "tip": one actionable sentence of advice for this category
-- "top_recommendation": the single most impactful change they can make to win more bids (1-2 sentences)
-- "strong_categories": array of category name strings where they are most competitive
-
-Return ONLY valid JSON, no markdown.`;
-
-    try {
-      const aiResult = await generateAIContent(prompt, { maxTokens: 800, preferredProvider: 'gemini' });
-      const text = aiResult.text.replace(/```json\n?|\n?```/g, '').trim();
-      const parsed = JSON.parse(text);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        has_data: true,
-        summary: parsed.summary || '',
-        insights: Array.isArray(parsed.insights) ? parsed.insights.slice(0, 4) : [],
-        top_recommendation: parsed.top_recommendation || '',
-        strong_categories: Array.isArray(parsed.strong_categories) ? parsed.strong_categories : []
-      }));
-    } catch (aiErr) {
-      console.error(`[${requestId}] Bid strategy AI error:`, aiErr.message);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        has_data: true,
-        summary: `You have placed ${myBids.length} bids across ${Object.keys(statsByCategory).length} service categories.`,
-        insights: [],
-        top_recommendation: 'Keep bidding to unlock AI-powered insights on your optimal pricing strategy.',
-        strong_categories: []
-      }));
-    }
-  } catch (err) {
-    console.error(`[${requestId}] Bid strategy error:`, err.message);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Internal server error' }));
-  }
-}
-
-async function handleMatchProviders(req, res, requestId) {
-  setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-
-  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
-
-  const rateLimit = applyRateLimit(req, res, 'apiAuth');
-  if (!rateLimit.allowed) return;
-
-  const user = await authenticateRequest(req);
-  if (!user) {
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unauthorized' }));
-    return;
-  }
-
-  let body = '';
-  req.on('data', chunk => { body += chunk.toString(); });
-  req.on('end', async () => {
-    try {
-      const { package_id } = JSON.parse(body || '{}');
-      if (!package_id) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'package_id required' }));
-        return;
-      }
-
-      const supabase = getSupabaseClient();
-      if (!supabase) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Service unavailable' }));
-        return;
-      }
-
-      const { data: pkg } = await supabase
-        .from('maintenance_packages')
-        .select('id, title, service_type, member_id, member_zip, member_state, crowd_funded')
-        .eq('id', package_id)
-        .single();
-
-      if (!pkg) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Package not found' }));
-        return;
-      }
-
-      if (pkg.member_id !== user.id) {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Not authorized' }));
-        return;
-      }
-
-      const isCommunityBoard = pkg.crowd_funded === true;
-      const zipPrefix = pkg.member_zip ? pkg.member_zip.substring(0, 3) : null;
-
-      const { data: providers } = await supabase
-        .from('profiles')
-        .select('id, full_name, business_name, zip_code, state, rating, tier, role, is_also_provider')
-        .or('role.eq.provider,is_also_provider.eq.true')
-        .not('is_suspended', 'eq', true)
-        .limit(100);
-
-      if (!providers || providers.length === 0) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ matched: 0 }));
-        return;
-      }
-
-      const providerIds = providers.map(p => p.id);
-      const { data: bidHistory } = await supabase
-        .from('bids')
-        .select('provider_id, status, maintenance_packages!bids_package_id_fkey(service_type)')
-        .in('provider_id', providerIds);
-
-      const providerStats = {};
-      for (const bid of bidHistory || []) {
-        const pid = bid.provider_id;
-        const cat = bid.maintenance_packages?.service_type;
-        if (!providerStats[pid]) providerStats[pid] = { categories: {}, total: 0, won: 0 };
-        providerStats[pid].total++;
-        if (bid.status === 'accepted') providerStats[pid].won++;
-        if (cat) {
-          providerStats[pid].categories[cat] = (providerStats[pid].categories[cat] || 0) + 1;
-        }
-      }
-
-      const scored = providers.map(p => {
-        const stats = providerStats[p.id] || { categories: {}, total: 0, won: 0 };
-        const categoryMatch = (stats.categories[pkg.service_type] || 0) > 0 ? 30 : 0;
-        const providerZip = p.zip_code || '';
-        const geoScore = zipPrefix && providerZip.startsWith(zipPrefix) ? 25 :
-          (p.state && p.state === pkg.member_state ? 10 : 0);
-        const ratingScore = Math.min((p.rating || 3) / 5 * 20, 20);
-        const winRate = stats.total > 0 ? stats.won / stats.total : 0;
-        const winScore = Math.round(winRate * 15);
-        const tierScore = p.tier === 'founding' ? 10 : p.tier === 'verified' ? 5 : 0;
-        return { ...p, score: categoryMatch + geoScore + ratingScore + winScore + tierScore };
-      }).sort((a, b) => b.score - a.score).slice(0, 5);
-
-      const categoryLabel = pkg.service_type?.replace(/_/g, ' ') || 'service';
-      const notifTitle = isCommunityBoard
-        ? 'Community-funded request near you'
-        : 'New job matched for you';
-      const notifMessage = isCommunityBoard
-        ? `New community-funded request for ${categoryLabel} near you — "${pkg.title}"`
-        : `A new ${categoryLabel} request near you is looking for bids: "${pkg.title}"`;
-      const notifType = isCommunityBoard ? 'community_board_match' : 'matched_package';
-      const deepLinkSection = isCommunityBoard ? 'community-board' : 'packages';
-
-      const notifications = scored.map(p => ({
-        user_id: p.id,
-        type: notifType,
-        title: notifTitle,
-        message: notifMessage,
-        entity_type: 'package',
-        entity_id: package_id
-      }));
-
-      if (notifications.length > 0) {
-        await supabase.from('notifications').insert(notifications);
-        const scoredIds = scored.map(p => p.id);
-        sendFCMPushNotification(
-          scoredIds,
-          notifTitle,
-          notifMessage,
-          { section: deepLinkSection, package_id }
-        ).catch(() => {});
-      }
-
-      console.log(`[${requestId}] Provider matching: sent ${notifications.length} invites for package ${package_id}${isCommunityBoard ? ' (community board)' : ''}`);
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ matched: notifications.length }));
-    } catch (err) {
-      console.error(`[${requestId}] Match providers error:`, err.message);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Internal server error' }));
-    }
-  });
-}
-
 function gracefulShutdown(signal) {
   console.log(`[SERVER] Received ${signal}. Graceful shutdown starting...`);
   server.close(() => {
@@ -37057,7 +34345,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('PWA-enabled My Car Concierge is ready!');
   console.log('AI Assistant connected and ready to help!');
   
-  runRecallsAiMigration();
   startMaintenanceReminderScheduler();
   startWeeklyRecallCheckScheduler();
   startAppointmentReminderScheduler();
@@ -37065,2124 +34352,4 @@ server.listen(PORT, '0.0.0.0', () => {
   startDreamCarDigestScheduler();
   startAnniversaryReminderScheduler();
   startSplitPaymentExpiryScheduler();
-  startBidDeadlineScheduler();
-  seedFoundingProviderAgreements();
-  createAiOpsTablesIfNeeded();
 });
-
-// ========== AI OPS FOUNDATION ==========
-
-async function runSupabaseSQL(sql) {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceKey) return { error: 'No credentials' };
-  try {
-    const r = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` },
-      body: JSON.stringify({ query: sql })
-    });
-    if (!r.ok) return { error: await r.text() };
-    return { ok: true };
-  } catch (e) { return { error: e.message }; }
-}
-
-function isTableMissingError(err) {
-  if (!err) return false;
-  const msg = err.message || '';
-  return err.code === '42P01' || msg.includes('does not exist') || msg.includes('schema cache') || msg.includes('relation') || msg.includes('Could not find');
-}
-
-async function createAiOpsTablesIfNeeded() {
-  const supabase = getSupabaseClient();
-  if (!supabase) return;
-
-  const tables = [
-    { name: 'ai_action_log', selectCol: 'id',
-      sql: `CREATE TABLE IF NOT EXISTS public.ai_action_log (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), module text NOT NULL, action_type text, target_id text, decision jsonb, confidence float DEFAULT 0, auto_executed boolean DEFAULT false, escalated boolean DEFAULT false, outcome text DEFAULT 'pending', error_details text, execution_time_ms int DEFAULT 0, created_at timestamptz DEFAULT now()); CREATE INDEX IF NOT EXISTS ai_action_log_module_idx ON public.ai_action_log(module); CREATE INDEX IF NOT EXISTS ai_action_log_created_idx ON public.ai_action_log(created_at DESC); CREATE INDEX IF NOT EXISTS ai_action_log_target_idx ON public.ai_action_log(module, action_type, auto_executed, target_id); ALTER TABLE public.ai_action_log ENABLE ROW LEVEL SECURITY; DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='ai_action_log' AND policyname='service_role_ai_action_log') THEN CREATE POLICY service_role_ai_action_log ON public.ai_action_log FOR ALL TO service_role USING (true) WITH CHECK (true); END IF; END $$;` },
-    { name: 'ai_escalations', selectCol: 'id',
-      sql: `CREATE TABLE IF NOT EXISTS public.ai_escalations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), module text NOT NULL, target_id text, recommendation jsonb, confidence float DEFAULT 0, status text DEFAULT 'pending', admin_decision text, admin_notes text, resolved_at timestamptz, created_at timestamptz DEFAULT now()); CREATE INDEX IF NOT EXISTS ai_escalations_status_idx ON public.ai_escalations(status); ALTER TABLE public.ai_escalations ENABLE ROW LEVEL SECURITY; DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='ai_escalations' AND policyname='service_role_ai_escalations') THEN CREATE POLICY service_role_ai_escalations ON public.ai_escalations FOR ALL TO service_role USING (true) WITH CHECK (true); END IF; END $$;` },
-    { name: 'ai_daily_digests', selectCol: 'id',
-      sql: `CREATE TABLE IF NOT EXISTS public.ai_daily_digests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), date date UNIQUE NOT NULL, narrative text, stats jsonb, sent_sms boolean DEFAULT false, created_at timestamptz DEFAULT now()); ALTER TABLE public.ai_daily_digests ENABLE ROW LEVEL SECURITY; DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='ai_daily_digests' AND policyname='service_role_ai_daily_digests') THEN CREATE POLICY service_role_ai_daily_digests ON public.ai_daily_digests FOR ALL TO service_role USING (true) WITH CHECK (true); END IF; END $$;` },
-    { name: 'ai_ops_settings', selectCol: 'key',
-      sql: `CREATE TABLE IF NOT EXISTS public.ai_ops_settings (key text PRIMARY KEY, value text, updated_at timestamptz DEFAULT now()); ALTER TABLE public.ai_ops_settings ENABLE ROW LEVEL SECURITY; DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='ai_ops_settings' AND policyname='service_role_ai_ops_settings') THEN CREATE POLICY service_role_ai_ops_settings ON public.ai_ops_settings FOR ALL TO service_role USING (true) WITH CHECK (true); END IF; END $$;` }
-  ];
-
-  for (const t of tables) {
-    try {
-      const { error } = await supabase.from(t.name).select(t.selectCol).limit(1);
-      if (error && isTableMissingError(error)) {
-        console.log(`[AI_OPS] Creating ${t.name}...`);
-        const result = await runSupabaseSQL(t.sql);
-        if (result.error) {
-          console.warn(`[AI_OPS] exec_sql failed for ${t.name}: ${result.error} — table must be created manually`);
-        } else {
-          console.log(`[AI_OPS] ${t.name} created.`);
-        }
-      }
-    } catch (e) { console.error(`[AI_OPS] Table check error for ${t.name}:`, e.message); }
-  }
-
-  // Load persisted settings overrides
-  try {
-    const { data: settingsRows } = await supabase.from('ai_ops_settings').select('key,value');
-    if (settingsRows) {
-      for (const row of settingsRows) {
-        if (row.key === 'confidence_threshold') aiOpsSettingsOverride.confidence_threshold = parseFloat(row.value);
-        if (row.key === 'max_auto_refund') aiOpsSettingsOverride.max_auto_refund = parseFloat(row.value);
-      }
-    }
-  } catch {}
-  console.log('[AI_OPS] Tables verified. threshold=' + getAiOpsThreshold() + ' max_refund=' + getAiOpsMaxRefund());
-}
-
-async function logAiAction({ module, actionType, targetId, decision, confidence = 0, autoExecuted = false, escalated = false, outcome = 'pending', errorDetails = null, executionTimeMs = 0 }) {
-  const supabase = getSupabaseClient();
-  if (!supabase) return null;
-  try {
-    const { data, error } = await supabase.from('ai_action_log').insert({
-      module, action_type: actionType, target_id: String(targetId || ''), decision, confidence, auto_executed: autoExecuted, escalated, outcome, error_details: errorDetails, execution_time_ms: executionTimeMs, created_at: new Date().toISOString()
-    }).select('id').single();
-    if (error) { console.error('[AI_OPS] logAiAction error:', error.message); return null; }
-    return data?.id;
-  } catch (err) {
-    console.error('[AI_OPS] logAiAction exception:', err.message);
-    return null;
-  }
-}
-
-async function createAiEscalation({ module, targetId, recommendation, confidence }) {
-  const supabase = getSupabaseClient();
-  if (!supabase) return null;
-  try {
-    const { data, error } = await supabase.from('ai_escalations').insert({
-      module, target_id: String(targetId || ''), recommendation, confidence, status: 'pending', created_at: new Date().toISOString()
-    }).select('id').single();
-    if (error) { console.error('[AI_OPS] createEscalation error:', error.message); return null; }
-    return data?.id;
-  } catch (err) {
-    console.error('[AI_OPS] createEscalation exception:', err.message);
-    return null;
-  }
-}
-
-let aiOpsSettingsOverride = {};
-
-function getAiOpsThreshold() {
-  if (aiOpsSettingsOverride.confidence_threshold !== undefined) return aiOpsSettingsOverride.confidence_threshold;
-  return parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
-}
-
-function getAiOpsMaxRefund() {
-  if (aiOpsSettingsOverride.max_auto_refund !== undefined) return aiOpsSettingsOverride.max_auto_refund;
-  return parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
-}
-
-// ========== AI OPS HELPERS ==========
-
-async function aiOpsSendSMS(toPhone, body) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from || !toPhone) return { sent: false, reason: 'not_configured' };
-  try {
-    const clean = toPhone.replace(/\D/g, '');
-    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const form = new URLSearchParams({ To: to, From: from, Body: body });
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST', headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString()
-    });
-    return r.ok ? { sent: true } : { sent: false, reason: 'twilio_error' };
-  } catch (e) { return { sent: false, reason: e.message }; }
-}
-
-function getBidCreditTierRate(bidCredits) {
-  if (bidCredits >= 50) return { tier: 'Championship', rate: 0.08 };
-  if (bidCredits >= 25) return { tier: 'Pole Position', rate: 0.10 };
-  if (bidCredits >= 10) return { tier: 'Pit Stop', rate: 0.12 };
-  return { tier: 'Dipstick', rate: 0.15 };
-}
-
-// ========== AI OPS DISPUTE RESOLVER ==========
-
-async function runDisputeResolver(supabase, disputeId, requestId = 'ai-ops') {
-  const t0 = Date.now();
-  try {
-    const { data: dispute } = await supabase
-      .from('disputes')
-      .select('*, packages(*), profiles!disputes_member_id_fkey(email, phone), profiles!disputes_provider_id_fkey(email, phone)')
-      .eq('id', disputeId)
-      .single();
-    if (!dispute) return { error: 'Dispute not found' };
-
-    const pkg = dispute.packages || {};
-    const memberProfile = dispute['profiles!disputes_member_id_fkey'] || {};
-    const providerProfile = dispute['profiles!disputes_provider_id_fkey'] || {};
-    const threshold = getAiOpsThreshold();
-    const maxRefund = getAiOpsMaxRefund() * 100;
-
-    const prompt = `You are the AI Ops Dispute Resolver for My Car Concierge, an automotive service marketplace.
-Analyze this dispute and provide a resolution recommendation.
-
-DISPUTE:
-- ID: ${disputeId}
-- Reason: ${dispute.reason || 'Not specified'}
-- Description: ${dispute.description || 'No description'}
-- Status: ${dispute.status}
-- Service: ${pkg.title || 'Unknown'} — $${((pkg.amount || 0) / 100).toFixed(2)}
-- Created: ${dispute.created_at}
-
-Respond ONLY with valid JSON:
-{"recommendation":"full_refund"|"partial_refund"|"deny_refund"|"escalate","confidence":0.0-1.0,"refund_amount_cents":number,"reasoning":"one concise sentence","member_message":"brief message to member","provider_message":"brief message to provider"}
-
-Rules: escalate if complex. full_refund if provider clearly failed. partial_refund if partial delivery. deny_refund if claim is unfounded. When in doubt, escalate.`;
-
-    const response = await generateAIContent(prompt, { maxTokens: 512, preferredProvider: 'anthropic' });
-    let result;
-    try { const m = response.text.match(/\{[\s\S]*\}/); result = JSON.parse(m ? m[0] : response.text); }
-    catch { result = { recommendation: 'escalate', confidence: 0, reasoning: 'AI parse failed', member_message: '', provider_message: '' }; }
-
-    const confidence = result.confidence || 0;
-    // Shadow mode: threshold >= 1.0 means always escalate regardless of AI confidence
-    const autoExecute = threshold < 1.0 && confidence >= threshold && result.recommendation !== 'escalate';
-    const ms = Date.now() - t0;
-
-    await logAiAction({
-      module: 'dispute_resolver', actionType: result.recommendation, targetId: disputeId,
-      decision: result, confidence, autoExecuted: autoExecute, escalated: !autoExecute,
-      outcome: autoExecute ? 'executed' : 'escalated', executionTimeMs: ms
-    });
-
-    if (!autoExecute) {
-      await createAiEscalation({ module: 'dispute_resolver', targetId: disputeId, recommendation: result, confidence });
-      return { success: true, action: 'escalated', confidence, reasoning: result.reasoning };
-    }
-
-    // Auto-execute: apply refund if applicable
-    let stripeRefundId = null;
-    const refundable = ['full_refund', 'partial_refund'];
-    if (refundable.includes(result.recommendation) && pkg.payment_intent_id) {
-      const refundAmountCents = Math.min(
-        result.refund_amount_cents || (result.recommendation === 'full_refund' ? (pkg.amount || 0) : 0),
-        maxRefund
-      );
-      if (refundAmountCents > 0) {
-        try {
-          const refund = await stripe.refunds.create({
-            payment_intent: pkg.payment_intent_id,
-            amount: refundAmountCents,
-            metadata: { dispute_id: disputeId, resolved_by: 'ai_ops', confidence: String(confidence) }
-          });
-          stripeRefundId = refund.id;
-        } catch (refundErr) {
-          console.error('[AI_OPS] Stripe refund error:', refundErr.message);
-        }
-      }
-    }
-
-    // Update dispute status
-    await supabase.from('disputes').update({
-      status: 'resolved_by_ai',
-      resolution: result.reasoning,
-      metadata: { ai_recommendation: result.recommendation, ai_confidence: confidence, stripe_refund_id: stripeRefundId },
-      updated_at: new Date().toISOString()
-    }).eq('id', disputeId);
-
-    // Send SMS notifications to both parties
-    if (memberProfile.phone && result.member_message) {
-      await aiOpsSendSMS(memberProfile.phone, `My Car Concierge: Your dispute has been resolved. ${result.member_message}`);
-    }
-    if (providerProfile.phone && result.provider_message) {
-      await aiOpsSendSMS(providerProfile.phone, `My Car Concierge: A dispute involving your service has been resolved. ${result.provider_message}`);
-    }
-
-    return { success: true, action: result.recommendation, confidence, reasoning: result.reasoning, auto_executed: true, stripe_refund_id: stripeRefundId };
-  } catch (err) {
-    console.error('[AI_OPS] Dispute resolver error:', err.message);
-    await logAiAction({ module: 'dispute_resolver', actionType: 'error', targetId: disputeId, decision: { error: err.message }, confidence: 0, outcome: 'error', errorDetails: err.message, executionTimeMs: Date.now() - t0 });
-    return { error: err.message };
-  }
-}
-
-// ========== AI OPS PAYMENT TRACKER ==========
-
-async function runPaymentTracker(supabase, requestId = 'ai-ops') {
-  const t0 = Date.now();
-  try {
-    const { data: orders } = await supabase
-      .from('packages')
-      .select('id, provider_id, amount, status, created_at, payment_intent_id, profiles!packages_provider_id_fkey(id, email, bid_credits, stripe_connect_account_id)')
-      .eq('status', 'completed')
-      .is('metadata->>ai_reconciled', null)
-      .limit(50);
-
-    if (!orders || orders.length === 0) return { success: true, message: 'No unreconciled orders', processed: 0 };
-
-    const byProvider = {};
-    for (const o of orders) {
-      if (!o.provider_id) continue;
-      if (!byProvider[o.provider_id]) {
-        const prof = o['profiles!packages_provider_id_fkey'] || {};
-        const { tier, rate } = getBidCreditTierRate(prof.bid_credits || 0);
-        byProvider[o.provider_id] = {
-          total: 0, orders: [], email: prof.email,
-          bid_credits: prof.bid_credits || 0, tier, commission_rate: rate,
-          stripe_connect_account_id: prof.stripe_connect_account_id
-        };
-      }
-      byProvider[o.provider_id].total += (o.amount || 0);
-      byProvider[o.provider_id].orders.push(o.id);
-    }
-
-    // Calculate commissions
-    const summary = Object.entries(byProvider).map(([pid, v]) => ({
-      provider_id: pid, total_cents: v.total, order_count: v.orders.length,
-      tier: v.tier, commission_rate: v.commission_rate,
-      commission_cents: Math.round(v.total * v.commission_rate),
-      net_payout_cents: Math.round(v.total * (1 - v.commission_rate)),
-      has_stripe_connect: !!v.stripe_connect_account_id
-    }));
-
-    const prompt = `You are the AI Ops Payment Tracker for My Car Concierge. Review this provider payout batch and flag anomalies.
-BATCH: ${JSON.stringify(summary)}
-Respond ONLY with valid JSON: {"anomalies":[{"provider_id":"...","reason":"..."}],"confidence":0.0-1.0,"recommendation":"process_all"|"flag_anomalies"|"hold_batch","notes":"brief summary"}`;
-
-    const response = await generateAIContent(prompt, { maxTokens: 512, preferredProvider: 'anthropic' });
-    let result;
-    try { const m = response.text.match(/\{[\s\S]*\}/); result = JSON.parse(m ? m[0] : response.text); }
-    catch { result = { anomalies: [], confidence: 0.5, recommendation: 'flag_anomalies', notes: 'Parse error' }; }
-
-    const threshold = getAiOpsThreshold();
-    // Shadow mode: threshold >= 1.0 means always escalate regardless of AI confidence
-    const autoExecute = threshold < 1.0 && result.confidence >= threshold && result.recommendation === 'process_all';
-    const anomalousPids = new Set((result.anomalies || []).map(a => a.provider_id));
-
-    await logAiAction({
-      module: 'payment_tracker', actionType: result.recommendation, targetId: 'batch',
-      decision: { ...result, summary }, confidence: result.confidence || 0,
-      autoExecuted: autoExecute, escalated: anomalousPids.size > 0,
-      outcome: autoExecute ? 'processed' : 'flagged', executionTimeMs: Date.now() - t0
-    });
-
-    if (anomalousPids.size > 0) {
-      await createAiEscalation({ module: 'payment_tracker', targetId: 'batch', recommendation: result, confidence: result.confidence || 0 });
-    }
-
-    // Initiate Stripe Connect payouts for eligible providers
-    let payoutsInitiated = 0;
-    const payoutErrors = [];
-    if (autoExecute) {
-      const today = new Date().toISOString().split('T')[0];
-      const batchId = `${Date.now()}`;
-      for (const [pid, v] of Object.entries(byProvider)) {
-        if (anomalousPids.has(pid)) continue;
-        if (!v.stripe_connect_account_id) continue;
-        const netCents = Math.round(v.total * (1 - v.commission_rate));
-        if (netCents < 5000) continue; // min $50
-        if (netCents > 100000) continue; // max $1,000 per batch
-        // Check per-provider last payout date (14-day cooldown)
-        const { data: lastPayoutLog } = await supabase
-          .from('ai_action_log')
-          .select('created_at')
-          .eq('module', 'payment_tracker')
-          .eq('auto_executed', true)
-          .eq('target_id', pid)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (lastPayoutLog) {
-          const daysSince = (Date.now() - new Date(lastPayoutLog.created_at).getTime()) / 86400000;
-          if (daysSince < 14) { console.log(`[AI_OPS] Payout skipped for ${pid}: last payout ${daysSince.toFixed(1)} days ago`); continue; }
-        }
-        try {
-          const idempotencyKey = `mcc-payout-${pid}-${today}-${batchId}`;
-          await stripe.transfers.create({
-            amount: netCents,
-            currency: 'usd',
-            destination: v.stripe_connect_account_id,
-            metadata: { provider_id: pid, batch_id: batchId, commission_rate: String(v.commission_rate), tier: v.tier }
-          }, { idempotencyKey });
-          payoutsInitiated++;
-          // Log per-provider payout action for cooldown tracking
-          await logAiAction({ module: 'payment_tracker', actionType: 'payout_initiated', targetId: pid, decision: { provider_id: pid, net_cents: netCents, tier: v.tier, batch_id: batchId }, confidence: 1.0, autoExecuted: true, escalated: false, outcome: 'executed', executionTimeMs: 0 });
-          // Mark orders as reconciled
-          await supabase.from('packages')
-            .update({ metadata: { ai_reconciled: true, reconciled_at: new Date().toISOString(), payout_batch: batchId } })
-            .in('id', v.orders);
-        } catch (payErr) {
-          payoutErrors.push({ provider_id: pid, error: payErr.message });
-          console.error('[AI_OPS] Payout error for', pid, ':', payErr.message);
-        }
-      }
-    }
-
-    return { success: true, processed: orders.length, anomalies: result.anomalies?.length || 0, recommendation: result.recommendation, notes: result.notes, payouts_initiated: payoutsInitiated, payout_errors: payoutErrors };
-  } catch (err) {
-    console.error('[AI_OPS] Payment tracker error:', err.message);
-    await logAiAction({ module: 'payment_tracker', actionType: 'error', targetId: 'batch', decision: { error: err.message }, confidence: 0, outcome: 'error', errorDetails: err.message, executionTimeMs: Date.now() - t0 });
-    return { error: err.message };
-  }
-}
-
-// ========== AI OPS DAILY DIGEST ==========
-
-async function runDailyDigest(supabase, requestId = 'ai-ops') {
-  const t0 = Date.now();
-  try {
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: actions } = await supabase.from('ai_action_log').select('module, action_type, outcome, confidence, auto_executed, escalated, created_at').gte('created_at', since);
-
-    const byModule = {};
-    for (const a of (actions || [])) {
-      if (!byModule[a.module]) byModule[a.module] = { total: 0, auto_executed: 0, escalated: 0, outcomes: {} };
-      byModule[a.module].total++;
-      if (a.auto_executed) byModule[a.module].auto_executed++;
-      if (a.escalated) byModule[a.module].escalated++;
-      byModule[a.module].outcomes[a.outcome] = (byModule[a.module].outcomes[a.outcome] || 0) + 1;
-    }
-
-    const totalActions = (actions || []).length;
-    let narrative = `AI Ops Daily Digest — ${new Date().toLocaleDateString()}. Total actions: ${totalActions}`;
-    if (totalActions > 0) {
-      try {
-        const r = await generateAIContent(`Write a 2-3 sentence daily digest for My Car Concierge AI Ops. Stats: ${JSON.stringify(byModule)}. Keep concise and informative for the admin.`, { maxTokens: 256, preferredProvider: 'anthropic' });
-        narrative = r.text;
-      } catch {}
-    }
-
-    const today = new Date().toISOString().split('T')[0];
-    await supabase.from('ai_daily_digests').upsert({ date: today, narrative, stats: byModule, sent_sms: false, created_at: new Date().toISOString() }, { onConflict: 'date' });
-
-    // Send SMS summary to admin
-    const adminPhone = process.env.ADMIN_PHONE_NUMBER;
-    let smsSent = false;
-    if (adminPhone) {
-      const escalated = Object.values(byModule).reduce((s, m) => s + (m.escalated || 0), 0);
-      const autoExec = Object.values(byModule).reduce((s, m) => s + (m.auto_executed || 0), 0);
-      const smsBody = `MCC AI Ops | ${today} | Actions: ${totalActions} | Auto-executed: ${autoExec} | Escalated: ${escalated}. ${narrative.slice(0, 100)}`;
-      const smsResult = await aiOpsSendSMS(adminPhone, smsBody);
-      smsSent = smsResult.sent;
-      if (smsSent) {
-        await supabase.from('ai_daily_digests').update({ sent_sms: true }).eq('date', today);
-      }
-    }
-
-    console.log(`[AI_OPS] Daily digest generated. Actions: ${totalActions}, SMS sent: ${smsSent}`);
-    return { success: true, date: today, totalActions, narrative, sms_sent: smsSent };
-  } catch (err) {
-    console.error('[AI_OPS] Daily digest error:', err.message);
-    return { error: err.message };
-  }
-}
-
-async function seedFoundingProviderAgreements() {
-  const supabase = getSupabaseClient();
-  if (!supabase) return;
-  try {
-    const { data: existing } = await supabase
-      .from('signed_agreements')
-      .select('id')
-      .eq('full_name', 'Chris Agrapidis')
-      .eq('agreement_type', 'founding_provider_chris_agrapidis')
-      .limit(1);
-    if (existing && existing.length > 0) return;
-    const seedPayload = {
-      full_name: 'Chris Agrapidis',
-      business_name: 'Agrapidis Auto',
-      agreement_type: 'founding_provider_chris_agrapidis',
-      signed_at: '2025-12-01T00:00:00.000Z',
-      signature_data: 'manually_added',
-      email_sent: false,
-      notes: 'Founding provider agreement — manually entered at server startup'
-    };
-    let { error: seedErr } = await supabase.from('signed_agreements').insert(seedPayload);
-    if (seedErr && seedErr.message && (seedErr.message.includes("'notes'") || seedErr.message.includes("'pdf_url'"))) {
-      delete seedPayload.notes;
-      delete seedPayload.pdf_url;
-      const retry = await supabase.from('signed_agreements').insert(seedPayload);
-      seedErr = retry.error;
-    }
-    if (!seedErr) console.log('[Seed] Chris Agrapidis founding provider agreement ensured.');
-    else console.error('[Seed] Insert error:', seedErr.message);
-  } catch (err) {
-    console.error('[Seed] Error seeding founding provider agreement:', err.message);
-  }
-}
-
-const _warnedPackageIds = new Set();
-
-async function enforceBidDeadlines() {
-  const supabase = getSupabaseClient();
-  if (!supabase) return { closed: 0, warned: 0 };
-  let closed = 0, warned = 0;
-  try {
-    const now = new Date().toISOString();
-    const { data: expiredPkgs } = await supabase
-      .from('maintenance_packages')
-      .select('id, title, member_id, bidding_deadline')
-      .eq('status', 'open')
-      .lt('bidding_deadline', now)
-      .not('bidding_deadline', 'is', null);
-    for (const pkg of (expiredPkgs || [])) {
-      try {
-        await supabase
-          .from('maintenance_packages')
-          .update({ status: 'bidding_closed', updated_at: now })
-          .eq('id', pkg.id);
-        const { count: bidCount } = await supabase
-          .from('bids')
-          .select('id', { count: 'exact', head: true })
-          .eq('package_id', pkg.id);
-        const numBids = bidCount || 0;
-        let msg, emailBody;
-        if (numBids > 0) {
-          msg = `Bidding on "${pkg.title}" has closed with ${numBids} bid${numBids === 1 ? '' : 's'}. Review your bids and choose a provider.`;
-          emailBody = `<h2 style="margin:0 0 16px;color:#d4a855;">Bidding Closed</h2><p>Your service request "<strong>${pkg.title}</strong>" has reached its deadline.</p><p>You received <strong>${numBids} bid${numBids === 1 ? '' : 's'}</strong>. Log in to review them and accept the best offer.</p><a href="https://mycarconcierge.com/members.html" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#d4a855;color:#0a0a0f;font-weight:600;border-radius:8px;text-decoration:none;">Review Bids</a>`;
-        } else {
-          msg = `Bidding on "${pkg.title}" has closed with no bids. You can repost with a new deadline or try the Community Board for help.`;
-          emailBody = `<h2 style="margin:0 0 16px;color:#d4a855;">Bidding Closed — No Bids Received</h2><p>Your service request "<strong>${pkg.title}</strong>" reached its deadline but no providers submitted bids.</p><p>You can:</p><ul><li><strong>Repost</strong> your request with a longer deadline to reach more providers</li><li><strong>Post to the Community Board</strong> for crowd-funded help from fellow members</li></ul><a href="https://mycarconcierge.com/members.html" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#d4a855;color:#0a0a0f;font-weight:600;border-radius:8px;text-decoration:none;">View Your Packages</a>`;
-        }
-        await supabase.from('notifications').insert({
-          user_id: pkg.member_id,
-          type: 'bidding_closed',
-          title: 'Bidding Deadline Reached',
-          message: msg,
-          entity_type: 'package',
-          entity_id: pkg.id
-        });
-        const { data: memberProfile } = await supabase.from('profiles').select('email, full_name').eq('id', pkg.member_id).single();
-        if (memberProfile?.email) {
-          sendEmailNotification(memberProfile.email, memberProfile.full_name || 'Member', `Bidding Closed: "${pkg.title}"`, emailBody, pkg.member_id, 'bid_alerts').catch(() => {});
-        }
-        sendFCMPushNotification(
-          [pkg.member_id],
-          'Bidding Deadline Reached',
-          numBids > 0 ? `"${pkg.title}" closed with ${numBids} bid${numBids === 1 ? '' : 's'}. Tap to review.` : `"${pkg.title}" closed with no bids. Repost or try Community Board.`,
-          { section: 'packages', package_id: pkg.id }
-        ).catch(() => {});
-        closed++;
-      } catch (pkgErr) {
-        console.error(`[BidDeadline] Error closing package ${pkg.id}:`, pkgErr.message);
-      }
-    }
-    const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
-    let warningPkgs = null;
-    let warningResult = await supabase
-      .from('maintenance_packages')
-      .select('id, title, member_id, bidding_deadline, is_private_job, exclusive_provider_id, exclusive_until, service_type, member_zip, member_state')
-      .eq('status', 'open')
-      .gt('bidding_deadline', now)
-      .lt('bidding_deadline', twoHoursFromNow)
-      .not('bidding_deadline', 'is', null)
-      .or('deadline_warning_sent.is.null,deadline_warning_sent.eq.false');
-    if (warningResult.error && (warningResult.error.code === '42703' || warningResult.error.message?.includes('deadline_warning_sent'))) {
-      console.warn('[BidDeadline] deadline_warning_sent column missing — run: ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE;');
-      warningResult = await supabase
-        .from('maintenance_packages')
-        .select('id, title, member_id, bidding_deadline, is_private_job, exclusive_provider_id, exclusive_until, service_type, member_zip, member_state')
-        .eq('status', 'open')
-        .gt('bidding_deadline', now)
-        .lt('bidding_deadline', twoHoursFromNow)
-        .not('bidding_deadline', 'is', null);
-    }
-    warningPkgs = (warningResult.data || []).filter(p => !_warnedPackageIds.has(p.id));
-    for (const pkg of warningPkgs) {
-      try {
-        if (pkg.is_private_job && pkg.exclusive_provider_id) {
-          const { data: existingBid } = await supabase
-            .from('bids')
-            .select('id')
-            .eq('package_id', pkg.id)
-            .eq('provider_id', pkg.exclusive_provider_id)
-            .maybeSingle();
-          if (!existingBid) {
-            const deadline = new Date(pkg.bidding_deadline);
-            const timeStr = deadline.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-            sendFCMPushNotification(
-              [pkg.exclusive_provider_id],
-              'Last Chance to Bid!',
-              `"${pkg.title}" closes today at ${timeStr}. Submit your bid before the deadline.`,
-              { section: 'packages', package_id: pkg.id }
-            ).catch(() => {});
-          }
-          const { error: flagErr1 } = await supabase.from('maintenance_packages').update({ deadline_warning_sent: true }).eq('id', pkg.id);
-          if (flagErr1) console.warn(`[BidDeadline] Could not set deadline_warning_sent for ${pkg.id}: ${flagErr1.message}`);
-          _warnedPackageIds.add(pkg.id);
-          warned++;
-          continue;
-        }
-        const isExclusiveWindow = pkg.exclusive_until && new Date(pkg.exclusive_until) > new Date();
-        if (isExclusiveWindow && pkg.exclusive_provider_id) {
-          const { data: existingBid } = await supabase
-            .from('bids')
-            .select('id')
-            .eq('package_id', pkg.id)
-            .eq('provider_id', pkg.exclusive_provider_id)
-            .maybeSingle();
-          if (!existingBid) {
-            const deadline = new Date(pkg.bidding_deadline);
-            const timeStr = deadline.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-            sendFCMPushNotification(
-              [pkg.exclusive_provider_id],
-              'Last Chance to Bid!',
-              `"${pkg.title}" closes today at ${timeStr}. Submit your bid before the deadline.`,
-              { section: 'packages', package_id: pkg.id }
-            ).catch(() => {});
-          }
-          const { error: flagErr2 } = await supabase.from('maintenance_packages').update({ deadline_warning_sent: true }).eq('id', pkg.id);
-          if (flagErr2) console.warn(`[BidDeadline] Could not set deadline_warning_sent for ${pkg.id}: ${flagErr2.message}`);
-          _warnedPackageIds.add(pkg.id);
-          warned++;
-          continue;
-        }
-        const { data: existingBids } = await supabase
-          .from('bids')
-          .select('provider_id')
-          .eq('package_id', pkg.id);
-        const bidderIds = new Set((existingBids || []).map(b => b.provider_id));
-        const { data: allProviders } = await supabase
-          .from('profiles')
-          .select('id, zip_code, state, rating, tier, role, is_also_provider')
-          .or('role.eq.provider,role.eq.pending_provider,is_also_provider.eq.true')
-          .not('is_suspended', 'eq', true);
-        const zipPrefix = pkg.member_zip ? pkg.member_zip.substring(0, 3) : null;
-        const providerIds = (allProviders || []).map(p => p.id);
-        const { data: bidHistory } = await supabase
-          .from('bids')
-          .select('provider_id, status, maintenance_packages!bids_package_id_fkey(service_type)')
-          .in('provider_id', providerIds.slice(0, 500));
-        const providerStats = {};
-        for (const bid of bidHistory || []) {
-          const pid = bid.provider_id;
-          const cat = bid.maintenance_packages?.service_type;
-          if (!providerStats[pid]) providerStats[pid] = { categories: {}, total: 0, won: 0 };
-          providerStats[pid].total++;
-          if (bid.status === 'accepted') providerStats[pid].won++;
-          if (cat) providerStats[pid].categories[cat] = (providerStats[pid].categories[cat] || 0) + 1;
-        }
-        const scored = (allProviders || [])
-          .filter(p => !bidderIds.has(p.id) && p.id !== pkg.member_id)
-          .map(p => {
-            const stats = providerStats[p.id] || { categories: {}, total: 0, won: 0 };
-            const categoryMatch = (stats.categories[pkg.service_type] || 0) > 0 ? 30 : 0;
-            const providerZip = p.zip_code || '';
-            const geoScore = zipPrefix && providerZip.startsWith(zipPrefix) ? 25 : (p.state && p.state === pkg.member_state ? 10 : 0);
-            const ratingScore = Math.min((p.rating || 3) / 5 * 20, 20);
-            const winRate = stats.total > 0 ? stats.won / stats.total : 0;
-            const winScore = Math.round(winRate * 15);
-            const tierScore = p.tier === 'founding' ? 10 : p.tier === 'verified' ? 5 : 0;
-            return { id: p.id, score: categoryMatch + geoScore + ratingScore + winScore + tierScore };
-          })
-          .filter(p => p.score > 0)
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 20);
-        if (scored.length > 0) {
-          const deadline = new Date(pkg.bidding_deadline);
-          const timeStr = deadline.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-          sendFCMPushNotification(
-            scored.map(p => p.id),
-            'Last Chance to Bid!',
-            `"${pkg.title}" closes today at ${timeStr}. Submit your bid before the deadline.`,
-            { section: 'packages', package_id: pkg.id }
-          ).catch(() => {});
-        }
-        const { error: flagErr3 } = await supabase.from('maintenance_packages').update({ deadline_warning_sent: true }).eq('id', pkg.id);
-        if (flagErr3) console.warn(`[BidDeadline] Could not set deadline_warning_sent for ${pkg.id}: ${flagErr3.message}`);
-        _warnedPackageIds.add(pkg.id);
-        warned++;
-      } catch (warnErr) {
-        console.error(`[BidDeadline] Warning error for package ${pkg.id}:`, warnErr.message);
-      }
-    }
-  } catch (err) {
-    console.error('[BidDeadline] Scheduler error:', err.message);
-  }
-  return { closed, warned };
-}
-
-async function ensureDeadlineWarningColumn() {
-  try {
-    const supabase = getSupabaseClient();
-    if (!supabase) return;
-    const { error } = await supabase.rpc('exec_sql', {
-      query: 'ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE'
-    });
-    if (error) {
-      const { error: testErr } = await supabase
-        .from('maintenance_packages')
-        .select('deadline_warning_sent')
-        .limit(1);
-      if (testErr) {
-        console.warn('[BidDeadline] deadline_warning_sent column not available — run migration: ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE;');
-      }
-    }
-  } catch (e) {
-    console.warn('[BidDeadline] Column check skipped:', e.message);
-  }
-}
-
-function startBidDeadlineScheduler() {
-  const enabled = process.env.ENABLE_BID_DEADLINE_ENFORCEMENT !== 'false';
-  if (!enabled) {
-    console.log('[Scheduler] Bid deadline enforcement is DISABLED');
-    return;
-  }
-  console.log('[Scheduler] Bid deadline enforcement is ENABLED');
-  ensureDeadlineWarningColumn();
-  const FIFTEEN_MINUTES = 15 * 60 * 1000;
-  const INITIAL_DELAY = 90 * 1000;
-  setTimeout(async () => {
-    try {
-      const result = await enforceBidDeadlines();
-      console.log(`[Scheduler] Initial bid deadline check: ${result.closed} closed, ${result.warned} warned`);
-    } catch (e) { console.error('[Scheduler] Initial bid deadline check failed:', e.message); }
-  }, INITIAL_DELAY);
-  setInterval(async () => {
-    try {
-      const result = await enforceBidDeadlines();
-      if (result.closed > 0 || result.warned > 0) {
-        console.log(`[Scheduler] Bid deadline check: ${result.closed} closed, ${result.warned} warned`);
-      }
-    } catch (e) { console.error('[Scheduler] Bid deadline check failed:', e.message); }
-  }, FIFTEEN_MINUTES);
-  console.log('[Scheduler] Scheduled: initial bid deadline check in 90s, then every 15 minutes');
-}
-
-// SQL migration for deadline_warning_sent:
-// ALTER TABLE maintenance_packages ADD COLUMN IF NOT EXISTS deadline_warning_sent BOOLEAN DEFAULT FALSE;
-
-async function handleServiceRecommendations(req, res, requestId) {
-  setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-
-  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
-
-  const rateLimit = applyRateLimit(req, res, 'helpdesk');
-  if (!rateLimit.allowed) return;
-
-  const user = await authenticateRequest(req);
-  if (!user) {
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unauthorized' }));
-    return;
-  }
-
-  let body = '';
-  req.on('data', chunk => { body += chunk.toString(); });
-  req.on('end', async () => {
-    try {
-      const { year, make, model, mileage, fuel_type, last_service_dates } = JSON.parse(body || '{}');
-
-      if (!make || !model) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'make and model are required' }));
-        return;
-      }
-
-      const vehicleLabel = [year, make, model].filter(Boolean).join(' ');
-      const mileageStr = mileage ? `${Number(mileage).toLocaleString()} miles` : 'unknown mileage';
-      const fuelStr = fuel_type || 'gasoline';
-      const dates = last_service_dates || {};
-
-      const serviceLines = [
-        `Oil Change: ${dates.oil_change || 'NO RECORD (assume never done)'}`,
-        `Tire Rotation: ${dates.tire_rotation || 'NO RECORD (assume never done)'}`,
-        `Brake Service: ${dates.brake_service || 'NO RECORD (assume never done)'}`,
-        `Transmission Service: ${dates.transmission_service || 'NO RECORD (assume never done)'}`,
-        `Coolant Flush: ${dates.coolant_flush || 'NO RECORD (assume never done)'}`
-      ].join('\n');
-
-      const categoryList = 'maintenance, manufacturer_service, detailing, cosmetic, accident_repair, performance, audio_electronics, lighting, interior, offroad, ev_hybrid, classic_vintage, fleet_graphics, premium_protection, convertible_specialty, motorcycle, rv_camper, boat_marine, snow_removal, other';
-
-      const prompt = `You are an expert automotive service advisor for My Car Concierge. A member wants to know what services their vehicle needs right now.
-
-Vehicle: ${vehicleLabel}
-Mileage: ${mileageStr}
-Fuel type: ${fuelStr}
-
-Last service history:
-${serviceLines}
-
-IMPORTANT RULES:
-1. Services marked "NO RECORD (assume never done)" should be treated as NEVER performed and ranked HIGHEST urgency.
-2. Consider the vehicle's make, model, year, and mileage. Include any known model-specific common issues (e.g., timing belt for certain Honda models, DSG service for VW, carbon buildup for direct-injection engines).
-3. Return exactly up to 5 service recommendations, ordered by urgency (most urgent first).
-4. Each recommendation must use one of these exact category values: ${categoryList}
-
-Return a JSON array of objects with these fields:
-- "title": short service name (e.g., "Oil Change", "Timing Belt Replacement")
-- "reason": one-line explanation why this is needed now (include "No service history on file" for never-done items, or "Last done X months/years ago" for overdue items, or the model-specific reason)
-- "category": one of the exact category values listed above
-- "never_done": boolean true if this service has no record and is assumed never done, false otherwise
-
-Return ONLY valid JSON array, no markdown.`;
-
-      let recommendations = [];
-
-      try {
-        const aiResult = await generateAIContent(prompt, { maxTokens: 800, preferredProvider: 'gemini' });
-        const text = aiResult.text.replace(/```json\n?|\n?```/g, '').trim();
-        const parsed = JSON.parse(text);
-        if (Array.isArray(parsed)) {
-          const validCategories = new Set(['maintenance', 'manufacturer_service', 'detailing', 'cosmetic', 'accident_repair', 'performance', 'audio_electronics', 'lighting', 'interior', 'offroad', 'ev_hybrid', 'classic_vintage', 'fleet_graphics', 'premium_protection', 'convertible_specialty', 'motorcycle', 'rv_camper', 'boat_marine', 'snow_removal', 'other']);
-          recommendations = parsed.slice(0, 5).map(r => ({
-            title: r.title || 'Service',
-            reason: r.reason || '',
-            category: validCategories.has(r.category) ? r.category : 'maintenance',
-            never_done: !!r.never_done
-          }));
-        }
-      } catch (aiErr) {
-        console.error(`[${requestId}] Service recommendations AI error:`, aiErr.message);
-      }
-
-      if (recommendations.length === 0) {
-        const fallback = [];
-        if (!dates.oil_change) fallback.push({ title: 'Oil Change', reason: 'No service history on file — recommended every 6 months or 7,500 miles', category: 'maintenance', never_done: true });
-        if (!dates.tire_rotation) fallback.push({ title: 'Tire Rotation', reason: 'No service history on file — recommended every 6,000 miles', category: 'maintenance', never_done: true });
-        if (!dates.brake_service) fallback.push({ title: 'Brake Inspection', reason: 'No service history on file — important safety check', category: 'maintenance', never_done: true });
-        if (!dates.transmission_service && mileage > 30000) fallback.push({ title: 'Transmission Fluid Service', reason: 'No service history on file — recommended at your mileage', category: 'maintenance', never_done: true });
-        if (!dates.coolant_flush && mileage > 50000) fallback.push({ title: 'Coolant Flush', reason: 'No service history on file — prevents overheating', category: 'maintenance', never_done: true });
-        if (fallback.length === 0) {
-          fallback.push({ title: 'Multi-Point Inspection', reason: `Keep your ${vehicleLabel} running great — get a comprehensive check`, category: 'maintenance', never_done: false });
-        }
-        recommendations = fallback.slice(0, 5);
-      }
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ recommendations }));
-    } catch (err) {
-      console.error(`[${requestId}] Service recommendations error:`, err.message);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Internal server error' }));
-    }
-  });
-}
-
-async function handleDescribeToPackage(req, res, requestId) {
-  try {
-    const rl = applyRateLimit(req, res, 'helpdesk');
-    if (!rl.allowed) return;
-    const user = await authenticateRequest(req);
-    if (!user) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Unauthorized' }));
-    }
-
-    const body = await getRequestBody(req);
-    const { text, vehicle } = body;
-    if (!text || typeof text !== 'string' || text.trim().length < 5) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Please provide a longer description.' }));
-    }
-
-    const validCategories = [
-      'maintenance','manufacturer_service','detailing','cosmetic','accident_repair',
-      'performance','audio_electronics','lighting','interior','offroad','ev_hybrid',
-      'classic_vintage','fleet_graphics','premium_protection','convertible_specialty',
-      'motorcycle','rv_camper','boat_marine','snow_removal','other'
-    ];
-    const validUrgencies = ['low','medium','high','urgent'];
-
-    let vehicleContext = '';
-    if (vehicle && vehicle.make) {
-      vehicleContext = `\nVehicle: ${vehicle.year || ''} ${vehicle.make} ${vehicle.model || ''}${vehicle.trim ? ' ' + vehicle.trim : ''}`.trim();
-    }
-
-    const prompt = `You are a concierge for an automotive service marketplace called My Car Concierge.
-
-A member described their need in plain language. Based on their description, generate structured package details.
-${vehicleContext}
-
-Member says: "${text.trim().substring(0, 500)}"
-
-Respond with ONLY valid JSON (no markdown, no code fences):
-{
-  "category": one of [${validCategories.map(c => '"' + c + '"').join(', ')}],
-  "title": a short, professional title for the service request (max 80 chars),
-  "description": a detailed but concise description for providers to understand the work needed (2-4 sentences, max 300 chars),
-  "urgency": one of ["low", "medium", "high", "urgent"]
-}
-
-Rules:
-- Pick the single best-fitting category.
-- The title should be specific (not generic like "Car service").
-- The description should expand on symptoms, concerns, and desired outcome — written as if the member is explaining to a mechanic or service provider.
-- If the member mentions a vehicle, reference it naturally.
-- For urgency: "urgent" = safety issue or undrivable, "high" = soon/important, "medium" = routine but needed, "low" = optional or cosmetic.
-- Do NOT include pricing or time estimates.`;
-
-    const message = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 512,
-      messages: [{ role: 'user', content: prompt }]
-    });
-    const aiText = message.content[0]?.text || '';
-
-    let parsed;
-    try {
-      const cleaned = aiText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-      parsed = JSON.parse(cleaned);
-    } catch (parseErr) {
-      console.error(`[${requestId}] AI describe-to-package parse error:`, parseErr.message);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'AI response could not be parsed' }));
-    }
-
-    if (parsed.category && !validCategories.includes(parsed.category)) {
-      parsed.category = 'other';
-    }
-    if (parsed.urgency && !validUrgencies.includes(parsed.urgency)) {
-      parsed.urgency = 'medium';
-    }
-
-    console.log(`[${requestId}] AI describe-to-package: "${text.substring(0, 60)}..." -> category=${parsed.category}, urgency=${parsed.urgency}, title="${parsed.title}"`);
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      category: parsed.category || 'other',
-      title: (parsed.title || '').substring(0, 80),
-      description: (parsed.description || '').substring(0, 500),
-      urgency: parsed.urgency || 'medium'
-    }));
-  } catch (err) {
-    console.error(`[${requestId}] describe-to-package error:`, err.message);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Failed to process description' }));
-  }
-}
-
-async function handlePhotoDiagnose(req, res, requestId) {
-  try {
-    const rl = applyRateLimit(req, res, 'helpdesk');
-    if (!rl.allowed) return;
-
-    const user = await authenticateRequest(req);
-    if (!user) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Unauthorized' }));
-    }
-
-    const body = await getRequestBody(req, 15 * 1024 * 1024);
-    const { image, vehicle } = body;
-    if (!image || typeof image !== 'string' || image.length < 100) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'A valid image is required.' }));
-    }
-
-    let imageContent = image;
-    if (imageContent.includes(',')) imageContent = imageContent.split(',')[1];
-
-    const apiKey = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
-    if (!apiKey) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Image analysis service not configured' }));
-    }
-
-    console.log(`[${requestId}] Calling Google Vision API for photo diagnosis...`);
-    const visionResponse = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requests: [{
-          image: { content: imageContent },
-          features: [
-            { type: 'LABEL_DETECTION', maxResults: 15 },
-            { type: 'OBJECT_LOCALIZATION', maxResults: 10 },
-            { type: 'TEXT_DETECTION' }
-          ]
-        }]
-      })
-    });
-
-    const visionData = await visionResponse.json();
-    if (!visionResponse.ok) {
-      console.error(`[${requestId}] Vision API error:`, visionData);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Image analysis failed', details: visionData.error?.message }));
-    }
-
-    const response = visionData.responses?.[0] || {};
-    const labels = (response.labelAnnotations || []).map(l => ({ description: l.description, score: l.score }));
-    const objects = (response.localizedObjectAnnotations || []).map(o => ({ name: o.name, score: o.score }));
-    const textContent = response.fullTextAnnotation?.text || '';
-
-    const autoRelated = labels.some(l =>
-      ['car', 'vehicle', 'automobile', 'tire', 'wheel', 'engine', 'dashboard', 'bumper', 'headlight',
-       'brake', 'exhaust', 'windshield', 'hood', 'fender', 'door', 'mirror', 'paint', 'dent', 'scratch',
-       'warning light', 'gauge', 'speedometer', 'odometer', 'rust', 'leak', 'fluid', 'motor'].some(
-        keyword => l.description.toLowerCase().includes(keyword)
-      ) && l.score > 0.5
-    );
-
-    const topScore = labels.length > 0 ? Math.max(...labels.map(l => l.score)) : 0;
-
-    if (!autoRelated && topScore < 0.6) {
-      console.log(`[${requestId}] Photo diagnosis low confidence - no auto-related content detected`);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({
-        lowConfidence: true,
-        explanation: 'We could not identify a clear vehicle issue in this photo. Try taking a closer photo of the problem area, or describe the issue in the text box instead.'
-      }));
-    }
-
-    const validCategories = [
-      'maintenance','manufacturer_service','detailing','cosmetic','accident_repair',
-      'performance','audio_electronics','lighting','interior','offroad','ev_hybrid',
-      'classic_vintage','fleet_graphics','premium_protection','convertible_specialty',
-      'motorcycle','rv_camper','boat_marine','snow_removal','other'
-    ];
-
-    let vehicleContext = '';
-    if (vehicle && vehicle.make) {
-      vehicleContext = `\nVehicle: ${vehicle.year || ''} ${vehicle.make} ${vehicle.model || ''}${vehicle.trim ? ' ' + vehicle.trim : ''}`.trim();
-    }
-
-    const visionSummary = `Labels detected: ${labels.slice(0, 10).map(l => l.description + ' (' + Math.round(l.score * 100) + '%)').join(', ')}
-Objects detected: ${objects.slice(0, 8).map(o => o.name + ' (' + Math.round(o.score * 100) + '%)').join(', ') || 'none'}
-Text found in image: ${textContent.substring(0, 300) || 'none'}`;
-
-    const prompt = `You are an automotive diagnostic expert for a service marketplace called My Car Concierge.
-
-A member uploaded a photo of their vehicle. Google Vision detected the following:
-${visionSummary}
-${vehicleContext}
-
-Based on the visual analysis, determine:
-1. What issue or need is shown in the photo
-2. The best service category for this issue
-3. A clear title and description for a service request
-
-Respond with ONLY valid JSON (no markdown, no code fences):
-{
-  "category": one of [${validCategories.map(c => '"' + c + '"').join(', ')}],
-  "title": a short, professional title for the service request (max 80 chars),
-  "description": a detailed description for providers (2-4 sentences, max 300 chars),
-  "confidence": "high" or "medium" or "low",
-  "explanation": a plain-language explanation for the member of what was detected and why this service is recommended (1-2 sentences)
-}
-
-Rules:
-- If the image shows a warning light or dashboard indicator, identify it and recommend the appropriate diagnostic or repair service.
-- If the image shows physical damage (dent, scratch, crack), recommend body/cosmetic work.
-- If the image shows a leak, fluid stain, or mechanical issue, recommend maintenance/repair.
-- Pick the single best-fitting category.
-- The explanation should be friendly and reassuring, helping the member understand what they are looking at.
-- Do NOT include pricing.`;
-
-    console.log(`[${requestId}] Calling Claude for photo diagnosis interpretation...`);
-    const message = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 512,
-      messages: [{ role: 'user', content: prompt }]
-    });
-    const aiText = message.content[0]?.text || '';
-
-    let parsed;
-    try {
-      const cleaned = aiText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-      parsed = JSON.parse(cleaned);
-    } catch (parseErr) {
-      console.error(`[${requestId}] AI photo-diagnose parse error:`, parseErr.message);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'AI response could not be parsed' }));
-    }
-
-    if (parsed.category && !validCategories.includes(parsed.category)) parsed.category = 'other';
-
-    if (parsed.confidence === 'low') {
-      console.log(`[${requestId}] Photo diagnosis: low confidence result`);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({
-        lowConfidence: true,
-        explanation: parsed.explanation || 'The image was not clear enough to identify a specific issue. Please describe your concern in the text box instead.'
-      }));
-    }
-
-    console.log(`[${requestId}] Photo diagnosis: category=${parsed.category}, confidence=${parsed.confidence}, title="${parsed.title}"`);
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      category: parsed.category || 'other',
-      title: (parsed.title || '').substring(0, 80),
-      description: (parsed.description || '').substring(0, 500),
-      confidence: parsed.confidence || 'medium',
-      explanation: (parsed.explanation || '').substring(0, 300),
-      lowConfidence: false
-    }));
-  } catch (err) {
-    console.error(`[${requestId}] photo-diagnose error:`, err.message);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Failed to analyze photo' }));
-  }
-}
-
-async function handleComputeVehicleHealth(req, res, requestId) {
-  setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-
-  const user = await enforce2fa(req, res, requestId);
-  if (!user) return;
-
-  const vehicleId = req.url.split('/api/vehicles/')[1]?.split('/')[0];
-  if (!isValidUUID(vehicleId)) {
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Invalid vehicle ID' }));
-    return;
-  }
-
-  const rl = applyRateLimit(req, res, 'helpdesk');
-  if (!rl.allowed) return;
-
-
-
-
-  try {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Database not configured' }));
-      return;
-    }
-
-    const { data: vehicle, error: vErr } = await supabase
-      .from('vehicles')
-      .select('id, owner_id, year, make, model, mileage, vin, created_at')
-      .eq('id', vehicleId)
-      .single();
-
-    if (vErr || !vehicle) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Vehicle not found' }));
-      return;
-    }
-
-    if (vehicle.owner_id !== user.id) {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Access denied' }));
-      return;
-    }
-
-    const { data: scans } = await supabase
-      .from('diagnostic_scans')
-      .select('id, codes, severity, created_at')
-      .eq('vehicle_id', vehicleId)
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    const { data: history } = await supabase
-      .from('service_history')
-      .select('id, service_type, service_category, service_date, mileage_at_service')
-      .eq('vehicle_id', vehicleId)
-      .order('service_date', { ascending: false })
-      .limit(20);
-
-    let schedules = [];
-    try {
-      const { data: sched } = await supabase
-        .from('maintenance_schedules')
-        .select('service_type, interval_miles, interval_months, last_service_date, last_service_mileage')
-        .eq('vehicle_id', vehicleId)
-        .eq('is_active', true);
-      schedules = sched || [];
-    } catch (e) {}
-
-    const { data: completedPkgs } = await supabase
-      .from('maintenance_packages')
-      .select('id, status, category, created_at')
-      .eq('vehicle_id', vehicleId)
-      .eq('status', 'completed');
-
-    const { data: allPkgs } = await supabase
-      .from('maintenance_packages')
-      .select('id, status')
-      .eq('vehicle_id', vehicleId);
-
-    const currentYear = new Date().getFullYear();
-    const vehicleAge = vehicle.year ? currentYear - vehicle.year : null;
-    const mileage = vehicle.mileage || 0;
-    const completedCount = completedPkgs?.length || 0;
-    const totalCount = allPkgs?.length || 0;
-    const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 100;
-
-    const activeCodes = [];
-    if (scans?.length > 0) {
-      const latestScan = scans[0];
-      if (latestScan.codes?.length > 0) {
-        activeCodes.push(...latestScan.codes);
-      }
-    }
-
-    const overdueServices = [];
-    const now = new Date();
-    schedules.forEach(s => {
-      let overdue = false;
-      if (s.last_service_date && s.interval_months) {
-        const lastDate = new Date(s.last_service_date);
-        lastDate.setMonth(lastDate.getMonth() + s.interval_months);
-        if (lastDate < now) overdue = true;
-      }
-      if (s.last_service_mileage && s.interval_miles && mileage) {
-        if (mileage >= s.last_service_mileage + s.interval_miles) overdue = true;
-      }
-      if (overdue) overdueServices.push(SERVICE_TYPE_LABELS[s.service_type] || s.service_type);
-    });
-
-    const prompt = `You are an automotive health assessment AI. Compute a vehicle health score (0-100) based on this data:
-
-Vehicle: ${vehicle.year} ${vehicle.make} ${vehicle.model}
-Age: ${vehicleAge !== null ? vehicleAge + ' years' : 'Unknown'}
-Mileage: ${mileage > 0 ? mileage.toLocaleString() + ' miles' : 'Unknown'}
-Active OBD codes: ${activeCodes.length > 0 ? activeCodes.join(', ') : 'None'}
-Recent OBD scans: ${scans?.length || 0} (severities: ${scans?.map(s => s.severity).filter(Boolean).join(', ') || 'none'})
-Service history entries: ${history?.length || 0}
-Completed jobs: ${completedCount} out of ${totalCount} total (${completionRate}% completion)
-Overdue services: ${overdueServices.length > 0 ? overdueServices.join(', ') : 'None'}
-Maintenance schedules tracked: ${schedules.length}
-
-Return ONLY valid JSON:
-{
-  "score": <0-100>,
-  "factors": {
-    "positive": ["factor1", "factor2"],
-    "negative": ["factor1", "factor2"]
-  },
-  "summary": "One sentence health summary"
-}
-
-Scoring guidance:
-- Start at 85 base
-- Active OBD codes: -5 to -25 depending on severity
-- Overdue maintenance: -5 per overdue item
-- High mileage (>100k): -5, (>150k): -10, (>200k): -15
-- Good service completion rate (>80%): +5
-- Regular service history: +5
-- No data (new vehicle, no history): default 90
-- Vehicle age >15 years: -5`;
-
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      const fallbackScore = Math.max(50, 85 - (activeCodes.length * 10) - (overdueServices.length * 5) - (vehicleAge > 15 ? 5 : 0));
-      const factors = { positive: [], negative: [] };
-      if (activeCodes.length === 0) factors.positive.push('No active diagnostic trouble codes');
-      if (completionRate >= 80) factors.positive.push('Good service completion rate');
-      if (activeCodes.length > 0) factors.negative.push(`${activeCodes.length} active OBD code(s)`);
-      if (overdueServices.length > 0) factors.negative.push(`${overdueServices.length} overdue service(s)`);
-      if (factors.positive.length === 0) factors.positive.push('Vehicle registered on platform');
-
-      await supabase.from('vehicles').update({ health_score: fallbackScore }).eq('id', vehicleId);
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, score: fallbackScore, factors, summary: 'Health score computed from available data.' }));
-      return;
-    }
-
-    const https = require('https');
-    const aiBody = JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 512,
-      messages: [{ role: 'user', content: prompt }]
-    });
-
-    const aiReq = https.request({
-      hostname: 'api.anthropic.com',
-      path: '/v1/messages',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      }
-    }, (aiRes) => {
-      let data = '';
-      aiRes.on('data', chunk => data += chunk);
-      aiRes.on('end', async () => {
-        try {
-          const parsed = JSON.parse(data);
-          const text = parsed.content?.[0]?.text || '';
-          const jsonMatch = text.match(/\{[\s\S]*\}/);
-          let result = { score: 85, factors: { positive: ['Vehicle registered'], negative: [] }, summary: 'Default health assessment' };
-          if (jsonMatch) {
-            result = JSON.parse(jsonMatch[0]);
-          }
-
-          const score = Math.max(0, Math.min(100, Math.round(result.score || 85)));
-          await supabase.from('vehicles').update({ health_score: score }).eq('id', vehicleId);
-
-          console.log(`[${requestId}] Computed health score ${score} for vehicle ${vehicleId}`);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
-            success: true,
-            score,
-            factors: result.factors || { positive: [], negative: [] },
-            summary: result.summary || ''
-          }));
-        } catch (parseErr) {
-          console.error(`[${requestId}] Health score AI parse error:`, parseErr);
-          await supabase.from('vehicles').update({ health_score: 85 }).eq('id', vehicleId);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, score: 85, factors: { positive: ['Vehicle registered'], negative: [] }, summary: 'Default score applied' }));
-        }
-      });
-    });
-
-    aiReq.on('error', (err) => {
-      console.error(`[${requestId}] Health score AI request error:`, err);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'AI service unavailable' }));
-    });
-
-    aiReq.write(aiBody);
-    aiReq.end();
-
-  } catch (error) {
-    console.error(`[${requestId}] Compute health error:`, error);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Failed to compute health score' }));
-  }
-}
-
-async function handleMaintenanceForecast(req, res, requestId) {
-  setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-
-  const user = await enforce2fa(req, res, requestId);
-  if (!user) return;
-
-  const vehicleId = req.url.split('/api/vehicles/')[1]?.split('/')[0];
-  if (!isValidUUID(vehicleId)) {
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Invalid vehicle ID' }));
-    return;
-  }
-
-  try {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Database not configured' }));
-      return;
-    }
-
-    const { data: vehicle, error: vErr } = await supabase
-      .from('vehicles')
-      .select('id, owner_id, year, make, model, mileage')
-      .eq('id', vehicleId)
-      .single();
-
-    if (vErr || !vehicle) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Vehicle not found' }));
-      return;
-    }
-
-    if (vehicle.owner_id !== user.id) {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Access denied' }));
-      return;
-    }
-
-    let schedules = [];
-    try {
-      const { data: sched } = await supabase
-        .from('maintenance_schedules')
-        .select('*')
-        .eq('vehicle_id', vehicleId)
-        .eq('is_active', true);
-      schedules = sched || [];
-    } catch (e) {}
-
-    if (schedules.length === 0) {
-      schedules = DEFAULT_MAINTENANCE_SCHEDULES.map(s => ({
-        ...s,
-        vehicle_id: vehicleId,
-        last_service_date: null,
-        last_service_mileage: null
-      }));
-    }
-
-    const { data: history } = await supabase
-      .from('service_history')
-      .select('service_type, service_category, service_date, mileage_at_service')
-      .eq('vehicle_id', vehicleId)
-      .order('service_date', { ascending: false });
-
-    const mileage = vehicle.mileage || 0;
-    const avgMilesPerMonth = 1000;
-    const now = new Date();
-
-    const forecast = schedules.map(schedule => {
-      const label = SERVICE_TYPE_LABELS[schedule.service_type] || schedule.service_type;
-
-      let lastServiceDate = schedule.last_service_date ? new Date(schedule.last_service_date) : null;
-      let lastServiceMileage = schedule.last_service_mileage || null;
-
-      if (!lastServiceDate && history?.length) {
-        const match = history.find(h =>
-          (h.service_type || '').toLowerCase().includes(schedule.service_type.replace(/_/g, ' ')) ||
-          (h.service_category || '').toLowerCase().includes(schedule.service_type.replace(/_/g, ' '))
-        );
-        if (match) {
-          lastServiceDate = new Date(match.service_date);
-          lastServiceMileage = match.mileage_at_service || lastServiceMileage;
-        }
-      }
-
-      let dueDateEst = null;
-      let dueMileageEst = null;
-      let urgency = 'low';
-      let milesRemaining = null;
-      let daysRemaining = null;
-
-      if (schedule.interval_months) {
-        if (lastServiceDate) {
-          dueDateEst = new Date(lastServiceDate);
-          dueDateEst.setMonth(dueDateEst.getMonth() + schedule.interval_months);
-        } else {
-          dueDateEst = new Date(now);
-          dueDateEst.setMonth(dueDateEst.getMonth() + Math.floor(schedule.interval_months / 2));
-        }
-        daysRemaining = Math.round((dueDateEst - now) / (1000 * 60 * 60 * 24));
-      }
-
-      if (schedule.interval_miles && mileage > 0) {
-        if (lastServiceMileage) {
-          dueMileageEst = lastServiceMileage + schedule.interval_miles;
-        } else {
-          dueMileageEst = mileage + Math.floor(schedule.interval_miles / 2);
-        }
-        milesRemaining = dueMileageEst - mileage;
-
-        const monthsToMiles = milesRemaining > 0 ? milesRemaining / avgMilesPerMonth : 0;
-        const mileageDate = new Date(now);
-        mileageDate.setMonth(mileageDate.getMonth() + Math.round(monthsToMiles));
-        if (!dueDateEst || mileageDate < dueDateEst) {
-          dueDateEst = mileageDate;
-          daysRemaining = Math.round((dueDateEst - now) / (1000 * 60 * 60 * 24));
-        }
-      }
-
-      if (daysRemaining !== null) {
-        if (daysRemaining <= 0 || (milesRemaining !== null && milesRemaining <= 0)) {
-          urgency = 'overdue';
-        } else if (daysRemaining <= 30 || (milesRemaining !== null && milesRemaining <= 500)) {
-          urgency = 'high';
-        } else if (daysRemaining <= 90 || (milesRemaining !== null && milesRemaining <= 2000)) {
-          urgency = 'medium';
-        }
-      }
-
-      return {
-        service_type: schedule.service_type,
-        label,
-        due_date: dueDateEst ? dueDateEst.toISOString().split('T')[0] : null,
-        due_mileage: dueMileageEst,
-        miles_remaining: milesRemaining,
-        days_remaining: daysRemaining,
-        urgency,
-        last_service_date: lastServiceDate ? lastServiceDate.toISOString().split('T')[0] : null,
-        last_service_mileage: lastServiceMileage
-      };
-    });
-
-    forecast.sort((a, b) => {
-      const urgencyOrder = { overdue: 0, high: 1, medium: 2, low: 3 };
-      const ua = urgencyOrder[a.urgency] ?? 4;
-      const ub = urgencyOrder[b.urgency] ?? 4;
-      if (ua !== ub) return ua - ub;
-      return (a.days_remaining || 999) - (b.days_remaining || 999);
-    });
-
-    console.log(`[${requestId}] Generated maintenance forecast with ${forecast.length} items for vehicle ${vehicleId}`);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, forecast, vehicle: { year: vehicle.year, make: vehicle.make, model: vehicle.model, mileage } }));
-
-  } catch (error) {
-    console.error(`[${requestId}] Maintenance forecast error:`, error);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Failed to generate forecast' }));
-  }
-}
-
-function recomputeVehicleHealthBackground(vehicleId, requestId) {
-  setTimeout(async () => {
-    try {
-      const supabase = getSupabaseClient();
-      if (!supabase) return;
-
-      const { data: vehicle } = await supabase
-        .from('vehicles')
-        .select('id, owner_id, year, make, model, mileage')
-        .eq('id', vehicleId)
-        .single();
-      if (!vehicle) return;
-
-      const { data: scans } = await supabase
-        .from('diagnostic_scans')
-        .select('codes, severity')
-        .eq('vehicle_id', vehicleId)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      const { data: completedPkgs } = await supabase
-        .from('maintenance_packages')
-        .select('id')
-        .eq('vehicle_id', vehicleId)
-        .eq('status', 'completed');
-
-      const { data: allPkgs } = await supabase
-        .from('maintenance_packages')
-        .select('id')
-        .eq('vehicle_id', vehicleId);
-
-      let schedules = [];
-      try {
-        const { data: sched } = await supabase
-          .from('maintenance_schedules')
-          .select('service_type, interval_miles, interval_months, last_service_date, last_service_mileage')
-          .eq('vehicle_id', vehicleId)
-          .eq('is_active', true);
-        schedules = sched || [];
-      } catch (e) {}
-
-      const currentYear = new Date().getFullYear();
-      const vehicleAge = vehicle.year ? currentYear - vehicle.year : 0;
-      const mileage = vehicle.mileage || 0;
-      const completedCount = completedPkgs?.length || 0;
-      const totalCount = allPkgs?.length || 0;
-      const completionRate = totalCount > 0 ? (completedCount / totalCount) : 1;
-
-      const activeCodes = scans?.[0]?.codes || [];
-      let overdueCount = 0;
-      const now = new Date();
-      schedules.forEach(s => {
-        if (s.last_service_date && s.interval_months) {
-          const d = new Date(s.last_service_date);
-          d.setMonth(d.getMonth() + s.interval_months);
-          if (d < now) overdueCount++;
-        }
-        if (s.last_service_mileage && s.interval_miles && mileage >= s.last_service_mileage + s.interval_miles) {
-          overdueCount++;
-        }
-      });
-
-      let score = 85;
-      if (activeCodes.length > 0) score -= Math.min(25, activeCodes.length * 8);
-      if (overdueCount > 0) score -= overdueCount * 5;
-      if (mileage > 200000) score -= 15;
-      else if (mileage > 150000) score -= 10;
-      else if (mileage > 100000) score -= 5;
-      if (vehicleAge > 15) score -= 5;
-      if (completionRate >= 0.8 && totalCount > 0) score += 5;
-      if (completedCount > 3) score += 5;
-      score = Math.max(10, Math.min(100, score));
-
-      await supabase.from('vehicles').update({ health_score: score }).eq('id', vehicleId);
-      console.log(`[${requestId}] Background health recompute: vehicle ${vehicleId} -> score ${score}`);
-    } catch (err) {
-      console.error(`[${requestId}] Background health recompute error:`, err.message);
-    }
-  }, 2000);
-}
-
-async function handleBidPriceSignal(req, res, requestId) {
-  setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-
-  const user = await authenticateRequest(req);
-  if (!user) {
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unauthorized' }));
-    return;
-  }
-
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const category = url.searchParams.get('category');
-  const zip = url.searchParams.get('zip');
-  const amount = parseFloat(url.searchParams.get('amount'));
-
-  if (!category || !amount || isNaN(amount) || amount <= 0) {
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'category and valid amount are required' }));
-    return;
-  }
-
-  try {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Database not configured' }));
-      return;
-    }
-
-    const catLabel = category.replace(/_/g, ' ');
-    let prices = [];
-    let regional = true;
-
-    if (zip) {
-      const zipPrefix = zip.substring(0, 3);
-      const { data: regionalBids, error: rErr } = await supabase
-        .from('bids')
-        .select('price, maintenance_packages!bids_package_id_fkey(category, member_zip)')
-        .eq('status', 'accepted')
-        .order('created_at', { ascending: false })
-        .limit(500);
-
-      if (!rErr && regionalBids) {
-        prices = regionalBids
-          .filter(b => {
-            const pkg = b.maintenance_packages;
-            if (!pkg || pkg.category !== category) return false;
-            if (pkg.member_zip) {
-              return (pkg.member_zip || '').substring(0, 3) === zipPrefix;
-            }
-            return false;
-          })
-          .map(b => b.price)
-          .sort((a, b) => a - b);
-      }
-    }
-
-    if (prices.length < 3) {
-      regional = false;
-      const { data: catBids, error: cErr } = await supabase
-        .from('bids')
-        .select('price, maintenance_packages!bids_package_id_fkey(category)')
-        .eq('status', 'accepted')
-        .order('created_at', { ascending: false })
-        .limit(500);
-
-      if (!cErr && catBids) {
-        prices = catBids
-          .filter(b => b.maintenance_packages?.category === category)
-          .map(b => b.price)
-          .sort((a, b) => a - b);
-      }
-    }
-
-    if (prices.length < 3) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ signal: null, reason: 'insufficient_data' }));
-      return;
-    }
-
-    const belowCount = prices.filter(p => p <= amount).length;
-    const percentile = Math.round((belowCount / prices.length) * 100);
-    const median = prices[Math.floor(prices.length / 2)];
-    const p25 = Math.round(prices[Math.floor(prices.length * 0.25)]);
-    const p75 = Math.round(prices[Math.floor(prices.length * 0.75)]);
-    const regionNote = regional ? ' in your area' : '';
-
-    let signal, direction;
-
-    if (percentile <= 20) {
-      signal = `Your bid is in the bottom ${percentile}% of accepted bids for ${catLabel}${regionNote} ($${p25}\u2013$${p75} typical range) \u2014 you have room to price higher`;
-      direction = 'below';
-    } else if (percentile >= 80) {
-      signal = `Your bid is higher than ${percentile}% of accepted bids for ${catLabel}${regionNote} ($${p25}\u2013$${p75} typical range) \u2014 consider reducing to stay competitive`;
-      direction = 'above';
-    } else if (percentile >= 40 && percentile <= 60) {
-      signal = `Right in the middle of accepted bids for ${catLabel}${regionNote} (${percentile}th percentile, $${p25}\u2013$${p75} typical) \u2014 solid pricing`;
-      direction = 'in-range';
-    } else if (percentile < 40) {
-      signal = `Below average (${percentile}th percentile) for ${catLabel}${regionNote} ($${p25}\u2013$${p75} typical) \u2014 competitive pricing`;
-      direction = 'in-range';
-    } else {
-      signal = `Above average (${percentile}th percentile) for ${catLabel}${regionNote} ($${p25}\u2013$${p75} typical) \u2014 still within range`;
-      direction = 'in-range';
-    }
-
-    console.log(`[${requestId}] Bid price signal: $${amount} = ${percentile}th pctile (median $${median}) for ${category}, n=${prices.length}`);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ signal, direction, percentile, median: Math.round(median), p25: Math.round(p25), p75: Math.round(p75), sampleSize: prices.length }));
-
-  } catch (error) {
-    console.error(`[${requestId}] Bid price signal error:`, error);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ signal: null }));
-  }
-}
-
-async function handleDraftBid(req, res, requestId) {
-  setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-
-  const user = await authenticateRequest(req);
-  if (!user) {
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unauthorized' }));
-    return;
-  }
-
-  const rl = applyRateLimit(req, res, 'helpdesk');
-  if (!rl.allowed) return;
-
-  try {
-    const body = await getRequestBody(req);
-    const { title, category, description, vehicle, providerName } = body;
-
-    if (!title) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'title is required' }));
-      return;
-    }
-
-    let providerSnippet = providerName || '';
-    if (!providerSnippet) {
-      const supabase = getSupabaseClient();
-      if (supabase) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, provider_alias')
-          .eq('id', user.id)
-          .single();
-        if (profile) {
-          providerSnippet = profile.provider_alias || profile.full_name || '';
-        }
-      }
-    }
-
-    const prompt = `You are writing a bid message for an automotive service provider on My Car Concierge. Write a professional, friendly 2-4 sentence pitch for the member. Include:
-1. A brief mention of timeline/approach
-2. A quality or warranty statement
-3. Why the provider is the right choice for this job
-
-Job details:
-- Title: ${title}
-- Category: ${category || 'General'}
-- Description: ${description || 'Not provided'}
-${vehicle ? `- Vehicle: ${vehicle}` : ''}
-${providerSnippet ? `- Provider name: ${providerSnippet}` : ''}
-
-Write ONLY the pitch text, no JSON, no quotes, no labels. Keep it natural and conversational. Do not use placeholder brackets.`;
-
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ draft: `I'd be happy to take care of your ${title.toLowerCase()} service. I take pride in quality work and stand behind my results. I can get started this week — let me know what works best for your schedule.` }));
-      return;
-    }
-
-    const https = require('https');
-    const aiBody = JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 256,
-      messages: [{ role: 'user', content: prompt }]
-    });
-
-    const aiReq = https.request({
-      hostname: 'api.anthropic.com',
-      path: '/v1/messages',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      }
-    }, (aiRes) => {
-      let data = '';
-      aiRes.on('data', chunk => data += chunk);
-      aiRes.on('end', () => {
-        try {
-          if (aiRes.statusCode !== 200) {
-            console.error(`[${requestId}] AI draft bid non-200: ${aiRes.statusCode}`);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ draft: `I'd be happy to take care of your ${title.toLowerCase()} service. I bring quality workmanship and stand behind my results. I can get started this week.` }));
-            return;
-          }
-          const parsed = JSON.parse(data);
-          const draft = (parsed.content?.[0]?.text || '').trim();
-          if (!draft) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ draft: `I'd be happy to take care of your ${title.toLowerCase()} service. I bring quality workmanship and stand behind my results. I can get started this week.` }));
-            return;
-          }
-          console.log(`[${requestId}] Generated bid draft for "${title}"`);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ draft }));
-        } catch (e) {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ draft: `I'd be happy to take care of your ${title.toLowerCase()} service. I bring quality workmanship and stand behind my results. I can get started this week.` }));
-        }
-      });
-    });
-
-    aiReq.on('error', () => {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'AI service unavailable' }));
-    });
-
-    aiReq.write(aiBody);
-    aiReq.end();
-
-  } catch (error) {
-    console.error(`[${requestId}] Draft bid error:`, error);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Failed to generate draft' }));
-  }
-}
-
-async function handleAiMediation(req, res, requestId, packageId) {
-  setSecurityHeaders(res, true);
-  setCorsHeaders(res);
-
-  const user = await authenticateRequest(req);
-  if (!user) {
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unauthorized' }));
-    return;
-  }
-
-  const rl = applyRateLimit(req, res, 'helpdesk');
-  if (!rl.allowed) return;
-
-  try {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Database not configured' }));
-      return;
-    }
-
-    const { data: pkg, error: pkgErr } = await supabase
-      .from('maintenance_packages')
-      .select('id, title, description, category, status, work_completed_at, member_confirmed_at, member_id, created_at, vehicles(year, make, model)')
-      .eq('id', packageId)
-      .single();
-
-    if (pkgErr || !pkg) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Package not found' }));
-      return;
-    }
-
-    const isMember = (user.id === pkg.member_id);
-    let isProvider = false;
-    if (!isMember) {
-      const { data: bid } = await supabase
-        .from('bids')
-        .select('provider_id')
-        .eq('package_id', packageId)
-        .eq('status', 'accepted')
-        .single();
-
-      isProvider = (bid && bid.provider_id === user.id);
-      if (!isProvider) {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Not authorized for this package' }));
-        return;
-      }
-    }
-
-    if (req.method === 'POST' && !isMember) {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Only the member can request AI mediation' }));
-      return;
-    }
-
-    if (req.method === 'POST') {
-      if (!pkg.work_completed_at || pkg.member_confirmed_at) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Mediation is only available when work is marked complete but payment has not been released' }));
-        return;
-      }
-    }
-
-    if (req.method === 'GET') {
-      const { data: existing } = await supabase
-        .from('ai_mediations')
-        .select('id, package_id, summary, discrepancies, recommendation, confidence, created_at')
-        .eq('package_id', packageId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (existing) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ mediation: existing, cached: true }));
-        return;
-      }
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ mediation: null }));
-      return;
-    }
-
-    const { data: existingMediation } = await supabase
-      .from('ai_mediations')
-      .select('id, created_at')
-      .eq('package_id', packageId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (existingMediation) {
-      const ageMs = Date.now() - new Date(existingMediation.created_at).getTime();
-      if (ageMs < 3600000) {
-        const { data: cached } = await supabase
-          .from('ai_mediations')
-          .select('id, package_id, summary, discrepancies, recommendation, confidence, created_at')
-          .eq('id', existingMediation.id)
-          .single();
-
-        if (cached) {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ mediation: cached, cached: true }));
-          return;
-        }
-      }
-    }
-
-    const { data: acceptedBid } = await supabase
-      .from('bids')
-      .select('price, notes, provider_id, profiles!bids_provider_id_fkey(full_name, provider_alias)')
-      .eq('package_id', packageId)
-      .eq('status', 'accepted')
-      .single();
-
-    const { data: payment } = await supabase
-      .from('payments')
-      .select('status, amount_total, escrow_captured, created_at')
-      .eq('package_id', packageId)
-      .single();
-
-    const { data: appointments } = await supabase
-      .from('service_appointments')
-      .select('appointment_date, confirmed_time_start, confirmed_time_end, status, notes')
-      .eq('package_id', packageId)
-      .limit(10);
-
-    const { data: disputes } = await supabase
-      .from('disputes')
-      .select('reason, description, status, created_at, resolution')
-      .eq('package_id', packageId)
-      .limit(5);
-
-    const { data: messages } = await supabase
-      .from('messages')
-      .select('content, sender_id, created_at')
-      .eq('package_id', packageId)
-      .order('created_at', { ascending: true })
-      .limit(20);
-
-    let checkinSessions = [];
-    try {
-      const { data } = await supabase
-        .from('checkin_sessions')
-        .select('status, check_in_time, check_out_time, notes, vehicle_condition_notes')
-        .eq('package_id', packageId)
-        .order('created_at', { ascending: true })
-        .limit(10);
-      if (data) checkinSessions = data;
-    } catch (e) {}
-
-    let upsellRequests = [];
-    try {
-      const { data } = await supabase
-        .from('upsell_requests')
-        .select('description, estimated_cost, status, member_response, created_at')
-        .eq('package_id', packageId)
-        .order('created_at', { ascending: true })
-        .limit(10);
-      if (data) upsellRequests = data;
-    } catch (e) {}
-
-    let photoEvidence = [];
-    try {
-      const { data } = await supabase
-        .from('package_photos')
-        .select('photo_url, photo_type, description, uploaded_by, created_at')
-        .eq('package_id', packageId)
-        .order('created_at', { ascending: true })
-        .limit(20);
-      if (data) photoEvidence = data;
-    } catch (e) {}
-
-    let keyExchangeLogs = [];
-    try {
-      const { data } = await supabase
-        .from('key_exchange_log')
-        .select('action, actor_role, notes, created_at')
-        .eq('package_id', packageId)
-        .order('created_at', { ascending: true })
-        .limit(10);
-      if (data) keyExchangeLogs = data;
-    } catch (e) {}
-
-    let timelineEvents = [];
-    try {
-      const { data } = await supabase
-        .from('package_timeline')
-        .select('event_type, description, created_at, actor_role')
-        .eq('package_id', packageId)
-        .order('created_at', { ascending: true })
-        .limit(20);
-      if (data) timelineEvents = data;
-    } catch (e) {}
-
-    const vehicle = pkg.vehicles;
-    const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() : 'Unknown vehicle';
-    const providerName = acceptedBid?.profiles?.provider_alias || acceptedBid?.profiles?.full_name || 'Provider';
-
-    let evidenceLines = [];
-    evidenceLines.push(`Package: "${pkg.title}" (${pkg.category || 'General'})`);
-    evidenceLines.push(`Vehicle: ${vehicleName}`);
-    evidenceLines.push(`Created: ${new Date(pkg.created_at).toLocaleDateString()}`);
-    if (pkg.description) evidenceLines.push(`Description: ${pkg.description}`);
-    if (acceptedBid) {
-      evidenceLines.push(`Accepted bid: $${acceptedBid.price} by ${providerName}`);
-      if (acceptedBid.notes) evidenceLines.push(`Provider bid notes: ${acceptedBid.notes}`);
-    }
-    if (pkg.work_completed_at) evidenceLines.push(`Work marked complete: ${new Date(pkg.work_completed_at).toLocaleDateString()}`);
-    if (pkg.member_confirmed_at) evidenceLines.push(`Member confirmed: ${new Date(pkg.member_confirmed_at).toLocaleDateString()}`);
-    if (payment) {
-      evidenceLines.push(`Payment: $${payment.amount_total || 0}, status: ${payment.status}, escrow captured: ${payment.escrow_captured}`);
-    }
-
-    if (appointments && appointments.length > 0) {
-      evidenceLines.push(`\nAppointments:`);
-      appointments.forEach(a => {
-        evidenceLines.push(`  - ${a.appointment_date || 'No date'}, status: ${a.status}${a.notes ? `, notes: ${a.notes}` : ''}`);
-      });
-    }
-
-    if (disputes && disputes.length > 0) {
-      evidenceLines.push(`\nDisputes filed:`);
-      disputes.forEach(d => {
-        evidenceLines.push(`  - Reason: ${d.reason}, Status: ${d.status}${d.description ? `, Details: ${d.description}` : ''}`);
-      });
-    }
-
-    if (messages && messages.length > 0) {
-      evidenceLines.push(`\nConversation between member and provider (${messages.length} messages):`);
-      messages.slice(-10).forEach(m => {
-        const role = m.sender_id === pkg.member_id ? 'Member' : 'Provider';
-        evidenceLines.push(`  [${role}]: ${m.content}`);
-      });
-    }
-
-    if (checkinSessions.length > 0) {
-      evidenceLines.push(`\nCheck-in sessions:`);
-      checkinSessions.forEach(s => {
-        evidenceLines.push(`  - Status: ${s.status}${s.check_in_time ? `, checked in: ${new Date(s.check_in_time).toLocaleDateString()}` : ''}${s.check_out_time ? `, checked out: ${new Date(s.check_out_time).toLocaleDateString()}` : ''}${s.vehicle_condition_notes ? `, condition notes: ${s.vehicle_condition_notes}` : ''}${s.notes ? `, notes: ${s.notes}` : ''}`);
-      });
-    }
-
-    if (upsellRequests.length > 0) {
-      evidenceLines.push(`\nAdditional work requests:`);
-      upsellRequests.forEach(u => {
-        evidenceLines.push(`  - "${u.description}", estimated: $${u.estimated_cost || 0}, status: ${u.status}, member response: ${u.member_response || 'pending'}`);
-      });
-    }
-
-    if (photoEvidence.length > 0) {
-      evidenceLines.push(`\nPhoto evidence (${photoEvidence.length} photos):`);
-      photoEvidence.forEach(p => {
-        evidenceLines.push(`  - Type: ${p.photo_type || 'general'}, URL: ${p.photo_url || 'N/A'}, uploaded by: ${p.uploaded_by === pkg.member_id ? 'Member' : 'Provider'}${p.description ? `, description: ${p.description}` : ''}, date: ${new Date(p.created_at).toLocaleDateString()}`);
-      });
-    }
-
-    if (keyExchangeLogs.length > 0) {
-      evidenceLines.push(`\nKey exchange log:`);
-      keyExchangeLogs.forEach(k => {
-        evidenceLines.push(`  - ${k.action} by ${k.actor_role}${k.notes ? `, notes: ${k.notes}` : ''}, date: ${new Date(k.created_at).toLocaleDateString()}`);
-      });
-    }
-
-    if (timelineEvents.length > 0) {
-      evidenceLines.push(`\nTimeline events:`);
-      timelineEvents.forEach(t => {
-        evidenceLines.push(`  - ${t.event_type}: ${t.description || ''} (${t.actor_role || ''}, ${new Date(t.created_at).toLocaleDateString()})`);
-      });
-    }
-
-    const prompt = `You are an impartial AI mediator for My Car Concierge, an automotive service marketplace. A member has requested mediation for a service package. Review ALL available evidence below and provide a neutral, fair assessment.
-
-EVIDENCE:
-${evidenceLines.join('\n')}
-
-Provide your assessment in this EXACT JSON format (no markdown, no code blocks, just raw JSON):
-{
-  "summary": "A 2-3 sentence neutral summary of what the evidence shows about this service job",
-  "discrepancies": ["List any concerning discrepancies, timeline gaps, or issues found in the evidence. If none found, use an empty array."],
-  "recommendation": "Your suggested resolution based on the evidence. Be specific (e.g., 'Evidence supports work completion — recommend releasing payment' or 'Timeline inconsistency suggests further review — recommend contacting support')",
-  "confidence": "high, medium, or low — based on how much evidence was available to review"
-}
-
-Rules:
-- Be neutral — do not favor the member or provider
-- Base your assessment ONLY on the evidence provided
-- If evidence is insufficient, say so and recommend human review
-- Never recommend automatic payment actions — only advisory suggestions
-- Keep the summary factual and concise`;
-
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        mediation: {
-          summary: 'AI mediation is temporarily unavailable. Please contact support for assistance.',
-          discrepancies: [],
-          recommendation: 'Please contact My Car Concierge support for manual review.',
-          confidence: 'low'
-        },
-        cached: false
-      }));
-      return;
-    }
-
-    const aiResponse = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }]
-    });
-
-    const aiText = aiResponse.content?.[0]?.text || '';
-    let assessment;
-    try {
-      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-      assessment = JSON.parse(jsonMatch ? jsonMatch[0] : aiText);
-    } catch (parseErr) {
-      assessment = {
-        summary: aiText.substring(0, 500),
-        discrepancies: [],
-        recommendation: 'Could not parse structured assessment. Please contact support.',
-        confidence: 'low'
-      };
-    }
-
-    const mediationRecord = {
-      package_id: packageId,
-      requested_by: user.id,
-      summary: assessment.summary || '',
-      discrepancies: assessment.discrepancies || [],
-      recommendation: assessment.recommendation || '',
-      confidence: assessment.confidence || 'low',
-      evidence_snapshot: evidenceLines.join('\n')
-    };
-
-    const { data: saved, error: saveErr } = await supabase
-      .from('ai_mediations')
-      .insert(mediationRecord)
-      .select()
-      .single();
-
-    if (saveErr) {
-      console.error(`[${requestId}] Failed to save mediation:`, saveErr.message);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ mediation: { ...mediationRecord, id: 'temp', created_at: new Date().toISOString() }, cached: false }));
-      return;
-    }
-
-    console.log(`[${requestId}] AI mediation generated for package ${packageId}`);
-    const { evidence_snapshot, ...cleanSaved } = saved;
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ mediation: cleanSaved, cached: false }));
-
-  } catch (error) {
-    console.error(`[${requestId}] AI mediation error:`, error);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Failed to generate mediation' }));
-  }
-}

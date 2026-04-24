@@ -9,7 +9,7 @@ function renderActiveJobs() {
   const activeJobs = myBids.filter(b => b.status === 'accepted');
   
   if (!activeJobs.length) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('wrench', 40) + '</div><p>No active jobs. Win bids to see your jobs here!</p></div>';
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('wrench', 40)}</div><p>No active jobs. Win bids to see your jobs here!</p></div>`;
     return;
   }
   
@@ -60,6 +60,7 @@ function renderActiveJobs() {
         <div class="package-meta">
           <span>${mccIcon('dollar-sign', 16)} Your bid: <strong>$${job.price}</strong></span>
           <span>${mccIcon('calendar', 16)} Accepted ${formatTimeAgo(job.updated_at || job.created_at)}</span>
+        </div>
         </div>
         <div id="provider-mediation-${job.package_id}" style="display:none;margin-bottom:8px;"></div>
         <div class="package-footer">
@@ -478,7 +479,7 @@ async function viewAdditionalWorkRequests(packageId) {
     const requests = result.requests || result || [];
     
     if (!requests.length) {
-      container.innerHTML = '<div class="empty-state" style="padding:24px;"><div class="empty-state-icon">' + mccIcon('clipboard-list', 40) + '</div><p>No additional work requests for this job</p></div>';
+      container.innerHTML = `<div class="empty-state" style="padding:24px;"><div class="empty-state-icon">${mccIcon('clipboard-list', 40)}</div><p>No additional work requests for this job</p></div>`;
       return;
     }
     
@@ -527,7 +528,7 @@ async function viewDiscountsOffered(packageId) {
     const discounts = result.discounts || result || [];
     
     if (!discounts.length) {
-      container.innerHTML = '<div class="empty-state" style="padding:24px;"><div class="empty-state-icon">' + mccIcon('dollar-sign', 40) + '</div><p>No discounts offered for this job</p></div>';
+      container.innerHTML = `<div class="empty-state" style="padding:24px;"><div class="empty-state-icon">${mccIcon('dollar-sign', 40)}</div><p>No discounts offered for this job</p></div>`;
       return;
     }
     

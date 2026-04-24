@@ -18,18 +18,6 @@
 
     let magicLinkRedirecting = false;
 
-    supabaseClient.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        window.location.href = '/reset-password.html';
-      }
-      if (event === 'SIGNED_IN' && session && !magicLinkRedirecting) {
-        const hash = window.location.hash;
-        if (hash && (hash.includes('type=magiclink') || hash.includes('type=signup') || hash.includes('access_token'))) {
-          magicLinkRedirecting = true;
-          history.replaceState(null, '', window.location.pathname + window.location.search);
-          check2faAndProceed(session.user);
-        }
-      }
     });
 
     window.addEventListener('load', async () => {

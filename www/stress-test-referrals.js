@@ -386,6 +386,14 @@ async function loadSimData(cleanupState) {
     console.log(`  [INFO] No separate apply pool — apply flow disabled (increase --max-members above --seed-count)`);
   }
 
+  const { claimableCodes, claimableIds } = applyMembers.length > 0
+    ? await seedClaimableCodes(referrerIds)
+    : { claimableCodes: [], claimableIds: [] };
+
+  if (applyMembers.length === 0) {
+    console.log(`  [INFO] No separate apply pool — apply flow disabled (increase --max-members above --seed-count)`);
+  }
+
   const allSessions = [...memberSessions, ...adminSessions];
 
   return { memberSessions, adminSessions, allSessions, adminSession, adminUserId, originalRole, seededReferrals, referrerIds, claimableCodes, claimableIds, applyMembers };

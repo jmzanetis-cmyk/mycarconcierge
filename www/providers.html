@@ -364,6 +364,13 @@
     .countdown-timer { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--accent-gold-soft); border-radius: var(--radius-sm); font-size: 0.82rem; font-weight: 500; color: var(--accent-gold); }
     .countdown-timer.urgent { background: rgba(239, 95, 95, 0.15); color: var(--accent-red); animation: pulse 2s infinite; }
     .countdown-timer.expired { background: var(--bg-input); color: var(--text-muted); }
+
+    /* AI Provider Matching Badge */
+    .matched-package { border-color: rgba(34, 211, 238, 0.35); }
+    .matched-for-you-badge { display: flex; align-items: center; gap: 6px; padding: 8px 14px; margin: -24px -24px 16px -24px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; background: linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(56, 189, 248, 0.08)); border-bottom: 1px solid rgba(34, 211, 238, 0.25); color: var(--accent-teal); font-size: 0.82rem; font-weight: 600; }
+    .matched-for-you-badge svg { flex-shrink: 0; }
+    [data-theme="light"] .matched-package { border-color: rgba(13, 115, 119, 0.25); }
+    [data-theme="light"] .matched-for-you-badge { background: linear-gradient(135deg, rgba(13, 115, 119, 0.1), rgba(30, 58, 95, 0.05)); border-bottom-color: rgba(13, 115, 119, 0.2); color: var(--accent-teal); }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
 
     /* Services Grid */
@@ -1152,7 +1159,7 @@
           <select class="form-input" id="filter-urgency" onchange="applyFilters()" style="padding:10px 12px;">
             <option value="">Any Deadline</option>
             <option value="urgent"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg></span> Under 24 hours</option>
-            <option value="soon">Under 3 days</option>
+            <option value="soon"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span> Under 3 days</option>
             <option value="flexible"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span> More than 3 days</option>
           </select>
         </div>
@@ -1243,6 +1250,9 @@
         </button>
       </div>
       <div id="active-jobs"><div class="empty-state"><div class="empty-state-circle"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="empty-state-title">No active jobs right now</div><div class="empty-state-desc">When a member accepts your bid, the job will appear here with all the details you need to get started.</div><button class="empty-state-cta" onclick="showSection('bids')">Check Your Bids</button></div></div>
+    </section>
+
+    <section id="refund-requests" class="section">
     </section>
 
     <section id="refund-requests" class="section">
@@ -3121,6 +3131,7 @@
       <style>
         .ab-svc-chip { transition: background 0.15s, color 0.15s, border-color 0.15s; }
         .ab-svc-chip.active { background: var(--accent-gold) !important; color: var(--bg-deep) !important; border-color: var(--accent-gold) !important; font-weight: 600 !important; }
+
         .schedule-week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; min-height: 400px; }
         .schedule-day-column { background: var(--bg-input); border-radius: var(--radius-md); padding: 8px; position: relative; min-height: 350px; }
         .schedule-day-column .day-header { text-align: center; font-weight: 600; font-size: 0.85rem; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 8px; }
@@ -3768,6 +3779,7 @@
 
           <div id="fleet-job-queue">
             <div class="empty-state"><div class="empty-state-circle"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/></svg></div><div class="empty-state-title">No fleet requests yet</div><div class="empty-state-desc">Fleet requests from verified business accounts will appear here. These jobs offer guaranteed payment and volume discounts.</div></div>
+          </div>
           </div>
         </div>
       </div>
@@ -5569,31 +5581,7 @@
           <p class="form-hint" style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">An invitation link will be sent to this email to complete the check</p>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div class="form-group">
-            <label class="form-label">Work State *</label>
-            <select class="form-input" id="bg-check-state">
-              <option value="">Select state...</option>
-              <option>AL</option><option>AK</option><option>AZ</option><option>AR</option><option>CA</option>
-              <option>CO</option><option>CT</option><option>DE</option><option>FL</option><option>GA</option>
-              <option>HI</option><option>ID</option><option>IL</option><option>IN</option><option>IA</option>
-              <option>KS</option><option>KY</option><option>LA</option><option>ME</option><option>MD</option>
-              <option>MA</option><option>MI</option><option>MN</option><option>MS</option><option>MO</option>
-              <option>MT</option><option>NE</option><option>NV</option><option>NH</option><option>NJ</option>
-              <option>NM</option><option>NY</option><option>NC</option><option>ND</option><option>OH</option>
-              <option>OK</option><option>OR</option><option>PA</option><option>RI</option><option>SC</option>
-              <option>SD</option><option>TN</option><option>TX</option><option>UT</option><option>VT</option>
-              <option>VA</option><option>WA</option><option>WV</option><option>WI</option><option>WY</option>
-              <option>DC</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Phone (optional)</label>
-            <input type="tel" class="form-input" id="bg-check-phone" placeholder="Phone number">
-          </div>
-        </div>
-
-        <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);margin-top:4px;">
+        <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);margin-top:16px;">
           <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Package Included</div>
           <div style="font-size:0.85rem;color:var(--text-muted);line-height:1.6;">
             <div style="margin-bottom:4px;">✓ <strong>Criminal Check</strong> — national database, sex offender registry, global watchlist</div>
@@ -5608,6 +5596,7 @@
               <strong style="color:var(--accent-gold);">FCRA Disclosure &amp; Acknowledgment (Required)</strong> — I confirm that I have reviewed the <a href="/background-check-disclosure.html" target="_blank" style="color:var(--accent-gold);text-decoration:underline;">FCRA Disclosure</a>, that the subject of this background check has received a copy of their rights under the Fair Credit Reporting Act, and has provided written consent for this consumer report screening as required by 15 U.S.C. § 1681b(b)(2)(A).
             </span>
           </label>
+        </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -6799,5 +6788,4 @@
       document.addEventListener('DOMContentLoaded', loadProviderChecklist);
     })();
   </script>
-</body>
 </html>

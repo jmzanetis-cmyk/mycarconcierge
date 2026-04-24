@@ -182,9 +182,9 @@ async function runGetPackages(session) {
     headers: { 'Authorization': `Bearer ${session.token}` },
   });
   if (result.timeout) {
-    metrics.getPackages.timeouts++;
-    metrics.getPackages.requests++;
-    metrics.getPackages.latencies.push(result.latency);
+    metric.timeouts++;
+    metric.requests++;
+    metric.latencies.push(result.latency);
     return;
   }
   recordMetric(metrics.getPackages, result.latency, result.status);

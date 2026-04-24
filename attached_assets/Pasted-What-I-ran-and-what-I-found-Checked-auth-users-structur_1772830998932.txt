@@ -1,0 +1,57 @@
+What I ran and what I found
+Checked auth.users structure
+auth.users is a BASE TABLE with expected columns.
+email_change exists as character varying and is nullable.
+Sample row confirms email_change = NULL for some users.
+Checked triggers on auth.users
+Found one trigger: on_auth_user_created -> public.handle_new_user(), which only writes to public.profiles. This is fine.
+Located the source of the “outreach_leads” error
+It comes from a profiles trigger: public.trg_auto_link_outreach_lead calling public.auto_link_outreach_lead(), which references public.outreach_leads and other CRM tables. When those tables aren’t present, signup/admin.createUser fails.
+I have temporarily disabled this trigger: ALTER TABLE public.profiles DISABLE TRIGGER trg_auto_link_outreach_lead;
+Validation: The trigger is disabled successfully.
+
+Tried to harden email_change for GoTrue’s scan issue
+GoTrue logs show “converting NULL to string is unsupported” for column email_change.
+To mitigate quickly, I attempted to:
+cast email_change to text, set a default of '' and backfill NULLs to ''.
+This failed due to ownership: “must be owner of table users”. Supabase manages auth.users, so only the owning role can alter it.
+Next steps to restore Auth
+A. Re-test GoTrue endpoints now that the failing outreach trigger is disabled
+
+The write-path failure during signup/admin.createUser should no longer be caused by profiles’ outreach trigger. If other custom triggers fire later in your flow, we can disable them similarly.
+Please try:
+GET /admin/users
+POST /token (password)
+POST /otp
+admin.createUser
+B. If the “email_change NULL scan” persists Because we cannot ALTER auth.users directly, we have two conservative options that don’t modify the managed schema:
+
+Option 1: Ensure your GoTrue version doesn’t choke on NULLs here. Since you’re on v2.187.0 and logs show it scanning into a string, this is likely a schema drift/compat bug. The simplest safe workaround is to “normalize” data:
+
+Backfill NULLs to '' using an UPDATE. This also requires table owner privileges, which we don’t have from here. If you can run this as the database owner (supabase_admin/internal owner), use: UPDATE auth.users SET email_change = '' WHERE email_change IS NULL;
+If you prefer, I can run it, but I’ll need owner permissions for auth.users in this environment.
+Option 2: Verify no custom view or wrapper used by GoTrue
+
+Your auth.users is a base table, so this is unlikely. Still, if any custom view or trigger intercepts reads/writes for users, we should review and remove it.
+If neither is feasible, we should open a support ticket so Supabase can:
+
+Apply the backfill under the owning role, or
+Confirm a known incompatibility and patch GoTrue config.
+What I can do next (with your go-ahead)
+Attempt an UPDATE backfill to set email_change = '' for NULLs in auth.users under your project owner role. The earlier attempt failed due to table ownership in this session.
+Re-enable your outreach trigger later once the referenced tables exist, or refactor the trigger to guard against missing relations with EXISTS checks.
+Reference details from your environment
+auth.users columns show email_change as character varying, nullable.
+auth.users is a base table.
+Failing custom trigger disabled:
+public.trg_auto_link_outreach_lead on public.profiles
+Action required from you
+Test your auth flows now (sign in, OTP, list users, create user).
+If the “email_change” NULL scan error still occurs:
+Grant me/this session permission to update auth.users or run the following as owner: UPDATE auth.users SET email_change = '' WHERE email_change IS NULL;
+If you prefer, I can proceed to try the backfill again now—let me know, and I’ll run it and confirm via logs that the scan error disappears.
+
+
+
+Ask a follow up question...
+

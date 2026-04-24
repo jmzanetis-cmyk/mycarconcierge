@@ -616,7 +616,7 @@
       if (!auth) {
         return;
       }
-      if (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl !== undefined) {
+      if (window.MCC_CONFIG && (window.MCC_CONFIG.apiBaseUrl !== undefined || window.MCC_CONFIG.supabaseUrl)) {
         loadAgreements();
       } else {
         var loaded = false;

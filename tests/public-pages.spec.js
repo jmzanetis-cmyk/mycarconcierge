@@ -132,40 +132,40 @@ test.describe('How It Works (how-it-works.html)', () => {
   });
 });
 
-test.describe('Signup Member Page (onboarding-member.html)', () => {
-  test('signup-member.html redirects to onboarding-member.html', async ({ page }) => {
+test.describe('Signup Member Page (signup-member.html)', () => {
+  test('page loads with form (#signup-form)', async ({ page }) => {
     await page.goto('/signup-member.html');
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForURL('**/onboarding-member.html**', { timeout: 5000 });
-    expect(page.url()).toContain('onboarding-member.html');
-  });
-
-  test('page loads with onboarding form (#onboarding)', async ({ page }) => {
-    await page.goto('/onboarding-member.html');
-    await page.waitForLoadState('domcontentloaded');
-    const form = page.locator('#onboarding');
+    const form = page.locator('#signup-form');
     await expect(form).toBeAttached();
   });
 
-  test('has name input (#input-name) and steps container', async ({ page }) => {
-    await page.goto('/onboarding-member.html');
+  test('has name input (#name) and email input (#email)', async ({ page }) => {
+    await page.goto('/signup-member.html');
     await page.waitForLoadState('domcontentloaded');
-    await expect(page.locator('#input-name')).toBeAttached();
-    await expect(page.locator('#steps-container')).toBeAttached();
+    await expect(page.locator('#name')).toBeAttached();
+    await expect(page.locator('#email')).toBeAttached();
   });
 
-  test('has progress bar (.progress-bar)', async ({ page }) => {
-    await page.goto('/onboarding-member.html');
+  test('has progress indicator (.progress-indicator)', async ({ page }) => {
+    await page.goto('/signup-member.html');
     await page.waitForLoadState('domcontentloaded');
-    const progressBar = page.locator('.progress-bar');
-    await expect(progressBar).toBeAttached();
+    const progressIndicator = page.locator('.progress-indicator');
+    await expect(progressIndicator).toBeAttached();
   });
 
-  test('has login link for existing users', async ({ page }) => {
-    await page.goto('/onboarding-member.html');
+  test('has theme toggle', async ({ page }) => {
+    await page.goto('/signup-member.html');
     await page.waitForLoadState('domcontentloaded');
-    const loginLink = page.locator('.login-link a, a[href*="login"]');
-    await expect(loginLink.first()).toBeAttached();
+    const html = page.locator('html');
+    await expect(html).toHaveAttribute('data-theme', /.+/);
+  });
+
+  test('has language switcher (#language-switcher)', async ({ page }) => {
+    await page.goto('/signup-member.html');
+    await page.waitForLoadState('domcontentloaded');
+    const switcher = page.locator('#language-switcher');
+    await expect(switcher).toBeAttached();
   });
 });
 

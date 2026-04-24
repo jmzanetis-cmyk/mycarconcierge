@@ -253,7 +253,7 @@
     </tbody>
   </table>
 
-  <p>Milestone bonuses are revenue-based, paid when cumulative company revenue reaches each threshold. Bonus reserve funds are held in a secure, interest-bearing account, earning interest until milestones are reached. Bonuses will be paid within 30 days of achieving each milestone. Additional milestone amounts and bonus structures beyond $1,000,000 in cumulative company revenue will be discussed by mutual written agreement as the company grows.</p>
+  <p>Milestone bonuses are revenue-based, paid when cumulative company revenue reaches each threshold. Bonus reserve funds are held in Stripe Treasury (pending setup), earning interest until milestones are reached. Bonuses will be paid within 30 days of achieving each milestone. Milestone bonuses are evaluated annually on the anniversary of this Agreement's signing date. Any newly achieved milestones since the prior anniversary will be paid within 30 days. Additional milestone amounts and bonus structures beyond $1,000,000 in cumulative company revenue will be discussed by mutual written agreement as the company grows.</p>
 
   <h2>2. Founding Provider Obligations</h2>
 
@@ -332,7 +332,8 @@
           'I have read and understand all terms of this Founding Provider Partner Agreement',
           'I agree to the indemnification obligations and to maintain adequate insurance as required by applicable law',
           'I understand that I am an independent contractor and responsible for my own taxes',
-          'I agree to actively recruit qualified service providers to the MCC platform'
+          'I agree to actively recruit qualified service providers to the MCC platform',
+          'I agree not to conduct off-platform transactions with MCC customers'
         ];
 
         AgreementForm.createAgreementForm({
@@ -365,7 +366,7 @@
             }).catch(function() {
               return { 'Content-Type': 'application/json' };
             }).then(function(headers) {
-              return fetch('/api/agreements/sign', {
+              var apiBase=(window.MCC_CONFIG&&window.MCC_CONFIG.apiBaseUrl)||''; return fetch(apiBase+'/api/agreements/sign', {
                 method: 'POST',
                 headers: headers,
                 body: JSON.stringify(data)

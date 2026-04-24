@@ -183,6 +183,9 @@
                 <button class="btn btn-primary btn-sm recall-book-btn">
                   ${mccIcon('tool', 14)} Book Recall Fix
                 </button>
+                <button class="btn btn-secondary btn-sm" onclick="createPackageForVehicle('${currentRecallsVehicleId}')">
+                  ${mccIcon('package', 16)} Request Service
+                </button>
               </div>
             ` : `
               <div class="recall-card-actions">

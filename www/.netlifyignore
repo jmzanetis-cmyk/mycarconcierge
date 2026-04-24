@@ -2,6 +2,7 @@ node_modules/
 netlify/functions/node_modules/
 netlify/functions/package-lock.json
 package-lock.json
+/node_modules
 .git
 .env
 netlify.env
@@ -32,3 +33,9 @@ cordova.js
 cordova_plugins.js
 logo-source.png
 social-media/
+/capacitor
+/electron
+/android
+/ios
+/platforms
+/plugins

@@ -837,14 +837,12 @@
     let skippedVehicle = false;
     let skippedRequest = false;
     let requestSaved = false;
-    const _urlRef = new URLSearchParams(window.location.search).get('ref') || '';
-    const _urlProvider = new URLSearchParams(window.location.search).get('provider') || localStorage.getItem('preferred_provider_slug') || '';
     const formData = {
       name: '',
       email: '',
       password: '',
       phone: '',
-      referral: _urlRef,
+      referral: '',
       termsConsent: false,
       smsConsent: false,
       carYear: '',
@@ -1110,7 +1108,7 @@
           const deadline = new Date();
           deadline.setDate(deadline.getDate() + 7);
 
-          const pkgData = {
+          const { error } = await supabaseClient.from('maintenance_packages').insert({
             member_id: userId,
             vehicle_id: vehicleId || null,
             title: title,
@@ -1119,25 +1117,7 @@
             status: 'open',
             bidding_deadline: deadline.toISOString(),
             pickup_preference: 'either'
-          };
-
-          if (_urlProvider) {
-            try {
-              const { data: dirProv } = await supabaseClient
-                .from('profiles')
-                .select('id')
-                .eq('directory_slug', _urlProvider)
-                .eq('role', 'provider')
-                .single();
-              if (dirProv) {
-                pkgData.exclusive_provider_id = dirProv.id;
-                pkgData.exclusive_until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-              }
-            } catch (e) {}
-            localStorage.removeItem('preferred_provider_slug');
-          }
-
-          const { error } = await supabaseClient.from('maintenance_packages').insert(pkgData);
+          });
 
           if (error) {
             console.error('Package insert error:', error);
@@ -1228,17 +1208,6 @@
     }
     pwInput.addEventListener('input', checkPasswordRules);
     pwConfirm.addEventListener('input', checkPasswordRules);
-
-    if (_urlRef) {
-      document.addEventListener('DOMContentLoaded', function() {
-        const refInput = document.getElementById('input-referral');
-        const drawer = document.getElementById('referral-drawer');
-        const chevron = document.getElementById('referral-chevron');
-        if (refInput) refInput.value = _urlRef;
-        if (drawer) drawer.classList.add('open');
-        if (chevron) chevron.classList.add('open');
-      });
-    }
 
     updateProgress();
   </script>

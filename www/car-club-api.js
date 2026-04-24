@@ -77,7 +77,7 @@ function parseMultipartUpload(req) {
   });
 }
 
-module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, sendFCMPushNotification }) {
+module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) {
   const url = req.url.split('?')[0];
   if (!url.startsWith('/api/car-club/')) return false;
 
@@ -323,34 +323,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
            (SELECT COUNT(*) FROM club_reward_rules WHERE club_id = c.id AND is_active = true) as reward_count
            FROM car_clubs c WHERE c.is_active = true AND c.provider_suspended = false ORDER BY c.created_at DESC`
         );
-        let clubs = result.rows;
-        try {
-          const providerIds = clubs.map(c => c.provider_id).filter(Boolean);
-          if (providerIds.length > 0) {
-            const supabase = getSupabaseClient();
-            if (supabase) {
-              const { data: bgData } = await supabase
-                .from('provider_background_checks')
-                .select('provider_id, status')
-                .in('provider_id', providerIds)
-                .eq('subject_type', 'provider')
-                .order('created_at', { ascending: false });
-              if (bgData) {
-                const bgMap = {};
-                bgData.forEach(b => { if (!bgMap[b.provider_id]) bgMap[b.provider_id] = b; });
-                const clearedStatuses = ['cleared','clear','eligible'];
-                clubs = clubs.map(c => ({
-                  ...c,
-                  background_verified: clearedStatuses.includes(bgMap[c.provider_id]?.status),
-                  background_check_status: bgMap[c.provider_id]?.status || null
-                }));
-              }
-            }
-          }
-        } catch (bgErr) {
-          console.warn('Car club browse bgcheck enrichment failed:', bgErr.message);
-        }
-        json(res, 200, { clubs });
+        json(res, 200, { clubs: result.rows });
         return;
       }
 
@@ -396,7 +369,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
         if (!user) return;
         const result = await db.query(
           `SELECT cm.id as membership_id, cm.joined_at, cm.is_active,
-           c.id as club_id, c.name, c.description, c.logo_url, c.banner_url, c.provider_suspended, c.provider_id,
+           c.id as club_id, c.name, c.description, c.logo_url, c.banner_url, c.provider_suspended,
            COALESCE(json_agg(json_build_object(
              'reward_rule_id', mcb.reward_rule_id,
              'punch_count', mcb.punch_count,
@@ -409,38 +382,11 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
            JOIN car_clubs c ON c.id = cm.club_id
            LEFT JOIN member_club_balances mcb ON mcb.membership_id = cm.id
            WHERE cm.member_id = $1 AND cm.is_active = true
-           GROUP BY cm.id, cm.joined_at, cm.is_active, c.id, c.name, c.description, c.logo_url, c.banner_url, c.provider_suspended, c.provider_id
+           GROUP BY cm.id, cm.joined_at, cm.is_active, c.id, c.name, c.description, c.logo_url, c.banner_url, c.provider_suspended
            ORDER BY cm.joined_at DESC`,
           [user.id]
         );
-        let clubs = result.rows;
-        try {
-          const providerIds = clubs.map(c => c.provider_id).filter(Boolean);
-          if (providerIds.length > 0) {
-            const supabase = getSupabaseClient();
-            if (supabase) {
-              const { data: bgData } = await supabase
-                .from('provider_background_checks')
-                .select('provider_id, status')
-                .in('provider_id', providerIds)
-                .eq('subject_type', 'provider')
-                .order('created_at', { ascending: false });
-              if (bgData) {
-                const bgMap = {};
-                bgData.forEach(b => { if (!bgMap[b.provider_id]) bgMap[b.provider_id] = b; });
-                const clearedStatuses = ['cleared','clear','eligible'];
-                clubs = clubs.map(c => ({
-                  ...c,
-                  background_verified: clearedStatuses.includes(bgMap[c.provider_id]?.status),
-                  background_check_status: bgMap[c.provider_id]?.status || null
-                }));
-              }
-            }
-          }
-        } catch (bgErr) {
-          console.warn('Car club bgcheck enrichment failed:', bgErr.message);
-        }
-        json(res, 200, { clubs });
+        json(res, 200, { clubs: result.rows });
         return;
       }
 
@@ -503,8 +449,8 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
           );
           const multiplier = activePromo.rows.length > 0 ? (parseInt(activePromo.rows[0].punch_multiplier) || 1) : 1;
           const effectiveQty = qty * multiplier;
-          const punchUpdateResult = await db.query('UPDATE member_club_balances SET punch_count = punch_count + $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2 RETURNING punch_count', [effectiveQty, balance.id]);
-          const newPunchCount = punchUpdateResult.rows[0]?.punch_count || 0;
+          const newPunchCount = (balance.punch_count || 0) + effectiveQty;
+          await db.query('UPDATE member_club_balances SET punch_count = $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2', [newPunchCount, balance.id]);
           const punchesRequired = Math.max(parseInt(rewardRule.parameters.punches_required) || 1, 1);
           const threshold75 = Math.ceil(punchesRequired * 0.75);
           if (newPunchCount >= threshold75 && newPunchCount < punchesRequired) {
@@ -518,14 +464,6 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
                 'INSERT INTO notification_queue (user_id, type, title, body, data) VALUES ($1, $2, $3, $4, $5)',
                 [body.member_id, 'progress_alert', 'Almost There!', `You're ${remaining} punch${remaining !== 1 ? 'es' : ''} away from earning: ${rewardRule.name}`, JSON.stringify({ club_id: club.id, reward_rule_id: body.reward_rule_id, membership_id: membershipId })]
               );
-              if (typeof sendFCMPushNotification === 'function') {
-                sendFCMPushNotification(
-                  [body.member_id],
-                  'Almost There!',
-                  `You're ${remaining} punch${remaining !== 1 ? 'es' : ''} away from earning: ${rewardRule.name}`,
-                  { section: 'car-club' }
-                ).catch(() => {});
-              }
             }
           }
           if (newPunchCount >= punchesRequired) {
@@ -543,23 +481,17 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
                 'INSERT INTO notification_queue (user_id, type, title, body, data) VALUES ($1, $2, $3, $4, $5)',
                 [body.member_id, 'reward_unlocked', 'Reward Unlocked!', `You earned: ${rewardRule.name}`, JSON.stringify({ club_id: club.id, reward_rule_id: body.reward_rule_id })]
               );
-              if (typeof sendFCMPushNotification === 'function') {
-                sendFCMPushNotification(
-                  [body.member_id],
-                  'Reward Unlocked!',
-                  `You earned: ${rewardRule.name} — tap to view your rewards.`,
-                  { section: 'car-club' }
-                ).catch(() => {});
-              }
             }
             if (rewardRule.parameters.auto_reset !== false) {
               await db.query('UPDATE member_club_balances SET punch_count = 0, updated_at = NOW() WHERE id = $1', [balance.id]);
             }
           }
         } else if (rewardRule.template_slug === 'spend_discount') {
-          await db.query('UPDATE member_club_balances SET total_spend = total_spend + $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2', [parseFloat(body.amount || 0), balance.id]);
+          const newSpend = parseFloat(balance.total_spend || 0) + parseFloat(body.amount || 0);
+          await db.query('UPDATE member_club_balances SET total_spend = $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2', [newSpend, balance.id]);
         } else if (rewardRule.template_slug === 'visit_milestone') {
-          await db.query('UPDATE member_club_balances SET visit_count = visit_count + $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2', [qty, balance.id]);
+          const newVisitCount = (balance.visit_count || 0) + qty;
+          await db.query('UPDATE member_club_balances SET visit_count = $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2', [newVisitCount, balance.id]);
         } else {
           await db.query('UPDATE member_club_balances SET last_activity_at = NOW(), updated_at = NOW() WHERE id = $1', [balance.id]);
         }
@@ -867,7 +799,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
         const user = await authenticate(req, res, getSupabaseClient);
         if (!user) return;
         const result = await db.query(
-          `SELECT c.id, c.provider_id, c.name, c.description, c.logo_url, c.banner_url,
+          `SELECT c.id, c.name, c.description, c.logo_url, c.banner_url,
            (SELECT COUNT(*) FROM club_memberships WHERE club_id = c.id AND is_active = true) as member_count,
            (SELECT COUNT(*) FROM club_reward_rules WHERE club_id = c.id AND is_active = true) as reward_count
            FROM car_clubs c
@@ -876,34 +808,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient, se
            ORDER BY member_count DESC LIMIT 6`,
           [user.id]
         );
-        let clubs = result.rows;
-        try {
-          const providerIds = clubs.map(c => c.provider_id).filter(Boolean);
-          if (providerIds.length > 0) {
-            const supabase = getSupabaseClient();
-            if (supabase) {
-              const { data: bgData } = await supabase
-                .from('provider_background_checks')
-                .select('provider_id, status')
-                .in('provider_id', providerIds)
-                .eq('subject_type', 'provider')
-                .order('created_at', { ascending: false });
-              if (bgData) {
-                const bgMap = {};
-                bgData.forEach(b => { if (!bgMap[b.provider_id]) bgMap[b.provider_id] = b; });
-                const clearedStatuses = ['cleared','clear','eligible'];
-                clubs = clubs.map(c => ({
-                  ...c,
-                  background_verified: clearedStatuses.includes(bgMap[c.provider_id]?.status),
-                  background_check_status: bgMap[c.provider_id]?.status || null
-                }));
-              }
-            }
-          }
-        } catch (bgErr) {
-          console.warn('Car club recommended bgcheck enrichment failed:', bgErr.message);
-        }
-        json(res, 200, { clubs });
+        json(res, 200, { clubs: result.rows });
         return;
       }
 

@@ -38,5 +38,15 @@
     "created_at": "2026-02-27T02:37:21.057Z",
     "expires_at": "2026-03-01T02:37:21.057Z",
     "status": "pending"
+  },
+  {
+    "id": "8d899b54-f64f-456e-8fe2-25643da257ec",
+    "token": "d40e793c7db8b821f8c6dd3da7a1130fb393ac09a0932c6c43b6ee3eb7c5b325",
+    "email": "jordan.zanetis@frodobakingco.com",
+    "role": "marketing",
+    "invited_by": "super_admin",
+    "created_at": "2026-02-27T02:37:21.057Z",
+    "expires_at": "2026-03-01T02:37:21.057Z",
+    "status": "pending"
   }
 ]

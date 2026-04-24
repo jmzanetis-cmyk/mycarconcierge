@@ -285,12 +285,20 @@ test.describe('Landmark and Structure Tests', () => {
     await expect(html).toHaveAttribute('lang');
   });
 
-  test('Member dashboard source has a main content area', async ({ request }) => {
-    const res = await request.get('/members.html');
-    expect(res.status()).toBe(200);
-    const html = await res.text();
-    const hasMain = html.includes('class="main"') || html.includes('<main') || html.includes('role="main"');
-    expect(hasMain).toBe(true);
+  test('Member dashboard has a main content area', async ({ page }) => {
+    const mockJs = createMemberMockJs();
+    await setupCdnMocks(page, mockJs);
+    await setupApiMocks(page);
+    await addAuthToken(page, FAKE_MEMBER_ID, FAKE_MEMBER_EMAIL);
+    await addFunctionStubs(page);
+
+    await page.goto('/members.html');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForSelector('#sidebar', { timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(3000);
+
+    const mainContent = page.locator('.main, main, [role="main"]');
+    expect(await mainContent.count()).toBeGreaterThan(0);
   });
 
   test('Pages have proper heading hierarchy with h1 present', async ({ page }) => {
@@ -322,21 +330,30 @@ test.describe('Landmark and Structure Tests', () => {
     }
   });
 
-  test('Onboarding page has proper form structure', async ({ page }) => {
+  test('Signup page has proper form labels', async ({ page }) => {
     await setupMinimalMocks(page);
     await page.route('**/cdn.jsdelivr.net/**', route => {
       route.fulfill({ status: 200, contentType: 'application/javascript', body: '' });
     });
-    await page.goto('/onboarding-member.html');
+    await page.goto('/signup-member.html');
     await page.waitForTimeout(2000);
 
-    const h2 = page.locator('h2');
-    expect(await h2.count()).toBeGreaterThan(0);
+    const h1 = page.locator('h1');
+    expect(await h1.count()).toBeGreaterThan(0);
 
-    const nameInput = page.locator('#input-name');
-    await expect(nameInput).toBeAttached();
-    const placeholder = await nameInput.getAttribute('placeholder');
-    expect(placeholder).toBeTruthy();
+    const inputs = await page.locator('#signup-form input[required]').all();
+    expect(inputs.length).toBeGreaterThan(0);
+
+    for (const input of inputs) {
+      const type = await input.getAttribute('type');
+      if (type === 'checkbox' || type === 'hidden') continue;
+      const id = await input.getAttribute('id');
+      const ariaLabel = await input.getAttribute('aria-label');
+      const placeholder = await input.getAttribute('placeholder');
+      const hasLabel = id ? await page.locator(`label[for="${id}"]`).count() > 0 : false;
+      const hasWrappingLabel = await input.evaluate(el => !!el.closest('label'));
+      expect(hasLabel || hasWrappingLabel || ariaLabel || placeholder).toBeTruthy();
+    }
   });
 });
 
@@ -363,30 +380,78 @@ test.describe('Form Accessibility', () => {
     }
   });
 
-  test('Member dashboard page source has form labels in HTML', async ({ request }) => {
-    const res = await request.get('/members.html');
-    expect(res.status()).toBe(200);
-    const html = await res.text();
-    const labelCount = (html.match(/<label/g) || []).length;
-    const ariaLabelCount = (html.match(/aria-label/g) || []).length;
-    const placeholderCount = (html.match(/placeholder=/g) || []).length;
-    expect(labelCount + ariaLabelCount + placeholderCount).toBeGreaterThan(10);
+  test('Member dashboard form inputs have labels', async ({ page }) => {
+    const mockJs = createMemberMockJs();
+    await setupCdnMocks(page, mockJs);
+    await setupApiMocks(page);
+    await addAuthToken(page, FAKE_MEMBER_ID, FAKE_MEMBER_EMAIL);
+    await addFunctionStubs(page);
+
+    await page.goto('/members.html');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForSelector('#sidebar', { timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(3000);
+
+    const formInputs = await page.locator('.main input[id], .main select[id], .main textarea[id]').all();
+    let labeledCount = 0;
+    let totalChecked = 0;
+    for (const input of formInputs.slice(0, 20)) {
+      const type = await input.getAttribute('type');
+      if (type === 'hidden' || type === 'checkbox' || type === 'radio' || type === 'file' || type === 'search' || type === 'color') continue;
+      totalChecked++;
+      const id = await input.getAttribute('id');
+      const ariaLabel = await input.getAttribute('aria-label');
+      const placeholder = await input.getAttribute('placeholder');
+      const hasForLabel = id ? await page.locator(`label[for="${id}"]`).count() > 0 : false;
+      const hasWrappingLabel = await input.evaluate(el => !!el.closest('label'));
+      const hasNearbyLabel = await input.evaluate(el => {
+        const parent = el.closest('.form-group') || el.closest('.modal-body') || el.closest('[class*="modal"]') || el.parentElement;
+        return parent ? !!parent.querySelector('label, .form-label, [class*="label"]') : false;
+      });
+      const title = await input.getAttribute('title');
+      if (hasForLabel || hasWrappingLabel || hasNearbyLabel || ariaLabel || placeholder || title) {
+        labeledCount++;
+      }
+    }
+    expect(totalChecked).toBeGreaterThan(0);
+    const labelRate = labeledCount / totalChecked;
+    expect(labelRate).toBeGreaterThanOrEqual(0.7);
   });
 
-  test('Members page source has modal dialogs with proper structure', async ({ request }) => {
-    const res = await request.get('/members.html');
-    expect(res.status()).toBe(200);
-    const html = await res.text();
-    const hasModals = html.includes('class="modal') || html.includes('role="dialog"');
-    expect(hasModals).toBe(true);
+  test('Modal dialogs have proper modal structure', async ({ page }) => {
+    const mockJs = createMemberMockJs();
+    await setupCdnMocks(page, mockJs);
+    await setupApiMocks(page);
+    await addAuthToken(page, FAKE_MEMBER_ID, FAKE_MEMBER_EMAIL);
+    await addFunctionStubs(page);
+
+    await page.goto('/members.html');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForSelector('#sidebar', { timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(3000);
+
+    const modals = await page.locator('[role="dialog"], .modal-backdrop, .modal, [class*="modal"]').all();
+    expect(modals.length).toBeGreaterThan(0);
   });
 
-  test('Members page source has close buttons in modals', async ({ request }) => {
-    const res = await request.get('/members.html');
-    expect(res.status()).toBe(200);
-    const html = await res.text();
-    const hasCloseButtons = html.includes('modal-close') || html.includes('close-btn') || html.includes('btn-close');
-    expect(hasCloseButtons).toBe(true);
+  test('Close buttons on modals are keyboard accessible', async ({ page }) => {
+    const mockJs = createMemberMockJs();
+    await setupCdnMocks(page, mockJs);
+    await setupApiMocks(page);
+    await addAuthToken(page, FAKE_MEMBER_ID, FAKE_MEMBER_EMAIL);
+    await addFunctionStubs(page);
+
+    await page.goto('/members.html');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForSelector('#sidebar', { timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(3000);
+
+    const closeButtons = await page.locator('[class*="modal"] button').all();
+    expect(closeButtons.length).toBeGreaterThan(0);
+    for (const btn of closeButtons.slice(0, 10)) {
+      const tagName = await btn.evaluate(el => el.tagName.toLowerCase());
+      expect(tagName).toBe('button');
+    }
   });
 });
 
@@ -419,12 +484,20 @@ test.describe('Navigation Accessibility', () => {
     }
   });
 
-  test('Main content landmark exists on member dashboard source', async ({ request }) => {
-    const res = await request.get('/members.html');
-    expect(res.status()).toBe(200);
-    const html = await res.text();
-    const hasMain = html.includes('class="main"') || html.includes('<main') || html.includes('role="main"');
-    expect(hasMain).toBe(true);
+  test('Main content landmark exists on member dashboard', async ({ page }) => {
+    const mockJs = createMemberMockJs();
+    await setupCdnMocks(page, mockJs);
+    await setupApiMocks(page);
+    await addAuthToken(page, FAKE_MEMBER_ID, FAKE_MEMBER_EMAIL);
+    await addFunctionStubs(page);
+
+    await page.goto('/members.html');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForSelector('#sidebar', { timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(3000);
+
+    const mainLandmark = page.locator('main, .main, [role="main"]');
+    expect(await mainLandmark.count()).toBeGreaterThan(0);
   });
 
   test('Nav items have descriptive text content', async ({ page }) => {

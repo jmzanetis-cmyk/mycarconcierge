@@ -1,7 +1,5 @@
-// ========== MY CAR CONCIERGE - PACKAGES MODULE ==========
 // Package management, bids, upsells, destination services, reviews
 
-    // ========== AI SMART PACKAGE ASSISTANT ==========
     let aiSuggestionDebounceTimer = null;
     let aiAssistantExpanded = true;
     let lastAiRequestHash = '';
@@ -735,17 +733,6 @@
               <span>${mccIcon('car', 16)} ${formatPickup(p.pickup_preference)}</span>
             </div>
             ${p._isSplitParticipant ? `<div style="margin-top:8px;padding:6px 10px;background:var(--accent-blue-soft);border:1px solid rgba(74,124,255,0.3);border-radius:var(--radius-sm);font-size:0.8rem;color:var(--accent-blue);display:inline-block;">${mccIcon('users', 16)} Split Payment — Your Share: $${(p._splitAmountCents / 100).toFixed(2)}</div>` : ''}
-            ${p.crowd_funded ? `<div id="cf-progress-${p.id}" style="margin-top:10px;padding:10px 12px;background:linear-gradient(135deg,rgba(212,168,85,0.08),rgba(212,168,85,0.04));border:1px solid rgba(212,168,85,0.2);border-radius:var(--radius-sm);">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                <span style="font-size:0.8rem;font-weight:600;color:var(--accent-gold);">${mccIcon('users', 14)} Community Funded</span>
-                <span id="cf-raised-${p.id}" style="font-size:0.8rem;color:var(--text-secondary);">Loading…</span>
-              </div>
-              <div style="height:6px;background:var(--border-subtle);border-radius:3px;overflow:hidden;">
-                <div id="cf-bar-${p.id}" style="height:100%;background:linear-gradient(90deg,var(--accent-gold),#e8b84b);border-radius:3px;width:0%;transition:width 0.5s;"></div>
-              </div>
-              ${(p.member_id === currentUser?.id && _providerNotifyCounts[p.id]) ? `<div style="margin-top:6px;font-size:0.75rem;color:var(--text-muted);display:flex;align-items:center;gap:4px;">${mccIcon('bell', 12)} ${_providerNotifyCounts[p.id]} provider${_providerNotifyCounts[p.id] === 1 ? '' : 's'} notified</div>` : ''}
-              ${p.member_id === currentUser?.id ? `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><button id="cf-share-btn-${p.id}" class="btn btn-secondary btn-sm" style="font-size:0.78rem;padding:4px 10px;" onclick="shareWithCarClub('${p.id}')">${mccIcon('users', 13)} Share with Car Club</button><span id="cf-share-status-${p.id}" style="font-size:0.75rem;color:var(--text-muted);display:none;"></span></div>` : ''}
-            </div>` : ''}
             ${p.description ? `<div class="package-description">${p.description}</div>` : ''}
             <div class="package-footer">
               <span class="bid-count">${isExpired ? 'Bidding ended' : (p.bid_count > 0 ? `${mccIcon('message-square', 16)} ${p.bid_count} bid${p.bid_count === 1 ? '' : 's'} received` : 'No bids yet')}</span>
@@ -872,7 +859,6 @@
           </div>
           <div class="reminder-actions">
             <button class="btn btn-sm btn-primary" onclick="createPackageFromReminder('${r.vehicleId}', '${r.title.replace(/'/g, "\\'")}')">Schedule</button>
-            ${typeof REMINDER_TYPE_TO_CARE_KEY !== 'undefined' && REMINDER_TYPE_TO_CARE_KEY[r.type] ? `<button class="btn btn-sm btn-ghost" onclick="openAcademyCareCard('${REMINDER_TYPE_TO_CARE_KEY[r.type]}')" title="Learn about this service" style="color:var(--accent-teal);">${mccIcon('book-open', 16)}</button>` : ''}
             <button class="btn btn-sm btn-secondary" onclick="snoozeReminder('${r.id}', ${r.dbId ? `'${r.dbId}'` : 'null'})" title="Snooze for 7 days">${mccIcon('clock', 16)}</button>
             <button class="btn btn-sm btn-ghost" onclick="dismissReminder('${r.id}')" title="Dismiss reminder">${mccIcon('x', 16)}</button>
           </div>
@@ -904,7 +890,6 @@
       `).join('');
     }
 
-    // ========== DESTINATION SERVICE HANDLING ==========
     function handlePickupChange() {
       const pickup = document.getElementById('p-pickup').value;
       const destFields = document.getElementById('destination-service-fields');
@@ -971,7 +956,6 @@
       document.getElementById('p-title').value = title;
     }
 
-    // ========== PACKAGE PHOTO HANDLING ==========
     function handlePackagePhotoSelect(event) {
       const files = Array.from(event.target.files);
       const maxPhotos = 5;
@@ -1061,7 +1045,6 @@
     }
 
 
-    // ========== SAVE FUNCTIONS ==========
     async function saveVehicle() {
       const make = document.getElementById('v-make').value.trim();
       const model = document.getElementById('v-model').value.trim();
@@ -1699,7 +1682,6 @@
       };
     }
 
-    // ========== REPOST EXPIRED PACKAGE ==========
     async function repostPackage(packageId) {
       const pkg = packages.find(p => p.id === packageId);
       if (!pkg) return;
@@ -1751,7 +1733,6 @@
       await loadPackages();
     }
 
-    // ========== EXTEND DEADLINE ==========
     let selectedExtendHours = 24;
     let currentExtendPackage = null;
 
@@ -1823,7 +1804,6 @@
       await loadPackages();
     }
 
-    // ========== VIEW PACKAGE WITH BIDS ==========
     async function viewPackage(packageId) {
       currentViewPackage = packageId;
       const pkg = packages.find(p => p.id === packageId);
@@ -1867,34 +1847,8 @@
 
       const priceEstimate = await fetchPriceEstimate(pkg.category, pkg.member_zip, packageId);
 
-      // Check if user already reviewed this package
-      let hasReviewed = false;
-      try {
-        const { data: existingReview } = await supabaseClient
-          .from('provider_reviews')
-          .select('id')
-          .eq('package_id', packageId)
-          .eq('member_id', currentUser.id)
-          .maybeSingle();
-        hasReviewed = !!existingReview;
-      } catch (e) {}
-
-      // Load provider stats for each bid
-      const providerStats = {};
-      const providerPerformance = {};
-      if (bids?.length) {
-        const providerIds = bids.map(b => b.provider_id);
-        const { data: stats } = await supabaseClient.from('provider_stats').select('*').in('provider_id', providerIds);
-        stats?.forEach(s => providerStats[s.provider_id] = s);
-        
-        // Load provider performance data
-        const { data: perfData } = await getProviderPerformanceByIds(providerIds);
-        perfData?.forEach(p => providerPerformance[p.provider_id] = p);
-      }
-
       // Load provider application data for enhanced transparency
       const providerApplications = {};
-      const providerAiSummaries = {};
       if (bids?.length) {
         const providerIds = bids.map(b => b.provider_id);
         const { data: applications } = await supabaseClient
@@ -1903,14 +1857,6 @@
           .in('user_id', providerIds)
           .eq('status', 'approved');
         applications?.forEach(app => providerApplications[app.user_id] = app);
-        
-        const summaryPromises = providerIds.map(async pid => {
-          try {
-            const { data } = await getAiReviewSummary(pid);
-            if (data && data.summary_text) providerAiSummaries[pid] = data;
-          } catch (e) {}
-        });
-        await Promise.all(summaryPromises);
       }
 
       const vehicle = pkg.vehicles;
@@ -1954,17 +1900,11 @@
         </div>
         ` : ''}
 
-        ${renderPriceEstimateWidget(priceEstimate)}
-
         <div class="form-section">
           <div class="form-section-title">Bids (${bids?.length || 0})</div>
-          ${bids?.length >= 2 ? `<div id="ai-recommendation-container" style="margin-bottom:16px;"></div>` : ''}
           ${!bids?.length ? '<p style="color:var(--text-muted);">No bids yet. Providers are reviewing your package.</p>' : `
-            <div class="bids-list" id="bids-list-container">
-              ${(() => {
-                const pendingBids = bids.filter(b => b.status === 'pending');
-                const lowestPendingPrice = pendingBids.length ? Math.min(...pendingBids.map(b => b.price || 0)) : Infinity;
-                return bids.map((bid, bidIndex) => {
+            <div class="bids-list">
+              ${bids.map(bid => {
                 const stats = providerStats[bid.provider_id] || {};
                 const perf = providerPerformance[bid.provider_id];
                 const appData = providerApplications[bid.provider_id] || {};
@@ -1990,12 +1930,12 @@
                 const badgeIcons = {'top_rated': mccIcon('trophy', 16), 'quick_responder': mccIcon('zap', 16), 'veteran': mccIcon('award', 16), 'perfect_score': mccIcon('star', 16), 'dispute_free': mccIcon('shield', 16)};
                 
                 return `
-                  <div class="bid-card" data-bid-index="${bidIndex}" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;margin-bottom:12px;transition:all 0.3s ease;">
+                  <div class="bid-card" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;margin-bottom:12px;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
                       <div style="display:flex;gap:12px;align-items:flex-start;">
                         <div style="width:48px;height:48px;background:var(--accent-gold-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${mccIcon('wrench', 20)}</div>
                         <div>
-                          <div class="bid-card-badges" style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap;">
+                          <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap;">
                             <h4 style="margin:0;font-size:1rem;">${providerName}</h4>
                             ${perf ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:${tierColors[tier]}20;color:${tierColors[tier]};border:1px solid ${tierColors[tier]}40;">${tierIcon} ${tier.charAt(0).toUpperCase() + tier.slice(1)}</span>` : ''}
                             ${isBackgroundVerified ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);" title="This provider has voluntarily completed background verification for added trust">${mccIcon('shield', 16)} Background Verified</span>` : ''}
@@ -2018,7 +1958,6 @@
                       <div style="text-align:right;">
                         <div style="font-size:1.4rem;font-weight:600;color:var(--accent-gold);">$${bidPrice.toFixed(2)}</div>
                         <div style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.05));border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:3px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;margin-top:4px;cursor:help;" title="This price includes all parts, labor, taxes, shop fees, and disposal fees. No hidden costs or surprises.">${mccIcon('check', 16)} All-Inclusive</div>
-                        ${getBidComparisonTag(bidPrice, priceEstimate)}
                         ${bid.status === 'accepted' ? `<span style="color:var(--accent-green);font-size:0.8rem;display:block;margin-top:4px;">${mccIcon('check', 16)} Accepted</span>` : ''}
                         ${bid.status === 'rejected' ? `<span style="color:var(--accent-red);font-size:0.8rem;display:block;margin-top:4px;">${mccIcon('x', 16)} Not selected</span>` : ''}
                       </div>
@@ -2031,25 +1970,6 @@
                       </div>
                     ` : ''}
                     
-                    ${providerAiSummaries[bid.provider_id] ? (() => {
-                      const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-                      const aiData = providerAiSummaries[bid.provider_id];
-                      return `
-                      <div style="margin-bottom:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.15);border-radius:var(--radius-md);">
-                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-                          <span style="font-size:0.78rem;font-weight:600;color:var(--accent-blue);">AI Review Summary</span>
-                          <span style="font-size:0.68rem;color:var(--text-muted);margin-left:auto;padding:2px 6px;background:var(--bg-input);border-radius:100px;">AI-generated</span>
-                        </div>
-                        <p style="font-size:0.88rem;color:var(--text-secondary);line-height:1.6;margin:0;">${esc(aiData.summary_text)}</p>
-                        ${aiData.positive_themes?.length ? `
-                          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
-                            ${aiData.positive_themes.map(t => `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;background:var(--accent-green-soft);color:var(--accent-green);border:1px solid rgba(52,211,153,0.25);">+ ${esc(t)}</span>`).join('')}
-                            ${(aiData.constructive_themes || []).map(t => `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;background:var(--accent-orange-soft);color:var(--accent-orange);border:1px solid rgba(251,146,60,0.25);">~ ${esc(t)}</span>`).join('')}
-                          </div>
-                        ` : ''}
-                      </div>`;
-                    })() : ''}
                     ${bid.parts_cost || bid.labor_cost ? `
                       <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">
                         ${bid.parts_cost ? `Parts: $${bid.parts_cost.toFixed(2)}` : ''}
@@ -2060,21 +1980,13 @@
                     ${bid.estimated_duration ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('clock', 16)} Estimated time: ${bid.estimated_duration}</div>` : ''}
                     ${bid.available_dates ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('calendar', 16)} Availability: ${bid.available_dates}</div>` : ''}
                     ${bid.notes ? `<div style="color:var(--text-secondary);margin-bottom:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;">"${bid.notes}"</div>` : ''}
-                    ${(priceEstimate?.has_estimate && bid.status === 'pending' && bidPrice === lowestPendingPrice && bidPrice > priceEstimate.high) ? `
-                      <div id="counter-panel-${bid.id}" style="margin-bottom:12px;">
-                        <button class="btn btn-ghost btn-sm" onclick="showCounterSuggestion('${bid.id}', this)" style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--accent-orange);border-color:rgba(251,146,60,0.3);background:rgba(251,146,60,0.06);">
-                          ${mccIcon('trending-down', 14)} Counter-Offer Suggestion
-                        </button>
-                      </div>
-                    ` : ''}
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                       <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}')">${mccIcon('message-square', 16)} Message</button>
                       ${pkg.status === 'open' && bid.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="acceptBid('${bid.id}', '${packageId}')">${mccIcon('check', 16)} Accept Bid</button>` : ''}
                     </div>
                   </div>
                 `;
-              }).join('');
-              })()}
+              }).join('')}
             </div>
           `}
         </div>
@@ -2099,7 +2011,6 @@
               <div id="slot-booking-status-${packageId}" style="margin-bottom:16px;display:none;"></div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <button class="btn btn-primary btn-sm" onclick="openScheduleModal('${packageId}', '${pkg.member_id}', '${acceptedBid?.provider_id || ''}')">${mccIcon('calendar', 16)} Schedule Appointment</button>
-                <button class="btn btn-secondary btn-sm" onclick="openMemberCalendarOptions('${packageId}')">${mccIcon('calendar', 16)} Add to Calendar</button>
               </div>
             </div>
 
@@ -2178,23 +2089,9 @@
                 ${mccIcon('check', 16)} Provider has marked work as complete on ${new Date(pkg.work_completed_at).toLocaleDateString()}
               </div>
               <p style="color:var(--text-secondary);margin-bottom:16px;">Once you receive your vehicle and verify the work is complete, confirm below to release payment to the provider.</p>
-              <div style="display:flex;gap:12px;margin-bottom:20px;">
+              <div style="display:flex;gap:12px;">
                 <button class="btn btn-primary" onclick="openReleasePaymentModal('${packageId}')">${mccIcon('check', 16)} Confirm Complete & Release Payment</button>
                 <button class="btn btn-danger btn-sm" onclick="openDispute('${packageId}')">${mccIcon('alert-triangle', 16)} Open Dispute</button>
-              </div>
-              <div id="ai-mediation-panel-${packageId}" style="border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;background:var(--bg-card);">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                  <div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.95rem;">
-                    ${mccIcon('gavel', 16)} AI Mediation
-                    <span style="font-size:0.65rem;padding:2px 6px;background:rgba(56,189,248,0.15);border-radius:100px;color:var(--accent-blue);">AI</span>
-                  </div>
-                </div>
-                <p style="color:var(--text-secondary);font-size:0.88rem;margin-bottom:12px;">Have concerns? Get a neutral AI review of all available evidence before deciding.</p>
-                <div id="ai-mediation-result-${packageId}" style="display:none;"></div>
-                <div id="ai-mediation-actions-${packageId}">
-                  <button class="btn btn-secondary btn-sm" onclick="requestAiMediation('${packageId}')" id="ai-mediation-btn-${packageId}" style="margin-right:8px;">${mccIcon('search', 14)} Review with AI</button>
-                  <a href="mailto:support@mycarconcierge.com?subject=Package ${packageId} - Support Request" style="font-size:0.85rem;color:var(--accent-blue);text-decoration:underline;">Contact Support</a>
-                </div>
               </div>
             ` : ''}
           </div>
@@ -2206,28 +2103,13 @@
             <div class="alert" style="background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);color:var(--accent-green);padding:16px;border-radius:var(--radius-md);margin-bottom:16px;">
               ${mccIcon('check', 16)} This job was completed on ${new Date(pkg.member_confirmed_at || pkg.work_completed_at).toLocaleDateString()}
             </div>
-            ${pkg.completion_notes ? `
-              <div style="padding:16px;background:linear-gradient(135deg,rgba(56,189,248,0.06),rgba(34,211,238,0.04));border:1px solid rgba(56,189,248,0.2);border-radius:var(--radius-md);margin-bottom:16px;">
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-                  <span style="font-size:0.78rem;font-weight:600;color:var(--accent-blue);">Service Summary</span>
-                  <span style="font-size:0.68rem;color:var(--text-muted);margin-left:auto;padding:2px 6px;background:var(--bg-input);border-radius:100px;">From provider</span>
-                </div>
-                <p style="font-size:0.9rem;color:var(--text-secondary);line-height:1.6;margin:0;">${pkg.completion_notes.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
-              </div>
-            ` : ''}
-            <div id="debrief-panel-${packageId}" style="margin-bottom:16px;"></div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-              <button class="btn btn-secondary btn-sm" onclick="generateAppointmentDebrief('${packageId}')" id="debrief-btn-${packageId}" style="display:flex;align-items:center;gap:6px;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-                ${pkg.completion_notes ? 'Regenerate AI Summary' : 'Generate Service Summary'}
-              </button>
-              ${hasReviewed ? `
-                <div style="color:var(--text-secondary);font-size:0.9rem;">${mccIcon('check', 16)} You've already reviewed this service</div>
-              ` : `
-                <button class="btn btn-secondary" onclick="openReviewModal('${packageId}')">${mccIcon('star', 16)} Leave a Review</button>
-              `}
-            </div>
+            ${hasReviewed ? `
+              <div style="color:var(--text-secondary);font-size:0.9rem;">${mccIcon('check', 16)} You've already reviewed this service</div>
+            ` : `
+              <button class="btn btn-secondary" onclick="openReviewModal('${packageId}')">${mccIcon('star', 16)} Leave a Review</button>
+            `}
+          </div>
+        ` : ''}
           </div>
         ` : ''}
 
@@ -2624,14 +2506,12 @@
       }
     }
 
-    // ========== ESCROW PAYMENT UI ==========
     let currentEscrowCardElement = null;
     let currentEscrowElements = null;
     let currentEscrowClientSecret = null;
     let currentEscrowPackageId = null;
     let currentEscrowBidId = null;
 
-    // ========== ADDITIONAL WORK REQUESTS & DISCOUNTS ==========
     let packageAdditionalWork = {};
     let packageDiscounts = {};
     let currentAdditionalWorkId = null;
@@ -3522,7 +3402,6 @@
       `;
     }
 
-    // ========== QR CODE CHECK-IN SECTION ==========
     async function renderCheckinQRSection(pkg) {
       if (!pkg) return '';
       
@@ -3869,7 +3748,6 @@
       }
     }
 
-    // ========== MOBILE PAY FUNCTIONS ==========
     async function initMobilePayButtons(packageId) {
       const isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
       
@@ -4135,7 +4013,6 @@
       }
     }
 
-    // ========== RELEASE PAYMENT MODAL ==========
     let currentReleasePackageId = null;
     let currentReleasePackageData = null;
     let currentReleaseBidData = null;
@@ -4262,7 +4139,6 @@
       }
     }
 
-    // ========== REVIEWS ==========
     let currentReviewPackageId = null;
     let currentReviewProviderId = null;
 
@@ -4661,7 +4537,6 @@
     }
 
 
-    // ========== DESTINATION SERVICES ==========
     let destinationServices = [];
     let currentDestServiceType = null;
     let currentDestFilter = 'active';
@@ -5295,7 +5170,6 @@
       await loadDestinationServices();
     }
 
-    // ========== MAINTENANCE SCHEDULE ==========
     let maintenanceScheduleData = [];
     let maintenanceServiceTypes = [];
     let maintenanceServiceHistory = [];
@@ -6119,7 +5993,6 @@
     }
 
 
-    // ========== COST ESTIMATOR ==========
     const estimatorServiceData = {
       maintenance: {
         name: 'Maintenance', icon: mccIcon('wrench', 16),
@@ -6775,7 +6648,6 @@
       populateEstimatorMakes();
     }
 
-    // ========== SPLIT PAYMENT FUNCTIONS ==========
 
     let splitParticipantRows = [];
     let currentSplitCardElement = null;
@@ -6955,10 +6827,6 @@
         { email: userEmail, amount_cents: halfAmount, display_name: userProfile?.full_name || '', is_guest: false },
         { email: '', amount_cents: otherHalf, display_name: '', is_guest: false }
       ];
-
-      const existingModal = document.getElementById('split-payment-modal');
-      if (existingModal) existingModal.remove();
-
       const modalHtml = `
         <div id="split-payment-modal" class="modal active" style="z-index:10001;">
           <div class="modal-overlay" onclick="closeSplitModal()"></div>
@@ -6991,9 +6859,89 @@
         </div>
       `;
 
+      const existingModal = document.getElementById('split-payment-modal');
+      if (existingModal) existingModal.remove();
+
       document.body.insertAdjacentHTML('beforeend', modalHtml);
       renderSplitParticipantsList(totalAmountCents);
-    }
+    };
+
+    window.submitSplitReactivation = async function(splitId, totalAmountCents) {
+      const errorEl = document.getElementById('split-error');
+      const btn = document.getElementById('submit-split-btn');
+
+      for (const p of splitParticipantRows) {
+        if (!p.email || !p.email.includes('@')) {
+          errorEl.textContent = 'All participants must have a valid email address.';
+          errorEl.style.display = 'block';
+          return;
+        }
+        if (!p.amount_cents || p.amount_cents < 50) {
+          errorEl.textContent = 'Each participant must pay at least $0.50.';
+          errorEl.style.display = 'block';
+          return;
+        }
+      }
+
+      const currentTotal = splitParticipantRows.reduce((sum, p) => sum + p.amount_cents, 0);
+      if (currentTotal !== totalAmountCents) {
+        errorEl.textContent = `Amounts must total $${(totalAmountCents / 100).toFixed(2)}. Currently: $${(currentTotal / 100).toFixed(2)}`;
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      const emails = splitParticipantRows.map(p => p.email.toLowerCase());
+      const uniqueEmails = new Set(emails);
+      if (uniqueEmails.size !== emails.length) {
+        errorEl.textContent = 'Each participant must have a unique email address.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      errorEl.style.display = 'none';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;"><span class="spinner"></span> Reactivating...</span>';
+      }
+
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/split/reactivate/${splitId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            participants: splitParticipantRows.map(p => ({
+              email: p.email,
+              amount_cents: p.amount_cents,
+              display_name: p.display_name || undefined,
+              is_guest: p.is_guest || false
+            }))
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to reactivate split payment');
+        }
+
+        closeSplitModal();
+        showToast('Split payment reactivated! Participants have been notified.', 'success');
+
+        await loadPackages();
+        if (currentViewPackage) {
+          setTimeout(() => viewPackage(currentViewPackage), 300);
+        }
+
+      } catch (err) {
+        console.error('Split payment reactivation error:', err);
+        errorEl.textContent = err.message || 'Failed to reactivate split payment. Please try again.';
+        errorEl.style.display = 'block';
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = mccIcon('refresh-cw', 16) + ' Reactivate Split Payment';
+        }
+      }
+    };
 
     function closeSplitModal() {
       const modal = document.getElementById('split-payment-modal');
@@ -7141,14 +7089,8 @@
               <span style="font-weight:500;color:var(--text-primary);">${isCurrentUser ? mccIcon('user', 16) + ' You' : isGuest ? mccIcon('link', 16) + ' Guest Payer' : `${mccIcon('user', 16)} Participant ${i + 1}`}</span>
               <div style="display:flex;align-items:center;gap:8px;">
                 ${!isCurrentUser ? `
-                  <button onclick="toggleSplitParticipantGuest(${i}, ${totalAmountCents})" style="background:${isGuest ? 'rgba(251, 146, 60, 0.15)' : 'var(--bg-input)'};border:1px solid ${isGuest ? 'rgba(251, 146, 60, 0.3)' : 'var(--border-subtle)'};border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.8rem;color:${isGuest ? 'var(--accent-orange)' : 'var(--text-muted)'};">${isGuest ? mccIcon('link', 16) + ' Guest' : mccIcon('user', 16) + ' Member'}</button>
+                  <button onclick="toggleSplitParticipantGuest(${i}, ${totalAmountCents})" style="background:${isGuest ? "rgba(251, 146, 60, 0.15)" : "var(--bg-input)"};border:1px solid ${isGuest ? "rgba(251, 146, 60, 0.3)" : "var(--border-subtle)"};border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.8rem;color:${isGuest ? "var(--accent-orange)" : "var(--text-muted)"};">${isGuest ? mccIcon("link", 16) + " Guest" : mccIcon("user", 16) + " Member"}</button>
                 ` : ''}
-                ${!isCurrentUser && splitParticipantRows.length > 2 ? `<button onclick="removeSplitParticipant(${i}, ${totalAmountCents})" style="background:none;border:none;color:var(--accent-red);cursor:pointer;font-size:0.9rem;">Remove</button>` : ''}
-              </div>
-            </div>
-            ${isGuest ? `<div style="background:rgba(251, 146, 60, 0.08);border:1px solid rgba(251, 146, 60, 0.15);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:12px;font-size:0.82rem;color:var(--accent-orange);">This person doesn't need an account. They'll receive a secure payment link via email.</div>` : ''}
-            <div style="margin-bottom:12px;">
-              <label style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">Email</label>
               <input type="email" value="${row.email}" ${isCurrentUser ? 'readonly style="opacity:0.7;"' : ''} onchange="updateSplitParticipant(${i}, 'email', this.value)" style="width:100%;padding:10px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);color:var(--text-primary);font-size:0.95rem;box-sizing:border-box;" placeholder="email@example.com" />
             </div>
             <div style="margin-bottom:8px;">
@@ -7182,10 +7124,6 @@
     function updateSplitParticipantAmount(index, dollarValue, totalAmountCents) {
       if (splitParticipantRows[index]) {
         splitParticipantRows[index].amount_cents = Math.round(parseFloat(dollarValue) * 100) || 0;
-        updateSplitAmountStatus(totalAmountCents);
-      }
-    }
-
     function addSplitParticipantRow(totalAmountCents) {
       splitParticipantRows.push({ email: '', amount_cents: 0, display_name: '', is_guest: false });
       renderSplitParticipantsList(totalAmountCents);
@@ -7193,10 +7131,6 @@
 
     function removeSplitParticipant(index, totalAmountCents) {
       splitParticipantRows.splice(index, 1);
-      renderSplitParticipantsList(totalAmountCents);
-    }
-
-    function updateSplitAmountStatus(totalAmountCents) {
       const statusEl = document.getElementById('split-amount-status');
       if (!statusEl) return;
 

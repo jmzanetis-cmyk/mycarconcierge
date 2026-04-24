@@ -147,13 +147,13 @@ test.describe('Public Endpoint Rate Limit Tests', () => {
     expect(headers['x-ratelimit-reset']).toBeDefined();
   });
 
-  test('POST /api/helpdesk has correct public rate limit of 10', async ({ page }) => {
+  test('POST /api/helpdesk has correct public rate limit of 30', async ({ page }) => {
     const response = await page.request.post(`${BASE_URL}/api/helpdesk`, {
       data: { message: 'test' },
       headers: { 'Content-Type': 'application/json' }
     });
     const limit = parseInt(response.headers()['x-ratelimit-limit'], 10);
-    expect(limit).toBe(10);
+    expect(limit).toBe(30);
   });
 });
 

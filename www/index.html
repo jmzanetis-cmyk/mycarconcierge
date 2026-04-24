@@ -122,6 +122,7 @@
     
     /* Light mode alternating sections for depth */
     [data-theme="light"] .how-it-works,
+    [data-theme="light"] .founder-programs,
     [data-theme="light"] .cta-section {
       background: var(--bg-section-alt, #eaecf0);
     }
@@ -1844,6 +1845,7 @@
       <a href="#features" onclick="closeMobileMenu()" data-i18n="nav.features">Features</a>
       <a href="#" onclick="openFounderModal(); closeMobileMenu(); return false;" class="founder-link" data-i18n="nav.ourStory">About</a>
       <a href="/contact.html" onclick="closeMobileMenu()">Contact</a>
+      <div class="mobile-lang-switcher" id="mobile-language-switcher"></div>
       <button class="header-theme-toggle" onclick="toggleTheme(); closeMobileMenu();" title="Toggle theme" aria-label="Toggle light/dark theme">
         <span class="theme-icon-sun"><span class="icon-inline" data-icon="sun"></span> Day</span>
         <span class="theme-icon-moon"><span class="icon-inline" data-icon="moon"></span> Night</span>

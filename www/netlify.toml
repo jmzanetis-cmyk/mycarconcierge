@@ -20,6 +20,15 @@
   to = "/.netlify/functions/survey-profile"
   status = 200
 
+[functions."outreach-cycle"]
+  schedule = "*/15 * * * *"
+
+[functions."outreach-followups"]
+  schedule = "0 */6 * * *"
+
+[functions."outreach-cleanup"]
+  schedule = "0 0 * * 0"
+
 [[redirects]]
   from = "/t/o"
   to = "/.netlify/functions/email-tracking?a=open"

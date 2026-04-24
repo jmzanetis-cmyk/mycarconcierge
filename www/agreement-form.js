@@ -235,7 +235,7 @@ var AgreementForm = (function() {
         '<label for="agreement-email">Email Address <span class="required">*</span></label>' +
         '<input type="email" id="agreement-email" name="email" required placeholder="Enter your email address">' +
         '<span class="field-hint">For sending your signed agreement PDF</span>' +
-      '</div>';
+        '</div>';
     }
 
     if (fields.indexOf('website') !== -1) {
@@ -287,52 +287,40 @@ var AgreementForm = (function() {
         ackItems +
       '</div>';
     }
-    
-    container.innerHTML = '<form id="agreement-form" class="agreement-form ' + (isDarkMode ? 'dark-mode' : 'light-mode') + '" novalidate>' +
-      '<div id="agreement-form-error" style="display:none;background:#ff4444;color:#fff;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:14px;text-align:center;"></div>' +
-      '<div class="agreement-form-section">' +
-        '<h3>Your Information</h3>' +
-        fieldsHtml +
-      '</div>' +
-      '<div class="agreement-form-section">' +
-        '<h3>Effective Date</h3>' +
-        '<div class="agreement-field">' +
-          '<input type="date" id="agreement-date" name="effective_date" value="' + new Date().toISOString().split('T')[0] + '">' +
-        '</div>' +
-      '</div>' +
-      acknowledgementsHtml +
-      '<div class="agreement-form-section">' +
-        '<h3>Your Signature <span class="required">*</span></h3>' +
-        '<div id="signature-pad-area"></div>' +
-      '</div>' +
-      '<div class="agreement-form-section agreement-final-confirm">' +
-        '<label class="final-confirm-checkbox">' +
-          '<input type="checkbox" id="final-agreement-confirm">' +
-          '<span>I have read, understand, and agree to the terms of this agreement. I acknowledge that this electronic signature is legally binding.</span>' +
-        '</label>' +
-      '</div>' +
-      '<div class="agreement-form-actions">' +
-        '<button type="submit" class="submit-agreement-btn">' +
-          '<span class="btn-text">Sign Agreement</span>' +
-          '<span class="btn-loading" style="display:none;">Submitting...</span>' +
-        '</button>' +
-      '</div>' +
-      '<input type="hidden" name="agreement_type" value="' + agreementType + '">' +
-    '</form>';
-    
-    createSignaturePad('signature-pad-area');
-    
-    var form = document.getElementById('agreement-form');
-    var errorDiv = document.getElementById('agreement-form-error');
 
-    function showFormError(msg) {
-      errorDiv.textContent = msg;
-      errorDiv.style.display = 'block';
-      errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (fields.indexOf('website') !== -1) {
+      fieldsHtml += '<div class="agreement-field">' +
+        '<label for="agreement-website">Portfolio / Website</label>' +
+        '<input type="url" id="agreement-website" name="website" placeholder="https://www.yoursite.com">' +
+        '<span class="field-hint">Your portfolio or personal website (optional)</span>' +
+      '</div>';
     }
 
-    function hideFormError() {
-      errorDiv.style.display = 'none';
+    if (fields.indexOf('country') !== -1) {
+      fieldsHtml += '<div class="agreement-field">' +
+        '<label for="agreement-country">Country of Residence <span class="required">*</span></label>' +
+        '<input type="text" id="agreement-country" name="country" required placeholder="Enter your country of residence">' +
+      '</div>';
+    }
+
+    if (fields.indexOf('role_scope') !== -1) {
+      var scopeOptions = options.scopeOptions || [
+        { value: 'development', label: 'Development & Maintenance' },
+        { value: 'marketing', label: 'Marketing & Advertising' },
+        { value: 'social_media', label: 'Social Media & Content' },
+        { value: 'development_marketing', label: 'Development + Marketing' },
+        { value: 'all', label: 'All Services (Development, Marketing, Social Media)' }
+      ];
+      var scopeOptionsHtml = '<option value="">Select your role...</option>';
+      for (var si = 0; si < scopeOptions.length; si++) {
+        scopeOptionsHtml += '<option value="' + scopeOptions[si].value + '">' + scopeOptions[si].label + '</option>';
+      }
+      fieldsHtml += '<div class="agreement-field">' +
+        '<label for="agreement-role-scope">Role / Scope of Services <span class="required">*</span></label>' +
+        '<select id="agreement-role-scope" name="role_scope" required style="width:100%;padding:12px 16px;border-radius:8px;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-primary);font-family:inherit;font-size:14px;">' +
+        scopeOptionsHtml +
+        '</select>' +
+      '</div>';
     }
 
     form.addEventListener('submit', function(e) {
@@ -352,7 +340,6 @@ var AgreementForm = (function() {
         einField.focus();
         return;
       }
-
       var fullNameField = form.querySelector('[name="full_name"]');
       if (fullNameField && !fullNameField.value.trim()) {
         showFormError('Please enter your full legal name.');

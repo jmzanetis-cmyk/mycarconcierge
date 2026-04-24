@@ -457,42 +457,25 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title">Brand Specializations (optional)</div>
-          <div class="checkbox-group" id="brands-checkboxes">
-            <label class="checkbox-item"><input type="checkbox" value="toyota"> Toyota / Lexus</label>
-            <label class="checkbox-item"><input type="checkbox" value="honda"> Honda / Acura</label>
-            <label class="checkbox-item"><input type="checkbox" value="ford"> Ford / Lincoln</label>
-            <label class="checkbox-item"><input type="checkbox" value="gm"> GM / Chevy / Cadillac</label>
-            <label class="checkbox-item"><input type="checkbox" value="bmw"> BMW</label>
-            <label class="checkbox-item"><input type="checkbox" value="mercedes"> Mercedes-Benz</label>
-            <label class="checkbox-item"><input type="checkbox" value="audi"> Audi / VW</label>
-            <label class="checkbox-item"><input type="checkbox" value="hyundai"> Hyundai / Kia</label>
-            <label class="checkbox-item"><input type="checkbox" value="nissan"> Nissan / Infiniti</label>
-            <label class="checkbox-item"><input type="checkbox" value="ev"> Electric Vehicles</label>
-            <label class="checkbox-item"><input type="checkbox" value="classic"> Classic / Vintage</label>
-            <label class="checkbox-item"><input type="checkbox" value="exotic"> Exotic / Luxury</label>
+          <div class="form-section-title">Credentials & Verification</div>
+          <div class="form-group">
+            <label class="form-label">Insurance Document <span class="required">*</span></label>
+            <div class="file-upload" onclick="document.getElementById('insurance-file').click()">
+              <div class="file-upload-icon">📄</div>
+              <div class="file-upload-text">Click to upload current Liability Insurance (PDF or Image)</div>
+              <input type="file" id="insurance-file" accept=".pdf,image/*" onchange="handleFileUpload(this, 'insurance')">
+            </div>
+            <div class="uploaded-files" id="insurance-list"></div>
           </div>
-        </div>
 
-        <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Years in Business <span class="required">*</span></label>
-            <input type="number" class="form-input" id="years-business" placeholder="5" required min="0">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Number of Employees</label>
-            <input type="number" class="form-input" id="employees" placeholder="3">
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Service Bays</label>
-            <input type="number" class="form-input" id="bays" placeholder="4">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Vehicles per Week (capacity)</label>
-            <input type="number" class="form-input" id="capacity" placeholder="20">
+            <label class="form-label">Certifications (optional)</label>
+            <div class="file-upload" onclick="document.getElementById('cert-file').click()">
+              <div class="file-upload-icon">🏅</div>
+              <div class="file-upload-text">Upload ASE, I-CAR, or other certifications</div>
+              <input type="file" id="cert-file" accept=".pdf,image/*" multiple onchange="handleFileUpload(this, 'certs')">
+            </div>
+            <div class="uploaded-files" id="certs-list"></div>
           </div>
         </div>
 
@@ -501,11 +484,8 @@
           <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Do you offer loaner vehicles to customers while their car is being serviced? This is a big differentiator for members!</p>
           
           <div class="form-group">
-            <label class="form-label">Do you offer loaner vehicles?</label>
-            <div class="checkbox-group" id="loaner-available">
-              <label class="checkbox-item" onclick="toggleLoaner(true)"><input type="radio" name="loaner" value="yes"> Yes, we have loaner vehicles</label>
-              <label class="checkbox-item" onclick="toggleLoaner(false)"><input type="radio" name="loaner" value="no" checked> No loaner vehicles available</label>
-            </div>
+            <label class="form-label">Google Maps Link</label>
+            <input type="url" class="form-input" id="google-link" placeholder="https://maps.google.com/...">
           </div>
 
           <div id="loaner-details" style="display:none;">
@@ -554,39 +534,31 @@
           <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Can you pick up and/or deliver vehicles? This is essential for the MCC concierge experience.</p>
           
           <div class="form-group">
-            <label class="form-label">Pickup & Delivery Capabilities</label>
-            <div class="checkbox-group" id="pickup-delivery-options">
-              <label class="checkbox-item"><input type="checkbox" value="pickup_vehicle"> We can pick up member's vehicle</label>
-              <label class="checkbox-item"><input type="checkbox" value="deliver_vehicle"> We can deliver vehicle after service</label>
-              <label class="checkbox-item"><input type="checkbox" value="flatbed"> We have flatbed/tow capability</label>
-              <label class="checkbox-item"><input type="checkbox" value="rideshare_coord"> We can coordinate rideshare for member</label>
-            </div>
+            <label class="form-label">Yelp Profile</label>
+            <input type="url" class="form-input" id="yelp-link" placeholder="https://yelp.com/biz/...">
           </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Pickup/delivery radius (miles)</label>
-              <input type="number" class="form-input" id="pickup-radius" placeholder="15" min="0">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Pickup/delivery fee</label>
-              <select class="form-select" id="pickup-fee">
-                <option value="free">Free</option>
-                <option value="included">Included in service</option>
-                <option value="flat">Flat fee</option>
-                <option value="per_mile">Per mile</option>
-                <option value="varies">Varies by distance</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group" id="pickup-fee-amount-group" style="display:none;">
-            <label class="form-label">Fee amount ($)</label>
-            <input type="number" class="form-input" id="pickup-fee-amount" placeholder="25" min="0">
+        </div>
+          <div class="form-group">
+            <label class="form-label">Yelp Profile</label>
+            <input type="url" class="form-input" id="yelp-link" placeholder="https://yelp.com/biz/...">
           </div>
         </div>
 
-        <hr style="border:none;border-top:1px solid var(--border-subtle);margin:28px 0 20px;">
+        <div class="form-nav">
+          <button class="btn btn-secondary" onclick="prevStep(2)">← Back</button>
+          <button class="btn btn-primary" onclick="nextStep(2)">Continue →</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Terms & Submit -->
+      <div class="step" id="step-3">
+        <h2 class="step-title">Final Details & Terms</h2>
+        <p class="step-subtitle">Almost there! Review our terms and submit your application.</p>
+
+        <div class="form-group">
+          <label class="form-label">Tell us about your experience & specialties</label>
+          <textarea class="form-textarea" id="experience" placeholder="How long have you been in business? What makes your shop stand out?"></textarea>
+        </div>
 
         <div class="form-section">
           <div class="form-section-title">Business License <span class="required">*</span></div>
@@ -627,7 +599,24 @@
           <div class="uploaded-files" id="files-portfolio"></div>
         </div>
 
-        <hr style="border:none;border-top:1px solid var(--border-subtle);margin:28px 0 20px;">
+        <div class="form-section" style="background:var(--bg-input);padding:24px;border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+          <div class="form-section-title" style="border:none;margin-bottom:12px;">The Provider Pledge</div>
+          <ul style="font-size:0.9rem;color:var(--text-secondary);margin-left:20px;margin-bottom:20px;display:grid;gap:8px;">
+            <li>I will provide honest, professional service to all members.</li>
+            <li>I will honor the bids I place on the platform.</li>
+            <li>I will maintain active liability insurance.</li>
+            <li>I will communicate promptly with members regarding their vehicles.</li>
+          </ul>
+        <div class="form-nav">
+          <button class="btn btn-ghost" onclick="prevStep(4)">← Back</button>
+          <button class="btn btn-primary" onclick="nextStep(4)">Continue →</button>
+        </div>
+      </div>
+
+      <!-- Step 5: Reviews & References -->
+      <div class="step" id="step-5">
+        <h2 class="step-title">Reviews & References</h2>
+        <p class="step-subtitle">Help us verify your reputation.</p>
 
         <div class="form-section">
           <div class="form-section-title">External Reviews</div>
@@ -725,7 +714,6 @@
             <li>Booking management, appointment scheduling, and customer communication tools</li>
             <li>Exposure to customers you might not reach through your own marketing</li>
           </ul>
-          <p style="margin-bottom:12px;">You are free to operate your own business independently. MCC is a tool to help you grow — not a restriction on how you run your shop.</p>
 
           <h4 style="margin:20px 0 12px;color:var(--text-primary);">2. PLATFORM-BOOKED JOBS</h4>
           <p style="margin-bottom:12px;">2.1. <strong>Complete What You Start:</strong> Jobs that are booked and paid for through MCC should be completed and managed through the MCC platform. This ensures both you and the customer have payment protection, communication records, and dispute resolution support.</p>
@@ -834,13 +822,12 @@
         </div>
 
         <div class="form-nav">
-          <button class="btn btn-ghost" onclick="prevStep(3)">← Back</button>
-          <button id="submit-btn" class="btn btn-primary" onclick="submitApplication()">Sign & Submit Application</button>
+          <button class="btn btn-secondary" onclick="prevStep(3)">← Back</button>
+          <button class="btn btn-primary" id="submit-btn" onclick="submitApplication()">Submit Application</button>
         </div>
       </div>
 
-      <!-- Success Screen -->
-      <div class="step" id="step-success">
+      <div id="success-step" class="step">
         <div class="success-screen">
           <div class="success-icon"><span class="icon-inline" data-icon="party-popper"></span></div>
           <h2 class="success-title">Welcome to My Car Concierge!</h2>
@@ -862,16 +849,12 @@
           </div>
           <a href="login.html" class="btn btn-primary" style="margin-right:12px;">Log In Now</a>
           <a href="index.html" class="btn btn-ghost">Return Home</a>
-        </div>
       </div>
     </div>
 
     <div class="footer">
-      <span data-i18n="auth.hasAccount">Already have an account?</span> <a href="login.html" data-i18n="auth.signIn">Sign in</a>
-    </div>
-
-    <div style="margin-top:20px;text-align:center;font-size:0.75rem;color:var(--text-muted);">
-      © 2025 My Car Concierge. All rights reserved. - IMOR
+      <p>© 2025 My Car Concierge. All rights reserved.</p>
+      <p style="margin-top:8px;"><a href="login.html">Already have an account? Sign in</a></p>
     </div>
   </div>
 
@@ -882,6 +865,151 @@
   <script src="/utils.js"></script>
   <script src="/pwa-init.js?v=20260202"></script>
   <script>
+    let currentStep = 1;
+    const uploadedFiles = { insurance: [], certs: [] };
+
+    function nextStep(step) {
+      if (!validateStep(step)) return;
+      document.getElementById(`step-${step}`).classList.remove('active');
+      currentStep = step + 1;
+      document.getElementById(`step-${currentStep}`).classList.add('active');
+      updateDots();
+      window.scrollTo(0, 0);
+    }
+
+    function prevStep(step) {
+      document.getElementById(`step-${step}`).classList.remove('active');
+      currentStep = step - 1;
+      document.getElementById(`step-${currentStep}`).classList.add('active');
+      updateDots();
+      window.scrollTo(0, 0);
+    }
+
+    function updateDots() {
+      document.querySelectorAll('.step-dot').forEach(dot => {
+        const dotStep = parseInt(dot.dataset.step);
+        dot.classList.remove('active', 'completed');
+        if (dotStep === currentStep) dot.classList.add('active');
+        if (dotStep < currentStep) dot.classList.add('completed');
+      });
+    }
+
+    function validateStep(step) {
+      const inputs = document.getElementById(`step-${step}`).querySelectorAll('[required]');
+      let valid = true;
+      inputs.forEach(input => {
+        if (!input.value) {
+          input.style.borderColor = '#ef5f5f';
+          valid = false;
+        } else {
+          input.style.borderColor = '';
+        }
+      });
+      if (step === 1) {
+        const pass = document.getElementById('password').value;
+        const confirm = document.getElementById('password-confirm').value;
+        if (pass !== confirm) {
+          showMessage('Passwords do not match', 'error');
+          valid = false;
+        }
+      }
+      return valid;
+    }
+
+    function handleFileUpload(input, type) {
+      const list = document.getElementById(`${type}-list`);
+      Array.from(input.files).forEach(file => {
+        uploadedFiles[type].push(file);
+        const item = document.createElement('div');
+        item.className = 'uploaded-file';
+        item.innerHTML = `<span>${file.name}</span><button onclick="removeFile('${type}', '${file.name}')">&times;</button>`;
+        list.appendChild(item);
+      });
+    }
+
+    function removeFile(type, name) {
+      uploadedFiles[type] = uploadedFiles[type].filter(f => f.name !== name);
+      const list = document.getElementById(`${type}-list`);
+      list.innerHTML = '';
+      uploadedFiles[type].forEach(file => {
+        const item = document.createElement('div');
+        item.className = 'uploaded-file';
+        item.innerHTML = `<span>${file.name}</span><button onclick="removeFile('${type}', '${file.name}')">&times;</button>`;
+        list.appendChild(item);
+      });
+    }
+
+    async function submitApplication() {
+      if (!document.getElementById('terms-agree').checked) {
+        showMessage('Please agree to the terms to continue', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
+      try {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              role: 'provider_pending',
+              business_name: document.getElementById('business-name').value,
+              full_name: document.getElementById('contact-name').value
+            }
+          }
+        });
+
+        if (authError) throw authError;
+
+        document.getElementById('step-3').classList.remove('active');
+        document.getElementById('success-step').classList.add('active');
+        updateDots();
+
+      } catch (err) {
+        showMessage(err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Submit Application';
+      }
+    }
+
+    function showMessage(text, type) {
+      const el = document.getElementById('message');
+      el.textContent = text;
+      el.className = `message show ${type}`;
+      window.scrollTo(0, 0);
+    }
+
+    document.querySelectorAll('.checkbox-item input').forEach(input => {
+      input.addEventListener('change', () => {
+        input.parentElement.classList.toggle('selected', input.checked);
+      });
+    });
+
+    async function checkProviderReferral() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const refCode = urlParams.get('provider_ref');
+      if (refCode) {
+        try {
+          const response = await fetch(`/api/provider-referral/lookup/${refCode}`);
+          const data = await response.json();
+          if (data && data.provider_name) {
+            document.getElementById('referring-provider-name').textContent = data.provider_name;
+            document.getElementById('referral-banner').classList.add('show');
+            document.getElementById('provider-referral-code').value = refCode;
+            document.getElementById('provider-referral-id').value = data.provider_id;
+          }
+        } catch (err) {
+          console.error('Error looking up referral:', err);
+        }
+      }
+    }
+
     function toggleTheme() {
       const html = document.documentElement;
       html.classList.add('theme-transition');
@@ -895,10 +1023,11 @@
       if (metaTheme) metaTheme.content = newTheme === 'dark' ? '#12161c' : '#ffffff';
       setTimeout(() => html.classList.remove('theme-transition'), 300);
     }
+
     document.addEventListener('DOMContentLoaded', async () => {
+      checkProviderReferral();
       const icon = document.querySelector('.theme-icon');
       if (icon) icon.innerHTML = document.documentElement.getAttribute('data-theme') === 'dark' ? '<span class="icon-inline" data-icon="sun"></span>' : '<span class="icon-inline" data-icon="moon"></span>';
-      await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
     });
 

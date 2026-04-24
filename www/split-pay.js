@@ -391,15 +391,43 @@ async function handlePay() {
           body: JSON.stringify({ token: guestToken, payment_intent_id: paymentIntent.id })
         });
       }
+      if (!isGuestMode) {
+        const { data: { session: confirmSession } } = await window.supabaseClient.auth.getSession();
+        const confirmResponse = await fetch(`/api/split/confirm/${participantId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + confirmSession.access_token
+          }
+        });
 
-      document.getElementById('payment-state').style.display = 'none';
-      document.getElementById('success-state').style.display = 'block';
-      
-      const successMsg = document.getElementById('success-message');
-      if (successMsg) {
-        successMsg.textContent = isGuestMode 
-          ? 'Your payment has been received! Thank you for contributing.'
-          : 'Your share has been paid successfully.';
+        const confirmData = await confirmResponse.json();
+        if (!confirmResponse.ok) {
+          throw new Error(confirmData.error || "Failed to confirm payment");
+        }
+
+        document.getElementById("payment-state").style.display = "none";
+        document.getElementById("success-state").style.display = "block";
+
+        const successMsg = document.getElementById("success-message");
+        if (confirmData.splitComplete) {
+          successMsg.textContent = "All shares have been paid! The service can now proceed.";
+        } else {
+          successMsg.textContent = "Your share has been paid successfully. Waiting for other participants.";
+        }
+      } else {
+        document.getElementById("payment-state").style.display = "none";
+        document.getElementById("success-state").style.display = "block";
+        const successMsg = document.getElementById("success-message");
+        if (successMsg) {
+          successMsg.textContent = "Your payment has been received! Thank you for contributing.";
+        }
+        const successLink = document.getElementById("success-link");
+        if (successLink) {
+          successLink.textContent = "Visit My Car Concierge";
+          successLink.href = "/";
+        }
+      }
       }
 
       const successLink = document.getElementById('success-link');
@@ -411,10 +439,10 @@ async function handlePay() {
   } catch (err) {
     console.error('Payment error:', err);
     if (errorEl) errorEl.textContent = err.message || 'Payment failed. Please try again.';
-    btn.disabled = false;
-    btn.innerHTML = mccIcon('dollar-sign', 16) + ' Pay Now';
-  }
-}
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = mccIcon("credit-card", 16) + ` Pay Now`;
+    }
 
 async function fetchStripeKey() {
   try {

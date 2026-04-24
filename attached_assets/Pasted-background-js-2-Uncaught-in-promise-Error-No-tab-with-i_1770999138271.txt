@@ -1,0 +1,31 @@
+background.js:2  Uncaught (in promise) Error: No tab with id: 287603653.
+serviceWorker.js:1  Uncaught (in promise) Error: No tab with id: 287603653.
+72Tracking Prevention blocked access to storage for <URL>.
+emailService.js?v=20260122:3 Email service loaded
+providers-core.js?v=20260202:905 providers-core.js loaded
+pwa-init.js?v=20260202:6 ServiceWorker registered: https://www.mycarconcierge.com/
+providers.html:1  <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">
+providers.html:1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+providers-core.js?v=20260202:522 Clover status check: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+providers-core.js?v=20260202:545 Square status check: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+providers-bids.js:1099 providers-bids.js loaded
+providers-core.js?v=20260202:14 [Module] Loaded bids module
+ifbyjxuaclwmadqbjcyp.supabase.co/rest/v1/reviews?select=*%2Cmaintenance_packages%28title%29%2Cprofiles%21reviews_member_id_fkey%28full_name%29&provider_id=eq.0bb98854-8aa8-41f7-816b-d06785167194&order=created_at.desc:1   Failed to load resource: the server responded with a status of 404 ()
+providers-core.js?v=20260202:682 loadMyReviews error: Could not find the table 'public.reviews' in the schema cache
+ifbyjxuaclwmadqbjcyp.supabase.co/rest/v1/subscriptions?select=*&provider_id=eq.0bb98854-8aa8-41f7-816b-d06785167194&status=eq.active:1   Failed to load resource: the server responded with a status of 404 ()
+providers-core.js?v=20260202:264 [Init] Loading service credits...
+providers-core.js?v=20260202:869 No push subscription yet
+providers-jobs.js:1513 providers-jobs.js loaded
+providers-core.js?v=20260202:14 [Module] Loaded jobs module
+providers-settings.js:765 providers-settings.js loaded
+providers-core.js?v=20260202:14 [Module] Loaded settings module
+ifbyjxuaclwmadqbjcyp.supabase.co/rest/v1/profiles?select=id%2Cfull_name%2Ccreated_at&referred_by_provider_id=eq.0bb98854-8aa8-41f7-816b-d06785167194&order=created_at.desc:1   Failed to load resource: the server responded with a status of 400 ()
+ifbyjxuaclwmadqbjcyp.supabase.co/rest/v1/emergency_requests?select=*%2Cmember%3Amember_id%28full_name%2Cphone%29%2Cvehicles%28year%2Cmake%2Cmodel%29&assigned_provider_id=eq.0bb98854-8aa8-41f7-816b-d06785167194&status=in.%28accepted%2Cen_route%2Carrived%2Cin_progress%29:1   Failed to load resource: the server responded with a status of 406 ()
+11The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+api/create-bid-checkout:1   Failed to load resource: the server responded with a status of 500 ()
+providers-bids.js:1042  Checkout error: Error: Payment service configuration error. Please contact support.
+    at purchaseBidPack (providers-bids.js:1036:29)
+purchaseBidPack @ providers-bids.js:1042
+api/create-bid-checkout:1   Failed to load resource: the server responded with a status of 500 ()
+providers-bids.js:1042  Checkout error: Error: Payment service configuration error. Please contact support.
+    at purchaseBidPack (providers-bids.js:1036:29)

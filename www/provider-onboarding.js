@@ -60,6 +60,13 @@ class ProviderOnboarding {
         action: { label: 'Set Up Your Car Club', section: 'car-club' }
       },
       {
+        title: 'Build Your Car Club',
+        icon: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
+        content: 'Your customers stay YOUR customers. Create a Car Club loyalty program — set up punch cards, reward repeat visits, and give customers a reason to keep coming back to you.',
+        detail: 'Members auto-join your club on their first job. You also earn 10 free bids every time a referred customer books with you. It\'s retention built right in.',
+        action: { label: 'Set Up Your Car Club', section: 'car-club' }
+      },
+      {
         title: 'You\'re All Set!',
         icon: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>',
         content: 'Your account is ready. Complete your profile, set up your Car Club, and start building your reputation by completing jobs and earning great reviews!',

@@ -291,11 +291,11 @@ test.describe('Login Page - Elements and Structure', () => {
     await expect(biometricSection).toBeAttached();
   });
 
-  test('signup links to onboarding-member.html and signup-provider.html exist', async ({ page }) => {
+  test('signup links to signup-member.html and signup-provider.html exist', async ({ page }) => {
     await page.goto('/login.html');
     await page.waitForLoadState('networkidle');
 
-    const memberSignup = page.locator('a[href="onboarding-member.html"]');
+    const memberSignup = page.locator('a[href="signup-member.html"]');
     const providerSignup = page.locator('a[href="signup-provider.html"]');
     await expect(memberSignup).toBeAttached();
     await expect(providerSignup).toBeAttached();

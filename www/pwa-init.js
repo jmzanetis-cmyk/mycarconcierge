@@ -2,7 +2,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
       // Register service worker (cache version is in sw.js itself)
-      const registration = await navigator.serviceWorker.register('/sw.js?v=98', { updateViaCache: 'none' });
+      const registration = await navigator.serviceWorker.register('/sw.js?v=104', { updateViaCache: 'none' });
       console.log('ServiceWorker registered:', registration.scope);
       
       // Check for updates periodically

@@ -2722,7 +2722,6 @@ function loadModuleForSection(section) {
     case 'bids':
     case 'view-package':
     case 'upsells':
-    case 'group-services':
       return loadModule('packages');
     case 'settings':
     case 'notifications':

@@ -1,0 +1,1249 @@
+# ================================================================================
+REPLIT INSTRUCTIONS: INSTANT REFERRAL COMMISSION PAYOUTS
+My Car Concierge Platform
+
+## OVERVIEW
+
+Configure instant payout system for Member Founders and Pilot Provider Founders
+who earn 50% commission when their referrals purchase bid credit packs. Payments
+are triggered automatically via Stripe webhook when a purchase completes.
+
+# ================================================================================
+PART 1: DATABASE SCHEMA SETUP
+
+## Step 1.1: Add Referral Tracking Tables
+
+Execute the following SQL in your Supabase SQL Editor:
+
+– Track referral relationships
+CREATE TABLE referrals (
+id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+referrer_id UUID NOT NULL REFERENCES users(id),
+referred_id UUID NOT NULL REFERENCES users(id),
+referrer_type TEXT NOT NULL,
+referred_type TEXT NOT NULL,
+referral_code TEXT,
+status TEXT DEFAULT ‘active’,
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+UNIQUE(referrer_id, referred_id)
+);
+
+CREATE INDEX idx_referrals_referrer ON referrals(referrer_id);
+CREATE INDEX idx_referrals_referred ON referrals(referred_id);
+CREATE INDEX idx_referrals_code ON referrals(referral_code);
+
+– Track all commission payments
+CREATE TABLE commission_payments (
+id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+referrer_id UUID NOT NULL REFERENCES users(id),
+referred_id UUID NOT NULL REFERENCES users(id),
+purchase_id UUID NOT NULL,
+stripe_payment_intent_id TEXT,
+
+purchase_amount DECIMAL(10,2) NOT NULL,
+commission_rate DECIMAL(5,4) NOT NULL,
+commission_amount DECIMAL(10,2) NOT NULL,
+
+stripe_transfer_id TEXT,
+stripe_payout_id TEXT,
+payout_method TEXT,
+payout_fee DECIMAL(10,2) DEFAULT 0,
+net_payout DECIMAL(10,2),
+
+status TEXT DEFAULT ‘pending’,
+paid_at TIMESTAMPTZ,
+failed_reason TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_commission_payments_referrer ON commission_payments(referrer_id);
+CREATE INDEX idx_commission_payments_status ON commission_payments(status);
+CREATE INDEX idx_commission_payments_purchase ON commission_payments(purchase_id);
+
+## Step 1.2: Update Users Table for Stripe Connect
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_connect_account_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_connect_status TEXT DEFAULT ‘not_started’;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS instant_payout_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS payout_preference TEXT DEFAULT ‘instant’;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS total_commissions_earned DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS total_commissions_paid DECIMAL(10,2) DEFAULT 0;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_member_founder BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_provider_founder BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS founder_referral_code TEXT UNIQUE;
+
+CREATE INDEX idx_users_stripe_connect ON users(stripe_connect_account_id);
+CREATE INDEX idx_users_referral_code ON users(founder_referral_code);
+
+## Step 1.3: Update Bid Credit Purchases Table
+
+ALTER TABLE bid_credit_purchases ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT;
+ALTER TABLE bid_credit_purchases ADD COLUMN IF NOT EXISTS amount_paid DECIMAL(10,2);
+ALTER TABLE bid_credit_purchases ADD COLUMN IF NOT EXISTS credits_purchased INTEGER;
+ALTER TABLE bid_credit_purchases ADD COLUMN IF NOT EXISTS status TEXT DEFAULT ‘pending’;
+ALTER TABLE bid_credit_purchases ADD COLUMN IF NOT EXISTS referred_by UUID REFERENCES users(id);
+
+# ================================================================================
+PART 2: STRIPE CONNECT ACCOUNT SETUP
+
+## Step 2.1: Create Stripe Connect Onboarding Function
+
+File: server/stripe/connectOnboarding.js
+
+import Stripe from ‘stripe’;
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+export async function createConnectAccount(userId, email, userType) {
+try {
+const account = await stripe.accounts.create({
+type: ‘express’,
+country: ‘US’,
+email: email,
+capabilities: {
+transfers: { requested: true },
+},
+business_type: ‘individual’,
+settings: {
+payouts: {
+schedule: {
+interval: ‘manual’,
+},
+},
+},
+metadata: {
+user_id: userId,
+user_type: userType,
+},
+});
+
+```
+await supabase
+  .from('users')
+  .update({
+    stripe_connect_account_id: account.id,
+    stripe_connect_status: 'pending',
+  })
+  .eq('id', userId);
+
+return account;
+```
+
+} catch (error) {
+console.error(‘Error creating Connect account:’, error);
+throw error;
+}
+}
+
+export async function createAccountLink(stripeAccountId, userId) {
+try {
+const accountLink = await stripe.accountLinks.create({
+account: stripeAccountId,
+refresh_url: `${process.env.APP_URL}/founder/setup/refresh`,
+return_url: `${process.env.APP_URL}/founder/dashboard?setup=complete`,
+type: ‘account_onboarding’,
+});
+
+```
+return accountLink.url;
+```
+
+} catch (error) {
+console.error(‘Error creating account link:’, error);
+throw error;
+}
+}
+
+export async function checkAccountStatus(stripeAccountId) {
+try {
+const account = await stripe.accounts.retrieve(stripeAccountId);
+
+```
+const isActive = account.charges_enabled && 
+                 account.payouts_enabled &&
+                 account.details_submitted;
+
+return {
+  isActive,
+  charges_enabled: account.charges_enabled,
+  payouts_enabled: account.payouts_enabled,
+  details_submitted: account.details_submitted,
+  requirements: account.requirements,
+};
+```
+
+} catch (error) {
+console.error(‘Error checking account status:’, error);
+throw error;
+}
+}
+
+## Step 2.2: Create API Endpoints for Onboarding
+
+File: server/api/founder/setupPayout.js
+
+import { createConnectAccount, createAccountLink, checkAccountStatus } from ‘../../stripe/connectOnboarding.js’;
+
+export async function POST(req, res) {
+try {
+const { userId } = req.auth;
+
+```
+const { data: user, error: userError } = await supabase
+  .from('users')
+  .select('*')
+  .eq('id', userId)
+  .single();
+
+if (userError || !user) {
+  return res.status(404).json({ error: 'User not found' });
+}
+
+const founderType = user.is_member_founder ? 'member_founder' : 
+                   user.is_provider_founder ? 'provider_founder' : null;
+
+if (!founderType) {
+  return res.status(403).json({ error: 'User is not a founder' });
+}
+
+let stripeAccountId = user.stripe_connect_account_id;
+
+if (!stripeAccountId) {
+  const account = await createConnectAccount(userId, user.email, founderType);
+  stripeAccountId = account.id;
+}
+
+const onboardingUrl = await createAccountLink(stripeAccountId, userId);
+
+return res.json({ 
+  success: true,
+  onboardingUrl,
+  accountId: stripeAccountId,
+});
+```
+
+} catch (error) {
+console.error(‘Setup payout error:’, error);
+return res.status(500).json({ error: error.message });
+}
+}
+
+export async function GET(req, res) {
+try {
+const { userId } = req.auth;
+
+```
+const { data: user } = await supabase
+  .from('users')
+  .select('stripe_connect_account_id')
+  .eq('id', userId)
+  .single();
+
+if (!user?.stripe_connect_account_id) {
+  return res.json({ 
+    status: 'not_started',
+    isComplete: false,
+  });
+}
+
+const accountStatus = await checkAccountStatus(user.stripe_connect_account_id);
+
+if (accountStatus.isActive) {
+  await supabase
+    .from('users')
+    .update({ 
+      stripe_connect_status: 'active',
+      instant_payout_enabled: true,
+    })
+    .eq('id', userId);
+}
+
+return res.json({
+  status: accountStatus.isActive ? 'active' : 'pending',
+  isComplete: accountStatus.isActive,
+  details: accountStatus,
+});
+```
+
+} catch (error) {
+console.error(‘Check status error:’, error);
+return res.status(500).json({ error: error.message });
+}
+}
+
+# ================================================================================
+PART 3: REFERRAL TRACKING SYSTEM
+
+## Step 3.1: Create Referral Code Generator
+
+File: server/utils/referralCodes.js
+
+import { customAlphabet } from ‘nanoid’;
+
+const nanoid = customAlphabet(‘ABCDEFGHJKLMNPQRSTUVWXYZ23456789’, 8);
+
+export async function generateReferralCode(userId, founderType) {
+let attempts = 0;
+const maxAttempts = 10;
+
+while (attempts < maxAttempts) {
+const code = `${founderType === 'member_founder' ? 'M' : 'P'}${nanoid()}`;
+
+```
+const { data: existing } = await supabase
+  .from('users')
+  .select('id')
+  .eq('founder_referral_code', code)
+  .single();
+
+if (!existing) {
+  await supabase
+    .from('users')
+    .update({ founder_referral_code: code })
+    .eq('id', userId);
+  
+  return code;
+}
+
+attempts++;
+```
+
+}
+
+throw new Error(‘Failed to generate unique referral code’);
+}
+
+export async function applyReferralCode(referralCode, referredUserId, referredType) {
+try {
+const { data: referrer, error: referrerError } = await supabase
+.from(‘users’)
+.select(‘id, is_member_founder, is_provider_founder’)
+.eq(‘founder_referral_code’, referralCode)
+.single();
+
+```
+if (referrerError || !referrer) {
+  console.error('Invalid referral code:', referralCode);
+  return null;
+}
+
+const referrerType = referrer.is_member_founder ? 'member_founder' : 
+                    referrer.is_provider_founder ? 'provider_founder' : null;
+
+if (!referrerType) {
+  console.error('Referrer is not a founder');
+  return null;
+}
+
+const { data: referral, error: referralError } = await supabase
+  .from('referrals')
+  .insert({
+    referrer_id: referrer.id,
+    referred_id: referredUserId,
+    referrer_type: referrerType,
+    referred_type: referredType,
+    referral_code: referralCode,
+    status: 'active',
+  })
+  .select()
+  .single();
+
+if (referralError) {
+  console.error('Error creating referral:', referralError);
+  return null;
+}
+
+console.log(`Referral created: ${referrerType} ${referrer.id} referred ${referredType} ${referredUserId}`);
+
+return referral;
+```
+
+} catch (error) {
+console.error(‘Apply referral code error:’, error);
+return null;
+}
+}
+
+## Step 3.2: Modify Bid Credit Purchase Flow
+
+File: server/api/bidCredits/purchase.js
+
+export async function createBidCreditPurchase(req, res) {
+try {
+const { userId, packageId, amount, credits } = req.body;
+
+```
+const { data: referral } = await supabase
+  .from('referrals')
+  .select('referrer_id, referrer_type')
+  .eq('referred_id', userId)
+  .eq('status', 'active')
+  .single();
+
+const paymentIntent = await stripe.paymentIntents.create({
+  amount: amount * 100,
+  currency: 'usd',
+  metadata: {
+    user_id: userId,
+    package_id: packageId,
+    credits: credits,
+    referred_by: referral?.referrer_id || null,
+  },
+});
+
+const { data: purchase } = await supabase
+  .from('bid_credit_purchases')
+  .insert({
+    user_id: userId,
+    package_id: packageId,
+    stripe_payment_intent_id: paymentIntent.id,
+    amount_paid: amount,
+    credits_purchased: credits,
+    referred_by: referral?.referrer_id || null,
+    status: 'pending',
+  })
+  .select()
+  .single();
+
+return res.json({
+  clientSecret: paymentIntent.client_secret,
+  purchaseId: purchase.id,
+});
+```
+
+} catch (error) {
+console.error(‘Purchase error:’, error);
+return res.status(500).json({ error: error.message });
+}
+}
+
+# ================================================================================
+PART 4: INSTANT COMMISSION PAYOUT SYSTEM
+
+## Step 4.1: Create Commission Calculator
+
+File: server/stripe/commissions.js
+
+import Stripe from ‘stripe’;
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+const COMMISSION_RATE = 0.50;
+
+export function calculateCommission(purchaseAmount) {
+return parseFloat((purchaseAmount * COMMISSION_RATE).toFixed(2));
+}
+
+export function calculateInstantPayoutFee(amount) {
+const fee = amount * 0.01;
+return parseFloat(Math.max(0.50, Math.min(10, fee)).toFixed(2));
+}
+
+export async function processInstantCommission(commissionPaymentId) {
+try {
+const { data: commission, error: commError } = await supabase
+.from(‘commission_payments’)
+.select(`*, referrer:referrer_id(stripe_connect_account_id, payout_preference, is_member_founder, is_provider_founder)`)
+.eq(‘id’, commissionPaymentId)
+.single();
+
+```
+if (commError || !commission) {
+  throw new Error('Commission payment not found');
+}
+
+const referrer = commission.referrer;
+
+if (!referrer.stripe_connect_account_id) {
+  throw new Error('Referrer has no Stripe Connect account');
+}
+
+const accountStatus = await stripe.accounts.retrieve(referrer.stripe_connect_account_id);
+if (!accountStatus.payouts_enabled) {
+  throw new Error('Referrer payouts not enabled');
+}
+
+const useInstantPayout = referrer.payout_preference === 'instant';
+const payoutFee = useInstantPayout ? calculateInstantPayoutFee(commission.commission_amount) : 0;
+const netPayout = commission.commission_amount - payoutFee;
+
+const transfer = await stripe.transfers.create({
+  amount: Math.round(netPayout * 100),
+  currency: 'usd',
+  destination: referrer.stripe_connect_account_id,
+  metadata: {
+    commission_payment_id: commissionPaymentId,
+    referrer_id: commission.referrer_id,
+    purchase_id: commission.purchase_id,
+    founder_type: referrer.is_member_founder ? 'member_founder' : 'provider_founder',
+  },
+});
+
+let payout = null;
+if (useInstantPayout) {
+  payout = await stripe.payouts.create(
+    {
+      amount: Math.round(netPayout * 100),
+      currency: 'usd',
+      method: 'instant',
+    },
+    {
+      stripeAccount: referrer.stripe_connect_account_id,
+    }
+  );
+} else {
+  payout = await stripe.payouts.create(
+    {
+      amount: Math.round(netPayout * 100),
+      currency: 'usd',
+      method: 'standard',
+    },
+    {
+      stripeAccount: referrer.stripe_connect_account_id,
+    }
+  );
+}
+
+await supabase
+  .from('commission_payments')
+  .update({
+    status: 'paid',
+    stripe_transfer_id: transfer.id,
+    stripe_payout_id: payout.id,
+    payout_method: useInstantPayout ? 'instant' : 'standard',
+    payout_fee: payoutFee,
+    net_payout: netPayout,
+    paid_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  })
+  .eq('id', commissionPaymentId);
+
+await supabase
+  .from('users')
+  .update({
+    total_commissions_paid: supabase.raw(`total_commissions_paid + ${netPayout}`),
+  })
+  .eq('id', commission.referrer_id);
+
+console.log(`✅ Commission paid: $${netPayout} to ${referrer.stripe_connect_account_id} (${useInstantPayout ? 'instant' : 'standard'})`);
+
+return {
+  success: true,
+  transferId: transfer.id,
+  payoutId: payout.id,
+  amount: netPayout,
+  method: useInstantPayout ? 'instant' : 'standard',
+};
+```
+
+} catch (error) {
+console.error(‘❌ Commission payout error:’, error);
+
+```
+await supabase
+  .from('commission_payments')
+  .update({
+    status: 'failed',
+    failed_reason: error.message,
+    updated_at: new Date().toISOString(),
+  })
+  .eq('id', commissionPaymentId);
+
+throw error;
+```
+
+}
+}
+
+# ================================================================================
+PART 5: STRIPE WEBHOOK HANDLER
+
+## Step 5.1: Create Webhook Endpoint
+
+File: server/webhooks/stripe.js
+
+import Stripe from ‘stripe’;
+import { calculateCommission, processInstantCommission } from ‘../stripe/commissions.js’;
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+export async function POST(req, res) {
+const sig = req.headers[‘stripe-signature’];
+let event;
+
+try {
+event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+} catch (err) {
+console.error(‘⚠️ Webhook signature verification failed:’, err.message);
+return res.status(400).send(`Webhook Error: ${err.message}`);
+}
+
+switch (event.type) {
+case ‘payment_intent.succeeded’:
+await handlePaymentIntentSucceeded(event.data.object);
+break;
+
+```
+case 'transfer.created':
+  console.log('Transfer created:', event.data.object.id);
+  break;
+
+case 'payout.paid':
+  console.log('Payout completed:', event.data.object.id);
+  break;
+
+case 'payout.failed':
+  await handlePayoutFailed(event.data.object);
+  break;
+
+default:
+  console.log(`Unhandled event type ${event.type}`);
+```
+
+}
+
+res.json({ received: true });
+}
+
+async function handlePaymentIntentSucceeded(paymentIntent) {
+try {
+console.log(‘💳 Payment succeeded:’, paymentIntent.id);
+
+```
+const { data: purchase, error: purchaseError } = await supabase
+  .from('bid_credit_purchases')
+  .select('*')
+  .eq('stripe_payment_intent_id', paymentIntent.id)
+  .single();
+
+if (purchaseError || !purchase) {
+  console.log('No bid credit purchase found for payment:', paymentIntent.id);
+  return;
+}
+
+await supabase
+  .from('bid_credit_purchases')
+  .update({ status: 'completed' })
+  .eq('id', purchase.id);
+
+if (!purchase.referred_by) {
+  console.log('Purchase not referred, no commission to pay');
+  return;
+}
+
+console.log(`📊 Referred purchase by user ${purchase.referred_by}`);
+
+const commissionAmount = calculateCommission(purchase.amount_paid);
+
+const { data: commissionPayment, error: commError } = await supabase
+  .from('commission_payments')
+  .insert({
+    referrer_id: purchase.referred_by,
+    referred_id: purchase.user_id,
+    purchase_id: purchase.id,
+    stripe_payment_intent_id: paymentIntent.id,
+    purchase_amount: purchase.amount_paid,
+    commission_rate: 0.50,
+    commission_amount: commissionAmount,
+    status: 'pending',
+  })
+  .select()
+  .single();
+
+if (commError) {
+  console.error('Error creating commission payment:', commError);
+  return;
+}
+
+await supabase
+  .from('users')
+  .update({
+    total_commissions_earned: supabase.raw(`total_commissions_earned + ${commissionAmount}`),
+  })
+  .eq('id', purchase.referred_by);
+
+console.log(`💰 Commission created: $${commissionAmount} for user ${purchase.referred_by}`);
+
+await processInstantCommission(commissionPayment.id);
+```
+
+} catch (error) {
+console.error(‘Error handling payment success:’, error);
+}
+}
+
+async function handlePayoutFailed(payout) {
+try {
+console.error(‘❌ Payout failed:’, payout.id, payout.failure_message);
+
+```
+const { data: commission } = await supabase
+  .from('commission_payments')
+  .select('*')
+  .eq('stripe_payout_id', payout.id)
+  .single();
+
+if (commission) {
+  await supabase
+    .from('commission_payments')
+    .update({
+      status: 'failed',
+      failed_reason: payout.failure_message,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', commission.id);
+}
+```
+
+} catch (error) {
+console.error(‘Error handling payout failure:’, error);
+}
+}
+
+## Step 5.2: Configure Webhook in Stripe Dashboard
+
+MANUAL STEPS:
+
+1. Go to Stripe Dashboard → Developers → Webhooks
+1. Add endpoint: https://your-app.replit.app/webhooks/stripe
+1. Select events to listen for:
+- payment_intent.succeeded
+- transfer.created
+- payout.paid
+- payout.failed
+1. Copy webhook signing secret to .env as STRIPE_WEBHOOK_SECRET
+
+# ================================================================================
+PART 6: FOUNDER DASHBOARD UI COMPONENTS
+
+## Step 6.1: Commission Earnings Display
+
+File: client/components/FounderDashboard.jsx
+
+import { useState, useEffect } from ‘react’;
+
+export function FounderCommissionDashboard({ userId }) {
+const [earnings, setEarnings] = useState(null);
+const [recentCommissions, setRecentCommissions] = useState([]);
+const [payoutStatus, setPayoutStatus] = useState(null);
+
+useEffect(() => {
+fetchEarnings();
+fetchRecentCommissions();
+checkPayoutStatus();
+}, []);
+
+async function fetchEarnings() {
+const { data: user } = await supabase
+.from(‘users’)
+.select(‘total_commissions_earned, total_commissions_paid, founder_referral_code, payout_preference’)
+.eq(‘id’, userId)
+.single();
+
+```
+setEarnings(user);
+```
+
+}
+
+async function fetchRecentCommissions() {
+const { data: commissions } = await supabase
+.from(‘commission_payments’)
+.select(`*, referred:referred_id(email), purchase:purchase_id(credits_purchased, created_at)`)
+.eq(‘referrer_id’, userId)
+.order(‘created_at’, { ascending: false })
+.limit(10);
+
+```
+setRecentCommissions(commissions || []);
+```
+
+}
+
+async function checkPayoutStatus() {
+const response = await fetch(’/api/founder/setupPayout’, {
+headers: { Authorization: `Bearer ${authToken}` }
+});
+const data = await response.json();
+setPayoutStatus(data);
+}
+
+const pendingEarnings = earnings?.total_commissions_earned - earnings?.total_commissions_paid;
+
+return (
+<div className="founder-dashboard">
+<h1>Founder Earnings</h1>
+
+```
+  {!payoutStatus?.isComplete && (
+    <div className="alert alert-warning">
+      <h3>⚠️ Complete Payout Setup</h3>
+      <p>Set up instant payouts to receive your commissions automatically</p>
+      <button onClick={() => setupPayouts()}>
+        Complete Setup (2 minutes)
+      </button>
+    </div>
+  )}
+
+  <div className="earnings-overview">
+    <div className="stat-card">
+      <div className="label">Total Earned</div>
+      <div className="amount">${earnings?.total_commissions_earned?.toFixed(2)}</div>
+    </div>
+    
+    <div className="stat-card highlight">
+      <div className="label">Total Paid</div>
+      <div className="amount">${earnings?.total_commissions_paid?.toFixed(2)}</div>
+    </div>
+    
+    <div className="stat-card">
+      <div className="label">Pending</div>
+      <div className="amount">${pendingEarnings?.toFixed(2)}</div>
+    </div>
+  </div>
+
+  <div className="referral-code-section">
+    <h3>Your Referral Code</h3>
+    <div className="code-display">
+      <code>{earnings?.founder_referral_code}</code>
+      <button onClick={() => copyToClipboard(earnings?.founder_referral_code)}>
+        Copy
+      </button>
+    </div>
+    <p>Share this code with providers. You earn 50% of every bid credit pack they buy.</p>
+  </div>
+
+  <div className="recent-commissions">
+    <h3>Recent Commissions</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Referred User</th>
+          <th>Purchase</th>
+          <th>Commission</th>
+          <th>Status</th>
+          <th>Payout</th>
+        </tr>
+      </thead>
+      <tbody>
+        {recentCommissions.map(comm => (
+          <tr key={comm.id}>
+            <td>{new Date(comm.created_at).toLocaleDateString()}</td>
+            <td>{comm.referred.email}</td>
+            <td>${comm.purchase_amount.toFixed(2)} ({comm.purchase.credits_purchased} credits)</td>
+            <td>${comm.commission_amount.toFixed(2)}</td>
+            <td>
+              <span className={`status-badge status-${comm.status}`}>
+                {comm.status}
+              </span>
+            </td>
+            <td>
+              {comm.payout_method === 'instant' && comm.status === 'paid' && (
+                <span className="payout-badge instant">
+                  ⚡ Instant (${comm.net_payout.toFixed(2)})
+                </span>
+              )}
+              {comm.payout_method === 'standard' && comm.status === 'paid' && (
+                <span className="payout-badge standard">
+                  📅 Standard (${comm.net_payout.toFixed(2)})
+                </span>
+              )}
+              {comm.status === 'pending' && (
+                <span className="payout-badge pending">Processing...</span>
+              )}
+              {comm.status === 'failed' && (
+                <span className="payout-badge failed" title={comm.failed_reason}>
+                  Failed
+                </span>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <div className="payout-settings">
+    <h3>Payout Preference</h3>
+    <div className="preference-options">
+      <label>
+        <input 
+          type="radio" 
+          name="payout" 
+          value="instant"
+          checked={earnings?.payout_preference === 'instant'}
+          onChange={(e) => updatePayoutPreference('instant')}
+        />
+        <div className="option-content">
+          <strong>⚡ Instant Payouts</strong>
+          <p>Get paid within minutes (1% fee, max $10)</p>
+        </div>
+      </label>
+      
+      <label>
+        <input 
+          type="radio" 
+          name="payout" 
+          value="standard"
+          checked={earnings?.payout_preference === 'standard'}
+          onChange={(e) => updatePayoutPreference('standard')}
+        />
+        <div className="option-content">
+          <strong>📅 Standard Payouts</strong>
+          <p>Free, arrives in 1-2 business days</p>
+        </div>
+      </label>
+    </div>
+  </div>
+</div>
+```
+
+);
+}
+
+async function setupPayouts() {
+const response = await fetch(’/api/founder/setupPayout’, {
+method: ‘POST’,
+headers: { Authorization: `Bearer ${authToken}` }
+});
+const data = await response.json();
+
+if (data.onboardingUrl) {
+window.location.href = data.onboardingUrl;
+}
+}
+
+async function updatePayoutPreference(preference) {
+await supabase
+.from(‘users’)
+.update({ payout_preference: preference })
+.eq(‘id’, userId);
+
+fetchEarnings();
+}
+
+# ================================================================================
+PART 7: TESTING & VALIDATION
+
+## Step 7.1: Create Test Script
+
+File: server/scripts/testCommissions.js
+
+async function testCommissionFlow() {
+console.log(‘🧪 Testing Commission Flow…\n’);
+
+console.log(‘1️⃣ Creating test founder…’);
+const founderId = ‘test-founder-uuid’;
+await supabase
+.from(‘users’)
+.update({
+is_provider_founder: true,
+founder_referral_code: ‘PTEST1234’,
+})
+.eq(‘id’, founderId);
+console.log(‘✅ Founder created with code: PTEST1234\n’);
+
+console.log(‘2️⃣ Creating test referred provider…’);
+const providerId = ‘test-provider-uuid’;
+
+await supabase
+.from(‘referrals’)
+.insert({
+referrer_id: founderId,
+referred_id: providerId,
+referrer_type: ‘provider_founder’,
+referred_type: ‘provider’,
+referral_code: ‘PTEST1234’,
+});
+console.log(‘✅ Referral relationship created\n’);
+
+console.log(‘3️⃣ Simulating bid credit purchase…’);
+const purchaseAmount = 50.00;
+
+const paymentIntent = await stripe.paymentIntents.create({
+amount: purchaseAmount * 100,
+currency: ‘usd’,
+confirm: true,
+payment_method: ‘pm_card_visa’,
+metadata: {
+user_id: providerId,
+referred_by: founderId,
+},
+});
+
+const { data: purchase } = await supabase
+.from(‘bid_credit_purchases’)
+.insert({
+user_id: providerId,
+stripe_payment_intent_id: paymentIntent.id,
+amount_paid: purchaseAmount,
+credits_purchased: 50,
+referred_by: founderId,
+status: ‘completed’,
+})
+.select()
+.single();
+
+console.log(`✅ Purchase created: $${purchaseAmount}\n`);
+
+console.log(‘4️⃣ Creating commission payment…’);
+const commissionAmount = calculateCommission(purchaseAmount);
+
+const { data: commission } = await supabase
+.from(‘commission_payments’)
+.insert({
+referrer_id: founderId,
+referred_id: providerId,
+purchase_id: purchase.id,
+stripe_payment_intent_id: paymentIntent.id,
+purchase_amount: purchaseAmount,
+commission_rate: 0.50,
+commission_amount: commissionAmount,
+status: ‘pending’,
+})
+.select()
+.single();
+
+console.log(`✅ Commission calculated: $${commissionAmount} (50%)\n`);
+
+console.log(‘5️⃣ Processing instant payout…’);
+const result = await processInstantCommission(commission.id);
+
+if (result.success) {
+console.log(‘✅ Instant payout successful!’);
+console.log(`   Transfer ID: ${result.transferId}`);
+console.log(`   Payout ID: ${result.payoutId}`);
+console.log(`   Amount: $${result.amount}`);
+console.log(`   Method: ${result.method}\n`);
+} else {
+console.error(‘❌ Payout failed’);
+}
+
+console.log(‘6️⃣ Verifying database…’);
+const { data: updatedCommission } = await supabase
+.from(‘commission_payments’)
+.select(’*’)
+.eq(‘id’, commission.id)
+.single();
+
+console.log(‘Commission status:’, updatedCommission.status);
+console.log(‘Payout method:’, updatedCommission.payout_method);
+console.log(‘Net payout:’, updatedCommission.net_payout);
+
+const { data: updatedFounder } = await supabase
+.from(‘users’)
+.select(‘total_commissions_earned, total_commissions_paid’)
+.eq(‘id’, founderId)
+.single();
+
+console.log(‘Founder total earned:’, updatedFounder.total_commissions_earned);
+console.log(‘Founder total paid:’, updatedFounder.total_commissions_paid);
+
+console.log(’\n🎉 Test complete!’);
+}
+
+testCommissionFlow().catch(console.error);
+
+# ================================================================================
+PART 8: ENVIRONMENT VARIABLES
+
+Update .env file:
+
+STRIPE_SECRET_KEY=sk_test_…
+STRIPE_PUBLISHABLE_KEY=pk_test_…
+STRIPE_WEBHOOK_SECRET=whsec_…
+
+APP_URL=https://your-app.replit.app
+
+SUPABASE_URL=https://…
+SUPABASE_ANON_KEY=…
+SUPABASE_SERVICE_KEY=…
+
+# ================================================================================
+PART 9: IMPLEMENTATION CHECKLIST
+
+PHASE 1: Database Setup
+[ ] Create referrals table
+[ ] Create commission_payments table
+[ ] Update users table with Stripe Connect fields
+[ ] Update bid_credit_purchases table
+
+PHASE 2: Stripe Connect
+[ ] Create Connect account creation function
+[ ] Create onboarding API endpoint
+[ ] Create status check endpoint
+
+PHASE 3: Referral System
+[ ] Create referral code generator
+[ ] Modify user signup to accept referral codes
+[ ] Modify bid credit purchase to track referrer
+
+PHASE 4: Commission Payouts
+[ ] Create commission calculator
+[ ] Create instant payout processor
+[ ] Create Stripe webhook handler
+
+PHASE 5: UI Components
+[ ] Create founder dashboard
+[ ] Create payout setup flow
+[ ] Create commission history view
+
+PHASE 6: Testing
+[ ] Test Stripe Connect onboarding
+[ ] Test referral code application
+[ ] Test commission calculation
+[ ] Test instant payout execution
+[ ] Test webhook handling
+
+# ================================================================================
+PART 10: ADMIN MONITORING DASHBOARD
+
+File: client/components/AdminCommissionDashboard.jsx
+
+export function AdminCommissionDashboard() {
+const [stats, setStats] = useState(null);
+
+useEffect(() => {
+fetchStats();
+}, []);
+
+async function fetchStats() {
+const { data: totalCommissions } = await supabase
+.from(‘commission_payments’)
+.select(‘commission_amount, payout_fee, status’);
+
+```
+const totalPaid = totalCommissions
+  .filter(c => c.status === 'paid')
+  .reduce((sum, c) => sum + parseFloat(c.commission_amount), 0);
+
+const totalFees = totalCommissions
+  .filter(c => c.status === 'paid')
+  .reduce((sum, c) => sum + parseFloat(c.payout_fee || 0), 0);
+
+const pendingAmount = totalCommissions
+  .filter(c => c.status === 'pending')
+  .reduce((sum, c) => sum + parseFloat(c.commission_amount), 0);
+
+const { count: activeReferrals } = await supabase
+  .from('referrals')
+  .select('*', { count: 'exact', head: true })
+  .eq('status', 'active');
+
+setStats({
+  totalPaid,
+  totalFees,
+  pendingAmount,
+  activeReferrals,
+});
+```
+
+}
+
+return (
+<div className="admin-commission-dashboard">
+<h2>Commission Overview</h2>
+
+```
+  <div className="stats-grid">
+    <div className="stat-card">
+      <div className="label">Total Commissions Paid</div>
+      <div className="amount">${stats?.totalPaid?.toFixed(2)}</div>
+    </div>
+    
+    <div className="stat-card">
+      <div className="label">Total Payout Fees</div>
+      <div className="amount">${stats?.totalFees?.toFixed(2)}</div>
+      <div className="note">Platform absorbed</div>
+    </div>
+    
+    <div className="stat-card">
+      <div className="label">Pending Commissions</div>
+      <div className="amount">${stats?.pendingAmount?.toFixed(2)}</div>
+    </div>
+    
+    <div className="stat-card">
+      <div className="label">Active Referrals</div>
+      <div className="amount">{stats?.activeReferrals}</div>
+    </div>
+  </div>
+</div>
+```
+
+);
+}
+
+# ================================================================================
+PART 11: NOTIFICATIONS & ALERTS
+
+File: server/notifications/commissionAlerts.js
+
+export async function notifyCommissionPaid(commissionPaymentId) {
+const { data: commission } = await supabase
+.from(‘commission_payments’)
+.select(`*, referrer:referrer_id(email, first_name), referred:referred_id(email)`)
+.eq(‘id’, commissionPaymentId)
+.single();
+
+if (!commission) return;
+
+const emailContent = `
+Hi ${commission.referrer.first_name},
+
+```
+Great news! You just earned a commission:
+
+Commission Amount: $${commission.commission_amount.toFixed(2)}
+Purchase Amount: $${commission.purchase_amount.toFixed(2)}
+Referred User: ${commission.referred.email}
+
+${commission.payout_method === 'instant' ? 
+  `⚡ Instant payout of $${commission.net_payout.toFixed(2)} is on its way to your debit card!` :
+  `📅 Standard payout of $${commission.net_payout.toFixed(2)} will arrive in 1-2 business days.`
+}
+
+Keep sharing your referral code to earn more!
+
+- My Car Concierge Team
+```
+
+`;
+
+await sendEmail({
+to: commission.referrer.email,
+subject: ‘💰 You earned a commission!’,
+body: emailContent,
+});
+}
+
+# ================================================================================
+SUMMARY
+
+This configuration creates a complete instant commission payout system for:
+
+1. Member Founders - earn 50% when referred members buy bid credits
+1. Provider Founders - earn 50% when referred providers buy bid credits
+
+KEY FEATURES:
+
+- Automatic commission calculation (50%)
+- Instant payouts via Stripe Connect (1% fee, or free standard)
+- Webhook-driven automation
+- Founder dashboard with earnings tracking
+- Referral code system
+- Admin monitoring tools
+
+NEXT STEPS FOR IMPLEMENTATION:
+
+1. Run database migrations (Part 1)
+1. Set up Stripe Connect accounts (Part 2)
+1. Configure webhook endpoint (Part 5)
+1. Deploy and test with small purchases
+1. Monitor via admin dashboard
+
+# ================================================================================
+END OF INSTRUCTIONS

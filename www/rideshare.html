@@ -300,7 +300,7 @@
     }
 
     .services-list li::before {
-      content: '🚗';
+      content: '<span class="icon-inline" data-icon="car"></span>';
     }
 
     #resources {
@@ -366,7 +366,7 @@
     .tip-list li:last-child { border-bottom: none; }
 
     .tip-list li::before {
-      content: '💡';
+      content: '<span class="icon-inline" data-icon="lightbulb"></span>';
       position: absolute;
       left: 0;
       font-size: 1.25rem;
@@ -689,5 +689,6 @@
       if (svg) el.innerHTML = svg;
     });
   </script>
+  <script src="analytics-tracker.js" defer></script>
 </body>
 </html>

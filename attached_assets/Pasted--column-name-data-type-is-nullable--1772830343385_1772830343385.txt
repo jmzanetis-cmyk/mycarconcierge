@@ -1,0 +1,37 @@
+| column_name                 | data_type                | is_nullable |
+| --------------------------- | ------------------------ | ----------- |
+| instance_id                 | uuid                     | YES         |
+| id                          | uuid                     | NO          |
+| aud                         | character varying        | YES         |
+| role                        | character varying        | YES         |
+| email                       | character varying        | YES         |
+| encrypted_password          | character varying        | YES         |
+| email_confirmed_at          | timestamp with time zone | YES         |
+| invited_at                  | timestamp with time zone | YES         |
+| confirmation_token          | character varying        | YES         |
+| confirmation_sent_at        | timestamp with time zone | YES         |
+| recovery_token              | character varying        | YES         |
+| recovery_sent_at            | timestamp with time zone | YES         |
+| email_change_token_new      | character varying        | YES         |
+| email_change                | character varying        | YES         |
+| email_change_sent_at        | timestamp with time zone | YES         |
+| last_sign_in_at             | timestamp with time zone | YES         |
+| raw_app_meta_data           | jsonb                    | YES         |
+| raw_user_meta_data          | jsonb                    | YES         |
+| is_super_admin              | boolean                  | YES         |
+| created_at                  | timestamp with time zone | YES         |
+| updated_at                  | timestamp with time zone | YES         |
+| phone                       | text                     | YES         |
+| phone_confirmed_at          | timestamp with time zone | YES         |
+| phone_change                | text                     | YES         |
+| phone_change_token          | character varying        | YES         |
+| phone_change_sent_at        | timestamp with time zone | YES         |
+| confirmed_at                | timestamp with time zone | YES         |
+| email_change_token_current  | character varying        | YES         |
+| email_change_confirm_status | smallint                 | YES         |
+| banned_until                | timestamp with time zone | YES         |
+| reauthentication_token      | character varying        | YES         |
+| reauthentication_sent_at    | timestamp with time zone | YES         |
+| is_sso_user                 | boolean                  | NO          |
+| deleted_at                  | timestamp with time zone | YES         |
+| is_anonymous                | boolean                  | NO          |

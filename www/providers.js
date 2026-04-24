@@ -16,7 +16,7 @@
       const themeIcon = document.getElementById('theme-icon');
       const currentTheme = document.documentElement.getAttribute('data-theme');
       if (themeIcon) {
-        themeIcon.innerHTML = currentTheme === 'dark' ? mccIcon('moon', 16) : '☀️';
+        themeIcon.innerHTML = currentTheme === 'dark' ? mccIcon('moon', 16) : mccIcon('sun', 16);
       }
     }
 
@@ -32,7 +32,7 @@
         themeLabel.textContent = currentTheme === 'dark' ? 'Dark Mode' : 'Light Mode';
       }
       if (iconDisplay) {
-        iconDisplay.innerHTML = currentTheme === 'dark' ? mccIcon('moon', 16) : '☀️';
+        iconDisplay.innerHTML = currentTheme === 'dark' ? mccIcon('moon', 16) : mccIcon('sun', 16);
       }
     }
 
@@ -1385,6 +1385,7 @@
       if (id === 'auto-bid') {
         if (typeof loadAutoBidSettings === 'function') loadAutoBidSettings();
       }
+
     }
 
     async function loadOpenPackages() {
@@ -5780,6 +5781,7 @@
         'message_received': mccIcon('message-square', 24),
         'payment_received': mccIcon('dollar-sign', 24),
         'review_received': '⭐',
+        'provider_matched': mccIcon('zap', 24),
         'default': mccIcon('bell', 24)
       };
 
@@ -12944,3 +12946,4 @@
     window.openShopUpgradeModal = openShopUpgradeModal;
 
     // ========== END PROVIDER SHOP SAAS ==========
+

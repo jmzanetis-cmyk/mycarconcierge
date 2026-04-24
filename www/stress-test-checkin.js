@@ -405,6 +405,21 @@ async function cleanupAllData(cleanupState) {
       .update({ queue_id: null })
       .in('id', cleanupState.sessionIds);
 
+  if (allQueueIdsToDelete.size > 0) {
+    const queueIds = [...allQueueIdsToDelete];
+    for (let i = 0; i < queueIds.length; i += 100) {
+      const batch = queueIds.slice(i, i + 100);
+      await supabaseAdmin.from('checkin_queue').delete().in('id', batch);
+    }
+    console.log(`  Deleted ${queueIds.length} queue entries (tracked by ID)`);
+  }
+
+  if (cleanupState.sessionIds.length > 0) {
+    await supabaseAdmin
+      .from('checkin_sessions')
+      .update({ queue_id: null })
+      .in('id', cleanupState.sessionIds);
+
     for (let i = 0; i < cleanupState.sessionIds.length; i += 100) {
       const batch = cleanupState.sessionIds.slice(i, i + 100);
       await supabaseAdmin.from('checkin_sessions').delete().in('id', batch);

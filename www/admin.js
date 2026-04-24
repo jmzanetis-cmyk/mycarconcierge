@@ -1,13 +1,9 @@
-    // ========== SECURITY HELPERS ==========
-    function escapeHtml(text) {
       if (!text) return '';
       const div = document.createElement('div');
       div.textContent = String(text);
       return div.innerHTML;
     }
 
-    // ========== FETCH HELPER ==========
-    async function safeFetch(url, options) {
       const res = await fetch(url, options);
       if (!res.ok) {
         let errMsg = `Server error (${res.status})`;
@@ -17,8 +13,6 @@
       return res.json();
     }
     
-    // ========== STATE ==========
-    let currentUser = null;
     let applications = [];
     let providers = [];
     let payments = [];
@@ -38,8 +32,6 @@
       registrations: 'all'
     };
 
-    // ========== PAGINATION STATE ==========
-    const paginationState = {
       providers: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
       members: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
       packages: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
@@ -80,8 +72,6 @@
       `;
     }
 
-    // ========== LAZY LOADING STATE ==========
-    const loadedSections = {
       dashboard: false,
       analytics: false,
       applications: false,
@@ -106,7 +96,8 @@
       'ai-chat-insights': false,
       crm: false,
       traffic: false,
-      'marketing-outreach': false,
+      'marketing-hub': false,
+      'outreach-engine': false,
       'ai-ops': false,
       'agent-fleet': false,
       'saas-subscriptions': false,
@@ -141,7 +132,8 @@
       crm: async () => { await loadCrmData(); },
       'team-management': async () => { await loadTeamMembers(); },
       traffic: async () => { await loadTrafficData(); },
-      'marketing-outreach': async () => { await initMarketingHub(); if (typeof window.initOutreachEngine === 'function') await window.initOutreachEngine(); },
+      'marketing-hub': async () => { await initMarketingHub(); },
+      'outreach-engine': async () => { if (typeof window.initOutreachEngine === 'function') await window.initOutreachEngine(); },
       'ai-ops': async () => { await initAiOps(); },
       'agent-fleet': async () => { await loadAgentFleetSection(); },
       'sms-log': async () => { await loadSmsLog(1); },
@@ -339,8 +331,6 @@
     });
     } catch(e) { console.error('[Admin] onAuthStateChange setup error:', e); }
     
-    // ========== 2FA ACCESS CHECK ==========
-    async function checkAccessAuthorization() {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (!session) {
         window.location.href = 'login.html';
@@ -583,8 +573,6 @@
       }
     }
 
-    // ========== ANALYTICS ==========
-    let analyticsDateRange = 7; // days
 
     async function loadAnalytics() {
       const startDate = analyticsDateRange > 0 
@@ -877,8 +865,6 @@
       }
     });
 
-    // ========== DASHBOARD CHARTS (Chart.js) ==========
-    let dashboardCharts = {
       revenue: null,
       users: null,
       orders: null
@@ -1278,8 +1264,6 @@
       loadMembers(1);
     }
 
-    // ========== SIGNED AGREEMENTS MANAGEMENT ==========
-    let agreements = [];
     let currentAgreement = null;
 
     async function loadAgreements(page = 1) {
@@ -1554,8 +1538,6 @@
     }
     window.downloadAgreementPDF = downloadAgreementPDF;
 
-    // ========== USER ROLES MANAGEMENT ==========
-    let allUsersForRoles = [];
 
     async function loadUserRoles() {
       const { data, error } = await supabaseClient
@@ -1809,8 +1791,6 @@
       }
     }
 
-    // ========== DASHBOARD ==========
-    async function updateDashboard() {
       try {
         const [
           { count: pendingAppsCount },
@@ -2049,8 +2029,6 @@
       return date.toLocaleDateString();
     }
 
-    // ========== RENDER TABLES ==========
-    function renderApplications() {
       const filtered = applications.filter(a => a.status === currentFilters.applications || currentFilters.applications === 'all');
       const tbody = document.getElementById('applications-table');
       
@@ -2124,6 +2102,9 @@
               </span>
             </td>
             <td>${mccIcon('star', 16)} ${stats.average_rating?.toFixed(1) || 'New'}${stats.average_rating && stats.average_rating < 4 ? ' <span style="color:var(--accent-red);">' + mccIcon('alert-triangle', 16) + '</span>' : ''}</td>
+                ${mccIcon('ticket', 16)} ${totalCredits}
+            </td>
+            <td>${mccIcon('star', 16)} ${stats.average_rating?.toFixed(1) || 'New'}${stats.average_rating && stats.average_rating < 4 ? ' <span style="color:var(--accent-red);">${mccIcon('alert-triangle', 16)}</span>' : ''}</td>
             <td>${stats.jobs_completed || 0}</td>
             <td>$${(stats.total_earnings || 0).toLocaleString()}</td>
             <td>${renderBgCheckBadge(p.bgcheck_status, p.bgcheck_updated_at)}</td>
@@ -2348,7 +2329,9 @@
 
       const names = lowRated.map(p => `• ${p.name} (${(p.avg_rating || 0).toFixed(1)} ${mccIcon('star', 16)})`).join('\n');
       const action = confirm(`${mccIcon('alert-triangle', 16)} Found ${lowRated.length} provider(s) with ratings below 4 stars:\n\n${names}\n\nDo you want to suspend these providers?`);
-
+      const names = lowRated.map(p => `• ${p.business_name || p.full_name} (${p.provider_stats?.[0]?.average_rating?.toFixed(1)} ${mccIcon('star', 16)})`).join('\n');
+      const action = confirm(`${mccIcon('alert-triangle', 16)} Found ${lowRated.length} provider(s) with ratings below 4 stars:\n\n${names}\n\nDo you want to suspend these providers?`);
+      
       if (!action) {
         // Just filter to show them
         document.getElementById('provider-rating-filter').value = 'low';
@@ -2707,8 +2690,6 @@
       }
     }
 
-    // ========== APPLICATION REVIEW ==========
-    async function viewApplication(appId) {
       currentApplication = applications.find(a => a.id === appId);
       if (!currentApplication) return;
 
@@ -2766,7 +2747,7 @@
             </div>
           ` : `
             <p style="color:var(--text-muted);">${mccIcon('x', 16)} No loaner vehicles available</p>
-          `}
+            <p style="color:var(--text-muted);">${mccIcon('x', 16)} No loaner vehicles available</p>
         </div>
 
         <div class="form-section">
@@ -2785,7 +2766,7 @@
               <div class="doc-item">
                 <div class="doc-item-info">
                   <span class="doc-icon">${mccIcon('file-text', 16)}</span>
-                  <span>${d.document_type}: ${d.document_name || 'Document'}</span>
+                  <span class="doc-icon">' + mccIcon('file-text', 16) + '</span>
                 </div>
                 <a href="${d.file_url}" target="_blank" class="btn btn-sm btn-secondary">View</a>
               </div>
@@ -2812,7 +2793,7 @@
             <div class="doc-item">
               <div class="doc-item-info">
                 <span class="doc-icon">${mccIcon('user', 16)}</span>
-                <div>
+                <span class="doc-icon">${mccIcon('user', 16)}</span>
                   <strong>${r.reference_name}</strong> - ${r.relationship}<br>
                   <span style="font-size:0.82rem;color:var(--text-muted)">${r.reference_phone || ''} ${r.reference_email || ''}</span>
                 </div>
@@ -2948,8 +2929,6 @@
       await loadApplications();
     }
 
-    // ========== DISPUTE HANDLING ==========
-    async function viewDispute(disputeId) {
       currentDispute = disputes.find(d => d.id === disputeId);
       if (!currentDispute) return;
 
@@ -3077,8 +3056,6 @@
       await loadDisputes();
     }
 
-    // ========== TICKETS ==========
-    async function viewTicket(ticketId) {
       currentTicket = tickets.find(t => t.id === ticketId);
       if (!currentTicket) return;
 
@@ -3175,8 +3152,6 @@
       updateDashboard();
     }
 
-    // ========== PAYMENTS ==========
-    async function releasePayment(paymentId) {
       if (!confirm('Release this payment to the provider?')) return;
 
       await supabaseClient.from('payments').update({
@@ -3189,8 +3164,6 @@
       updateDashboard();
     }
 
-    // ========== NAVIGATION ==========
-    function setupEventListeners() {
       document.querySelectorAll('.nav-item[data-section]').forEach(item => {
         item.addEventListener('click', () => showSection(item.dataset.section));
       });
@@ -3256,8 +3229,6 @@
       setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
     }
 
-    // ========== HUBSPOT CRM ==========
-    let crmContactsData = [];
     let crmDealsData = [];
     let crmCompaniesData = [];
     let currentCrmFormType = 'contact';
@@ -3527,8 +3498,6 @@
     }
     window.syncMembersToHubSpot = syncMembersToHubSpot;
 
-    // ========== GLOBAL 2FA TOGGLE ==========
-    async function load2faGlobalStatus() {
       try {
         const session = await supabaseClient.auth.getSession();
         if (!session?.data?.session?.access_token) return;
@@ -3659,8 +3628,6 @@
       }
     }
 
-    // ========== PILOT APPLICATIONS ==========
-    let pilotApplications = [];
     let currentPilotFilter = 'pending';
 
     async function loadPilotApplications() {
@@ -3737,7 +3704,8 @@
                 ${app.status === 'pending' ? `
                   <button class="btn btn-success btn-sm" onclick="approvePilotApplication('${app.id}')">${mccIcon('check', 16)}</button>
                   <button class="btn btn-danger btn-sm" onclick="rejectPilotApplication('${app.id}')">${mccIcon('x', 16)}</button>
-                ` : ''}
+                  <button class="btn btn-success btn-sm" onclick="approvePilotApplication('${app.id}')">${mccIcon('check', 16)}</button>
+                  <button class="btn btn-danger btn-sm" onclick="rejectPilotApplication('${app.id}')">${mccIcon('x', 16)}</button>
               </div>
             </td>
           </tr>
@@ -3917,8 +3885,6 @@
       }
     });
 
-    // ========== MEMBER FOUNDER APPLICATIONS ==========
-    let memberFounderApplications = [];
     let currentMFFilter = 'pending';
 
     async function loadMemberFounderApplications() {
@@ -4007,6 +3973,10 @@
                 ` : ''}
                 ${['approved', 'active'].includes((app.status || '').toLowerCase().trim()) ? `
                   <button class="btn btn-primary btn-sm" onclick="resendFounderWelcomeEmail('${app.id}')" title="Resend Welcome Email">${mccIcon('mail', 16)}</button>
+                  <button class="btn btn-success btn-sm" onclick="approveMemberFounder('${app.id}')">${mccIcon('check', 16)}</button>
+                  <button class="btn btn-danger btn-sm" onclick="rejectMemberFounder('${app.id}')">${mccIcon('x', 16)}</button>
+                ${['approved', 'active'].includes((app.status || '').toLowerCase().trim()) ? `
+                  <button class="btn btn-primary btn-sm" onclick="resendFounderWelcomeEmail('${app.id}')" title="Resend Welcome Email">${mccIcon('mail', 16)}</button>
                 ` : ''}
               </div>
             </td>
@@ -4053,7 +4023,7 @@
 
         <div class="form-section">
           <div class="form-section-title">${mccIcon('bell', 24)} Promotion Strategy</div>
-          <div class="detail-grid">
+          <div class="form-section-title">${mccIcon('bell', 24)} Promotion Strategy</div>
             <span class="detail-label">Primary Method:</span><span class="detail-value">${promotionLabels[app.promotion_method] || app.promotion_method || 'N/A'}</span>
             <span class="detail-label">Social Following:</span><span class="detail-value">${app.social_following || 'Not specified'}</span>
             <span class="detail-label">Hours/Week:</span><span class="detail-value">${app.hours_available || 'Not specified'}</span>
@@ -4068,7 +4038,7 @@
 
         <div class="form-section">
           <div class="form-section-title">${mccIcon('clipboard-list', 24)} Agreements</div>
-          <div style="display:grid;gap:8px;">
+          <div class="form-section-title">' + mccIcon('clipboard-list', 24) + ' Agreements</div>
             ${app.agreements_accepted ? `
               <div style="display:flex;align-items:center;gap:8px;">
                 ${app.agreements_accepted.terms_of_service ? mccIcon('check-circle', 16) : mccIcon('x', 16)} Terms of Service
@@ -4354,8 +4324,6 @@
       }
     });
 
-    // ========== COMMISSION PAYOUTS ==========
-    let founderProfiles = [];
     let founderPayouts = [];
     let currentPayoutTab = 'founders';
 
@@ -4456,13 +4424,13 @@
           const stripeStatus = hasStripeConnect ? 
             '<span class="status-badge approved" title="Ready for payouts">' + mccIcon('credit-card', 16) + ' Connected</span>' : 
             stripePending ? 
-            '<span class="status-badge orange" title="Onboarding incomplete">' + mccIcon('clock', 16) + ' Pending</span>' : 
+            '<span class="status-badge orange" title="Onboarding incomplete">${mccIcon('clock', 16)} Pending</span>' : 
             '<span class="status-badge" style="background:var(--bg-input);color:var(--text-muted);">Not Setup</span>';
           const commissionRate = parseFloat(f.commission_rate || 0.50) * 100;
           const pendingBal = parseFloat(f.pending_balance || 0);
           const isEligible = f.status === 'active' && pendingBal >= PAYOUT_THRESHOLD && f.stripe_connect_account_id;
           const eligibilityBadge = isEligible ? 
-            '<span class="status-badge approved" style="margin-left:6px;font-size:0.7rem;" title="Ready for bulk payout">' + mccIcon('check', 16) + ' Eligible</span>' : 
+            '<span class="status-badge approved" style="margin-left:6px;font-size:0.7rem;" title="Ready for bulk payout">${mccIcon('check', 16)} Eligible</span>' : 
             (pendingBal >= PAYOUT_THRESHOLD && !f.stripe_connect_account_id) ?
             '<span class="status-badge orange" style="margin-left:6px;font-size:0.7rem;" title="Needs Stripe Connect setup">' + mccIcon('alert-triangle', 16) + ' No Stripe</span>' : '';
           return `
@@ -4528,7 +4496,7 @@
             <td>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
                 ${p.payout_method === 'stripe_connect' ? `<button class="btn btn-primary btn-sm" onclick="processStripePayout('${p.id}')">${mccIcon('credit-card', 16)} Process</button>` : `<button class="btn btn-success btn-sm" onclick="completePayout('${p.id}')">Mark Complete</button>`}
-                <button class="btn btn-danger btn-sm" onclick="cancelPayout('${p.id}')">Cancel</button>
+                ${p.payout_method === 'stripe_connect' ? `<button class="btn btn-primary btn-sm" onclick="processStripePayout('${p.id}')">' + mccIcon('credit-card', 16) + ' Process</button>` : `<button class="btn btn-success btn-sm" onclick="completePayout('${p.id}')">Mark Complete</button>`}
               </div>
             </td>
           </tr>
@@ -4657,6 +4625,86 @@
       }
     }
 
+    // Founder Commission Rate Management
+    async function editFounderCommission(founderId, founderName, currentRate) {
+      document.getElementById('commission-founder-id').value = founderId;
+      document.getElementById('commission-founder-name').textContent = founderName;
+      document.getElementById('commission-rate-input').value = Math.round(currentRate);
+      document.getElementById('founder-commission-modal').style.display = 'flex';
+      
+      const historyContainer = document.getElementById('commission-history-container');
+      historyContainer.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Loading history...</p>';
+      
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/founders/${founderId}/commission-history`, {
+          headers: {
+            'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+          }
+        });
+        
+        if (!response.ok) throw new Error('Failed to fetch history');
+        
+        const { history } = await response.json();
+        
+        if (!history || history.length === 0) {
+          historyContainer.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">No rate changes recorded yet.</p>';
+        } else {
+          historyContainer.innerHTML = `
+            <p style="font-weight:600;margin-bottom:8px;font-size:0.85rem;color:var(--text-secondary);">Recent Changes</p>
+            ${history.map(h => {
+              const date = new Date(h.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+              return `<p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:4px;">Changed from ${Math.round(h.old_rate * 100)}% to ${Math.round(h.new_rate * 100)}% by ${escapeHtml(h.admin_email)} on ${date}</p>`;
+            }).join('')}
+          `;
+        }
+      } catch (err) {
+        console.error('Error loading commission history:', err);
+        historyContainer.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Could not load history.</p>';
+      }
+    }
+
+    function closeCommissionModal() {
+      document.getElementById('founder-commission-modal').style.display = 'none';
+    }
+
+    async function saveFounderCommission() {
+      const founderId = document.getElementById('commission-founder-id').value;
+      const ratePercent = parseInt(document.getElementById('commission-rate-input').value);
+      
+      if (isNaN(ratePercent) || ratePercent < 0 || ratePercent > 100) {
+        showNotification('Please enter a valid rate between 0 and 100', 'error');
+        return;
+      }
+
+      const commissionRate = ratePercent / 100; // Convert to decimal (e.g., 50% -> 0.50)
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      
+      try {
+        const response = await fetch(`${apiBase}/api/admin/founders/${founderId}/commission`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+          },
+          body: JSON.stringify({ commission_rate: commissionRate })
+        });
+
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to update commission rate');
+        }
+
+        showNotification(`Commission rate updated to ${ratePercent}%`, 'success');
+        closeCommissionModal();
+        await loadFounderPayouts();
+      } catch (err) {
+        console.error('Error updating commission rate:', err);
+        showNotification(err.message || 'Failed to update commission rate', 'error');
+      }
+    }
+
     async function viewFounderDetails(founderId) {
       const founder = founderProfiles.find(f => f.id === founderId);
       if (!founder) return;
@@ -4688,7 +4736,7 @@
 
         <div class="form-section">
           <div class="form-section-title">${mccIcon('dollar-sign', 24)} Commission Summary</div>
-          <div class="stats-grid" style="margin-bottom:0;">
+          <div class="form-section-title">' + mccIcon('dollar-sign', 24) + ' Commission Summary</div>
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);text-align:center;">
               <div style="font-size:1.4rem;font-weight:600;color:var(--accent-gold);">${founder.total_provider_referrals || 0}</div>
               <div style="font-size:0.8rem;color:var(--text-muted);">Provider Referrals</div>
@@ -4727,7 +4775,7 @@
 
         <div class="form-section" style="border-bottom:none;">
           <div class="form-section-title">${mccIcon('clipboard-list', 24)} Recent Commissions (${commissions?.length || 0})</div>
-          ${commissions?.length ? `
+          <div class="form-section-title">' + mccIcon('clipboard-list', 24) + ' Recent Commissions (${commissions?.length || 0})</div>
             <div style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;">
               ${commissions.map(c => `
                 <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-input);padding:12px;border-radius:var(--radius-md);">
@@ -4999,6 +5047,10 @@
           showToast(`${mccIcon('alert-triangle', 16)} ${summary.succeeded} succeeded, ${summary.failed} failed. Check details below.`, 'warning');
         } else if (summary.failed > 0) {
           showToast(`${mccIcon('x', 16)} All ${summary.failed} payouts failed. Check details below.`, 'error');
+          showToast(`' + mccIcon('check-circle', 16) + ' All ${summary.succeeded} payouts processed successfully! Total: $${summary.total_amount.toFixed(2)}`, 'success');
+          showToast(`${mccIcon('alert-triangle', 16)} ${summary.succeeded} succeeded, ${summary.failed} failed. Check details below.`, 'warning');
+        } else if (summary.failed > 0) {
+          showToast(`${mccIcon('x', 16)} All ${summary.failed} payouts failed. Check details below.`, 'error');
         } else {
           showToast('No payouts were processed.', 'info');
         }
@@ -5037,7 +5089,7 @@
       
       if (failed.length > 0) {
         message += `<h4 style="color:var(--accent-red);margin-bottom:8px;">${mccIcon('x', 16)} Failed (${failed.length})</h4>`;
-        message += `<table style="width:100%;font-size:0.85rem;">`;
+        message += `<h4 style="color:var(--accent-red);margin-bottom:8px;">${mccIcon('x', 16)} Failed (${failed.length})</h4>`;
         message += `<tr style="background:var(--bg-elevated);"><th style="padding:6px;text-align:left;">Founder</th><th style="padding:6px;text-align:right;">Amount</th><th style="padding:6px;text-align:left;">Error</th></tr>`;
         failed.forEach(r => {
           message += `<tr><td style="padding:6px;">${escapeHtml(r.founder_name)}</td><td style="padding:6px;text-align:right;">$${r.amount.toFixed(2)}</td><td style="padding:6px;color:var(--accent-red);">${escapeHtml(r.error || 'Unknown error')}</td></tr>`;
@@ -5168,8 +5220,6 @@
       }
     }
 
-    // ========== MILESTONES AND BONUS RESERVE ==========
-    let milestonesData = null;
     let bonusReserveData = null;
 
     async function loadMilestonesData() {
@@ -5262,7 +5312,9 @@
             <span style="display:inline-block;margin-right:16px;">${mccIcon('calendar', 16)} Partnership Start: ${new Date(chrisPartner.partnership_start_date).toLocaleDateString()}</span>
             <span style="display:inline-block;margin-right:16px;">${mccIcon('calendar', 16)} Next Anniversary: January 23, ${new Date().getFullYear() + (new Date() > new Date(new Date().getFullYear(), 0, 23) ? 1 : 0)}</span>
             <span style="display:inline-block;">${mccIcon('sparkles', 16)} Status: <span class="status-badge approved">${chrisPartner.status}</span></span>
-          </div>
+            <span style="display:inline-block;margin-right:16px;">${mccIcon('calendar', 16)} Partnership Start: ${new Date(chrisPartner.partnership_start_date).toLocaleDateString()}</span>
+            <span style="display:inline-block;margin-right:16px;">${mccIcon('calendar', 16)} Next Anniversary: January 23, ${new Date().getFullYear() + (new Date() > new Date(new Date().getFullYear(), 0, 23) ? 1 : 0)}</span>
+            <span style="display:inline-block;">${mccIcon('sparkles', 16)} Status: <span class="status-badge approved">${chrisPartner.status}</span></span>
         `;
       } else {
         document.getElementById('founding-partner-info').innerHTML = `<span style="color:var(--text-muted);">No founding partner record found</span>`;
@@ -5276,9 +5328,9 @@
       
       tbody.innerHTML = milestones.map(m => {
         const statusBadge = m.is_paid 
-          ? '<span class="status-badge approved">' + mccIcon('check', 16) + ' Paid</span>'
+          ? '<span class="status-badge approved">${mccIcon('check', 16)} Paid</span>'
           : m.is_achieved 
-            ? '<span class="status-badge orange">' + mccIcon('clock', 16) + ' Achieved - Unpaid</span>'
+            ? '<span class="status-badge orange">${mccIcon('clock', 16)} Achieved - Unpaid</span>'
             : '<span class="status-badge" style="background:var(--bg-input);color:var(--text-muted);">Pending</span>';
         
         const paidDate = m.achievement?.paid_at ? new Date(m.achievement.paid_at).toLocaleDateString() : '-';
@@ -5419,7 +5471,7 @@
           </div>
         `;
       }
-      
+
       const monthlyData = bonusReserveData.monthly_breakdown || [];
       const monthlyTbody = document.getElementById('monthly-reserve-body');
       
@@ -5514,8 +5566,6 @@
       }
     }
 
-    // ========== VIOLATION REPORTS ==========
-    let violationReports = [];
     let currentViolationFilter = 'pending';
 
     async function loadViolationReports() {
@@ -5567,7 +5617,7 @@
 
       if (!filtered.length) {
         container.innerHTML = `<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">${mccIcon('flag', 40)}</div><p>No ${currentViolationFilter} reports</p></div>`;
-        return;
+        container.innerHTML = `<div class="empty-state" style="padding:40px;"><div class="empty-state-icon">${mccIcon('flag', 40)}</div><p>No ${currentViolationFilter} reports</p></div>`;
       }
 
       container.innerHTML = filtered.map(report => {
@@ -5652,7 +5702,7 @@
             ${report.status === 'confirmed' && report.reward_amount ? `
               <div style="background:var(--accent-gold-soft);padding:12px;border-radius:var(--radius-md);border:1px solid rgba(212,168,85,0.3);margin-bottom:16px;">
                 <strong>${mccIcon('dollar-sign', 16)} Reward:</strong> $${report.reward_amount.toFixed(2)} ${report.reward_paid_at ? '(Paid)' : '(Pending)'}
-              </div>
+                <strong>' + mccIcon('dollar-sign', 16) + ' Reward:</strong> $${report.reward_amount.toFixed(2)} ${report.reward_paid_at ? '(Paid)' : '(Pending)'}
             ` : ''}
 
             <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:16px;border-top:1px solid var(--border-subtle);">
@@ -5792,8 +5842,6 @@
       }
     });
 
-    // ========== USER MANAGEMENT ==========
-    let allUserManagementData = [];
     let filteredUserManagementData = [];
     let currentUserManagementFilter = 'all';
     let currentUserManagementSearch = '';
@@ -5954,7 +6002,7 @@
             <td>${new Date(u.created_at).toLocaleDateString()}</td>
             <td>
               <button class="btn btn-secondary btn-sm" onclick="openUserEditModal('${u.id}')">${mccIcon('file-text', 16)} Edit</button>
-            </td>
+              <button class="btn btn-secondary btn-sm" onclick="openUserEditModal('${u.id}')">' + mccIcon('file-text', 16) + ' Edit</button>
           </tr>
         `;
       }).join('');
@@ -5998,6 +6046,8 @@
         if (s === 'Member Founder') {
           return `<span style="background:linear-gradient(135deg,var(--accent-blue),#6b9fff);color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;margin-right:4px;">${mccIcon('star', 16)} ${s}</span>`;
         }
+        return `<span style="background:linear-gradient(135deg,var(--accent-gold),#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;">${mccIcon('star', 16)} ${s}</span>`;
+          return `<span style="background:linear-gradient(135deg,var(--accent-blue),#6b9fff);color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;margin-right:4px;">${mccIcon('star', 16)} ${s}</span>`;
         return `<span style="background:linear-gradient(135deg,var(--accent-gold),#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;">${mccIcon('star', 16)} ${s}</span>`;
       }).join(' ');
     }
@@ -6048,6 +6098,8 @@
           <div class="form-section-title">${mccIcon('wrench', 24)} Provider Founder Status</div>
           <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--accent-gold-soft);border-radius:var(--radius-md);">
             <span style="font-size:24px;">${mccIcon('star', 24)}</span>
+          <div class="form-section-title">${mccIcon('wrench', 24)} Provider Founder Status</div>
+            <span style="font-size:24px;">${mccIcon('star', 24)}</span>
             <div>
               <div style="font-weight:600;color:var(--accent-gold);">Founding Provider</div>
               <div style="font-size:0.85rem;color:var(--text-secondary);">This provider is part of the founding program</div>
@@ -6069,7 +6121,7 @@
 
         <div class="form-section">
           <div class="form-section-title">${mccIcon('refresh-cw', 24)} Role Management</div>
-          <div style="margin-bottom:12px;">
+          <div class="form-section-title">' + mccIcon('refresh-cw', 24) + ' Role Management</div>
             <span class="form-label">Current Role:</span>
             ${getRoleDisplay(user)}
           </div>
@@ -6098,6 +6150,11 @@
         <div class="form-section" style="border-bottom:none;">
           <div class="form-section-title">${mccIcon('settings', 24)} Account Actions</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${user.isSuspended ? `
+              <button class="btn btn-success" onclick="toggleUserSuspension('${user.id}', false)">${mccIcon('check', 16)} Unsuspend Account</button>
+              <div style="margin-top:8px;padding:12px;background:var(--accent-red-soft);border-radius:var(--radius-md);width:100%;">
+                <div style="color:var(--accent-red);font-weight:600;">${mccIcon('x', 16)} Account Suspended</div>
+          <div class="form-section-title">${mccIcon('settings', 24)} Account Actions</div>
             ${user.isSuspended ? `
               <button class="btn btn-success" onclick="toggleUserSuspension('${user.id}', false)">${mccIcon('check', 16)} Unsuspend Account</button>
               <div style="margin-top:8px;padding:12px;background:var(--accent-red-soft);border-radius:var(--radius-md);width:100%;">
@@ -6321,8 +6378,6 @@
       }
     });
 
-    // ========== CAR (CORRECTIVE ACTION RESPONSE) MANAGEMENT ==========
-    let allCARs = [];
     let currentCAR = null;
     let currentCARFilter = 'pending';
 
@@ -6475,7 +6530,7 @@
       modalBody.innerHTML = `
         <div class="form-section">
           <div class="form-section-title">${mccIcon('user', 24)} Provider Information</div>
-          <div class="detail-grid">
+          <div class="form-section-title">${mccIcon('user', 24)} Provider Information</div>
             <span class="detail-label">Provider Name:</span>
             <span class="detail-value"><strong>${providerName}</strong></span>
             <span class="detail-label">Email:</span>
@@ -6509,7 +6564,7 @@
         
         <div class="form-section">
           <div class="form-section-title">${mccIcon('search', 24)} Root Cause Analysis</div>
-          <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);white-space:pre-wrap;line-height:1.6;">
+          <div class="form-section-title">${mccIcon('search', 24)} Root Cause Analysis</div>
             ${car.root_cause_analysis || 'No root cause analysis provided.'}
           </div>
         </div>
@@ -6523,7 +6578,7 @@
         
         <div class="form-section">
           <div class="form-section-title">${mccIcon('shield', 24)} Preventative Action</div>
-          <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);white-space:pre-wrap;line-height:1.6;">
+          <div class="form-section-title">${mccIcon('shield', 24)} Preventative Action</div>
             ${car.preventative_action || 'No preventative action provided.'}
           </div>
         </div>
@@ -6540,7 +6595,7 @@
         ${car.reviewed_at ? `
         <div class="form-section">
           <div class="form-section-title">${mccIcon('clipboard-list', 24)} Review Information</div>
-          <div class="detail-grid">
+          <div class="form-section-title">' + mccIcon('clipboard-list', 24) + ' Review Information</div>
             <span class="detail-label">Reviewed At:</span>
             <span class="detail-value">${new Date(car.reviewed_at).toLocaleString()}</span>
             ${car.admin_notes ? `
@@ -6561,7 +6616,7 @@
         
         <div class="form-section" id="car-rejection-section" style="display:none;border-bottom:none;">
           <div class="form-section-title" style="color:var(--accent-red);">${mccIcon('x', 24)} Rejection Reason</div>
-          <textarea class="form-textarea" id="car-rejection-reason" placeholder="Explain why this CAR is being rejected..." rows="3"></textarea>
+          <div class="form-section-title" style="color:var(--accent-red);">${mccIcon('x', 24)} Rejection Reason</div>
         </div>
         `}
       `;
@@ -6659,8 +6714,6 @@
       }
     });
 
-    // ========== REGISTRATION VERIFICATIONS ==========
-    async function loadRegistrationVerifications(status = null) {
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) return;
@@ -6796,7 +6849,7 @@
 
         <div class="form-section">
           <div class="form-section-title">${mccIcon('camera', 24)} Registration Image</div>
-          ${v.image_url ? `
+          <div class="form-section-title">${mccIcon('camera', 24)} Registration Image</div>
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);text-align:center;">
               <img src="${v.image_url}" alt="Registration Document" style="max-width:100%;max-height:400px;border-radius:var(--radius-sm);cursor:pointer;" onclick="window.open('${v.image_url}', '_blank')">
               <div style="margin-top:8px;font-size:0.8rem;color:var(--text-muted);">Click image to open in new tab</div>
@@ -6813,7 +6866,7 @@
 
         <div class="form-section">
           <div class="form-section-title">${mccIcon('search', 24)} Name Comparison</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="form-section-title">${mccIcon('search', 24)} Name Comparison</div>
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);">
               <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">Extracted Owner Name</div>
               <div style="font-size:1.1rem;font-weight:600;">${v.extracted_owner_name || 'Not detected'}</div>
@@ -6852,7 +6905,7 @@
         ${v.status !== 'approved' && v.status !== 'rejected' ? `
         <div class="form-section" style="border-bottom:none;">
           <div class="form-section-title">${mccIcon('file-text', 24)} Admin Notes</div>
-          <textarea class="form-textarea" id="verification-admin-notes" placeholder="Add notes about this verification decision (optional)..." rows="3"></textarea>
+          <div class="form-section-title">' + mccIcon('file-text', 24) + ' Admin Notes</div>
         </div>
         ` : ''}
 
@@ -6996,16 +7049,12 @@
     }
     window.toggleSidebar = toggleSidebar;
 
-    // ========== PRINTFUL MERCH MANAGER ==========
-    let printfulCatalog = [];
     let printfulStoreProducts = [];
     let currentCatalogProduct = null;
     let selectedColors = new Set();
     let selectedSizes = new Set();
     let productVariantsMap = {};
 
-    // ========== MERCH PREFERENCES ==========
-    const MERCH_PREFS_KEY = 'merch_manager_preferences';
 
     function loadMerchPreferences() {
       try {
@@ -7552,8 +7601,6 @@
     }
     window.deleteStoreProduct = deleteStoreProduct;
 
-    // ========== BULK PRODUCT CREATOR ==========
-    const BULK_CATEGORY_DEFAULTS = {
       24: { name: 'T-Shirt', productId: 71, defaultColors: ['Black', 'White', 'Navy'], defaultSizes: ['S', 'M', 'L', 'XL'] },
       55: { name: 'Hoodie', productId: 146, defaultColors: ['Black', 'White', 'Navy'], defaultSizes: ['S', 'M', 'L', 'XL'] },
       60: { name: 'Hat', productId: 206, defaultColors: ['Black', 'White', 'Navy'], defaultSizes: [] },
@@ -7712,6 +7759,10 @@
         }
         
         progressLog.innerHTML += `<div style="color:var(--text-muted);">${mccIcon('package', 16)} Fetching variants for ${cat.categoryName}...</div>`;
+          progressLog.innerHTML += `<div style="color:var(--accent-orange);">' + mccIcon('alert-triangle', 16) + ' Unknown category: ${cat.categoryName}</div>`;
+        }
+        
+        progressLog.innerHTML += `<div style="color:var(--text-muted);">${mccIcon('package', 16)} Fetching variants for ${cat.categoryName}...</div>`;
         progressLog.scrollTop = progressLog.scrollHeight;
         
         try {
@@ -7798,6 +7849,8 @@
             progressLog.innerHTML += `<div style="color:var(--accent-green);">${mccIcon('check', 16)} Created: ${result.product.name} (${result.product.variants} variants)</div>`;
           } else {
             progressLog.innerHTML += `<div style="color:var(--accent-red);">${mccIcon('x', 16)} Failed: ${result.error}</div>`;
+            progressLog.innerHTML += `<div style="color:var(--accent-green);">${mccIcon('check', 16)} Created: ${result.product.name} (${result.product.variants} variants)</div>`;
+            progressLog.innerHTML += `<div style="color:var(--accent-red);">${mccIcon('x', 16)} Failed: ${result.error}</div>`;
           }
         }
         
@@ -7823,8 +7876,6 @@
     }
     window.submitBulkCreation = submitBulkCreation;
 
-    // ========== DESIGN LIBRARY ==========
-    let designLibrary = [];
 
     async function loadDesignLibrary() {
       const loadingEl = document.getElementById('design-library-loading');
@@ -7881,7 +7932,8 @@
             <div style="display:flex;gap:6px;">
               <button onclick="copyDesignUrl('${design.url}')" style="flex:1;padding:6px;border:none;border-radius:var(--radius-sm);background:var(--accent-blue-soft);color:var(--accent-blue);cursor:pointer;font-size:0.72rem;">${mccIcon('clipboard-list', 16)} Copy URL</button>
               <button onclick="deleteDesign('${encodeURIComponent(design.filename)}')" style="padding:6px 8px;border:none;border-radius:var(--radius-sm);background:var(--accent-red-soft);color:var(--accent-red);cursor:pointer;font-size:0.72rem;">${mccIcon('x', 16)}</button>
-            </div>
+              <button onclick="copyDesignUrl('${design.url}')" style="flex:1;padding:6px;border:none;border-radius:var(--radius-sm);background:var(--accent-blue-soft);color:var(--accent-blue);cursor:pointer;font-size:0.72rem;">' + mccIcon('clipboard-list', 16) + ' Copy URL</button>
+              <button onclick="deleteDesign('${encodeURIComponent(design.filename)}')" style="padding:6px 8px;border:none;border-radius:var(--radius-sm);background:var(--accent-red-soft);color:var(--accent-red);cursor:pointer;font-size:0.72rem;">${mccIcon('x', 16)}</button>
           </div>
         </div>
       `).join('');
@@ -8426,8 +8478,6 @@
     }
     window.deleteTeamMember = deleteTeamMember;
 
-    // ========== TEAM INVITES ==========
-    let currentInviteId = null;
     let currentInviteUrl = null;
 
     function showInviteModal() {
@@ -10157,8 +10207,6 @@
     }
     window.outreachFetch = outreachFetch;
 
-    // ========== AI OPS AGENT ==========
-
     let aiOpsCurrentTab = 'activity';
     let aiOpsActivityPage = 1;
     let aiOpsDigests = [];
@@ -10740,10 +10788,6 @@
     }
     window.triggerPaymentTracker = triggerPaymentTracker;
 
-    // ========== END AI OPS AGENT ==========
-
-    // ========== SMS LOG ==========
-
     let smsLogPage = 1;
     const SMS_LOG_PAGE_SIZE = 50;
 
@@ -10883,10 +10927,6 @@
     window.loadSmsLog = loadSmsLog;
     window.refreshSingleSmsStatus = refreshSingleSmsStatus;
 
-    // ========== END SMS LOG ==========
-
-    // ========== SAAS SUBSCRIPTIONS ADMIN ==========
-    async function loadSaasSubscriptions() {
       const container = document.getElementById('saas-subscriptions-content');
       if (!container) return;
       container.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading subscription data…</div>';
@@ -11027,10 +11067,6 @@
     }
 
     window.loadSaasSubscriptions = loadSaasSubscriptions;
-
-    // ========== END SAAS SUBSCRIPTIONS ADMIN ==========
-
-    // ========== WHITE-LABEL TENANTS (Task #87) ==========
 
     let _editingTenantId = null;
 
@@ -11506,10 +11542,6 @@
     window.openTenantAccessModal = openTenantAccessModal;
     window.closeTenantAccessModal = closeTenantAccessModal;
 
-    // ========== END WHITE-LABEL TENANTS ==========
-
-    // ========== AI API USAGE DASHBOARD (Task #90) ==========
-    let _apiUsageChart = null;
     async function loadApiUsage() {
       const adminPassword = sessionStorage.getItem('adminPassword');
       if (!adminPassword) return;
@@ -11618,10 +11650,6 @@
       }
     }
     window.adminRevokeApiKey = adminRevokeApiKey;
-    // ========== END AI API USAGE DASHBOARD ==========
-
-    // ========== SURVEY LEADS (Task #93) ==========
-
     const SURVEY_FEATURE_NAMES = {
       get_quotes:       'Get Instant Quotes',
       manage_vehicles:  'Manage Your Vehicles',
@@ -12084,5 +12112,3 @@
       }).catch(err => { console.error('[SurveyLeads] export error:', err); alert('Export failed.'); });
     }
     window.exportSurveyLeads = exportSurveyLeads;
-
-    // ========== END SURVEY LEADS ==========
