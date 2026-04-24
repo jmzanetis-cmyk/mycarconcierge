@@ -1,5 +1,10 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "yPjvnAYwtP4RxTi9xmO_a"
+uri = "file://www/og-card.png"
+type = "image"
+title = "MCC OG link preview card"
 
 [[outputs]]
 id = "gO4B7nvc_aC55SYCgm989"
