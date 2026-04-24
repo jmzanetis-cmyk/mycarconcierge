@@ -99,6 +99,7 @@ async function getApolloHealth(supabase) {
     const cfg = state?.metadata?.apollo_config || {};
     out.enabled = cfg.enabled === true;
     out.last_successful_run = cfg.last_successful_run || null;
+    out.last_successful_search_results = cfg.last_successful_search_results || 0;
     out.last_successful_added = cfg.last_successful_added || 0;
     out.last_successful_profile = cfg.last_successful_profile || null;
     if (out.last_successful_run) {
@@ -122,10 +123,18 @@ async function getApolloHealth(supabase) {
     for (const r of list) {
       const meta = r.metadata || {};
       const isError = r.event_type === 'apollo_discovery_error';
-      const added = meta.added || 0;
-      const enriched = meta.enriched || 0;
+      // Discovery health is measured by Apollo's raw search output
+      // (search_results = people returned by Apollo /people/search), NOT by
+      // post-dedup `added` or by `enriched` — those measure downstream pipeline
+      // throughput, not whether discovery itself is working. A cycle where
+      // Apollo returned 50 people but all were duplicates is still a healthy
+      // discovery cycle. A cycle where Apollo returned 0 people is a stall.
+      const searchResults = typeof meta.search_results === 'number' ? meta.search_results : null;
       const errorKind = meta.error_kind || (isError ? 'unknown_error' : null);
-      const isFailure = isError || (added === 0 && enriched === 0);
+      // Treat error rows AND zero-discovery cycles as failures. Rows missing
+      // search_results (legacy entries written before this telemetry shipped)
+      // are treated as non-failures so old data doesn't poison the streak.
+      const isFailure = isError || searchResults === 0;
 
       if (errorKind) {
         out.recent_error_kinds[errorKind] = (out.recent_error_kinds[errorKind] || 0) + 1;
@@ -219,7 +228,7 @@ function buildApolloHealthHtml(apollo) {
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
         <span style="color:#94a3b8;font-size:14px;">Last successful pull</span>
-        <span style="font-weight:600;color:#f1f5f9;">${lastSuccessLabel}${apollo.last_successful_added ? ` (+${apollo.last_successful_added} leads)` : ''}</span>
+        <span style="font-weight:600;color:#f1f5f9;">${lastSuccessLabel}${apollo.last_successful_search_results ? ` (${apollo.last_successful_search_results} found · ${apollo.last_successful_added || 0} added)` : (apollo.last_successful_added ? ` (+${apollo.last_successful_added} added)` : '')}</span>
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
         <span style="color:#94a3b8;font-size:14px;">Consecutive failed cycles</span>
@@ -280,6 +289,8 @@ function buildEmailHtml(today, outreach, aiOps, narrative, apollo) {
       </div>
       ${outreach.newLeadsToday > 0 ? `<div style="margin-top:10px;font-size:13px;color:#64748b;text-align:center;">+${outreach.newLeadsToday} new leads discovered today &nbsp;·&nbsp; ${outreach.draftedToday} drafted</div>` : ''}
     </div>
+
+    ${buildApolloHealthHtml(apollo)}
 
     <div style="margin-bottom:24px;">
       <div style="font-size:13px;color:#94a3b8;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">💼 Wefunder Investor Pipeline</div>

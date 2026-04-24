@@ -2305,8 +2305,12 @@ async function runApolloDiscoveryCycle(supabase) {
       page_rotation_index: nextPage,
       profile_rotation_index: nextProfileIdx
     };
-    if (results.added > 0 || results.enriched > 0) {
+    // "Successful discovery" = Apollo's people endpoint actually returned
+    // results (search_results > 0). Enrichment-only cycles do NOT count as
+    // discovery success because they don't validate that lead-finding works.
+    if (results.search_results > 0) {
       cfgUpdates.last_successful_run = now.toISOString();
+      cfgUpdates.last_successful_search_results = results.search_results;
       cfgUpdates.last_successful_added = results.added;
       cfgUpdates.last_successful_enriched = results.enriched;
       cfgUpdates.last_successful_profile = profile.name;
