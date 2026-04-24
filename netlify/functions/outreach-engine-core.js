@@ -1292,19 +1292,22 @@ async function runEngineCycle(supabase) {
       if (!lead?.email && !lead?.phone) {
         await supabase.from('opportunity_pipeline')
           .update({ stage: 'dead', last_action_at: new Date().toISOString() })
-          .eq('lead_id', opp.lead_id);
+          .eq('lead_id', opp.lead_id)
+          .in('stage', ['new', 'draft_ready']);
         continue;
       }
       if (lead.crm_sync_status === 'duplicate') {
         await supabase.from('opportunity_pipeline')
           .update({ stage: 'dead', last_action_at: new Date().toISOString() })
-          .eq('lead_id', opp.lead_id);
+          .eq('lead_id', opp.lead_id)
+          .in('stage', ['new', 'draft_ready']);
         continue;
       }
       if (lead.status === 'unsubscribed' || lead.status === 'contacted' || lead.status === 'converted' || lead.status === 'bounced' || lead.status === 'responded') {
         await supabase.from('opportunity_pipeline')
           .update({ stage: 'dead', last_action_at: new Date().toISOString() })
-          .eq('lead_id', opp.lead_id);
+          .eq('lead_id', opp.lead_id)
+          .in('stage', ['new', 'draft_ready']);
         continue;
       }
 
@@ -1318,7 +1321,8 @@ async function runEngineCycle(supabase) {
         // this lead. (Subsequent send/queue-flush loop will handle delivery.)
         await supabase.from('opportunity_pipeline')
           .update({ stage: 'message_queued', last_action_at: new Date().toISOString() })
-          .eq('lead_id', opp.lead_id);
+          .eq('lead_id', opp.lead_id)
+          .in('stage', ['new', 'draft_ready']);
         continue;
       }
 
@@ -1347,7 +1351,8 @@ async function runEngineCycle(supabase) {
 
         await supabase.from('opportunity_pipeline')
           .update({ stage: 'message_queued', last_action_at: new Date().toISOString() })
-          .eq('lead_id', opp.lead_id);
+          .eq('lead_id', opp.lead_id)
+          .in('stage', ['new', 'draft_ready']);
         drafted++;
 
         if (shouldAutoSend && inserted) {
