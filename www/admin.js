@@ -512,7 +512,10 @@
       loadedSections.dashboard = true;
       loadedSections.analytics = true;
       updateDashboard();
-      // Task #139 — start agent-fleet badge polling once admin is verified.
+      // Task #139 — start agent-fleet badge polling once admin is verified,
+      // and explicitly load the dashboard agent tile (also called from
+      // loadDashboardCharts as a best-effort, but called here too so the
+      // dependency on charts succeeding does not gate fleet visibility).
       if (typeof loadAgentFleetBadge === 'function') {
         loadAgentFleetBadge();
         if (!_agentFleetBadgeTimer) {
@@ -520,6 +523,10 @@
             try { loadAgentFleetBadge(); } catch (_) {}
           }, 60000);
         }
+      }
+      if (typeof loadDashboardAgentTile === 'function') {
+        try { await loadDashboardAgentTile(); }
+        catch (e) { console.warn('[admin] dashboard agent tile failed:', e); }
       }
     }
 
@@ -3223,6 +3230,14 @@
       document.querySelector(`.nav-item[data-section="${id}"]`)?.classList.add('active');
       
       await loadSectionIfNeeded(id);
+
+      // Task #139 — refresh the dashboard agent tile every time the user
+      // navigates back to the dashboard so 24h counts and the recent-activity
+      // list stay current (loadAllData only runs once at admin verification).
+      if (id === 'dashboard' && typeof loadDashboardAgentTile === 'function') {
+        try { await loadDashboardAgentTile(); }
+        catch (e) { console.warn('[admin] dashboard agent tile refresh failed:', e); }
+      }
     }
 
     function navigateToSection(id) {
