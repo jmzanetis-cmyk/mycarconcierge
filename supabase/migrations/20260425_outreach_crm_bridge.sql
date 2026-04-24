@@ -40,6 +40,13 @@
 -- ---------------------------------------------------------------------------
 -- 1. check_crm_duplicate ----------------------------------------------------
 -- ---------------------------------------------------------------------------
+-- Drop any prior version first: the initial schema (20260420) defined a
+-- 3-column return type (exists_in_crm, profile_id, profile_role). This bridge
+-- migration adds a 4th column (lead_id), and Postgres requires an explicit
+-- DROP when a function's return-column shape changes — CREATE OR REPLACE alone
+-- fails with "cannot change return type of existing function".
+DROP FUNCTION IF EXISTS public.check_crm_duplicate(TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.check_crm_duplicate(p_email TEXT, p_phone TEXT)
 RETURNS TABLE (exists_in_crm BOOLEAN, profile_id UUID, profile_role TEXT, lead_id UUID)
 LANGUAGE sql
