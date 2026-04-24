@@ -106,25 +106,56 @@
     const autoSendOn = outreachState.auto_send !== false;
     const apolloConfigLoaded = apolloConfig !== null;
     const apolloEnabled = apolloConfig?.enabled === true;
-    const apolloLastRun = apolloConfig?.last_run ? (() => {
-      const mins = Math.round((Date.now() - new Date(apolloConfig.last_run)) / 60000);
-      return mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
-    })() : null;
+    const formatAgo = (iso) => {
+      if (!iso) return null;
+      const mins = Math.round((Date.now() - new Date(iso)) / 60000);
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = mins / 60;
+      if (hrs < 48) return `${Math.round(hrs)}h ago`;
+      return `${Math.round(hrs / 24)}d ago`;
+    };
+    const apolloLastRun = formatAgo(apolloConfig?.last_run);
+    const apolloLastSuccess = formatAgo(apolloConfig?.last_successful_run);
+    const apolloHoursSinceSuccess = apolloConfig?.last_successful_run
+      ? (Date.now() - new Date(apolloConfig.last_successful_run)) / 3600000
+      : null;
+    // Health window aligned with daily-digest getApolloHealth(): only treat as
+    // stalled when we've actually had a successful pull AND it's >18h old.
+    // A freshly-enabled config with no success history is "pending", not stalled.
+    const apolloPending = apolloEnabled && apolloHoursSinceSuccess === null;
+    const apolloStalled = apolloEnabled && apolloHoursSinceSuccess !== null && apolloHoursSinceSuccess > 18;
     const apolloBadgeHtml = !apolloConfigLoaded
       ? `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--text-muted);font-size:12px;font-weight:600;">
            <span style="width:7px;height:7px;border-radius:50%;background:var(--text-muted);display:inline-block;"></span>
            Discovery — unavailable
          </span>`
       : apolloEnabled
-      ? `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;font-size:12px;font-weight:600;">
-           <span style="width:7px;height:7px;border-radius:50%;background:#4ade80;display:inline-block;"></span>
-           Discovery Active${apolloLastRun ? ' · last run ' + apolloLastRun : ''}
-         </span>`
+      ? (apolloStalled
+        ? `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#fbbf24;font-size:12px;font-weight:600;" title="No new leads in 18+ hours — check API key, balance, or recent error logs">
+             <span style="width:7px;height:7px;border-radius:50%;background:#fbbf24;display:inline-block;"></span>
+             ⚠ Discovery Stalled${apolloLastRun ? ' · last attempt ' + apolloLastRun : ''}
+           </span>`
+        : apolloPending
+        ? `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);color:#7dd3fc;font-size:12px;font-weight:600;" title="Enabled — waiting for first successful pull">
+             <span style="width:7px;height:7px;border-radius:50%;background:#7dd3fc;display:inline-block;"></span>
+             Discovery Pending${apolloLastRun ? ' · last attempt ' + apolloLastRun : ' · no cycles run yet'}
+           </span>`
+        : `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;font-size:12px;font-weight:600;">
+             <span style="width:7px;height:7px;border-radius:50%;background:#4ade80;display:inline-block;"></span>
+             Discovery Active${apolloLastRun ? ' · last run ' + apolloLastRun : ''}
+           </span>`)
       : `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#f87171;font-size:12px;font-weight:600;">
            <span style="width:7px;height:7px;border-radius:50%;background:#f87171;display:inline-block;"></span>
            Discovery Disabled
          </span>
          <button class="btn btn-sm" onclick="window.enableApolloDiscovery()" style="font-size:12px;padding:3px 10px;background:var(--accent-blue,#2563eb);color:#fff;border:none;">Enable Discovery</button>`;
+    const apolloHealthHtml = apolloConfigLoaded && apolloEnabled
+      ? `<span style="font-size:11px;color:${apolloStalled ? '#fbbf24' : 'var(--text-muted)'};margin-left:4px;">
+           ${apolloLastSuccess
+             ? `Last successful pull: ${apolloLastSuccess}${apolloConfig?.last_successful_added ? ` (+${apolloConfig.last_successful_added} leads` + (apolloConfig.last_successful_profile ? ` · ${escapeHtml(apolloConfig.last_successful_profile)}` : '') + ')' : ''}`
+             : 'No successful pulls recorded yet'}
+         </span>`
+      : '';
     panel.innerHTML = `
       <div class="engine-status-row">
         <div class="engine-status-left">
@@ -154,6 +185,7 @@
       <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-top:4px;background:var(--bg-elevated,#1a1f2e);border-radius:8px;border:1px solid var(--border-subtle,#2a3040);flex-wrap:wrap;">
         <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Apollo Discovery:</span>
         ${apolloBadgeHtml}
+        ${apolloHealthHtml}
         ${apolloConfigLoaded && !apolloEnabled ? `<span style="font-size:11px;color:var(--text-muted);margin-left:4px;">After enabling, also add <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">&#123;&#123;ref_link&#125;&#125;</code> as a variable in your <a href="https://app.instantly.ai/app/campaigns" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue,#2563eb);text-decoration:underline;">Instantly.ai campaign template</a> to track provider signups.</span>` : ''}
       </div>
     `;

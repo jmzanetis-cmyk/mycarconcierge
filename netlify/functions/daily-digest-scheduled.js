@@ -79,7 +79,165 @@ async function callAI(prompt, maxTokens = 300) {
   return '';
 }
 
-function buildEmailHtml(today, outreach, aiOps, narrative) {
+async function getApolloHealth(supabase) {
+  const out = {
+    enabled: false,
+    last_successful_run: null,
+    last_successful_added: 0,
+    last_successful_profile: null,
+    hours_since_success: null,
+    consecutive_failures: 0,
+    recent_error_kinds: {},
+    recent_cycles: 0,
+    last_error_kind: null,
+    stalled: false,
+    status: 'disabled'
+  };
+  try {
+    const { data: state } = await supabase
+      .from('engine_state').select('metadata').eq('id', 1).single();
+    const cfg = state?.metadata?.apollo_config || {};
+    out.enabled = cfg.enabled === true;
+    out.last_successful_run = cfg.last_successful_run || null;
+    out.last_successful_added = cfg.last_successful_added || 0;
+    out.last_successful_profile = cfg.last_successful_profile || null;
+    if (out.last_successful_run) {
+      out.hours_since_success = (Date.now() - new Date(out.last_successful_run)) / 3600000;
+    }
+  } catch (_) {}
+
+  // Pull recent cycle log entries (most recent first) and tally error_kinds.
+  try {
+    const { data: rows } = await supabase
+      .from('outreach_activity_log')
+      .select('event_type, metadata, created_at')
+      .in('event_type', ['apollo_discovery_cycle', 'apollo_discovery_error'])
+      .order('created_at', { ascending: false })
+      .limit(20);
+    const list = rows || [];
+    out.recent_cycles = list.length;
+
+    let consec = 0;
+    let stoppedCounting = false;
+    for (const r of list) {
+      const meta = r.metadata || {};
+      const isError = r.event_type === 'apollo_discovery_error';
+      const added = meta.added || 0;
+      const enriched = meta.enriched || 0;
+      const errorKind = meta.error_kind || (isError ? 'unknown_error' : null);
+      const isFailure = isError || (added === 0 && enriched === 0);
+
+      if (errorKind) {
+        out.recent_error_kinds[errorKind] = (out.recent_error_kinds[errorKind] || 0) + 1;
+      }
+      if (!stoppedCounting) {
+        if (isFailure) {
+          consec++;
+          if (consec === 1) out.last_error_kind = errorKind;
+        } else {
+          stoppedCounting = true;
+        }
+      }
+    }
+    out.consecutive_failures = consec;
+  } catch (_) {}
+
+  // Stall = enabled + 3+ consecutive failures OR no successful pull in 18+ hours
+  if (out.enabled) {
+    if (out.consecutive_failures >= 3 || (out.hours_since_success !== null && out.hours_since_success > 18)) {
+      out.stalled = true;
+      out.status = 'stalled';
+    } else if (out.hours_since_success === null) {
+      out.status = 'pending';
+    } else {
+      out.status = 'healthy';
+    }
+  }
+  return out;
+}
+
+function explainErrorKind(kind) {
+  switch (kind) {
+    case 'auth_error': return 'API key rejected (401/403) — verify APOLLO_API_KEY is set and active';
+    case 'payment_required': return 'Account credit exhausted or billing issue — top up Apollo balance';
+    case 'rate_limit': return 'Hitting Apollo rate limits (429) — consider lowering interval/per_page';
+    case 'server_error': return 'Apollo upstream errors (5xx) — likely transient, will self-heal';
+    case 'network_error': return 'Network/fetch failure reaching Apollo';
+    case 'no_results': return 'API responded OK but returned 0 results — usually credit exhaustion';
+    case 'client_error': return 'Apollo rejected the request payload (4xx)';
+    case 'unknown_error': return 'Unclassified error — check function logs';
+    default: return null;
+  }
+}
+
+function buildApolloHealthHtml(apollo) {
+  if (!apollo.enabled) {
+    return `<div style="margin-bottom:24px;">
+      <div style="font-size:13px;color:#94a3b8;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">🔭 Apollo Discovery</div>
+      <div style="background:#1e293b;border-radius:8px;padding:16px;color:#64748b;font-size:13px;">Discovery is disabled. Enable it from the admin panel to start auto-discovering provider and investor leads.</div>
+    </div>`;
+  }
+
+  const statusColor = apollo.status === 'healthy' ? '#22c55e' : apollo.status === 'stalled' ? '#f59e0b' : '#94a3b8';
+  const statusLabel = apollo.status === 'healthy' ? 'Healthy' : apollo.status === 'stalled' ? 'STALLED' : 'Pending first cycle';
+  const lastSuccessLabel = apollo.last_successful_run
+    ? (apollo.hours_since_success < 1
+        ? `${Math.round(apollo.hours_since_success * 60)}m ago`
+        : apollo.hours_since_success < 48
+        ? `${apollo.hours_since_success.toFixed(1)}h ago`
+        : `${Math.round(apollo.hours_since_success / 24)}d ago`)
+    : 'Never';
+
+  const errorRows = Object.entries(apollo.recent_error_kinds)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([kind, count]) => {
+      const label = explainErrorKind(kind) || kind;
+      return `<div style="display:flex;justify-content:space-between;font-size:12px;color:#cbd5e1;padding:4px 0;border-bottom:1px solid #334155;">
+        <span>${kind} <span style="color:#64748b;">— ${label}</span></span>
+        <span style="font-weight:600;color:#f1f5f9;">${count}×</span>
+      </div>`;
+    }).join('');
+
+  const stallBanner = apollo.stalled
+    ? `<div style="background:#431407;border:1px solid #f59e0b;border-radius:6px;padding:12px 16px;margin-bottom:12px;">
+        <div style="font-weight:600;color:#fcd34d;font-size:14px;margin-bottom:4px;">⚠️ Discovery has stalled</div>
+        <div style="font-size:12px;color:#fde68a;line-height:1.5;">
+          ${apollo.consecutive_failures} consecutive cycle${apollo.consecutive_failures === 1 ? '' : 's'} produced no leads.
+          ${apollo.last_error_kind ? `Most recent issue: <strong>${apollo.last_error_kind}</strong> — ${explainErrorKind(apollo.last_error_kind) || 'see logs'}.` : ''}
+        </div>
+      </div>`
+    : '';
+
+  return `<div style="margin-bottom:24px;">
+    <div style="font-size:13px;color:#94a3b8;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">🔭 Apollo Discovery</div>
+    ${stallBanner}
+    <div style="background:#1e293b;border-radius:8px;padding:16px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+        <span style="color:#94a3b8;font-size:14px;">Status</span>
+        <span style="font-weight:600;color:${statusColor};">${statusLabel}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+        <span style="color:#94a3b8;font-size:14px;">Last successful pull</span>
+        <span style="font-weight:600;color:#f1f5f9;">${lastSuccessLabel}${apollo.last_successful_added ? ` (+${apollo.last_successful_added} leads)` : ''}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+        <span style="color:#94a3b8;font-size:14px;">Consecutive failed cycles</span>
+        <span style="font-weight:600;color:${apollo.consecutive_failures >= 3 ? '#f59e0b' : apollo.consecutive_failures > 0 ? '#fbbf24' : '#22c55e'};">${apollo.consecutive_failures}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;">
+        <span style="color:#94a3b8;font-size:14px;">Cycles logged (recent 20)</span>
+        <span style="font-weight:600;color:#f1f5f9;">${apollo.recent_cycles}</span>
+      </div>
+      ${errorRows ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid #334155;">
+        <div style="font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Recent error breakdown</div>
+        ${errorRows}
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+function buildEmailHtml(today, outreach, aiOps, narrative, apollo) {
   const pct = outreach.totalSent > 0 ? Math.round((outreach.sentToday / outreach.totalSent) * 100) : 0;
   const queueColor = outreach.approvedQueue > 50 ? '#f59e0b' : outreach.approvedQueue > 0 ? '#3b82f6' : '#22c55e';
 
@@ -233,12 +391,16 @@ exports.handler = async function(event, context) {
       escalated: Object.values(byModule).reduce((s, m) => s + (m.escalated || 0), 0)
     };
 
+    // ── Apollo discovery health ─────────────────────────────────
+    const apollo = await getApolloHealth(supabase);
+
     // ── AI narrative ─────────────────────────────────────────────
     const narrative = await callAI(
       `Write a 2-sentence daily operations summary for My Car Concierge admin Jordan. ` +
       `Outreach: ${outreach.sentToday} emails sent today, ${outreach.approvedQueue} queued, ${outreach.totalSent} total sent all-time, ${outreach.newLeadsToday} new leads discovered. ` +
       `Investor pipeline: ${outreach.totalInvestors} investor leads total, ${outreach.wefunderPending} Wefunder drafts pending review. ` +
       `AI Ops: ${aiOps.totalActions} actions, ${aiOps.autoExec} auto-executed, ${aiOps.escalated} escalated. ` +
+      (apollo.stalled ? `⚠️ Apollo discovery has stalled: ${apollo.consecutive_failures} consecutive cycles produced no leads (likely cause: ${apollo.last_error_kind || 'unknown'}). Mention this prominently. ` : '') +
       `Shadow mode: ${shadowMode}. Keep it brief, concrete, and encouraging.`,
       200
     );
@@ -247,7 +409,7 @@ exports.handler = async function(event, context) {
     await supabase.from('ai_daily_digests').upsert({
       date: today,
       narrative: narrative || `${outreach.sentToday} emails sent today. ${outreach.approvedQueue} in queue. ${aiOps.totalActions} AI actions.`,
-      stats: { outreach, aiOps: byModule },
+      stats: { outreach, aiOps: byModule, apollo },
       sent_sms: false,
       created_at: new Date().toISOString()
     }, { onConflict: 'date' });
@@ -257,8 +419,9 @@ exports.handler = async function(event, context) {
     let emailSent = false;
     if (resend) {
       try {
-        const html = buildEmailHtml(today, outreach, aiOps, narrative);
+        const html = buildEmailHtml(today, outreach, aiOps, narrative, apollo);
         const subjectParts = [];
+        if (apollo.stalled) subjectParts.push(`⚠️ Apollo stalled (${apollo.consecutive_failures}× zero)`);
         if (outreach.sentToday > 0) subjectParts.push(`${outreach.sentToday} emails sent`);
         if (outreach.approvedQueue > 0) subjectParts.push(`${outreach.approvedQueue} queued`);
         if (aiOps.escalated > 0) subjectParts.push(`⚠️ ${aiOps.escalated} escalated`);
@@ -294,12 +457,15 @@ exports.handler = async function(event, context) {
         `💼 Investors: ${outreach.totalInvestors} leads, ${outreach.wefunderPending} Wefunder drafts pending`,
         `🤖 AI Ops: ${aiOps.totalActions} actions, ${aiOps.escalated} escalated`
       ];
+      if (apollo.stalled) {
+        smsLines.push(`⚠️ Apollo stalled: ${apollo.consecutive_failures} cycles w/o leads (${apollo.last_error_kind || 'unknown'})`);
+      }
       if (aiOps.escalated > 0) smsLines.push(`⚠️ Check dashboard for ${aiOps.escalated} escalated item${aiOps.escalated > 1 ? 's' : ''}`);
       smsSent = await sendSMS(adminPhone, smsLines.join('\n'));
       if (smsSent) await supabase.from('ai_daily_digests').update({ sent_sms: true }).eq('date', today);
     }
 
-    const result = { success: true, date: today, outreach, aiOps, email_sent: emailSent, sms_sent: smsSent, ms: Date.now() - t0 };
+    const result = { success: true, date: today, outreach, aiOps, apollo: { status: apollo.status, consecutive_failures: apollo.consecutive_failures }, email_sent: emailSent, sms_sent: smsSent, ms: Date.now() - t0 };
     console.log('[DailyDigest] Complete:', JSON.stringify(result));
     return { statusCode: 200, body: JSON.stringify(result) };
 

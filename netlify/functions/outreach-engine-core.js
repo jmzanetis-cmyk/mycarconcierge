@@ -2054,6 +2054,20 @@ async function runWefunderBlastForEligible(supabase, { notify = true } = {}) {
   return { drafted, failed, skipped: recentLeadIds.size, total: ids.length };
 }
 
+function classifyApolloError({ status, body, networkError } = {}) {
+  if (networkError) return 'network_error';
+  if (status === 401 || status === 403) return 'auth_error';
+  if (status === 402) return 'payment_required';
+  if (status === 429) return 'rate_limit';
+  if (status >= 500 && status < 600) return 'server_error';
+  if (status >= 400 && status < 500) {
+    const blob = (typeof body === 'string' ? body : JSON.stringify(body || {})).toLowerCase();
+    if (/credit|quota|payment|billing|insufficient|out of/.test(blob)) return 'payment_required';
+    return 'client_error';
+  }
+  return 'unknown_error';
+}
+
 async function runApolloDiscoveryCycle(supabase) {
   const apolloKey = process.env.APOLLO_API_KEY;
   if (!apolloKey) return { skipped: true, reason: 'no_api_key' };
@@ -2094,9 +2108,53 @@ async function runApolloDiscoveryCycle(supabase) {
       person_locations: [city]
     };
 
-    const searchResp = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
-      method: 'POST', headers: apolloHeaders, body: JSON.stringify(searchPayload)
-    });
+    let searchResp;
+    try {
+      searchResp = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
+        method: 'POST', headers: apolloHeaders, body: JSON.stringify(searchPayload)
+      });
+    } catch (netErr) {
+      const errorKind = classifyApolloError({ networkError: true });
+      console.error(`[Apollo] Network error (${errorKind}):`, netErr.message);
+      try {
+        await supabase.from('outreach_activity_log').insert({
+          event_type: 'apollo_discovery_error',
+          metadata: { error: netErr.message, error_kind: errorKind, profile: profile.name, city, page }
+        });
+      } catch (_) {}
+      return { success: false, error: netErr.message, error_kind: errorKind, city, page, profile: profile.name };
+    }
+
+    if (!searchResp.ok) {
+      const rawBody = await searchResp.text().catch(() => '');
+      const errorKind = classifyApolloError({ status: searchResp.status, body: rawBody });
+      const trimmedBody = rawBody.length > 500 ? rawBody.slice(0, 500) + '…' : rawBody;
+      console.error(`[Apollo] HTTP ${searchResp.status} (${errorKind}):`, trimmedBody);
+      try {
+        await supabase.from('outreach_activity_log').insert({
+          event_type: 'apollo_discovery_error',
+          metadata: {
+            error: `HTTP ${searchResp.status}`,
+            error_kind: errorKind,
+            http_status: searchResp.status,
+            response_body: trimmedBody,
+            profile: profile.name,
+            city,
+            page
+          }
+        });
+      } catch (_) {}
+      return {
+        success: false,
+        error: `Apollo API returned HTTP ${searchResp.status}`,
+        error_kind: errorKind,
+        http_status: searchResp.status,
+        city,
+        page,
+        profile: profile.name
+      };
+    }
+
     const searchData = await searchResp.json();
     const people = searchData.people || [];
 
@@ -2241,13 +2299,33 @@ async function runApolloDiscoveryCycle(supabase) {
       }
     }
 
-    await saveApolloConfig(supabase, { last_run: now.toISOString(), city_rotation_index: nextCityIdx, page_rotation_index: nextPage, profile_rotation_index: nextProfileIdx });
+    const cfgUpdates = {
+      last_run: now.toISOString(),
+      city_rotation_index: nextCityIdx,
+      page_rotation_index: nextPage,
+      profile_rotation_index: nextProfileIdx
+    };
+    if (results.added > 0 || results.enriched > 0) {
+      cfgUpdates.last_successful_run = now.toISOString();
+      cfgUpdates.last_successful_added = results.added;
+      cfgUpdates.last_successful_enriched = results.enriched;
+      cfgUpdates.last_successful_profile = profile.name;
+    }
+    await saveApolloConfig(supabase, cfgUpdates);
+
+    // Classify silent zero-result cycles — Apollo returns 200 OK with empty
+    // people array when credits are exhausted, so no HTTP error is raised.
+    const silentZero = results.search_results === 0 && results.added === 0 && results.enriched === 0;
+    const errorKind = silentZero ? 'no_results' : null;
 
     try {
-      await supabase.from('outreach_activity_log').insert({ event_type: 'apollo_discovery_cycle', metadata: { city, page, ...results } });
+      await supabase.from('outreach_activity_log').insert({
+        event_type: 'apollo_discovery_cycle',
+        metadata: { city, page, profile: profile.name, error_kind: errorKind, ...results }
+      });
     } catch (_) {}
 
-    console.log(`[Apollo] Cycle complete — found:${results.search_results} added:${results.added} enriched:${results.enriched} wefunder_drafted:${results.wefunder_drafted} instantly_enrolled:${results.instantly_enrolled || 0}`);
+    console.log(`[Apollo] Cycle complete — found:${results.search_results} added:${results.added} enriched:${results.enriched} wefunder_drafted:${results.wefunder_drafted} instantly_enrolled:${results.instantly_enrolled || 0}${silentZero ? ' [SILENT_ZERO]' : ''}`);
 
     try {
       const newInvestors = leadType === 'investor' ? results.added : 0;
@@ -2264,12 +2342,21 @@ async function runApolloDiscoveryCycle(supabase) {
       await sendAdminSMS(supabase, parts.join(' | '));
     } catch (_) {}
 
-    return { success: true, city, page, ...results };
+    return { success: true, city, page, profile: profile.name, error_kind: errorKind, ...results };
 
   } catch (err) {
-    console.error('[Apollo] Discovery cycle error:', err.message);
-    try { await supabase.from('outreach_activity_log').insert({ event_type: 'apollo_discovery_error', metadata: { error: err.message } }); } catch (_) {}
-    return { success: false, error: err.message };
+    // This catch covers post-fetch failures (JSON parsing, DB writes, downstream
+    // logic) — NOT network failures (those are handled inline above). Classify
+    // accordingly so the digest doesn't mislead admin into chasing connectivity.
+    const errorKind = 'processing_error';
+    console.error(`[Apollo] Discovery cycle exception (${errorKind}):`, err.message);
+    try {
+      await supabase.from('outreach_activity_log').insert({
+        event_type: 'apollo_discovery_error',
+        metadata: { error: err.message, error_kind: errorKind, stack: err.stack ? err.stack.slice(0, 500) : null }
+      });
+    } catch (_) {}
+    return { success: false, error: err.message, error_kind: errorKind };
   }
 }
 
