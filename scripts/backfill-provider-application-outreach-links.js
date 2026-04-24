@@ -24,6 +24,15 @@
  *   - Email match wins over phone match
  *   - Oldest lead wins on ties
  *
+ * IMPORTANT — contact-info source:
+ *   The live trigger fires on `profiles INSERT` and reads NEW.email / NEW.phone
+ *   from the profile row. `provider_applications` itself has NO `email` column
+ *   (only `phone`, which is the business phone — often different from the
+ *   personal phone on the profile). So to faithfully reproduce trigger
+ *   semantics for the backfill we must look up the linked `profiles` row via
+ *   `user_id` and match using the profile's email/phone — NOT the
+ *   application's `phone` column.
+ *
  * PREREQUISITE: supabase/migrations/20260425_outreach_crm_bridge.sql must be
  * applied in the Supabase SQL Editor first (the column has to exist).
  *
@@ -146,7 +155,7 @@ async function main() {
   while (true) {
     let q = supabase
       .from('provider_applications')
-      .select('id, email, phone, created_at, outreach_lead_id')
+      .select('id, user_id, phone, created_at, outreach_lead_id')
       .is('outreach_lead_id', null)
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
@@ -164,13 +173,34 @@ async function main() {
     }
     if (!apps || apps.length === 0) break;
 
+    // Batch-fetch the linked profiles for this page so we get email/phone from
+    // the SAME source the live trigger uses (NEW.email / NEW.phone on profiles
+    // INSERT). provider_applications has no `email` column of its own.
+    const userIds = apps.map((a) => a.user_id).filter(Boolean);
+    const profilesById = new Map();
+    if (userIds.length > 0) {
+      const { data: profs, error: pErr } = await supabase
+        .from('profiles')
+        .select('id, email, phone')
+        .in('id', userIds);
+      if (pErr) {
+        console.error('Profile lookup failed:', pErr.message);
+        stats.errors++;
+        break;
+      }
+      for (const p of profs || []) profilesById.set(p.id, p);
+    }
+
     for (const app of apps) {
       stats.scanned++;
       cursorTs = app.created_at;
       cursorId = app.id;
 
-      const email = normEmail(app.email);
-      const phone = normPhone(app.phone);
+      const profile = app.user_id ? profilesById.get(app.user_id) : null;
+      // Prefer profile contact info (trigger-faithful); fall back to the
+      // application's `phone` column only when the profile has no phone.
+      const email = normEmail(profile && profile.email);
+      const phone = normPhone((profile && profile.phone) || app.phone);
       if (!email && !phone) { stats.skipped_no_contact++; continue; }
 
       let candidate;
