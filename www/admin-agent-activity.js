@@ -20,16 +20,23 @@
 // }
 // ============================================================================
 (function () {
-  function adminPw() {
-    // Mirrors getAiOpsHeaders / safeFetch pattern in admin.js.
-    return window.adminPasswordVerified
-        || localStorage.getItem('mcc_admin_pass')
-        || '';
-  }
-
+  // Mirrors getAiOpsHeaders() in admin.js — team-admin sessions authenticate with
+  // x-admin-token (rotating short-lived team token), and the long-lived admin
+  // password covers the single owner session. The agent-fleet/ai-ops backends
+  // currently only validate x-admin-password, so we send BOTH headers when
+  // available — that lets the team-admin token-only sessions still authenticate
+  // (the team-admin login flow stamps mcc_admin_pass after server-side token
+  // validation), and keeps owner-password-only sessions working unchanged.
   function authHeaders() {
-    const pw = adminPw();
     const h = { 'Accept': 'application/json' };
+    const token = window.adminTeamToken
+               || localStorage.getItem('adminTeamToken')
+               || '';
+    if (token) h['x-admin-token'] = token;
+    const pw = window.adminPasswordVerified
+            || localStorage.getItem('mcc_admin_pass')
+            || localStorage.getItem('adminPassword')
+            || '';
     if (pw) h['x-admin-password'] = pw;
     return h;
   }

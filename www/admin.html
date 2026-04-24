@@ -1842,6 +1842,8 @@
         <p class="page-subtitle">Review and approve founding provider pilot program applications</p>
       </div>
 
+      <div id="pilot-agent-activity" style="margin-bottom:24px;"></div>
+
       <div class="stats-grid" style="margin-bottom:24px;">
         <div class="stat-card">
           <div class="stat-icon" style="background:var(--accent-orange-soft);color:var(--accent-orange);"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></div>
@@ -1894,6 +1896,8 @@
         <h1 class="page-title"><span class="icon-inline" data-icon="users"></span> Member Founder Applications</h1>
         <p class="page-subtitle">Review and approve member founder ambassador program applications</p>
       </div>
+
+      <div id="member-founders-agent-activity" style="margin-bottom:24px;"></div>
 
       <div class="stats-grid" style="margin-bottom:24px;">
         <div class="stat-card">
@@ -2224,6 +2228,8 @@
         <p class="page-subtitle">Manage approved service providers</p>
       </div>
 
+      <div id="providers-agent-activity" style="margin-bottom:24px;"></div>
+
       <!-- Bulk Actions Bar -->
       <div id="bulk-actions-bar" class="card" style="display:none;margin-bottom:16px;padding:16px 20px;background:var(--accent-blue-soft);border:1px solid rgba(74,124,255,0.3);">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
@@ -2423,6 +2429,8 @@
         <h1 class="page-title">Payments & Escrow</h1>
         <p class="page-subtitle">Track all platform transactions</p>
       </div>
+
+      <div id="payments-agent-activity" style="margin-bottom:24px;"></div>
 
       <div class="stats-grid" style="margin-bottom:24px;">
         <div class="stat-card">
@@ -4159,6 +4167,19 @@
                 <option value="agent:treasurer">Agent: Treasurer</option>
                 <option value="agent:matchmaker">Agent: Matchmaker</option>
                 <option value="agent:advocate">Agent: Advocate</option>
+              </select>
+              <select id="ai-ops-outcome-filter" onchange="loadAiOpsActivity()" title="Outcome / status filter" style="padding:6px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+                <option value="">All outcomes</option>
+                <option value="executed">Executed</option>
+                <option value="proposed">Proposed / awaiting review</option>
+                <option value="escalated">Escalated</option>
+                <option value="errored">Errored / failed</option>
+              </select>
+              <select id="ai-ops-time-filter" onchange="loadAiOpsActivity()" title="Time range" style="padding:6px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+                <option value="24h">Last 24h</option>
+                <option value="7d" selected>Last 7 days</option>
+                <option value="30d">Last 30 days</option>
+                <option value="all">All time</option>
               </select>
               <button class="btn btn-secondary btn-sm" onclick="loadAiOpsActivity()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
             </div>

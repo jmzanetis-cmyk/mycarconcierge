@@ -84,7 +84,7 @@ async function updateAgent(supabase, slug, body) {
   return { agent: data };
 }
 
-async function listActions(supabase, { limit = 50, offset = 0, agent = null, status = null, reviewOnly = false }) {
+async function listActions(supabase, { limit = 50, offset = 0, agent = null, status = null, reviewOnly = false, since = null }) {
   const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
   const off = Math.max(parseInt(offset, 10) || 0, 0);
   let q = supabase.from('agent_actions')
@@ -94,6 +94,7 @@ async function listActions(supabase, { limit = 50, offset = 0, agent = null, sta
   if (agent)  q = q.eq('agent_slug', agent);
   if (status) q = q.eq('status', status);
   if (reviewOnly) q = q.eq('needs_review', true).is('reviewed_at', null);
+  if (since && !isNaN(Date.parse(since))) q = q.gte('created_at', since);
   const { data, count, error } = await q;
   if (error) throw new Error(error.message);
   return { actions: data || [], total: count || 0, limit: lim, offset: off };
@@ -260,7 +261,8 @@ exports.handler = async function(event) {
         offset: qs.offset,
         agent: qs.agent || null,
         status: qs.status || null,
-        reviewOnly: qs.review_only === '1' || qs.review_only === 'true'
+        reviewOnly: qs.review_only === '1' || qs.review_only === 'true',
+        since: qs.since || null
       });
       return jsonResponse(200, result);
     }
@@ -324,26 +326,45 @@ exports.handler = async function(event) {
     // Service-role-backed counts so RLS on agent_actions doesn't return zero.
     if (route === 'stats/24h' && method === 'GET') {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      // resolveAutonomy() in agent-fleet-runtime.js writes one of:
-      //   'autonomous' (agent ran it, no human gate)
-      //   'assist'     (agent ran it because confidence >= assistThreshold)
-      //   'propose'    (queued for review)
-      // "Auto-executed" semantically = ran without sitting in the review queue.
-      const [totalRes, autoRes, reviewRes] = await Promise.all([
-        supabase.from('agent_actions').select('*', { count: 'exact', head: true }).gte('created_at', since),
+      // Required dashboard semantics: "actions taken / escalated / failed" over
+      // the last 24h, drawn from BOTH agent_actions and agent_events.
+      //   actions_taken — agent_actions rows that ran end-to-end (status='executed')
+      //   escalated     — needs_review queue OR agent_events of type 'agent.escalated'
+      //   failed        — agent_actions status='errored' OR agent_events 'agent.failed'
+      // We dedupe escalated/failed by counting events that don't already correspond
+      // to an agent_action row (agent_events.payload.action_id check). Cheap to call —
+      // every probe is a head/count select.
+      const [
+        takenRes, escActionRes, failActionRes,
+        escEventRes, failEventRes
+      ] = await Promise.all([
         supabase.from('agent_actions').select('*', { count: 'exact', head: true })
-          .gte('created_at', since).in('autonomy_used', ['autonomous', 'assist']),
+          .gte('created_at', since).eq('status', 'executed'),
         supabase.from('agent_actions').select('*', { count: 'exact', head: true })
-          .gte('created_at', since).eq('needs_review', true).is('reviewed_at', null)
+          .gte('created_at', since).eq('needs_review', true).is('reviewed_at', null),
+        supabase.from('agent_actions').select('*', { count: 'exact', head: true })
+          .gte('created_at', since).eq('status', 'errored'),
+        supabase.from('agent_events').select('*', { count: 'exact', head: true })
+          .gte('created_at', since).eq('event_type', 'agent.escalated'),
+        supabase.from('agent_events').select('*', { count: 'exact', head: true })
+          .gte('created_at', since).eq('event_type', 'agent.failed')
       ]);
+      const sumCount = (a, b) =>
+        (a.error ? 0 : (a.count || 0)) + (b.error ? 0 : (b.count || 0));
       return jsonResponse(200, {
-        total_actions:    totalRes.error  ? 0 : (totalRes.count  || 0),
-        auto_executed:    autoRes.error   ? 0 : (autoRes.count   || 0),
-        needs_review:     reviewRes.error ? 0 : (reviewRes.count || 0),
+        actions_taken: takenRes.error ? 0 : (takenRes.count || 0),
+        escalated:     sumCount(escActionRes,  escEventRes),
+        failed:        sumCount(failActionRes, failEventRes),
+        sources: {
+          agent_actions: { taken: takenRes.count || 0, escalated: escActionRes.count || 0, failed: failActionRes.count || 0 },
+          agent_events:  { escalated: escEventRes.count || 0, failed: failEventRes.count || 0 }
+        },
         errors: {
-          total:  totalRes.error?.message  || null,
-          auto:   autoRes.error?.message   || null,
-          review: reviewRes.error?.message || null
+          taken:        takenRes.error?.message      || null,
+          esc_actions:  escActionRes.error?.message  || null,
+          fail_actions: failActionRes.error?.message || null,
+          esc_events:   escEventRes.error?.message   || null,
+          fail_events:  failEventRes.error?.message  || null
         }
       });
     }

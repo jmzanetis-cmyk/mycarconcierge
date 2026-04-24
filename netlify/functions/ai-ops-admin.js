@@ -446,11 +446,15 @@ exports.handler = async function(event, context) {
       const limit = Math.min(parseInt(params.limit || '25'), 100);
       const mod = params.module || '';
       const targetId = (params.target_id || '').trim();
+      const outcome = (params.outcome || '').trim();
+      const since = (params.since || '').trim();
       let q = supabase.from('ai_action_log').select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range((page - 1) * limit, page * limit - 1);
       if (mod) q = q.eq('module', mod);
       if (targetId) q = q.eq('target_id', targetId);
+      if (outcome) q = q.eq('outcome', outcome);
+      if (since && !isNaN(Date.parse(since))) q = q.gte('created_at', since);
       const { data, error, count } = await q;
       if (error) return jsonResponse(500, { error: error.message });
       return jsonResponse(200, { actions: data || [], total: count || 0, page, limit, totalPages: Math.ceil((count || 0) / limit) });

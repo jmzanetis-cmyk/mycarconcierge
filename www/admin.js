@@ -1144,6 +1144,14 @@
         providers = [];
         renderProviders();
       }
+      // Task #139 — agent activity strip (matchmaker / treasurer / gatekeeper / advocate touch providers).
+      // Runs on both success and failure paths so the strip always reflects fleet activity.
+      if (typeof window.renderAgentActivityPanel === 'function') {
+        try { window.renderAgentActivityPanel('providers-agent-activity', {
+          agentSlug: ['matchmaker', 'treasurer', 'gatekeeper', 'advocate'],
+          limit: 10, title: 'Recent Provider-related Agent Activity', showEmpty: false
+        }); } catch (e) {}
+      }
     }
     
     function changeProvidersPage(delta) {
@@ -1177,6 +1185,14 @@
       const { data } = await supabaseClient.from('payments').select('*, maintenance_packages(title), member:member_id(full_name), provider:provider_id(full_name)').order('created_at', { ascending: false });
       payments = data || [];
       renderPayments();
+      // Task #139 — Treasurer agent + legacy payment_tracker module both touch payments.
+      if (typeof window.renderAgentActivityPanel === 'function') {
+        try { window.renderAgentActivityPanel('payments-agent-activity', {
+          agentSlug: 'treasurer',
+          includeAiOpsModule: 'payment_tracker',
+          limit: 10, title: 'Recent Payment-related Agent Activity', showEmpty: false
+        }); } catch (e) {}
+      }
     }
 
     async function loadDisputes() {
@@ -3648,6 +3664,13 @@
 
         updatePilotStats();
         renderPilotApplications();
+        // Task #139 — Gatekeeper screens applications.
+        if (typeof window.renderAgentActivityPanel === 'function') {
+          try { window.renderAgentActivityPanel('pilot-agent-activity', {
+            agentSlug: 'gatekeeper',
+            limit: 10, title: 'Recent Gatekeeper Reviews', showEmpty: false
+          }); } catch (e) {}
+        }
       } catch (err) {
         console.error('loadPilotApplications error:', err);
       }
@@ -3899,6 +3922,13 @@
 
         updateMFStats();
         renderMemberFounderApplications();
+        // Task #139 — Concierge + Advocate touch member-founder onboarding.
+        if (typeof window.renderAgentActivityPanel === 'function') {
+          try { window.renderAgentActivityPanel('member-founders-agent-activity', {
+            agentSlug: ['concierge', 'advocate'],
+            limit: 10, title: 'Recent Member-Founder Agent Activity', showEmpty: false
+          }); } catch (e) {}
+        }
       } catch (err) {
         console.error('loadMemberFounderApplications error:', err);
       }
@@ -10199,9 +10229,9 @@
             <div style="font-size:1.4rem;font-weight:700;color:${color};">${val}</div>
           </div>`;
         tileEl.innerHTML = [
-          tile('Total actions', j.total_actions || 0, '#3b82f6'),
-          tile('Auto-executed', j.auto_executed || 0, '#10b981'),
-          tile('Needs review',  j.needs_review  || 0, '#b8942d')
+          tile('Actions taken', j.actions_taken || 0, '#10b981'),
+          tile('Escalated',     j.escalated     || 0, '#b8942d'),
+          tile('Failed',        j.failed        || 0, '#c0392b')
         ].join('');
       } catch (e) {
         tileEl.innerHTML = `<div style="grid-column:1/-1;padding:10px;color:var(--text-muted);font-size:0.82rem;">Agent metrics unavailable</div>`;
@@ -10243,12 +10273,29 @@
       if (!listEl) return;
       const rawMod = document.getElementById('ai-ops-module-filter')?.value || '';
       const source = document.getElementById('ai-ops-source-filter')?.value || 'all';
+      const outcome = document.getElementById('ai-ops-outcome-filter')?.value || '';
+      const timeRange = document.getElementById('ai-ops-time-filter')?.value || '7d';
       // Split "agent:slug" prefix into a fleet-only filter; bare values stay legacy.
       const isAgentFilter = rawMod.startsWith('agent:');
       const agentSlug = isAgentFilter ? rawMod.slice('agent:'.length) : '';
       const mod = isAgentFilter ? '' : rawMod;
       // Effective source: agent: prefix forces fleet, otherwise honor dropdown.
       const effSource = isAgentFilter ? 'fleet' : source;
+      // Build a `since` ISO timestamp for both branches; "all" leaves it blank.
+      const sinceMap = { '24h': 24, '7d': 24 * 7, '30d': 24 * 30 };
+      const sinceISO = sinceMap[timeRange]
+        ? new Date(Date.now() - sinceMap[timeRange] * 60 * 60 * 1000).toISOString()
+        : '';
+      // Outcome filter is rendered post-fetch (legacy and fleet use different
+      // status field names: outcome vs status). Map "escalated" to either path.
+      const matchesOutcome = (row, src) => {
+        if (!outcome) return true;
+        const v = (src === 'fleet' ? row.status : row.outcome) || '';
+        if (outcome === 'escalated') {
+          return v === 'escalated' || (src === 'fleet' && row.needs_review && !row.reviewed_at);
+        }
+        return v === outcome;
+      };
 
       listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>';
       try {
@@ -10285,14 +10332,17 @@
 
         // Fleet-only branch.
         if (effSource === 'fleet') {
-          const p = new URLSearchParams({ limit: 50 });
+          const p = new URLSearchParams({ limit: 100 });
           if (agentSlug) p.set('agent', agentSlug);
+          if (sinceISO) p.set('since', sinceISO);
           const r = await fetch(`${apiBase}/api/admin/agent-fleet/actions?${p}`, { headers: getAiOpsHeaders() });
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           const j = await r.json();
-          const actions = j.actions || [];
+          let actions = (j.actions || []).filter(a => matchesOutcome(a, 'fleet'));
+          if (sinceISO) actions = actions.filter(a => new Date(a.created_at) >= new Date(sinceISO));
+          actions = actions.slice(0, 50);
           if (actions.length === 0) {
-            listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No agent fleet actions yet.</div>';
+            listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No agent fleet actions match the current filters.</div>';
             if (pagEl) pagEl.innerHTML = '';
             return;
           }
@@ -10303,9 +10353,11 @@
 
         // Unified ("all") branch — fetch both legacy and fleet, merge by created_at.
         if (effSource === 'all') {
-          const fleetParams = new URLSearchParams({ limit: 25 });
-          const legacyParams = new URLSearchParams({ page: 1, limit: 25 });
+          const fleetParams = new URLSearchParams({ limit: 50 });
+          if (sinceISO) fleetParams.set('since', sinceISO);
+          const legacyParams = new URLSearchParams({ page: 1, limit: 50 });
           if (mod) legacyParams.set('module', mod);
+          if (sinceISO) legacyParams.set('since', sinceISO);
           const [fleetRes, legacyRes] = await Promise.all([
             fetch(`${apiBase}/api/admin/agent-fleet/actions?${fleetParams}`, { headers: getAiOpsHeaders() })
               .then(r => r.ok ? r.json() : { actions: [] })
@@ -10314,11 +10366,16 @@
               .catch(() => ({ actions: [] }))
           ]);
           const merged = [
-            ...(fleetRes.actions || []).map(a => ({ __src: 'fleet', __ts: a.created_at, row: a })),
-            ...(legacyRes.actions || []).map(a => ({ __src: 'legacy', __ts: a.created_at, row: a }))
-          ].sort((a, b) => new Date(b.__ts) - new Date(a.__ts)).slice(0, 50);
+            ...(fleetRes.actions  || []).filter(a => matchesOutcome(a, 'fleet'))
+              .map(a => ({ __src: 'fleet',  __ts: a.created_at, row: a })),
+            ...(legacyRes.actions || []).filter(a => matchesOutcome(a, 'legacy'))
+              .map(a => ({ __src: 'legacy', __ts: a.created_at, row: a }))
+          ]
+            .filter(m => !sinceISO || new Date(m.__ts) >= new Date(sinceISO))
+            .sort((a, b) => new Date(b.__ts) - new Date(a.__ts))
+            .slice(0, 50);
           if (merged.length === 0) {
-            listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No AI activity yet.</div>';
+            listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No AI activity matches the current filters.</div>';
             if (pagEl) pagEl.innerHTML = '';
             return;
           }
@@ -10332,6 +10389,8 @@
         // Legacy-only branch (preserves the original paginated behavior).
         const params = new URLSearchParams({ page: aiOpsActivityPage, limit: 25 });
         if (mod) params.set('module', mod);
+        if (sinceISO) params.set('since', sinceISO);
+        if (outcome && outcome !== 'escalated') params.set('outcome', outcome);
         const data = await safeFetch(`${apiBase}/api/admin/ai-ops/actions?${params}`, { headers: getAiOpsHeaders() });
         const actions = data.actions || [];
         if (actions.length === 0) {
